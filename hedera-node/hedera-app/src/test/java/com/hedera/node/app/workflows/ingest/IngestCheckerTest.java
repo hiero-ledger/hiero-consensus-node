@@ -142,7 +142,7 @@ class IngestCheckerTest extends AppTestBase {
 
     private TransactionInfo transactionInfo;
     private TransactionBody txBody;
-    private Transaction tx;
+    private SignedTransaction signedTx;
     private Bytes serializedTx;
 
     private Configuration configuration;
@@ -164,16 +164,13 @@ class IngestCheckerTest extends AppTestBase {
                                 Timestamp.newBuilder().seconds(Instant.now().getEpochSecond())))
                 .nodeAccountID(nodeSelfAccountId)
                 .build();
-        final var signedTx = SignedTransaction.newBuilder()
+        signedTx = SignedTransaction.newBuilder()
                 .bodyBytes(asBytes(TransactionBody.PROTOBUF, txBody))
                 .build();
-        tx = Transaction.newBuilder()
-                .signedTransactionBytes(asBytes(SignedTransaction.PROTOBUF, signedTx))
-                .build();
-        serializedTx = Transaction.PROTOBUF.toBytes(tx);
+        serializedTx = SignedTransaction.PROTOBUF.toBytes(signedTx);
 
         transactionInfo = new TransactionInfo(
-                tx, txBody, MOCK_SIGNATURE_MAP, tx.signedTransactionBytes(), UNCHECKED_SUBMIT, serializedTx);
+                signedTx, txBody, MOCK_SIGNATURE_MAP, signedTx.bodyBytes(), UNCHECKED_SUBMIT, serializedTx);
         when(transactionChecker.parseAndCheck(serializedTx, maxBytes)).thenReturn(transactionInfo);
 
         final var configProvider = HederaTestConfigBuilder.createConfigProvider();
@@ -283,7 +280,7 @@ class IngestCheckerTest extends AppTestBase {
     void testRunAllChecksSuccessfully() throws Exception {
         // given
         final var expected = new TransactionInfo(
-                tx, txBody, MOCK_SIGNATURE_MAP, tx.signedTransactionBytes(), UNCHECKED_SUBMIT, serializedTx);
+                signedTx, txBody, MOCK_SIGNATURE_MAP, signedTx.bodyBytes(), UNCHECKED_SUBMIT, serializedTx);
         final var verificationResultFuture = mock(SignatureVerificationFuture.class);
         final var verificationResult = mock(SignatureVerification.class);
         when(verificationResult.failed()).thenReturn(false);
@@ -401,10 +398,10 @@ class IngestCheckerTest extends AppTestBase {
             final var serializedCryptoAddLiveHashTx = Transaction.PROTOBUF.toBytes(cryptoAddLiveHashTx);
 
             final var cryptoAddLiveHashTransactionInfo = new TransactionInfo(
-                    cryptoAddLiveHashTx,
+                    signedTx,
                     cryptoAddLiveHashTxBody,
                     MOCK_SIGNATURE_MAP,
-                    cryptoAddLiveHashTx.signedTransactionBytes(),
+                    cryptoAddLiveHashTx.bodyBytes(),
                     CRYPTO_ADD_LIVE_HASH,
                     serializedCryptoAddLiveHashTx);
             when(transactionChecker.parseAndCheck(serializedCryptoAddLiveHashTx, maxBytes))
@@ -430,22 +427,14 @@ class IngestCheckerTest extends AppTestBase {
             final var signedTx = SignedTransaction.newBuilder()
                     .bodyBytes(asBytes(TransactionBody.PROTOBUF, freezeTxBody))
                     .build();
-            final var freezeTx = Transaction.newBuilder()
-                    .signedTransactionBytes(asBytes(SignedTransaction.PROTOBUF, signedTx))
-                    .build();
-            final var serializedFreezeTx = Transaction.PROTOBUF.toBytes(freezeTx);
+            final var serializedSignedTx = SignedTransaction.PROTOBUF.toBytes(signedTx);
 
             final var freezeTransactionInfo = new TransactionInfo(
-                    freezeTx,
-                    freezeTxBody,
-                    MOCK_SIGNATURE_MAP,
-                    freezeTx.signedTransactionBytes(),
-                    FREEZE,
-                    serializedFreezeTx);
-            when(transactionChecker.parseAndCheck(serializedFreezeTx, maxBytes)).thenReturn(freezeTransactionInfo);
+                    signedTx, freezeTxBody, MOCK_SIGNATURE_MAP, signedTx.bodyBytes(), FREEZE, serializedSignedTx);
+            when(transactionChecker.parseAndCheck(serializedSignedTx, maxBytes)).thenReturn(freezeTransactionInfo);
 
             assertThatThrownBy(() ->
-                            subject.runAllChecks(state, serializedFreezeTx, configuration, new IngestChecker.Result()))
+                            subject.runAllChecks(state, serializedSignedTx, configuration, new IngestChecker.Result()))
                     .isInstanceOf(PreCheckException.class)
                     .hasFieldOrPropertyWithValue("responseCode", NOT_SUPPORTED);
         }
@@ -629,21 +618,17 @@ class IngestCheckerTest extends AppTestBase {
                             .accountID(accountID)
                             .build())
                     .build();
-            final var myTx = tx.copyBuilder()
-                    .signedTransactionBytes(asBytes(
-                            SignedTransaction.PROTOBUF,
-                            SignedTransaction.newBuilder()
-                                    .bodyBytes(asBytes(TransactionBody.PROTOBUF, myTxBody))
-                                    .build()))
+            final var mySignedTx = SignedTransaction.newBuilder()
+                    .bodyBytes(asBytes(TransactionBody.PROTOBUF, myTxBody))
                     .build();
-            final var mySerializedTx = Transaction.PROTOBUF.toBytes(myTx);
+            final var mySerializedSignedTx = SignedTransaction.PROTOBUF.toBytes(mySignedTx);
             final var myTransactionInfo = new TransactionInfo(
-                    myTx,
+                    mySignedTx,
                     myTxBody,
                     MOCK_SIGNATURE_MAP,
-                    myTx.signedTransactionBytes(),
+                    mySignedTx.bodyBytes(),
                     UNCHECKED_SUBMIT,
-                    mySerializedTx);
+                    mySerializedSignedTx);
             when(transactionChecker.parseAndCheck(serializedTx, maxBytes)).thenReturn(myTransactionInfo);
             when(solvencyPreCheck.getPayerAccount(any(), eq(accountID))).thenReturn(account);
             final var verificationResultFutureAlice = mock(SignatureVerificationFuture.class);
@@ -685,21 +670,21 @@ class IngestCheckerTest extends AppTestBase {
                             .accountID(accountID)
                             .build())
                     .build();
-            final var myTx = tx.copyBuilder()
-                    .signedTransactionBytes(asBytes(
-                            SignedTransaction.PROTOBUF,
-                            SignedTransaction.newBuilder()
-                                    .bodyBytes(asBytes(TransactionBody.PROTOBUF, myTxBody))
-                                    .build()))
+            final var mySignedTx = SignedTransaction.newBuilder()
+                    .bodyBytes(asBytes(TransactionBody.PROTOBUF, myTxBody))
+                    .build();
+            final var mySerializedSignedTx = SignedTransaction.PROTOBUF.toBytes(mySignedTx);
+            final var myTx = Transaction.newBuilder()
+                    .signedTransactionBytes(mySerializedSignedTx)
                     .build();
             final var mySerializedTx = Transaction.PROTOBUF.toBytes(myTx);
             final var myTransactionInfo = new TransactionInfo(
-                    myTx,
+                    mySignedTx,
                     myTxBody,
                     MOCK_SIGNATURE_MAP,
-                    myTx.signedTransactionBytes(),
+                    mySignedTx.bodyBytes(),
                     UNCHECKED_SUBMIT,
-                    mySerializedTx);
+                    mySerializedSignedTx);
             when(transactionChecker.parseAndCheck(mySerializedTx, maxBytes)).thenReturn(myTransactionInfo);
             when(solvencyPreCheck.getPayerAccount(any(), eq(accountID))).thenReturn(account);
             final var verificationResultFutureAlice = mock(SignatureVerificationFuture.class);
@@ -742,16 +727,15 @@ class IngestCheckerTest extends AppTestBase {
                             .accountID(accountID)
                             .build())
                     .build();
-            final var myTx = tx.copyBuilder()
-                    .signedTransactionBytes(asBytes(
-                            SignedTransaction.PROTOBUF,
-                            SignedTransaction.newBuilder()
-                                    .bodyBytes(asBytes(TransactionBody.PROTOBUF, myTxBody))
-                                    .build()))
+            final var mySignedTx = SignedTransaction.newBuilder()
+                    .bodyBytes(asBytes(TransactionBody.PROTOBUF, myTxBody))
+                    .build();
+            final var myTx = Transaction.newBuilder()
+                    .signedTransactionBytes(asBytes(SignedTransaction.PROTOBUF, mySignedTx))
                     .build();
             final var mySerializedTx = Transaction.PROTOBUF.toBytes(myTx);
             final var myTransactionInfo = new TransactionInfo(
-                    myTx,
+                    mySignedTx,
                     myTxBody,
                     MOCK_SIGNATURE_MAP,
                     myTx.signedTransactionBytes(),
@@ -800,21 +784,16 @@ class IngestCheckerTest extends AppTestBase {
                             .accountID(accountID)
                             .build())
                     .build();
-            final var myTx = tx.copyBuilder()
-                    .signedTransactionBytes(asBytes(
-                            SignedTransaction.PROTOBUF,
-                            SignedTransaction.newBuilder()
-                                    .bodyBytes(asBytes(TransactionBody.PROTOBUF, myTxBody))
-                                    .build()))
+            final var mySignedTx = SignedTransaction.newBuilder()
+                    .bodyBytes(asBytes(TransactionBody.PROTOBUF, myTxBody))
+                    .build();
+            final var mySerializedSignedTx = SignedTransaction.PROTOBUF.toBytes(mySignedTx);
+            final var myTx = Transaction.newBuilder()
+                    .signedTransactionBytes(mySerializedSignedTx)
                     .build();
             final var mySerializedTx = Transaction.PROTOBUF.toBytes(myTx);
             final var myTransactionInfo = new TransactionInfo(
-                    myTx,
-                    myTxBody,
-                    MOCK_SIGNATURE_MAP,
-                    myTx.signedTransactionBytes(),
-                    UNCHECKED_SUBMIT,
-                    mySerializedTx);
+                    mySignedTx, myTxBody, MOCK_SIGNATURE_MAP, mySignedTx.bodyBytes(), UNCHECKED_SUBMIT, mySerializedTx);
             when(transactionChecker.parseAndCheck(mySerializedTx, maxBytes)).thenReturn(myTransactionInfo);
             when(solvencyPreCheck.getPayerAccount(any(), eq(accountID))).thenReturn(account);
             final var verificationResultFutureAlice = mock(SignatureVerificationFuture.class);

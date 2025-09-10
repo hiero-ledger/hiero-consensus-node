@@ -57,7 +57,7 @@ class WritableRosterStoreTest {
                 .thenReturn(rosters);
         when(writableStates.<RosterState>getSingleton(WritableRosterStore.ROSTER_STATES_KEY))
                 .thenReturn(new OnDiskWritableSingletonState<>(
-                        RosterStateId.NAME, WritableRosterStore.ROSTER_STATES_KEY, RosterState.PROTOBUF, virtualMap));
+                        RosterStateId.NAME, WritableRosterStore.ROSTER_STATES_KEY, virtualMap));
 
         readableRosterStore = new ReadableRosterStoreImpl(writableStates);
         writableRosterStore = new WritableRosterStore(writableStates);

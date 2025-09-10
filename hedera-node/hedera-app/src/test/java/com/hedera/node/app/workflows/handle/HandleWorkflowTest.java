@@ -38,6 +38,8 @@ import com.hedera.node.app.service.schedule.ScheduleService;
 import com.hedera.node.app.service.token.impl.handlers.staking.StakeInfoHelper;
 import com.hedera.node.app.service.token.impl.handlers.staking.StakePeriodManager;
 import com.hedera.node.app.services.NodeRewardManager;
+import com.hedera.node.app.spi.info.NetworkInfo;
+import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.state.HederaRecordCache;
 import com.hedera.node.app.throttle.CongestionMetrics;
 import com.hedera.node.app.throttle.ThrottleServiceManager;
@@ -52,17 +54,15 @@ import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.node.config.types.BlockStreamWriterMode;
 import com.hedera.node.config.types.StreamMode;
-import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.state.State;
-import com.swirlds.state.lifecycle.info.NetworkInfo;
-import com.swirlds.state.lifecycle.info.NodeInfo;
 import com.swirlds.state.spi.ReadableSingletonState;
 import com.swirlds.state.spi.ReadableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.test.fixtures.CryptoRandomUtils;
@@ -216,7 +216,7 @@ class HandleWorkflowTest {
         verify(eventFromPresentCreator).consensusTransactionIterator();
         verify(recordCache).resetRoundReceipts();
         verify(recordCache)
-                .commitRoundReceipts(any(), any(), same(immediateStateChangeListener), same(blockStreamManager), any());
+                .commitReceipts(any(), any(), same(immediateStateChangeListener), same(blockStreamManager), any());
     }
 
     @Test
@@ -226,7 +226,7 @@ class HandleWorkflowTest {
 
         given(round.iterator()).willReturn(List.of(event).iterator());
         given(event.getConsensusTimestamp()).willReturn(NOW);
-        given(systemTransactions.restartSystemChangesTimeAt(any())).willReturn(NOW);
+        given(systemTransactions.firstReservedSystemTimeFor(any())).willReturn(NOW);
         final var firstBuilder = StateChanges.newBuilder().stateChanges(List.of(StateChange.DEFAULT));
         final var secondBuilder =
                 StateChanges.newBuilder().stateChanges(List.of(StateChange.DEFAULT, StateChange.DEFAULT));
@@ -251,10 +251,9 @@ class HandleWorkflowTest {
         given(event.allParentsIterator())
                 .willReturn(List.<EventDescriptorWrapper>of().iterator());
         given(event.getEventCore()).willReturn(EventCore.DEFAULT);
-        given(event.getSignature()).willReturn(Bytes.wrap(new byte[64])); // Empty signature
 
         // Set up the round
-        given(round.iterator()).willReturn(List.of(event).iterator());
+        given(round.iterator()).willAnswer(invocationOnMock -> List.of(event).iterator());
 
         // Setup node info for event creator
         NodeId creatorId = NodeId.of(0);
@@ -276,7 +275,7 @@ class HandleWorkflowTest {
         verify(blockStreamManager, atLeastOnce()).writeItem(blockItemCaptor.capture());
 
         // Find the BlockItem that has an event header
-        BlockItem eventHeaderItem = blockItemCaptor.getAllValues().stream()
+        final var eventHeaderItem = blockItemCaptor.getAllValues().stream()
                 .filter(BlockItem::hasEventHeader)
                 .findFirst()
                 .orElseThrow(() -> new AssertionError("No BlockItem with event header found"));
@@ -305,17 +304,15 @@ class HandleWorkflowTest {
         given(event.getHash()).willReturn(eventHash);
         given(event.allParentsIterator()).willReturn(List.of(parent).iterator());
         given(event.getEventCore()).willReturn(EventCore.DEFAULT);
-        given(event.getSignature()).willReturn(Bytes.wrap(new byte[64])); // Empty signature
 
         // Setup node info for event creator
         NodeId creatorId = NodeId.of(0);
         given(event.getCreatorId()).willReturn(creatorId);
         given(networkInfo.nodeInfo(creatorId.id())).willReturn(mock(NodeInfo.class));
-        given(event.consensusTransactionIterator())
-                .willReturn(List.<ConsensusTransaction>of().iterator());
+        given(event.consensusTransactionIterator()).willReturn(emptyIterator());
 
         // Set up the round
-        given(round.iterator()).willReturn(List.of(event).iterator());
+        given(round.iterator()).willAnswer(invocationOnMock -> List.of(event).iterator());
 
         // Create subject with BLOCKS mode
         givenSubjectWith(StreamMode.BLOCKS, BlockStreamWriterMode.FILE, List.of());
@@ -330,7 +327,7 @@ class HandleWorkflowTest {
         verify(blockStreamManager, atLeastOnce()).writeItem(blockItemCaptor.capture());
 
         // Find the BlockItem that has an event header
-        BlockItem eventHeaderItem = blockItemCaptor.getAllValues().stream()
+        final var eventHeaderItem = blockItemCaptor.getAllValues().stream()
                 .filter(BlockItem::hasEventHeader)
                 .findFirst()
                 .orElseThrow(() -> new AssertionError("No BlockItem with event header found"));
@@ -366,7 +363,6 @@ class HandleWorkflowTest {
         given(event.getHash()).willReturn(eventHash);
         given(event.allParentsIterator()).willReturn(List.of(parent).iterator());
         given(event.getEventCore()).willReturn(EventCore.DEFAULT);
-        given(event.getSignature()).willReturn(Bytes.wrap(new byte[64])); // Empty signature
 
         // Setup node info for event creator
         NodeId creatorId = NodeId.of(0);
@@ -375,7 +371,7 @@ class HandleWorkflowTest {
         given(event.consensusTransactionIterator()).willReturn(emptyIterator());
 
         // Set up the round
-        given(round.iterator()).willReturn(List.of(event).iterator());
+        given(round.iterator()).willAnswer(invocationOnMock -> List.of(event).iterator());
 
         // Create subject with BLOCKS mode
         givenSubjectWith(StreamMode.BLOCKS, BlockStreamWriterMode.FILE, List.of());
@@ -390,7 +386,7 @@ class HandleWorkflowTest {
         verify(blockStreamManager, atLeastOnce()).writeItem(blockItemCaptor.capture());
 
         // Find the BlockItem that has an event header
-        BlockItem eventHeaderItem = blockItemCaptor.getAllValues().stream()
+        final var eventHeaderItem = blockItemCaptor.getAllValues().stream()
                 .filter(BlockItem::hasEventHeader)
                 .findFirst()
                 .orElseThrow(() -> new AssertionError("No BlockItem with event header found"));
@@ -435,7 +431,6 @@ class HandleWorkflowTest {
         given(event.allParentsIterator())
                 .willReturn(List.of(parentInBlock, parentNotInBlock).iterator());
         given(event.getEventCore()).willReturn(EventCore.DEFAULT);
-        given(event.getSignature()).willReturn(Bytes.wrap(new byte[64])); // Empty signature
 
         // Setup node info for event creator
         NodeId creatorId = NodeId.of(0);
@@ -444,7 +439,7 @@ class HandleWorkflowTest {
         given(event.consensusTransactionIterator()).willReturn(emptyIterator());
 
         // Set up the round
-        given(round.iterator()).willReturn(List.of(event).iterator());
+        given(round.iterator()).willAnswer(invocationOnMock -> List.of(event).iterator());
 
         // Create subject with BLOCKS mode
         givenSubjectWith(StreamMode.BLOCKS, BlockStreamWriterMode.FILE, List.of());
@@ -459,7 +454,7 @@ class HandleWorkflowTest {
         verify(blockStreamManager, atLeastOnce()).writeItem(blockItemCaptor.capture());
 
         // Find the BlockItem that has an event header
-        BlockItem eventHeaderItem = blockItemCaptor.getAllValues().stream()
+        final var eventHeaderItem = blockItemCaptor.getAllValues().stream()
                 .filter(BlockItem::hasEventHeader)
                 .findFirst()
                 .orElseThrow(() -> new AssertionError("No BlockItem with event header found"));
@@ -502,7 +497,6 @@ class HandleWorkflowTest {
                 cacheWarmer,
                 opWorkflowMetrics,
                 throttleServiceManager,
-                version,
                 initTrigger,
                 hollowAccountCompletions,
                 systemTransactions,
@@ -522,7 +516,8 @@ class HandleWorkflowTest {
                 null,
                 nodeRewardManager,
                 platformStateFacade,
-                blockBufferService);
+                blockBufferService,
+                Map.of());
     }
 
     @Test
@@ -536,12 +531,11 @@ class HandleWorkflowTest {
         given(event.getHash()).willReturn(eventHash);
         given(event.getCreatorId()).willReturn(creatorId);
         given(event.getEventCore()).willReturn(EventCore.DEFAULT);
-        given(event.getSignature()).willReturn(Bytes.wrap(new byte[64]));
         given(event.allParentsIterator())
                 .willReturn(List.<EventDescriptorWrapper>of().iterator());
         given(networkInfo.nodeInfo(creatorId.id())).willReturn(mock(NodeInfo.class));
         given(event.consensusTransactionIterator()).willReturn(emptyIterator());
-        given(round.iterator()).willReturn(List.of(event).iterator());
+        given(round.iterator()).willAnswer(invocationOnMock -> List.of(event).iterator());
 
         // Create subject with streamToBlockNodes enabled
         givenSubjectWith(BOTH, BlockStreamWriterMode.FILE_AND_GRPC, emptyList());

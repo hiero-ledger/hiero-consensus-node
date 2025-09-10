@@ -161,7 +161,7 @@ public class BlockItemsTranslator {
                     final var ethOutput = outputValueIfPresent(
                             TransactionOutput::hasEthereumCall, TransactionOutput::ethereumCallOrThrow, outputs);
                     if (ethOutput != null) {
-                        switch (ethOutput.txnResult().kind()) {
+                        switch (ethOutput.transactionResult().kind()) {
                             case EVM_CALL_TRANSACTION_RESULT ->
                                 recordBuilder.contractCallResult(
                                         legacyResultFrom(ethOutput.evmCallTransactionResultOrThrow(), context, logs));

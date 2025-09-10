@@ -39,13 +39,16 @@ public class SubmitMessageTranslator implements BlockTransactionPartsTranslator 
                     if (parts.status() == SUCCESS) {
                         recordBuilder.assessedCustomFees(parts.assessedCustomFees());
                         receiptBuilder.topicRunningHashVersion(RUNNING_HASH_VERSION);
+
                         // Within batch transactions (inner or their children), state changes from earlier transactions
                         // can be overwritten by subsequent transactions in the same batch (e.g., multiple msg submits).
                         // Therefore, construct the record from trace data when available.
-                        final var maybeTraceData = maybeSubmitMessageTraceData(tracesSoFar);
-                        if (maybeTraceData != null) {
-                            receiptBuilder.topicSequenceNumber(maybeTraceData.sequenceNumber());
-                            receiptBuilder.topicRunningHash(maybeTraceData.runningHash());
+                        if (parts.isInnerBatchTxn()) {
+                            final var maybeTraceData = maybeSubmitMessageTraceData(tracesSoFar);
+                            if (maybeTraceData != null) {
+                                receiptBuilder.topicSequenceNumber(maybeTraceData.sequenceNumber());
+                                receiptBuilder.topicRunningHash(maybeTraceData.runningHash());
+                            }
                             return;
                         }
 
@@ -84,6 +87,7 @@ public class SubmitMessageTranslator implements BlockTransactionPartsTranslator 
                 final var trace = tracesSoFar.get(i);
                 if (trace.hasSubmitMessageTraceData()) {
                     result = trace.submitMessageTraceData();
+                    tracesSoFar.remove(i);
                     break;
                 }
             }

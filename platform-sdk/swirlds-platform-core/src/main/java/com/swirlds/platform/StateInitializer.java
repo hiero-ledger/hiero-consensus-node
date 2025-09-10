@@ -107,19 +107,19 @@ public final class StateInitializer {
      * </p>
      *
      * @deprecated This method should be removed together with {@code MerkleStateRoot}. Only state root function should be used then.
-     * @param stateRootFunction a function to instantiate the state root object from a Virtual Map
-     * @param stateRoot         the root of the state to initialize
-     * @param metrics           the metrics
+     * @param createStateFromVirtualMap a function to instantiate the state object from a Virtual Map
+     * @param stateRoot                 the root of the state to initialize
+     * @param metrics                   the metrics
      * @return the initialized {@code MerkleNodeState}
      */
     @Deprecated
     public static MerkleNodeState initializeMerkleNodeState(
-            @NonNull final Function<VirtualMap, MerkleNodeState> stateRootFunction,
+            @NonNull final Function<VirtualMap, MerkleNodeState> createStateFromVirtualMap,
             @NonNull final MerkleNode stateRoot,
             @NonNull final Metrics metrics) {
         if (stateRoot instanceof VirtualMap virtualMap) {
             virtualMap.registerMetrics(metrics);
-            return stateRootFunction.apply(virtualMap);
+            return createStateFromVirtualMap.apply(virtualMap);
         } else {
             return (MerkleNodeState) stateRoot;
         }

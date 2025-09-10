@@ -3,6 +3,7 @@ package com.hedera.node.app.service.contract.impl.utils;
 
 import static com.esaulpaugh.headlong.abi.Address.toChecksumAddress;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
+import static com.hedera.node.app.hapi.utils.MiscCryptoUtils.keccak256DigestOf;
 import static com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations.MISSING_ENTITY_NUMBER;
 import static com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations.NON_CANONICAL_REFERENCE_NUMBER;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.ReturnTypes.ZERO_CONTRACT_ID;
@@ -16,6 +17,7 @@ import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.hapi.block.stream.trace.ContractSlotUsage;
 import com.hedera.hapi.block.stream.trace.EvmTransactionLog;
 import com.hedera.hapi.block.stream.trace.SlotRead;
+import com.hedera.hapi.block.stream.trace.WrittenSlotKeys;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.Duration;
@@ -24,6 +26,7 @@ import com.hedera.hapi.node.base.ScheduleID;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.contract.ContractCreateTransactionBody;
 import com.hedera.hapi.node.contract.ContractLoginfo;
+import com.hedera.hapi.node.hooks.LambdaMappingEntry;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.transaction.ExchangeRate;
 import com.hedera.hapi.streams.ContractStateChange;
@@ -33,12 +36,16 @@ import com.hedera.node.app.service.contract.impl.exec.CallOutcome;
 import com.hedera.node.app.service.contract.impl.exec.scope.HandleHederaNativeOperations;
 import com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations;
 import com.hedera.node.app.service.contract.impl.exec.scope.HederaOperations;
+import com.hedera.node.app.service.contract.impl.infra.StorageAccessTracker;
 import com.hedera.node.app.service.contract.impl.records.ContractCallStreamBuilder;
+import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
+import com.hedera.node.app.service.contract.impl.state.RootProxyWorldUpdater;
 import com.hedera.node.app.service.contract.impl.state.StorageAccesses;
+import com.hedera.node.app.service.contract.impl.state.TxStorageUsage;
 import com.hedera.node.app.service.token.ReadableAccountStore;
+import com.hedera.node.app.spi.ids.EntityIdFactory;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.config.data.HederaConfig;
-import com.swirlds.state.lifecycle.EntityIdFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.math.BigInteger;
@@ -107,7 +114,7 @@ public class ConversionUtils {
 
     /**
      * Given a {@link com.esaulpaugh.headlong.abi.Address}, returns its implied token id.
-     *
+     * <p>
      * Use the passed in EntityIdFactory to create the TokenID.  This means that the new TokenID
      * will have the same shard and realm as the EntityIdFactory's default shard and realm which it reads from configuration.
      *
@@ -319,26 +326,34 @@ public class ConversionUtils {
 
     /**
      * Given a list of {@link StorageAccesses}, converts them to a list of PBJ {@link ContractSlotUsage}s.
-     *
      * @param storageAccesses the {@link StorageAccesses}
+     * @param traceExplicitWrites whether the writes should be traced explicitly
      * @return the list of slot usages
      */
     public static @Nullable List<ContractSlotUsage> asPbjSlotUsages(
-            @Nullable final List<StorageAccesses> storageAccesses) {
+            @Nullable final List<StorageAccesses> storageAccesses, final boolean traceExplicitWrites) {
         if (storageAccesses == null) {
             return null;
         }
         final List<ContractSlotUsage> slotUsages = new ArrayList<>();
         for (final var storageAccess : storageAccesses) {
             final List<SlotRead> reads = new ArrayList<>();
-            final List<com.hedera.pbj.runtime.io.buffer.Bytes> writes = new ArrayList<>();
+            final List<com.hedera.pbj.runtime.io.buffer.Bytes> writes = traceExplicitWrites ? new ArrayList<>() : null;
             for (final var access : storageAccess.accesses()) {
                 if (!access.isReadOnly()) {
-                    writes.add(access.trimmedKeyBytes());
-                    reads.add(SlotRead.newBuilder()
-                            .index(writes.size() - 1)
-                            .readValue(access.trimmedValueBytes())
-                            .build());
+                    if (writes != null) {
+                        writes.add(access.trimmedKeyBytes());
+                        reads.add(SlotRead.newBuilder()
+                                .index(writes.size() - 1)
+                                .readValue(access.trimmedValueBytes())
+                                .build());
+                    } else {
+                        // The block stream builder replaces the key with its index in the writes list once known
+                        reads.add(SlotRead.newBuilder()
+                                .key(tuweniToPbjBytes(access.key()))
+                                .readValue(access.trimmedValueBytes())
+                                .build());
+                    }
                 } else {
                     reads.add(SlotRead.newBuilder()
                             .key(access.trimmedKeyBytes())
@@ -346,14 +361,21 @@ public class ConversionUtils {
                             .build());
                 }
             }
-            slotUsages.add(new ContractSlotUsage(storageAccess.contractID(), writes, reads));
+            if (traceExplicitWrites) {
+                slotUsages.add(ContractSlotUsage.newBuilder()
+                        .contractId(storageAccess.contractID())
+                        .writtenSlotKeys(new WrittenSlotKeys(writes))
+                        .slotReads(reads)
+                        .build());
+            } else {
+                slotUsages.add(new ContractSlotUsage(storageAccess.contractID(), null, reads));
+            }
         }
         return slotUsages;
     }
 
     /**
      * Given a Besu {@link Log}, converts it a PBJ {@link ContractLoginfo}.
-     *
      * @param entityIdFactory the entity id factory
      * @param log the Besu {@link Log}
      * @return the PBJ {@link ContractLoginfo}
@@ -608,6 +630,24 @@ public class ConversionUtils {
             throw new IllegalArgumentException("Cannot extract id number from address " + address);
         }
         return entityIdFactory.newContractId(numberOfLongZero(address));
+    }
+
+    /**
+     * Converts
+     * - a long-zero address to a PBJ {@link ContractID} with id number instead of alias.
+     * - an EVM address to a PBJ {@link ContractID} with alias instead of id number.
+     *
+     * @param entityIdFactory the entity id factory
+     * @param address the EVM address
+     * @return the PBJ {@link ContractID}
+     */
+    public static ContractID asContractId(
+            @NonNull final EntityIdFactory entityIdFactory, @NonNull final Address address) {
+        if (isLongZero(address)) {
+            return entityIdFactory.newContractId(numberOfLongZero(address));
+        } else {
+            return asEvmContractId(entityIdFactory, address);
+        }
     }
 
     /**
@@ -1078,5 +1118,86 @@ public class ConversionUtils {
                         .map(ConversionUtils::pbjToTuweniBytes)
                         .map(LogTopic::create)
                         .toList());
+    }
+
+    /**
+     * Takes the available context for an EVM transaction's storage usage and summarizes them, if applicable, in a
+     * {@link TxStorageUsage}.
+     * <p>
+     * The available context includes up to two parts, both of them optional:
+     * <ol>
+     *     <li>The root {@link ProxyWorldUpdater} for the transaction (possibly null if it was aborted before
+     *     entering the EVM); and,</li>
+     *     <li>A {@link StorageAccessTracker} capturing the transaction's <i>read</i> storage slots.</li>
+     * </ol>
+     * If no context is available, returns null. Otherwise returns a {@link TxStorageUsage} with at least the read
+     * usage; and, if the updater is available and {@code checkForWrites} is true, also the write usage.
+     * @param updater the proxy world updater to extract write accesses from
+     * @param accessTracker the access tracker to extract reads from
+     * @param checkForWrites whether to check if the updater has writes to include
+     * @return the storage usage for the transaction, or null if the frame has no access tracker
+     */
+    public static @Nullable TxStorageUsage txStorageUsageFrom(
+            @Nullable final ProxyWorldUpdater updater,
+            @Nullable final StorageAccessTracker accessTracker,
+            final boolean checkForWrites) {
+        if (accessTracker == null) {
+            return null;
+        } else {
+            if (checkForWrites) {
+                requireNonNull(updater);
+                if (updater instanceof RootProxyWorldUpdater rootProxyWorldUpdater) {
+                    final var txStorageUsage = rootProxyWorldUpdater.getTxStorageUsage();
+                    final var accesses = accessTracker.getReadsMergedWith(txStorageUsage.accesses());
+                    return new TxStorageUsage(accesses, txStorageUsage.changedKeys());
+                } else {
+                    // This was a static call, so we only have reads
+                    return new TxStorageUsage(accessTracker.getJustReads(), null);
+                }
+            } else {
+                return new TxStorageUsage(accessTracker.getJustReads(), null);
+            }
+        }
+    }
+
+    /**
+     * Returns a minimal representation of the given bytes, stripping leading zeros.
+     * @param bytes the bytes to strip leading zeros from
+     * @return the minimal representation of the bytes, or an empty bytes if all bytes were stripped
+     */
+    public static com.hedera.pbj.runtime.io.buffer.Bytes minimalRepresentationOf(
+            @NonNull final com.hedera.pbj.runtime.io.buffer.Bytes bytes) {
+        int i = 0;
+        int n = (int) bytes.length();
+        while (i < n && bytes.getByte(i) == 0) {
+            i++;
+        }
+        if (i == n) {
+            return com.hedera.pbj.runtime.io.buffer.Bytes.EMPTY;
+        } else if (i == 0) {
+            return bytes;
+        } else {
+            return bytes.slice(i, n - i);
+        }
+    }
+
+    /**
+     * Returns the slot key for a mapping entry, given the left-padded mapping slot and the entry.
+     * <p>
+     * C.f. Solidity docs <a href="https://docs.soliditylang.org/en/latest/internals/layout_in_storage.html">here</a>.
+     * @param leftPaddedMappingSlot the left-padded mapping slot
+     * @param entry the mapping entry
+     * @return the slot key for the mapping entry
+     */
+    public static com.hedera.pbj.runtime.io.buffer.Bytes slotKeyOfMappingEntry(
+            @NonNull final com.hedera.pbj.runtime.io.buffer.Bytes leftPaddedMappingSlot,
+            @NonNull final LambdaMappingEntry entry) {
+        final com.hedera.pbj.runtime.io.buffer.Bytes hK;
+        if (entry.hasKey()) {
+            hK = leftPad32(entry.keyOrThrow());
+        } else {
+            hK = keccak256DigestOf(entry.preimageOrThrow());
+        }
+        return keccak256DigestOf(hK.append(leftPaddedMappingSlot));
     }
 }

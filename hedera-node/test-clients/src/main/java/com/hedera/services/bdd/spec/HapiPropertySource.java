@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.spec;
 
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromByteString;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.DurationConverter.parseDuration;
 import static com.hedera.services.bdd.suites.utils.sysfiles.BookEntryPojo.asOctets;
 import static java.util.Objects.requireNonNull;
 
@@ -38,7 +39,6 @@ import java.util.stream.Stream;
 
 public interface HapiPropertySource {
     HapiPropertySource defaultSource = initializeDefaultSource();
-    String NODE_BLOCK_STREAM_DIR = String.format("block-%d.%d.3", getSpecDefaultShard(), getSpecDefaultRealm());
     String NODE_RECORD_STREAM_DIR = String.format("record%d.%d.3", getSpecDefaultShard(), getSpecDefaultRealm());
 
     private static HapiPropertySource initializeDefaultSource() {
@@ -215,6 +215,16 @@ public interface HapiPropertySource {
 
     default Duration getDurationFromSecs(String property) {
         return Duration.newBuilder().setSeconds(getInteger(property)).build();
+    }
+
+    /**
+     * Parses a {@link java.time.Duration} from the given property using the same format as the
+     * {@link com.swirlds.config.api.Configuration} API.
+     * @param property the property to get the value from
+     * @return the parsed {@link java.time.Duration}
+     */
+    default java.time.Duration getConfigDuration(String property) {
+        return parseDuration(get(property));
     }
 
     default boolean getBoolean(String property) {

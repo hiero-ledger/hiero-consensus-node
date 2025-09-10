@@ -4,7 +4,7 @@ package com.hedera.node.app.workflows.handle;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.FAIL_INVALID;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.USER;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.ReversingBehavior.REVERSIBLE;
-import static com.hedera.node.app.spi.workflows.record.StreamBuilder.TransactionCustomizer.NOOP_TRANSACTION_CUSTOMIZER;
+import static com.hedera.node.app.spi.workflows.record.StreamBuilder.SignedTxCustomizer.NOOP_SIGNED_TX_CUSTOMIZER;
 import static com.hedera.node.config.types.StreamMode.BLOCKS;
 import static com.hedera.node.config.types.StreamMode.RECORDS;
 import static java.util.Objects.requireNonNull;
@@ -31,17 +31,17 @@ import java.util.List;
  *
  * @param blockRecordSource maybe the block stream output items
  * @param recordSource maybe record source derived from the V6 record stream items
- * @param firstAssignedConsensusTime the first consensus time assigned to a transaction in the output
+ * @param lastAssignedConsensusTime the last consensus time assigned to a transaction in the output
  */
 public record HandleOutput(
         @Nullable BlockRecordSource blockRecordSource,
         @Nullable RecordSource recordSource,
-        @NonNull Instant firstAssignedConsensusTime) {
+        @NonNull Instant lastAssignedConsensusTime) {
     public HandleOutput {
         if (blockRecordSource == null) {
             requireNonNull(recordSource);
         }
-        requireNonNull(firstAssignedConsensusTime);
+        requireNonNull(lastAssignedConsensusTime);
     }
 
     /**
@@ -69,7 +69,7 @@ public record HandleOutput(
         RecordSource cacheableRecordSource = null;
         final RecordSource recordSource;
         if (streamMode != BLOCKS) {
-            final var failInvalidBuilder = new RecordStreamBuilder(REVERSIBLE, NOOP_TRANSACTION_CUSTOMIZER, USER);
+            final var failInvalidBuilder = new RecordStreamBuilder(REVERSIBLE, NOOP_SIGNED_TX_CUSTOMIZER, USER);
             HandleWorkflow.initializeBuilderInfo(failInvalidBuilder, parentTxn.txnInfo(), exchangeRates)
                     .status(FAIL_INVALID)
                     .consensusTimestamp(parentTxn.consensusNow());
@@ -85,11 +85,11 @@ public record HandleOutput(
         final BlockRecordSource blockRecordSource;
         if (streamMode != RECORDS) {
             final List<BlockStreamBuilder.Output> outputs = new LinkedList<>();
-            final var failInvalidBuilder = new BlockStreamBuilder(REVERSIBLE, NOOP_TRANSACTION_CUSTOMIZER, USER);
+            final var failInvalidBuilder = new BlockStreamBuilder(REVERSIBLE, NOOP_SIGNED_TX_CUSTOMIZER, USER);
             HandleWorkflow.initializeBuilderInfo(failInvalidBuilder, parentTxn.txnInfo(), exchangeRates)
                     .status(FAIL_INVALID)
                     .consensusTimestamp(parentTxn.consensusNow());
-            outputs.add(failInvalidBuilder.build(true, false));
+            outputs.add(failInvalidBuilder.build(true, null));
             cacheableRecordSource = blockRecordSource = new BlockRecordSource(outputs);
         } else {
             blockRecordSource = null;

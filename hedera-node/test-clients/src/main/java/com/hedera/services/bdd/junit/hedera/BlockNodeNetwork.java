@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.junit.hedera;
 
-import static com.hedera.services.bdd.junit.hedera.ExternalPath.APPLICATION_PROPERTIES;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.DATA_CONFIG_DIR;
 import static com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNetwork.findAvailablePort;
 
@@ -13,7 +12,6 @@ import com.hedera.services.bdd.junit.hedera.simulator.SimulatedBlockNodeServer;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardOpenOption;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -21,8 +19,10 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -39,7 +39,7 @@ public class BlockNodeNetwork {
     private final Map<Long, long[]> blockNodePrioritiesBySubProcessNodeId = new HashMap<>();
     private final Map<Long, long[]> blockNodeIdsBySubProcessNodeId = new HashMap<>();
 
-    public static final int BLOCK_NODE_LOCAL_PORT = 8080;
+    public static final int BLOCK_NODE_LOCAL_PORT = 40840;
 
     private BlockNodeSimulatorController blockNodeSimulatorController;
 
@@ -92,7 +92,7 @@ public class BlockNodeNetwork {
 
         List<CompletableFuture<Void>> shutdownFutures = new ArrayList<>();
         for (Entry<Long, SimulatedBlockNodeServer> entry : simulatedBlockNodeById.entrySet()) {
-            SimulatedBlockNodeServer server = entry.getValue();
+            final SimulatedBlockNodeServer server = entry.getValue();
             CompletableFuture<Void> future = CompletableFuture.runAsync(() -> {
                 try {
                     server.stop();
@@ -120,18 +120,22 @@ public class BlockNodeNetwork {
             if (entry.getValue() == BlockNodeMode.REAL) {
                 // TODO
             } else if (entry.getValue() == BlockNodeMode.SIMULATOR) {
-                // Find an available port
-                int port = findAvailablePort();
-                SimulatedBlockNodeServer server = new SimulatedBlockNodeServer(port);
-                try {
-                    server.start();
-                } catch (Exception e) {
-                    throw new RuntimeException("Failed to start simulated block node on port " + port, e);
-                }
-                logger.info("Started shared simulated block node @ localhost:{}", port);
-                simulatedBlockNodeById.put(entry.getKey(), server);
+                addSimulatorNode(entry.getKey(), null);
             }
         }
+    }
+
+    public void addSimulatorNode(Long id, Supplier<Long> lastVerifiedBlockNumberSupplier) {
+        // Find an available port
+        int port = findAvailablePort();
+        final SimulatedBlockNodeServer server = new SimulatedBlockNodeServer(port, lastVerifiedBlockNumberSupplier);
+        try {
+            server.start();
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to start simulated block node on port " + port, e);
+        }
+        logger.info("Started shared simulated block node @ localhost:{}", port);
+        simulatedBlockNodeById.put(id, server);
     }
 
     public void configureBlockNodeConnectionInformation(HederaNode node) {
@@ -147,7 +151,7 @@ public class BlockNodeNetwork {
             if (mode == BlockNodeMode.REAL) {
                 throw new UnsupportedOperationException("Real block nodes are not supported yet");
             } else if (mode == BlockNodeMode.SIMULATOR) {
-                SimulatedBlockNodeServer sim = simulatedBlockNodeById.get(blockNodeId);
+                final SimulatedBlockNodeServer sim = simulatedBlockNodeById.get(blockNodeId);
                 int priority = (int) blockNodePrioritiesBySubProcessNodeId.get(node.getNodeId())[blockNodeIndex];
                 blockNodes.add(new BlockNodeConfig("localhost", sim.getPort(), priority));
             } else if (mode == BlockNodeMode.LOCAL_NODE) {
@@ -160,9 +164,6 @@ public class BlockNodeNetwork {
                 // Write the config to this consensus node's block-nodes.json
                 Path configPath = node.getExternalPath(DATA_CONFIG_DIR).resolve("block-nodes.json");
                 Files.writeString(configPath, BlockNodeConnectionInfo.JSON.toJSON(connectionInfo));
-
-                // Update application.properties with block stream settings
-                updateApplicationPropertiesWithGrpcStreaming(node);
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
@@ -170,43 +171,12 @@ public class BlockNodeNetwork {
         logger.info("Configured block node connection information for node {}: {}", node.getNodeId(), blockNodes);
     }
 
-    private static void updateApplicationPropertiesWithGrpcStreaming(HederaNode node) throws IOException {
-        Path appPropertiesPath = node.getExternalPath(APPLICATION_PROPERTIES);
-        logger.info(
-                "Attempting to update application.properties at path {} for node {}",
-                appPropertiesPath,
-                node.getNodeId());
-
-        // First check if file exists and log current content
-        if (Files.exists(appPropertiesPath)) {
-            String currentContent = Files.readString(appPropertiesPath);
-            logger.info("Current application.properties content for node {}: {}", node.getNodeId(), currentContent);
-        } else {
-            logger.info(
-                    "application.properties does not exist yet for node {}, will create new file", node.getNodeId());
-        }
-
-        String blockStreamConfig =
-                """
-                # Block stream configuration
-                blockStream.writerMode=FILE_AND_GRPC
-                blockStream.shutdownNodeOnNoBlockNodes=true
-                blockNode.streamResetPeriod=60s
-                """;
-
-        // Write the properties with CREATE and APPEND options
-        Files.writeString(appPropertiesPath, blockStreamConfig, StandardOpenOption.CREATE, StandardOpenOption.APPEND);
-
-        // Verify the file was updated
-        String updatedContent = Files.readString(appPropertiesPath);
-        logger.info(
-                "Verified application.properties content after update for node {}: {}",
-                node.getNodeId(),
-                updatedContent);
-    }
-
     public Map<Long, BlockNodeMode> getBlockNodeModeById() {
         return blockNodeModeById;
+    }
+
+    public Set<Long> nodeIds() {
+        return getBlockNodeModeById().keySet();
     }
 
     public Map<Long, SimulatedBlockNodeServer> getSimulatedBlockNodeById() {

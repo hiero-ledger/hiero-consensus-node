@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.inOrder;
 
+import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.swirlds.state.test.fixtures.FunctionWritableSingletonState;
 import java.time.Duration;
 import java.util.SplittableRandom;
@@ -25,7 +26,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 public class WritableSingletonStateBaseTest extends ReadableSingletonStateTest {
 
     @Override
-    protected WritableSingletonStateBase<String> createState() {
+    protected WritableSingletonStateBase<ProtoBytes> createState() {
         return new FunctionWritableSingletonState<>(
                 COUNTRY_STATE_KEY, COUNTRY_SERVICE_NAME, backingStore::get, backingStore::set);
     }
@@ -92,7 +93,7 @@ public class WritableSingletonStateBaseTest extends ReadableSingletonStateTest {
             final var nextValue = new AtomicInteger();
             final var putFuture = runAsync(() -> {
                 while (!done.get()) {
-                    final var value = values.get(nextValue.getAndIncrement() % NUM_UNIQUE_STRINGS);
+                    final var value = toProtoBytes(values.get(nextValue.getAndIncrement() % NUM_UNIQUE_STRINGS));
                     state.put(value);
                     state.commit();
                     // Confirm that concurrent get() calls don't corrupt the committed modification
@@ -236,12 +237,12 @@ public class WritableSingletonStateBaseTest extends ReadableSingletonStateTest {
     @ExtendWith(MockitoExtension.class)
     final class WithRegisteredListeners {
         @Mock
-        private SingletonChangeListener<String> firstListener;
+        private SingletonChangeListener<ProtoBytes> firstListener;
 
         @Mock
-        private SingletonChangeListener<String> secondListener;
+        private SingletonChangeListener<ProtoBytes> secondListener;
 
-        private final WritableSingletonStateBase<String> subject = createState();
+        private final WritableSingletonStateBase<ProtoBytes> subject = createState();
 
         @BeforeEach
         void setUp() {
@@ -254,11 +255,12 @@ public class WritableSingletonStateBaseTest extends ReadableSingletonStateTest {
         void allAreNotifiedOfPopsAndAddsInOrder() {
             final var inOrder = inOrder(firstListener, secondListener);
 
-            subject.put("Dragonfruit");
+            ProtoBytes dValue = toProtoBytes("Dragonfruit");
+            subject.put(dValue);
             subject.commit();
 
-            inOrder.verify(firstListener).singletonUpdateChange("Dragonfruit");
-            inOrder.verify(secondListener).singletonUpdateChange("Dragonfruit");
+            inOrder.verify(firstListener).singletonUpdateChange(toProtoBytes("Dragonfruit"));
+            inOrder.verify(secondListener).singletonUpdateChange(toProtoBytes("Dragonfruit"));
         }
     }
 }

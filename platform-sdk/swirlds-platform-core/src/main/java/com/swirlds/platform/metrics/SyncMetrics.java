@@ -5,6 +5,7 @@ import static com.swirlds.metrics.api.FloatFormats.FORMAT_10_0;
 import static com.swirlds.metrics.api.FloatFormats.FORMAT_10_3;
 import static com.swirlds.metrics.api.FloatFormats.FORMAT_15_3;
 import static com.swirlds.metrics.api.FloatFormats.FORMAT_8_1;
+import static com.swirlds.metrics.api.FloatFormats.FORMAT_DECIMAL_3;
 import static com.swirlds.metrics.api.Metrics.INTERNAL_CATEGORY;
 import static com.swirlds.metrics.api.Metrics.PLATFORM_CATEGORY;
 
@@ -14,6 +15,7 @@ import com.swirlds.common.metrics.RunningAverageMetric;
 import com.swirlds.common.metrics.extensions.CountPerSecond;
 import com.swirlds.common.metrics.extensions.PhaseTimer;
 import com.swirlds.common.metrics.extensions.PhaseTimerBuilder;
+import com.swirlds.metrics.api.DoubleGauge;
 import com.swirlds.metrics.api.FloatFormats;
 import com.swirlds.metrics.api.IntegerGauge;
 import com.swirlds.metrics.api.Metrics;
@@ -146,6 +148,12 @@ public class SyncMetrics {
             .withDescription("Number of times per second we do not sync because the intake counter is too high");
     private final CountPerSecond doNotSyncIntakeCounter;
 
+    private static final CountPerSecond.Config DO_NOT_SYNC_FAIR_SELECTOR_CONFIG = new CountPerSecond.Config(
+                    PLATFORM_CATEGORY, "doNotSyncFairSelector")
+            .withUnit("hz")
+            .withDescription("Number of times per second we do not sync because of the fair selector");
+    private final CountPerSecond doNotSyncFairSelector;
+
     private final IntegerGauge.Config RPC_READ_THREAD_RUNNING_CONFIG = new IntegerGauge.Config(
                     Metrics.PLATFORM_CATEGORY, "rpcReadThreadRunning")
             .withDescription("number of rpc thread running in read mode");
@@ -157,6 +165,15 @@ public class SyncMetrics {
     private final IntegerGauge.Config RPC_DISPATCH_THREAD_RUNNING_CONFIG = new IntegerGauge.Config(
                     Metrics.PLATFORM_CATEGORY, "rpcDispatchThreadRunning")
             .withDescription("number of rpc thread running in dispatch mode");
+
+    private final IntegerGauge.Config SYNCS_IN_PROGRESS_CONFIG = new IntegerGauge.Config(
+                    Metrics.PLATFORM_CATEGORY, "syncs_in_progress")
+            .withDescription("number of syncs running concurrently");
+
+    private final DoubleGauge.Config SYNC_LAG_BEHIND_CONFIG = new DoubleGauge.Config(
+                    Metrics.PLATFORM_CATEGORY, "sync_round_lag")
+            .withDescription("How many rounds on average are we lagging behind peers")
+            .withFormat(FORMAT_DECIMAL_3);
 
     private final RunningAverageMetric tipsPerSync;
 
@@ -182,6 +199,8 @@ public class SyncMetrics {
     private final IntegerGauge rpcReadThreadRunning;
     private final IntegerGauge rpcWriteThreadRunning;
     private final IntegerGauge rpcDispatchThreadRunning;
+    private final IntegerGauge syncsInProgress;
+    private final DoubleGauge syncLagBehind;
 
     /**
      * Constructor of {@code SyncMetrics}
@@ -214,10 +233,12 @@ public class SyncMetrics {
         doNotSyncAlreadyStarted = new CountPerSecond(metrics, DO_NOT_SYNC_ALREADY_STARTED_CONFIG);
         doNotSyncNoPermits = new CountPerSecond(metrics, DO_NOT_SYNC_NO_PERMITS_CONFIG);
         doNotSyncIntakeCounter = new CountPerSecond(metrics, DO_NOT_SYNC_INTAKE_COUNTER_CONFIG);
+        doNotSyncFairSelector = new CountPerSecond(metrics, DO_NOT_SYNC_FAIR_SELECTOR_CONFIG);
 
         rpcReadThreadRunning = metrics.getOrCreate(RPC_READ_THREAD_RUNNING_CONFIG);
         rpcWriteThreadRunning = metrics.getOrCreate(RPC_WRITE_THREAD_RUNNING_CONFIG);
         rpcDispatchThreadRunning = metrics.getOrCreate(RPC_DISPATCH_THREAD_RUNNING_CONFIG);
+        syncsInProgress = metrics.getOrCreate(SYNCS_IN_PROGRESS_CONFIG);
 
         avgSyncDuration = new AverageAndMaxTimeStat(
                 metrics,
@@ -302,13 +323,15 @@ public class SyncMetrics {
                 "rpc_output_queue_poll_time",
                 "amount of us spent sleeping waiting for poll to happen or timeout on rpc output queue",
                 FORMAT_10_0);
+
+        syncLagBehind = metrics.getOrCreate(SYNC_LAG_BEHIND_CONFIG);
     }
 
     /**
      * Supplies the event window numbers of a sync for statistics
      *
-     * @param self  event window of our graph at the start of the sync
-     * @param other event window of their graph at the start of the sync
+     * @param self   event window of our graph at the start of the sync
+     * @param other  event window of their graph at the start of the sync
      */
     public void eventWindow(@NonNull final EventWindow self, @NonNull final EventWindow other) {
         syncIndicatorDiff.update(self.ancientThreshold() - other.ancientThreshold());
@@ -506,6 +529,13 @@ public class SyncMetrics {
     }
 
     /**
+     * Signal that we chose not to sync because the intake counter is too high.
+     */
+    public void doNotSyncFairSelector() {
+        doNotSyncFairSelector.count();
+    }
+
+    /**
      * Report size of the outgoing queue
      *
      * @param size size of the queue
@@ -605,5 +635,23 @@ public class SyncMetrics {
      */
     public void rpcDispatchThreadRunning(final int change) {
         rpcDispatchThreadRunning.add(change);
+    }
+
+    /**
+     * Report that synchronization has started
+     */
+    public void syncStarted() {
+        syncsInProgress.add(+1);
+    }
+
+    /**
+     * Report that synchronization has finished
+     */
+    public void syncFinished() {
+        syncsInProgress.add(-1);
+    }
+
+    public void reportMedianLag(final double medianLag) {
+        syncLagBehind.set(medianLag);
     }
 }

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.junit.support.translators.impl;
 
+import static com.hedera.hapi.node.base.ResponseCodeEnum.REVERTED_SUCCESS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static java.util.Objects.requireNonNull;
 
@@ -61,6 +62,20 @@ public class ContractDeleteTranslator implements BlockTransactionPartsTranslator
                         log.error(
                                 "No matching state change found for successful contract delete with id {}",
                                 parts.transactionIdOrThrow());
+                    }
+                    // In a reverted batch, the contract deletion is rolled back, so there is no deleted account
+                    // in the state changes. For legacy record compatibility, we use the contract ID from the
+                    // original transaction body to populate the receipt.
+                    else if (parts.status() == REVERTED_SUCCESS && parts.isInnerBatchTxn()) {
+                        final var contractID =
+                                parts.body().contractDeleteInstanceOrThrow().contractID();
+                        if (contractID.hasEvmAddress()) {
+                            baseTranslator
+                                    .findContractNum(contractID.evmAddressOrThrow())
+                                    .ifPresent(receiptBuilder::contractID);
+                        } else {
+                            receiptBuilder.contractID(contractID);
+                        }
                     }
                 },
                 remainingStateChanges,

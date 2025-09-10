@@ -105,7 +105,7 @@ public class RoleFreeBlockUnitSplit {
             if (item.hasTransactionResult()) {
                 return null;
             } else {
-                return TransactionParts.from(item.eventTransactionOrThrow().applicationTransactionOrThrow());
+                return TransactionParts.from(item.signedTransactionOrThrow());
             }
         });
 
@@ -116,7 +116,7 @@ public class RoleFreeBlockUnitSplit {
                 if (hasEmptyOrKvOrNonReceiptQueueChanges(item.stateChangesOrThrow())) {
                     stateChangeIndexes.add(i);
                 }
-            } else if (item.hasEventTransaction()) {
+            } else if (item.hasSignedTransaction()) {
                 txIndexes.add(i);
             } else if (item.hasTransactionResult()) {
                 resultIndexes.add(i);
@@ -160,7 +160,7 @@ public class RoleFreeBlockUnitSplit {
             for (int k = i; k < j && !done; k++) {
                 final var item = items.get(k);
                 switch (item.item().kind()) {
-                    case EVENT_TRANSACTION, TRANSACTION_RESULT, TRANSACTION_OUTPUT, TRACE_DATA, STATE_CHANGES ->
+                    case SIGNED_TRANSACTION, TRANSACTION_RESULT, TRANSACTION_OUTPUT, TRACE_DATA, STATE_CHANGES ->
                         txItems.add(item);
                     default -> done = true;
                 }
@@ -225,7 +225,7 @@ public class RoleFreeBlockUnitSplit {
             final var pending = new PendingBlockTransactionParts();
             for (final var item : nextPartItems) {
                 switch (item.item().kind()) {
-                    case EVENT_TRANSACTION -> pending.addPartsEnforcingOrder(getParts.apply(idx));
+                    case SIGNED_TRANSACTION -> pending.addPartsEnforcingOrder(getParts.apply(idx));
                     case TRANSACTION_RESULT -> pending.addResultEnforcingOrder(item.transactionResultOrThrow());
                     case TRANSACTION_OUTPUT -> pending.addOutputEnforcingOrder(item.transactionOutputOrThrow());
                     case TRACE_DATA -> pending.addTraceEnforcingOrder(item.traceDataOrThrow());

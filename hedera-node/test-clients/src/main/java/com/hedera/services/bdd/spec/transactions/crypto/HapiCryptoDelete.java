@@ -4,6 +4,7 @@ package com.hedera.services.bdd.spec.transactions.crypto;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asAccount;
 import static com.hedera.services.bdd.spec.queries.QueryUtils.lookUpAccountWithAlias;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
+import static java.util.Objects.requireNonNull;
 
 import com.google.common.base.MoreObjects;
 import com.hedera.services.bdd.spec.HapiSpec;
@@ -16,9 +17,12 @@ import com.hederahashgraph.api.proto.java.HederaFunctionality;
 import com.hederahashgraph.api.proto.java.Key;
 import com.hederahashgraph.api.proto.java.Transaction;
 import com.hederahashgraph.api.proto.java.TransactionBody;
+import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import org.apache.logging.log4j.LogManager;
@@ -34,6 +38,9 @@ public class HapiCryptoDelete extends HapiTxnOp<HapiCryptoDelete> {
     private Optional<String> transferAccount = Optional.empty();
     private ReferenceType referenceType = ReferenceType.REGISTRY_NAME;
 
+    @Nullable
+    private BiConsumer<HapiSpec, CryptoDeleteTransactionBody.Builder> explicitDef;
+
     public HapiCryptoDelete(String account) {
         this.account = account;
     }
@@ -45,6 +52,10 @@ public class HapiCryptoDelete extends HapiTxnOp<HapiCryptoDelete> {
         } else {
             account = reference;
         }
+    }
+
+    public HapiCryptoDelete(@NonNull final BiConsumer<HapiSpec, CryptoDeleteTransactionBody.Builder> def) {
+        explicitDef = requireNonNull(def);
     }
 
     @Override
@@ -81,22 +92,28 @@ public class HapiCryptoDelete extends HapiTxnOp<HapiCryptoDelete> {
 
     @Override
     protected Consumer<TransactionBody.Builder> opBodyDef(HapiSpec spec) throws Throwable {
-        AccountID target;
-
-        if (referenceType == ReferenceType.REGISTRY_NAME) {
-            target = TxnUtils.asId(account, spec);
+        final AccountID target;
+        if (explicitDef == null) {
+            if (referenceType == ReferenceType.REGISTRY_NAME) {
+                target = TxnUtils.asId(account, spec);
+            } else {
+                account = lookUpAccountWithAlias(spec, aliasKeySource);
+                target = asAccount(account);
+            }
         } else {
-            account = lookUpAccountWithAlias(spec, aliasKeySource);
-            target = asAccount(account);
+            target = AccountID.getDefaultInstance();
         }
-
         CryptoDeleteTransactionBody opBody = spec.txns()
                 .<CryptoDeleteTransactionBody, CryptoDeleteTransactionBody.Builder>body(
                         CryptoDeleteTransactionBody.class, b -> {
-                            transferAccount.ifPresent(
-                                    a -> b.setTransferAccountID(spec.registry().getAccountID(a)));
-                            if (!omitId) {
-                                b.setDeleteAccountID(target);
+                            if (explicitDef != null) {
+                                explicitDef.accept(spec, b);
+                            } else {
+                                transferAccount.ifPresent(a ->
+                                        b.setTransferAccountID(spec.registry().getAccountID(a)));
+                                if (!omitId) {
+                                    b.setDeleteAccountID(target);
+                                }
                             }
                         });
         return b -> b.setCryptoDelete(opBody);

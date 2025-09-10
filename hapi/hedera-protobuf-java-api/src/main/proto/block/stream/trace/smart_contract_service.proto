@@ -1,5 +1,5 @@
 /**
- * # Smart Contract Service
+ * # Smart Contract Service Trace Data
  * Block stream messages that report the trace data of transactions handled
  * by the `smart contract` service.
  *
@@ -27,6 +27,19 @@ import "google/protobuf/wrappers.proto";
 
 /**
  * Usage of a contract's storage slots in an EVM transaction.<br/>
+ * In the common case that a contract operation is the only EVM
+ * transaction in its Hiero transactional unit, this message simply
+ * sets `written_keys_are_non_identical_state_changes` to true;
+ * meaning a stream consumer should extract the written keys from
+ * the Hiero unit's SlotKey state changes that match this message's
+ * `contract_id` (but ignoring any* MapUpdateChange with
+ * `identical` set to true).
+ * <p>
+ * In the less common case that an EVM transaction is one of
+ * several in its Hiero transactional unit (e.g., because it is
+ * one of several ContractCalls in an AtomicBatch); this message
+ * explicitly traces the storage slots that were written during
+ * its transaction's execution.
  */
 message ContractSlotUsage {
     /**
@@ -35,7 +48,8 @@ message ContractSlotUsage {
     proto.ContractID contract_id = 1;
 
     /**
-     * The storage slots that were written to in the EVM transaction.
+     * When this EVM transaction was one of several within its Hiero
+     * transactional unit, the storage slots that it wrote.
      * <p>
      * The written value can be unambiguously derived from the block items
      * in this EVM transaction's Hiero transactional unit. In particular,
@@ -44,13 +58,17 @@ message ContractSlotUsage {
      * 2. If the slot was not modified in a following EVM trace, the value
      * is whatever value was committed to the Merkle state for the slot.
      */
-    repeated bytes written_slot_keys = 2;
+    WrittenSlotKeys written_slot_keys = 3;
 
     /**
      * The storage slots that were read in this EVM execution. They may or
      * may not have associated slot writes.
      */
-    repeated SlotRead slot_reads = 3;
+    repeated SlotRead slot_reads = 4;
+}
+
+message WrittenSlotKeys {
+    repeated bytes keys = 1;
 }
 
 /**
@@ -59,39 +77,35 @@ message ContractSlotUsage {
 message SlotRead {
     oneof identifier {
         /**
-        * If this slot was also written, the index of the written key in the
-        * ContractSlotUsage#slot_writes list above.
+        * If this slot was also written, the index of the written key in a
+        * an explicit or implicit list of written keys in the stream.
+        * <p>
+        * The case of the explicit list is when this SlotRead appears in a
+        * ContractSlotUsage with `written_slot_keys` set to a non-empty list
+        * of keys. In this case, the index is into that list.
+        * <p>
+        * The case of the implicit list is when this SlotRead appears in a
+        * ContractSlotUsage with `written_slot_keys` unset. In this case,
+        * the list is implicit---it is the list of all SlotKey state changes
+        * in the Hiero transactional unit that match this ContractSlotUsage's
+        * `contract_id` and have `identical` set to false.
         */
         int32 index = 1;
 
         /**
-        * If this slot was only read, its key; may be left-padded with zeros to 32 bytes.
+        * If this slot was only read, its key represented with minimal bytes
+        * (no leading zeros); a stream consumer can left-pad this field with
+        * zeros to form a 32-byte EVM slot key.
         */
         bytes key = 2;
     }
 
     /**
-    * The storage value in this slot, may be left-padded with zeros to 32 bytes.
+    * The storage value in this slot, represented with minimal bytes (no
+    * leading zeros); a stream consumer can left-pad this field with zeros.
+    * to form a 32-byte EVM slot value.
     */
     bytes read_value = 3;
-}
-
-/**
- * Information about the initcode of a contract whose creation was attempted
- * during the EVM transaction.
- */
-message ContractInitcode {
-    oneof code {
-        /**
-         * The initcode used for a failed top-level creation.
-         */
-        bytes failed_initcode = 2;
-
-        /**
-         * The initcode "bookends" around a newly created contract's runtime bytecode.
-         */
-        ExecutedInitcode executed_initcode = 3;
-    }
 }
 
 /**
@@ -153,44 +167,45 @@ message EvmTransactionLog {
     bytes data = 2;
 
     /**
-     * The log's topics; may be left-padded with zeros to form 256-bit words.
+     * The log's topics represented with minimal bytes (no leading zeros);
+     * a stream consumer can left-pad with zeros to form a 256-bit words.
      */
     repeated bytes topics = 3;
 }
 
 /**
  * EVM trace data, including:
- * 1. Initcode used for any internal contract creations.
- * 2. Contract actions executed during the transaction (i.e., the call trace)
- * 3. Contract slot usages, including reads and writes.
- * 4. Events logged during the transaction.
- * 5. Full error message, if any, produced by the contract call.
+ * 1. Contract actions executed during the transaction (i.e., the call trace)
+ * 2. Contract slot usages, including reads and writes.
+ * 3. Full error message, if any, produced by the contract call.
+ * 4. Initcode used for any internal contract creations.
+ * 5. Events logged during the transaction.
  */
-message EVMTraceData {
-    /**
-     * The initcode of child contracts created during execution.
-     */
-    repeated ContractInitcode initcodes = 1;
-
+message EvmTraceData {
     /**
      * All contract actions executed during the transaction.
      */
-    repeated proto.ContractAction contract_actions = 2;
+    repeated proto.ContractAction contract_actions = 1;
 
     /**
      * Contract slot usages in the transaction, by contract id.
      */
-    repeated ContractSlotUsage contract_slot_usages = 3;
-
-    /**
-     * Log events produced during the transaction, by contract id.
-     */
-    repeated EvmTransactionLog logs = 4;
+    repeated ContractSlotUsage contract_slot_usages = 2;
 
     /**
      * Additional details of any error message in the EVM transaction result.
      * <p>
      * This SHALL be unset if the contract call succeeded.
      */
-    string error_details = 5;
+    string error_details = 3;
+
+    /**
+     * The initcode executed for an internal contract creation.
+     */
+    ExecutedInitcode executed_initcode = 4;
+
+    /**
+     * Log events produced during the transaction, by contract id.
+     */
+    repeated EvmTransactionLog logs = 5;
 }

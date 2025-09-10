@@ -16,12 +16,12 @@ import org.mockito.Mockito;
  * This test verifies the behavior of {@link WrappedWritableKVState}.
  */
 class WrappedWritableKVStateTest extends StateTestBase {
-    private WritableKVStateBase<ProtoBytes, String> delegate;
-    private WrappedWritableKVState<ProtoBytes, String> state;
+    private WritableKVStateBase<ProtoBytes, ProtoBytes> delegate;
+    private WrappedWritableKVState<ProtoBytes, ProtoBytes> state;
 
     @BeforeEach
     public void setUp() {
-        final var map = new HashMap<ProtoBytes, String>();
+        final var map = new HashMap<ProtoBytes, ProtoBytes>();
         map.put(A_KEY, APPLE);
         map.put(B_KEY, BANANA);
         this.delegate = new MapWritableKVState<>(FRUIT_SERVICE_NAME, FRUIT_STATE_KEY, map);

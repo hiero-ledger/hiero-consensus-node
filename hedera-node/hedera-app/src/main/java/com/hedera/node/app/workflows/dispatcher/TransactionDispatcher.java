@@ -147,6 +147,7 @@ public class TransactionDispatcher {
             case CONTRACT_CALL -> handlers.contractCallHandler();
             case CONTRACT_DELETE_INSTANCE -> handlers.contractDeleteHandler();
             case ETHEREUM_TRANSACTION -> handlers.ethereumTransactionHandler();
+            case LAMBDA_SSTORE -> handlers.lambdaSStoreHandler();
 
             case CRYPTO_CREATE_ACCOUNT -> handlers.cryptoCreateHandler();
             case CRYPTO_UPDATE_ACCOUNT -> handlers.cryptoUpdateHandler();
@@ -207,16 +208,18 @@ public class TransactionDispatcher {
             case HINTS_PREPROCESSING_VOTE -> handlers.hintsPreprocessingVoteHandler();
             case CRS_PUBLICATION -> handlers.crsPublicationHandler();
 
-            case SYSTEM_DELETE -> switch (txBody.systemDeleteOrThrow().id().kind()) {
-                case CONTRACT_ID -> handlers.contractSystemDeleteHandler();
-                case FILE_ID -> handlers.fileSystemDeleteHandler();
-                default -> throw new UnsupportedOperationException(SYSTEM_DELETE_WITHOUT_ID_CASE);
-            };
-            case SYSTEM_UNDELETE -> switch (txBody.systemUndeleteOrThrow().id().kind()) {
-                case CONTRACT_ID -> handlers.contractSystemUndeleteHandler();
-                case FILE_ID -> handlers.fileSystemUndeleteHandler();
-                default -> throw new UnsupportedOperationException(SYSTEM_UNDELETE_WITHOUT_ID_CASE);
-            };
+            case SYSTEM_DELETE ->
+                switch (txBody.systemDeleteOrThrow().id().kind()) {
+                    case CONTRACT_ID -> handlers.contractSystemDeleteHandler();
+                    case FILE_ID -> handlers.fileSystemDeleteHandler();
+                    default -> throw new UnsupportedOperationException(SYSTEM_DELETE_WITHOUT_ID_CASE);
+                };
+            case SYSTEM_UNDELETE ->
+                switch (txBody.systemUndeleteOrThrow().id().kind()) {
+                    case CONTRACT_ID -> handlers.contractSystemUndeleteHandler();
+                    case FILE_ID -> handlers.fileSystemUndeleteHandler();
+                    default -> throw new UnsupportedOperationException(SYSTEM_UNDELETE_WITHOUT_ID_CASE);
+                };
 
             default -> throw new UnsupportedOperationException(TYPE_NOT_SUPPORTED);
         };

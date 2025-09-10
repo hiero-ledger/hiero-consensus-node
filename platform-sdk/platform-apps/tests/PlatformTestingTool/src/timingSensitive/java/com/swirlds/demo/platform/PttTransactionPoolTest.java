@@ -32,6 +32,7 @@ import java.time.Instant;
 import java.util.Random;
 import org.hiero.base.crypto.test.fixtures.ED25519SigningProvider;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.transaction.TransactionPoolNexus;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
@@ -110,6 +111,7 @@ public class PttTransactionPoolTest {
         config = PayloadConfig.builder().setInvalidSigRatio(1).build();
         pttTransactionPool = new PttTransactionPool(
                 platform,
+                Mockito.mock(TransactionPoolNexus.class),
                 myID,
                 config,
                 "test",
@@ -130,6 +132,7 @@ public class PttTransactionPoolTest {
         config = PayloadConfig.builder().setInvalidSigRatio(0).build();
         pttTransactionPool = new PttTransactionPool(
                 platform,
+                Mockito.mock(TransactionPoolNexus.class),
                 myID,
                 config,
                 "test",

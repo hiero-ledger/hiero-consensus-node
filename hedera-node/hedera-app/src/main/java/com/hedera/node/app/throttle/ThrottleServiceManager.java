@@ -226,6 +226,9 @@ public class ThrottleServiceManager {
         if (usageSnapshots.hasGasThrottle()) {
             backendThrottle.gasLimitThrottle().resetUsageTo(usageSnapshots.gasThrottleOrThrow());
         }
+        if (usageSnapshots.hasEvmOpsDurationThrottle()) {
+            backendThrottle.opsDurationThrottle().resetUsageTo(usageSnapshots.evmOpsDurationThrottleOrThrow());
+        }
     }
 
     public void resetThrottlesUnconditionally(@NonNull final ReadableStates serviceStates) {
@@ -235,6 +238,9 @@ public class ThrottleServiceManager {
         resetUnconditionally(backendThrottle.allActiveThrottles(), usageSnapshots.tpsThrottles());
         if (usageSnapshots.hasGasThrottle()) {
             backendThrottle.gasLimitThrottle().resetUsageTo(usageSnapshots.gasThrottleOrThrow());
+        }
+        if (usageSnapshots.hasEvmOpsDurationThrottle()) {
+            backendThrottle.opsDurationThrottle().resetUsageTo(usageSnapshots.evmOpsDurationThrottleOrThrow());
         }
     }
 

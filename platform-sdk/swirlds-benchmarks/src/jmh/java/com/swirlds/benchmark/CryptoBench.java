@@ -35,7 +35,7 @@ import org.openjdk.jmh.annotations.Warmup;
 @State(Scope.Thread)
 @Warmup(iterations = 0)
 @Measurement(iterations = 1)
-public abstract class CryptoBench extends VirtualMapBench {
+public class CryptoBench extends VirtualMapBench {
 
     private static final Logger logger = LogManager.getLogger(CryptoBench.class);
 
@@ -51,6 +51,12 @@ public abstract class CryptoBench extends VirtualMapBench {
     private static final int FIXED_KEY_ID2 = 1;
     private Bytes fixedKey1;
     private Bytes fixedKey2;
+
+    @Override
+    public void beforeTest(String name) {
+        super.beforeTest(name);
+        updateMerkleDbPath();
+    }
 
     @Override
     String benchmarkName() {
@@ -101,6 +107,15 @@ public abstract class CryptoBench extends VirtualMapBench {
         tps.set(average(delta));
     }
 
+    private void totalTPS(long totalTime) {
+        long totalTxns = (long) numRecords * numFiles;
+        logger.info(
+                "Total transactions: {}, time: {} sec, TPS: {}",
+                totalTxns,
+                totalTime / MILLISECONDS,
+                totalTxns * MILLISECONDS / Math.max(totalTime, 1));
+    }
+
     /**
      * Emulates crypto transfer.
      * Reads a batch of "account" pairs and updates them by transferring a random amount from one to another.
@@ -122,7 +137,8 @@ public abstract class CryptoBench extends VirtualMapBench {
         tps = BenchmarkMetrics.registerTPS();
         initializeFixedAccounts(virtualMap);
 
-        long prevTime = System.currentTimeMillis();
+        long startTime = System.currentTimeMillis();
+        long prevTime = startTime;
         for (int i = 1; i <= numFiles; ++i) {
             // Generate a new set of unique random keys
             final Integer[] keys = generateKeySet();
@@ -140,23 +156,25 @@ public abstract class CryptoBench extends VirtualMapBench {
                 if (value1 == null) {
                     value1 = new BenchmarkValue(amount);
                 } else {
-                    value1.update(l -> l + amount);
+                    value1 = value1.copyBuilder().update(l -> l + amount).build();
                 }
                 virtualMap.put(key1, value1, BenchmarkValueCodec.INSTANCE);
 
                 if (value2 == null) {
                     value2 = new BenchmarkValue(-amount);
                 } else {
-                    value2.update(l -> l - amount);
+                    value2 = value2.copyBuilder().update(l -> l - amount).build();
                 }
                 virtualMap.put(key2, value2, BenchmarkValueCodec.INSTANCE);
 
                 // Model fees
                 value1 = virtualMap.get(fixedKey1, BenchmarkValueCodec.INSTANCE);
-                value1.update(l -> l + 1);
+                assert value1 != null;
+                value1 = value1.copyBuilder().update(l -> l + 1).build();
                 virtualMap.put(fixedKey1, value1, BenchmarkValueCodec.INSTANCE);
                 value2 = virtualMap.get(fixedKey2, BenchmarkValueCodec.INSTANCE);
-                value2.update(l -> l + 1);
+                assert value2 != null;
+                value2 = value2.copyBuilder().update(l -> l + 1).build();
                 virtualMap.put(fixedKey2, value2, BenchmarkValueCodec.INSTANCE);
 
                 if (verify) {
@@ -174,6 +192,7 @@ public abstract class CryptoBench extends VirtualMapBench {
             updateTPS(i, curTime - prevTime);
             prevTime = curTime;
         }
+        totalTPS(System.currentTimeMillis() - startTime);
 
         // Ensure the map is done with hashing/merging/flushing
         final VirtualMap finalMap = flushMap(virtualMap);
@@ -219,7 +238,8 @@ public abstract class CryptoBench extends VirtualMapBench {
 
         initializeFixedAccounts(virtualMap);
 
-        long prevTime = System.currentTimeMillis();
+        long startTime = System.currentTimeMillis();
+        long prevTime = startTime;
         for (int i = 1; i <= numFiles; ++i) {
             // Generate a new set of unique random keys
             final Integer[] keys = generateKeySet();
@@ -251,23 +271,25 @@ public abstract class CryptoBench extends VirtualMapBench {
                 if (value1 == null) {
                     value1 = new BenchmarkValue(amount);
                 } else {
-                    value1.update(l -> l + amount);
+                    value1 = value1.copyBuilder().update(l -> l + amount).build();
                 }
                 virtualMap.put(key1, value1, BenchmarkValueCodec.INSTANCE);
 
                 if (value2 == null) {
                     value2 = new BenchmarkValue(-amount);
                 } else {
-                    value2.update(l -> l - amount);
+                    value2 = value2.copyBuilder().update(l -> l - amount).build();
                 }
                 virtualMap.put(key2, value2, BenchmarkValueCodec.INSTANCE);
 
                 // Model fees
                 value1 = virtualMap.get(fixedKey1, BenchmarkValueCodec.INSTANCE);
-                value1.update(l -> l + 1);
+                assert value1 != null;
+                value1 = value1.copyBuilder().update(l -> l + 1).build();
                 virtualMap.put(fixedKey1, value1, BenchmarkValueCodec.INSTANCE);
                 value2 = virtualMap.get(fixedKey2, BenchmarkValueCodec.INSTANCE);
-                value2.update(l -> l + 1);
+                assert value2 != null;
+                value2 = value2.copyBuilder().update(l -> l + 1).build();
                 virtualMap.put(fixedKey2, value2, BenchmarkValueCodec.INSTANCE);
 
                 if (verify) {
@@ -287,6 +309,7 @@ public abstract class CryptoBench extends VirtualMapBench {
             updateTPS(i, curTime - prevTime);
             prevTime = curTime;
         }
+        totalTPS(System.currentTimeMillis() - startTime);
 
         // Ensure the map is done with hashing/merging/flushing
         final VirtualMap finalMap = flushMap(virtualMap);
@@ -339,7 +362,8 @@ public abstract class CryptoBench extends VirtualMapBench {
 
         initializeFixedAccounts(virtualMap);
 
-        long prevTime = System.currentTimeMillis();
+        long startTime = System.currentTimeMillis();
+        long prevTime = startTime;
         for (int i = 1; i <= numFiles; ++i) {
             // Generate a new set of unique random keys
             final Integer[] keys = generateKeySet();
@@ -374,8 +398,8 @@ public abstract class CryptoBench extends VirtualMapBench {
                 BenchmarkValue value1 = buffer.removeFirst().orElse(new BenchmarkValue(0));
                 BenchmarkValue value2 = buffer.removeFirst().orElse(new BenchmarkValue(0));
                 long amount = Utils.randomLong(MAX_AMOUNT);
-                value1.update(l -> l + amount);
-                value2.update(l -> l - amount);
+                value1 = value1.copyBuilder().update(l -> l + amount).build();
+                value2 = value2.copyBuilder().update(l -> l - amount).build();
                 int keyId1 = keys[j * KEYS_PER_RECORD];
                 int keyId2 = keys[j * KEYS_PER_RECORD + 1];
                 currentMap.put(BenchmarkKey.longToKey(keyId1), value1, BenchmarkValueCodec.INSTANCE);
@@ -383,10 +407,12 @@ public abstract class CryptoBench extends VirtualMapBench {
 
                 // Model fees
                 value1 = virtualMap.get(fixedKey1, BenchmarkValueCodec.INSTANCE);
-                value1.update(l -> l + 1);
+                assert value1 != null;
+                value1 = value1.copyBuilder().update(l -> l + 1).build();
                 virtualMap.put(fixedKey1, value1, BenchmarkValueCodec.INSTANCE);
                 value2 = virtualMap.get(fixedKey2, BenchmarkValueCodec.INSTANCE);
-                value2.update(l -> l + 1);
+                assert value2 != null;
+                value2 = value2.copyBuilder().update(l -> l + 1).build();
                 virtualMap.put(fixedKey2, value2, BenchmarkValueCodec.INSTANCE);
 
                 if (verify) {
@@ -396,6 +422,7 @@ public abstract class CryptoBench extends VirtualMapBench {
                     map[FIXED_KEY_ID2] += 1;
                 }
             }
+            totalTPS(System.currentTimeMillis() - startTime);
 
             virtualMap = copyMap(virtualMap);
 
@@ -414,5 +441,14 @@ public abstract class CryptoBench extends VirtualMapBench {
             finalMap.release();
             finalMap.getDataSource().close();
         });
+    }
+
+    public static void main(String[] args) throws Exception {
+        final CryptoBench bench = new CryptoBench();
+        bench.setup();
+        bench.beforeTest();
+        bench.transferPrefetch();
+        bench.afterTest();
+        bench.destroy();
     }
 }

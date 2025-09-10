@@ -3,6 +3,7 @@ package com.swirlds.state.spi;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.swirlds.state.test.fixtures.FunctionWritableSingletonState;
 import com.swirlds.state.test.fixtures.StateTestBase;
 import java.util.concurrent.atomic.AtomicReference;
@@ -13,11 +14,11 @@ import org.junit.jupiter.api.Test;
  * This test verifies behavior specific to a {@link WrappedWritableKVState}.
  */
 class WrappedWritableSingletonTest extends StateTestBase {
-    private WritableSingletonState<String> delegate;
+    private WritableSingletonState<ProtoBytes> delegate;
 
-    protected AtomicReference<String> backingStore = new AtomicReference<>(AUSTRALIA);
+    protected AtomicReference<ProtoBytes> backingStore = new AtomicReference<>(AUSTRALIA);
 
-    private WritableSingletonStateBase<String> createState() {
+    private WritableSingletonStateBase<ProtoBytes> createState() {
         delegate = new FunctionWritableSingletonState<>(
                 COUNTRY_STATE_KEY, COUNTRY_SERVICE_NAME, backingStore::get, backingStore::set);
         return new WrappedWritableSingletonState<>(delegate);

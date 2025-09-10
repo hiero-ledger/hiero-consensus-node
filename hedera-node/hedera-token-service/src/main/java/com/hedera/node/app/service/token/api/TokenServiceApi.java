@@ -7,12 +7,12 @@ import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.spi.fees.Fees;
+import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.validation.ExpiryValidator;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.record.DeleteCapableTransactionStreamBuilder;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.state.lifecycle.info.NetworkInfo;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.function.LongConsumer;
@@ -156,6 +156,13 @@ public interface TokenServiceApi {
      * @param netChangeInSlotsUsed      the net change in the number of storage slots used by the contract
      */
     void updateStorageMetadata(@NonNull ContractID contractID, @NonNull Bytes firstKey, int netChangeInSlotsUsed);
+
+    /**
+     * Updates the total lambda storage usage for the given account.
+     * @param accountId the id of the account whose lambda storage slots should be updated
+     * @param netChangeInSlotsUsed the net change in the number of lambda storage slots used by the account
+     */
+    void updateLambdaStorageSlots(@NonNull AccountID accountId, int netChangeInSlotsUsed);
 
     /**
      * Charges the payer the given network fee, and records that fee in the given record builder.

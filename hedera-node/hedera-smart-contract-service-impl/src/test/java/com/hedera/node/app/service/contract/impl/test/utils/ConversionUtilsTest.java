@@ -30,6 +30,7 @@ import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.as
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.contractIDToBesuAddress;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.contractIDToNum;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.isLongZeroAddress;
+import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.minimalRepresentationOf;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.numberOfLongZero;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.pbjLogFrom;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.pbjLogsFrom;
@@ -38,6 +39,8 @@ import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.tu
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -61,7 +64,6 @@ import java.math.BigInteger;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.IntStream;
-import java.util.stream.Stream;
 import org.apache.tuweni.bytes.Bytes;
 import org.apache.tuweni.bytes.Bytes32;
 import org.apache.tuweni.units.bigints.UInt256;
@@ -70,7 +72,6 @@ import org.hyperledger.besu.evm.log.LogsBloomFilter;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -93,6 +94,19 @@ class ConversionUtilsTest {
                 : com.hedera.pbj.runtime.io.buffer.Bytes.fromHex("00".repeat(n));
         final var padded = ConversionUtils.leftPad32(start);
         assertEquals(FULL_32, padded);
+    }
+
+    @CsvSource({"00", "1107", "005423", "000031", "0000000000000000000000000000000000000000000000000000000000000000"})
+    @ParameterizedTest
+    void stripsZerosAsExpected(String hexed) {
+        final var bytes = com.hedera.pbj.runtime.io.buffer.Bytes.fromHex(hexed);
+        if (hexed.startsWith("00")) {
+            final var stripped = minimalRepresentationOf(bytes).toHex();
+            assertFalse(stripped.startsWith("00"));
+            assertEquals(asBi(hexed), asBi(stripped));
+        } else {
+            assertSame(bytes, minimalRepresentationOf(bytes));
+        }
     }
 
     @Test
@@ -364,11 +378,8 @@ class ConversionUtilsTest {
         assertEquals(7, tokenId.tokenNum());
     }
 
-    private static Stream<Arguments> asTokenIdWithNegativeValuesProvideParameters() {
-        return Stream.of(
-                Arguments.of("0xFFFFffff00000000000000060000000000000007", "Shard is negative"),
-                Arguments.of("0x00000005FfffffFFfffFfFFF0000000000000007", "Realm is negative"),
-                Arguments.of("0x000000050000000000000006ffFFFFfFFffFFFff", "Number is negative"));
+    private BigInteger asBi(String hexed) {
+        return hexed.isEmpty() ? BigInteger.ZERO : new BigInteger(hexed, 16);
     }
 
     private byte[] bloomFor() {

@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.state.merkle.disk;
 
-import static com.hedera.pbj.runtime.ProtoParserTools.readNextFieldNumber;
+import static com.swirlds.state.merkle.StateUtils.extractStateKeyValueStateId;
 import static java.util.Objects.requireNonNull;
 
-import com.hedera.hapi.platform.state.VirtualMapKey;
+import com.hedera.hapi.platform.state.StateKey;
 import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -36,12 +36,10 @@ public class OnDiskIterator<K, V> extends BackedOnDiskIterator<K, V> {
             final MerkleNode merkleNode = itr.next();
             if (merkleNode instanceof VirtualLeafNode leaf) {
                 final Bytes k = leaf.getKey();
-                // Here we rely on the fact that `VirtualMapKey` has a single `OneOf` field.
-                // So, the next field number is the key type
-                final int nextNextStateId = readNextFieldNumber(k.toReadableSequentialData());
+                final int nextNextStateId = extractStateKeyValueStateId(k);
                 if (stateId == nextNextStateId) {
                     try {
-                        final VirtualMapKey parse = VirtualMapKey.PROTOBUF.parse(k);
+                        final StateKey parse = StateKey.PROTOBUF.parse(k);
                         this.next = parse.key().as();
                         return true;
                     } catch (final ParseException e) {

@@ -40,7 +40,6 @@ import com.hedera.hapi.block.stream.output.TransactionResult;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.blockstream.BlockStreamInfo;
-import com.hedera.hapi.platform.event.EventTransaction;
 import com.hedera.hapi.platform.state.PlatformState;
 import com.hedera.node.app.HederaVirtualMapState;
 import com.hedera.node.app.blocks.BlockHashSigner;
@@ -49,6 +48,7 @@ import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.blocks.BlockStreamService;
 import com.hedera.node.app.blocks.InitialStateHash;
 import com.hedera.node.app.service.networkadmin.impl.FreezeServiceImpl;
+import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.data.BlockStreamConfig;
@@ -59,7 +59,6 @@ import com.swirlds.metrics.api.Counter;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.state.service.PlatformStateService;
 import com.swirlds.platform.system.state.notifications.StateHashedNotification;
-import com.swirlds.state.lifecycle.info.NetworkInfo;
 import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.state.spi.ReadableSingletonState;
 import com.swirlds.state.spi.ReadableStates;
@@ -103,8 +102,8 @@ class BlockStreamManagerImplTest {
     private static final Bytes N_MINUS_2_BLOCK_HASH = Bytes.wrap(noThrowSha384HashOf(new byte[] {(byte) 0xAA}));
     private static final Bytes FIRST_FAKE_SIGNATURE = Bytes.fromHex("ff".repeat(48));
     private static final Bytes SECOND_FAKE_SIGNATURE = Bytes.fromHex("ee".repeat(48));
-    private static final BlockItem FAKE_EVENT_TRANSACTION =
-            BlockItem.newBuilder().eventTransaction(EventTransaction.DEFAULT).build();
+    private static final BlockItem FAKE_SIGNED_TRANSACTION =
+            BlockItem.newBuilder().signedTransaction(Bytes.EMPTY).build();
     private static final BlockItem FAKE_TRANSACTION_RESULT = BlockItem.newBuilder()
             .transactionResult(TransactionResult.newBuilder().consensusTimestamp(CONSENSUS_THEN))
             .build();
@@ -249,9 +248,9 @@ class BlockStreamManagerImplTest {
         subject.setLastIntervalProcessTime(CONSENSUS_NOW);
         assertEquals(CONSENSUS_NOW, subject.lastIntervalProcessTime());
 
-        assertSame(Instant.EPOCH, subject.lastHandleTime());
-        subject.setLastHandleTime(CONSENSUS_NOW);
-        assertEquals(CONSENSUS_NOW, subject.lastHandleTime());
+        assertSame(Instant.EPOCH, subject.lastTopLevelConsensusTime());
+        subject.setLastTopLevelTime(CONSENSUS_NOW);
+        assertEquals(CONSENSUS_NOW, subject.lastTopLevelConsensusTime());
     }
 
     @Test
@@ -307,7 +306,7 @@ class BlockStreamManagerImplTest {
         assertEquals(N_BLOCK_NO, subject.blockNo());
 
         // Write some items to the block
-        subject.writeItem(FAKE_EVENT_TRANSACTION);
+        subject.writeItem(FAKE_SIGNED_TRANSACTION);
         subject.writeItem(FAKE_TRANSACTION_RESULT);
         subject.writeItem(FAKE_STATE_CHANGES);
         subject.writeItem(FAKE_RECORD_FILE_ITEM);
@@ -392,7 +391,7 @@ class BlockStreamManagerImplTest {
         assertEquals(N_BLOCK_NO, subject.blockNo());
 
         // Write some items to the block
-        subject.writeItem(FAKE_EVENT_TRANSACTION);
+        subject.writeItem(FAKE_SIGNED_TRANSACTION);
         subject.writeItem(FAKE_TRANSACTION_RESULT);
         subject.writeItem(FAKE_STATE_CHANGES);
         subject.writeItem(FAKE_RECORD_FILE_ITEM);
@@ -440,7 +439,7 @@ class BlockStreamManagerImplTest {
         assertEquals(N_BLOCK_NO, subject.blockNo());
 
         // Write some items to the block
-        subject.writeItem(FAKE_EVENT_TRANSACTION);
+        subject.writeItem(FAKE_SIGNED_TRANSACTION);
         subject.writeItem(FAKE_TRANSACTION_RESULT);
         subject.writeItem(FAKE_STATE_CHANGES);
         subject.writeItem(FAKE_RECORD_FILE_ITEM);
@@ -487,7 +486,7 @@ class BlockStreamManagerImplTest {
         assertEquals(FAKE_RESTART_BLOCK_HASH, subject.blockHashByBlockNumber(N_MINUS_1_BLOCK_NO));
 
         // Write some items to the block
-        subject.writeItem(FAKE_EVENT_TRANSACTION);
+        subject.writeItem(FAKE_SIGNED_TRANSACTION);
         subject.writeItem(FAKE_TRANSACTION_RESULT);
         subject.writeItem(FAKE_STATE_CHANGES);
         subject.writeItem(FAKE_RECORD_FILE_ITEM);
@@ -532,7 +531,7 @@ class BlockStreamManagerImplTest {
         assertEquals(N_BLOCK_NO, subject.blockNo());
 
         // Write some items to the block
-        subject.writeItem(FAKE_EVENT_TRANSACTION);
+        subject.writeItem(FAKE_SIGNED_TRANSACTION);
         assertEquals(Bytes.fromHex("aa".repeat(48)), subject.prngSeed());
         subject.writeItem(FAKE_TRANSACTION_RESULT);
         assertEquals(Bytes.fromHex("bb".repeat(48)), subject.prngSeed());
@@ -621,7 +620,7 @@ class BlockStreamManagerImplTest {
         // Start the round that will be block N
         subject.startRound(round, state);
         // Write some items to the block
-        subject.writeItem(FAKE_EVENT_TRANSACTION);
+        subject.writeItem(FAKE_SIGNED_TRANSACTION);
         subject.writeItem(FAKE_TRANSACTION_RESULT);
         subject.writeItem(FAKE_STATE_CHANGES);
         subject.writeItem(FAKE_RECORD_FILE_ITEM);
@@ -640,7 +639,7 @@ class BlockStreamManagerImplTest {
         subject.notify(notification);
         subject.startRound(round, state);
         // Write some items to the block
-        subject.writeItem(FAKE_EVENT_TRANSACTION);
+        subject.writeItem(FAKE_SIGNED_TRANSACTION);
         subject.writeItem(FAKE_TRANSACTION_RESULT);
         subject.writeItem(FAKE_STATE_CHANGES);
         subject.writeItem(FAKE_RECORD_FILE_ITEM);
@@ -796,7 +795,7 @@ class BlockStreamManagerImplTest {
     }
 
     @Test
-    void usesRoundsPerBlockWhenBlockPeriodIsZero() throws ParseException {
+    void usesRoundsPerBlockWhenBlockPeriodIsZero() {
         // Given blockPeriodSeconds=0 and roundsPerBlock=2
         givenSubjectWith(
                 2,

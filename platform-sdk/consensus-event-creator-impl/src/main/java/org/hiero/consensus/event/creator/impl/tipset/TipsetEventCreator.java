@@ -11,6 +11,7 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.security.SecureRandom;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -18,20 +19,19 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
-import java.util.Random;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.Signature;
 import org.hiero.consensus.crypto.PbjStreamHasher;
 import org.hiero.consensus.event.creator.impl.EventCreator;
-import org.hiero.consensus.event.creator.impl.TransactionSupplier;
 import org.hiero.consensus.event.creator.impl.config.EventCreationConfig;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.event.UnsignedEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.transaction.EventTransactionSupplier;
 import org.hiero.consensus.roster.RosterUtils;
 
 /**
@@ -42,13 +42,13 @@ public class TipsetEventCreator implements EventCreator {
     private static final Logger logger = LogManager.getLogger(TipsetEventCreator.class);
 
     private final Time time;
-    private final Random random;
+    private final SecureRandom random;
     private final HashSigner signer;
     private final NodeId selfId;
     private final TipsetTracker tipsetTracker;
     private final TipsetWeightCalculator tipsetWeightCalculator;
     private final ChildlessEventTracker childlessOtherEventTracker;
-    private final TransactionSupplier transactionSupplier;
+    private final EventTransactionSupplier transactionSupplier;
     private EventWindow eventWindow;
 
     /**
@@ -92,7 +92,7 @@ public class TipsetEventCreator implements EventCreator {
      * @param configuration       the configuration for the event creator
      * @param metrics             the metrics for the event creator
      * @param time                provides the time source for the event creator
-     * @param random              a source of randomness, does not need to be cryptographically secure
+     * @param random              a source of randomness that must be cryptographically secure
      * @param signer              used for signing things with this node's private key
      * @param roster              the current roster
      * @param selfId              this node's ID
@@ -102,11 +102,11 @@ public class TipsetEventCreator implements EventCreator {
             @NonNull final Configuration configuration,
             @NonNull final Metrics metrics,
             @NonNull final Time time,
-            @NonNull final Random random,
+            @NonNull final SecureRandom random,
             @NonNull final HashSigner signer,
             @NonNull final Roster roster,
             @NonNull final NodeId selfId,
-            @NonNull final TransactionSupplier transactionSupplier) {
+            @NonNull final EventTransactionSupplier transactionSupplier) {
 
         this.time = Objects.requireNonNull(time);
         this.random = Objects.requireNonNull(random);
@@ -400,7 +400,8 @@ public class TipsetEventCreator implements EventCreator {
                 otherParent == null ? Collections.emptyList() : Collections.singletonList(otherParent),
                 eventWindow.newEventBirthRound(),
                 timeCreated,
-                transactionSupplier.getTransactions());
+                transactionSupplier.getTransactionsForEvent(),
+                random.nextLong(0, roster.rosterEntries().size() + 1));
         eventHasher.hashUnsignedEvent(event);
 
         return event;

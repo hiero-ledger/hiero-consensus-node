@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.records.impl;
 
+import static com.hedera.hapi.util.HapiUtils.asInstant;
+import static com.hedera.hapi.util.HapiUtils.asTimestamp;
 import static com.hedera.node.app.records.BlockRecordService.EPOCH;
 import static com.hedera.node.app.records.impl.BlockRecordInfoUtils.HASH_SIZE;
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCK_INFO_STATE_KEY;
@@ -348,23 +350,52 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
      * {@inheritDoc}
      */
     @Override
-    public void advanceConsensusClock(@NonNull final Instant consensusTime, @NonNull final State state) {
-        final var builder = this.lastBlockInfo
+    public void setLastTopLevelTime(@NonNull final Instant consensusTime, @NonNull final State state) {
+        final var now = asTimestamp(consensusTime);
+        final var builder =
+                this.lastBlockInfo.copyBuilder().consTimeOfLastHandledTxn(now).lastUsedConsTime(now);
+        updateBlockInfo(builder.build(), state);
+    }
+
+    @Override
+    public void setLastUsedConsensusTime(@NonNull Instant consensusTime, @NonNull State state) {
+        requireNonNull(consensusTime);
+        requireNonNull(state);
+        final var newBlockInfo = new BlockInfo(
+                lastBlockInfo.lastBlockNumber(),
+                lastBlockInfo.firstConsTimeOfLastBlock(),
+                lastBlockInfo.blockHashes(),
+                lastBlockInfo.consTimeOfLastHandledTxn(),
+                lastBlockInfo.migrationRecordsStreamed(),
+                lastBlockInfo.firstConsTimeOfCurrentBlock(),
+                asTimestamp(consensusTime),
+                lastBlockInfo.lastIntervalProcessTime());
+        updateBlockInfo(newBlockInfo, state);
+    }
+
+    @NonNull
+    @Override
+    public Instant lastUsedConsensusTime() {
+        return lastBlockInfo.hasLastUsedConsTime() ? asInstant(lastBlockInfo.lastUsedConsTimeOrThrow()) : Instant.EPOCH;
+    }
+
+    @Override
+    public void setLastIntervalProcessTime(@NonNull Instant lastIntervalProcessTime, @NonNull final State state) {
+        requireNonNull(lastIntervalProcessTime);
+        requireNonNull(state);
+        final var newBlockInfo = lastBlockInfo
                 .copyBuilder()
-                .consTimeOfLastHandledTxn(Timestamp.newBuilder()
-                        .seconds(consensusTime.getEpochSecond())
-                        .nanos(consensusTime.getNano()));
-        final var newBlockInfo = builder.build();
+                .lastIntervalProcessTime(asTimestamp(lastIntervalProcessTime))
+                .build();
+        updateBlockInfo(newBlockInfo, state);
+    }
 
-        // Update the latest block info in state
-        final var states = state.getWritableStates(BlockRecordService.NAME);
-        final var blockInfoState = states.<BlockInfo>getSingleton(BLOCK_INFO_STATE_KEY);
-        blockInfoState.put(newBlockInfo);
-        // Commit the changes. We don't ever want to roll back when advancing the consensus clock
-        ((WritableSingletonStateBase<BlockInfo>) blockInfoState).commit();
-
-        // Cache the updated block info
-        this.lastBlockInfo = newBlockInfo;
+    @NonNull
+    @Override
+    public Instant lastIntervalProcessTime() {
+        return lastBlockInfo.hasLastIntervalProcessTime()
+                ? asInstant(lastBlockInfo.lastIntervalProcessTimeOrThrow())
+                : Instant.EPOCH;
     }
 
     /**
@@ -442,6 +473,24 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
                 lastBlockInfo.consTimeOfLastHandledTxn(),
                 lastBlockInfo.migrationRecordsStreamed(),
                 new Timestamp(
-                        currentBlockFirstTransactionTime.getEpochSecond(), currentBlockFirstTransactionTime.getNano()));
+                        currentBlockFirstTransactionTime.getEpochSecond(), currentBlockFirstTransactionTime.getNano()),
+                lastBlockInfo.lastUsedConsTime(),
+                lastBlockInfo.lastIntervalProcessTime());
+    }
+
+    /**
+     * Updates the given state with the new block info and caches it in the {@code lastBlockInfo} field.
+     * @param newBlockInfo the new block info to update
+     * @param state the state to update with the new block info
+     */
+    private void updateBlockInfo(@NonNull final BlockInfo newBlockInfo, @NonNull final State state) {
+        // Update the latest block info in state
+        final var states = state.getWritableStates(BlockRecordService.NAME);
+        final var blockInfoState = states.<BlockInfo>getSingleton(BLOCK_INFO_STATE_KEY);
+        blockInfoState.put(newBlockInfo);
+        // Commit the changes. We don't ever want to roll back when advancing the consensus clock
+        ((WritableSingletonStateBase<BlockInfo>) blockInfoState).commit();
+        // Cache the updated block info
+        this.lastBlockInfo = newBlockInfo;
     }
 }

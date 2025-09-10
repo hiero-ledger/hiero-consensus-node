@@ -106,11 +106,7 @@ public class TransactionScenarioBuilder implements Scenarios {
         final var signedbytes = asBytes(TransactionBody.PROTOBUF, body);
         final var signedTx =
                 SignedTransaction.newBuilder().bodyBytes(signedbytes).build();
-        final var tx = Transaction.newBuilder()
-                .body(body)
-                .signedTransactionBytes(asBytes(SignedTransaction.PROTOBUF, signedTx))
-                .build();
-        return new TransactionInfo(tx, body, SignatureMap.DEFAULT, signedbytes, function, null);
+        return new TransactionInfo(signedTx, body, SignatureMap.DEFAULT, signedbytes, function, null);
     }
 
     @NonNull
@@ -142,12 +138,8 @@ public class TransactionScenarioBuilder implements Scenarios {
         final var signedbytes = asBytes(TransactionBody.PROTOBUF, atomicBody);
         final var signedTx =
                 SignedTransaction.newBuilder().bodyBytes(signedbytes).build();
-        final var tx = Transaction.newBuilder()
-                .body(atomicBody)
-                .signedTransactionBytes(asBytes(SignedTransaction.PROTOBUF, signedTx))
-                .build();
         return new TransactionInfo(
-                tx, atomicBody, SignatureMap.DEFAULT, signedbytes, HederaFunctionality.ATOMIC_BATCH, null);
+                signedTx, atomicBody, SignatureMap.DEFAULT, signedbytes, HederaFunctionality.ATOMIC_BATCH, null);
     }
 
     public static TransactionBody goodDefaultBody() {

@@ -24,7 +24,6 @@ import com.hedera.hapi.node.base.PendingAirdropId;
 import com.hedera.hapi.node.base.SignatureMap;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.base.TopicID;
-import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.state.common.EntityIDPair;
 import com.hedera.hapi.node.state.common.EntityNumber;
@@ -37,6 +36,7 @@ import com.hedera.hapi.node.state.token.Nft;
 import com.hedera.hapi.node.state.token.Token;
 import com.hedera.hapi.node.state.token.TokenRelation;
 import com.hedera.hapi.node.token.TokenMintTransactionBody;
+import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.fixtures.state.FakeState;
 import com.hedera.node.app.ids.EntityIdService;
@@ -254,7 +254,7 @@ class UtilizationScaledThrottleMultiplierTest {
         given(tokensConfig.nftsMaxAllowedMints()).willReturn(100L);
 
         final var nftMintTxnInfo = new TransactionInfo(
-                Transaction.DEFAULT,
+                SignedTransaction.DEFAULT,
                 TransactionBody.newBuilder()
                         .transactionID(TransactionID.newBuilder().accountID(AccountID.DEFAULT))
                         .tokenMint(TokenMintTransactionBody.newBuilder().metadata(List.of(Bytes.EMPTY)))
@@ -299,7 +299,7 @@ class UtilizationScaledThrottleMultiplierTest {
         given(feesConfig.percentUtilizationScaleFactors()).willReturn(entityScaleFactors);
 
         final var tokenMintTxnInfo = new TransactionInfo(
-                Transaction.DEFAULT,
+                SignedTransaction.DEFAULT,
                 TransactionBody.newBuilder()
                         .transactionID(TransactionID.newBuilder().accountID(AccountID.DEFAULT))
                         .tokenMint(TokenMintTransactionBody.DEFAULT)

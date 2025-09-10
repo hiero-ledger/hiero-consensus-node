@@ -57,6 +57,7 @@ import com.hedera.node.app.service.contract.impl.state.ScheduleEvmAccount;
 import com.hedera.node.app.service.contract.impl.state.StorageAccess;
 import com.hedera.node.app.service.contract.impl.state.StorageAccesses;
 import com.hedera.node.app.service.contract.impl.state.TokenEvmAccount;
+import com.hedera.node.app.service.contract.impl.state.TxStorageUsage;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
@@ -85,7 +86,6 @@ class DispatchingEvmFrameStateTest {
     private static final long EXPIRY = 1_234_567L;
     private static final long ACCOUNT_NUM = 0x9abcdefabcdefbbbL;
     private static final long BENEFICIARY_NUM = 0xdefdefL;
-    private static final long TOKEN_NUM = 0xffffffffffffL;
     private static final long SCHEDULE_NUM = 0xdedededededeL;
     private static final Bytes SOME_OTHER_ALIAS = Bytes.wrap("<PRETEND>");
     private static final Address EVM_ADDRESS = Address.fromHexString("abcabcabcabcabcabeeeeeee9abcdefabcdefbbb");
@@ -193,23 +193,25 @@ class DispatchingEvmFrameStateTest {
 
     @Test
     void summarizesModificationsAsExpected() {
-        final List<StorageAccesses> expected = List.of(
-                new StorageAccesses(
-                        B_CONTRACT_ID,
-                        List.of(
-                                StorageAccess.newWrite(UInt256.ONE, UInt256.ONE, UInt256.MAX_VALUE),
-                                StorageAccess.newWrite(UInt256.MAX_VALUE, UInt256.MIN_VALUE, UInt256.ONE))),
-                new StorageAccesses(
-                        C_CONTRACT_ID,
-                        List.of(
-                                StorageAccess.newWrite(UInt256.MAX_VALUE, UInt256.MIN_VALUE, UInt256.ONE),
-                                StorageAccess.newWrite(UInt256.ONE, UInt256.ONE, UInt256.MAX_VALUE))));
-
         final var modifiedKeys = List.of(
                 new SlotKey(B_CONTRACT_ID, tuweniToPbjBytes(UInt256.ONE)),
                 new SlotKey(B_CONTRACT_ID, tuweniToPbjBytes(UInt256.MAX_VALUE)),
                 new SlotKey(C_CONTRACT_ID, tuweniToPbjBytes(UInt256.MAX_VALUE)),
                 new SlotKey(C_CONTRACT_ID, tuweniToPbjBytes(UInt256.ONE)));
+        final var expected = new TxStorageUsage(
+                List.of(
+                        new StorageAccesses(
+                                B_CONTRACT_ID,
+                                List.of(
+                                        StorageAccess.newWrite(UInt256.ONE, UInt256.ONE, UInt256.MAX_VALUE),
+                                        StorageAccess.newWrite(UInt256.MAX_VALUE, UInt256.MIN_VALUE, UInt256.ONE))),
+                        new StorageAccesses(
+                                C_CONTRACT_ID,
+                                List.of(
+                                        StorageAccess.newWrite(UInt256.MAX_VALUE, UInt256.MIN_VALUE, UInt256.ONE),
+                                        StorageAccess.newWrite(UInt256.ONE, UInt256.ONE, UInt256.MAX_VALUE)))),
+                new LinkedHashSet<>(modifiedKeys));
+
         given(contractStateStore.getModifiedSlotKeys()).willReturn(new LinkedHashSet<>(modifiedKeys));
         final var iter = modifiedKeys.iterator();
         givenOrigAndNewValues(iter.next(), UInt256.ONE, UInt256.MAX_VALUE);
@@ -217,7 +219,7 @@ class DispatchingEvmFrameStateTest {
         givenOrigAndNewValues(iter.next(), UInt256.MIN_VALUE, UInt256.ONE);
         givenOrigAndNewValues(iter.next(), UInt256.ONE, UInt256.MAX_VALUE);
 
-        final var actual = subject.getStorageChanges();
+        final var actual = subject.getTxStorageUsage(true);
 
         assertEquals(expected, actual);
     }

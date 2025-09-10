@@ -11,6 +11,8 @@ module com.hedera.protobuf.java.api {
     exports com.hedera.hapi.services.auxiliary.hints.legacy;
     exports com.hedera.hapi.services.auxiliary.history.legacy;
     exports com.hedera.hapi.services.auxiliary.tss.legacy;
+    exports com.hedera.hapi.node.hooks.legacy;
+    exports com.hedera.hapi.node.state.hooks.legacy;
     exports com.hedera.services.stream.proto;
     exports com.hederahashgraph.api.proto.java;
     exports com.hederahashgraph.service.proto.java;

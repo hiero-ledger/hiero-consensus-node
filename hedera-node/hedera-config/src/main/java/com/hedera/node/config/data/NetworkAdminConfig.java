@@ -36,7 +36,7 @@ public record NetworkAdminConfig(
                                 "HintsKeyPublication,HintsPreprocessingVote,HintsPartialSignature,HistoryAssemblySignature,HistoryProofKeyPublication,HistoryProofVote,CrsPublication")
                 @NetworkProperty
                 HederaFunctionalitySet nodeTransactionsAllowList,
-        @ConfigProperty(defaultValue = "network.json") @NodeProperty String diskNetworkExportFile,
+        @ConfigProperty(defaultValue = "output/network.json") @NodeProperty String diskNetworkExportFile,
         @ConfigProperty(defaultValue = "NEVER") DiskNetworkExport diskNetworkExport,
         @ConfigProperty(defaultValue = "true") @NodeProperty boolean exportCandidateRoster,
         @ConfigProperty(defaultValue = "candidate-roster.json") @NodeProperty String candidateRosterExportFile,

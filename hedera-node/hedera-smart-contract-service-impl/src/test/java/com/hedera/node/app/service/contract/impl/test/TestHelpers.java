@@ -5,7 +5,6 @@ import static com.hedera.node.app.hapi.utils.keys.KeyUtils.IMMUTABILITY_SENTINEL
 import static com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalHaltReason.INVALID_SIGNATURE;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.ReturnTypes.ZERO_TOKEN_ID;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.TokenTupleUtils.typedKeyTupleFor;
-import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.CONFIG_CONTEXT_VARIABLE;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asEvmAddress;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asLongZeroAddress;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.headlongAddressOf;
@@ -19,7 +18,6 @@ import static org.hyperledger.besu.evm.frame.ExceptionalHaltReason.INVALID_OPERA
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.BDDMockito.given;
-import static org.mockito.Mockito.doReturn;
 
 import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.hapi.block.stream.trace.ContractSlotUsage;
@@ -209,7 +207,8 @@ public class TestHelpers {
             .evmAddress(Bytes.fromHex("1234123412341234123412341234123412341234"))
             .build();
     public static final Bytes LONG_ZERO_ADDRESS_BYTES = Bytes.fromHex("0000000000000000000000000000000000000123");
-    public static final Bytes NON_LONG_ZERO_ADDRESS_BYTES = Bytes.fromHex("dac17f958d2ee523a2206206994597c13d831ec7");
+    public static final String NON_LONG_ZERO_ADDRESS = "dac17f958d2ee523a2206206994597c13d831ec7";
+    public static final Bytes NON_LONG_ZERO_ADDRESS_BYTES = Bytes.fromHex(NON_LONG_ZERO_ADDRESS);
     public static final ContractID LONG_ZERO_CONTRACT_ID =
             ContractID.newBuilder().evmAddress(LONG_ZERO_ADDRESS_BYTES).build();
 
@@ -582,6 +581,20 @@ public class TestHelpers {
             null,
             new HandleException(ResponseCodeEnum.INVALID_CONTRACT_ID));
 
+    public static final HederaEvmTransaction HEVM_OversizeException = new HederaEvmTransaction(
+            SENDER_ID,
+            RELAYER_ID,
+            CALLED_CONTRACT_ID,
+            NONCE,
+            CALL_DATA,
+            MAINNET_CHAIN_ID,
+            VALUE,
+            GAS_LIMIT,
+            0L,
+            0L,
+            null,
+            new HandleException(ResponseCodeEnum.TRANSACTION_OVERSIZE));
+
     public static final HederaEvmTransactionResult SUCCESS_RESULT = explicitSuccessFrom(
             GAS_LIMIT / 2,
             Wei.of(NETWORK_GAS_PRICE),
@@ -619,7 +632,6 @@ public class TestHelpers {
             INVALID_SIGNATURE,
             null,
             Collections.emptyList(),
-            null,
             null,
             null,
             null,
@@ -714,6 +726,7 @@ public class TestHelpers {
     public static final Bytes APPROVED_ADDRESS = Bytes.fromHex("aa1e6a49898ea7a44e81599a7c0deeeaa969e990");
     public static final com.esaulpaugh.headlong.abi.Address APPROVED_HEADLONG_ADDRESS =
             asHeadlongAddress(APPROVED_ADDRESS.toByteArray());
+    public static final Address APPROVED_BESU_ADDRESS = Address.fromHexString(APPROVED_ADDRESS.toHex());
 
     public static final AccountID RECEIVER_ID =
             AccountID.newBuilder().accountNum(7773777L).build(); // 7773777L == 0x769e51
@@ -954,14 +967,8 @@ public class TestHelpers {
                 .build();
     }
 
-    public static void givenDefaultConfigInFrame(@NonNull final MessageFrame frame) {
-        givenConfigInFrame(frame, DEFAULT_CONFIG);
-    }
-
-    public static void givenConfigInFrame(@NonNull final MessageFrame frame, @NonNull final Configuration config) {
+    public static void givenFrameStack(@NonNull final MessageFrame frame) {
         final Deque<MessageFrame> stack = new ArrayDeque<>();
-        given(frame.getMessageFrameStack()).willReturn(stack);
-        doReturn(config).when(frame).getContextVariable(CONFIG_CONTEXT_VARIABLE);
         given(frame.getMessageFrameStack()).willReturn(stack);
     }
 
@@ -979,7 +986,7 @@ public class TestHelpers {
                 processor,
                 HederaEvmVersion.VERSION_051,
                 processor,
-                HederaEvmVersion.VERSION_062,
+                HederaEvmVersion.VERSION_065,
                 processor);
     }
 
@@ -1071,10 +1078,9 @@ public class TestHelpers {
                 null,
                 requireNonNull(logs),
                 evmLogs,
-                stateChanges,
-                slotUsages,
                 null,
                 actions,
+                null,
                 null);
     }
 }

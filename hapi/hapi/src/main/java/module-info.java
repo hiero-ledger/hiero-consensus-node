@@ -15,6 +15,8 @@ module com.hedera.node.hapi {
     exports com.hedera.hapi.node.freeze;
     exports com.hedera.hapi.node.freeze.codec;
     exports com.hedera.hapi.node.freeze.schema;
+    exports com.hedera.hapi.node.hooks;
+    exports com.hedera.hapi.node.hooks.legacy;
     exports com.hedera.hapi.node.network;
     exports com.hedera.node.internal.network;
     exports com.hedera.hapi.node.network.codec;
@@ -45,6 +47,7 @@ module com.hedera.node.hapi {
     exports com.hedera.hapi.node.state.file;
     exports com.hedera.hapi.node.state.hints;
     exports com.hedera.hapi.node.state.history;
+    exports com.hedera.hapi.node.state.hooks;
     exports com.hedera.hapi.node.state.recordcache;
     exports com.hedera.hapi.node.state.recordcache.codec;
     exports com.hedera.hapi.node.state.blockrecords;
@@ -61,6 +64,8 @@ module com.hedera.node.hapi {
     exports com.hederahashgraph.api.proto.java;
     exports com.hederahashgraph.service.proto.java;
     exports com.hedera.hapi.util;
+    exports com.hedera.hapi.block.internal;
+    exports com.hedera.hapi.block.internal.protoc;
     exports com.hedera.hapi.block.stream;
     exports com.hedera.hapi.block.stream.input;
     exports com.hedera.hapi.block.stream.output;
@@ -89,6 +94,7 @@ module com.hedera.node.hapi {
     opens com.hedera.hapi.block.stream.trace.protoc;
     opens com.hedera.hapi.node.state.tss.legacy;
     opens com.hedera.hapi.platform.state.legacy;
+    opens com.hedera.hapi.node.state.hooks.legacy;
     opens com.hedera.hapi.services.auxiliary.hints.legacy;
     opens com.hedera.hapi.services.auxiliary.history.legacy;
     opens com.hedera.node.internal.network.legacy;

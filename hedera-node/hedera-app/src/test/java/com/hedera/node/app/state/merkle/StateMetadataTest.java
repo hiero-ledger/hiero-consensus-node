@@ -19,7 +19,7 @@ import org.junit.jupiter.params.provider.MethodSource;
 class StateMetadataTest extends MerkleTestBase {
 
     private Schema schema;
-    private StateDefinition<ProtoBytes, String> def;
+    private StateDefinition<ProtoBytes, ProtoBytes> def;
 
     @BeforeEach
     void setUp() {
@@ -108,7 +108,7 @@ class StateMetadataTest extends MerkleTestBase {
         assertThat(expected).isEqualTo(md.onDiskValueSerializerClassId());
     }
 
-    private long computeClassId(StateMetadata<ProtoBytes, String> md, String suffix) {
+    private long computeClassId(StateMetadata<ProtoBytes, ProtoBytes> md, String suffix) {
         return StateMetadata.computeClassId(
                 md.serviceName(), md.stateDefinition().stateKey(), md.schema().getVersion(), suffix);
     }

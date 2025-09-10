@@ -82,6 +82,8 @@ public class V0560BlockStreamSchemaTest {
                 Bytes.fromHex("abcd".repeat(24 * 256)),
                 new Timestamp(1_234_567L, 890),
                 false,
+                new Timestamp(1_234_567L, 123),
+                new Timestamp(1_234_567L, 123),
                 new Timestamp(1_234_567L, 123));
         final var sharedValues = Map.<String, Object>of(
                 "SHARED_BLOCK_RECORD_INFO",

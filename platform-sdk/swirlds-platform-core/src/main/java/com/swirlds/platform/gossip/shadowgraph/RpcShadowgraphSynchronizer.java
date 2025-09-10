@@ -3,6 +3,8 @@ package com.swirlds.platform.gossip.shadowgraph;
 
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.platform.gossip.IntakeEventCounter;
+import com.swirlds.platform.gossip.permits.SyncGuard;
+import com.swirlds.platform.gossip.permits.SyncGuardFactory;
 import com.swirlds.platform.gossip.rpc.GossipRpcSender;
 import com.swirlds.platform.gossip.sync.config.SyncConfig;
 import com.swirlds.platform.metrics.SyncMetrics;
@@ -37,6 +39,12 @@ public class RpcShadowgraphSynchronizer extends AbstractShadowgraphSynchronizer 
     private final Duration sleepAfterSync;
 
     /**
+     * Control for making sure that in case of limited amount of concurrent syncs we are not synchronizing with the same
+     * peers over and over.
+     */
+    private final SyncGuard syncGuard;
+
+    /**
      * Constructs a new ShadowgraphSynchronizer.
      *
      * @param platformContext      the platform context
@@ -46,6 +54,7 @@ public class RpcShadowgraphSynchronizer extends AbstractShadowgraphSynchronizer 
      * @param fallenBehindManager  tracks if we have fallen behind
      * @param intakeEventCounter   used for tracking events in the intake pipeline per peer
      * @param selfId               id of current node
+     * @param syncLagHandler       callback for reporting median sync lag
      */
     public RpcShadowgraphSynchronizer(
             @NonNull final PlatformContext platformContext,
@@ -54,7 +63,8 @@ public class RpcShadowgraphSynchronizer extends AbstractShadowgraphSynchronizer 
             @NonNull final Consumer<PlatformEvent> receivedEventHandler,
             @NonNull final FallenBehindManager fallenBehindManager,
             @NonNull final IntakeEventCounter intakeEventCounter,
-            @NonNull final NodeId selfId) {
+            @NonNull final NodeId selfId,
+            @NonNull final Consumer<Double> syncLagHandler) {
 
         super(
                 platformContext,
@@ -63,11 +73,15 @@ public class RpcShadowgraphSynchronizer extends AbstractShadowgraphSynchronizer 
                 syncMetrics,
                 receivedEventHandler,
                 fallenBehindManager,
-                intakeEventCounter);
+                intakeEventCounter,
+                syncLagHandler);
         final SyncConfig syncConfig = platformContext.getConfiguration().getConfigData(SyncConfig.class);
 
         this.selfId = selfId;
         this.sleepAfterSync = syncConfig.rpcSleepAfterSync();
+
+        this.syncGuard = SyncGuardFactory.create(
+                syncConfig.fairMaxConcurrentSyncs(), syncConfig.fairMinimalRoundRobinSize(), numberOfNodes);
     }
 
     /**
@@ -79,7 +93,16 @@ public class RpcShadowgraphSynchronizer extends AbstractShadowgraphSynchronizer 
      */
     public RpcPeerHandler createPeerHandler(@NonNull final GossipRpcSender sender, @NonNull final NodeId otherNodeId) {
         final RpcPeerHandler rpcPeerHandler = new RpcPeerHandler(
-                this, sender, selfId, otherNodeId, sleepAfterSync, syncMetrics, time, intakeEventCounter, eventHandler);
+                this,
+                sender,
+                selfId,
+                otherNodeId,
+                sleepAfterSync,
+                syncMetrics,
+                time,
+                intakeEventCounter,
+                eventHandler,
+                syncGuard);
         return rpcPeerHandler;
     }
 

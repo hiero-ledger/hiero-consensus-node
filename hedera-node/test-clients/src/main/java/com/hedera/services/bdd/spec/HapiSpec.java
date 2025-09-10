@@ -73,6 +73,8 @@ import com.hedera.services.bdd.junit.hedera.embedded.EmbeddedNetwork;
 import com.hedera.services.bdd.junit.hedera.embedded.RepeatableEmbeddedHedera;
 import com.hedera.services.bdd.junit.hedera.remote.RemoteNetwork;
 import com.hedera.services.bdd.junit.hedera.simulator.SimulatedBlockNodeServer;
+import com.hedera.services.bdd.junit.hedera.subprocess.PrometheusClient;
+import com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNetwork;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.fees.FeeCalculator;
 import com.hedera.services.bdd.spec.fees.FeesAndRatesProvider;
@@ -90,8 +92,11 @@ import com.hedera.services.bdd.spec.utilops.streams.assertions.AbstractEventualS
 import com.hedera.services.bdd.spec.verification.traceability.SidecarWatcher;
 import com.hedera.services.bdd.suites.regression.system.LifecycleTest;
 import com.hederahashgraph.api.proto.java.AccountID;
+import com.hederahashgraph.api.proto.java.ContractID;
+import com.hederahashgraph.api.proto.java.FileID;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import com.hederahashgraph.api.proto.java.Timestamp;
+import com.hederahashgraph.api.proto.java.TopicID;
 import com.swirlds.state.spi.WritableKVState;
 import com.swirlds.state.spi.WritableSingletonState;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -123,6 +128,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
+import java.util.function.LongFunction;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -270,6 +276,11 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
     @Nullable
     private HederaNetwork targetNetwork;
     /**
+     * If non-null, the non-remote block node network to target with this spec.
+     */
+    @Nullable
+    private BlockNodeNetwork blockNodeNetwork;
+    /**
      * If non-null, an observer to receive the final state of this spec's register and key factory
      * after it has executed.
      */
@@ -371,6 +382,10 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
         return targetNetworkOrThrow().type();
     }
 
+    public PrometheusClient prometheusClient() {
+        return targetNetworkOrThrow().prometheusClient();
+    }
+
     public void setSpecStateObserver(@NonNull final SpecStateObserver specStateObserver) {
         this.specStateObserver = specStateObserver;
     }
@@ -437,6 +452,10 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
         this.targetNetwork = requireNonNull(targetNetwork);
     }
 
+    public void setBlockNodeNetwork(@NonNull final BlockNodeNetwork blockNodeNetwork) {
+        this.blockNodeNetwork = requireNonNull(blockNodeNetwork);
+    }
+
     public void setSharedStates(@NonNull final List<SpecStateObserver.SpecState> sharedStates) {
         this.sharedStates = sharedStates;
     }
@@ -453,7 +472,7 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
      * @return the path to the record stream
      * @throws RuntimeException if the spec has no target network or the node is not found
      */
-    public @NonNull Path streamsLoc(@NonNull final NodeSelector selector) {
+    public @NonNull Path recordStreamsLoc(@NonNull final NodeSelector selector) {
         requireNonNull(selector);
         return targetNetworkOrThrow().getRequiredNode(selector).getExternalPath(RECORD_STREAMS_DIR);
     }
@@ -465,6 +484,54 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
      */
     public @NonNull HederaNetwork targetNetworkOrThrow() {
         return requireNonNull(targetNetwork);
+    }
+
+    /**
+     * Returns a function mapping an entity number to an {@link ContractID} for the target network.
+     * @return the contract ID factory function
+     */
+    public LongFunction<ContractID> contractIdFactory() {
+        return num -> ContractID.newBuilder()
+                .setShardNum(shard())
+                .setRealmNum(realm())
+                .setContractNum(num)
+                .build();
+    }
+
+    /**
+     * Returns a function mapping an entity number to an {@link AccountID} for the target network.
+     * @return the account ID factory function
+     */
+    public LongFunction<AccountID> accountIdFactory() {
+        return num -> AccountID.newBuilder()
+                .setShardNum(shard())
+                .setRealmNum(realm())
+                .setAccountNum(num)
+                .build();
+    }
+
+    /**
+     * Returns a function mapping an entity number to an {@link FileID} for the target network.
+     * @return the file ID factory function
+     */
+    public LongFunction<FileID> fileIdFactory() {
+        return num -> FileID.newBuilder()
+                .setShardNum(shard())
+                .setRealmNum(realm())
+                .setFileNum(num)
+                .build();
+    }
+
+    /**
+     * Returns a function mapping an entity number to an {@link TopicID} for the target network.
+     * @return the topic ID factory function
+     */
+    public LongFunction<TopicID> topicIdFactory() {
+        return num -> TopicID.newBuilder()
+                .setShardNum(shard())
+                .setRealmNum(realm())
+                .setTopicNum(num)
+                .build();
     }
 
     /**
@@ -512,6 +579,17 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
         } else {
             throw new IllegalStateException(embeddedHedera.getClass().getSimpleName() + " is not repeatable");
         }
+    }
+
+    /**
+     * Returns the {@link SubProcessNetwork} if the target network is of that type, or throws.
+     * @return the target subprocess network
+     */
+    public SubProcessNetwork subProcessNetworkOrThrow() {
+        if (!(targetNetworkOrThrow() instanceof SubProcessNetwork network)) {
+            throw new IllegalStateException("Target network is not subprocess");
+        }
+        return network;
     }
 
     /**
@@ -621,6 +699,10 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
 
     public List<HederaNode> getNetworkNodes() {
         return requireNonNull(targetNetwork).nodes();
+    }
+
+    public Set<Long> getBlockNodeNetworkIds() {
+        return requireNonNull(blockNodeNetwork).nodeIds();
     }
 
     public int getBlockNodePortById(final long nodeId) {
@@ -863,11 +945,10 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
                     "default.shard", "" + targetNetwork.shard(),
                     "default.realm", "" + targetNetwork.realm()));
         } catch (Exception ignore) {
+            final long shard = HapiPropertySource.getConfigShard();
+            final long realm = HapiPropertySource.getConfigRealm();
             targetNetwork = RemoteNetwork.newRemoteNetwork(
-                    hapiSetup.nodes(),
-                    clientsFor(hapiSetup),
-                    HapiPropertySource.getConfigShard(),
-                    HapiPropertySource.getConfigRealm());
+                    hapiSetup.nodes(shard, realm), clientsFor(hapiSetup, shard, realm), shard, realm);
         }
     }
 
@@ -1164,7 +1245,7 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
             ciPropsSource.put("node.selector", nodeSelectorFromCi);
 
             dynamicNodes = Arrays.stream(dynamicNodes.split(","))
-                    .map(NodeConnectInfo::new)
+                    .map(inString -> new NodeConnectInfo(inString, 0, 0))
                     .map(info -> {
                         final var acct = info.getAccount();
                         return info.uri() + ":"

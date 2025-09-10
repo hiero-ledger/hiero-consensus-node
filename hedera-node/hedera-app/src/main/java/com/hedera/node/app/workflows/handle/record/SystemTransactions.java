@@ -1,15 +1,18 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.handle.record;
 
+import static com.hedera.hapi.node.base.HederaFunctionality.NODE_CREATE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS_BUT_MISSING_EXPECTED_OPERATION;
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
+import static com.hedera.node.app.hapi.utils.EntityType.ACCOUNT;
 import static com.hedera.node.app.hapi.utils.keys.KeyUtils.IMMUTABILITY_SENTINEL_KEY;
 import static com.hedera.node.app.ids.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_KEY;
 import static com.hedera.node.app.ids.schemas.V0590EntityIdSchema.ENTITY_COUNTS_KEY;
 import static com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema.parseEd25519NodeAdminKeysFrom;
 import static com.hedera.node.app.service.file.impl.schemas.V0490FileSchema.dispatchSynthFileUpdate;
 import static com.hedera.node.app.service.file.impl.schemas.V0490FileSchema.parseConfigList;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_KEY;
 import static com.hedera.node.app.service.token.impl.schemas.V0610TokenSchema.dispatchSynthNodeRewards;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.NODE;
 import static com.hedera.node.app.util.FileUtilities.createFileID;
@@ -22,24 +25,31 @@ import static com.swirlds.platform.system.InitTrigger.GENESIS;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.consensus.roster.RosterUtils.formatNodeName;
 
+import com.hedera.hapi.block.stream.BlockItem;
+import com.hedera.hapi.block.stream.output.StateChange;
+import com.hedera.hapi.block.stream.output.StateChanges;
 import com.hedera.hapi.node.addressbook.NodeCreateTransactionBody;
 import com.hedera.hapi.node.addressbook.NodeDeleteTransactionBody;
 import com.hedera.hapi.node.addressbook.NodeUpdateTransactionBody;
+import com.hedera.hapi.node.base.AccountAmount;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.CurrentAndNextFeeSchedule;
 import com.hedera.hapi.node.base.Duration;
-import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.hapi.node.base.TransactionID;
+import com.hedera.hapi.node.base.TransferList;
 import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.entity.EntityCounts;
 import com.hedera.hapi.node.state.roster.RosterEntry;
+import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.state.token.StakingNodeInfo;
 import com.hedera.hapi.node.token.CryptoCreateTransactionBody;
+import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.blocks.BlockStreamManager;
+import com.hedera.node.app.blocks.impl.ImmediateStateChangeListener;
 import com.hedera.node.app.fees.ExchangeRateManager;
 import com.hedera.node.app.ids.EntityIdService;
 import com.hedera.node.app.ids.WritableEntityIdStore;
@@ -52,7 +62,10 @@ import com.hedera.node.app.service.token.TokenService;
 import com.hedera.node.app.service.token.impl.BlocklistParser;
 import com.hedera.node.app.service.token.impl.WritableStakingInfoStore;
 import com.hedera.node.app.spi.AppContext;
+import com.hedera.node.app.spi.ids.EntityIdFactory;
 import com.hedera.node.app.spi.ids.ReadableEntityIdStore;
+import com.hedera.node.app.spi.info.NetworkInfo;
+import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.spi.workflows.SystemContext;
 import com.hedera.node.app.state.HederaRecordCache;
 import com.hedera.node.app.state.recordcache.LegacyListRecordSource;
@@ -80,10 +93,8 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.state.State;
-import com.swirlds.state.lifecycle.EntityIdFactory;
 import com.swirlds.state.lifecycle.StartupNetworks;
-import com.swirlds.state.lifecycle.info.NetworkInfo;
-import com.swirlds.state.lifecycle.info.NodeInfo;
+import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.state.spi.WritableSingletonState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
@@ -92,10 +103,13 @@ import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -118,6 +132,7 @@ public class SystemTransactions {
     private static final int DEFAULT_GENESIS_WEIGHT = 500;
     private static final long FIRST_RESERVED_SYSTEM_CONTRACT = 350L;
     private static final long LAST_RESERVED_SYSTEM_CONTRACT = 399L;
+    private static final long FIRST_SYSTEM_FILE_ENTITY = 101L;
     private static final long FIRST_POST_SYSTEM_FILE_ENTITY = 200L;
     private static final long FIRST_MISC_ACCOUNT_NUM = 900L;
     private static final List<ServiceEndpoint> UNKNOWN_HAPI_ENDPOINT =
@@ -142,6 +157,7 @@ public class SystemTransactions {
     private final HederaRecordCache recordCache;
     private final StartupNetworks startupNetworks;
     private final StakePeriodChanges stakePeriodChanges;
+    private final ImmediateStateChangeListener immediateStateChangeListener;
 
     private int nextDispatchNonce = 1;
 
@@ -162,12 +178,13 @@ public class SystemTransactions {
             @NonNull final ExchangeRateManager exchangeRateManager,
             @NonNull final HederaRecordCache recordCache,
             @NonNull final StartupNetworks startupNetworks,
-            @NonNull final StakePeriodChanges stakePeriodChanges) {
-        this.initTrigger = initTrigger;
+            @NonNull final StakePeriodChanges stakePeriodChanges,
+            @NonNull final ImmediateStateChangeListener immediateStateChangeListener) {
+        this.initTrigger = requireNonNull(initTrigger);
         this.fileService = requireNonNull(fileService);
         this.parentTxnFactory = requireNonNull(parentTxnFactory);
-        this.networkInfo = networkInfo;
-        this.dispatchProcessor = dispatchProcessor;
+        this.networkInfo = requireNonNull(networkInfo);
+        this.dispatchProcessor = requireNonNull(dispatchProcessor);
         this.configProvider = requireNonNull(configProvider);
         this.streamMode = configProvider
                 .getConfiguration()
@@ -180,6 +197,7 @@ public class SystemTransactions {
         this.recordCache = requireNonNull(recordCache);
         this.startupNetworks = requireNonNull(startupNetworks);
         this.stakePeriodChanges = requireNonNull(stakePeriodChanges);
+        this.immediateStateChangeListener = requireNonNull(immediateStateChangeListener);
     }
 
     /**
@@ -199,8 +217,12 @@ public class SystemTransactions {
         requireNonNull(now);
         requireNonNull(state);
         final AtomicReference<Consumer<Dispatch>> onSuccess = new AtomicReference<>(DEFAULT_DISPATCH_ON_SUCCESS);
-        final var systemContext =
-                newSystemContext(now, state, dispatch -> onSuccess.get().accept(dispatch), true);
+        final var systemContext = newSystemContext(
+                now,
+                state,
+                dispatch -> onSuccess.get().accept(dispatch),
+                UseReservedConsensusTimes.YES,
+                TriggerStakePeriodSideEffects.NO);
 
         final var config = configProvider.getConfiguration();
         final var ledgerConfig = config.getConfigData(LedgerConfig.class);
@@ -315,9 +337,9 @@ public class SystemTransactions {
                                 .gossipEndpoint(nodeInfo.gossipEndpoints())
                                 .gossipCaCertificate(nodeInfo.sigCertBytes())
                                 .serviceEndpoint(hapiEndpoints)
-                                .declineReward(true)
-                                .build();
-                        b.nodeCreate(nodeCreate);
+                                .declineReward(true);
+                        Optional.ofNullable(nodeInfo.grpcCertHash()).ifPresent(nodeCreate::grpcCertificateHash);
+                        b.nodeCreate(nodeCreate.build());
                     },
                     nodeInfo.nodeId());
         }
@@ -338,7 +360,8 @@ public class SystemTransactions {
      * @param state the state to set up
      */
     public void doPostUpgradeSetup(@NonNull final Instant now, @NonNull final State state) {
-        final var systemContext = newSystemContext(now, state, dispatch -> {}, false);
+        final var systemContext = newSystemContext(
+                now, state, dispatch -> {}, UseReservedConsensusTimes.YES, TriggerStakePeriodSideEffects.YES);
         final var config = configProvider.getConfiguration();
 
         // We update the node details file from the address book that resulted from all pre-upgrade HAPI node changes
@@ -386,6 +409,84 @@ public class SystemTransactions {
     }
 
     /**
+     * Cleans up council-controlled system accounts that are no longer needed.
+     * @param now the current time
+     * @param state the state to clean up
+     * @return true if the cleanup was finished, false otherwise
+     */
+    public boolean do066SystemAccountCleanup(@NonNull final Instant now, @NonNull final State state) {
+        requireNonNull(state);
+        requireNonNull(now);
+        final AtomicReference<AccountID> legacyAccountId = new AtomicReference<>();
+        final Consumer<Consumer<List<StateChange>>> removeLegacyAccount = cb -> {
+            if (streamMode != RECORDS) {
+                immediateStateChangeListener.resetKvStateChanges(null);
+            }
+            // On success, actually remove the legacy account from state
+            final var tokenStates = state.getWritableStates(TokenService.NAME);
+            final var accountsState = tokenStates.<AccountID, Account>get(ACCOUNTS_KEY);
+            accountsState.remove(legacyAccountId.get());
+            ((CommittableWritableStates) tokenStates).commit();
+            if (streamMode != RECORDS) {
+                final var changes = immediateStateChangeListener.getKvStateChanges();
+                if (!changes.isEmpty()) {
+                    cb.accept(changes);
+                }
+            }
+            // And decrement the entity count for the account type
+            final var entityStates = state.getWritableStates(EntityIdService.NAME);
+            final var entityCounters = new WritableEntityIdStore(entityStates);
+            entityCounters.adjustEntityCount(ACCOUNT, -1);
+            ((CommittableWritableStates) entityStates).commit();
+        };
+        // System context for dispatching CryptoTransfer with an onSuccess callback
+        // that completely removes the legacy account from state after the dispatch
+        // sweeping its dust HBAR into the fee collection account 0.0.98
+        final var systemContext = newSystemContext(
+                now,
+                state,
+                dispatch -> removeLegacyAccount.accept(
+                        changes -> dispatch.streamBuilder().stateChanges(changes)),
+                UseReservedConsensusTimes.YES,
+                TriggerStakePeriodSideEffects.YES);
+        long i = FIRST_SYSTEM_FILE_ENTITY;
+        final var feeCollectionId = idFactory.newAccountId(configProvider
+                .getConfiguration()
+                .getConfigData(LedgerConfig.class)
+                .fundingAccount());
+        final var accountsState = state.getReadableStates(TokenService.NAME).<AccountID, Account>get(ACCOUNTS_KEY);
+        for (; i < FIRST_POST_SYSTEM_FILE_ENTITY && systemContext.hasDispatchesRemaining(); i++) {
+            final var accountId = idFactory.newAccountId(i);
+            final var legacyAccount = accountsState.get(accountId);
+            if (legacyAccount != null) {
+                legacyAccountId.set(accountId);
+                final long balance = legacyAccount.tinybarBalance();
+                if (balance > 0) {
+                    log.info("Sweeping {} tinybars from {} @ {}", balance, accountId, systemContext.now());
+                    systemContext.dispatchAdmin(b -> b.cryptoTransfer(CryptoTransferTransactionBody.newBuilder()
+                            .transfers(TransferList.newBuilder()
+                                    .accountAmounts(List.of(
+                                            AccountAmount.newBuilder()
+                                                    .accountID(accountId)
+                                                    .amount(-balance)
+                                                    .build(),
+                                            AccountAmount.newBuilder()
+                                                    .accountID(feeCollectionId)
+                                                    .amount(+balance)
+                                                    .build()))
+                                    .build())));
+                } else {
+                    log.info("Removing zero-balance legacy account {} @ {}", accountId, systemContext.now());
+                    removeLegacyAccount.accept(changes -> blockStreamManager.writeItem((t) -> BlockItem.newBuilder()
+                            .stateChanges(new StateChanges(t, new ArrayList<>(changes)))
+                            .build()));
+                }
+            }
+        }
+        return i == FIRST_POST_SYSTEM_FILE_ENTITY;
+    }
+
+    /**
      * Dispatches a synthetic node reward crypto transfer for the given active node accounts.
      * If the {@link NodesConfig#minPerPeriodNodeRewardUsd()} is greater than zero, inactive nodes will receive the minimum node
      * reward.
@@ -412,7 +513,8 @@ public class SystemTransactions {
         requireNonNull(now);
         requireNonNull(activeNodeIds);
         requireNonNull(nodeRewardsAccountId);
-        final var systemContext = newSystemContext(now, state, dispatch -> {}, false);
+        final var systemContext = newSystemContext(
+                now, state, dispatch -> {}, UseReservedConsensusTimes.NO, TriggerStakePeriodSideEffects.YES);
         final var activeNodeAccountIds = activeNodeIds.stream()
                 .map(id -> systemContext.networkInfo().nodeInfo(id))
                 .filter(nodeInfo -> nodeInfo != null && !nodeInfo.declineReward())
@@ -474,7 +576,8 @@ public class SystemTransactions {
         final var readableStoreFactory = new ReadableStoreFactory(state);
         final var rosterStore = readableStoreFactory.getStore(ReadableRosterStore.class);
         final var nodeStore = readableStoreFactory.getStore(ReadableNodeStore.class);
-        final var systemContext = newSystemContext(now, state, dispatch -> {}, false);
+        final var systemContext = newSystemContext(
+                now, state, dispatch -> {}, UseReservedConsensusTimes.YES, TriggerStakePeriodSideEffects.YES);
         final var network = startupNetworks.overrideNetworkFor(currentRoundNum - 1, configProvider.getConfiguration());
         if (rosterStore.isTransplantInProgress() && network.isPresent()) {
             log.info("Roster transplant in progress, dispatching node updates for round {}", currentRoundNum - 1);
@@ -502,6 +605,7 @@ public class SystemTransactions {
                                             .serviceEndpoint(node.serviceEndpoint())
                                             .declineReward(node.declineReward())
                                             .grpcProxyEndpoint(node.grpcProxyEndpoint())
+                                            .grpcCertificateHash(node.grpcCertificateHash())
                                             .build())
                                     .build(),
                             node.nodeId());
@@ -518,6 +622,7 @@ public class SystemTransactions {
                                     .serviceEndpoint(node.serviceEndpoint())
                                     .declineReward(node.declineReward())
                                     .grpcProxyEndpoint(node.grpcProxyEndpoint())
+                                    .grpcCertificateHash(node.grpcCertificateHash())
                                     .build()));
                     log.info("Node {} in state is part of the override network and is being updated", node.nodeId());
                 }
@@ -568,15 +673,13 @@ public class SystemTransactions {
         /**
          * Attempts to update the system file using the given system context if the corresponding upgrade file is
          * present at the given location and can be parsed with this update's parser.
-         *
-         * @return whether a synthetic update was dispatched
          */
-        boolean tryIfPresent(@NonNull final String postUpgradeLoc, @NonNull final SystemContext systemContext) {
+        void tryIfPresent(@NonNull final String postUpgradeLoc, @NonNull final SystemContext systemContext) {
             final var path = Paths.get(postUpgradeLoc, updateFileName);
             if (!Files.exists(path)) {
                 log.info(
                         "No post-upgrade file for {} found at {}, not updating", updateFileName, path.toAbsolutePath());
-                return false;
+                return;
             }
             try (final var fin = Files.newInputStream(path)) {
                 final T update;
@@ -584,15 +687,13 @@ public class SystemTransactions {
                     update = updateParser.apply(fin);
                 } catch (Exception e) {
                     log.error("Failed to parse update file at {}", path.toAbsolutePath(), e);
-                    return false;
+                    return;
                 }
                 log.info("Dispatching synthetic update based on contents of {}", path.toAbsolutePath());
                 autoUpdate.doUpdate(systemContext, update);
-                return true;
             } catch (IOException e) {
                 log.error("Failed to read update file at {}", path.toAbsolutePath(), e);
             }
-            return false;
         }
     }
 
@@ -601,7 +702,7 @@ public class SystemTransactions {
      *
      * @param firstEventTime the timestamp of the first event in the current round
      */
-    public Instant restartSystemChangesTimeAt(@NonNull final Instant firstEventTime) {
+    public Instant firstReservedSystemTimeFor(@NonNull final Instant firstEventTime) {
         requireNonNull(firstEventTime);
         final var config = configProvider.getConfiguration();
         final var consensusConfig = config.getConfigData(ConsensusConfig.class);
@@ -619,13 +720,42 @@ public class SystemTransactions {
                                 : 0);
     }
 
+    /**
+     * Whether a context for system transactions should use reserved prior consensus times, or pick up from
+     * the time given to the transaction context factory.
+     */
+    private enum UseReservedConsensusTimes {
+        YES,
+        NO
+    }
+
+    /**
+     * Whether the dispatches in a context for system transactions should trigger stake period boundary
+     * side effects.
+     */
+    private enum TriggerStakePeriodSideEffects {
+        YES,
+        NO
+    }
+
     private SystemContext newSystemContext(
             @NonNull final Instant now,
             @NonNull final State state,
             @NonNull final Consumer<Dispatch> onSuccess,
-            final boolean isGenesis) {
+            @NonNull final UseReservedConsensusTimes useReservedConsensusTimes,
+            @NonNull final TriggerStakePeriodSideEffects triggerStakePeriodSideEffects) {
         final var config = configProvider.getConfiguration();
-        final var firstConsTime = isGenesis ? restartSystemChangesTimeAt(now) : now;
+        final boolean useReserved = useReservedConsensusTimes == UseReservedConsensusTimes.YES;
+        final var firstConsTime = useReserved ? firstReservedSystemTimeFor(now) : now;
+        final boolean applyStakePeriodSideEffects = triggerStakePeriodSideEffects == TriggerStakePeriodSideEffects.YES;
+        // The number of dispatches we can do in this context is determined by the number of available consensus times,
+        // where each dispatch also has an earlier nanosecond free for a preceding NODE_STAKE_UPDATE if this context is
+        // applying stake period side effects
+        final var remainingDispatches = new AtomicInteger(
+                useReserved
+                        ? (int) java.time.Duration.between(firstConsTime, now).toNanos()
+                                / (applyStakePeriodSideEffects ? 2 : 1)
+                        : 1);
         final AtomicReference<Instant> nextConsTime = new AtomicReference<>(firstConsTime);
         final var systemAdminId = idFactory.newAccountId(
                 config.getConfigData(AccountsConfig.class).systemAdmin());
@@ -635,6 +765,11 @@ public class SystemTransactions {
                 new Duration(config.getConfigData(HederaConfig.class).transactionMaxValidDuration());
 
         return new SystemContext() {
+            @Override
+            public boolean hasDispatchesRemaining() {
+                return remainingDispatches.get() > 0;
+            }
+
             @Override
             public void dispatchAdmin(@NonNull final Consumer<TransactionBody.Builder> spec) {
                 requireNonNull(spec);
@@ -646,7 +781,7 @@ public class SystemTransactions {
                                 .nonce(nextDispatchNonce++)
                                 .build());
                 spec.accept(builder);
-                dispatch(builder.build(), 0, isGenesis);
+                dispatch(builder.build(), 0, triggerStakePeriodSideEffects);
             }
 
             @Override
@@ -666,25 +801,7 @@ public class SystemTransactions {
             @Override
             public void dispatchCreation(@NonNull final TransactionBody body, final long entityNum) {
                 requireNonNull(body);
-                dispatch(body, entityNum, isGenesis);
-            }
-
-            private void dispatch(final @NonNull TransactionBody body, final long entityNum, boolean isGenesis) {
-                // System dispatches never have child transactions, so one nano is enough to separate them
-                final var now = nextConsTime.getAndUpdate(then -> then.plusNanos(1));
-                if (streamMode != BLOCKS) {
-                    blockRecordManager.startUserTransaction(now, state);
-                }
-                final var handleOutput =
-                        executeSystem(state, now, creatorInfo, systemAdminId, body, entityNum, onSuccess, isGenesis);
-                if (streamMode != BLOCKS) {
-                    final var records =
-                            ((LegacyListRecordSource) handleOutput.recordSourceOrThrow()).precomputedRecords();
-                    blockRecordManager.endUserTransaction(records.stream(), state);
-                }
-                if (streamMode != RECORDS) {
-                    handleOutput.blockRecordSourceOrThrow().forEachItem(blockStreamManager::writeItem);
-                }
+                dispatch(body, entityNum, triggerStakePeriodSideEffects);
             }
 
             @NonNull
@@ -703,6 +820,39 @@ public class SystemTransactions {
             @Override
             public Instant now() {
                 return nextConsTime.get();
+            }
+
+            private void dispatch(
+                    @NonNull final TransactionBody body,
+                    final long entityNum,
+                    @NonNull final TriggerStakePeriodSideEffects triggerStakePeriodSideEffects) {
+                if (remainingDispatches.decrementAndGet() < 0) {
+                    throw new IllegalStateException("No more dispatches remaining in the system context");
+                }
+                final boolean applyStakePeriodSideEffects =
+                        triggerStakePeriodSideEffects == TriggerStakePeriodSideEffects.YES;
+                final int maxNanosUsed = applyStakePeriodSideEffects ? 2 : 1;
+                final var now = nextConsTime.getAndUpdate(then -> then.plusNanos(maxNanosUsed));
+                if (streamMode != BLOCKS) {
+                    blockRecordManager.startUserTransaction(now, state);
+                }
+                final var handleOutput = executeSystem(
+                        state,
+                        now,
+                        creatorInfo,
+                        systemAdminId,
+                        body,
+                        entityNum,
+                        onSuccess,
+                        applyStakePeriodSideEffects);
+                if (streamMode != BLOCKS) {
+                    final var records =
+                            ((LegacyListRecordSource) handleOutput.recordSourceOrThrow()).precomputedRecords();
+                    blockRecordManager.endUserTransaction(records.stream(), state);
+                }
+                if (streamMode != RECORDS) {
+                    handleOutput.blockRecordSourceOrThrow().forEachItem(blockStreamManager::writeItem);
+                }
             }
         };
     }
@@ -724,7 +874,7 @@ public class SystemTransactions {
      * @param body the transaction to execute
      * @param nextEntityNum if not zero, the next entity number to use for the transaction
      * @param onSuccess the action to take after the transaction is successfully dispatched
-     * @param isGenesis the flag indicating if this is a genesis transaction
+     * @param applyStakePeriodSideEffects the flag indicating if this is a genesis transaction
      * @return the stream output from executing the transaction
      */
     private HandleOutput executeSystem(
@@ -735,19 +885,15 @@ public class SystemTransactions {
             @NonNull final TransactionBody body,
             final long nextEntityNum,
             @NonNull final Consumer<Dispatch> onSuccess,
-            final boolean isGenesis) {
+            final boolean applyStakePeriodSideEffects) {
         final var parentTxn =
                 parentTxnFactory.createSystemTxn(state, creatorInfo, now, INTERNAL_TRANSACTION, payerId, body);
         parentTxn.initBaseBuilder(exchangeRateManager.exchangeRates());
         final var dispatch = parentTxnFactory.createDispatch(parentTxn, parentTxn.baseBuilder(), ignore -> true, NODE);
-        stakePeriodChanges.advanceTimeTo(parentTxn, !isGenesis);
-        if (streamMode != BLOCKS) {
-            // This updates consTimeOfLastHandledTxn as a side effect
-            blockRecordManager.advanceConsensusClock(parentTxn.consensusNow(), parentTxn.state());
-        }
+        stakePeriodChanges.advanceTimeTo(parentTxn, applyStakePeriodSideEffects);
         try {
             long prevEntityNum;
-            if (dispatch.txnInfo().functionality() == HederaFunctionality.NODE_CREATE) {
+            if (dispatch.txnInfo().functionality() == NODE_CREATE) {
                 WritableSingletonState<EntityCounts> countsBefore =
                         dispatch.stack().getWritableStates(EntityIdService.NAME).getSingleton(ENTITY_COUNTS_KEY);
                 prevEntityNum = requireNonNull(countsBefore.get()).numNodes();
@@ -776,7 +922,7 @@ public class SystemTransactions {
             } else {
                 onSuccess.accept(dispatch);
             }
-            if (dispatch.txnInfo().functionality() == HederaFunctionality.NODE_CREATE) {
+            if (dispatch.txnInfo().functionality() == NODE_CREATE) {
                 WritableSingletonState<EntityCounts> countsBefore =
                         dispatch.stack().getWritableStates(EntityIdService.NAME).getSingleton(ENTITY_COUNTS_KEY);
                 countsBefore.put(requireNonNull(countsBefore.get())
