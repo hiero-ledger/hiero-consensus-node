@@ -19,21 +19,14 @@ import picocli.CommandLine;
 
 class FeesCommandTest extends YahcliTestBase {
 
-    private static final String[] VALID_SERVICES = new String[] {
-        "crypto",
-        "consensus", 
-        "token",
-        "file",
-        "contract",
-        "scheduled",
-        "all"
-    };
+    private static final String[] VALID_SERVICES =
+            new String[] {"crypto", "consensus", "token", "file", "contract", "scheduled", "all"};
 
     private static final String[] INVALID_SERVICES = {
         "CRYPTO", // wrong case (should be lowercase)
         "Consensus", // mixed case
         "TOKEN", // wrong case (should be lowercase)
-        "File", // mixed case  
+        "File", // mixed case
         "CONTRACT", // wrong case (should be lowercase)
         "Scheduled", // mixed case
         "ALL", // wrong case (should be lowercase)
@@ -114,7 +107,7 @@ class FeesCommandTest extends YahcliTestBase {
             assertThat(cmdSpec.get().parent().name()).isEqualTo("fees");
         }
 
-        @Test  
+        @Test
         void parsesMultipleValidServices() {
             final var result = parseArgs(typicalGlobalOptions() + " fees list-base-prices crypto consensus token");
             final var cmdSpec = findSubcommand(result, "list-base-prices");
@@ -203,10 +196,13 @@ class FeesCommandTest extends YahcliTestBase {
         // Parse to get to the fees subcommand
         final var result = parseArgs(typicalGlobalOptions() + " fees");
         final var feesSubcommand = result.subcommand();
-        
-        final var exception = assertThrows(
-                java.lang.reflect.InvocationTargetException.class,
-                () -> feesSubcommand.commandSpec().userObject().getClass().getMethod("call").invoke(feesSubcommand.commandSpec().userObject()));
+
+        final var exception = assertThrows(java.lang.reflect.InvocationTargetException.class, () -> feesSubcommand
+                .commandSpec()
+                .userObject()
+                .getClass()
+                .getMethod("call")
+                .invoke(feesSubcommand.commandSpec().userObject()));
         assertThat(exception.getCause()).isInstanceOf(CommandLine.ParameterException.class);
         assertThat(exception.getCause().getMessage()).contains("Please specify a fee subcommand!");
     }
