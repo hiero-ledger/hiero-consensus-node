@@ -150,6 +150,31 @@ public class PlatformWiring {
                 .getOutputWire()
                 .solderTo(components.branchReporterWiring().getInputWire(BranchReporter::reportBranch));
 
+        components
+                .model()
+                .getHealthMonitorWire()
+                .solderTo(components
+                        .eventCreationManagerWiring()
+                        .getInputWire(EventCreationManager::reportUnhealthyDuration));
+        components
+                .model()
+                .getHealthMonitorWire()
+                .solderTo(components.gossipWiring().getSystemHealthInput());
+        components
+                .model()
+                .getHealthMonitorWire()
+                .solderTo("executionHealthInput", "healthyDuration", execution::reportUnhealthyDuration);
+
+        splitOrphanBufferOutput.solderTo(
+                components.branchDetectorWiring().getInputWire(BranchDetector::checkForBranches));
+        splitOrphanBufferOutput.solderTo(
+                components.branchDetectorWiring().getInputWire(BranchDetector::checkForBranches));
+        components
+                .branchDetectorWiring()
+                .getOutputWire()
+                .solderTo(components.branchReporterWiring().getInputWire(BranchReporter::reportBranch));
+
+
         final double eventCreationHeartbeatFrequency = platformContext
                 .getConfiguration()
                 .getConfigData(EventCreationConfig.class)
