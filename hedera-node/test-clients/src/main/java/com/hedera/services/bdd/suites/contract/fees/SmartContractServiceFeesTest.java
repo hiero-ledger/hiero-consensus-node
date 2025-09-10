@@ -88,8 +88,8 @@ public class SmartContractServiceFeesTest {
         return hapiTest(
                 contract.call("contractCall1Byte", new byte[] {0}).gas(100_000L).via(contractCall),
                 // ContractCall's fee is paid with gas only. Estimated price is based on call data and gas used
-                validateChargedUsdForGasOnly(contractCall, 0.00184, 1),
-                validateChargedUsd(contractCall, 0.00184, 1));
+                validateChargedUsdForGasOnly(contractCall, 0.0068, 1),
+                validateChargedUsd(contractCall, 0.0068, 1));
     }
 
     @LeakyHapiTest(overrides = "contracts.evm.ethTransaction.zeroHapiFees.enabled")
@@ -111,8 +111,8 @@ public class SmartContractServiceFeesTest {
                         .nonce(0)
                         .via(ethCall),
                 // Estimated base fee for EthereumCall is 0.0001 USD and is paid by the relayer account
-                validateChargedUsdWithin(ethCall, 0.00194, 1),
-                validateChargedUsdForGasOnly(ethCall, 0.00184, 1),
+                validateChargedUsdWithin(ethCall, 0.0069, 1),
+                validateChargedUsdForGasOnly(ethCall, 0.0068, 1),
                 validateChargedUsdWithoutGas(ethCall, 0.0001, 1));
     }
 

@@ -155,6 +155,9 @@ jobs:
     with:
       ref: ${{ inputs.commit_sha }} # pass the xts-candidate tag to the RPC Relay panel for checkout
       custom-job-name: "JSON-RPC Relay Regression"
+    secrets:
+      access-token: ${{ secrets.GH_ACCESS_TOKEN }}
+      slack-detailed-report-webhook: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
 
   block-node-regression-panel:
     name: Block Node Regression Panel
