@@ -12,7 +12,7 @@ public class AccountCodec implements Codec<Account> {
 
     public static final AccountCodec INSTANCE = new AccountCodec();
 
-    private static final Account DEFAULT_VALUE = new Account(0, 0, 0, false, 0);
+    private static final Account DEFAULT_VALUE = new Account();
 
     @Override
     public Account getDefaultInstance() {

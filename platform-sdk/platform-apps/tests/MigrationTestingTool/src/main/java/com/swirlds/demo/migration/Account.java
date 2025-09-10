@@ -5,36 +5,17 @@ import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
 
 /**
- * This class represents an account being store inside
- * a {@link com.swirlds.virtualmap.VirtualMap} instance.
+ * This record represents an account stored in a
+ * {@link com.swirlds.virtualmap.VirtualMap} instance.
  */
-public class Account {
+public record Account(long balance, long sendThreshold, long receiveThreshold, boolean requireSignature, long uid) {
 
-    private final long balance;
-    private final long sendThreshold;
-    private final long receiveThreshold;
-    private final boolean requireSignature;
-    private final long uid;
-
-    public Account(
-            final long balance,
-            final long sendThreshold,
-            final long receiveThreshold,
-            final boolean requireSignature,
-            final long uid) {
-        this.balance = balance;
-        this.sendThreshold = sendThreshold;
-        this.receiveThreshold = receiveThreshold;
-        this.requireSignature = requireSignature;
-        this.uid = uid;
+    public Account() {
+        this(0L, 0L, 0L, false, 0L);
     }
 
     public Account(final ReadableSequentialData in) {
-        this.balance = in.readLong();
-        this.sendThreshold = in.readLong();
-        this.receiveThreshold = in.readLong();
-        this.requireSignature = in.readByte() != 0;
-        this.uid = in.readLong();
+        this(in.readLong(), in.readLong(), in.readLong(), in.readByte() != 0, in.readLong());
     }
 
     /**

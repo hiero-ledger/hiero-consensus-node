@@ -14,7 +14,6 @@ import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.state.lifecycle.HapiUtils;
-import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
@@ -39,7 +38,10 @@ public class MigrationTestToolConsensusStateEventHandler
 
     private static final Logger logger = LogManager.getLogger(MigrationTestToolConsensusStateEventHandler.class);
 
-    public static final Duration DURATION = Duration.ofSeconds(10);
+    /**
+     * Offset added to the round's consensus timestamp when scheduling a freeze.
+     */
+    public static final Duration FREEZE_TIME_OFFSET = Duration.ofSeconds(10);
 
     private MigrationTestingToolConfig configData;
 
@@ -49,12 +51,6 @@ public class MigrationTestToolConsensusStateEventHandler
             @NonNull final Platform platform,
             @NonNull final InitTrigger trigger,
             @Nullable final SemanticVersion previousVersion) {
-        final VirtualMap virtualMap = (VirtualMap) state.getRoot();
-
-        if (virtualMap != null) {
-            logger.info(STARTUP.getMarker(), "VMM initialized with {} values", virtualMap.size());
-        }
-
         if (trigger == InitTrigger.GENESIS) {
             logger.warn(STARTUP.getMarker(), "InitTrigger was {} when expecting RESTART or RECONNECT", trigger);
         }
@@ -80,11 +76,11 @@ public class MigrationTestToolConsensusStateEventHandler
 
         // After enough rounds, we set the state to be a freeze state
         if (configData.applyFreezeTimeInRound() > 0 && round.getRoundNum() == configData.applyFreezeTimeInRound()) {
-            final Instant freezeTime = round.getConsensusTimestamp().plus(DURATION);
+            final Instant freezeTime = round.getConsensusTimestamp().plus(FREEZE_TIME_OFFSET);
             logger.info(
                     STARTUP.getMarker(),
                     "Setting freeze time to {} seconds after:{}. Value:{}",
-                    DURATION.getSeconds(),
+                    FREEZE_TIME_OFFSET.getSeconds(),
                     round.getConsensusTimestamp(),
                     freezeTime);
             PlatformStateFacade.DEFAULT_PLATFORM_STATE_FACADE.bulkUpdateOf(state, v -> {
