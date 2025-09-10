@@ -29,17 +29,7 @@ public class TransactionGenerator {
      * Generate a new transaction.
      */
     public byte[] generateTransaction() throws SignatureException {
-
-        final double choice = random.nextDouble();
-        final MigrationTestingToolTransaction.TransactionType type;
-        if (choice < 0.5) {
-            type = MigrationTestingToolTransaction.TransactionType.MERKLE_MAP;
-        } else {
-            type = MigrationTestingToolTransaction.TransactionType.VIRTUAL_MAP;
-        }
-
-        final MigrationTestingToolTransaction transaction =
-                new MigrationTestingToolTransaction(type, random.nextLong());
+        final MigrationTestingToolTransaction transaction = new MigrationTestingToolTransaction(random.nextLong());
 
         final ByteArrayOutputStream byteOut = new ByteArrayOutputStream();
         final SerializableDataOutputStream out = new SerializableDataOutputStream(byteOut);
