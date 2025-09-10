@@ -50,6 +50,7 @@ module com.hedera.node.app {
     requires org.hiero.base.concurrent;
     requires com.github.benmanes.caffeine;
     requires com.google.common;
+    requires com.google.protobuf;
     requires io.grpc.netty;
     requires io.helidon.common.tls;
     requires io.helidon.webclient.api;

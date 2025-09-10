@@ -296,7 +296,6 @@ public class BlockNodeSimulatorSuite {
             })
     @Order(5)
     final Stream<DynamicTest> testProactiveBlockBufferAction() {
-        // NOTE: com.hedera.node.app.blocks.impl.streaming MUST have DEBUG logging enabled
         final AtomicReference<Instant> timeRef = new AtomicReference<>();
         return hapiTest(
                 doingContextual(
@@ -450,7 +449,7 @@ public class BlockNodeSimulatorSuite {
                             BLOCK_PERIOD_SECONDS + "s"
                         })
             })
-    @Order(7)
+    @Order(8)
     final Stream<DynamicTest> testBlockBufferDurability() {
         /*
         1. Create some background traffic for a while.
@@ -506,5 +505,43 @@ public class BlockNodeSimulatorSuite {
                 // acknowledged all old blocks and the new blocks (Note: DEBUG logging is required for this to pass)
                 sourcingContextual(spec -> assertHgcaaLogContainsTimeframe(
                         byNodeId(0), timeRef::get, Duration.ofMinutes(3), Duration.ofMinutes(3), "saturation=0.0%")));
+    }
+
+    @HapiTest
+    @HapiBlockNode(
+            networkSize = 1,
+            blockNodeConfigs = {
+                @BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.SIMULATOR),
+                @BlockNodeConfig(nodeId = 1, mode = BlockNodeMode.SIMULATOR)
+            },
+            subProcessNodeConfigs = {
+                @SubProcessNodeConfig(
+                        nodeId = 0,
+                        blockNodeIds = {0, 1},
+                        blockNodePriorities = {0, 1})
+            })
+    @Order(9)
+    final Stream<DynamicTest> node0StatusApiTest() {
+        final AtomicReference<Instant> startTime = new AtomicReference<>(Instant.now());
+        final List<Integer> portNumbers = new ArrayList<>();
+        return hapiTest(
+                doingContextual(spec -> {
+                    portNumbers.add(spec.getBlockNodePortById(0));
+                    portNumbers.add(spec.getBlockNodePortById(1));
+                }),
+                waitUntilNextBlocks(10).withBackgroundTraffic(true),
+                blockNodeSimulator(0).shutDownImmediately(),
+                sourcingContextual(spec -> assertHgcaaLogContainsTimeframe(
+                        byNodeId(0),
+                        startTime::get,
+                        Duration.of(60, SECONDS),
+                        Duration.of(45, SECONDS),
+                        String.format(
+                                "Server status for node localhost:%s: firstAvailableBlock=-1, lastAvailableBlock=-1",
+                                portNumbers.getFirst()),
+                        String.format(
+                                "Block node localhost:%s is behind but block 0 is available in buffer. Will jump to this block.",
+                                portNumbers.get(1)))),
+                waitUntilNextBlocks(10).withBackgroundTraffic(true));
     }
 }

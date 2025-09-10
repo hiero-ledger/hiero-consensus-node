@@ -72,6 +72,7 @@ public class SimulatedBlockNodeServer {
     private final WebServer webServer;
     private final int port;
     private final MockBlockStreamServiceImpl serviceImpl;
+    private final MockServerStatusServiceImpl serverStatusService;
 
     // Configuration for EndOfStream responses
     private final AtomicReference<EndOfStreamConfig> endOfStreamConfig = new AtomicReference<>();
@@ -111,6 +112,7 @@ public class SimulatedBlockNodeServer {
     public SimulatedBlockNodeServer(final int port, @Nullable final Supplier<Long> lastVerifiedBlockNumberSupplier) {
         this.port = port;
         this.serviceImpl = new MockBlockStreamServiceImpl();
+        this.serverStatusService = new MockServerStatusServiceImpl();
         this.externalLastVerifiedBlockNumberSupplier = lastVerifiedBlockNumberSupplier;
 
         final PbjConfig pbjConfig = PbjConfig.builder()
@@ -125,6 +127,7 @@ public class SimulatedBlockNodeServer {
         this.webServer = WebServer.builder()
                 .port(port)
                 .addRouting(PbjRouting.builder().service(serviceImpl))
+                .addRouting(PbjRouting.builder().service(serverStatusService))
                 .addProtocol(pbjConfig)
                 .connectionConfig(connectionConfig)
                 .build();
@@ -913,6 +916,20 @@ public class SimulatedBlockNodeServer {
                     e);
             // If we can't send an ack, the stream is likely broken. Remove it.
             serviceImpl.removeStreamFromTracking(pipeline);
+        }
+    }
+
+    private class MockServerStatusServiceImpl extends BlockNodeServiceGrpc.BlockNodeServiceImplBase {
+        @Override
+        public void serverStatus(ServerStatusRequest request, StreamObserver<ServerStatusResponse> responseObserver) {
+            final long lastAvailableBlock = lastVerifiedBlockNumber.get();
+            final long firstAvailableBlock = lastAvailableBlock > 0 ? 0 : -1;
+            ServerStatusResponse response = ServerStatusResponse.newBuilder()
+                    .setFirstAvailableBlock(firstAvailableBlock)
+                    .setLastAvailableBlock(lastAvailableBlock)
+                    .build();
+            responseObserver.onNext(response);
+            responseObserver.onCompleted();
         }
     }
 }

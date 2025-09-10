@@ -24,9 +24,6 @@ description = "Otter Docker App"
 testFixturesModuleInfo {
     runtimeOnly("io.netty.transport.epoll.linux.x86_64")
     runtimeOnly("io.netty.transport.epoll.linux.aarch_64")
-    runtimeOnly("io.helidon.grpc.core")
-    runtimeOnly("io.helidon.webclient")
-    runtimeOnly("io.helidon.webclient.grpc")
     runtimeOnly("io.grpc.netty.shaded")
 }
 

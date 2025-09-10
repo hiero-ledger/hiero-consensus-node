@@ -1,0 +1,112 @@
+// SPDX-License-Identifier: Apache-2.0
+syntax = "proto3";
+
+package org.hiero.block.api;
+
+option java_package = "org.hiero.block.api.protoc";
+// <<<pbj.java_package = "org.hiero.block.api">>> This comment is special code for setting PBJ Compiler java package
+option java_multiple_files = true;
+
+import "services/basic_types.proto";
+
+/**
+ * A request for the status of a Block-Node.
+ */
+message ServerStatusRequest {}
+
+/**
+ * A response to a server status request.
+ *
+ * This message SHALL provide a client with information needed to successfully
+ * query this Block-Node for a block, stream of blocks, or
+ * state snapshot.<br/>
+ * A request for blocks between `first_available_block` and
+ * `last_available_block`, inclusive, SHOULD succeed. Any request for blocks
+ * outside that range SHOULD fail.
+ */
+message ServerStatusResponse {
+  /**
+   * The lowest numbered block available on this Block-Node.
+   * <p>
+   * Any request for a block with lower number than this value SHALL fail
+   * with a status value indicating and invalid start block number.
+   */
+  uint64 first_available_block = 1;
+
+  /**
+   * The greatest block number available from this Block-Node.
+   * <p>
+   * Any request for a block with a block number higher than this
+   * value MAY fail.
+   */
+  uint64 last_available_block = 2;
+
+  /**
+   * A flag indicating this Block-Node only offers the latest state snapshot.
+   * <p>
+   * If this value is `true` the client MUST set `retrieve_latest` `true`
+   * in any `StateSnapshotRequest` sent to this Block-Node.
+   */
+  bool only_latest_state = 3;
+
+  /**
+   * Version information.<br/>
+   * Versions for the block network address book, block stream protocol
+   * buffer schema, and Block-Node software.
+   */
+  BlockNodeVersions version_information = 4;
+}
+
+/**
+ * Version information for a Block-Node.
+ *
+ * The `stream_proto_version` SHOULD be an officially released Block Stream
+ * version.
+ * The `address_book_version` SHALL be determined by networks of Block-Nodes.
+ * The `software_version` SHALL be determined by the implementation of this
+ * specification.
+ */
+message BlockNodeVersions {
+  /**
+   * A version of the Block-Node network address book.<br/>
+   * The address book version describes what version of address book
+   * this Block-Node holds for discovering and identifying other Block-Nodes.
+   * <p>
+   * This version SHALL be specific to each "network" of interconnected
+   * Block-Nodes.
+   */
+  proto.SemanticVersion address_book_version = 1;
+
+  /**
+   * A version of the Block Stream specification.<br/>
+   * This is the Stream version currently supported by this Block-Node.
+   * <p>
+   * Implementations SHOULD make reasonable effort to ensure the latest
+   * released Block Stream version is supported.<br/>
+   * This version MUST be an officially released Block Stream version if
+   * the responding Block-Node is not private.
+   */
+  proto.SemanticVersion stream_proto_version = 2;
+
+  /**
+   * A version of the Block-Node software.<br/>
+   * This is the software version that this Block-Node is currently
+   * running.
+   * <p>
+   * This value is implementation-defined.
+   */
+  proto.SemanticVersion software_version = 3;
+}
+
+/**
+ * Remote procedure calls (RPCs) for the Block-Node ancillary services.
+ */
+service BlockNodeService {
+  /**
+   * Read the status of this Block-Node.
+   * <p>
+   * A client SHOULD request server status prior to requesting block stream
+   * data or a state snapshot.
+   */
+  rpc serverStatus(ServerStatusRequest) returns (ServerStatusResponse);
+}
