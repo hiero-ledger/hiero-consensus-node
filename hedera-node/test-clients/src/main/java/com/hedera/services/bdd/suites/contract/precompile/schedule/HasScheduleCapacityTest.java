@@ -14,7 +14,7 @@ import com.esaulpaugh.headlong.abi.Address;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
-import com.hedera.services.bdd.junit.RepeatableHapiTest;
+import com.hedera.services.bdd.junit.LeakyRepeatableHapiTest;
 import com.hedera.services.bdd.junit.RepeatableReason;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts;
@@ -81,7 +81,10 @@ public class HasScheduleCapacityTest {
                 true, "hasScheduleCapacityExample", BigInteger.valueOf(EXPIRY_SHIFT.getAndIncrement())));
     }
 
-    @HapiTest
+    // default 'feeSchedules.json' do not contain HederaFunctionality.SCHEDULE_CREATE,
+    // fee data for SubType.SCHEDULE_CREATE_CONTRACT_CALL
+    // that is why we are reuploading 'scheduled-contract-fees.json' in tests
+    @LeakyHapiTest(fees = "scheduled-contract-fees.json")
     @DisplayName("call hasScheduleCapacity(uint256,uint256) success return false by no capacity")
     public Stream<DynamicTest> hasScheduleCapacityOverflowTest() {
         final BigInteger expirySecond =
@@ -131,9 +134,15 @@ public class HasScheduleCapacityTest {
                 hasScheduleCapacity(true, FUNCTION_NAME, expirySecond, BigInteger.valueOf(15_000_001)));
     }
 
-    // RepeatableHapiTest: we should use Repeatable test for single threaded processing. In other case test fails with
-    // 'StreamValidationTest' 'expected from generated but did not find in translated [scheduleID]'
-    @RepeatableHapiTest(value = RepeatableReason.NEEDS_SYNCHRONOUS_HANDLE_WORKFLOW)
+    // LeakyRepeatableHapiTest: we should use Repeatable test for single threaded processing. In other case test fails
+    // with 'StreamValidationTest' 'expected from generated but did not find in translated [scheduleID]'
+
+    // fees: default 'feeSchedules.json' do not contain HederaFunctionality.SCHEDULE_CREATE,
+    // fee data for SubType.SCHEDULE_CREATE_CONTRACT_CALL
+    // that is why we are reuploading 'scheduled-contract-fees.json' in tests
+    @LeakyRepeatableHapiTest(
+            value = RepeatableReason.NEEDS_SYNCHRONOUS_HANDLE_WORKFLOW,
+            fees = "scheduled-contract-fees.json")
     @DisplayName("call hasScheduleCapacity -> scheduleCall -> deleteSchedule -> success")
     public Stream<DynamicTest> scheduleCallWithCapacityCheckAndDeleteTest() {
         return hapiTest(withOpContext((spec, opLog) -> {

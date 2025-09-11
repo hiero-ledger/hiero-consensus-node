@@ -4,7 +4,6 @@ package com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.hss;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_SCHEDULE_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalHaltReason.ERROR_DECODING_PRECOMPILE_INPUT;
-import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.ReturnTypes.*;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.CONFIG_CONTEXT_VARIABLE;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.DEFAULT_CONFIG;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.DEFAULT_CONTRACTS_CONFIG;
@@ -24,6 +23,7 @@ import com.hedera.node.app.service.contract.impl.exec.scope.VerificationStrategy
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hss.DispatchForResponseCodeHssCall;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hss.HssCallAttempt;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hss.deleteschedule.DeleteScheduleTranslator;
+import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.ReturnTypes;
 import com.hedera.node.app.service.contract.impl.records.ContractCallStreamBuilder;
 import com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.common.CallAttemptTestBase;
 import com.hedera.node.app.spi.workflows.DispatchOptions;
@@ -74,7 +74,7 @@ class DispatchForResponseCodeHssCallTest extends CallAttemptTestBase {
                 verificationStrategy,
                 dispatchGasCalculator,
                 emptySet(),
-                builder -> encodedRc(builder.status()));
+                builder -> ReturnTypes.encodedRc(builder.status()));
         // create call with 'scheduleCreateResultEncode' encoder
         subjectScheduleCreateResultEncoder = new DispatchForResponseCodeHssCall(
                 mockEnhancement(),
@@ -121,22 +121,22 @@ class DispatchForResponseCodeHssCallTest extends CallAttemptTestBase {
 
     @Test
     void successResult() {
-        assertArrayEquals(encodedRc(SUCCESS).array(), successResult(subject));
+        assertArrayEquals(ReturnTypes.encodedRc(SUCCESS).array(), successResult(subject));
     }
 
     @Test
     void successResultFromScheduleCreateResultEncoder() {
         given(recordBuilder.scheduleID()).willReturn(ScheduleID.newBuilder().build());
         assertArrayEquals(
-                RC_AND_ADDRESS_ENCODER
-                        .encode(Tuple.of((long) SUCCESS.protoOrdinal(), ZERO_ADDRESS))
+                ReturnTypes.RC_AND_ADDRESS_ENCODER
+                        .encode(Tuple.of((long) SUCCESS.protoOrdinal(), ReturnTypes.ZERO_ADDRESS))
                         .array(),
                 successResult(subjectScheduleCreateResultEncoder));
     }
 
     @Test
     void successResultFromAttemptConstructor() {
-        assertArrayEquals(encodedRc(SUCCESS).array(), successResult(subjectFromAttempt));
+        assertArrayEquals(ReturnTypes.encodedRc(SUCCESS).array(), successResult(subjectFromAttempt));
     }
 
     @Test
@@ -153,7 +153,7 @@ class DispatchForResponseCodeHssCallTest extends CallAttemptTestBase {
                 verificationStrategy,
                 dispatchGasCalculator,
                 emptySet(),
-                recordBuilder -> encodedRc(recordBuilder.status()));
+                recordBuilder -> ReturnTypes.encodedRc(recordBuilder.status()));
 
         final var pricedResult = subject.execute(frame);
         final var fullResult = pricedResult.fullResult();
@@ -184,21 +184,21 @@ class DispatchForResponseCodeHssCallTest extends CallAttemptTestBase {
 
     @Test
     void failureResult() {
-        assertArrayEquals(encodedRc(INVALID_SCHEDULE_ID).array(), failureResult(subject));
+        assertArrayEquals(ReturnTypes.encodedRc(INVALID_SCHEDULE_ID).array(), failureResult(subject));
     }
 
     @Test
     void failureResultFromScheduleCreateResultEncoder() {
         given(recordBuilder.scheduleID()).willReturn(ScheduleID.newBuilder().build());
         assertArrayEquals(
-                RC_AND_ADDRESS_ENCODER
-                        .encode(Tuple.of((long) INVALID_SCHEDULE_ID.protoOrdinal(), ZERO_ADDRESS))
+                ReturnTypes.RC_AND_ADDRESS_ENCODER
+                        .encode(Tuple.of((long) INVALID_SCHEDULE_ID.protoOrdinal(), ReturnTypes.ZERO_ADDRESS))
                         .array(),
                 failureResult(subjectScheduleCreateResultEncoder));
     }
 
     @Test
     void failureResultFromAttemptConstructor() {
-        assertArrayEquals(encodedRc(INVALID_SCHEDULE_ID).array(), failureResult(subjectFromAttempt));
+        assertArrayEquals(ReturnTypes.encodedRc(INVALID_SCHEDULE_ID).array(), failureResult(subjectFromAttempt));
     }
 }

@@ -129,8 +129,8 @@ public class ScheduleCallTest {
                 VALUE_MORE_THAN_LONG));
     }
 
-    // RepeatableHapiTest: we should use Repeatable test for single threaded processing. In other case test fails with
-    // 'StreamValidationTest' 'expected from generated but did not find in translated [contractID]'
+    // LeakyRepeatableHapiTest: we should use Repeatable test for single threaded processing. In other case test fails
+    // with 'StreamValidationTest' 'expected from generated but did not find in translated [contractID]'
 
     // fees: default 'feeSchedules.json' do not contain HederaFunctionality.SCHEDULE_CREATE,
     // fee data for SubType.SCHEDULE_CREATE_CONTRACT_CALL
@@ -148,8 +148,8 @@ public class ScheduleCallTest {
                 BigInteger.valueOf(EXPIRY_SHIFT.incrementAndGet()))));
     }
 
-    // RepeatableHapiTest: we should use Repeatable test for single threaded processing. In other case test fails with
-    // 'StreamValidationTest' 'expected from generated but did not find in translated [contractID]'
+    // LeakyRepeatableHapiTest: we should use Repeatable test for single threaded processing. In other case test fails
+    // with 'StreamValidationTest' 'expected from generated but did not find in translated [contractID]'
 
     // fees: default 'feeSchedules.json' do not contain HederaFunctionality.SCHEDULE_CREATE,
     // fee data for SubType.SCHEDULE_CREATE_CONTRACT_CALL
