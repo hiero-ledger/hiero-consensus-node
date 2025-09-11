@@ -1,12 +1,13 @@
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.yahcli.test.commands.accounts;
-
-import com.hedera.services.yahcli.test.YahcliTestBase;
-import com.hedera.services.yahcli.test.commands.accounts.dsl.Memo;
-import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+
+import com.hedera.services.yahcli.test.YahcliTestBase;
+import com.hedera.services.yahcli.test.commands.accounts.dsl.Memo;
+import org.junit.jupiter.api.Test;
 
 public class UpdateCommandTest extends YahcliTestBase {
     private static final String BASE_COMMAND = " accounts update ";
@@ -18,15 +19,15 @@ public class UpdateCommandTest extends YahcliTestBase {
         final var result = execute(typicalGlobalOptions() + BASE_COMMAND + " help");
         assertEquals(0, result);
         assertHasContent(
-                "yahcli accounts update [--memo=<memo>] [--pathKeys=<pathKeys>]\n" +
-                        "                              [--targetAccount=<targetAccount>] [COMMAND]",
+                "yahcli accounts update [--memo=<memo>] [--pathKeys=<pathKeys>]\n"
+                        + "                              [--targetAccount=<targetAccount>] [COMMAND]",
                 "Commands:");
     }
 
     @Test
     public void parsesMemoAndPathKeysAndTargetAccount() {
-        final var parseResult = parseArgs(typicalGlobalOptions() + BASE_COMMAND +
-                "--memo=testMemo --pathKeys=/tmp/keys.txt --targetAccount=0.0.1234");
+        final var parseResult = parseArgs(typicalGlobalOptions() + BASE_COMMAND
+                + "--memo=testMemo --pathKeys=/tmp/keys.txt --targetAccount=0.0.1234");
         assertCommandHierarchyOf(parseResult, "yahcli", "accounts", "update");
         final var cmdSpec = findSubcommand(parseResult, "update");
         assertThat(cmdSpec).isPresent();

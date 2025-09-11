@@ -51,7 +51,9 @@ public class StakeCommandTest extends YahcliTestBase {
         assertCommandHierarchyOf(parseResult, "yahcli", "accounts", "stake");
         final var cmdSpec = findSubcommand(parseResult, "stake");
         assertThat(cmdSpec).isPresent();
-        assertEquals(Boolean.TRUE, cmdSpec.get().findOption("--start-declining-rewards").getValue());
+        assertEquals(
+                Boolean.TRUE,
+                cmdSpec.get().findOption("--start-declining-rewards").getValue());
         assertEquals("0.0.1001", cmdSpec.get().positionalParameters().getFirst().getValue());
     }
 
@@ -61,7 +63,9 @@ public class StakeCommandTest extends YahcliTestBase {
         assertCommandHierarchyOf(parseResult, "yahcli", "accounts", "stake");
         final var cmdSpec = findSubcommand(parseResult, "stake");
         assertThat(cmdSpec).isPresent();
-        assertEquals(Boolean.TRUE, cmdSpec.get().findOption("--stop-declining-rewards").getValue());
+        assertEquals(
+                Boolean.TRUE,
+                cmdSpec.get().findOption("--stop-declining-rewards").getValue());
         assertEquals("0.0.1001", cmdSpec.get().positionalParameters().getFirst().getValue());
     }
 }
