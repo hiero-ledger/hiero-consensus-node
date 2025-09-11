@@ -53,6 +53,11 @@ public class YahcliVerbs {
         return new YahcliCallOperation(prepend(args, "accounts"));
     }
 
+    public static YahcliCallOperation yahcliSystemFile(@NonNull final String... args) {
+        requireNonNull(args);
+        return new YahcliCallOperation(prepend(args, "sysfiles"));
+    }
+
     /**
      * Returns an operation that invokes a yahcli {@code ivy} subcommand with the given args,
      * taking the config location and working directory from defaults if not overridden.
