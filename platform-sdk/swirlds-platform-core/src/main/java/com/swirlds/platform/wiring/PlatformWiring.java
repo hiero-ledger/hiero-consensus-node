@@ -359,6 +359,8 @@ public class PlatformWiring {
                 .solderTo(eventCreationManagerWiring.getInputWire(EventCreationManager::reportUnhealthyDuration));
 
         model.getHealthMonitorWire().solderTo(gossipWiring.getSystemHealthInput());
+        model.getHealthMonitorWire()
+                .solderTo("executionHealthInput", "healthyDuration", execution::reportUnhealthyDuration);
 
         splitOrphanBufferOutput.solderTo(branchDetectorWiring.getInputWire(BranchDetector::checkForBranches));
         branchDetectorWiring.getOutputWire().solderTo(branchReporterWiring.getInputWire(BranchReporter::reportBranch));
