@@ -44,7 +44,7 @@ import org.junit.jupiter.api.Tag;
 @HapiTestLifecycle
 public class HasScheduleCapacityTest {
 
-    private static final AtomicInteger EXPIRY_SHIFT = new AtomicInteger(30);
+    private static final AtomicInteger EXPIRY_SHIFT = new AtomicInteger(120);
     private static final BigInteger VALUE_MORE_THAN_LONG =
             BigInteger.valueOf(Long.MAX_VALUE).multiply(BigInteger.TEN);
     private static final String FUNCTION_NAME = "hasScheduleCapacityProxy";
@@ -81,25 +81,6 @@ public class HasScheduleCapacityTest {
                 true, "hasScheduleCapacityExample", BigInteger.valueOf(EXPIRY_SHIFT.getAndIncrement())));
     }
 
-    // default 'feeSchedules.json' do not contain HederaFunctionality.SCHEDULE_CREATE,
-    // fee data for SubType.SCHEDULE_CREATE_CONTRACT_CALL
-    // that is why we are reuploading 'scheduled-contract-fees.json' in tests
-    @LeakyHapiTest(fees = "scheduled-contract-fees.json")
-    @DisplayName("call hasScheduleCapacity(uint256,uint256) success return false by no capacity")
-    public Stream<DynamicTest> hasScheduleCapacityOverflowTest() {
-        final BigInteger expirySecond =
-                BigInteger.valueOf(System.currentTimeMillis() / 1000 + EXPIRY_SHIFT.getAndIncrement());
-        final BigInteger testGasLimit = BigInteger.valueOf(2_000_000);
-        final BigInteger closeToMaxGasLimit = BigInteger.valueOf(1_499_000_000);
-        return hapiTest(
-                hasScheduleCapacity(true, FUNCTION_NAME, expirySecond, testGasLimit),
-                contract.call("scheduleCallWithDefaultCallData", expirySecond, closeToMaxGasLimit)
-                        .gas(2_000_000)
-                        // parent success and child success
-                        .andAssert(txn -> txn.hasKnownStatuses(ResponseCodeEnum.SUCCESS, ResponseCodeEnum.SUCCESS)),
-                hasScheduleCapacity(false, FUNCTION_NAME, expirySecond, testGasLimit));
-    }
-
     @HapiTest
     @DisplayName("call hasScheduleCapacity(uint256,uint256) success return false by 0 expiry")
     public Stream<DynamicTest> hasScheduleCapacity0ExpiryTest() {
@@ -120,6 +101,30 @@ public class HasScheduleCapacityTest {
         return hapiTest(hasScheduleCapacity(false, FUNCTION_NAME, expirySecond, VALUE_MORE_THAN_LONG));
     }
 
+    // default 'feeSchedules.json' do not contain HederaFunctionality.SCHEDULE_CREATE,
+    // fee data for SubType.SCHEDULE_CREATE_CONTRACT_CALL
+    // that is why we are reuploading 'scheduled-contract-fees.json' in tests
+
+    // execute separately from other tests because it is changes 'contracts.maxGasPerSecBackend' config
+    @LeakyHapiTest(overrides = {"contracts.maxGasPerSecBackend"}, fees = "scheduled-contract-fees.json")
+    @DisplayName("call hasScheduleCapacity(uint256,uint256) success return false by no capacity")
+    public Stream<DynamicTest> hasScheduleCapacityOverflowTest() {
+        final BigInteger expirySecond =
+                BigInteger.valueOf(System.currentTimeMillis() / 1000 + EXPIRY_SHIFT.getAndIncrement());
+        final BigInteger testGasLimit = BigInteger.valueOf(2_000_000);
+        final BigInteger closeToMaxGasLimit = BigInteger.valueOf(14_000_000);
+        return hapiTest(
+                UtilVerbs.overriding("contracts.maxGasPerSecBackend", "15000000"),
+                hasScheduleCapacity(true, FUNCTION_NAME, expirySecond, testGasLimit),
+                contract.call("scheduleCallWithDefaultCallData", expirySecond, closeToMaxGasLimit)
+                        .gas(2_000_000)
+                        // parent success and child success
+                        .andAssert(txn -> txn.hasKnownStatuses(ResponseCodeEnum.SUCCESS, ResponseCodeEnum.SUCCESS)),
+                hasScheduleCapacity(false, FUNCTION_NAME, expirySecond, testGasLimit),
+                UtilVerbs.restoreDefault("contracts.maxGasPerSecBackend")
+        );
+    }
+
     // execute separately from other tests because it is changes 'contracts.maxGasPerSecBackend' config
     @LeakyHapiTest(overrides = {"contracts.maxGasPerSecBackend"})
     @DisplayName("call hasScheduleCapacity(uint256,uint256) success return false by max+1 gasLimit")
@@ -130,8 +135,10 @@ public class HasScheduleCapacityTest {
                 // limit is controlled by 'contracts.maxGasPerSecBackend' property
                 UtilVerbs.overriding("contracts.maxGasPerSecBackend", "15000000"),
                 hasScheduleCapacity(false, FUNCTION_NAME, expirySecond, BigInteger.valueOf(15_000_001)),
-                UtilVerbs.restoreDefault("contracts.maxGasPerSecBackend"),
-                hasScheduleCapacity(true, FUNCTION_NAME, expirySecond, BigInteger.valueOf(15_000_001)));
+                UtilVerbs.overriding("contracts.maxGasPerSecBackend", "30000000"),
+                hasScheduleCapacity(true, FUNCTION_NAME, expirySecond, BigInteger.valueOf(15_000_001)),
+                UtilVerbs.restoreDefault("contracts.maxGasPerSecBackend")
+        );
     }
 
     // LeakyRepeatableHapiTest: we should use Repeatable test for single threaded processing. In other case test fails
