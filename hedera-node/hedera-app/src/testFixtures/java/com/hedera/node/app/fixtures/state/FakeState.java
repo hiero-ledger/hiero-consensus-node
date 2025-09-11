@@ -284,6 +284,16 @@ public class FakeState implements MerkleNodeState {
     }
 
     @Override
+    public void disableStartupMode() {
+        // no-op
+    }
+
+    @Override
+    public void commitSingletons() {
+        // no-op
+    }
+
+    @Override
     public @NonNull MerkleNodeState copy() {
         return this;
     }
