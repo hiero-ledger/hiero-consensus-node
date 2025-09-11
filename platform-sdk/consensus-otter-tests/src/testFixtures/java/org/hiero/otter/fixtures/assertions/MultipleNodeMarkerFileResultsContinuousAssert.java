@@ -4,10 +4,10 @@ package org.hiero.otter.fixtures.assertions;
 import static org.hiero.otter.fixtures.result.SubscriberAction.CONTINUE;
 import static org.hiero.otter.fixtures.result.SubscriberAction.UNSUBSCRIBE;
 
-import com.hedera.hapi.platform.state.NodeId;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.function.BiConsumer;
+import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.notification.IssNotification.IssType;
 import org.hiero.otter.fixtures.result.MarkerFileSubscriber;
 import org.hiero.otter.fixtures.result.MarkerFilesStatus;

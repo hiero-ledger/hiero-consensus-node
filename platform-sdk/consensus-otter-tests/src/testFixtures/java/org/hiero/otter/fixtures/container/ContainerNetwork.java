@@ -6,7 +6,6 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
-import com.hedera.hapi.platform.state.NodeId;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.platform.crypto.CryptoStatic;
 import com.swirlds.platform.gossip.config.GossipConfig_;
@@ -26,6 +25,7 @@ import java.util.stream.IntStream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.node.KeysAndCerts;
+import org.hiero.consensus.model.node.NodeId;
 import org.hiero.otter.fixtures.TimeManager;
 import org.hiero.otter.fixtures.TransactionGenerator;
 import org.hiero.otter.fixtures.container.network.NetworkBehavior;
@@ -193,11 +193,7 @@ public class ContainerNetwork extends AbstractNetwork {
             final Map<org.hiero.consensus.model.node.NodeId, KeysAndCerts> legacyNodeIdKeysAndCertsMap =
                     CryptoStatic.generateKeysAndCerts(nodeIds, null);
             return legacyNodeIdKeysAndCertsMap.entrySet().stream()
-                    .collect(Collectors.toMap(
-                            entry -> NodeId.newBuilder()
-                                    .id(entry.getKey().id())
-                                    .build(), // or use a factory method if needed
-                            Map.Entry::getValue));
+                    .collect(Collectors.toMap(entry -> NodeId.of(entry.getKey().id()), Map.Entry::getValue));
         } catch (final ExecutionException | InterruptedException | KeyStoreException e) {
             throw new RuntimeException(e);
         }
