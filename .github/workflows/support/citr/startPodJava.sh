@@ -33,7 +33,7 @@ then
   rm -rf output/*
   rm -rf data/saved/com.hedera.services.ServicesMain/${node_id}/123/*
   export PATH=/usr/local/java/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-
+  yum install -q -y perl
   echo "Generate module allowances:";
   echo > module_reads.txt
   java -p $(find data/lib/* -type f -name '*.jar' -printf "%p:") --list-modules |  grep -E '[\.]hiero|[\.]swirlds|[\.]hedera|[\.]pbj|hyperledger[\.]besu' > packs.txt
