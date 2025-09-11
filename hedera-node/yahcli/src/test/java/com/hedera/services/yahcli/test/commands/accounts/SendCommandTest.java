@@ -22,9 +22,10 @@ public class SendCommandTest extends YahcliTestBase {
         final var result = execute(typicalGlobalOptions() + " accounts send help");
         assertEquals(0, result);
         assertHasContent(
-                "yahcli accounts send [--inside-batch] [-d=denomination]\n"
-                        + "                            [--decimals=<decimals>] [--memo=<memo>]\n"
-                        + "                            [--to=<beneficiary>] <amount_to_send> [COMMAND]",
+                """
+                        yahcli accounts send [--inside-batch] [-d=denomination]
+                                                    [--decimals=<decimals>] [--memo=<memo>]
+                                                    [--to=<beneficiary>] <amount_to_send> [COMMAND]""",
                 "Commands:");
     }
 
