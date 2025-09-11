@@ -128,8 +128,6 @@ jobs:
           git clone https://"${{ secrets.perf_ghp }}"@github.com/hashgraph/pbj.git pbj
           git clone https://github.com/hyperledger/besu.git besu
 
-
-
       - name: Check Test Asset
         id: set-k8s-cluster
         run: |
@@ -221,7 +219,7 @@ jobs:
           echo Setup procedure ...
           cat /etc/*elease
           sudo apt-get update
-          sudo apt-get install -y net-tools iputils-ping node-typescript
+          sudo apt-get install -y net-tools iputils-ping node-typescript perl unzip
 
       - name: Create report dir
         shell: bash
