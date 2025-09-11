@@ -79,33 +79,20 @@ public class StatusStateMachine {
     @Nullable
     private PlatformStatusLogic getNewLogic(@NonNull final PlatformStatusAction action) {
         Objects.requireNonNull(action);
-
-        final Class<? extends PlatformStatusAction> actionClass = action.getClass();
-
         try {
-            if (actionClass == CatastrophicFailureAction.class) {
-                return currentStatusLogic.processCatastrophicFailureAction((CatastrophicFailureAction) action);
-            } else if (actionClass == DoneReplayingEventsAction.class) {
-                return currentStatusLogic.processDoneReplayingEventsAction((DoneReplayingEventsAction) action);
-            } else if (actionClass == FallenBehindAction.class) {
-                return currentStatusLogic.processFallenBehindAction((FallenBehindAction) action);
-            } else if (actionClass == FreezePeriodEnteredAction.class) {
-                return currentStatusLogic.processFreezePeriodEnteredAction((FreezePeriodEnteredAction) action);
-            } else if (actionClass == ReconnectCompleteAction.class) {
-                return currentStatusLogic.processReconnectCompleteAction((ReconnectCompleteAction) action);
-            } else if (actionClass == SelfEventReachedConsensusAction.class) {
-                return currentStatusLogic.processSelfEventReachedConsensusAction(
-                        (SelfEventReachedConsensusAction) action);
-            } else if (actionClass == StartedReplayingEventsAction.class) {
-                return currentStatusLogic.processStartedReplayingEventsAction((StartedReplayingEventsAction) action);
-            } else if (actionClass == StateWrittenToDiskAction.class) {
-                return currentStatusLogic.processStateWrittenToDiskAction((StateWrittenToDiskAction) action);
-            } else if (actionClass == TimeElapsedAction.class) {
-                return currentStatusLogic.processTimeElapsedAction((TimeElapsedAction) action);
-            } else {
-                throw new IllegalArgumentException(
+            return switch (action){
+                case final CatastrophicFailureAction a -> currentStatusLogic.processCatastrophicFailureAction(a);
+                case final DoneReplayingEventsAction a -> currentStatusLogic.processDoneReplayingEventsAction(a);
+                case final FallenBehindAction a -> currentStatusLogic.processFallenBehindAction(a);
+                case final FreezePeriodEnteredAction a -> currentStatusLogic.processFreezePeriodEnteredAction(a);
+                case final ReconnectCompleteAction a -> currentStatusLogic.processReconnectCompleteAction(a);
+                case final SelfEventReachedConsensusAction a -> currentStatusLogic.processSelfEventReachedConsensusAction(a);
+                case final StartedReplayingEventsAction a -> currentStatusLogic.processStartedReplayingEventsAction(a);
+                case final StateWrittenToDiskAction a -> currentStatusLogic.processStateWrittenToDiskAction(a);
+                case final TimeElapsedAction a -> currentStatusLogic.processTimeElapsedAction(a);
+                default -> throw new IllegalArgumentException(
                         "Unknown action type: " + action.getClass().getName());
-            }
+            };
         } catch (final IllegalPlatformStatusException e) {
             logger.error(EXCEPTION.getMarker(), e.getMessage(), e);
             return null;
