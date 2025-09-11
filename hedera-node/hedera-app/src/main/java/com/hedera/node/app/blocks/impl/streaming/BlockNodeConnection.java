@@ -501,13 +501,12 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
             // Record the timestamp when the block is sent
             if (request.blockItems() != null
                     && !request.blockItems().blockItems().isEmpty()) {
-                // Find the first block item with a block proof to get the block number
-                for (final BlockItem item : request.blockItems().blockItems()) {
-                    if (item.hasBlockProof()) {
-                        blockNodeConnectionManager.recordBlockSent(
-                                blockNodeConfig, item.blockProof().block(), Instant.now());
-                        break;
-                    }
+                // Find the first block item
+                // if it is a block proof, record the time it was sent
+                final BlockItem firstItem = request.blockItems().blockItems().getFirst();
+                if (firstItem.hasBlockProof()) {
+                    blockNodeConnectionManager.recordBlockSent(
+                            blockNodeConfig, firstItem.blockProof().block(), Instant.now());
                 }
             }
             requestPipeline.onNext(request);

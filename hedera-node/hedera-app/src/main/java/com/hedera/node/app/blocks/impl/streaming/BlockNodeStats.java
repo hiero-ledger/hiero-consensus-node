@@ -96,7 +96,7 @@ public class BlockNodeStats {
      * @param blockNumber the acknowledged block number
      * @param acknowledgedTime the time the acknowledgement was received
      * @param highLatencyThresholdMs threshold above which latency is considered high
-     * @param eventsBeforeSwitching how many consecutive high-latency events trigger a switch
+     * @param eventsBeforeSwitching the number of consecutive high-latency events that triggers a switch
      * @return a result describing the evaluation: latency (ms), consecutive count, and whether the threshold was exceeded enough to switch
      */
     public HighLatencyResult recordAcknowledgementAndEvaluate(
@@ -106,7 +106,11 @@ public class BlockNodeStats {
             final int eventsBeforeSwitching) {
         requireNonNull(acknowledgedTime, "acknowledgedTime must not be null");
 
-        final Instant sendTime = blockSendTimestamps.remove(blockNumber);
+        final Instant sendTime = blockSendTimestamps.get(blockNumber);
+
+        // Prune the map of all entries with block numbers less than or equal to the acknowledged block number.
+        blockSendTimestamps.keySet().removeIf(key -> key <= blockNumber);
+
         if (sendTime == null) {
             // No sent timestamp found; treat as no-op for high-latency accounting
             return new HighLatencyResult(0L, consecutiveHighLatencyEvents.get(), false, false);
