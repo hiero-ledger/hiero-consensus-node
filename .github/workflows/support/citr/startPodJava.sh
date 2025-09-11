@@ -32,6 +32,7 @@ then
   rm -rf /opt/hgcapp/*Streams/*
   rm -rf output/*
   rm -rf data/saved/com.hedera.services.ServicesMain/${node_id}/123/*
+  export PATH=/usr/local/java/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
   echo "Generate module allowances:";
   echo > module_reads.txt
