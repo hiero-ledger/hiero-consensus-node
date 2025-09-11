@@ -88,7 +88,7 @@ public class HasScheduleCapacityTest {
     @DisplayName("call hasScheduleCapacity(uint256,uint256) success return false by no capacity")
     public Stream<DynamicTest> hasScheduleCapacityOverflowTest() {
         final BigInteger expirySecond =
-                BigInteger.valueOf(System.currentTimeMillis() / 1000 + EXPIRY_SHIFT.getAndIncrement() + 1000);
+                BigInteger.valueOf(System.currentTimeMillis() / 1000 + EXPIRY_SHIFT.getAndIncrement());
         final BigInteger testGasLimit = BigInteger.valueOf(2_000_000);
         final BigInteger closeToMaxGasLimit = BigInteger.valueOf(1_499_000_000);
         return hapiTest(
@@ -121,7 +121,7 @@ public class HasScheduleCapacityTest {
     }
 
     // execute separately from other tests because it is changes 'contracts.maxGasPerSecBackend' config
-    @LeakyHapiTest
+    @LeakyHapiTest(overrides = {"contracts.maxGasPerSecBackend"})
     @DisplayName("call hasScheduleCapacity(uint256,uint256) success return false by max+1 gasLimit")
     public Stream<DynamicTest> hasScheduleCapacityMaxGasLimitTest() {
         final BigInteger expirySecond =
