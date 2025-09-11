@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.precompile;
 
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.resultWith;
@@ -34,6 +35,7 @@ public class RedirectPrecompileSuite {
     private static final String TXN = "txn";
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> balanceOf() {
         final var totalSupply = 50;
         return hapiTest(
@@ -74,6 +76,7 @@ public class RedirectPrecompileSuite {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> redirectToInvalidToken() {
         return hapiTest(
                 newKeyNamed(MULTI_KEY),

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.evm.batch;
 
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asContract;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
@@ -357,6 +358,7 @@ public class AtomicEvm38ValidationSuite {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> verifiesExistenceForStaticCall() {
         final var contract = "CallOperationsChecker";
         final var INVALID_ADDRESS = "0x0000000000000000000000000000000000123456";
@@ -408,6 +410,7 @@ public class AtomicEvm38ValidationSuite {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> factoryAndSelfDestructInConstructorContract() {
         final var contract = "FactorySelfDestructConstructor";
 

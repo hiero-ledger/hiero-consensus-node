@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.opsduration;
 
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.*;
@@ -22,6 +23,7 @@ import java.util.Map;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.Tag;
 
 @Tag(SMART_CONTRACT)
 @DisplayName("opsDurationThrottle")
@@ -109,6 +111,7 @@ public class OpsDurationThrottleTest {
     @HapiTest
     @Order(3)
     @DisplayName("call system contract to exceed ops duration throttle")
+    @Tag(MATS)
     public Stream<DynamicTest> doExceedDurationThrottleWithSystemContract() {
         return hapiTest(
                 disableOpsDurationThrottle(),
@@ -367,6 +370,7 @@ public class OpsDurationThrottleTest {
     @HapiTest
     @Order(11)
     @DisplayName("call nested function to exceed ops duration throttle")
+    @Tag(MATS)
     public Stream<DynamicTest> nestedExceedOpsDuration() {
         return hapiTest(
                 disableOpsDurationThrottle(),

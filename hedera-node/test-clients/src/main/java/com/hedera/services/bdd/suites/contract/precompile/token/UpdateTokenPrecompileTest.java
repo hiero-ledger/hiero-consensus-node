@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.precompile.token;
 
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.dsl.entities.SpecKey.Type.SECP_256K1;
@@ -175,6 +176,7 @@ public class UpdateTokenPrecompileTest {
 
         @HapiTest
         @DisplayName("can update the auto-renew account")
+        @Tag(MATS)
         public Stream<DynamicTest> canUpdateAutoRenewAccount(
                 @Account(name = "autoRenewAccount") SpecAccount autoRenewAccount) {
             return hapiTest(
@@ -207,6 +209,7 @@ public class UpdateTokenPrecompileTest {
 
         @HapiTest
         @DisplayName("can update the KYC key to a different Ed25519 key or itself")
+        @Tag(MATS)
         public Stream<DynamicTest> canUpdateKycKeyToEd25519OrItself() {
             return hapiTest(
                     // This contract uses 1 as shorthand for the KYC key
@@ -222,6 +225,7 @@ public class UpdateTokenPrecompileTest {
 
         @HapiTest
         @DisplayName("can update the freeze key to a different Ed25519 key or itself")
+        @Tag(MATS)
         public Stream<DynamicTest> canUpdateFreezeKeyToEd25519OrItself() {
             return hapiTest(
                     // This contract uses 2 as shorthand for the freeze key

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.precompile;
 
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.resultWith;
@@ -87,6 +88,7 @@ public class ContractMintHTSSuite {
     private static final String RECIPIENT = "recipient";
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> mintTokensWithExtremeValues() {
         var mintExtremeValue = "mintExtremeValue";
         var mintInvalidAddressType = "mintInvalidAddressType";
@@ -300,6 +302,7 @@ public class ContractMintHTSSuite {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> transferNftAfterNestedMint() {
         final var nestedTransferTxn = "nestedTransferTxn";
         final var v2SecuritySendNftAfterNestedMint = "v2SecuritySendNftAfterNestedMint";

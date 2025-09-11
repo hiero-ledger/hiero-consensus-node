@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.precompile.airdrops;
 
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
@@ -133,6 +134,7 @@ public class TokenRejectSystemContractTest {
 
     @HapiTest
     @DisplayName("Fails to reject tokens if limits exceeded")
+    @Tag(MATS)
     public Stream<DynamicTest> failsIfLimitsExceeded(
             @FungibleToken SpecFungibleToken token1,
             @FungibleToken SpecFungibleToken token2,
@@ -199,6 +201,7 @@ public class TokenRejectSystemContractTest {
 
     @HapiTest
     @DisplayName("Fails to reject tokens if there are no associated tokens")
+    @Tag(MATS)
     public Stream<DynamicTest> failsIfNoAssociatedTokens(@FungibleToken SpecFungibleToken token) {
         return hapiTest(withOpContext((spec, opLog) -> {
             allRunFor(spec, sender.associateTokens(token));

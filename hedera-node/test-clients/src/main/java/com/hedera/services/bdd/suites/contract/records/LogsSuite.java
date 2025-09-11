@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.records;
 
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AssertUtils.inOrder;
@@ -29,6 +30,7 @@ public class LogsSuite {
     private static final String CONTRACT = "Logs";
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> log0Works() {
         return hapiTest(
                 uploadInitCode(CONTRACT),
@@ -44,6 +46,7 @@ public class LogsSuite {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> log1Works() {
         return hapiTest(
                 uploadInitCode(CONTRACT),
