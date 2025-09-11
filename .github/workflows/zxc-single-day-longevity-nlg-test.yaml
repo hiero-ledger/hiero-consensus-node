@@ -79,7 +79,6 @@ env:
   BlockNode_version: 0.17.0
   NUM_OF_BLOCK_NODES: 7
 
-
 jobs:
   longevity-tests-start:
     name: Start
@@ -278,7 +277,7 @@ jobs:
             sh "${{ github.workspace }}"/performance-analysis-automation/performance_analysis_scripts/instrumentCoverage.sh \
             `ls -1 data/lib/swirlds*.jar data/lib/app-*.jar data/lib/pbj*.jar data/lib/base-*.jar data/lib/hedera*.jar data/lib/hapi*.jar \
              data/lib/besu*.jar data/lib/evm*.jar \
-             data/apps/HederaNode.jar data/lib/consensus*.jar data/lib/*event-creator*.jar data/lib/*config-*.jar data/lib/*-*.*.*-SNAPSHOT.jar` > sources_init.txt 2>&1
+             data/apps/HederaNode.jar data/lib/consensus*.jar data/lib/*event-creator*.jar data/lib/*-*.*.*-SNAPSHOT.jar | sort -u` > sources_init.txt 2>&1
             cp sources_init.txt "${{ github.workspace }}"/report/
             head sources_init.txt
             echo "..."
