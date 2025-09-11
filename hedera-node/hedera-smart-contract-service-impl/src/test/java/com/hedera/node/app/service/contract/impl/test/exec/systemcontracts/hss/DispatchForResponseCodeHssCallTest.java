@@ -153,7 +153,7 @@ class DispatchForResponseCodeHssCallTest extends CallAttemptTestBase {
                 verificationStrategy,
                 dispatchGasCalculator,
                 emptySet(),
-                recordBuilder -> ReturnTypes.encodedRc(recordBuilder.status()));
+                builder -> ReturnTypes.encodedRc(builder.status()));
 
         final var pricedResult = subject.execute(frame);
         final var fullResult = pricedResult.fullResult();

@@ -48,6 +48,7 @@ public class HasScheduleCapacityTest {
     private static final BigInteger VALUE_MORE_THAN_LONG =
             BigInteger.valueOf(Long.MAX_VALUE).multiply(BigInteger.TEN);
     private static final String FUNCTION_NAME = "hasScheduleCapacityProxy";
+    private static final String CAPACITY_CONFIG_NAME = "contracts.maxGasPerSecBackend";
 
     @Contract(contract = "HIP1215Contract", creationGas = 4_000_000L, isImmutable = true)
     static SpecContract contract;
@@ -107,7 +108,7 @@ public class HasScheduleCapacityTest {
 
     // execute separately from other tests because it is changes 'contracts.maxGasPerSecBackend' config
     @LeakyHapiTest(
-            overrides = {"contracts.maxGasPerSecBackend"},
+            overrides = {CAPACITY_CONFIG_NAME},
             fees = "scheduled-contract-fees.json")
     @DisplayName("call hasScheduleCapacity(uint256,uint256) success return false by no capacity")
     public Stream<DynamicTest> hasScheduleCapacityOverflowTest() {
@@ -116,29 +117,29 @@ public class HasScheduleCapacityTest {
         final BigInteger testGasLimit = BigInteger.valueOf(2_000_000);
         final BigInteger closeToMaxGasLimit = BigInteger.valueOf(14_000_000);
         return hapiTest(
-                UtilVerbs.overriding("contracts.maxGasPerSecBackend", "15000000"),
+                UtilVerbs.overriding(CAPACITY_CONFIG_NAME, "15000000"),
                 hasScheduleCapacity(true, FUNCTION_NAME, expirySecond, testGasLimit),
                 contract.call("scheduleCallWithDefaultCallData", expirySecond, closeToMaxGasLimit)
                         .gas(2_000_000)
                         // parent success and child success
                         .andAssert(txn -> txn.hasKnownStatuses(ResponseCodeEnum.SUCCESS, ResponseCodeEnum.SUCCESS)),
                 hasScheduleCapacity(false, FUNCTION_NAME, expirySecond, testGasLimit),
-                UtilVerbs.restoreDefault("contracts.maxGasPerSecBackend"));
+                UtilVerbs.restoreDefault(CAPACITY_CONFIG_NAME));
     }
 
     // execute separately from other tests because it is changes 'contracts.maxGasPerSecBackend' config
-    @LeakyHapiTest(overrides = {"contracts.maxGasPerSecBackend"})
+    @LeakyHapiTest(overrides = {CAPACITY_CONFIG_NAME})
     @DisplayName("call hasScheduleCapacity(uint256,uint256) success return false by max+1 gasLimit")
     public Stream<DynamicTest> hasScheduleCapacityMaxGasLimitTest() {
         final BigInteger expirySecond =
                 BigInteger.valueOf(System.currentTimeMillis() / 1000 + EXPIRY_SHIFT.getAndIncrement());
         return hapiTest(
                 // limit is controlled by 'contracts.maxGasPerSecBackend' property
-                UtilVerbs.overriding("contracts.maxGasPerSecBackend", "15000000"),
+                UtilVerbs.overriding(CAPACITY_CONFIG_NAME, "15000000"),
                 hasScheduleCapacity(false, FUNCTION_NAME, expirySecond, BigInteger.valueOf(15_000_001)),
-                UtilVerbs.overriding("contracts.maxGasPerSecBackend", "30000000"),
+                UtilVerbs.overriding(CAPACITY_CONFIG_NAME, "30000000"),
                 hasScheduleCapacity(true, FUNCTION_NAME, expirySecond, BigInteger.valueOf(15_000_001)),
-                UtilVerbs.restoreDefault("contracts.maxGasPerSecBackend"));
+                UtilVerbs.restoreDefault(CAPACITY_CONFIG_NAME));
     }
 
     // LeakyRepeatableHapiTest: we should use Repeatable test for single threaded processing. In other case test fails
