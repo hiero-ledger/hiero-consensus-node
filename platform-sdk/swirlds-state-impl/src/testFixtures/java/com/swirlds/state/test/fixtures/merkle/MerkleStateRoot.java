@@ -388,6 +388,23 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
         nodeInitializer.accept(node);
     }
 
+    public void initializeState(@NonNull final StateMetadata<?, ?> md) {
+        // Validate the inputs
+        throwIfImmutable();
+        requireNonNull(md);
+
+        // Put this metadata into the map
+        final var def = md.stateDefinition();
+        final var serviceName = md.serviceName();
+        final var stateMetadata = services.computeIfAbsent(serviceName, k -> new HashMap<>());
+        stateMetadata.put(def.stateKey(), md);
+
+        // We also need to add/update the metadata of the service in the writableStatesMap so that
+        // it isn't stale or incomplete (e.g. in a genesis case)
+        readableStatesMap.put(serviceName, new MerkleReadableStates(stateMetadata));
+        writableStatesMap.put(serviceName, new MerkleWritableStates(serviceName, stateMetadata));
+    }
+
     /**
      * Unregister a service without removing its nodes from the state.
      *
