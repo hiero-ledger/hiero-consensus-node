@@ -80,18 +80,20 @@ public class StatusStateMachine {
     private PlatformStatusLogic getNewLogic(@NonNull final PlatformStatusAction action) {
         Objects.requireNonNull(action);
         try {
-            return switch (action){
+            return switch (action) {
                 case final CatastrophicFailureAction a -> currentStatusLogic.processCatastrophicFailureAction(a);
                 case final DoneReplayingEventsAction a -> currentStatusLogic.processDoneReplayingEventsAction(a);
                 case final FallenBehindAction a -> currentStatusLogic.processFallenBehindAction(a);
                 case final FreezePeriodEnteredAction a -> currentStatusLogic.processFreezePeriodEnteredAction(a);
                 case final ReconnectCompleteAction a -> currentStatusLogic.processReconnectCompleteAction(a);
-                case final SelfEventReachedConsensusAction a -> currentStatusLogic.processSelfEventReachedConsensusAction(a);
+                case final SelfEventReachedConsensusAction a ->
+                    currentStatusLogic.processSelfEventReachedConsensusAction(a);
                 case final StartedReplayingEventsAction a -> currentStatusLogic.processStartedReplayingEventsAction(a);
                 case final StateWrittenToDiskAction a -> currentStatusLogic.processStateWrittenToDiskAction(a);
                 case final TimeElapsedAction a -> currentStatusLogic.processTimeElapsedAction(a);
-                default -> throw new IllegalArgumentException(
-                        "Unknown action type: " + action.getClass().getName());
+                default ->
+                    throw new IllegalArgumentException(
+                            "Unknown action type: " + action.getClass().getName());
             };
         } catch (final IllegalPlatformStatusException e) {
             logger.error(EXCEPTION.getMarker(), e.getMessage(), e);
