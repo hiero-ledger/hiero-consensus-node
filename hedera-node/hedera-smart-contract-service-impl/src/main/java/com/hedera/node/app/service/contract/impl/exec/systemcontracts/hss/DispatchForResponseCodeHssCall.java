@@ -24,12 +24,10 @@ import com.hedera.node.app.spi.workflows.DispatchOptions;
 import com.hedera.node.app.spi.workflows.DispatchOptions.UsePresetTxnId;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-
 import java.nio.ByteBuffer;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
-
 import org.hyperledger.besu.evm.frame.MessageFrame;
 
 /**
@@ -137,8 +135,8 @@ public class DispatchForResponseCodeHssCall extends AbstractCall {
      * @return the encoded status
      */
     public static ByteBuffer scheduleCreateResultEncode(@NonNull final ContractCallStreamBuilder recordBuilder) {
-        return RC_AND_ADDRESS_ENCODER.encode(
-                Tuple.of((long) recordBuilder.status()
-                        .protoOrdinal(), recordBuilder.scheduleID() != null ? headlongAddressOf(recordBuilder.scheduleID()) : ZERO_ADDRESS));
+        return RC_AND_ADDRESS_ENCODER.encode(Tuple.of(
+                (long) recordBuilder.status().protoOrdinal(),
+                recordBuilder.scheduleID() != null ? headlongAddressOf(recordBuilder.scheduleID()) : ZERO_ADDRESS));
     }
 }

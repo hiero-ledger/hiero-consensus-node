@@ -28,13 +28,11 @@ import com.hedera.services.bdd.spec.utilops.UtilVerbs;
 import com.hedera.services.bdd.suites.HapiSuite;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import edu.umd.cs.findbugs.annotations.NonNull;
-
 import java.math.BigInteger;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
-
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
@@ -53,7 +51,8 @@ import org.junit.jupiter.api.Tag;
 public class ScheduleCallTest {
 
     private static final AtomicInteger EXPIRY_SHIFT = new AtomicInteger(40);
-    private static final BigInteger VALUE_MORE_THAN_LONG = BigInteger.valueOf(Long.MAX_VALUE).multiply(BigInteger.TEN);
+    private static final BigInteger VALUE_MORE_THAN_LONG =
+            BigInteger.valueOf(Long.MAX_VALUE).multiply(BigInteger.TEN);
 
     @Contract(contract = "HIP1215Contract", creationGas = 4_000_000L, isImmutable = true)
     static SpecContract contract;
@@ -76,74 +75,87 @@ public class ScheduleCallTest {
     @DisplayName("call scheduleCall(address,uint256,uint256,uint64,bytes) success")
     public Stream<DynamicTest> scheduledCallTest() {
         // contract is a default sender/payer for scheduleCall
-        return hapiTest(UtilVerbs.withOpContext(
-                scheduledCallTest(new AtomicReference<>(), "scheduleCallExample", BigInteger.valueOf(EXPIRY_SHIFT.incrementAndGet()))));
+        return hapiTest(UtilVerbs.withOpContext(scheduledCallTest(
+                new AtomicReference<>(), "scheduleCallExample", BigInteger.valueOf(EXPIRY_SHIFT.incrementAndGet()))));
     }
 
     @HapiTest
     @DisplayName("call scheduleCall(address,uint256,uint256,uint64,bytes) fail by 0 expiry")
     public Stream<DynamicTest> scheduledCall0ExpiryTest() {
         // contract is a default sender/payer for scheduleCall
-        return hapiTest(
-                scheduledCall(null, ResponseCodeEnum.SCHEDULE_EXPIRATION_TIME_MUST_BE_HIGHER_THAN_CONSENSUS_TIME, "scheduleCallWithDefaultCallData", BigInteger.ZERO, BigInteger.valueOf(2_000_000))
-        );
+        return hapiTest(scheduledCall(
+                null,
+                ResponseCodeEnum.SCHEDULE_EXPIRATION_TIME_MUST_BE_HIGHER_THAN_CONSENSUS_TIME,
+                "scheduleCallWithDefaultCallData",
+                BigInteger.ZERO,
+                BigInteger.valueOf(2_000_000)));
     }
 
     @HapiTest
     @DisplayName("call scheduleCall(address,uint256,uint256,uint64,bytes) fail by huge expiry")
     public Stream<DynamicTest> scheduledCallHugeExpiryTest() {
         // contract is a default sender/payer for scheduleCall
-        return hapiTest(
-                scheduledCall(null, ResponseCodeEnum.SCHEDULE_EXPIRATION_TIME_TOO_FAR_IN_FUTURE, "scheduleCallWithDefaultCallData", VALUE_MORE_THAN_LONG, BigInteger.valueOf(2_000_000))
-        );
+        return hapiTest(scheduledCall(
+                null,
+                ResponseCodeEnum.SCHEDULE_EXPIRATION_TIME_TOO_FAR_IN_FUTURE,
+                "scheduleCallWithDefaultCallData",
+                VALUE_MORE_THAN_LONG,
+                BigInteger.valueOf(2_000_000)));
     }
 
     @HapiTest
     @DisplayName("call scheduleCall(address,uint256,uint256,uint64,bytes) fail by huge gasLimit")
     public Stream<DynamicTest> scheduledCallHugeGasLimitTest() {
-        BigInteger expirySecond = BigInteger.valueOf((System.currentTimeMillis() / 1000) + EXPIRY_SHIFT.getAndIncrement());
+        final BigInteger expirySecond =
+                BigInteger.valueOf((System.currentTimeMillis() / 1000) + EXPIRY_SHIFT.getAndIncrement());
         // contract is a default sender/payer for scheduleCall
-        return hapiTest(
-                scheduledCall(null, ResponseCodeEnum.SCHEDULE_EXPIRY_IS_BUSY, "scheduleCallWithDefaultCallData",
-                        expirySecond, VALUE_MORE_THAN_LONG)
-        );
+        return hapiTest(scheduledCall(
+                null,
+                ResponseCodeEnum.SCHEDULE_EXPIRY_IS_BUSY,
+                "scheduleCallWithDefaultCallData",
+                expirySecond,
+                VALUE_MORE_THAN_LONG));
     }
 
     // RepeatableHapiTest: we should use Repeatable test for single threaded processing. In other case test fails with
     // 'StreamValidationTest' 'expected from generated but did not find in translated [contractID]'
-    @RepeatableHapiTest(
-            value = RepeatableReason.NEEDS_SYNCHRONOUS_HANDLE_WORKFLOW)
+    @RepeatableHapiTest(value = RepeatableReason.NEEDS_SYNCHRONOUS_HANDLE_WORKFLOW)
     @DisplayName("call scheduleCallWithSender(address,address,uint256,uint256,uint64,bytes) success")
     public Stream<DynamicTest> scheduleCallWithSenderTest() {
         return hapiTest(UtilVerbs.withOpContext(scheduledCallWithSignTest(
-                false, sender.name(), "scheduleCallWithSenderExample", sender, BigInteger.valueOf(EXPIRY_SHIFT.incrementAndGet()))));
+                false,
+                sender.name(),
+                "scheduleCallWithSenderExample",
+                sender,
+                BigInteger.valueOf(EXPIRY_SHIFT.incrementAndGet()))));
     }
 
-    @RepeatableHapiTest(
-            value = RepeatableReason.NEEDS_SYNCHRONOUS_HANDLE_WORKFLOW)
+    @RepeatableHapiTest(value = RepeatableReason.NEEDS_SYNCHRONOUS_HANDLE_WORKFLOW)
     @DisplayName("call executeCallOnSenderSignature(address,address,uint256,uint256,uint64,bytes) success")
     public Stream<DynamicTest> executeCallOnSenderSignatureTest() {
         return hapiTest(UtilVerbs.withOpContext(scheduledCallWithSignTest(
-                true, sender.name(), "executeCallOnSenderSignatureExample", sender, BigInteger.valueOf(EXPIRY_SHIFT.incrementAndGet()))));
+                true,
+                sender.name(),
+                "executeCallOnSenderSignatureExample",
+                sender,
+                BigInteger.valueOf(EXPIRY_SHIFT.incrementAndGet()))));
     }
 
-    private CallContractOperation scheduledCall(final AtomicReference<Address> scheduleAddressHolder,
-                                                @NonNull final ResponseCodeEnum status,
-                                                @NonNull final String functionName,
-                                                @NonNull final Object... parameters) {
+    private CallContractOperation scheduledCall(
+            final AtomicReference<Address> scheduleAddressHolder,
+            @NonNull final ResponseCodeEnum status,
+            @NonNull final String functionName,
+            @NonNull final Object... parameters) {
         CallContractOperation call = contract.call(functionName, parameters)
                 .gas(2_000_000)
                 .andAssert(txn -> txn.hasResults(
                         ContractFnResultAsserts.resultWith()
-                                .resultThruAbi(
-                                        getABIFor(FUNCTION, functionName, contract.name()),
-                                        ignore -> res -> {
-                                            Assertions.assertEquals(2, res.length);
-                                            Assertions.assertEquals(
-                                                    (long) status.getNumber(), res[0]);
-                                            Assertions.assertInstanceOf(Address.class, res[1]);
-                                            return Optional.empty();
-                                        }),
+                                .resultThruAbi(getABIFor(FUNCTION, functionName, contract.name()), ignore -> res -> {
+                                    Assertions.assertEquals(2, res.length);
+                                    Assertions.assertEquals((long) status.getNumber(), res[0]);
+                                    Assertions.assertInstanceOf(Address.class, res[1]);
+                                    return Optional.empty();
+                                }),
                         // for child record asserting, because executeCall* creating child schedule transaction
                         ContractFnResultAsserts.anyResult()))
                 .andAssert(txn -> txn.hasKnownStatus(ResponseCodeEnum.SUCCESS));
@@ -160,9 +172,7 @@ public class ScheduleCallTest {
         return (spec, opLog) -> {
             // run schedule call
             AtomicReference<Address> scheduleAddressHolder = new AtomicReference<>();
-            allRunFor(
-                    spec,
-                    scheduledCall(scheduleAddressHolder, ResponseCodeEnum.SUCCESS, functionName, parameters));
+            allRunFor(spec, scheduledCall(scheduleAddressHolder, ResponseCodeEnum.SUCCESS, functionName, parameters));
             // check schedule exists
             final var scheduleId = asScheduleId(spec, scheduleAddressHolder.get());
             final var scheduleIdString = String.valueOf(scheduleId.getScheduleNum());

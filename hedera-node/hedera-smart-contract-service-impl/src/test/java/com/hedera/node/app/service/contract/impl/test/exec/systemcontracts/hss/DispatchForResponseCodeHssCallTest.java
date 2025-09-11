@@ -24,18 +24,15 @@ import com.hedera.node.app.service.contract.impl.exec.scope.VerificationStrategy
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hss.DispatchForResponseCodeHssCall;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hss.HssCallAttempt;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hss.deleteschedule.DeleteScheduleTranslator;
-import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.ReturnTypes;
 import com.hedera.node.app.service.contract.impl.records.ContractCallStreamBuilder;
 import com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.common.CallAttemptTestBase;
 import com.hedera.node.app.spi.workflows.DispatchOptions;
 import com.swirlds.config.api.Configuration;
-
 import java.util.ArrayDeque;
 import java.util.Collections;
 import java.util.Deque;
 import java.util.List;
 import java.util.Optional;
-
 import org.apache.tuweni.bytes.Bytes;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 import org.junit.jupiter.api.BeforeEach;
@@ -105,15 +102,15 @@ class DispatchForResponseCodeHssCallTest extends CallAttemptTestBase {
 
     private byte[] successResult(final DispatchForResponseCodeHssCall call) {
         given(systemContractOperations.dispatch(
-                TransactionBody.DEFAULT,
-                verificationStrategy,
-                AccountID.DEFAULT,
-                ContractCallStreamBuilder.class,
-                Collections.emptySet(),
-                DispatchOptions.UsePresetTxnId.NO))
+                        TransactionBody.DEFAULT,
+                        verificationStrategy,
+                        AccountID.DEFAULT,
+                        ContractCallStreamBuilder.class,
+                        Collections.emptySet(),
+                        DispatchOptions.UsePresetTxnId.NO))
                 .willReturn(recordBuilder);
         given(dispatchGasCalculator.gasRequirement(
-                TransactionBody.DEFAULT, gasCalculator, mockEnhancement(), AccountID.DEFAULT))
+                        TransactionBody.DEFAULT, gasCalculator, mockEnhancement(), AccountID.DEFAULT))
                 .willReturn(123L);
         given(recordBuilder.status()).willReturn(SUCCESS);
 
@@ -124,19 +121,22 @@ class DispatchForResponseCodeHssCallTest extends CallAttemptTestBase {
 
     @Test
     void successResult() {
-        assertArrayEquals(ReturnTypes.encodedRc(SUCCESS).array(), successResult(subject));
+        assertArrayEquals(encodedRc(SUCCESS).array(), successResult(subject));
     }
 
     @Test
     void successResultFromScheduleCreateResultEncoder() {
         given(recordBuilder.scheduleID()).willReturn(ScheduleID.newBuilder().build());
-        assertArrayEquals(RC_AND_ADDRESS_ENCODER.encode(Tuple.of((long) SUCCESS.protoOrdinal(), ZERO_ADDRESS))
-                .array(), successResult(subjectScheduleCreateResultEncoder));
+        assertArrayEquals(
+                RC_AND_ADDRESS_ENCODER
+                        .encode(Tuple.of((long) SUCCESS.protoOrdinal(), ZERO_ADDRESS))
+                        .array(),
+                successResult(subjectScheduleCreateResultEncoder));
     }
 
     @Test
     void successResultFromAttemptConstructor() {
-        assertArrayEquals(ReturnTypes.encodedRc(SUCCESS).array(), successResult(subjectFromAttempt));
+        assertArrayEquals(encodedRc(SUCCESS).array(), successResult(subjectFromAttempt));
     }
 
     @Test
@@ -166,15 +166,15 @@ class DispatchForResponseCodeHssCallTest extends CallAttemptTestBase {
 
     private byte[] failureResult(final DispatchForResponseCodeHssCall call) {
         given(systemContractOperations.dispatch(
-                TransactionBody.DEFAULT,
-                verificationStrategy,
-                AccountID.DEFAULT,
-                ContractCallStreamBuilder.class,
-                emptySet(),
-                DispatchOptions.UsePresetTxnId.NO))
+                        TransactionBody.DEFAULT,
+                        verificationStrategy,
+                        AccountID.DEFAULT,
+                        ContractCallStreamBuilder.class,
+                        emptySet(),
+                        DispatchOptions.UsePresetTxnId.NO))
                 .willReturn(recordBuilder);
         given(dispatchGasCalculator.gasRequirement(
-                TransactionBody.DEFAULT, gasCalculator, mockEnhancement(), AccountID.DEFAULT))
+                        TransactionBody.DEFAULT, gasCalculator, mockEnhancement(), AccountID.DEFAULT))
                 .willReturn(123L);
         given(recordBuilder.status()).willReturn(INVALID_SCHEDULE_ID);
 
@@ -184,19 +184,21 @@ class DispatchForResponseCodeHssCallTest extends CallAttemptTestBase {
 
     @Test
     void failureResult() {
-        assertArrayEquals(ReturnTypes.encodedRc(INVALID_SCHEDULE_ID).array(), failureResult(subject));
+        assertArrayEquals(encodedRc(INVALID_SCHEDULE_ID).array(), failureResult(subject));
     }
 
     @Test
     void failureResultFromScheduleCreateResultEncoder() {
         given(recordBuilder.scheduleID()).willReturn(ScheduleID.newBuilder().build());
-        assertArrayEquals(RC_AND_ADDRESS_ENCODER.encode(Tuple.of((long) INVALID_SCHEDULE_ID.protoOrdinal(), ZERO_ADDRESS))
-                .array(), failureResult(subjectScheduleCreateResultEncoder));
+        assertArrayEquals(
+                RC_AND_ADDRESS_ENCODER
+                        .encode(Tuple.of((long) INVALID_SCHEDULE_ID.protoOrdinal(), ZERO_ADDRESS))
+                        .array(),
+                failureResult(subjectScheduleCreateResultEncoder));
     }
 
     @Test
     void failureResultFromAttemptConstructor() {
-        assertArrayEquals(ReturnTypes.encodedRc(INVALID_SCHEDULE_ID).array(), failureResult(subjectFromAttempt));
+        assertArrayEquals(encodedRc(INVALID_SCHEDULE_ID).array(), failureResult(subjectFromAttempt));
     }
-
 }
