@@ -11,9 +11,9 @@ import static com.hedera.services.bdd.suites.contract.Utils.asScheduleId;
 import static com.hedera.services.bdd.suites.contract.Utils.getABIFor;
 
 import com.esaulpaugh.headlong.abi.Address;
-import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
-import com.hedera.services.bdd.junit.RepeatableHapiTest;
+import com.hedera.services.bdd.junit.LeakyHapiTest;
+import com.hedera.services.bdd.junit.LeakyRepeatableHapiTest;
 import com.hedera.services.bdd.junit.RepeatableReason;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts;
@@ -71,7 +71,10 @@ public class ScheduleCallTest {
         lifecycle.doAdhoc(UtilVerbs.restoreDefault("contracts.systemContract.scheduleService.scheduleCall.enabled"));
     }
 
-    @HapiTest
+    // default 'feeSchedules.json' do not contain HederaFunctionality.SCHEDULE_CREATE,
+    // fee data for SubType.SCHEDULE_CREATE_CONTRACT_CALL
+    // that is why we are reuploading 'scheduled-contract-fees.json' in tests
+    @LeakyHapiTest(fees = "scheduled-contract-fees.json")
     @DisplayName("call scheduleCall(address,uint256,uint256,uint64,bytes) success")
     public Stream<DynamicTest> scheduledCallTest() {
         // contract is a default sender/payer for scheduleCall
@@ -79,7 +82,10 @@ public class ScheduleCallTest {
                 new AtomicReference<>(), "scheduleCallExample", BigInteger.valueOf(EXPIRY_SHIFT.incrementAndGet()))));
     }
 
-    @HapiTest
+    // default 'feeSchedules.json' do not contain HederaFunctionality.SCHEDULE_CREATE,
+    // fee data for SubType.SCHEDULE_CREATE_CONTRACT_CALL
+    // that is why we are reuploading 'scheduled-contract-fees.json' in tests
+    @LeakyHapiTest(fees = "scheduled-contract-fees.json")
     @DisplayName("call scheduleCall(address,uint256,uint256,uint64,bytes) fail by 0 expiry")
     public Stream<DynamicTest> scheduledCall0ExpiryTest() {
         // contract is a default sender/payer for scheduleCall
@@ -91,7 +97,10 @@ public class ScheduleCallTest {
                 BigInteger.valueOf(2_000_000)));
     }
 
-    @HapiTest
+    // default 'feeSchedules.json' do not contain HederaFunctionality.SCHEDULE_CREATE,
+    // fee data for SubType.SCHEDULE_CREATE_CONTRACT_CALL
+    // that is why we are reuploading 'scheduled-contract-fees.json' in tests
+    @LeakyHapiTest(fees = "scheduled-contract-fees.json")
     @DisplayName("call scheduleCall(address,uint256,uint256,uint64,bytes) fail by huge expiry")
     public Stream<DynamicTest> scheduledCallHugeExpiryTest() {
         // contract is a default sender/payer for scheduleCall
@@ -103,7 +112,10 @@ public class ScheduleCallTest {
                 BigInteger.valueOf(2_000_000)));
     }
 
-    @HapiTest
+    // default 'feeSchedules.json' do not contain HederaFunctionality.SCHEDULE_CREATE,
+    // fee data for SubType.SCHEDULE_CREATE_CONTRACT_CALL
+    // that is why we are reuploading 'scheduled-contract-fees.json' in tests
+    @LeakyHapiTest(fees = "scheduled-contract-fees.json")
     @DisplayName("call scheduleCall(address,uint256,uint256,uint64,bytes) fail by huge gasLimit")
     public Stream<DynamicTest> scheduledCallHugeGasLimitTest() {
         final BigInteger expirySecond =
@@ -119,7 +131,13 @@ public class ScheduleCallTest {
 
     // RepeatableHapiTest: we should use Repeatable test for single threaded processing. In other case test fails with
     // 'StreamValidationTest' 'expected from generated but did not find in translated [contractID]'
-    @RepeatableHapiTest(value = RepeatableReason.NEEDS_SYNCHRONOUS_HANDLE_WORKFLOW)
+
+    // fees: default 'feeSchedules.json' do not contain HederaFunctionality.SCHEDULE_CREATE,
+    // fee data for SubType.SCHEDULE_CREATE_CONTRACT_CALL
+    // that is why we are reuploading 'scheduled-contract-fees.json' in tests
+    @LeakyRepeatableHapiTest(
+            value = RepeatableReason.NEEDS_SYNCHRONOUS_HANDLE_WORKFLOW,
+            fees = "scheduled-contract-fees.json")
     @DisplayName("call scheduleCallWithSender(address,address,uint256,uint256,uint64,bytes) success")
     public Stream<DynamicTest> scheduleCallWithSenderTest() {
         return hapiTest(UtilVerbs.withOpContext(scheduledCallWithSignTest(
@@ -130,7 +148,15 @@ public class ScheduleCallTest {
                 BigInteger.valueOf(EXPIRY_SHIFT.incrementAndGet()))));
     }
 
-    @RepeatableHapiTest(value = RepeatableReason.NEEDS_SYNCHRONOUS_HANDLE_WORKFLOW)
+    // RepeatableHapiTest: we should use Repeatable test for single threaded processing. In other case test fails with
+    // 'StreamValidationTest' 'expected from generated but did not find in translated [contractID]'
+
+    // fees: default 'feeSchedules.json' do not contain HederaFunctionality.SCHEDULE_CREATE,
+    // fee data for SubType.SCHEDULE_CREATE_CONTRACT_CALL
+    // that is why we are reuploading 'scheduled-contract-fees.json' in tests
+    @LeakyRepeatableHapiTest(
+            value = RepeatableReason.NEEDS_SYNCHRONOUS_HANDLE_WORKFLOW,
+            fees = "scheduled-contract-fees.json")
     @DisplayName("call executeCallOnSenderSignature(address,address,uint256,uint256,uint64,bytes) success")
     public Stream<DynamicTest> executeCallOnSenderSignatureTest() {
         return hapiTest(UtilVerbs.withOpContext(scheduledCallWithSignTest(

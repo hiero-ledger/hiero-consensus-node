@@ -5,7 +5,6 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BOD
 import static com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalHaltReason.ERROR_DECODING_PRECOMPILE_INPUT;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult.haltResult;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.Call.PricedResult.gasOnly;
-import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.ReturnTypes.*;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.contractsConfigOf;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.headlongAddressOf;
 
@@ -18,6 +17,7 @@ import com.hedera.node.app.service.contract.impl.exec.gas.DispatchGasCalculator;
 import com.hedera.node.app.service.contract.impl.exec.gas.SystemContractGasCalculator;
 import com.hedera.node.app.service.contract.impl.exec.scope.VerificationStrategy;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.AbstractCall;
+import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.ReturnTypes;
 import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
 import com.hedera.node.app.service.contract.impl.records.ContractCallStreamBuilder;
 import com.hedera.node.app.spi.workflows.DispatchOptions;
@@ -67,7 +67,7 @@ public class DispatchForResponseCodeHssCall extends AbstractCall {
                 attempt.defaultVerificationStrategy(),
                 dispatchGasCalculator,
                 authorizingKeys,
-                e -> encodedRc(e.status()));
+                e -> ReturnTypes.encodedRc(e.status()));
     }
 
     /**
@@ -135,8 +135,10 @@ public class DispatchForResponseCodeHssCall extends AbstractCall {
      * @return the encoded status
      */
     public static ByteBuffer scheduleCreateResultEncode(@NonNull final ContractCallStreamBuilder recordBuilder) {
-        return RC_AND_ADDRESS_ENCODER.encode(Tuple.of(
+        return ReturnTypes.RC_AND_ADDRESS_ENCODER.encode(Tuple.of(
                 (long) recordBuilder.status().protoOrdinal(),
-                recordBuilder.scheduleID() != null ? headlongAddressOf(recordBuilder.scheduleID()) : ZERO_ADDRESS));
+                recordBuilder.scheduleID() != null
+                        ? headlongAddressOf(recordBuilder.scheduleID())
+                        : ReturnTypes.ZERO_ADDRESS));
     }
 }
