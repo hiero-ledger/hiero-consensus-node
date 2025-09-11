@@ -106,7 +106,9 @@ public class HasScheduleCapacityTest {
     // that is why we are reuploading 'scheduled-contract-fees.json' in tests
 
     // execute separately from other tests because it is changes 'contracts.maxGasPerSecBackend' config
-    @LeakyHapiTest(overrides = {"contracts.maxGasPerSecBackend"}, fees = "scheduled-contract-fees.json")
+    @LeakyHapiTest(
+            overrides = {"contracts.maxGasPerSecBackend"},
+            fees = "scheduled-contract-fees.json")
     @DisplayName("call hasScheduleCapacity(uint256,uint256) success return false by no capacity")
     public Stream<DynamicTest> hasScheduleCapacityOverflowTest() {
         final BigInteger expirySecond =
@@ -121,8 +123,7 @@ public class HasScheduleCapacityTest {
                         // parent success and child success
                         .andAssert(txn -> txn.hasKnownStatuses(ResponseCodeEnum.SUCCESS, ResponseCodeEnum.SUCCESS)),
                 hasScheduleCapacity(false, FUNCTION_NAME, expirySecond, testGasLimit),
-                UtilVerbs.restoreDefault("contracts.maxGasPerSecBackend")
-        );
+                UtilVerbs.restoreDefault("contracts.maxGasPerSecBackend"));
     }
 
     // execute separately from other tests because it is changes 'contracts.maxGasPerSecBackend' config
@@ -137,8 +138,7 @@ public class HasScheduleCapacityTest {
                 hasScheduleCapacity(false, FUNCTION_NAME, expirySecond, BigInteger.valueOf(15_000_001)),
                 UtilVerbs.overriding("contracts.maxGasPerSecBackend", "30000000"),
                 hasScheduleCapacity(true, FUNCTION_NAME, expirySecond, BigInteger.valueOf(15_000_001)),
-                UtilVerbs.restoreDefault("contracts.maxGasPerSecBackend")
-        );
+                UtilVerbs.restoreDefault("contracts.maxGasPerSecBackend"));
     }
 
     // LeakyRepeatableHapiTest: we should use Repeatable test for single threaded processing. In other case test fails
