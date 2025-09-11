@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.fail;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.hedera.services.yahcli.Yahcli;
+import com.hedera.services.yahcli.test.util.DualPrintStream;
 import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
 import java.util.ArrayList;
@@ -39,8 +40,8 @@ public class YahcliTestBase {
         errContent.reset();
 
         // Modify the output streams to capture System.out and System.err
-        System.setOut(new PrintStream(outContent));
-        System.setErr(new PrintStream(errContent));
+        System.setOut(new DualPrintStream(outContent, originalOut));
+        System.setErr(new DualPrintStream(errContent, originalErr));
 
         // Instantiate the `Yahcli` and `CommandLine` instances
         yahcli = new Yahcli();
