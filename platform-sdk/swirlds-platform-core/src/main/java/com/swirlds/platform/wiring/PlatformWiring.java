@@ -147,13 +147,6 @@ public class PlatformWiring {
                 .getHealthMonitorWire()
                 .solderTo("executionHealthInput", "healthyDuration", execution::reportUnhealthyDuration);
 
-        splitOrphanBufferOutput.solderTo(
-                components.branchDetectorWiring().getInputWire(BranchDetector::checkForBranches));
-        components
-                .branchDetectorWiring()
-                .getOutputWire()
-                .solderTo(components.branchReporterWiring().getInputWire(BranchReporter::reportBranch));
-
         components
                 .model()
                 .getHealthMonitorWire()
@@ -169,8 +162,6 @@ public class PlatformWiring {
                 .getHealthMonitorWire()
                 .solderTo("executionHealthInput", "healthyDuration", execution::reportUnhealthyDuration);
 
-        splitOrphanBufferOutput.solderTo(
-                components.branchDetectorWiring().getInputWire(BranchDetector::checkForBranches));
         splitOrphanBufferOutput.solderTo(
                 components.branchDetectorWiring().getInputWire(BranchDetector::checkForBranches));
         components
