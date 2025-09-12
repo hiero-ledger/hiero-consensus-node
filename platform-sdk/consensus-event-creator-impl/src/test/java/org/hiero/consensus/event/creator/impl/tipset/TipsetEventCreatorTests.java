@@ -1013,27 +1013,31 @@ class TipsetEventCreatorTests {
         final FakeTime time = new FakeTime();
         // Common test set up. We initialize a network to make it easier to create events.
         final int networkSize = 1;
-        final Roster roster = RandomRosterBuilder.create(random).withSize(networkSize).build();
-        final EventCreator eventCreator =
-                buildEventCreator(random, time, roster, NodeId.of(0), List::of);
+        final Roster roster =
+                RandomRosterBuilder.create(random).withSize(networkSize).build();
+        final EventCreator eventCreator = buildEventCreator(random, time, roster, NodeId.of(0), List::of);
 
         // genesis event
         final var firstEvent = eventCreator.maybeCreateEvent();
         assertNotNull(firstEvent);
-        assertEquals(time.now(), firstEvent.getTimeCreated(),"The genesis event should use the wall-clock time");
+        assertEquals(time.now(), firstEvent.getTimeCreated(), "The genesis event should use the wall-clock time");
 
         // time created is based on parent's time received
         final Instant parentTimeReceived = firstEvent.getTimeCreated().plusSeconds(1);
         firstEvent.setTimeReceived(parentTimeReceived);
         final var secondEvent = eventCreator.maybeCreateEvent();
         assertNotNull(secondEvent);
-        assertEquals(parentTimeReceived, secondEvent.getTimeCreated(),
+        assertEquals(
+                parentTimeReceived,
+                secondEvent.getTimeCreated(),
                 "An event's creation time should be equal to the max time received of its parents");
 
         // max time received is the same as the event creation time
         final var thirdEvent = eventCreator.maybeCreateEvent();
         assertNotNull(thirdEvent);
-        assertEquals(secondEvent.getTimeCreated().plusNanos(1), thirdEvent.getTimeCreated(),
+        assertEquals(
+                secondEvent.getTimeCreated().plusNanos(1),
+                thirdEvent.getTimeCreated(),
                 "If the maximum time received of all parents is not higher than the time created of the self "
                         + "parent, the event creator should add a nanosecond to make it higher");
     }
