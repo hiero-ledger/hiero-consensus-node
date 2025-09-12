@@ -183,9 +183,7 @@ public class BlockNodeConnectionManager {
      * Helper method to remove current instance information for debug logging.
      */
     private void logWithContext(Level level, String message, Object... args) {
-        if (level == DEBUG) {
-            ThreadContext.put("connectionInfo", null);
-        }
+        ThreadContext.put("connectionInfo", null);
         logger.atLevel(level).log(message, args);
     }
 
@@ -193,9 +191,7 @@ public class BlockNodeConnectionManager {
      * Helper method to add current connection information for debug logging.
      */
     private void logWithContext(Level level, String message, BlockNodeConnection connection, Object... args) {
-        if (level == DEBUG) {
-            ThreadContext.put("connectionInfo", connection.toString());
-        }
+        ThreadContext.put("connectionInfo", connection.toString());
         logger.atLevel(level).log(message, args);
     }
 
@@ -512,7 +508,7 @@ public class BlockNodeConnectionManager {
             } catch (final RuntimeException e) {
                 logWithContext(
                         DEBUG,
-                        "Error while closing connection during connection manager shutdown. Ignoring...",
+                        "Error while closing connection during connection manager shutdown. Ignoring.",
                         connection,
                         e);
             }
@@ -525,7 +521,7 @@ public class BlockNodeConnectionManager {
      * block.
      */
     public void start() {
-        logWithContext(DEBUG, "Starting connection manager...");
+        logWithContext(DEBUG, "Starting connection manager.");
         if (!isStreamingEnabled.get()) {
             logWithContext(DEBUG, "Cannot start the connection manager, streaming is not enabled.");
             return;
@@ -554,7 +550,7 @@ public class BlockNodeConnectionManager {
      * @return true if a connection attempt will be made to a node, else false (i.e. no available nodes to connect)
      */
     public boolean selectNewBlockNodeForStreaming(final boolean force) {
-        logWithContext(DEBUG, "Selecting highest priority available block node for connection attempt...");
+        logWithContext(DEBUG, "Selecting highest priority available block node for connection attempt.");
         if (!isStreamingEnabled.get()) {
             logWithContext(DEBUG, "Cannot select block node, streaming is not enabled.");
             return false;
@@ -583,7 +579,7 @@ public class BlockNodeConnectionManager {
      * @return the next available block node configuration
      */
     private @Nullable BlockNodeConfig getNextPriorityBlockNode() {
-        logWithContext(DEBUG, "Searching for new block node connection based on node priorities...");
+        logWithContext(DEBUG, "Searching for new block node connection based on node priorities.");
 
         final SortedMap<Integer, List<BlockNodeConfig>> priorityGroups = availableBlockNodes.stream()
                 .collect(Collectors.groupingBy(BlockNodeConfig::priority, TreeMap::new, Collectors.toList()));
@@ -863,9 +859,7 @@ public class BlockNodeConnectionManager {
          * Helper method to add current connection information for debug logging.
          */
         private void logWithContext(Level level, String message, Object... args) {
-            if (level == DEBUG) {
-                ThreadContext.put("connectionInfo", connection.toString());
-            }
+            ThreadContext.put("connectionInfo", connection.toString());
             logger.atLevel(level).log(message, args);
         }
 
@@ -899,13 +893,13 @@ public class BlockNodeConnectionManager {
             }
 
             try {
-                logWithContext(DEBUG, "Running connection task...");
+                logWithContext(DEBUG, "Running connection task.");
                 final BlockNodeConnection activeConnection = activeConnectionRef.get();
 
                 if (activeConnection != null) {
                     if (activeConnection.equals(connection)) {
-                        // not sure how the active connection is in a connectivity task... ignoring
-                        logWithContext(DEBUG, "The current connection is the active connection, ignoring task...");
+                        // not sure how the active connection is in a connectivity task, ignoring
+                        logWithContext(DEBUG, "The current connection is the active connection, ignoring task.");
                         return;
                     } else if (force) {
                         final BlockNodeConfig newConnConfig = connection.getNodeConfig();
@@ -947,15 +941,15 @@ public class BlockNodeConnectionManager {
                     jumpTargetBlock.set(blockToJumpTo);
                     logWithContext(DEBUG, "Jump target block is set to {}.", blockToJumpTo);
                 } else {
-                    // Another connection task has preempted this task... reschedule and try again
-                    logWithContext(DEBUG, "Current connection task was preempted, rescheduling...");
+                    // Another connection task has preempted this task, reschedule and try again
+                    logWithContext(DEBUG, "Current connection task was preempted, rescheduling.");
                     reschedule();
                 }
 
                 if (activeConnection != null) {
                     // close the old active connection
                     try {
-                        logWithContext(DEBUG, "Closing current active connection {}...", activeConnection);
+                        logWithContext(DEBUG, "Closing current active connection {}.", activeConnection);
                         activeConnection.close(true);
                     } catch (final RuntimeException e) {
                         logWithContext(

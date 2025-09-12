@@ -127,9 +127,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
      * Helper method to add current instance information for debug logging.
      */
     private void logWithContext(Level level, String message, Object... args) {
-        if (level == DEBUG) {
-            ThreadContext.put("connectionInfo", this.toString());
-        }
+        ThreadContext.put("connectionInfo", this.toString());
         logger.atLevel(level).log(message, args);
     }
 
@@ -164,8 +162,6 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
         final var blockNodeConnectionConfig =
                 configProvider.getConfiguration().getConfigData(BlockNodeConnectionConfig.class);
         this.streamResetPeriod = blockNodeConnectionConfig.streamResetPeriod();
-
-        logWithContext(DEBUG, "Block node connection initialized.");
     }
 
     /**
@@ -216,7 +212,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
 
     private void performStreamReset() {
         if (getConnectionState() == ConnectionState.ACTIVE) {
-            logWithContext(DEBUG, "Performing scheduled stream reset...");
+            logWithContext(DEBUG, "Performing scheduled stream reset.");
             endTheStreamWith(RESET);
             blockNodeConnectionManager.connectionResetsTheStream(this);
         }
@@ -274,7 +270,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
      * notifying the connection manager and calling onComplete on the request pipeline.
      */
     public void handleStreamFailure() {
-        logWithContext(DEBUG, "Handling failed stream...");
+        logWithContext(DEBUG, "Handling failed stream.");
         closeAndReschedule(LONGER_RETRY_DELAY, true);
     }
 
@@ -283,7 +279,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
      * notifying the connection manager without calling onComplete on the request pipeline.
      */
     public void handleStreamFailureWithoutOnComplete() {
-        logWithContext(DEBUG, "Handling failed stream without on complete...");
+        logWithContext(DEBUG, "Handling failed stream without onComplete.");
         closeAndReschedule(LONGER_RETRY_DELAY, false);
     }
 
@@ -302,7 +298,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
      * @param acknowledgedBlockNumber the block number that has been known to be persisted and verified by the block node
      */
     private void acknowledgeBlocks(long acknowledgedBlockNumber, boolean maybeJumpToBlock) {
-        logWithContext(DEBUG, "BlockAcknowledgement received for block {}.", acknowledgedBlockNumber);
+        logWithContext(DEBUG, "Acknowledging blocks <= {}.", acknowledgedBlockNumber);
 
         final long currentBlockStreaming = blockNodeConnectionManager.currentStreamingBlockNumber();
         final long currentBlockProducing = blockBufferService.getLastBlockNumberProduced();
@@ -520,7 +516,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
         }
 
         try {
-            logWithContext(DEBUG, "Closing connection...");
+            logWithContext(DEBUG, "Closing connection.");
 
             closePipeline(callOnComplete);
             updateConnectionState(ConnectionState.CLOSED);
@@ -609,7 +605,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
         requireNonNull(response, "response must not be null");
 
         if (getConnectionState() == ConnectionState.CLOSED) {
-            logWithContext(DEBUG, "OnNext invoked but connection is already closed ({}).", response);
+            logWithContext(DEBUG, "onNext invoked but connection is already closed ({}).", response);
             return;
         }
 
@@ -640,13 +636,13 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
      */
     @Override
     public void onError(final Throwable error) {
-        logWithContext(DEBUG, "OnError invoked - {}.", error.getMessage());
+        logWithContext(DEBUG, "onError invoked - {}.", error.getMessage());
 
         // Check if already in terminal state
         if (getConnectionState() == ConnectionState.CLOSED) {
-            logWithContext(DEBUG, "OnError invoked but connection is already closed.");
+            logWithContext(DEBUG, "onError invoked but connection is already closed.");
         } else if (getConnectionState() == ConnectionState.ACTIVE || getConnectionState() == ConnectionState.PENDING) {
-            logWithContext(DEBUG, "OnError handling...");
+            logWithContext(DEBUG, "onError handling.");
             blockStreamMetrics.incrementOnErrorCount();
             handleStreamFailure();
         }
@@ -659,7 +655,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
     @Override
     public void onComplete() {
         if (getConnectionState() == ConnectionState.CLOSED) {
-            logWithContext(DEBUG, "OnComplete invoked but connection is already closed.");
+            logWithContext(DEBUG, "onComplete invoked but connection is already closed.");
             return;
         }
 

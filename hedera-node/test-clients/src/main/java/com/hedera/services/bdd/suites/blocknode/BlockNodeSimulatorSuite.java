@@ -190,7 +190,7 @@ public class BlockNodeSimulatorSuite {
                         connectionDropTime::get,
                         Duration.ofMinutes(1),
                         Duration.of(45, SECONDS),
-                        "OnError invoked",
+                        "onError invoked",
                         String.format(
                                 "[localhost:%s/UNINITIALIZED] Scheduling reconnection for node in 0 ms (force=false).",
                                 portNumbers.get(1)),
@@ -242,7 +242,7 @@ public class BlockNodeSimulatorSuite {
                         String.format(
                                 "[localhost:%s/ACTIVE] Connection state transitioned from PENDING to ACTIVE.",
                                 portNumbers.get(1)),
-                        String.format("[localhost:%s/ACTIVE] Closing connection...", portNumbers.get(3)),
+                        String.format("[localhost:%s/ACTIVE] Closing connection.", portNumbers.get(3)),
                         String.format(
                                 "[localhost:%s/CLOSED] Connection state transitioned from ACTIVE to CLOSED.",
                                 portNumbers.get(3)))),
@@ -415,15 +415,15 @@ public class BlockNodeSimulatorSuite {
                         Duration.of(15, SECONDS),
                         // Verify that the periodic reset is performed after the period and the connection is closed
                         String.format(
-                                "[localhost:%s/ACTIVE] Performing scheduled stream reset...", portNumbers.getFirst()),
-                        String.format("[localhost:%s/ACTIVE] Closing connection...", portNumbers.getFirst()),
+                                "[localhost:%s/ACTIVE] Performing scheduled stream reset.", portNumbers.getFirst()),
+                        String.format("[localhost:%s/ACTIVE] Closing connection.", portNumbers.getFirst()),
                         String.format(
                                 "[localhost:%s/CLOSED] Connection state transitioned from ACTIVE to CLOSED.",
                                 portNumbers.getFirst()),
                         String.format("[localhost:%s/CLOSED] Connection successfully closed.", portNumbers.getFirst()),
                         // Select the next block node to connect to based on priorities
                         "Scheduling reconnection for node in 0 ms (force=false).",
-                        "Running connection task...",
+                        "Running connection task.",
                         "Connection state transitioned from UNINITIALIZED to PENDING.",
                         "Connection state transitioned from PENDING to ACTIVE.")),
                 assertHgcaaLogDoesNotContain(byNodeId(0), "ERROR", Duration.ofSeconds(5)));
