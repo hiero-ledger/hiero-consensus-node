@@ -61,6 +61,10 @@ public class YahcliTestBase {
         return commandLine.parseArgs(args.split(" "));
     }
 
+    protected void stopOnUnmatched(boolean stop) {
+        commandLine.setStopAtUnmatched(stop);
+    }
+
     protected int execute(final String... args) {
         return commandLine.execute(args);
     }
@@ -109,6 +113,25 @@ public class YahcliTestBase {
             var subCmdSpec = subCmdResult.commandSpec();
             if (subCmdSpec.name().equals(commandName)) {
                 return Optional.of(subCmdSpec);
+            } else {
+                subCmdResult = subCmdResult.subcommand();
+            }
+        }
+
+        return Optional.empty();
+    }
+
+    protected Optional<CommandLine.ParseResult> findSubcommandResult(
+            final CommandLine.ParseResult parseResult, final String commandName) {
+        if (parseResult == null || parseResult.subcommand() == null) {
+            throw new IllegalArgumentException("Parse result or subcommand is null");
+        }
+
+        CommandLine.ParseResult subCmdResult = parseResult.subcommand();
+        while (subCmdResult != null) {
+            var subCmdSpec = subCmdResult.commandSpec();
+            if (subCmdSpec.name().equals(commandName)) {
+                return Optional.of(subCmdResult);
             } else {
                 subCmdResult = subCmdResult.subcommand();
             }
