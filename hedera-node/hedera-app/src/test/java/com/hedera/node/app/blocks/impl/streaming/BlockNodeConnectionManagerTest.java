@@ -31,6 +31,7 @@ import java.lang.invoke.MethodHandles.Lookup;
 import java.lang.invoke.VarHandle;
 import java.lang.reflect.Method;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
@@ -1369,6 +1370,20 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         verifyNoInteractions(bufferService);
         verifyNoInteractions(executorService);
         verifyNoInteractions(metrics);
+    }
+
+    @Test
+    void testHighLatencyTracking() {
+        final BlockNodeConfig nodeConfig = newBlockNodeConfig(8080, 1);
+        final String nodeAddress = nodeConfig.address() + ":" + nodeConfig.port();
+        final Instant ackedTime = Instant.now();
+
+        connectionManager.recordBlockSent(nodeConfig, 1L, ackedTime);
+        connectionManager.recordBlockAckAndCheckLatency(nodeConfig, 1L, ackedTime.plusMillis(1000));
+
+        verify(metrics).recordAcknowledgementLatency(nodeAddress, 1000);
+        verify(metrics).recordHighLatencyEvent(nodeAddress);
+        verifyNoMoreInteractions(metrics);
     }
 
     // Utilities
