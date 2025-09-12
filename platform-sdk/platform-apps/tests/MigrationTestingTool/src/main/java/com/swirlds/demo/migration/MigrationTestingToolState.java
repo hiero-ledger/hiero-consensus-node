@@ -228,14 +228,4 @@ public class MigrationTestingToolState extends MerkleStateRoot<MigrationTestingT
     protected MigrationTestingToolState copyingConstructor() {
         return new MigrationTestingToolState(this);
     }
-
-    @Override
-    public void disableStartupMode() {
-        // no-op
-    }
-
-    @Override
-    public void commitSingletons() {
-        // no-op
-    }
 }

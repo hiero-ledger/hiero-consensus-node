@@ -30,10 +30,6 @@ public interface MerkleNodeState extends State {
     @Override
     MerkleNodeState copy();
 
-    void disableStartupMode();
-
-    void commitSingletons();
-
     /**
      * Initializes the defined service state.
      *
