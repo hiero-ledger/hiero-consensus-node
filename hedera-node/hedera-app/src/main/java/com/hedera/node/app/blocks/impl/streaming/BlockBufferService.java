@@ -607,8 +607,13 @@ public class BlockBufferService {
         }
 
         // update the earliest block number after pruning
-        earliestBlockNumber.set(newEarliestBlock == Long.MAX_VALUE ? -1 : newEarliestBlock);
+        newEarliestBlock = newEarliestBlock == Long.MAX_VALUE ? -1 : newEarliestBlock;
+        newLatestBlock = newLatestBlock == Long.MIN_VALUE ? -1 : newLatestBlock;
+        earliestBlockNumber.set(newEarliestBlock);
+
         blockStreamMetrics.recordNumberOfBlocksPruned(numPruned);
+        blockStreamMetrics.recordBufferOldestBlock(newEarliestBlock);
+        blockStreamMetrics.recordBufferNewestBlock(newLatestBlock);
 
         return new PruneResult(
                 idealMaxBufferSize, numChecked, numPendingAck, numPruned, newEarliestBlock, newLatestBlock);
@@ -689,8 +694,8 @@ public class BlockBufferService {
                 pruningResult.numBlocksChecked,
                 pruningResult.numBlocksPruned,
                 pruningResult.numBlocksPendingAck,
-                pruningResult.oldestBlockNumber == Long.MAX_VALUE ? "-" : pruningResult.oldestBlockNumber,
-                pruningResult.newestBlockNumber == Long.MIN_VALUE ? "-" : pruningResult.newestBlockNumber,
+                pruningResult.oldestBlockNumber == -1 ? "-" : pruningResult.oldestBlockNumber,
+                pruningResult.newestBlockNumber == -1 ? "-" : pruningResult.newestBlockNumber,
                 pruningResult.saturationPercent);
 
         blockStreamMetrics.recordBufferSaturation(pruningResult.saturationPercent);

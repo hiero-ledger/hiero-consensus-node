@@ -56,6 +56,8 @@ public class BlockStreamMetrics {
     private Counter conn_closedCounter;
     private Counter conn_noActiveCounter;
     private Counter conn_createFailureCounter;
+    private LongGauge conn_activeConnIpGauge;
+    private Counter conn_endOfStreamLimitCounter;
 
     // buffer metrics
     private static final long BACK_PRESSURE_ACTIVE = 3;
@@ -70,6 +72,8 @@ public class BlockStreamMetrics {
     private Counter buffer_numBlocksOpenedCounter;
     private Counter buffer_numBlocksClosedCounter;
     private Counter buffer_numBlocksMissingCounter;
+    private LongGauge buffer_oldestBlockGauge;
+    private LongGauge buffer_newestBlockGauge;
 
     /**
      * Constructor of this class.
@@ -120,6 +124,32 @@ public class BlockStreamMetrics {
         final LongGauge.Config backPressureStateCfg = newLongGauge(GROUP_BUFFER, "backPressureState")
                 .withDescription("Current state of back pressure (0=disabled, 1=action-stage, 2=recovering, 3=active)");
         buffer_backPressureStateGauge = metrics.getOrCreate(backPressureStateCfg);
+
+        final LongGauge.Config oldestBlockCfg = newLongGauge(GROUP_BUFFER, "oldestBlock")
+                .withDescription("After pruning, the oldest block in the buffer");
+        buffer_oldestBlockGauge = metrics.getOrCreate(oldestBlockCfg);
+
+        final LongGauge.Config newestBlockCfg = newLongGauge(GROUP_BUFFER, "newestBlock")
+                .withDescription("After pruning, the newest block in the buffer");
+        buffer_newestBlockGauge = metrics.getOrCreate(newestBlockCfg);
+    }
+
+    /**
+     * Record the oldest block number in the buffer (after pruning).
+     *
+     * @param blockNumber the oldest block number
+     */
+    public void recordBufferOldestBlock(final long blockNumber) {
+        buffer_oldestBlockGauge.set(blockNumber);
+    }
+
+    /**
+     * Record the newest block number in the buffer (after pruning).
+     *
+     * @param blockNumber the newest block number
+     */
+    public void recordBufferNewestBlock(final long blockNumber) {
+        buffer_newestBlockGauge.set(blockNumber);
     }
 
     /**
@@ -231,6 +261,22 @@ public class BlockStreamMetrics {
         final Counter.Config createFailureCfg = newCounter(GROUP_CONN, "createFailure")
                 .withDescription("Number of times establishing a block node connection failed");
         conn_createFailureCounter = metrics.getOrCreate(createFailureCfg);
+
+        final LongGauge.Config activeConnIpCfg = newLongGauge(GROUP_CONN, "activeConnIp")
+                .withDescription("IP address (in integer format) of the currently active block node connection");
+        conn_activeConnIpGauge = metrics.getOrCreate(activeConnIpCfg);
+
+        final Counter.Config endOfStreamLimitCfg = newCounter(GROUP_CONN, "endOfStreamLimitExceeded")
+                .withDescription(
+                        "Number of times the active block node connection has exceeded the allowed number of EndOfStream responses");
+        conn_endOfStreamLimitCounter = metrics.getOrCreate(endOfStreamLimitCfg);
+    }
+
+    /**
+     * Record that an active connection has exceeded the allowed number of EndOfStream responses.
+     */
+    public void recordEndOfStreamLimitExceeded() {
+        conn_endOfStreamLimitCounter.increment();
     }
 
     /**
@@ -273,6 +319,15 @@ public class BlockStreamMetrics {
      */
     public void recordConnectionCreateFailure() {
         conn_createFailureCounter.increment();
+    }
+
+    /**
+     * Records the specified IP address (in integer form) as the current active connection.
+     *
+     * @param ipAddress address of the current active connection
+     */
+    public void recordActiveConnectionIp(final long ipAddress) {
+        conn_activeConnIpGauge.set(ipAddress);
     }
 
     // Connection RECV metrics -----------------------------------------------------------------------------------------
@@ -345,7 +400,7 @@ public class BlockStreamMetrics {
 
     private void registerConnectionSendMetrics() {
         for (final PublishStreamRequest.RequestOneOfType reqType : PublishStreamRequest.RequestOneOfType.values()) {
-            final String reqTypeName = "publishStreamRequest_with_" + toCamelCase(reqType.protoName());
+            final String reqTypeName = toCamelCase(reqType.protoName());
             switch (reqType) {
                 case UNSET -> {
                     /* ignore */
@@ -358,15 +413,13 @@ public class BlockStreamMetrics {
                         }
                         final String name = reqTypeName + "_" + toCamelCase(esCode.protoName());
                         final Counter.Config cfg = newCounter(GROUP_CONN_SEND, name)
-                                .withDescription(
-                                        "Number of PublishStreamRequests with " + name + " sent to block nodes");
+                                .withDescription("Number of " + name + " requests sent to block nodes");
                         connSend_endStreamCounters.put(esCode, metrics.getOrCreate(cfg));
                     }
                 }
                 default -> {
                     final Counter.Config cfg = newCounter(GROUP_CONN_SEND, reqTypeName)
-                            .withDescription(
-                                    "Number of PublishStreamRequests with " + reqTypeName + " sent to the block nodes");
+                            .withDescription("Number of " + reqTypeName + " requests sent to the block nodes");
                     connSend_counters.put(reqType, metrics.getOrCreate(cfg));
                 }
             }
@@ -376,8 +429,8 @@ public class BlockStreamMetrics {
                 .withDescription("Number of requests sent to block nodes that failed");
         this.connSend_failureCounter = metrics.getOrCreate(sendFailureCfg);
 
-        final Counter.Config blockItemsCfg =
-                newCounter(GROUP_CONN_SEND, "blockItems").withDescription("Number of block items sent to block nodes");
+        final Counter.Config blockItemsCfg = newCounter(GROUP_CONN_SEND, "blockItemCount")
+                .withDescription("Number of individual block items sent to block nodes");
         this.connSend_blockItemsCounter = metrics.getOrCreate(blockItemsCfg);
     }
 
