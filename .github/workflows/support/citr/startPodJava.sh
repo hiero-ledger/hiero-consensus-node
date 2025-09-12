@@ -42,10 +42,11 @@ then
    file=`grep $package packs.txt | awk '{print $2}'| sed -e 's@file://@@g'`
    packagename=`echo $package | awk -F @ '{print $1}'`
    unzip -l $file | awk '{print $NF}' |  grep '.class' | grep -v 'module-info.class' | grep besu | sed -e 's/^\(.*\)[\/][^\/][^\/]*.class/\1/g' | sort -u | sed -e 's/[\/]/./g' |\
-   perl -ne "~s/\n//g;print \"--add-reads $packagename=cobertura --add-opens $packagename/\$_=cobertura --add-exports $packagename/\$_=cobertura \"" >>module_reads.txt
+   perl -ne "~s/\n//g;print \"--add-modules=$packagename --add-reads $packagename=cobertura --add-opens $packagename/\$_=cobertura --add-exports $packagename/\$_=cobertura \"" >>module_reads.txt
   done
   export DISABLE_JDK_SERIAL_FILTER=true
-  export EXTRA_COBERTURA_OPTS="--add-modules cobertura --add-reads cobertura=ALL-UNNAMED --add-opens cobertura/net.sourceforge.cobertura=ALL-UNNAMED  --add-modules org.slf4j --add-reads cobertura=org.slf4j --add-reads org.slf4j=cobertura $(cat module_reads.txt)"
+  find data/lib/* -type f -name '*.jar' -printf "%p:" > module_path.txt
+  export EXTRA_COBERTURA_OPTS="-Dnet.sourceforge.cobertura.datafile=/tmp/cobertura.ser --module-path $(cat module_path.txt) --add-modules cobertura --add-reads cobertura=ALL-UNNAMED --add-opens cobertura/net.sourceforge.cobertura=ALL-UNNAMED  --add-modules org.slf4j --add-reads cobertura=org.slf4j --add-reads org.slf4j=cobertura $(cat module_reads.txt)"
 fi
 
 if [ "$isToClean" = "import" ]
