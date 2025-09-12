@@ -11,7 +11,6 @@ import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.snapshot.DeserializedSignedState;
 import com.swirlds.virtualmap.VirtualMap;
 import java.io.File;
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import picocli.CommandLine;
@@ -51,7 +50,7 @@ public class ExportCommand implements Runnable {
         try {
             DeserializedSignedState deserializedSignedState = StateResolver.initState();
             state = deserializedSignedState.reservedSignedState().get().getState();
-        } catch (IOException e) {
+        } catch (Exception e) {
             throw new RuntimeException(e);
         }
 

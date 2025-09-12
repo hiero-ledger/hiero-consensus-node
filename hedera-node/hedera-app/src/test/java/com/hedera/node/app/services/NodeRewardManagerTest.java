@@ -45,7 +45,6 @@ import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.metrics.noop.NoOpMetrics;
-import com.swirlds.merkledb.MerkleDb;
 import com.swirlds.platform.state.service.PlatformStateService;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.CommittableWritableStates;
@@ -107,9 +106,6 @@ class NodeRewardManagerTest {
 
     @BeforeEach
     void setUp() {
-        // to make it work for the multiple node in one JVM case, we need reset the default instance path every time
-        // we create another instance of MerkleDB.
-        MerkleDb.resetDefaultInstancePath();
         writableStates = mock(
                 WritableStates.class,
                 withSettings().extraInterfaces(CommittableWritableStates.class).strictness(Strictness.LENIENT));

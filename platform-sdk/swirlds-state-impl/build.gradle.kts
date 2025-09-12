@@ -12,7 +12,6 @@ testModuleInfo {
     requires("com.swirlds.merkledb.test.fixtures")
     requires("com.swirlds.platform.core.test.fixtures")
     requires("com.swirlds.base.test.fixtures")
-    requires("com.swirlds.common.test.fixtures")
     requires("org.junit.jupiter.api")
     requires("org.junit.jupiter.params")
     requires("org.mockito")

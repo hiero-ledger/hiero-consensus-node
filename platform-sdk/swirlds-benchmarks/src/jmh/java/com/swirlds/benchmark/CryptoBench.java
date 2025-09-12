@@ -53,12 +53,6 @@ public class CryptoBench extends VirtualMapBench {
     private Bytes fixedKey2;
 
     @Override
-    public void beforeTest(String name) {
-        super.beforeTest(name);
-        updateMerkleDbPath();
-    }
-
-    @Override
     String benchmarkName() {
         return "CryptoBench";
     }

@@ -16,6 +16,7 @@ import com.swirlds.base.time.Time;
 import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.common.config.StateCommonConfig_;
 import com.swirlds.common.context.PlatformContext;
+import com.swirlds.common.io.config.FileSystemManagerConfig;
 import com.swirlds.common.io.filesystem.FileSystemManager;
 import com.swirlds.common.io.utility.FileUtils;
 import com.swirlds.common.io.utility.RecycleBin;
@@ -25,7 +26,6 @@ import com.swirlds.common.test.fixtures.merkle.TestMerkleCryptoFactory;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
-import com.swirlds.merkledb.MerkleDb;
 import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
 import com.swirlds.platform.config.StateConfig_;
 import com.swirlds.platform.internal.SignedStateLoadingException;
@@ -58,6 +58,10 @@ import org.junit.jupiter.params.provider.ValueSource;
 
 @DisplayName("StartupStateUtilities Tests")
 public class StartupStateUtilsTests {
+
+    private static final Configuration CONFIG = new TestConfigBuilder()
+            .withConfigDataType(FileSystemManagerConfig.class)
+            .getOrCreateConfig();
 
     /**
      * Temporary directory provided by JUnit
@@ -123,7 +127,6 @@ public class StartupStateUtilsTests {
             @Nullable final Hash epoch,
             final boolean corrupted)
             throws IOException {
-        MerkleDb.resetDefaultInstancePath();
 
         final SignedState signedState = new RandomSignedStateGenerator(random)
                 .setRound(round)
@@ -196,7 +199,6 @@ public class StartupStateUtilsTests {
         }
 
         final RecycleBin recycleBin = initializeRecycleBin(platformContext, selfId);
-        MerkleDb.resetDefaultInstancePath();
         final SignedState loadedState = StartupStateUtils.loadStateFile(
                         recycleBin,
                         selfId,
@@ -278,7 +280,6 @@ public class StartupStateUtilsTests {
         }
         RandomSignedStateGenerator.releaseAllBuiltSignedStates();
 
-        MerkleDb.resetDefaultInstancePath();
         final SignedState loadedState = StartupStateUtils.loadStateFile(
                         recycleBin,
                         selfId,
