@@ -19,6 +19,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.CompareTo;
@@ -451,30 +452,21 @@ public class TipsetEventCreator implements EventCreator {
             @NonNull final Instant now,
             @Nullable final PlatformEvent selfParent,
             @Nullable final PlatformEvent otherParent) {
-        if (selfParent == null && otherParent == null) {
-            // This is a genesis event, so just use the current time.
-            return now;
-        }
-
-        // If we have parents, we use the max received time of the parents
-        final Instant maxParentReceivedTime;
-        if (selfParent == null) {
-            maxParentReceivedTime = otherParent.getTimeReceived();
-        } else if (otherParent == null) {
-            maxParentReceivedTime = selfParent.getTimeReceived();
-        } else {
-            maxParentReceivedTime = CompareTo.max(selfParent.getTimeReceived(), otherParent.getTimeReceived());
-        }
-        // We add one nanosecond to ensure the new event is after its self parent
-        final Instant newEventCreationTime = maxParentReceivedTime.plus(Duration.ofNanos(1));
+        // Get the max received time of the parents
+        final Instant maxParentReceivedTime = Stream.of(selfParent, otherParent)
+                .filter(Objects::nonNull)
+                .map(PlatformEvent::getTimeReceived)
+                .max(Instant::compareTo)
+                // if it's a genesis event, just use the current time
+                .orElse(now);
 
         // This is a fallback in case the system clock malfunctions for some reason.
         // We must ensure the new event is after its self parent, otherwise it will be rejected by the network.
-        if (selfParent != null && !newEventCreationTime.isAfter(selfParent.getTimeCreated())) {
+        if (selfParent != null && !maxParentReceivedTime.isAfter(selfParent.getTimeCreated())) {
             return selfParent.getTimeCreated().plus(Duration.ofNanos(1));
         }
 
-        return newEventCreationTime;
+        return maxParentReceivedTime;
     }
 
     /**
