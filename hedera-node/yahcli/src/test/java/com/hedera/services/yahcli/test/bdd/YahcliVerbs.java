@@ -34,6 +34,8 @@ public class YahcliVerbs {
             Pattern.compile("SUCCESS - account \\d+\\.\\d+\\.\\d+ updated, now staked to ACCOUNT \\d+\\.\\d+\\.(\\d+)");
     private static final Pattern NEW_KEY_PATTERN = Pattern.compile("The public key is:\\s*([a-fA-F0-9]+)");
     private static final Pattern KEY_PRINT_PATTERN = Pattern.compile("The public key @ [^ ]+ is *:\\s*([a-fA-F0-9]+)");
+    private static final Pattern FILE_HASH_PATTERN =
+            Pattern.compile("The SHA-384 hash of the software-zip is:\n([a-f0-9]+)");
 
     public static final AtomicReference<String> DEFAULT_CONFIG_LOC = new AtomicReference<>();
     public static final AtomicReference<String> DEFAULT_WORKING_DIR = new AtomicReference<>();
@@ -115,6 +117,37 @@ public class YahcliVerbs {
     }
 
     /**
+     * Returns an operation that invokes a yahcli {@code freeze-upgrade} subcommand with the given args,
+     *
+     * @param args the arguments to pass to the freeze-upgrade subcommand
+     * @return the operation that will execute the freeze-upgrade subcommand
+     */
+    public static YahcliCallOperation yahcliFreezeUpgrade(@NonNull final String... args) {
+        requireNonNull(args);
+        return new YahcliCallOperation(prepend(args, "freeze-upgrade"));
+    }
+
+    /**
+     * Returns an operation that invokes a yahcli {@code prepare-upgrade} subcommand with the given args,
+     * taking the config location and working directory from defaults if not overridden.
+     * @return the operation
+     */
+    public static YahcliCallOperation yahcliPrepareUpgrade(@NonNull final String... args) {
+        requireNonNull(args);
+        return new YahcliCallOperation(prepend(args, "prepare-upgrade"));
+    }
+
+    /**
+     * Returns an operation that invokes a yahcli {@code sysfiles} subcommand with the given args,
+     * taking the config location and working directory from defaults if not overridden.
+     * @return the operation
+     */
+    public static YahcliCallOperation yahcliSysFiles(@NonNull final String... args) {
+        requireNonNull(args);
+        return new YahcliCallOperation(prepend(args, "sysfiles"));
+    }
+
+    /**
      * Returns an operation that invokes a yahcli {@code setupStake} subcommand with the given args,
      * taking the config location and working directory from defaults if not overridden.
      * @return the operation
@@ -172,6 +205,17 @@ public class YahcliVerbs {
             extractAndAcceptValue(output, REWARD_RATE_PATTERN, rewardRateCb);
             extractAndAcceptValue(output, PER_NODE_STAKE_PATTERN, perNodeStakeCb);
             extractAndAcceptValue(output, BALANCE_PATTERN, balanceCb);
+        };
+    }
+
+    public static Consumer<String> newFileHashCapturer(@NonNull final Consumer<String> cb) {
+        return output -> {
+            final var m = Pattern.compile(FILE_HASH_PATTERN.pattern()).matcher(output);
+            if (m.find()) {
+                cb.accept(m.group(1));
+            } else {
+                Assertions.fail("Expected '" + output + "' to contain " + FILE_HASH_PATTERN.pattern() + "'");
+            }
         };
     }
 
