@@ -5,6 +5,7 @@ import static com.swirlds.common.io.utility.LegacyTemporaryFileBuilder.buildTemp
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.STATE_TO_DISK;
 import static java.nio.file.Files.exists;
+import static java.nio.file.StandardCopyOption.ATOMIC_MOVE;
 import static java.util.Objects.requireNonNull;
 
 import com.swirlds.common.io.streams.MerkleDataOutputStream;
@@ -15,6 +16,7 @@ import java.io.BufferedOutputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.FileSystems;
 import java.nio.file.FileVisitResult;
@@ -243,7 +245,7 @@ public final class FileUtils {
 
             // Move needs to be atomic to guarantee that the folder only exists when its contents are complete.
             // Otherwise, it's possible another thread will see a half-completed directory.
-            Files.move(tmpDirectory, directory, StandardCopyOption.ATOMIC_MOVE);
+            Files.move(tmpDirectory, directory, ATOMIC_MOVE);
         } catch (final Throwable ex) {
             logger.info(STATE_TO_DISK.getMarker(), "deleting temporary file due to exception");
             throw ex;
@@ -376,5 +378,71 @@ public final class FileUtils {
                 return FileVisitResult.CONTINUE;
             }
         });
+    }
+
+    /**
+     * copies a source directory, along with its contents, to a target location.
+     * If the target directory does not exist, it will be created.
+     * The method preserves the directory structure during the copy operation.
+     * <br>
+     * <strong>Note:</strong> if a file already exists at the target with the same relative path, it will be overwritten.
+     *
+     * @param source the path of the directory to be moved, must not be null
+     * @param target the path where the directory should be moved, must not be null
+     * @throws IOException if the source does not exist or an I/O error occurs during the operation
+     */
+    public static void copyDirectory(@NonNull final Path source, @NonNull final Path target) throws IOException {
+        Objects.requireNonNull(source, "Source path cannot be null");
+        Objects.requireNonNull(target, "Target path cannot be null");
+
+        if (!Files.exists(source)) {
+            throw new IOException(source + " does not exist");
+        }
+        if (!Files.exists(target)) {
+            Files.createDirectories(target);
+        }
+
+        Files.walkFileTree(source, new SimpleFileVisitor<>() {
+            @NonNull
+            @Override
+            public FileVisitResult preVisitDirectory(@NonNull final Path dir, @NonNull final BasicFileAttributes attrs)
+                    throws IOException {
+                final Path relative = source.relativize(dir);
+                final Path targetDir = target.resolve(relative);
+                Files.createDirectories(targetDir);
+                return FileVisitResult.CONTINUE;
+            }
+
+            @NonNull
+            @Override
+            public FileVisitResult visitFile(@NonNull final Path file, @NonNull final BasicFileAttributes attrs)
+                    throws IOException {
+                final Path relative = source.relativize(file);
+                final Path targetFile = target.resolve(relative);
+                Files.copy(file, targetFile, StandardCopyOption.REPLACE_EXISTING);
+                return FileVisitResult.CONTINUE;
+            }
+        });
+    }
+
+    /**
+     * Renames a source file represented by source
+     *
+     * @param source the path of the file to be renamed, must not be null
+     * @param newName the new name to give the file, must not be null
+     * @throws IOException if the source does not exist or an I/O error occurs during the operation
+     */
+    public static void rename(@NonNull final Path source, @NonNull final String newName) throws IOException {
+        final Path target = requireNonNull(source).resolveSibling(requireNonNull(newName));
+
+        if (Files.exists(target)) {
+            throw new FileAlreadyExistsException(target.toString());
+        }
+
+        try {
+            Files.move(source, target, ATOMIC_MOVE);
+        } catch (final AtomicMoveNotSupportedException e) {
+            Files.move(source, target);
+        }
     }
 }
