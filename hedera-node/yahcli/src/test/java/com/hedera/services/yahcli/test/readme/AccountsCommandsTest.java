@@ -24,6 +24,7 @@ import static com.hedera.services.yahcli.test.bdd.YahcliVerbs.newBalanceCapturer
 import static com.hedera.services.yahcli.test.bdd.YahcliVerbs.newCurrencyTransferCapturer;
 import static com.hedera.services.yahcli.test.bdd.YahcliVerbs.newTokenTransferCapturer;
 import static com.hedera.services.yahcli.test.bdd.YahcliVerbs.yahcliAccounts;
+import static com.hedera.services.yahcli.test.bdd.YahcliVerbs.yahcliIvy;
 import static com.hedera.services.yahcli.test.profile.Civilian.CIVILIAN;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -52,6 +53,13 @@ public class AccountsCommandsTest {
                 sourcingContextual(spec -> getAccountInfo(
                                 asAccountString(spec.accountIdFactory().apply(newAccountNum.get())))
                         .has(accountWith().balance(ONE_HBAR).memo("Who danced between"))));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> sysAccountsCheck() {
+        return hapiTest(
+                // Confirm no system accounts exist in system file range
+                yahcliIvy("sys-accounts-check"));
     }
 
     @HapiTest

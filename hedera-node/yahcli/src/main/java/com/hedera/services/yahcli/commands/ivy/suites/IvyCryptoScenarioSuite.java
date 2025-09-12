@@ -38,7 +38,7 @@ import org.junit.jupiter.api.DynamicTest;
 /**
  * Implements the old {@code ValidationScenarios} crypto scenario.
  */
-public class IvyCryptoScenarioSuite extends AbstractIvySuite {
+public class IvyCryptoScenarioSuite extends AbstractIvyScenariosSuite {
     private static final Logger log = LogManager.getLogger(IvyCryptoScenarioSuite.class);
 
     private final boolean novel;
