@@ -6,11 +6,10 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.ACCOUNT_EXPIRED_AND_PEN
 import static com.hedera.hapi.node.base.ResponseCodeEnum.ACCOUNT_ID_DOES_NOT_EXIST;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.EXISTING_AUTOMATIC_ASSOCIATIONS_EXCEED_GIVEN_LIMIT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOKS_NOT_ENABLED;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOK_DELETED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOK_ID_IN_USE;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOK_NOT_FOUND;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ADMIN_KEY;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_HOOK_ADMIN_KEY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_HOOK_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_MAX_AUTO_ASSOCIATIONS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.PROXY_ACCOUNT_ID_FIELD_IS_DEPRECATED;
@@ -77,7 +76,6 @@ import com.hedera.node.config.data.TokensConfig;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-
 import java.nio.charset.StandardCharsets;
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -109,7 +107,15 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
                 op.hasProxyAccountID() && !op.proxyAccountID().equals(AccountID.DEFAULT),
                 PROXY_ACCOUNT_ID_FIELD_IS_DEPRECATED);
         if (!op.hookCreationDetails().isEmpty()) {
-            validateHookPureChecks(op.hookCreationDetails());
+            for (final var detail : op.hookCreationDetails()) {
+                context.dispatchPureChecks(TransactionBody.newBuilder().hookDispatch(
+                        HookDispatchTransactionBody.newBuilder().creation(
+                                HookCreation.newBuilder().entityId(HookEntityId.newBuilder()
+                                                .accountId(AccountID.newBuilder().accountNum(0L).build())
+                                                .build())
+                                        .details(detail)
+                                        .build()).build()).build());
+            }
         }
         for (final var hookId : op.hookIdsToDelete()) {
             validateTruePreCheck(hookId != 0L, INVALID_HOOK_ID);
@@ -180,7 +186,8 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
         long headAfterDeletes = targetAccount.firstHookId();
         // Dispatch all the hooks to delete
         if (!op.hookIdsToDelete().isEmpty()) {
-            final var owner = HookEntityId.newBuilder().accountId(op.accountIDToUpdate()).build();
+            final var owner =
+                    HookEntityId.newBuilder().accountId(op.accountIDToUpdate()).build();
             if (op.hookIdsToDelete().contains(headAfterDeletes)) {
                 final var state = hookStore.getEvmHook(new HookId(owner, headAfterDeletes));
                 headAfterDeletes = (state != null && state.nextHookId() != null) ? state.nextHookId() : 0L;
@@ -203,10 +210,9 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
     }
 
     private void dispatchHookCreations(
-            final HandleContext context,
-            final CryptoUpdateTransactionBody op,
-            final Long headAfterDeletes) {
-        final var ownerId = HookEntityId.newBuilder().accountId(op.accountIDToUpdate()).build();
+            final HandleContext context, final CryptoUpdateTransactionBody op, final Long headAfterDeletes) {
+        final var ownerId =
+                HookEntityId.newBuilder().accountId(op.accountIDToUpdate()).build();
         // Build new block A → B → C → existingHead
         Long nextId = headAfterDeletes == 0 ? null : headAfterDeletes;
         final var creations = op.hookCreationDetails();
@@ -294,7 +300,9 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
         }
         if (!op.hookCreationDetails().isEmpty() || !op.hookIdsToDelete().isEmpty()) {
             final var currentHooks = currentAccount.numberHooksInUse();
-            builder.numberHooksInUse(currentHooks - op.hookIdsToDelete().size() + op.hookCreationDetails().size());
+            builder.numberHooksInUse(currentHooks
+                    - op.hookIdsToDelete().size()
+                    + op.hookCreationDetails().size());
         }
         return builder;
     }
@@ -364,29 +372,6 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
 
         // validate if account is not deleted
         validateFalse(updateAccount.deleted(), ACCOUNT_DELETED);
-        // hook related validations
-        if (!op.hookCreationDetails().isEmpty() || !op.hookIdsToDelete().isEmpty()) {
-            final var readableEvmStore = context.storeFactory().readableStore(ReadableEvmHookStore.class);
-            validateTrue(hookConfig.hooksEnabled(), HOOKS_NOT_ENABLED);
-            final var entityId = HookEntityId.newBuilder().accountId(op.accountIDToUpdate()).build();
-            for (final var detail : op.hookCreationDetails()) {
-                if (detail.hasAdminKey()) {
-                    context.attributeValidator().validateKey(detail.adminKey());
-                }
-                final var hook = readableEvmStore.getEvmHook(
-                        HookId.newBuilder().entityId(entityId).hookId(detail.hookId()).build());
-                validateTrue(
-                        hook == null
-                                || hook.deleted()
-                                || op.hookIdsToDelete().contains(hook.hookId().hookId()),
-                        HOOK_ID_IN_USE);
-            }
-            for (final var hookId : op.hookIdsToDelete()) {
-                final var hook = readableEvmStore.getEvmHook(HookId.newBuilder().entityId(entityId).hookId(hookId).build());
-                validateTrue(hook != null, HOOK_NOT_FOUND);
-                validateTrue(!hook.deleted(), HOOK_DELETED);
-            }
-        }
     }
 
     /**
@@ -528,8 +513,8 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
                 : account.memo().getBytes(StandardCharsets.UTF_8).length;
         final long newVariableBytes = (newMemoSize != 0L ? newMemoSize : accountMemoSize)
                 + (keySize == 0L && account != null
-                ? getAccountKeyStorageSize(CommonPbjConverters.fromPbj(account.keyOrElse(Key.DEFAULT)))
-                : keySize);
+                        ? getAccountKeyStorageSize(CommonPbjConverters.fromPbj(account.keyOrElse(Key.DEFAULT)))
+                        : keySize);
 
         final long tokenRelBytes =
                 (account == null ? 0 : account.numberAssociations()) * CRYPTO_ENTITY_SIZES.bytesInTokenAssocRepr();

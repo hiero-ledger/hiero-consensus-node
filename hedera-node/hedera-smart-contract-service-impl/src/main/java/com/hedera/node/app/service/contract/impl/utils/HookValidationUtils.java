@@ -1,0 +1,83 @@
+package com.hedera.node.app.service.contract.impl.utils;
+
+import com.hedera.hapi.node.hooks.HookCreationDetails;
+import com.hedera.hapi.node.token.CryptoCreateTransactionBody;
+import com.hedera.hapi.node.token.CryptoUpdateTransactionBody;
+import com.hedera.node.app.spi.workflows.PreCheckException;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
+import edu.umd.cs.findbugs.annotations.NonNull;
+
+import java.util.HashSet;
+import java.util.List;
+
+import static com.hedera.hapi.node.base.ResponseCodeEnum.EMPTY_LAMBDA_STORAGE_UPDATE;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOK_CREATION_BYTES_MUST_USE_MINIMAL_REPRESENTATION;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOK_CREATION_BYTES_TOO_LONG;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOK_EXTENSION_EMPTY;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOK_ID_REPEATED_IN_CREATION_DETAILS;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOK_IS_NOT_A_LAMBDA;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_HOOK_CREATION_SPEC;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_HOOK_ID;
+import static com.hedera.node.app.hapi.utils.contracts.HookUtils.minimalRepresentationOf;
+import static com.hedera.node.app.service.contract.impl.handlers.LambdaSStoreHandler.MAX_UPDATE_BYTES_LEN;
+import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
+
+public class HookValidationUtils {
+
+    /**
+     * Validates the hook creation details in a {@link CryptoCreateTransactionBody} and {@link CryptoUpdateTransactionBody}
+     * @param details the hook creation details to validate
+     * @throws PreCheckException if any validation fails
+     */
+    public static void validateHookPureChecks(final List<HookCreationDetails> details) throws PreCheckException {
+        final var hookIdsSeen = new HashSet<Long>();
+        for (final var hook : details) {
+            // No duplicate hook ids are allowed inside one txn
+            validateTruePreCheck(hookIdsSeen.add(hook.hookId()), HOOK_ID_REPEATED_IN_CREATION_DETAILS);
+            validateHook(hook);
+        }
+    }
+
+    public static void validateHook(final HookCreationDetails hook) throws PreCheckException {
+        validateTruePreCheck(hook.hookId() != 0L, INVALID_HOOK_ID);
+        validateTruePreCheck(hook.extensionPoint() != null, HOOK_EXTENSION_EMPTY);
+        validateTruePreCheck(hook.hasLambdaEvmHook(), HOOK_IS_NOT_A_LAMBDA);
+
+        final var lambda = hook.lambdaEvmHookOrThrow();
+        validateTruePreCheck(lambda.hasSpec() && lambda.specOrThrow().hasContractId(), INVALID_HOOK_CREATION_SPEC);
+
+        for (final var storage : lambda.storageUpdates()) {
+            validateTruePreCheck(
+                    storage.hasStorageSlot() || storage.hasMappingEntries(), EMPTY_LAMBDA_STORAGE_UPDATE);
+
+            if (storage.hasStorageSlot()) {
+                final var s = storage.storageSlotOrThrow();
+                // The key for a storage slot can be empty. If present, it should have minimal encoding and maximum
+                // 32 bytes
+                validateWord(s.key());
+                validateWord(s.value());
+            } else if (storage.hasMappingEntries()) {
+                final var mapping = storage.mappingEntriesOrThrow();
+                for (final var e : mapping.entries()) {
+                    validateTruePreCheck(e.hasKey() || e.hasPreimage(), EMPTY_LAMBDA_STORAGE_UPDATE);
+                    if (e.hasKey()) {
+                        validateWord(e.keyOrThrow());
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Validates that the given bytes are a valid "word" (i.e. a 32-byte value) for use in a lambda storage update.
+     * Specifically, it checks that the length is at most 32 bytes, and that it is in its minimal representation
+     * (i.e. no leading zeros).
+     * @param bytes the bytes to validate
+     * @throws PreCheckException if the bytes are not a valid word
+     */
+    private static void validateWord(@NonNull final Bytes bytes) throws PreCheckException {
+        validateTruePreCheck(bytes.length() <= MAX_UPDATE_BYTES_LEN, HOOK_CREATION_BYTES_TOO_LONG);
+        final var minimalBytes = minimalRepresentationOf(bytes);
+        validateTruePreCheck(bytes.equals(minimalBytes), HOOK_CREATION_BYTES_MUST_USE_MINIMAL_REPRESENTATION);
+    }
+}

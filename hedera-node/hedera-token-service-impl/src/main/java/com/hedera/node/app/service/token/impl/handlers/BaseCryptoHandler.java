@@ -32,7 +32,6 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 
@@ -81,47 +80,6 @@ public class BaseCryptoHandler {
                 && ((accountID.hasAccountNum() && accountID.accountNumOrThrow() != 0L)
                         || (accountID.hasAlias() && accountID.aliasOrThrow().length() > 0));
     }
-
-    /**
-     * Validates the hook creation details in a {@link CryptoCreateTransactionBody} and {@link CryptoUpdateTransactionBody}
-     * @param details the hook creation details to validate
-     * @throws PreCheckException if any validation fails
-     */
-    protected void validateHookPureChecks(final List<HookCreationDetails> details) throws PreCheckException {
-        final var hookIdsSeen = new HashSet<Long>();
-        for (final var hook : details) {
-            validateTruePreCheck(hook.hookId() != 0L, INVALID_HOOK_ID);
-            // No duplicate hook ids are allowed inside one txn
-            validateTruePreCheck(hookIdsSeen.add(hook.hookId()), HOOK_ID_REPEATED_IN_CREATION_DETAILS);
-            validateTruePreCheck(hook.extensionPoint() != null, HOOK_EXTENSION_EMPTY);
-            validateTruePreCheck(hook.hasLambdaEvmHook(), HOOK_IS_NOT_A_LAMBDA);
-
-            final var lambda = hook.lambdaEvmHookOrThrow();
-            validateTruePreCheck(lambda.hasSpec() && lambda.specOrThrow().hasContractId(), INVALID_HOOK_CREATION_SPEC);
-
-            for (final var storage : lambda.storageUpdates()) {
-                validateTruePreCheck(
-                        storage.hasStorageSlot() || storage.hasMappingEntries(), EMPTY_LAMBDA_STORAGE_UPDATE);
-
-                if (storage.hasStorageSlot()) {
-                    final var s = storage.storageSlotOrThrow();
-                    // The key for a storage slot can be empty. If present, it should have minimal encoding and maximum
-                    // 32 bytes
-                    validateWord(s.key());
-                    validateWord(s.value());
-                } else if (storage.hasMappingEntries()) {
-                    final var mapping = storage.mappingEntriesOrThrow();
-                    for (final var e : mapping.entries()) {
-                        validateTruePreCheck(e.hasKey() || e.hasPreimage(), EMPTY_LAMBDA_STORAGE_UPDATE);
-                        if (e.hasKey()) {
-                            validateWord(e.keyOrThrow());
-                        }
-                    }
-                }
-            }
-        }
-    }
-
     /**
      * Dispatches the hook creation to the given context.
      * @param context the handle context

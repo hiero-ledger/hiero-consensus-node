@@ -4,14 +4,17 @@ package com.hedera.node.app.service.contract.impl.handlers;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CONTRACT_EXPIRED_AND_PENDING_REMOVAL;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.EXISTING_AUTOMATIC_ASSOCIATIONS_EXCEED_GIVEN_LIMIT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.EXPIRATION_REDUCTION_NOT_ALLOWED;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOKS_NOT_ENABLED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ADMIN_KEY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_AUTORENEW_ACCOUNT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_CONTRACT_ID;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_HOOK_ADMIN_KEY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_MAX_AUTO_ASSOCIATIONS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.MODIFYING_IMMUTABLE_CONTRACT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.REQUESTED_NUM_AUTOMATIC_ASSOCIATIONS_EXCEEDS_ASSOCIATION_LIMIT;
 import static com.hedera.hapi.util.HapiUtils.EMPTY_KEY_LIST;
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
+import static com.hedera.node.app.service.contract.impl.utils.HookValidationUtils.validateHookPureChecks;
 import static com.hedera.node.app.service.token.api.AccountSummariesApi.SENTINEL_ACCOUNT_ID;
 import static com.hedera.node.app.spi.fees.Fees.CONSTANT_FEE_DATA;
 import static com.hedera.node.app.spi.validation.ExpiryMeta.NA;
@@ -44,6 +47,7 @@ import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
 import com.hedera.node.config.data.EntitiesConfig;
+import com.hedera.node.config.data.HooksConfig;
 import com.hedera.node.config.data.LedgerConfig;
 import com.hedera.node.config.data.TokensConfig;
 import com.hederahashgraph.api.proto.java.FeeData;
@@ -105,6 +109,9 @@ public class ContractUpdateHandler implements TransactionHandler {
 
         if (op.hasAdminKey() && processAdminKey(op)) {
             throw new PreCheckException(INVALID_ADMIN_KEY);
+        }
+        if (!op.hookCreationDetails().isEmpty()) {
+            validateHookPureChecks(op.hookCreationDetails());
         }
     }
 
@@ -201,6 +208,17 @@ public class ContractUpdateHandler implements TransactionHandler {
                         op.stakedNodeId(),
                         accountStore,
                         context.networkInfo());
+
+        if(!op.hookCreationDetails().isEmpty()){
+            final var hookConfig = context.configuration().getConfigData(HooksConfig.class);
+            validateTrue(hookConfig.hooksEnabled(), HOOKS_NOT_ENABLED);
+
+            op.hookCreationDetails().forEach(details -> {
+                if (details.hasAdminKey()) {
+                    context.attributeValidator().validateKey(details.adminKeyOrThrow(), INVALID_HOOK_ADMIN_KEY);
+                }
+            });
+        }
     }
 
     private boolean processAdminKey(ContractUpdateTransactionBody op) {

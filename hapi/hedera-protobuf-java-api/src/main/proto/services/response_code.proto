@@ -1863,4 +1863,9 @@ enum ResponseCodeEnum {
      * A hook extension point was empty.
      */
     HOOK_EXTENSION_EMPTY = 517;
+
+    /**
+     * A hook admin key was invalid.
+     */
+    INVALID_HOOK_ADMIN_KEY = 518;
 }

@@ -32,10 +32,8 @@ import com.swirlds.state.spi.WritableKVState;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-
 import java.util.ArrayList;
 import java.util.List;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -143,8 +141,10 @@ public class WritableEvmHookStore extends ReadableEvmHookStoreImpl {
         final var state = hookStates.get(hookId);
         validateTrue(state != null, HOOK_NOT_FOUND);
         if (state.numStorageSlots() > 0) {
-            log.info("Marking hook {} as deleted, but not removing it because it has {} storage slots",
-                    hookId, state.numStorageSlots());
+            log.info(
+                    "Marking hook {} as deleted, but not removing it because it has {} storage slots",
+                    hookId,
+                    state.numStorageSlots());
             hookStates.put(hookId, state.copyBuilder().deleted(true).build());
         } else {
             unlinkNeighbors(state);
@@ -159,17 +159,24 @@ public class WritableEvmHookStore extends ReadableEvmHookStoreImpl {
         final var nextId = state.nextHookId();
 
         if (prevId != null) {
-            final var prev = HookId.newBuilder().hookId(prevId).entityId(hookId.entityId()).build();
+            final var prev = HookId.newBuilder()
+                    .hookId(prevId)
+                    .entityId(hookId.entityId())
+                    .build();
             final var prevState = hookStates.get(prev);
             if (prevState != null) {
                 hookStates.put(prev, prevState.copyBuilder().nextHookId(nextId).build());
             }
         }
         if (nextId != null) {
-            final var next = HookId.newBuilder().hookId(nextId).entityId(hookId.entityId()).build();
+            final var next = HookId.newBuilder()
+                    .hookId(nextId)
+                    .entityId(hookId.entityId())
+                    .build();
             final var nextState = hookStates.get(next);
             if (nextState != null) {
-                hookStates.put(next, nextState.copyBuilder().previousHookId(prevId).build());
+                hookStates.put(
+                        next, nextState.copyBuilder().previousHookId(prevId).build());
             }
         }
 

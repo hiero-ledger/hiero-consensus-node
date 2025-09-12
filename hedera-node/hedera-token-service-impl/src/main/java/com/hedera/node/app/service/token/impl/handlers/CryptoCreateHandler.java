@@ -6,9 +6,11 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.ALIAS_ALREADY_ASSIGNED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.BAD_ENCODING;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.FAIL_INVALID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOKS_NOT_ENABLED;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOK_ID_REPEATED_IN_CREATION_DETAILS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ALIAS_KEY;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_HOOK_ADMIN_KEY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_INITIAL_BALANCE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_MAX_AUTO_ASSOCIATIONS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_PAYER_ACCOUNT_ID;
@@ -22,7 +24,6 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.PROXY_ACCOUNT_ID_FIELD_
 import static com.hedera.node.app.hapi.fees.usage.SingletonUsageProperties.USAGE_PROPERTIES;
 import static com.hedera.node.app.hapi.fees.usage.crypto.CryptoOpsUsage.CREATE_SLOT_MULTIPLIER;
 import static com.hedera.node.app.hapi.fees.usage.crypto.entities.CryptoEntitySizes.CRYPTO_ENTITY_SIZES;
-import static com.hedera.node.app.hapi.utils.contracts.HookUtils.summarizeHooks;
 import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.BASIC_ENTITY_ID_SIZE;
 import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.BOOL_SIZE;
 import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.INT_SIZE;
@@ -55,12 +56,12 @@ import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.hooks.HookCreation;
 import com.hedera.hapi.node.hooks.HookCreationDetails;
+import com.hedera.hapi.node.hooks.HookDispatchTransactionBody;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.token.CryptoCreateTransactionBody;
 import com.hedera.hapi.node.token.CryptoUpdateTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.hapi.utils.CommonPbjConverters;
-import com.hedera.node.app.hapi.utils.contracts.HookUtils;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.impl.WritableAccountStore;
 import com.hedera.node.app.service.token.impl.validators.CryptoCreateValidator;
@@ -86,9 +87,9 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Collectors;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 
@@ -177,7 +178,10 @@ public class CryptoCreateHandler extends BaseCryptoHandler implements Transactio
         validateTruePreCheck(key != null, KEY_NOT_PROVIDED);
         // since pure evm hooks are being removed, just added validations for lambda evm hooks for now
         if (!op.hookCreationDetails().isEmpty()) {
-            validateHookPureChecks(op.hookCreationDetails());
+            final var hookIds = op.hookCreationDetails().stream().map(HookCreationDetails::hookId).collect(Collectors.toSet());
+            if (hookIds.size() != op.hookCreationDetails().size()) {
+                throw new PreCheckException(HOOK_ID_REPEATED_IN_CREATION_DETAILS);
+            }
         }
     }
 
@@ -279,16 +283,14 @@ public class CryptoCreateHandler extends BaseCryptoHandler implements Transactio
         }
 
         // Dispatch hook creation to contract service if there are any hooks to be created
-        var hookSummary = new HookUtils.HookSummary(0L, Collections.emptyList());
         if (!op.hookCreationDetails().isEmpty()) {
             final var owner = entityIdFactory.newAccountId(context.entityNumGenerator().peekAtNewEntityNum());
-            hookSummary = summarizeHooks(Collections.emptyList(), op.hookCreationDetails());
             dispatchHookCreations(context, op.hookCreationDetails(), owner);
         }
 
         // Build the new account to be persisted based on the transaction body and save the newly created account
         // number in the record builder
-        final var accountCreated = buildAccount(op, context, hookSummary);
+        final var accountCreated = buildAccount(op, context);
         // As an extra guardrail, ensure it's impossible to programmatically create a system file account
         validateFalse(isSystemFile(accountCreated.accountIdOrThrow().accountNumOrThrow()), FAIL_INVALID);
         accountStore.putAndIncrementCount(accountCreated);
@@ -431,14 +433,6 @@ public class CryptoCreateHandler extends BaseCryptoHandler implements Transactio
                     accountStore,
                     context.networkInfo());
         }
-        if (!op.hookCreationDetails().isEmpty()) {
-            validateTrue(hookConfig.hooksEnabled(), HOOKS_NOT_ENABLED);
-            for (final var detail : op.hookCreationDetails()) {
-                if (detail.hasAdminKey()) {
-                    context.attributeValidator().validateKey(detail.adminKey());
-                }
-            }
-        }
     }
 
     /**
@@ -467,7 +461,7 @@ public class CryptoCreateHandler extends BaseCryptoHandler implements Transactio
      * @return the account created
      */
     @NonNull
-    private Account buildAccount(CryptoCreateTransactionBody op, HandleContext handleContext, HookUtils.HookSummary hookSummary) {
+    private Account buildAccount(CryptoCreateTransactionBody op, HandleContext handleContext) {
         requireNonNull(op);
         requireNonNull(handleContext);
         final var autoRenewPeriod = op.autoRenewPeriodOrThrow().seconds();
@@ -485,9 +479,9 @@ public class CryptoCreateHandler extends BaseCryptoHandler implements Transactio
                 .stakeAtStartOfLastRewardedPeriod(NOT_REWARDED_SINCE_LAST_STAKING_META_CHANGE)
                 .stakePeriodStart(NO_STAKE_PERIOD_START)
                 .alias(op.alias());
-        if (!hookSummary.creationHookIds().isEmpty()) {
-            builder.firstHookId(hookSummary.creationHookIds().getFirst());
-            builder.numberHooksInUse(hookSummary.creationHookIds().size());
+        if (!op.hookCreationDetails().isEmpty()) {
+            builder.firstHookId(op.hookCreationDetails().getFirst().hookId());
+            builder.numberHooksInUse(op.hookCreationDetails().size());
         }
 
         // We do this separately because we want to let the protobuf object remain UNSET for the staked ID if neither
