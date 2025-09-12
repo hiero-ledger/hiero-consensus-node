@@ -219,7 +219,7 @@ jobs:
           echo Setup procedure ...
           cat /etc/*elease
           sudo apt-get update
-          sudo apt-get install -y net-tools iputils-ping node-typescript perl unzip
+          sudo apt-get install -y net-tools iputils-ping node-typescript
 
       - name: Create report dir
         shell: bash
@@ -564,6 +564,7 @@ jobs:
               sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" cp application.properties $i:/opt/hgcapp/services-hedera/HapiApp2.0/data/config/application.properties
               sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" cp block-nodes_${node_id}.json $i:/opt/hgcapp/services-hedera/HapiApp2.0/data/config/block-nodes.json
               sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" cp "${{ github.workspace }}"/.github/workflows/support/citr/startPodJava.sh $i:/opt/hgcapp/services-hedera/HapiApp2.0/startPodJava.sh
+              sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" exec $i -c root-container -- bash -c "yum install -q -y unzip perl"
 
               sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" exec $i -c root-container -- su - hedera -c bash -c "cd /opt/hgcapp/services-hedera/HapiApp2.0; sh startPodJava.sh ${node_id} cobertura"
           done
