@@ -3,6 +3,8 @@ package com.hedera.node.app.service.token.impl.test.handlers.util;
 
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.toPbj;
 import static com.hedera.node.app.service.token.impl.handlers.BaseCryptoHandler.asAccount;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ALIASES_STATE_ID;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ALIASES_STATE_LABEL;
 import static com.hedera.node.app.service.token.impl.test.keys.KeysAndIds.CURRENTLY_UNUSED_ALIAS;
 import static com.hedera.node.app.service.token.impl.test.keys.KeysAndIds.FIRST_TOKEN_SENDER;
 import static com.hedera.node.app.service.token.impl.test.keys.KeysAndIds.FIRST_TOKEN_SENDER_LITERAL_ALIAS;
@@ -15,7 +17,6 @@ import static org.mockito.BDDMockito.given;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.node.app.service.token.ReadableAccountStore;
-import com.hedera.node.app.service.token.TokenService;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.spi.ReadableKVState;
 import com.swirlds.state.spi.ReadableStates;
@@ -29,6 +30,7 @@ import org.mockito.Mockito;
  * Utility class for creating {@link ReadableAccountStore} objects.
  */
 public class AdapterUtils {
+
     private static final String ALIASES_KEY = "ALIASES";
 
     private AdapterUtils() {
@@ -40,9 +42,9 @@ public class AdapterUtils {
      * @param keysToMock the key-value pairs
      * @return the {@link ReadableStates} object
      */
-    public static ReadableStates mockStates(final Map<String, ReadableKVState> keysToMock) {
+    public static ReadableStates mockStates(final Map<Integer, ReadableKVState> keysToMock) {
         final var mockStates = Mockito.mock(ReadableStates.class);
-        keysToMock.forEach((key, state) -> given(mockStates.get(key)).willReturn(state));
+        keysToMock.forEach((id, state) -> given(mockStates.get(id)).willReturn(state));
         return mockStates;
     }
 
@@ -51,9 +53,9 @@ public class AdapterUtils {
      * @param keysToMock the key-value pairs
      * @return the {@link WritableStates} object
      */
-    public static WritableStates mockWritableStates(final Map<String, WritableKVState> keysToMock) {
+    public static WritableStates mockWritableStates(final Map<Integer, WritableKVState> keysToMock) {
         final var mockStates = Mockito.mock(WritableStates.class);
-        keysToMock.forEach((key, state) -> given(mockStates.get(key)).willReturn(state));
+        keysToMock.forEach((id, state) -> given(mockStates.get(id)).willReturn(state));
         return mockStates;
     }
 
@@ -69,6 +71,6 @@ public class AdapterUtils {
                 Map.entry(
                         new ProtoBytes(Bytes.wrap(FIRST_TOKEN_SENDER_LITERAL_ALIAS.toByteArray())),
                         toPbj(FIRST_TOKEN_SENDER)));
-        return new MapWritableKVState<>(TokenService.NAME, ALIASES_KEY, wellKnownAliases);
+        return new MapWritableKVState<>(ALIASES_STATE_ID, ALIASES_STATE_LABEL, wellKnownAliases);
     }
 }

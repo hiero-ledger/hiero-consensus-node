@@ -27,7 +27,7 @@ class ReadableRosterStoreImplTest {
 
     @BeforeEach
     void setUp() {
-        given(readableStates.<RosterState>getSingleton(WritableRosterStore.ROSTER_STATES_KEY))
+        given(readableStates.<RosterState>getSingleton(RosterStateId.ROSTER_STATE_STATE_ID))
                 .willReturn(rosterState);
         subject = new ReadableRosterStoreImpl(readableStates);
     }

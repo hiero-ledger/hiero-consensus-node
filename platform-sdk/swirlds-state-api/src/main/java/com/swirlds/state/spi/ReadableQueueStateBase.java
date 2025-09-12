@@ -15,26 +15,20 @@ public abstract class ReadableQueueStateBase<E> implements ReadableQueueState<E>
 
     private E peekedElement;
 
-    protected final String serviceName;
+    protected final String label;
 
-    protected final String stateKey;
+    /** State label used in logs, typically serviceName.stateKey */
+    protected final int stateId;
 
     /** Create a new instance */
-    protected ReadableQueueStateBase(@NonNull final String serviceName, @NonNull final String stateKey) {
-        this.serviceName = Objects.requireNonNull(serviceName);
-        this.stateKey = Objects.requireNonNull(stateKey);
+    protected ReadableQueueStateBase(final int stateId, @NonNull final String label) {
+        this.label = Objects.requireNonNull(label);
+        this.stateId = stateId;
     }
 
     @Override
-    @NonNull
-    public final String getServiceName() {
-        return serviceName;
-    }
-
-    @Override
-    @NonNull
-    public final String getStateKey() {
-        return stateKey;
+    public final int getStateId() {
+        return stateId;
     }
 
     @Nullable

@@ -10,8 +10,6 @@ import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_AIRDROP;
 import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_ASSOCIATE_TO_ACCOUNT;
 import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_CREATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_MINT;
-import static com.hedera.node.app.ids.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_KEY;
-import static com.hedera.node.app.ids.schemas.V0590EntityIdSchema.ENTITY_COUNTS_KEY;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
@@ -40,8 +38,10 @@ import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.fixtures.state.FakeState;
 import com.hedera.node.app.ids.EntityIdService;
+import com.hedera.node.app.ids.schemas.V0490EntityIdSchema;
+import com.hedera.node.app.ids.schemas.V0590EntityIdSchema;
 import com.hedera.node.app.service.consensus.ConsensusService;
-import com.hedera.node.app.service.consensus.impl.ConsensusServiceImpl;
+import com.hedera.node.app.service.consensus.impl.schemas.V0490ConsensusSchema;
 import com.hedera.node.app.service.contract.ContractService;
 import com.hedera.node.app.service.contract.impl.schemas.V0490ContractSchema;
 import com.hedera.node.app.service.file.FileService;
@@ -135,7 +135,7 @@ class UtilizationScaledThrottleMultiplierTest {
                 .addService(
                         TokenService.NAME,
                         Map.of(
-                                "ACCOUNTS",
+                                V0490TokenSchema.ACCOUNTS_STATE_ID,
                                 Map.of(
                                         AccountID.newBuilder().accountNum(1L),
                                         com.hedera.hapi.node.state.token.Account.DEFAULT,
@@ -147,23 +147,23 @@ class UtilizationScaledThrottleMultiplierTest {
                                         com.hedera.hapi.node.state.token.Account.DEFAULT,
                                         AccountID.newBuilder().accountNum(5L),
                                         com.hedera.hapi.node.state.token.Account.DEFAULT),
-                                "ALIASES",
+                                V0490TokenSchema.ALIASES_STATE_ID,
                                 new HashMap<>()))
                 .addService(
                         ContractService.NAME,
                         Map.of(
-                                V0490ContractSchema.STORAGE_KEY,
+                                V0490ContractSchema.STORAGE_STATE_ID,
                                 new HashMap<>(),
-                                V0490ContractSchema.BYTECODE_KEY,
+                                V0490ContractSchema.BYTECODE_STATE_ID,
                                 Map.of(
                                         new EntityNumber(4L), Bytecode.DEFAULT,
                                         new EntityNumber(5L), Bytecode.DEFAULT)))
                 .addService(
                         EntityIdService.NAME,
                         Map.of(
-                                ENTITY_ID_STATE_KEY,
+                                V0490EntityIdSchema.ENTITY_ID_STATE_ID,
                                 new AtomicReference<>(EntityNumber.newBuilder().build()),
-                                ENTITY_COUNTS_KEY,
+                                V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID,
                                 new AtomicReference<>(EntityCounts.newBuilder()
                                         .numAccounts(1L)
                                         .build())));
@@ -189,18 +189,18 @@ class UtilizationScaledThrottleMultiplierTest {
                 .addService(
                         ContractService.NAME,
                         Map.of(
-                                V0490ContractSchema.STORAGE_KEY,
+                                V0490ContractSchema.STORAGE_STATE_ID,
                                 new HashMap<>(),
-                                V0490ContractSchema.BYTECODE_KEY,
+                                V0490ContractSchema.BYTECODE_STATE_ID,
                                 Map.of(
                                         new EntityNumber(4L), Bytecode.DEFAULT,
                                         new EntityNumber(5L), Bytecode.DEFAULT)))
                 .addService(
                         EntityIdService.NAME,
                         Map.of(
-                                ENTITY_ID_STATE_KEY,
+                                V0490EntityIdSchema.ENTITY_ID_STATE_ID,
                                 new AtomicReference<>(EntityNumber.newBuilder().build()),
-                                ENTITY_COUNTS_KEY,
+                                V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID,
                                 new AtomicReference<>(EntityCounts.newBuilder()
                                         .numContractBytecodes(1L)
                                         .build())));
@@ -226,16 +226,16 @@ class UtilizationScaledThrottleMultiplierTest {
                 .addService(
                         FileService.NAME,
                         Map.of(
-                                V0490FileSchema.BLOBS_KEY,
+                                V0490FileSchema.FILES_STATE_ID,
                                 Map.of(
                                         FileID.newBuilder().fileNum(1L), File.DEFAULT,
                                         FileID.newBuilder().fileNum(2L), File.DEFAULT)))
                 .addService(
                         EntityIdService.NAME,
                         Map.of(
-                                ENTITY_ID_STATE_KEY,
+                                V0490EntityIdSchema.ENTITY_ID_STATE_ID,
                                 new AtomicReference<>(EntityNumber.newBuilder().build()),
-                                ENTITY_COUNTS_KEY,
+                                V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID,
                                 new AtomicReference<>(
                                         EntityCounts.newBuilder().numFiles(1L).build())));
 
@@ -269,7 +269,7 @@ class UtilizationScaledThrottleMultiplierTest {
                 .addService(
                         TokenService.NAME,
                         Map.of(
-                                V0490TokenSchema.NFTS_KEY,
+                                V0490TokenSchema.NFTS_STATE_ID,
                                 Map.of(
                                         NftID.newBuilder()
                                                 .tokenId(TokenID.newBuilder().tokenNum(1L)),
@@ -280,9 +280,9 @@ class UtilizationScaledThrottleMultiplierTest {
                 .addService(
                         EntityIdService.NAME,
                         Map.of(
-                                ENTITY_ID_STATE_KEY,
+                                V0490EntityIdSchema.ENTITY_ID_STATE_ID,
                                 new AtomicReference<>(EntityNumber.newBuilder().build()),
-                                ENTITY_COUNTS_KEY,
+                                V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID,
                                 new AtomicReference<>(
                                         EntityCounts.newBuilder().numNfts(1L).build())));
 
@@ -331,16 +331,16 @@ class UtilizationScaledThrottleMultiplierTest {
                 .addService(
                         TokenService.NAME,
                         Map.of(
-                                V0490TokenSchema.TOKENS_KEY,
+                                V0490TokenSchema.TOKENS_STATE_ID,
                                 Map.of(
                                         TokenID.newBuilder().tokenNum(1L), Token.DEFAULT,
                                         TokenID.newBuilder().tokenNum(2L), Token.DEFAULT)))
                 .addService(
                         EntityIdService.NAME,
                         Map.of(
-                                ENTITY_ID_STATE_KEY,
+                                V0490EntityIdSchema.ENTITY_ID_STATE_ID,
                                 new AtomicReference<>(EntityNumber.newBuilder().build()),
-                                ENTITY_COUNTS_KEY,
+                                V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID,
                                 new AtomicReference<>(
                                         EntityCounts.newBuilder().numTokens(1L).build())));
 
@@ -365,14 +365,14 @@ class UtilizationScaledThrottleMultiplierTest {
                 .addService(
                         TokenService.NAME,
                         Map.of(
-                                V0530TokenSchema.AIRDROPS_KEY,
+                                V0530TokenSchema.AIRDROPS_STATE_ID,
                                 Map.of(PendingAirdropId.DEFAULT, AccountPendingAirdrop.DEFAULT)))
                 .addService(
                         EntityIdService.NAME,
                         Map.of(
-                                ENTITY_ID_STATE_KEY,
+                                V0490EntityIdSchema.ENTITY_ID_STATE_ID,
                                 new AtomicReference<>(EntityNumber.newBuilder().build()),
-                                ENTITY_COUNTS_KEY,
+                                V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID,
                                 new AtomicReference<>(EntityCounts.newBuilder()
                                         .numAirdrops(1L)
                                         .build())));
@@ -398,7 +398,7 @@ class UtilizationScaledThrottleMultiplierTest {
                 .addService(
                         TokenService.NAME,
                         Map.of(
-                                V0490TokenSchema.TOKEN_RELS_KEY,
+                                V0490TokenSchema.TOKEN_RELS_STATE_ID,
                                 Map.of(
                                         EntityIDPair.newBuilder()
                                                 .tokenId(TokenID.newBuilder().tokenNum(1L)),
@@ -409,9 +409,9 @@ class UtilizationScaledThrottleMultiplierTest {
                 .addService(
                         EntityIdService.NAME,
                         Map.of(
-                                ENTITY_ID_STATE_KEY,
+                                V0490EntityIdSchema.ENTITY_ID_STATE_ID,
                                 new AtomicReference<>(EntityNumber.newBuilder().build()),
-                                ENTITY_COUNTS_KEY,
+                                V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID,
                                 new AtomicReference<>(EntityCounts.newBuilder()
                                         .numTokenRelations(1L)
                                         .build())));
@@ -437,16 +437,16 @@ class UtilizationScaledThrottleMultiplierTest {
                 .addService(
                         ConsensusService.NAME,
                         Map.of(
-                                ConsensusServiceImpl.TOPICS_KEY,
+                                V0490ConsensusSchema.TOPICS_STATE_ID,
                                 Map.of(
                                         TopicID.newBuilder().topicNum(1L), Topic.DEFAULT,
                                         TopicID.newBuilder().topicNum(2L), Topic.DEFAULT)))
                 .addService(
                         EntityIdService.NAME,
                         Map.of(
-                                ENTITY_ID_STATE_KEY,
+                                V0490EntityIdSchema.ENTITY_ID_STATE_ID,
                                 new AtomicReference<>(EntityNumber.newBuilder().build()),
-                                ENTITY_COUNTS_KEY,
+                                V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID,
                                 new AtomicReference<>(
                                         EntityCounts.newBuilder().numTopics(1L).build())));
 

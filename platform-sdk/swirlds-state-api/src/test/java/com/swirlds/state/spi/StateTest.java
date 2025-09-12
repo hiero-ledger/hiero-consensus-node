@@ -8,7 +8,6 @@ import static org.mockito.Mockito.mock;
 
 import com.swirlds.state.State;
 import com.swirlds.state.StateChangeListener;
-import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.EnumSet;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
@@ -30,11 +29,6 @@ public class StateTest {
             @Override
             public Set<StateType> stateTypes() {
                 return EnumSet.allOf(StateType.class);
-            }
-
-            @Override
-            public int stateIdFor(@NonNull final String serviceName, @NonNull final String stateKey) {
-                return 0;
             }
         };
 

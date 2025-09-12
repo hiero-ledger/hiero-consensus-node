@@ -18,7 +18,7 @@ import java.util.NoSuchElementException;
  * @deprecated This class should be removed together with {@link MerkleStateRoot}.
  */
 @Deprecated
-public class BackedOnDiskIterator<K, V> implements Iterator<K> {
+public class BackedOnDiskIterator<K> implements Iterator<K> {
 
     protected final Codec<K> keyCodec;
     private final MerkleIterator<MerkleNode> itr;

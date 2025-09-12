@@ -56,6 +56,7 @@ module com.hedera.node.hapi {
     exports com.hedera.hapi.node.state.blockstream;
     exports com.hedera.hapi.node.state.schedule;
     exports com.hedera.hapi.node.state.primitives;
+    exports com.hedera.hapi.node.state.primitives.codec;
     exports com.hedera.hapi.node.state.throttles;
     exports com.hedera.hapi.node.state.congestion;
     exports com.hedera.hapi.platform.event;

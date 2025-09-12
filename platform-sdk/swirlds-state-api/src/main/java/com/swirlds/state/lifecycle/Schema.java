@@ -87,13 +87,13 @@ public abstract class Schema implements Comparable<Schema> {
     }
 
     /**
-     * The {@link Set} of state keys of all states that should be removed <b>AFTER</b> {@link
+     * The {@link Set} of state IDs of all states that should be removed <b>AFTER</b> {@link
      * #migrate(MigrationContext)}.
      *
      * @return the set of states to remove
      */
     @NonNull
-    public Set<String> statesToRemove() {
+    public Set<Integer> statesToRemove() {
         return Collections.emptySet();
     }
 

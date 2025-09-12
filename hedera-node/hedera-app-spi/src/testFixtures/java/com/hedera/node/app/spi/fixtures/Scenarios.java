@@ -1,12 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.spi.fixtures;
 
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_STATE_ID;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_STATE_LABEL;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ALIASES_STATE_ID;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ALIASES_STATE_LABEL;
+
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.KeyList;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.hapi.node.state.token.Account;
-import com.hedera.node.app.service.token.TokenService;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.spi.ReadableStates;
 import com.swirlds.state.test.fixtures.MapReadableKVState;
@@ -338,11 +342,11 @@ public interface Scenarios extends TransactionFactory {
     }
 
     default MapReadableKVState<AccountID, Account> defaultAccountKVState() {
-        return new MapReadableKVState<>(TokenService.NAME, "ACCOUNTS", defaultAccounts());
+        return new MapReadableKVState<>(ACCOUNTS_STATE_ID, ACCOUNTS_STATE_LABEL, defaultAccounts());
     }
 
     default MapReadableKVState<ProtoBytes, AccountID> defaultAliasesKVState() {
-        return new MapReadableKVState<>(TokenService.NAME, "ALIASES", defaultAliases());
+        return new MapReadableKVState<>(ALIASES_STATE_ID, ALIASES_STATE_LABEL, defaultAliases());
     }
 
     default ReadableStates defaultTokenReadableStates() {

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl;
 
-import static com.hedera.node.app.service.token.impl.schemas.V0530TokenSchema.AIRDROPS_KEY;
+import static com.hedera.node.app.service.token.impl.schemas.V0530TokenSchema.AIRDROPS_STATE_ID;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.PendingAirdropId;
@@ -20,6 +20,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
  * This class is not complete, it will be extended with other methods like remove, update etc.,
  */
 public class WritableAirdropStore extends ReadableAirdropStoreImpl {
+
     /**
      * The underlying data storage class that holds the Pending Airdrops data.
      */
@@ -35,7 +36,7 @@ public class WritableAirdropStore extends ReadableAirdropStoreImpl {
     public WritableAirdropStore(
             @NonNull final WritableStates states, @NonNull final WritableEntityCounters entityCounters) {
         super(states, entityCounters);
-        airdropState = states.get(AIRDROPS_KEY);
+        airdropState = states.get(AIRDROPS_STATE_ID);
         this.entityCounters = entityCounters;
     }
 

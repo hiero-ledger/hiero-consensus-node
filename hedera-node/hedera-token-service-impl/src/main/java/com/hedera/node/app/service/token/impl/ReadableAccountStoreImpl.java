@@ -6,6 +6,8 @@ import static com.hedera.node.app.service.token.AliasUtils.asKeyFromAliasOrElse;
 import static com.hedera.node.app.service.token.AliasUtils.extractEvmAddress;
 import static com.hedera.node.app.service.token.AliasUtils.extractIdFromAddressAlias;
 import static com.hedera.node.app.service.token.AliasUtils.isEntityNumAlias;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_STATE_ID;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ALIASES_STATE_ID;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
@@ -26,6 +28,7 @@ import java.util.Optional;
  * Default implementation of {@link ReadableAccountStore}.
  */
 public class ReadableAccountStoreImpl implements ReadableAccountStore {
+
     /** The underlying data storage class that holds the account data. */
     private final ReadableKVState<AccountID, Account> accountState;
     /**
@@ -68,8 +71,8 @@ public class ReadableAccountStoreImpl implements ReadableAccountStore {
      * @param states The state to use.
      */
     public ReadableAccountStoreImpl(@NonNull final ReadableStates states, ReadableEntityCounters entityCounters) {
-        this.accountState = states.get("ACCOUNTS");
-        this.aliases = states.get("ALIASES");
+        this.accountState = states.get(ACCOUNTS_STATE_ID);
+        this.aliases = states.get(ALIASES_STATE_ID);
         this.entityCounters = requireNonNull(entityCounters);
     }
 

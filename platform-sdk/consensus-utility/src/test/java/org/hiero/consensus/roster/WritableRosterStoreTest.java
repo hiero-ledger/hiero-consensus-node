@@ -51,13 +51,16 @@ class WritableRosterStoreTest {
         final var virtualMap = VirtualMapUtils.createVirtualMap(virtualMapLabel, 1);
 
         final WritableKVState<ProtoBytes, Roster> rosters = MapWritableKVState.<ProtoBytes, Roster>builder(
-                        RosterStateId.NAME, WritableRosterStore.ROSTER_KEY)
+                        RosterStateId.ROSTERS_STATE_ID, RosterStateId.ROSTERS_STATE_LABEL)
                 .build();
-        when(writableStates.<ProtoBytes, Roster>get(WritableRosterStore.ROSTER_KEY))
+        when(writableStates.<ProtoBytes, Roster>get(RosterStateId.ROSTERS_STATE_ID))
                 .thenReturn(rosters);
-        when(writableStates.<RosterState>getSingleton(WritableRosterStore.ROSTER_STATES_KEY))
+        when(writableStates.<RosterState>getSingleton(RosterStateId.ROSTER_STATE_STATE_ID))
                 .thenReturn(new OnDiskWritableSingletonState<>(
-                        RosterStateId.NAME, WritableRosterStore.ROSTER_STATES_KEY, virtualMap));
+                        RosterStateId.ROSTER_STATE_STATE_ID,
+                        RosterStateId.ROSTER_STATE_STATE_LABEL,
+                        RosterState.PROTOBUF,
+                        virtualMap));
 
         readableRosterStore = new ReadableRosterStoreImpl(writableStates);
         writableRosterStore = new WritableRosterStore(writableStates);

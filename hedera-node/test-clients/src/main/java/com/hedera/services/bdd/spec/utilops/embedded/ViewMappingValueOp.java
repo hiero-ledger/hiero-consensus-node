@@ -12,17 +12,17 @@ import java.util.function.Consumer;
 public class ViewMappingValueOp<K, V> extends UtilOp {
 
     private final String serviceName;
-    private final String stateKey;
+    private final int stateId;
     private final K key;
     private final Consumer<V> observer;
 
     public ViewMappingValueOp(
             @NonNull final String serviceName,
-            @NonNull final String stateKey,
+            final int stateId,
             @NonNull final K key,
             @NonNull final Consumer<V> observer) {
         this.serviceName = requireNonNull(serviceName);
-        this.stateKey = requireNonNull(stateKey);
+        this.stateId = stateId;
         this.key = requireNonNull(key);
         this.observer = requireNonNull(observer);
     }
@@ -31,9 +31,9 @@ public class ViewMappingValueOp<K, V> extends UtilOp {
     protected boolean submitOp(@NonNull final HapiSpec spec) throws Throwable {
         final var state = spec.embeddedStateOrThrow();
         final var readableStates = state.getReadableStates(serviceName);
-        final var mapping = requireNonNull(readableStates.<K, V>get(stateKey));
+        final var mapping = requireNonNull(readableStates.<K, V>get(stateId));
         final var value = mapping.get(key);
-        assertNotNull(value, "No value found for key '" + key + "' in state '" + serviceName + "." + stateKey + "'");
+        assertNotNull(value, "No value found for key '" + key + "' in state '" + serviceName + "." + stateId + "'");
         observer.accept(value);
         return false;
     }

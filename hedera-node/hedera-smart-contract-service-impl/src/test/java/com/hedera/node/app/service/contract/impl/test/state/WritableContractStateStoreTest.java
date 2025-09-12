@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.test.state;
 
-import static com.hedera.node.app.service.contract.impl.schemas.V0490ContractSchema.BYTECODE_KEY;
-import static com.hedera.node.app.service.contract.impl.schemas.V0490ContractSchema.STORAGE_KEY;
+import static com.hedera.node.app.service.contract.impl.schemas.V0490ContractSchema.BYTECODE_STATE_ID;
+import static com.hedera.node.app.service.contract.impl.schemas.V0490ContractSchema.STORAGE_STATE_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.BYTECODE;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.CALLED_CONTRACT_ID;
 import static org.junit.jupiter.api.Assertions.assertSame;
@@ -29,6 +29,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class WritableContractStateStoreTest {
+
     private static final ContractID CONTRACT_ID =
             ContractID.newBuilder().contractNum(1L).build();
     private static final SlotKey SLOT_KEY = new SlotKey(CONTRACT_ID, Bytes.EMPTY);
@@ -50,8 +51,8 @@ class WritableContractStateStoreTest {
 
     @BeforeEach
     void setUp() {
-        given(states.<SlotKey, SlotValue>get(STORAGE_KEY)).willReturn(storage);
-        given(states.<ContractID, Bytecode>get(BYTECODE_KEY)).willReturn(bytecode);
+        given(states.<SlotKey, SlotValue>get(STORAGE_STATE_ID)).willReturn(storage);
+        given(states.<ContractID, Bytecode>get(BYTECODE_STATE_ID)).willReturn(bytecode);
 
         final var config = HederaTestConfigBuilder.createConfig();
 

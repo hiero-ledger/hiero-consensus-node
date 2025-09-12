@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.blocks.impl;
 
-import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_CONTRACT_STORAGE;
+import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_STORAGE;
 import static com.hedera.hapi.block.stream.trace.SlotRead.IdentifierOneOfType.INDEX;
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_CREATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_UPDATE;
@@ -611,7 +611,7 @@ public class BlockStreamBuilder
                     final Map<ContractID, Map<Bytes, Integer>> implicitWriteIndexes = new HashMap<>();
                     final var relevantStateChanges = batchStateChanges != null ? batchStateChanges : stateChanges;
                     for (final var stateChange : relevantStateChanges) {
-                        if (stateChange.stateId() != STATE_ID_CONTRACT_STORAGE.protoOrdinal()) {
+                        if (stateChange.stateId() != STATE_ID_STORAGE.protoOrdinal()) {
                             continue;
                         }
                         SlotKey slotKey = null;

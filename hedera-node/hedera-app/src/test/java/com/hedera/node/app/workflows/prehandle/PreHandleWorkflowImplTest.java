@@ -9,8 +9,10 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.OK;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.PAYER_ACCOUNT_DELETED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.PAYER_ACCOUNT_NOT_FOUND;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.UNKNOWN;
-import static com.hedera.node.app.ids.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_KEY;
-import static com.hedera.node.app.ids.schemas.V0590EntityIdSchema.ENTITY_COUNTS_KEY;
+import static com.hedera.node.app.ids.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_ID;
+import static com.hedera.node.app.ids.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_STATE_ID;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ALIASES_STATE_ID;
 import static com.hedera.node.app.workflows.TransactionScenarioBuilder.scenario;
 import static com.hedera.node.app.workflows.prehandle.PreHandleResult.Status.SO_FAR_SO_GOOD;
 import static com.hedera.node.app.workflows.prehandle.PreHandleResult.Status.UNKNOWN_FAILURE;
@@ -124,7 +126,7 @@ final class PreHandleWorkflowImplTest extends AppTestBase implements Scenarios {
         fakeMerkleState.addService(
                 TokenService.NAME,
                 Map.of(
-                        "ACCOUNTS",
+                        ACCOUNTS_STATE_ID,
                         Map.of(
                                 ALICE.accountID(), ALICE.account(),
                                 BOB.accountID(),
@@ -134,14 +136,14 @@ final class PreHandleWorkflowImplTest extends AppTestBase implements Scenarios {
                                                 .build(),
                                 ERIN.accountID(), ERIN.account(),
                                 STAKING_REWARD_ACCOUNT.accountID(), STAKING_REWARD_ACCOUNT.account()),
-                        "ALIASES",
+                        ALIASES_STATE_ID,
                         Collections.emptyMap()));
         fakeMerkleState.addService(
                 EntityIdService.NAME,
                 Map.of(
-                        ENTITY_ID_STATE_KEY,
+                        ENTITY_ID_STATE_ID,
                         new AtomicReference<>(EntityNumber.newBuilder().build()),
-                        ENTITY_COUNTS_KEY,
+                        ENTITY_COUNTS_STATE_ID,
                         new AtomicReference<>(EntityCounts.DEFAULT)));
         storeFactory = new ReadableStoreFactory(fakeMerkleState);
 

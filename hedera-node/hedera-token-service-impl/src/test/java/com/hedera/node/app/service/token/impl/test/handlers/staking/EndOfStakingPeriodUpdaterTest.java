@@ -2,12 +2,16 @@
 package com.hedera.node.app.service.token.impl.test.handlers.staking;
 
 import static com.hedera.hapi.node.base.HederaFunctionality.NODE_STAKE_UPDATE;
-import static com.hedera.node.app.ids.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_KEY;
-import static com.hedera.node.app.ids.schemas.V0590EntityIdSchema.ENTITY_COUNTS_KEY;
+import static com.hedera.node.app.ids.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_ID;
+import static com.hedera.node.app.ids.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_LABEL;
+import static com.hedera.node.app.ids.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
+import static com.hedera.node.app.ids.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_LABEL;
 import static com.hedera.node.app.service.token.Units.HBARS_TO_TINYBARS;
 import static com.hedera.node.app.service.token.impl.handlers.BaseCryptoHandler.asAccount;
-import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.STAKING_INFO_KEY;
-import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.STAKING_NETWORK_REWARDS_KEY;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.STAKING_INFOS_STATE_ID;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.STAKING_INFOS_STATE_LABEL;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.STAKING_NETWORK_REWARDS_STATE_ID;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.STAKING_NETWORK_REWARDS_STATE_LABEL;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
@@ -17,10 +21,8 @@ import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.state.token.NetworkStakingRewards;
 import com.hedera.hapi.node.state.token.StakingNodeInfo;
-import com.hedera.node.app.ids.EntityIdService;
 import com.hedera.node.app.ids.WritableEntityIdStore;
 import com.hedera.node.app.service.token.ReadableAccountStore;
-import com.hedera.node.app.service.token.TokenService;
 import com.hedera.node.app.service.token.impl.WritableNetworkStakingRewardsStore;
 import com.hedera.node.app.service.token.impl.WritableStakingInfoStore;
 import com.hedera.node.app.service.token.impl.handlers.staking.EndOfStakingPeriodUpdater;
@@ -122,27 +124,31 @@ public class EndOfStakingPeriodUpdaterTest {
 
         // Create staking info store (with data)
         MapWritableKVState<EntityNumber, StakingNodeInfo> stakingInfosState = new MapWritableKVState.Builder<
-                        EntityNumber, StakingNodeInfo>(TokenService.NAME, STAKING_INFO_KEY)
+                        EntityNumber, StakingNodeInfo>(STAKING_INFOS_STATE_ID, STAKING_INFOS_STATE_LABEL)
                 .value(NODE_NUM_1, info1)
                 .value(NODE_NUM_2, info2)
                 .value(NODE_NUM_3, info3)
                 .build();
         final var entityIdStore = new WritableEntityIdStore(new MapWritableStates(Map.of(
-                ENTITY_ID_STATE_KEY,
-                new FunctionWritableSingletonState<>(EntityIdService.NAME, ENTITY_ID_STATE_KEY, () -> null, c -> {}),
-                ENTITY_COUNTS_KEY,
-                new FunctionWritableSingletonState<>(EntityIdService.NAME, ENTITY_COUNTS_KEY, () -> null, c -> {}))));
+                ENTITY_ID_STATE_ID,
+                new FunctionWritableSingletonState<>(ENTITY_ID_STATE_ID, ENTITY_ID_STATE_LABEL, () -> null, c -> {}),
+                ENTITY_COUNTS_STATE_ID,
+                new FunctionWritableSingletonState<>(
+                        ENTITY_COUNTS_STATE_ID, ENTITY_COUNTS_STATE_LABEL, () -> null, c -> {}))));
         stakingInfoStore = new WritableStakingInfoStore(
-                new MapWritableStates(Map.of(STAKING_INFO_KEY, stakingInfosState)), entityIdStore);
+                new MapWritableStates(Map.of(STAKING_INFOS_STATE_ID, stakingInfosState)), entityIdStore);
         given(context.writableStore(WritableStakingInfoStore.class)).willReturn(stakingInfoStore);
 
         // Create staking reward store (with data)
         final var backingValue =
                 new AtomicReference<>(new NetworkStakingRewards(true, totalStakeRewardStart, 0, 0, Timestamp.DEFAULT));
         WritableSingletonState<NetworkStakingRewards> stakingRewardsState = new FunctionWritableSingletonState<>(
-                TokenService.NAME, STAKING_NETWORK_REWARDS_KEY, backingValue::get, backingValue::set);
+                STAKING_NETWORK_REWARDS_STATE_ID,
+                STAKING_NETWORK_REWARDS_STATE_LABEL,
+                backingValue::get,
+                backingValue::set);
         final var states = mock(WritableStates.class);
-        given(states.getSingleton(STAKING_NETWORK_REWARDS_KEY))
+        given(states.getSingleton(STAKING_NETWORK_REWARDS_STATE_ID))
                 .willReturn((WritableSingletonState) stakingRewardsState);
         stakingRewardsStore = new WritableNetworkStakingRewardsStore(states);
         given(context.writableStore(WritableNetworkStakingRewardsStore.class)).willReturn(stakingRewardsStore);
