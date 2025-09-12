@@ -215,7 +215,6 @@ import org.junit.jupiter.api.Tag;
 @HapiTestLifecycle
 @TargetEmbeddedMode(REPEATABLE)
 public class RepeatableHip423Tests {
-
     private static final long ONE_MINUTE = 60;
     private static final long FORTY_MINUTES = TimeUnit.MINUTES.toSeconds(40);
     private static final long THIRTY_MINUTES = 30 * ONE_MINUTE;
@@ -235,6 +234,8 @@ public class RepeatableHip423Tests {
         testLifecycle.overrideInClass(Map.of(
                 "scheduling.longTermEnabled",
                 "true",
+                "scheduling.maxExpirySecsToCheckPerUserTxn",
+                "" + Integer.MAX_VALUE,
                 "scheduling.whitelist",
                 "ConsensusSubmitMessage,CryptoTransfer,TokenMint,TokenBurn,"
                         + "CryptoCreate,CryptoUpdate,FileUpdate,SystemDelete,SystemUndelete,"
@@ -665,6 +666,61 @@ public class RepeatableHip423Tests {
                 getAccountBalance("luckyYou").hasTinyBars(1L + 2L + 3L + 4L),
                 viewScheduleStateSizes(currentSizes::set),
                 doAdhoc(() -> currentSizes.get().assertChangesFrom(startingSizes.get(), -4, -2, -2, -4, -4)));
+    }
+
+    /**
+     * Tests that execution of scheduled transactions purges the associated state as expected when multiple
+     * user transactions are required due to running out of consensus times. The test uses four scheduled
+     * transactions, two of them in one second and two of them a few seconds later. After sleeping past
+     * the expiration time of all four transactions, executes them via two triggering transactions, the first
+     * of which has available consensus times for three transactions and the second of which has available
+     * consensus times for the fourth transaction.
+     */
+    @LeakyRepeatableHapiTest(
+            value = {NEEDS_LAST_ASSIGNED_CONSENSUS_TIME, NEEDS_STATE_ACCESS},
+            overrides = {
+                "scheduling.maxExpirySecsToCheckPerUserTxn",
+            })
+    final Stream<DynamicTest> maxExpirySecsToCheckPerUserTxnAreRespected() {
+        final var anchorSecond = new AtomicLong();
+        final AtomicReference<ScheduleStateSizes> startingSizes = new AtomicReference<>();
+        final AtomicReference<ScheduleStateSizes> currentSizes = new AtomicReference<>();
+        final int offsetSeconds = 9;
+        return hapiTest(
+                exposeSpecSecondTo(anchorSecond::set),
+                cryptoCreate("luckyYou").balance(0L),
+                // Restrict a single user tx to checking at most 2 seconds worth of expiries
+                overriding("scheduling.maxExpirySecsToCheckPerUserTxn", "2"),
+                // Schedule the four transfers to lucky you at successive seconds
+                sourcing(() -> scheduleCreate("one", cryptoTransfer(tinyBarsFromTo(DEFAULT_PAYER, "luckyYou", 1L)))
+                        .waitForExpiry()
+                        .expiringAt(anchorSecond.get() + offsetSeconds + 1)),
+                sourcing(() -> scheduleCreate("two", cryptoTransfer(tinyBarsFromTo(DEFAULT_PAYER, "luckyYou", 2L)))
+                        .waitForExpiry()
+                        .expiringAt(anchorSecond.get() + offsetSeconds + 2)),
+                sourcing(() -> scheduleCreate("three", cryptoTransfer(tinyBarsFromTo(DEFAULT_PAYER, "luckyYou", 3L)))
+                        .waitForExpiry()
+                        .expiringAt(anchorSecond.get() + offsetSeconds + 3)),
+                sourcing(() -> scheduleCreate("four", cryptoTransfer(tinyBarsFromTo(DEFAULT_PAYER, "luckyYou", 4L)))
+                        .waitForExpiry()
+                        .expiringAt(anchorSecond.get() + offsetSeconds + 5)),
+                // With 6 txs since the anchor second and an offset of 9 seconds, the last
+                // expiration is in 8 seconds and the first expiration is in 4 seconds
+                sleepForSeconds(8),
+                viewScheduleStateSizes(startingSizes::set),
+                // Scan 2 empty seconds
+                cryptoTransfer(tinyBarsFromTo(DEFAULT_PAYER, FUNDING, 1L)),
+                // So balance still zero
+                getAccountBalance("luckyYou").hasTinyBars(0L),
+                // Scan 2 seconds and reach the first execution
+                cryptoTransfer(tinyBarsFromTo(DEFAULT_PAYER, FUNDING, 1L)),
+                getAccountBalance("luckyYou").hasTinyBars(1L),
+                // Scan 2 seconds each with an execution
+                cryptoTransfer(tinyBarsFromTo(DEFAULT_PAYER, FUNDING, 1L)),
+                getAccountBalance("luckyYou").hasTinyBars(1L + 2L + 3L),
+                // And scan 2 more seconds to trigger the final execution
+                cryptoTransfer(tinyBarsFromTo(DEFAULT_PAYER, FUNDING, 1L)),
+                getAccountBalance("luckyYou").hasTinyBars(1L + 2L + 3L + 4L));
     }
 
     @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
