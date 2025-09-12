@@ -81,12 +81,14 @@ class PlatformWiringTests {
         final WiringModel model =
                 WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent()).build();
 
-        final PlatformWiring wiring =
-                new PlatformWiring(platformContext, model, applicationCallbacks, mock(ExecutionLayer.class));
+        final PlatformComponents platformComponents =
+                PlatformComponents.create(platformContext, model, applicationCallbacks);
+        PlatformWiring.wire(platformContext, mock(ExecutionLayer.class), platformComponents);
 
         final PlatformComponentBuilder componentBuilder =
                 new PlatformComponentBuilder(mock(PlatformBuildingBlocks.class));
 
+        final PlatformCoordinator coordinator = new PlatformCoordinator(platformComponents);
         componentBuilder
                 .withEventHasher(mock(EventHasher.class))
                 .withInternalEventValidator(mock(InternalEventValidator.class))
@@ -137,7 +139,7 @@ class PlatformWiringTests {
                     platformStatusInput.bindConsumer(platformStatus -> {});
                 });
 
-        wiring.bind(
+        platformComponents.bind(
                 componentBuilder,
                 mock(PcesReplayer.class),
                 mock(StateSignatureCollector.class),
@@ -149,8 +151,8 @@ class PlatformWiringTests {
                 mock(AppNotifier.class),
                 mock(PlatformPublisher.class));
 
-        wiring.start();
-        assertFalse(wiring.getModel().checkForUnboundInputWires());
-        wiring.stop();
+        coordinator.start();
+        assertFalse(model.checkForUnboundInputWires());
+        coordinator.stop();
     }
 }

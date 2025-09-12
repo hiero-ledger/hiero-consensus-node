@@ -15,6 +15,7 @@ import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.platform.builder.ApplicationCallbacks;
 import com.swirlds.platform.config.DefaultConfiguration;
 import com.swirlds.platform.util.VirtualTerminal;
+import com.swirlds.platform.wiring.PlatformComponents;
 import com.swirlds.platform.wiring.PlatformWiring;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
@@ -106,12 +107,12 @@ public final class DiagramCommand extends AbstractCommand {
         final WiringModel model = WiringModelBuilder.create(platformContext.getMetrics(), platformContext.getTime())
                 .build();
 
-        final PlatformWiring platformWiring =
-                new PlatformWiring(platformContext, model, callbacks, new NoOpExecutionLayer());
+        final PlatformComponents platformComponents = PlatformComponents.create(platformContext, model, callbacks);
 
-        final String diagramString = platformWiring
-                .getModel()
-                .generateWiringDiagram(parseGroups(), parseSubstitutions(), parseManualLinks(), !lessMystery);
+        PlatformWiring.wire(platformContext, new NoOpExecutionLayer(), platformComponents);
+
+        final String diagramString =
+                model.generateWiringDiagram(parseGroups(), parseSubstitutions(), parseManualLinks(), !lessMystery);
 
         final VirtualTerminal terminal = new VirtualTerminal()
                 .setProgressIndicatorEnabled(false)

@@ -30,7 +30,7 @@ import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer;
 import com.swirlds.platform.util.BootstrapUtils;
-import com.swirlds.platform.wiring.PlatformWiring;
+import com.swirlds.platform.wiring.PlatformComponents;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.file.Path;
@@ -150,8 +150,10 @@ public class ConsensusNodeManager {
         final PlatformBuildingBlocks blocks = componentBuilder.getBuildingBlocks();
 
         // Wiring: Forward consensus rounds to registered listeners
-        final PlatformWiring wiring = blocks.platformWiring();
-        wiring.getConsensusEngineOutputWire()
+        final PlatformComponents platformComponents = blocks.platformComponents();
+        platformComponents
+                .consensusEngineWiring()
+                .consensusRoundsOutputWire()
                 .solderTo("dockerApp", "consensusRounds", this::notifyConsensusRoundListeners);
 
         platform = componentBuilder.build();
