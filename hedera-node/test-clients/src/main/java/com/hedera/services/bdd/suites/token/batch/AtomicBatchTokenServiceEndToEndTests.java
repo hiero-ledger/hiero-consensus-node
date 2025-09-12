@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.suites.token.batch;
 
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.toPbj;
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.TOKEN;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.includingFungiblePendingAirdrop;
@@ -85,6 +86,7 @@ import org.junit.jupiter.api.Tag;
 
 @HapiTestLifecycle
 @Tag(TOKEN)
+@Tag(MATS)
 public class AtomicBatchTokenServiceEndToEndTests {
 
     private static final double BASE_FEE_BATCH_TRANSACTION = 0.001;
