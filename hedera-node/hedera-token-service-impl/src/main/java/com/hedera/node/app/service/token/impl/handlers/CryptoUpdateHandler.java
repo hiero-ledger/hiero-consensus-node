@@ -5,12 +5,8 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.ACCOUNT_DELETED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.ACCOUNT_EXPIRED_AND_PENDING_REMOVAL;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.ACCOUNT_ID_DOES_NOT_EXIST;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.EXISTING_AUTOMATIC_ASSOCIATIONS_EXCEED_GIVEN_LIMIT;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOKS_NOT_ENABLED;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOK_ID_IN_USE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ADMIN_KEY;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_HOOK_ADMIN_KEY;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_HOOK_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_MAX_AUTO_ASSOCIATIONS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.PROXY_ACCOUNT_ID_FIELD_IS_DEPRECATED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.REQUESTED_NUM_AUTOMATIC_ASSOCIATIONS_EXCEEDS_ASSOCIATION_LIMIT;
@@ -106,20 +102,6 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
         validateFalsePreCheck(
                 op.hasProxyAccountID() && !op.proxyAccountID().equals(AccountID.DEFAULT),
                 PROXY_ACCOUNT_ID_FIELD_IS_DEPRECATED);
-        if (!op.hookCreationDetails().isEmpty()) {
-            for (final var detail : op.hookCreationDetails()) {
-                context.dispatchPureChecks(TransactionBody.newBuilder().hookDispatch(
-                        HookDispatchTransactionBody.newBuilder().creation(
-                                HookCreation.newBuilder().entityId(HookEntityId.newBuilder()
-                                                .accountId(AccountID.newBuilder().accountNum(0L).build())
-                                                .build())
-                                        .details(detail)
-                                        .build()).build()).build());
-            }
-        }
-        for (final var hookId : op.hookIdsToDelete()) {
-            validateTruePreCheck(hookId != 0L, INVALID_HOOK_ID);
-        }
     }
 
     @Override

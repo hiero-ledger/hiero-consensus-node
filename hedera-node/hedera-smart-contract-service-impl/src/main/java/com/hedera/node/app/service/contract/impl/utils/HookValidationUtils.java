@@ -1,14 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.utils;
-
-import com.hedera.hapi.node.hooks.HookCreationDetails;
-import com.hedera.hapi.node.token.CryptoCreateTransactionBody;
-import com.hedera.hapi.node.token.CryptoUpdateTransactionBody;
-import com.hedera.node.app.spi.workflows.PreCheckException;
-import com.hedera.pbj.runtime.io.buffer.Bytes;
-import edu.umd.cs.findbugs.annotations.NonNull;
-
-import java.util.HashSet;
-import java.util.List;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.EMPTY_LAMBDA_STORAGE_UPDATE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOK_CREATION_BYTES_MUST_USE_MINIMAL_REPRESENTATION;
@@ -21,6 +12,15 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_HOOK_ID;
 import static com.hedera.node.app.hapi.utils.contracts.HookUtils.minimalRepresentationOf;
 import static com.hedera.node.app.service.contract.impl.handlers.LambdaSStoreHandler.MAX_UPDATE_BYTES_LEN;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
+
+import com.hedera.hapi.node.hooks.HookCreationDetails;
+import com.hedera.hapi.node.token.CryptoCreateTransactionBody;
+import com.hedera.hapi.node.token.CryptoUpdateTransactionBody;
+import com.hedera.node.app.spi.workflows.PreCheckException;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
+import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.HashSet;
+import java.util.List;
 
 public class HookValidationUtils {
 
@@ -47,8 +47,7 @@ public class HookValidationUtils {
         validateTruePreCheck(lambda.hasSpec() && lambda.specOrThrow().hasContractId(), INVALID_HOOK_CREATION_SPEC);
 
         for (final var storage : lambda.storageUpdates()) {
-            validateTruePreCheck(
-                    storage.hasStorageSlot() || storage.hasMappingEntries(), EMPTY_LAMBDA_STORAGE_UPDATE);
+            validateTruePreCheck(storage.hasStorageSlot() || storage.hasMappingEntries(), EMPTY_LAMBDA_STORAGE_UPDATE);
 
             if (storage.hasStorageSlot()) {
                 final var s = storage.storageSlotOrThrow();

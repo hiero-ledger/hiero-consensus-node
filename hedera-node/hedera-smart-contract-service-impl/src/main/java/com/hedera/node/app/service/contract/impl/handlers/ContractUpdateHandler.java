@@ -4,21 +4,23 @@ package com.hedera.node.app.service.contract.impl.handlers;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CONTRACT_EXPIRED_AND_PENDING_REMOVAL;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.EXISTING_AUTOMATIC_ASSOCIATIONS_EXCEED_GIVEN_LIMIT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.EXPIRATION_REDUCTION_NOT_ALLOWED;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOKS_NOT_ENABLED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ADMIN_KEY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_AUTORENEW_ACCOUNT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_CONTRACT_ID;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_HOOK_ADMIN_KEY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_MAX_AUTO_ASSOCIATIONS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.MODIFYING_IMMUTABLE_CONTRACT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.REQUESTED_NUM_AUTOMATIC_ASSOCIATIONS_EXCEEDS_ASSOCIATION_LIMIT;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.hapi.util.HapiUtils.EMPTY_KEY_LIST;
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
+import static com.hedera.node.app.service.contract.impl.handlers.ContractCreateHandler.dispatchCreation;
 import static com.hedera.node.app.service.contract.impl.utils.HookValidationUtils.validateHookPureChecks;
 import static com.hedera.node.app.service.token.api.AccountSummariesApi.SENTINEL_ACCOUNT_ID;
 import static com.hedera.node.app.spi.fees.Fees.CONSTANT_FEE_DATA;
 import static com.hedera.node.app.spi.validation.ExpiryMeta.NA;
 import static com.hedera.node.app.spi.validation.Validations.mustExist;
+import static com.hedera.node.app.spi.workflows.DispatchOptions.setupDispatch;
+import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.CUSTOM_FEE_CHARGING;
 import static com.hedera.node.app.spi.workflows.HandleException.validateFalse;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static java.util.Objects.requireNonNull;
@@ -26,16 +28,23 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.HederaFunctionality;
+import com.hedera.hapi.node.base.HookEntityId;
+import com.hedera.hapi.node.base.HookId;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.contract.ContractUpdateTransactionBody;
+import com.hedera.hapi.node.hooks.HookCreation;
+import com.hedera.hapi.node.hooks.HookDispatchTransactionBody;
 import com.hedera.hapi.node.state.token.Account;
+import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.hapi.utils.fee.SigValueObj;
 import com.hedera.node.app.hapi.utils.fee.SmartContractFeeBuilder;
 import com.hedera.node.app.hapi.utils.keys.KeyUtils;
 import com.hedera.node.app.service.contract.impl.records.ContractUpdateStreamBuilder;
+import com.hedera.node.app.service.contract.impl.state.WritableEvmHookStore;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.api.TokenServiceApi;
+import com.hedera.node.app.spi.fees.FeeCharging;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.ids.EntityIdFactory;
@@ -46,8 +55,8 @@ import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
+import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.config.data.EntitiesConfig;
-import com.hedera.node.config.data.HooksConfig;
 import com.hedera.node.config.data.LedgerConfig;
 import com.hedera.node.config.data.TokensConfig;
 import com.hederahashgraph.api.proto.java.FeeData;
@@ -138,12 +147,42 @@ public class ContractUpdateHandler implements TransactionHandler {
         final var accountStore = context.storeFactory().readableStore(ReadableAccountStore.class);
         final var toBeUpdated = accountStore.getContractById(target);
         validateSemantics(toBeUpdated, context, op, accountStore);
+
         final var changed = update(requireNonNull(toBeUpdated), context, op);
-        context.storeFactory().serviceApi(TokenServiceApi.class).updateContract(changed);
+        updateHooks(context, op, changed, toBeUpdated);
+        context.storeFactory().serviceApi(TokenServiceApi.class).updateContract(changed.build());
         context.savepointStack()
                 .getBaseBuilder(ContractUpdateStreamBuilder.class)
                 .contractID(entityIdFactory.newContractId(
                         toBeUpdated.accountIdOrThrow().accountNumOrThrow()));
+    }
+
+    private void updateHooks(
+            final HandleContext context,
+            final ContractUpdateTransactionBody op,
+            final Account.Builder builder,
+            final Account originalAccount) {
+        final var hookStore = context.storeFactory().writableStore(WritableEvmHookStore.class);
+        // compute head after deletes
+        long headAfterDeletes = originalAccount.firstHookId();
+        // Dispatch all the hooks to delete
+        if (!op.hookIdsToDelete().isEmpty()) {
+            final var owner = HookEntityId.newBuilder()
+                    .accountId(originalAccount.accountId())
+                    .build();
+            if (op.hookIdsToDelete().contains(headAfterDeletes)) {
+                final var state = hookStore.getEvmHook(new HookId(owner, headAfterDeletes));
+                headAfterDeletes = (state != null && state.nextHookId() != null) ? state.nextHookId() : 0L;
+            }
+            // store will fix predecessor links for deleted hooks
+            dispatchHookDeletions(context, op, originalAccount.accountId());
+        }
+        if (!op.hookCreationDetails().isEmpty()) {
+            dispatchHookCreations(context, op, headAfterDeletes, originalAccount.accountId());
+            builder.firstHookId(op.hookCreationDetails().getFirst().hookId());
+        } else if (!op.hookIdsToDelete().isEmpty()) {
+            builder.firstHookId(headAfterDeletes);
+        }
     }
 
     private void validateSemantics(
@@ -208,17 +247,6 @@ public class ContractUpdateHandler implements TransactionHandler {
                         op.stakedNodeId(),
                         accountStore,
                         context.networkInfo());
-
-        if(!op.hookCreationDetails().isEmpty()){
-            final var hookConfig = context.configuration().getConfigData(HooksConfig.class);
-            validateTrue(hookConfig.hooksEnabled(), HOOKS_NOT_ENABLED);
-
-            op.hookCreationDetails().forEach(details -> {
-                if (details.hasAdminKey()) {
-                    context.attributeValidator().validateKey(details.adminKeyOrThrow(), INVALID_HOOK_ADMIN_KEY);
-                }
-            });
-        }
     }
 
     private boolean processAdminKey(ContractUpdateTransactionBody op) {
@@ -257,7 +285,7 @@ public class ContractUpdateHandler implements TransactionHandler {
      * @param op the body of contract update transaction
      * @return the updated account of the contract
      */
-    public Account update(
+    public Account.Builder update(
             @NonNull final Account contract,
             @NonNull final HandleContext context,
             @NonNull final ContractUpdateTransactionBody op) {
@@ -312,7 +340,7 @@ public class ContractUpdateHandler implements TransactionHandler {
         if (op.hasMaxAutomaticTokenAssociations()) {
             builder.maxAutoAssociations(op.maxAutomaticTokenAssociationsOrThrow());
         }
-        return builder.build();
+        return builder;
     }
 
     @NonNull
@@ -338,5 +366,44 @@ public class ContractUpdateHandler implements TransactionHandler {
         }
         return usageEstimator.getContractUpdateTxFeeMatrices(
                 txn, fromPbj(new com.hedera.hapi.node.base.Timestamp(contract.expirationSecond(), 0)), sigUsage);
+    }
+
+    private void dispatchHookCreations(
+            final HandleContext context,
+            final ContractUpdateTransactionBody op,
+            final Long headAfterDeletes,
+            final AccountID owner) {
+        final var ownerId = HookEntityId.newBuilder().accountId(owner).build();
+        // Build new block A → B → C → existingHead
+        Long nextId = headAfterDeletes == 0 ? null : headAfterDeletes;
+        final var creations = op.hookCreationDetails();
+        for (int i = creations.size() - 1; i >= 0; i--) {
+            final var d = creations.get(i);
+            final var creation = HookCreation.newBuilder().entityId(ownerId).details(d);
+            if (nextId != null) {
+                creation.nextHookId(nextId);
+            }
+            dispatchCreation(context, creation.build());
+            nextId = d.hookId();
+        }
+    }
+
+    private void dispatchHookDeletions(
+            final @NonNull HandleContext context, final ContractUpdateTransactionBody op, final AccountID owner) {
+        final var hooksToDelete = op.hookIdsToDelete();
+        for (final var hookId : hooksToDelete) {
+            final var hookDispatch = HookDispatchTransactionBody.newBuilder()
+                    .hookIdToDelete(new HookId(
+                            HookEntityId.newBuilder().accountId(owner).build(), hookId))
+                    .build();
+            final var streamBuilder = context.dispatch(setupDispatch(
+                    context.payer(),
+                    TransactionBody.newBuilder().hookDispatch(hookDispatch).build(),
+                    StreamBuilder.class,
+                    context.dispatchMetadata()
+                            .getMetadata(CUSTOM_FEE_CHARGING, FeeCharging.class)
+                            .orElse(null)));
+            validateTrue(streamBuilder.status() == SUCCESS, streamBuilder.status());
+        }
     }
 }

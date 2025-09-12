@@ -2,13 +2,12 @@
 package com.hedera.node.app.service.contract.impl.handlers;
 
 import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CREATE;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOKS_NOT_ENABLED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_GAS;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ADMIN_KEY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_AUTORENEW_ACCOUNT;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_HOOK_ADMIN_KEY;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.throwIfUnsuccessfulCreate;
-import static com.hedera.node.app.service.contract.impl.utils.HookValidationUtils.validateHookPureChecks;
+import static com.hedera.node.app.spi.workflows.DispatchOptions.setupDispatch;
+import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.CUSTOM_FEE_CHARGING;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
 import static java.util.Objects.requireNonNull;
@@ -19,30 +18,29 @@ import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.HookEntityId;
 import com.hedera.hapi.node.hooks.HookCreation;
 import com.hedera.hapi.node.hooks.HookCreationDetails;
+import com.hedera.hapi.node.hooks.HookDispatchTransactionBody;
+import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.hapi.utils.fee.SigValueObj;
 import com.hedera.node.app.hapi.utils.fee.SmartContractFeeBuilder;
 import com.hedera.node.app.service.contract.impl.ContractServiceComponent;
 import com.hedera.node.app.service.contract.impl.exec.TransactionComponent;
 import com.hedera.node.app.service.contract.impl.records.ContractCreateStreamBuilder;
-import com.hedera.node.app.service.contract.impl.state.WritableEvmHookStore;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.api.TokenServiceApi;
+import com.hedera.node.app.spi.fees.FeeCharging;
 import com.hedera.node.app.spi.ids.EntityIdFactory;
-import com.hedera.node.app.spi.validation.AttributeValidator;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
-import com.hedera.node.config.data.HooksConfig;
+import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hederahashgraph.api.proto.java.FeeData;
 import edu.umd.cs.findbugs.annotations.NonNull;
-
 import java.util.List;
 import javax.inject.Inject;
 import javax.inject.Provider;
 import javax.inject.Singleton;
-
 import org.apache.tuweni.bytes.Bytes;
 import org.hyperledger.besu.evm.gascalculator.GasCalculator;
 
@@ -93,14 +91,11 @@ public class ContractCreateHandler extends AbstractContractTransactionHandler {
         throwIfUnsuccessfulCreate(outcome, component.hederaOperations());
 
         if (!op.hookCreationDetails().isEmpty()) {
-            final var hookConfig = context.configuration().getConfigData(HooksConfig.class);
-            validateTrue(hookConfig.hooksEnabled(), HOOKS_NOT_ENABLED);
-
             final var accountStore = context.storeFactory().readableStore(ReadableAccountStore.class);
-            final var writableEvmHookStore = context.storeFactory().writableStore(WritableEvmHookStore.class);
             final var created = accountStore.getContractById(requireNonNull(predictedId));
 
-            createHooks(op.hookCreationDetails(), created.accountId(), writableEvmHookStore, context.attributeValidator());
+            dispatchHookCreations(
+                    context, op.hookCreationDetails(), requireNonNull(created).accountId());
 
             final var updated = created.copyBuilder()
                     .firstHookId(op.hookCreationDetails().getFirst().hookId())
@@ -119,9 +114,6 @@ public class ContractCreateHandler extends AbstractContractTransactionHandler {
 
             final var intrinsicGas = gasCalculator.transactionIntrinsicGasCost(Bytes.wrap(new byte[0]), true);
             validateTruePreCheck(op.gas() >= intrinsicGas, INSUFFICIENT_GAS);
-            if (!op.hookCreationDetails().isEmpty()) {
-                validateHookPureChecks(op.hookCreationDetails());
-            }
         } catch (@NonNull final Exception e) {
             bumpExceptionMetrics(CONTRACT_CREATE, e);
             throw e;
@@ -154,35 +146,45 @@ public class ContractCreateHandler extends AbstractContractTransactionHandler {
     }
 
     @Override
-    protected /*abstract*/
-    @NonNull FeeData getFeeMatrices(
+    protected /*abstract*/ @NonNull FeeData getFeeMatrices(
             @NonNull final SmartContractFeeBuilder usageEstimator,
             @NonNull final com.hederahashgraph.api.proto.java.TransactionBody txBody,
             @NonNull final SigValueObj sigValObj) {
         return usageEstimator.getContractCreateTxFeeMatrices(txBody, sigValObj);
     }
 
-    private void createHooks(
-            final List<HookCreationDetails> details,
-            final AccountID owner,
-            final WritableEvmHookStore writableEvmHookStore, final AttributeValidator attributeValidator) {
+    private void dispatchHookCreations(
+            final @NonNull HandleContext context, final List<HookCreationDetails> hookDetails, final AccountID owner) {
         // empty list case or first insert into empty list
         Long nextId = null;
-        for (int i = details.size() - 1; i >= 0; i--) {
-            final var detail = details.get(i);
-            if (detail.hasAdminKey()) {
-                attributeValidator.validateKey(detail.adminKeyOrThrow(), INVALID_HOOK_ADMIN_KEY);
-            }
-
+        for (int i = hookDetails.size() - 1; i >= 0; i--) {
+            final var detail = hookDetails.get(i);
             final var creation = HookCreation.newBuilder()
                     .entityId(HookEntityId.newBuilder().accountId(owner).build())
                     .details(detail);
             if (nextId != null) {
                 creation.nextHookId(nextId);
             }
-            writableEvmHookStore.createEvmHook(creation.build());
+            dispatchCreation(context, creation.build());
             // This one becomes "next" for the previous node in the loop
             nextId = detail.hookId();
         }
+    }
+    /**
+     * Dispatches the hook creation to the given context.
+     * @param context the handle context
+     * @param creation the hook creation to dispatch
+     */
+    static void dispatchCreation(final @NonNull HandleContext context, final HookCreation creation) {
+        final var hookDispatch =
+                HookDispatchTransactionBody.newBuilder().creation(creation).build();
+        final var streamBuilder = context.dispatch(setupDispatch(
+                context.payer(),
+                TransactionBody.newBuilder().hookDispatch(hookDispatch).build(),
+                StreamBuilder.class,
+                context.dispatchMetadata()
+                        .getMetadata(CUSTOM_FEE_CHARGING, FeeCharging.class)
+                        .orElse(null)));
+        validateTrue(streamBuilder.status() == SUCCESS, streamBuilder.status());
     }
 }

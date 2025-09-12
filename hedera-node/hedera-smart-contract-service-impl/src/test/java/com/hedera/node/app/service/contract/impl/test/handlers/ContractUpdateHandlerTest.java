@@ -126,7 +126,7 @@ class ContractUpdateHandlerTest extends ContractHandlerTestBase {
     }
 
     @Test
-    void sigRequiredWithoutKeyFails() throws PreCheckException {
+    void sigRequiredWithoutKeyFails() {
         final var txn = TransactionBody.newBuilder()
                 .contractUpdateInstance(ContractUpdateTransactionBody.newBuilder())
                 .transactionID(transactionID)
@@ -525,7 +525,7 @@ class ContractUpdateHandlerTest extends ContractHandlerTestBase {
 
         final var updatedContract = subject.update(contractAccount, context, op);
 
-        assertEquals(op.adminKey(), updatedContract.key());
+        assertEquals(op.adminKey(), updatedContract.build().key());
     }
 
     @Test
@@ -537,7 +537,10 @@ class ContractUpdateHandlerTest extends ContractHandlerTestBase {
 
         final var updatedContract = subject.update(contractAccount, context, op);
 
-        assertEquals(contractAccount.key(), updatedContract.key(), "Admin key should not be updated when key is empty");
+        assertEquals(
+                contractAccount.key(),
+                updatedContract.build().key(),
+                "Admin key should not be updated when key is empty");
     }
 
     @Test
@@ -549,8 +552,8 @@ class ContractUpdateHandlerTest extends ContractHandlerTestBase {
 
         final var updatedContract = subject.update(contractAccount, context, op);
 
-        assertEquals(op.expirationTime().seconds(), updatedContract.expirationSecond());
-        assertFalse(updatedContract.expiredAndPendingRemoval());
+        assertEquals(op.expirationTime().seconds(), updatedContract.build().expirationSecond());
+        assertFalse(updatedContract.build().expiredAndPendingRemoval());
     }
 
     @Test
@@ -562,7 +565,7 @@ class ContractUpdateHandlerTest extends ContractHandlerTestBase {
 
         final var updatedContract = subject.update(contractAccount, context, op);
 
-        assertEquals(op.autoRenewPeriod().seconds(), updatedContract.autoRenewSeconds());
+        assertEquals(op.autoRenewPeriod().seconds(), updatedContract.build().autoRenewSeconds());
     }
 
     @Test
@@ -574,7 +577,7 @@ class ContractUpdateHandlerTest extends ContractHandlerTestBase {
 
         final var updatedContract = subject.update(contractAccount, context, op);
 
-        assertEquals(op.memo(), updatedContract.memo());
+        assertEquals(op.memo(), updatedContract.build().memo());
         verify(attributeValidator, times(1)).validateMemo(op.memo());
     }
 
@@ -606,7 +609,7 @@ class ContractUpdateHandlerTest extends ContractHandlerTestBase {
 
         final var updatedContract = subject.update(contractAccount, context, op);
 
-        assertEquals(op.memoWrapper(), updatedContract.memo());
+        assertEquals(op.memoWrapper(), updatedContract.build().memo());
         verify(attributeValidator, times(1)).validateMemo(op.memoWrapper());
     }
 
@@ -619,7 +622,7 @@ class ContractUpdateHandlerTest extends ContractHandlerTestBase {
 
         final var updatedContract = subject.update(contractAccount, context, op);
 
-        assertEquals(op.stakedAccountId(), updatedContract.stakedAccountId());
+        assertEquals(op.stakedAccountId(), updatedContract.build().stakedAccountId());
     }
 
     @Test
@@ -631,7 +634,7 @@ class ContractUpdateHandlerTest extends ContractHandlerTestBase {
 
         final var updatedContract = subject.update(contractAccount, context, op);
 
-        assertNull(updatedContract.stakedAccountId());
+        assertNull(updatedContract.build().stakedAccountId());
     }
 
     @Test
@@ -642,7 +645,7 @@ class ContractUpdateHandlerTest extends ContractHandlerTestBase {
 
         final var updatedContract = subject.update(contractAccount, context, op);
 
-        assertEquals(op.stakedNodeId(), updatedContract.stakedNodeId());
+        assertEquals(op.stakedNodeId(), updatedContract.build().stakedNodeId());
     }
 
     @Test
@@ -653,7 +656,7 @@ class ContractUpdateHandlerTest extends ContractHandlerTestBase {
 
         final var updatedContract = subject.update(contractAccount, context, op);
 
-        assertTrue(updatedContract.declineReward());
+        assertTrue(updatedContract.build().declineReward());
     }
 
     @Test
@@ -665,7 +668,7 @@ class ContractUpdateHandlerTest extends ContractHandlerTestBase {
 
         final var updatedContract = subject.update(contractAccount, context, op);
 
-        assertEquals(op.autoRenewAccountId(), updatedContract.autoRenewAccountId());
+        assertEquals(op.autoRenewAccountId(), updatedContract.build().autoRenewAccountId());
     }
 
     @Test
@@ -677,7 +680,7 @@ class ContractUpdateHandlerTest extends ContractHandlerTestBase {
 
         final var updatedContract = subject.update(contractAccount, context, op);
 
-        assertEquals(op.maxAutomaticTokenAssociations(), updatedContract.maxAutoAssociations());
+        assertEquals(op.maxAutomaticTokenAssociations(), updatedContract.build().maxAutoAssociations());
     }
 
     @Test
@@ -699,16 +702,16 @@ class ContractUpdateHandlerTest extends ContractHandlerTestBase {
 
         final var updatedContract = subject.update(contractAccount, context, op);
 
-        assertEquals(op.adminKey(), updatedContract.key());
-        assertEquals(op.expirationTime().seconds(), updatedContract.expirationSecond());
-        assertFalse(updatedContract.expiredAndPendingRemoval());
-        assertEquals(op.autoRenewPeriod().seconds(), updatedContract.autoRenewSeconds());
-        assertEquals(op.memo(), updatedContract.memo());
-        assertEquals(op.stakedAccountId(), updatedContract.stakedAccountId());
-        assertEquals(op.stakedNodeId(), updatedContract.stakedNodeId());
-        assertTrue(updatedContract.declineReward());
-        assertEquals(op.autoRenewAccountId(), updatedContract.autoRenewAccountId());
-        assertEquals(op.maxAutomaticTokenAssociations(), updatedContract.maxAutoAssociations());
+        assertEquals(op.adminKey(), updatedContract.build().key());
+        assertEquals(op.expirationTime().seconds(), updatedContract.build().expirationSecond());
+        assertFalse(updatedContract.build().expiredAndPendingRemoval());
+        assertEquals(op.autoRenewPeriod().seconds(), updatedContract.build().autoRenewSeconds());
+        assertEquals(op.memo(), updatedContract.build().memo());
+        assertEquals(op.stakedAccountId(), updatedContract.build().stakedAccountId());
+        assertEquals(op.stakedNodeId(), updatedContract.build().stakedNodeId());
+        assertTrue(updatedContract.build().declineReward());
+        assertEquals(op.autoRenewAccountId(), updatedContract.build().autoRenewAccountId());
+        assertEquals(op.maxAutomaticTokenAssociations(), updatedContract.build().maxAutoAssociations());
         verify(attributeValidator, times(1)).validateMemo(op.memo());
     }
 
