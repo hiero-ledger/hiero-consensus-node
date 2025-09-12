@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.blocknode;
 
-import static com.hedera.services.bdd.junit.TestTags.BLOCK_NODE_SIMULATOR;
+import static com.hedera.services.bdd.junit.TestTags.BLOCK_NODE;
 import static com.hedera.services.bdd.junit.hedera.NodeSelector.allNodes;
 import static com.hedera.services.bdd.junit.hedera.NodeSelector.byNodeId;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
-import static com.hedera.services.bdd.spec.utilops.BlockNodeSimulatorVerbs.blockNodeSimulator;
+import static com.hedera.services.bdd.spec.utilops.BlockNodeVerbs.blockNode;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertHgcaaLogContainsTimeframe;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertHgcaaLogDoesNotContain;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
@@ -36,16 +36,16 @@ import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Tag;
 
 /**
- * This suite is for testing with the block node simulator.
+ * This suite class tests the behaviour of consensus node to block node communication.
  */
-@Tag(BLOCK_NODE_SIMULATOR)
+@Tag(BLOCK_NODE)
 @OrderedInIsolation
-public class BlockNodeSimulatorSuite {
+public class BlockNodeSuite {
 
     @HapiTest
     @HapiBlockNode(
             networkSize = 1,
-            blockNodeConfigs = {@BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.SIMULATOR)},
+            blockNodeConfigs = {@BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.REAL)},
             subProcessNodeConfigs = {
                 @SubProcessNodeConfig(
                         nodeId = 0,
@@ -66,10 +66,10 @@ public class BlockNodeSimulatorSuite {
     @HapiTest
     @HapiBlockNode(
             blockNodeConfigs = {
-                @BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.SIMULATOR),
-                @BlockNodeConfig(nodeId = 1, mode = BlockNodeMode.SIMULATOR),
-                @BlockNodeConfig(nodeId = 2, mode = BlockNodeMode.SIMULATOR),
-                @BlockNodeConfig(nodeId = 3, mode = BlockNodeMode.SIMULATOR),
+                @BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.REAL),
+                @BlockNodeConfig(nodeId = 1, mode = BlockNodeMode.REAL),
+                @BlockNodeConfig(nodeId = 2, mode = BlockNodeMode.REAL),
+                @BlockNodeConfig(nodeId = 3, mode = BlockNodeMode.REAL),
             },
             subProcessNodeConfigs = {
                 @SubProcessNodeConfig(
@@ -135,7 +135,7 @@ public class BlockNodeSimulatorSuite {
                 doingContextual(
                         spec -> LockSupport.parkNanos(Duration.ofSeconds(10).toNanos())),
                 doingContextual(spec -> time.set(Instant.now())),
-                blockNodeSimulator(0).sendEndOfStreamImmediately(Code.BEHIND).withBlockNumber(Long.MAX_VALUE),
+                blockNode(0).sendEndOfStreamImmediately(Code.BEHIND).withBlockNumber(Long.MAX_VALUE),
                 sourcingContextual(spec -> assertHgcaaLogContainsTimeframe(
                         byNodeId(0),
                         time::get,
@@ -155,10 +155,10 @@ public class BlockNodeSimulatorSuite {
     @HapiBlockNode(
             networkSize = 1,
             blockNodeConfigs = {
-                @BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.SIMULATOR),
-                @BlockNodeConfig(nodeId = 1, mode = BlockNodeMode.SIMULATOR),
-                @BlockNodeConfig(nodeId = 2, mode = BlockNodeMode.SIMULATOR),
-                @BlockNodeConfig(nodeId = 3, mode = BlockNodeMode.SIMULATOR)
+                @BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.REAL),
+                @BlockNodeConfig(nodeId = 1, mode = BlockNodeMode.REAL),
+                @BlockNodeConfig(nodeId = 2, mode = BlockNodeMode.REAL),
+                @BlockNodeConfig(nodeId = 3, mode = BlockNodeMode.REAL)
             },
             subProcessNodeConfigs = {
                 @SubProcessNodeConfig(
@@ -183,7 +183,7 @@ public class BlockNodeSimulatorSuite {
                 }),
                 waitUntilNextBlocks(10).withBackgroundTraffic(true),
                 doingContextual(spec -> connectionDropTime.set(Instant.now())),
-                blockNodeSimulator(0).shutDownImmediately(), // Pri 0
+                blockNode(0).shutDownImmediately(), // Pri 0
                 sourcingContextual(spec -> assertHgcaaLogContainsTimeframe(
                         byNodeId(0),
                         connectionDropTime::get,
@@ -199,7 +199,7 @@ public class BlockNodeSimulatorSuite {
                                 portNumbers.get(1)))),
                 waitUntilNextBlocks(10).withBackgroundTraffic(true),
                 doingContextual(spec -> connectionDropTime.set(Instant.now())),
-                blockNodeSimulator(1).shutDownImmediately(), // Pri 1
+                blockNode(1).shutDownImmediately(), // Pri 1
                 sourcingContextual(spec -> assertHgcaaLogContainsTimeframe(
                         byNodeId(0),
                         connectionDropTime::get,
@@ -213,7 +213,7 @@ public class BlockNodeSimulatorSuite {
                                 portNumbers.get(2)))),
                 waitUntilNextBlocks(10).withBackgroundTraffic(true),
                 doingContextual(spec -> connectionDropTime.set(Instant.now())),
-                blockNodeSimulator(2).shutDownImmediately(), // Pri 2
+                blockNode(2).shutDownImmediately(), // Pri 2
                 sourcingContextual(spec -> assertHgcaaLogContainsTimeframe(
                         byNodeId(0),
                         connectionDropTime::get,
@@ -227,7 +227,7 @@ public class BlockNodeSimulatorSuite {
                                 portNumbers.get(3)))),
                 waitUntilNextBlocks(10).withBackgroundTraffic(true),
                 doingContextual(spec -> connectionDropTime.set(Instant.now())),
-                blockNodeSimulator(1).startImmediately(),
+                blockNode(1).startImmediately(),
                 sourcingContextual(spec -> assertHgcaaLogContainsTimeframe(
                         byNodeId(0),
                         connectionDropTime::get,
@@ -250,7 +250,7 @@ public class BlockNodeSimulatorSuite {
     @HapiTest
     @HapiBlockNode(
             networkSize = 2,
-            blockNodeConfigs = {@BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.SIMULATOR)},
+            blockNodeConfigs = {@BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.REAL)},
             subProcessNodeConfigs = {
                 @SubProcessNodeConfig(
                         nodeId = 0,
@@ -296,13 +296,12 @@ public class BlockNodeSimulatorSuite {
             })
     @Order(5)
     final Stream<DynamicTest> testProactiveBlockBufferAction() {
-        // NOTE: com.hedera.node.app.blocks.impl.streaming MUST have DEBUG logging enabled
         final AtomicReference<Instant> timeRef = new AtomicReference<>();
         return hapiTest(
                 doingContextual(
                         spec -> LockSupport.parkNanos(Duration.ofSeconds(5).toNanos())),
                 doingContextual(spec -> timeRef.set(Instant.now())),
-                blockNodeSimulator(0).updateSendingBlockAcknowledgements(false),
+                blockNode(0).updateSendingBlockAcknowledgements(false),
                 doingContextual(
                         spec -> LockSupport.parkNanos(Duration.ofSeconds(5).toNanos())),
                 sourcingContextual(
@@ -328,7 +327,7 @@ public class BlockNodeSimulatorSuite {
     @HapiTest
     @HapiBlockNode(
             networkSize = 1,
-            blockNodeConfigs = {@BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.SIMULATOR)},
+            blockNodeConfigs = {@BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.REAL)},
             subProcessNodeConfigs = {
                 @SubProcessNodeConfig(
                         nodeId = 0,
@@ -340,14 +339,14 @@ public class BlockNodeSimulatorSuite {
                             "blockStream.writerMode", "FILE_AND_GRPC"
                         })
             })
-    @Order(6)
+    @Order(7)
     final Stream<DynamicTest> testBlockBufferBackPressure() {
         final AtomicReference<Instant> timeRef = new AtomicReference<>();
 
         return hapiTest(
                 waitUntilNextBlocks(5).withBackgroundTraffic(true),
                 doingContextual(spec -> timeRef.set(Instant.now())),
-                blockNodeSimulator(0).shutDownImmediately(),
+                blockNode(0).shutDownImmediately(),
                 sourcingContextual(spec -> assertHgcaaLogContainsTimeframe(
                         byNodeId(0),
                         timeRef::get,
@@ -356,7 +355,7 @@ public class BlockNodeSimulatorSuite {
                         "Block buffer is saturated; backpressure is being enabled",
                         "!!! Block buffer is saturated; blocking thread until buffer is no longer saturated")),
                 waitForAny(byNodeId(0), Duration.ofSeconds(30), PlatformStatus.CHECKING),
-                blockNodeSimulator(0).startImmediately(),
+                blockNode(0).startImmediately(),
                 sourcingContextual(
                         spec -> assertHgcaaLogContainsTimeframe(
                                 byNodeId(0),
@@ -373,8 +372,8 @@ public class BlockNodeSimulatorSuite {
     @HapiBlockNode(
             networkSize = 1,
             blockNodeConfigs = {
-                @BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.SIMULATOR),
-                @BlockNodeConfig(nodeId = 1, mode = BlockNodeMode.SIMULATOR)
+                @BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.REAL),
+                @BlockNodeConfig(nodeId = 1, mode = BlockNodeMode.REAL)
             },
             subProcessNodeConfigs = {
                 @SubProcessNodeConfig(
@@ -387,7 +386,7 @@ public class BlockNodeSimulatorSuite {
                             "blockStream.writerMode", "FILE_AND_GRPC"
                         })
             })
-    @Order(7)
+    @Order(8)
     final Stream<DynamicTest> activeConnectionPeriodicallyRestarts() {
         final AtomicReference<Instant> connectionResetTime = new AtomicReference<>();
         final List<Integer> portNumbers = new ArrayList<>();
@@ -440,14 +439,11 @@ public class BlockNodeSimulatorSuite {
                         blockNodeIds = {0},
                         blockNodePriorities = {0},
                         applicationPropertiesOverrides = {
-                            "blockStream.streamMode",
-                            "BLOCKS",
-                            "blockStream.writerMode",
-                            "FILE_AND_GRPC",
-                            "blockStream.buffer.blockTtl",
-                            BLOCK_TTL_MINUTES + "m",
-                            "blockStream.blockPeriod",
-                            BLOCK_PERIOD_SECONDS + "s"
+                            "blockStream.streamMode", "BLOCKS",
+                            "blockStream.writerMode", "FILE_AND_GRPC",
+                            "blockStream.buffer.blockTtl", BLOCK_TTL_MINUTES + "m",
+                            "blockStream.blockPeriod", BLOCK_PERIOD_SECONDS + "s",
+                            "blockNode.streamResetPeriod", "20s",
                         })
             })
     @Order(7)
@@ -472,7 +468,7 @@ public class BlockNodeSimulatorSuite {
                 waitUntilNextBlocks(halfBufferSize).withBackgroundTraffic(true),
                 doingContextual(spec -> timeRef.set(Instant.now())),
                 // shutdown the block node. this will cause the block buffer to become saturated
-                blockNodeSimulator(0).shutDownImmediately(),
+                blockNode(0).shutDownImmediately(),
                 waitUntilNextBlocks(halfBufferSize).withBackgroundTraffic(true),
                 // wait until the buffer is starting to get saturated
                 sourcingContextual(
@@ -498,12 +494,12 @@ public class BlockNodeSimulatorSuite {
                                 "Block buffer is being restored from disk",
                                 "Attempting to forcefully switch block node connections due to increasing block buffer saturation")),
                 // restart the block node and let it catch up
-                blockNodeSimulator(0).startImmediately(),
+                blockNode(0).startImmediately(),
                 // create some more blocks and ensure the buffer/platform remains healthy
                 waitUntilNextBlocks(maxBufferSize + halfBufferSize).withBackgroundTraffic(true),
                 doingContextual(spec -> timeRef.set(Instant.now())),
                 // after restart and adding more blocks, saturation should be at 0% because the block node has
-                // acknowledged all old blocks and the new blocks (Note: DEBUG logging is required for this to pass)
+                // acknowledged all old blocks and the new blocks
                 sourcingContextual(spec -> assertHgcaaLogContainsTimeframe(
                         byNodeId(0), timeRef::get, Duration.ofMinutes(3), Duration.ofMinutes(3), "saturation=0.0%")));
     }
