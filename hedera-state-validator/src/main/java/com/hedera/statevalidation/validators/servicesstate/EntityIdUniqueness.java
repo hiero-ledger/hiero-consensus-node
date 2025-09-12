@@ -154,6 +154,7 @@ public class EntityIdUniqueness {
                 .get();
 
         log.info("Entity ID uniqueness validation completed. Issues found: " + issuesFound.get());
+        assertEquals(0, issuesFound.get());
     }
 
     @Test
