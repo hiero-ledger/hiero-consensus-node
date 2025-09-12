@@ -22,9 +22,11 @@ import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hederahashgraph.api.proto.java.FeeData;
 import edu.umd.cs.findbugs.annotations.NonNull;
+
 import javax.inject.Inject;
 import javax.inject.Provider;
 import javax.inject.Singleton;
+
 import org.apache.tuweni.bytes.Bytes;
 import org.hyperledger.besu.evm.gascalculator.GasCalculator;
 
@@ -74,6 +76,9 @@ public class ContractCreateHandler extends AbstractContractTransactionHandler {
 
             final var intrinsicGas = gasCalculator.transactionIntrinsicGasCost(Bytes.wrap(new byte[0]), true);
             validateTruePreCheck(op.gas() >= intrinsicGas, INSUFFICIENT_GAS);
+            if (!op.hookCreationDetails().isEmpty()) {
+                validateHookPureChecks(op.hookCreationDetails());
+            }
         } catch (@NonNull final Exception e) {
             bumpExceptionMetrics(CONTRACT_CREATE, e);
             throw e;
@@ -106,7 +111,8 @@ public class ContractCreateHandler extends AbstractContractTransactionHandler {
     }
 
     @Override
-    protected /*abstract*/ @NonNull FeeData getFeeMatrices(
+    protected /*abstract*/
+    @NonNull FeeData getFeeMatrices(
             @NonNull final SmartContractFeeBuilder usageEstimator,
             @NonNull final com.hederahashgraph.api.proto.java.TransactionBody txBody,
             @NonNull final SigValueObj sigValObj) {

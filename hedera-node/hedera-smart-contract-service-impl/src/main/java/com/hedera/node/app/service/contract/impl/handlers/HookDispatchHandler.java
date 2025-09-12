@@ -33,13 +33,10 @@ public class HookDispatchHandler implements TransactionHandler {
     public void handle(@NonNull final HandleContext context) throws HandleException {
         final var writableEvmStore = context.storeFactory().writableStore(WritableEvmHookStore.class);
         final var op = context.body().hookDispatchOrThrow();
-        if (op.hasCreation()) {
-            writableEvmStore.createEvmHook(op.creationOrThrow());
-        } else if (op.hasExecution()) {
-            throw new UnsupportedOperationException("EVM hook execution not implemented yet");
-        } else if (op.hasHookIdToDelete()) {
-            final var hookId = op.hookIdToDeleteOrThrow();
-            writableEvmStore.deleteHook(hookId);
+        switch (op.action().kind()){
+            case CREATION -> writableEvmStore.createEvmHook(op.creationOrThrow());
+            case HOOK_ID_TO_DELETE -> writableEvmStore.removeOrMarkDeleted(op.hookIdToDeleteOrThrow());
+            case EXECUTION -> throw new UnsupportedOperationException("EVM hook execution not implemented yet");
         }
     }
 }

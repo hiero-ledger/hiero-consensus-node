@@ -22,6 +22,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.PROXY_ACCOUNT_ID_FIELD_
 import static com.hedera.node.app.hapi.fees.usage.SingletonUsageProperties.USAGE_PROPERTIES;
 import static com.hedera.node.app.hapi.fees.usage.crypto.CryptoOpsUsage.CREATE_SLOT_MULTIPLIER;
 import static com.hedera.node.app.hapi.fees.usage.crypto.entities.CryptoEntitySizes.CRYPTO_ENTITY_SIZES;
+import static com.hedera.node.app.hapi.utils.contracts.HookUtils.summarizeHooks;
 import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.BASIC_ENTITY_ID_SIZE;
 import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.BOOL_SIZE;
 import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.INT_SIZE;
@@ -53,11 +54,13 @@ import com.hedera.hapi.node.base.HookEntityId;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.hooks.HookCreation;
+import com.hedera.hapi.node.hooks.HookCreationDetails;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.token.CryptoCreateTransactionBody;
 import com.hedera.hapi.node.token.CryptoUpdateTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.hapi.utils.CommonPbjConverters;
+import com.hedera.node.app.hapi.utils.contracts.HookUtils;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.impl.WritableAccountStore;
 import com.hedera.node.app.service.token.impl.validators.CryptoCreateValidator;
@@ -82,6 +85,9 @@ import com.hedera.node.config.data.TokensConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+
+import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -273,10 +279,12 @@ public class CryptoCreateHandler extends BaseCryptoHandler implements Transactio
         }
 
         // Dispatch hook creation to contract service if there are any hooks to be created
-        final var owner =
-                entityIdFactory.newAccountId(context.entityNumGenerator().peekAtNewEntityNum());
-        final var hookSummary = summarizeHooks(op.hookCreationDetails());
-        dispatchHookCreations(context, op, owner);
+        var hookSummary = new HookUtils.HookSummary(0L, Collections.emptyList());
+        if (!op.hookCreationDetails().isEmpty()) {
+            final var owner = entityIdFactory.newAccountId(context.entityNumGenerator().peekAtNewEntityNum());
+            hookSummary = summarizeHooks(Collections.emptyList(), op.hookCreationDetails());
+            dispatchHookCreations(context, op.hookCreationDetails(), owner);
+        }
 
         // Build the new account to be persisted based on the transaction body and save the newly created account
         // number in the record builder
@@ -315,23 +323,20 @@ public class CryptoCreateHandler extends BaseCryptoHandler implements Transactio
     }
 
     private void dispatchHookCreations(
-            final @NonNull HandleContext context, final CryptoCreateTransactionBody op, final AccountID owner) {
-        final var hookDetails = op.hookCreationDetails();
-        if (!hookDetails.isEmpty()) {
-            // last element has no next
-            Long nextId = null;
-            for (int i = hookDetails.size() - 1; i >= 0; i--) {
-                final var detail = hookDetails.get(i);
-                final var creation = HookCreation.newBuilder()
-                        .entityId(HookEntityId.newBuilder().accountId(owner).build())
-                        .details(hookDetails.get(i));
-                if (nextId != null) {
-                    creation.nextHookId(nextId);
-                }
-                dispatchCreation(context, creation.build());
-                // This one becomes "next" for the previous node in the loop
-                nextId = detail.hookId();
+            final @NonNull HandleContext context, final List<HookCreationDetails> hookDetails, final AccountID owner) {
+        // empty list case or first insert into empty list
+        Long nextId = null;
+        for (int i = hookDetails.size() - 1; i >= 0; i--) {
+            final var detail = hookDetails.get(i);
+            final var creation = HookCreation.newBuilder()
+                    .entityId(HookEntityId.newBuilder().accountId(owner).build())
+                    .details(detail);
+            if (nextId != null) {
+                creation.nextHookId(nextId);
             }
+            dispatchCreation(context, creation.build());
+            // This one becomes "next" for the previous node in the loop
+            nextId = detail.hookId();
         }
     }
 
@@ -462,7 +467,7 @@ public class CryptoCreateHandler extends BaseCryptoHandler implements Transactio
      * @return the account created
      */
     @NonNull
-    private Account buildAccount(CryptoCreateTransactionBody op, HandleContext handleContext, HookSummary hookSummary) {
+    private Account buildAccount(CryptoCreateTransactionBody op, HandleContext handleContext, HookUtils.HookSummary hookSummary) {
         requireNonNull(op);
         requireNonNull(handleContext);
         final var autoRenewPeriod = op.autoRenewPeriodOrThrow().seconds();
@@ -479,9 +484,11 @@ public class CryptoCreateHandler extends BaseCryptoHandler implements Transactio
                 .key(op.keyOrThrow())
                 .stakeAtStartOfLastRewardedPeriod(NOT_REWARDED_SINCE_LAST_STAKING_META_CHANGE)
                 .stakePeriodStart(NO_STAKE_PERIOD_START)
-                .firstHookId(hookSummary.creationHookIds().getFirst())
-                .numberHooksInUse(hookSummary.creationHookIds().size())
                 .alias(op.alias());
+        if (!hookSummary.creationHookIds().isEmpty()) {
+            builder.firstHookId(hookSummary.creationHookIds().getFirst());
+            builder.numberHooksInUse(hookSummary.creationHookIds().size());
+        }
 
         // We do this separately because we want to let the protobuf object remain UNSET for the staked ID if neither
         // of the staking information was set in the transaction body.

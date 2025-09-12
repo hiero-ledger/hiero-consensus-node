@@ -32,8 +32,10 @@ import com.swirlds.state.spi.WritableKVState;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+
 import java.util.ArrayList;
 import java.util.List;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -68,8 +70,8 @@ public class WritableEvmHookStore extends ReadableEvmHookStoreImpl {
      *
      * @param hookId the lambda ID
      * @param updates the slot updates
-     * @throws HandleException if the lambda ID is not found
      * @return the net change in number of storage slots used
+     * @throws HandleException if the lambda ID is not found
      */
     public int updateStorage(@NonNull final HookId hookId, @NonNull final List<LambdaStorageUpdate> updates)
             throws HandleException {
@@ -133,23 +135,51 @@ public class WritableEvmHookStore extends ReadableEvmHookStoreImpl {
     /**
      * Marks the given hook as deleted. We mark the hook as deleted, but do not remove it from state,
      * if there are several storage slots.
+     *
      * @param hookId the lambda ID
      * @throws HandleException if the lambda ID is not found
      */
-    public void markDeleted(@NonNull final HookId hookId) {
+    public void removeOrMarkDeleted(@NonNull final HookId hookId) {
         final var state = hookStates.get(hookId);
         validateTrue(state != null, HOOK_NOT_FOUND);
-        hookStates.put(hookId, state.copyBuilder().deleted(true).build());
+        if (state.numStorageSlots() > 0) {
+            log.info("Marking hook {} as deleted, but not removing it because it has {} storage slots",
+                    hookId, state.numStorageSlots());
+            hookStates.put(hookId, state.copyBuilder().deleted(true).build());
+        } else {
+            unlinkNeighbors(state);
+            hookStates.remove(hookId);
+            entityCounters.decrementEntityTypeCounter(HOOK);
+        }
     }
 
-    public void deleteHook(@NonNull final HookId hookId) {
-        final var state = hookStates.get(hookId);
-        validateTrue(state != null, HOOK_NOT_FOUND);
-        hookStates.remove(hookId);
+    private void unlinkNeighbors(@NonNull final EvmHookState state) {
+        final var hookId = state.hookId();
+        final var prevId = state.previousHookId();
+        final var nextId = state.nextHookId();
+
+        if (prevId != null) {
+            final var prev = HookId.newBuilder().hookId(prevId).entityId(hookId.entityId()).build();
+            final var prevState = hookStates.get(prev);
+            if (prevState != null) {
+                hookStates.put(prev, prevState.copyBuilder().nextHookId(nextId).build());
+            }
+        }
+        if (nextId != null) {
+            final var next = HookId.newBuilder().hookId(nextId).entityId(hookId.entityId()).build();
+            final var nextState = hookStates.get(next);
+            if (nextState != null) {
+                hookStates.put(next, nextState.copyBuilder().previousHookId(prevId).build());
+            }
+        }
+
+        // If this hook was the head for the extension point, update the head mapping accordingly.
+        // (Requires access to the extension-point → head HookId state, not shown here.)
     }
 
     /**
      * Tries to create a new EVM hook for the given entity.
+     *
      * @param creation the hook creation spec
      * @throws HandleException if the creation fails
      */
@@ -182,10 +212,7 @@ public class WritableEvmHookStore extends ReadableEvmHookStoreImpl {
         if (type == LAMBDA) {
             final var initialUpdates = details.lambdaEvmHookOrThrow().storageUpdates();
             if (!initialUpdates.isEmpty()) {
-                final int delta = updateStorage(hookId, initialUpdates);
-                if (delta != 0) {
-                    entityCounters.adjustEntityCount(LAMBDA_STORAGE, delta);
-                }
+                updateStorage(hookId, initialUpdates);
             }
         }
         entityCounters.incrementEntityTypeCount(HOOK);

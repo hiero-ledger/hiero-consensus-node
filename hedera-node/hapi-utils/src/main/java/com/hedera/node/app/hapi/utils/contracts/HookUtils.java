@@ -4,9 +4,13 @@ package com.hedera.node.app.hapi.utils.contracts;
 import static com.hedera.node.app.hapi.utils.MiscCryptoUtils.keccak256DigestOf;
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.hapi.node.hooks.HookCreationDetails;
 import com.hedera.hapi.node.hooks.LambdaMappingEntry;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
+
+import java.util.Collections;
+import java.util.List;
 
 public class HookUtils {
     /**
@@ -64,4 +68,39 @@ public class HookUtils {
         bytes.getBytes(0, padded, 32 - n, n);
         return com.hedera.pbj.runtime.io.buffer.Bytes.wrap(padded);
     }
+
+    /**
+     * Summarizes the hook creation details, counting the number of initial lambda storage slots used.
+     * @param details the hook creation details to summarize
+     * @return the summary of the hook creation details
+     */
+    public static HookSummary summarizeHooks(final List<Long> hooksToDelete, final List<HookCreationDetails> details) {
+        if (details.isEmpty()) {
+            return new HookSummary(0L, Collections.emptyList());
+        }
+        // get the first id from the stream, without any sorting
+        final long firstId = details.getFirst().hookId();
+        long slots = 0L;
+        for (final var detail : details) {
+            if (detail.hasLambdaEvmHook()) {
+                // count only non-empty values as consuming a slot
+                for (final var updates : detail.lambdaEvmHookOrThrow().storageUpdates()) {
+                    if (updates.hasStorageSlot()) {
+                        final var storageSlot = updates.storageSlotOrThrow();
+                        if (storageSlot.value() != null && storageSlot.value().length() > 0) {
+                            slots++;
+                        }
+                    } else {
+                        for (final var entry : updates.mappingEntriesOrThrow().entries()) {
+                            if (entry.value() != null && entry.value().length() > 0) {
+                                slots++;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return new HookSummary(slots, firstId);
+    }
+    public record HookSummary(long initialLambdaSlots, List<Long> creationHookIds) {}
 }

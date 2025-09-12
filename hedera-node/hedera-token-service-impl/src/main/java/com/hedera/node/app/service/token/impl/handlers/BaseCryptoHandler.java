@@ -123,41 +123,6 @@ public class BaseCryptoHandler {
     }
 
     /**
-     * Summarizes the hook creation details, counting the number of initial lambda storage slots used.
-     * @param details the hook creation details to summarize
-     * @return the summary of the hook creation details
-     */
-    protected HookSummary summarizeHooks(final List<HookCreationDetails> details) {
-        if (details.isEmpty()) {
-            return new CryptoCreateHandler.HookSummary(0L, Collections.emptyList());
-        }
-        // get the first id from the stream, without any sorting
-        final long firstId = details.getFirst().hookId();
-        long slots = 0L;
-        for (final var detail : details) {
-            if (detail.hasLambdaEvmHook()) {
-                // count only non-empty values as consuming a slot
-                for (final var u : detail.lambdaEvmHookOrThrow().storageUpdates()) {
-                    if (u.hasStorageSlot()) {
-                        if (u.storageSlotOrThrow().value() != null
-                                && u.storageSlotOrThrow().value().length() > 0) {
-                            slots++;
-                        }
-                    } else {
-                        for (final var entry : u.mappingEntriesOrThrow().entries()) {
-                            if (entry.value() != null && entry.value().length() > 0) {
-                                slots++;
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        return new CryptoCreateHandler.HookSummary(
-                slots, details.stream().map(HookCreationDetails::hookId).toList());
-    }
-
-    /**
      * Dispatches the hook creation to the given context.
      * @param context the handle context
      * @param creation the hook creation to dispatch
@@ -185,8 +150,6 @@ public class BaseCryptoHandler {
     private void validateWord(@NonNull final Bytes bytes) throws PreCheckException {
         validateTruePreCheck(bytes.length() <= MAX_UPDATE_BYTES_LEN, HOOK_CREATION_BYTES_TOO_LONG);
         final var minimalBytes = minimalRepresentationOf(bytes);
-        validateTruePreCheck(bytes == minimalBytes, HOOK_CREATION_BYTES_MUST_USE_MINIMAL_REPRESENTATION);
+        validateTruePreCheck(bytes.equals(minimalBytes), HOOK_CREATION_BYTES_MUST_USE_MINIMAL_REPRESENTATION);
     }
-
-    protected record HookSummary(long initialLambdaSlots, List<Long> creationHookIds) {}
 }

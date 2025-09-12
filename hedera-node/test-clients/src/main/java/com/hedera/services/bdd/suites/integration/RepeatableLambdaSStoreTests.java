@@ -387,8 +387,7 @@ public class RepeatableLambdaSStoreTests {
             final var store = new WritableEvmHookStore(states, counters);
             store.createEvmHook(creation);
             if (deleteAfterwards) {
-                store.markDeleted(
-                        new HookId(hookEntityId, creation.detailsOrThrow().hookId()));
+                store.removeOrMarkDeleted(new HookId(hookEntityId, creation.detailsOrThrow().hookId()));
             }
         });
     }

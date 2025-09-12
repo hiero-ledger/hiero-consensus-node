@@ -40,7 +40,7 @@ import javax.inject.Singleton;
 
 @Singleton
 public class LambdaSStoreHandler implements TransactionHandler {
-    private static final long MAX_UPDATE_BYTES_LEN = 32L;
+    public static final long MAX_UPDATE_BYTES_LEN = 32L;
 
     @Inject
     public LambdaSStoreHandler() {
