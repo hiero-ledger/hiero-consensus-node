@@ -8,7 +8,6 @@ import static org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreatorTe
 import static org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreatorTestUtils.createTestEventWithParent;
 import static org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreatorTestUtils.distributeEvent;
 import static org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreatorTestUtils.generateRandomTransactions;
-import static org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreatorTestUtils.generateTransactions;
 import static org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreatorTestUtils.registerEvent;
 import static org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreatorTestUtils.validateNewEventAndMaybeAdvanceCreatorScore;
 import static org.hiero.consensus.model.hashgraph.ConsensusConstants.ROUND_FIRST;
@@ -103,10 +102,6 @@ class TipsetEventCreatorTests {
 
                 assignNGenAndDistributeEvent(nodes, events, event);
 
-                if (advancingClock) {
-                    assertEquals(event.getTimeCreated(), time.now());
-                }
-
                 validateNewEventAndMaybeAdvanceCreatorScore(
                         events, event, transactionSupplier.get(), nodes.get(nodeId), false);
             }
@@ -180,9 +175,6 @@ class TipsetEventCreatorTests {
 
                 assignNGenAndDistributeEvent(nodes, events, event);
 
-                if (advancingClock) {
-                    assertEquals(event.getTimeCreated(), time.now());
-                }
                 validateNewEventAndMaybeAdvanceCreatorScore(
                         events, event, transactionSupplier.get(), nodes.get(nodeId), false);
             }
@@ -257,9 +249,6 @@ class TipsetEventCreatorTests {
 
                     assignNGenAndDistributeEvent(nodes, events, event);
 
-                    if (advancingClock) {
-                        assertEquals(event.getTimeCreated(), time.now());
-                    }
                     validateNewEventAndMaybeAdvanceCreatorScore(
                             events, event, transactionSupplier.get(), nodes.get(nodeId), false);
                 }
@@ -342,9 +331,6 @@ class TipsetEventCreatorTests {
 
                     assignNGenAndDistributeEvent(nodes, events, event);
 
-                    if (advancingClock) {
-                        assertEquals(event.getTimeCreated(), time.now());
-                    }
                     validateNewEventAndMaybeAdvanceCreatorScore(
                             events, event, transactionSupplier.get(), nodes.get(nodeId), false);
 
@@ -444,9 +430,6 @@ class TipsetEventCreatorTests {
 
                 assignNGenAndDistributeEvent(nodes, allEvents, newEvent);
 
-                if (advancingClock) {
-                    assertEquals(newEvent.getTimeCreated(), time.now());
-                }
                 validateNewEventAndMaybeAdvanceCreatorScore(
                         allEvents, newEvent, transactionSupplier.get(), nodes.get(nodeId), false);
             }
@@ -572,9 +555,6 @@ class TipsetEventCreatorTests {
                     assignNGenAndDistributeEvent(nodes, allEvents, newEvent);
                 }
 
-                if (advancingClock) {
-                    assertEquals(newEvent.getTimeCreated(), time.now());
-                }
                 validateNewEventAndMaybeAdvanceCreatorScore(
                         allEvents, newEvent, transactionSupplier.get(), nodes.get(nodeId), true);
             }
@@ -643,10 +623,6 @@ class TipsetEventCreatorTests {
             assertNotNull(newEvent);
 
             assignNGenAndDistributeEvent(nodes, events, newEvent);
-
-            if (advancingClock) {
-                assertEquals(newEvent.getTimeCreated(), time.now());
-            }
         }
     }
 
@@ -913,10 +889,6 @@ class TipsetEventCreatorTests {
 
                 assignNGenAndDistributeEvent(nodes, events, event);
 
-                if (advancingClock) {
-                    assertEquals(event.getTimeCreated(), time.now());
-                }
-
                 if (eventIndex == 0) {
                     final long birthRound = event.getEventCore().birthRound();
                     assertEquals(ROUND_FIRST, birthRound);
@@ -1024,128 +996,7 @@ class TipsetEventCreatorTests {
     }
 
     /**
-     * This test verifies that the event creator assigns the propper creationTime in the following scenario:
-     *   - the parent has no transactions
-     *  - current time (wall clock) is after the parent's creation time
-     * We expect the new event creation time to be the current time.
-     *
-     * @param random  {@link RandomUtils#getRandomPrintSeed()}
-     */
-    @TestTemplate
-    @ExtendWith(ParameterCombinationExtension.class)
-    @UseParameterSources({
-        @ParamSource(
-                param = "random",
-                fullyQualifiedClass = "org.hiero.base.utility.test.fixtures.RandomUtils",
-                method = "getRandomPrintSeed")
-    })
-    @DisplayName("calculateNewEventCreationTime Test()")
-    void eventCreationTime_testCurrentTimeAfterParentCreationTimeParentHasNoTransactions(
-            @ParamName("random") final Random random) {
-
-        // Common test set up. We initialize a network to make it easier to create events.
-        final int networkSize = 1;
-        final Roster roster =
-                RandomRosterBuilder.create(random).withSize(networkSize).build();
-
-        final AtomicReference<List<Bytes>> transactionSupplier = new AtomicReference<>(List.of());
-        final FakeTime time = new FakeTime();
-
-        final EventCreator eventCreator =
-                buildEventCreator(random, time, roster, NodeId.of(0), transactionSupplier::get);
-
-        var lastEvent = eventCreator.maybeCreateEvent();
-        // Move the time forward
-        time.tick(100);
-        lastEvent = eventCreator.maybeCreateEvent();
-        assertNotNull(lastEvent);
-        Instant present = time.now();
-        assertEquals(present, lastEvent.getTimeCreated());
-    }
-
-    /**
-     * This test verifies that the event creator assigns the propper creationTime for an event in the following scenario:
-     *  - the parent has transactions
-     *  - current time (wall clock) is after the parent's last transaction time
-     * We expect the new event creation time to be the current time.
-     *
-     * @param random  {@link RandomUtils#getRandomPrintSeed()}
-     */
-    @TestTemplate
-    @ExtendWith(ParameterCombinationExtension.class)
-    @UseParameterSources({
-        @ParamSource(
-                param = "random",
-                fullyQualifiedClass = "org.hiero.base.utility.test.fixtures.RandomUtils",
-                method = "getRandomPrintSeed")
-    })
-    @DisplayName("calculateNewEventCreationTime Test()")
-    void eventCreationTimeTest_currentTimeIsAfterParentLatestTransaction(@ParamName("random") final Random random) {
-
-        // Common test set up. We initialize a network to make it easier to create events.
-        final int networkSize = 1;
-        final Roster roster =
-                RandomRosterBuilder.create(random).withSize(networkSize).build();
-
-        final AtomicReference<List<Bytes>> transactionSupplier = new AtomicReference<>(List.of());
-        final FakeTime time = new FakeTime();
-        final EventCreator eventCreator =
-                buildEventCreator(random, time, roster, NodeId.of(0), transactionSupplier::get);
-
-        transactionSupplier.set(generateTransactions(random, 10));
-        var lastEvent = eventCreator.maybeCreateEvent();
-        time.tick(100); // Move the time forward
-        lastEvent = eventCreator.maybeCreateEvent();
-        assertNotNull(lastEvent);
-        Instant present = time.now();
-        assertEquals(present, lastEvent.getTimeCreated());
-    }
-
-    /**
-     * This test verifies that the event creator assigns the propper creationTime for an event in the following scenario:
-     * - the parent has transactions
-     * - current time (wall clock) is before the parent's last transaction time
-     * We expect the new event creation time to be set to the parent's creation time + number of transactions.
-     *
-     * @param random  {@link RandomUtils#getRandomPrintSeed()}
-     */
-    @TestTemplate
-    @ExtendWith(ParameterCombinationExtension.class)
-    @UseParameterSources({
-        @ParamSource(
-                param = "random",
-                fullyQualifiedClass = "org.hiero.base.utility.test.fixtures.RandomUtils",
-                method = "getRandomPrintSeed")
-    })
-    @DisplayName("calculateNewEventCreationTime Test()")
-    void eventCreationTimeTestCurrenTimeIsBeforeParentLatestTransaction(@ParamName("random") final Random random) {
-
-        // Common test set up. We initialize a network to make it easier to create events.
-        final int networkSize = 1;
-        final Roster roster =
-                RandomRosterBuilder.create(random).withSize(networkSize).build();
-
-        final AtomicReference<List<Bytes>> transactionSupplier = new AtomicReference<>(List.of());
-        final FakeTime time = new FakeTime();
-        final EventCreator eventCreator =
-                buildEventCreator(random, time, roster, NodeId.of(0), transactionSupplier::get);
-
-        transactionSupplier.set(generateTransactions(random, 100));
-        // the self-parent
-        var parentEvent = eventCreator.maybeCreateEvent();
-        assertNotNull(parentEvent);
-        // Move the time forward but just not enough to reach the parent's last transaction time
-        time.tick(59);
-        var lastEvent = eventCreator.maybeCreateEvent();
-        assertNotNull(lastEvent);
-        assertEquals(parentEvent.getTimeCreated().plusNanos(100), lastEvent.getTimeCreated());
-    }
-
-    /**
-     * This test verifies that the event creator assigns the propper creationTime for an event in the following scenarioi:
-     *  - the parent has no transactions
-     *  - current time (wall clock) is the same as the parent's creation time
-     * We expect the new event creation time to be set to the parent's creation time + a fixed delta.
+     * This test verifies that the event creator assigns the propper creationTime for an event
      *
      * @param random  {@link RandomUtils#getRandomPrintSeed()}
      */
@@ -1159,20 +1010,32 @@ class TipsetEventCreatorTests {
     })
     @DisplayName("calculateNewEventCreationTime Test()")
     void eventCreationTimeTest(@ParamName("random") final Random random) {
-
+        final FakeTime time = new FakeTime();
         // Common test set up. We initialize a network to make it easier to create events.
         final int networkSize = 1;
-        final Roster roster =
-                RandomRosterBuilder.create(random).withSize(networkSize).build();
-        final AtomicReference<List<Bytes>> transactionSupplier = new AtomicReference<>(List.of());
+        final Roster roster = RandomRosterBuilder.create(random).withSize(networkSize).build();
         final EventCreator eventCreator =
-                buildEventCreator(random, new FakeTime(), roster, NodeId.of(0), transactionSupplier::get);
+                buildEventCreator(random, time, roster, NodeId.of(0), List::of);
 
-        var parentEvent = eventCreator.maybeCreateEvent(); // the self-parent
-        assertNotNull(parentEvent);
-        var lastEvent = eventCreator.maybeCreateEvent();
-        assertNotNull(lastEvent);
-        assertEquals(parentEvent.getTimeCreated().plusNanos(1), lastEvent.getTimeCreated());
+        // genesis event
+        final var firstEvent = eventCreator.maybeCreateEvent();
+        assertNotNull(firstEvent);
+        assertEquals(time.now(), firstEvent.getTimeCreated(),"The genesis event should use the wall-clock time");
+
+        // time created is based on parent's time received
+        final Instant parentTimeReceived = firstEvent.getTimeCreated().plusSeconds(1);
+        firstEvent.setTimeReceived(parentTimeReceived);
+        final var secondEvent = eventCreator.maybeCreateEvent();
+        assertNotNull(secondEvent);
+        assertEquals(parentTimeReceived, secondEvent.getTimeCreated(),
+                "An event's creation time should be equal to the max time received of its parents");
+
+        // max time received is the same as the event creation time
+        final var thirdEvent = eventCreator.maybeCreateEvent();
+        assertNotNull(thirdEvent);
+        assertEquals(secondEvent.getTimeCreated().plusNanos(1), thirdEvent.getTimeCreated(),
+                "If the maximum time received of all parents is not higher than the time created of the self "
+                        + "parent, the event creator should add a nanosecond to make it higher");
     }
 
     /**
