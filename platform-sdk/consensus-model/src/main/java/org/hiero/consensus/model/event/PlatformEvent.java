@@ -90,7 +90,8 @@ public class PlatformEvent implements ConsensusEvent, Hashable {
      * @throws NullPointerException if gossipEvent or any of its fields are null
      */
     public PlatformEvent(@NonNull final GossipEvent gossipEvent) {
-        this(Objects.requireNonNull(gossipEvent, "The gossipEvent must not be null"),
+        this(
+                Objects.requireNonNull(gossipEvent, "The gossipEvent must not be null"),
                 new EventMetadata(gossipEvent),
                 Instant.now());
     }
