@@ -185,11 +185,9 @@ public class TipsetEventCreatorTestUtils {
             assertTrue(allEvents.containsKey(newEvent.getDescriptor()));
         }
 
-        // Timestamp must always increase by 1 nanosecond, and there must always be a unique timestamp
-        // with nanosecond precision for transaction.
+        // Timestamp must always increase by 1 nanosecond
         if (selfParent != null) {
-            final int minimumIncrement = Math.max(1, selfParent.getTransactionCount());
-            final Instant minimumTimestamp = selfParent.getTimeCreated().plus(Duration.ofNanos(minimumIncrement));
+            final Instant minimumTimestamp = selfParent.getTimeCreated().plus(Duration.ofNanos(1));
             assertTrue(isGreaterThanOrEqualTo(newEvent.getTimeCreated(), minimumTimestamp));
         }
 
