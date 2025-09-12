@@ -75,8 +75,8 @@ public class ConversionUtils {
     /** Fee schedule units per tinycent.*/
     public static final long FEE_SCHEDULE_UNITS_PER_TINYCENT = 1000;
 
-    private static final BigInteger MIN_LONG_VALUE = BigInteger.valueOf(Long.MIN_VALUE);
-    private static final BigInteger MAX_LONG_VALUE = BigInteger.valueOf(Long.MAX_VALUE);
+    public static final BigInteger MIN_LONG_VALUE = BigInteger.valueOf(Long.MIN_VALUE);
+    public static final BigInteger MAX_LONG_VALUE = BigInteger.valueOf(Long.MAX_VALUE);
 
     private ConversionUtils() {
         throw new UnsupportedOperationException("Utility Class");

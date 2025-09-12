@@ -20,7 +20,6 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hss.schedu
 import com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.common.CallAttemptTestBase;
 import com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.hss.schedulecall.ScheduleCallTranslatorTest.TestFunction;
 import com.swirlds.config.api.Configuration;
-import java.math.BigInteger;
 import java.util.List;
 import java.util.Set;
 import org.hyperledger.besu.datatypes.Address;
@@ -63,8 +62,8 @@ public class ScheduleCallDecoderTest extends CallAttemptTestBase {
     @Test
     public void testScheduledTransactionBodyFor() {
         // given:
-        BigInteger gasLimit = BigInteger.valueOf(1_000_000);
-        BigInteger value = BigInteger.valueOf(0);
+        final var gasLimit = 1_000_000L;
+        final var value = 0L;
         byte[] callData = new byte[] {1, 2, 3, 4};
         // when:
         final var body = subject.scheduledTransactionBodyFor(contractId, gasLimit, value, callData);
@@ -72,8 +71,8 @@ public class ScheduleCallDecoderTest extends CallAttemptTestBase {
         assertTrue(body.hasContractCall());
         assertTrue(body.contractCallOrThrow().hasContractID());
         assertEquals(contractId, body.contractCallOrThrow().contractIDOrThrow());
-        assertEquals(gasLimit.longValueExact(), body.contractCallOrThrow().gas());
-        assertEquals(value.longValueExact(), body.contractCallOrThrow().amount());
+        assertEquals(gasLimit, body.contractCallOrThrow().gas());
+        assertEquals(value, body.contractCallOrThrow().amount());
         assertEquals(
                 com.hedera.pbj.runtime.io.buffer.Bytes.wrap(callData),
                 body.contractCallOrThrow().functionParameters());
@@ -83,7 +82,7 @@ public class ScheduleCallDecoderTest extends CallAttemptTestBase {
     public void testScheduleCreateTransactionBodyFor() {
         // given:
         final var keys = Set.of(key);
-        final var expirySecond = BigInteger.valueOf(1_000);
+        final var expirySecond = 1_000L;
         // when:
         final var body = subject.scheduleCreateTransactionBodyFor(scheduleTrx, keys, expirySecond, sender, false);
         // then:
@@ -92,8 +91,7 @@ public class ScheduleCallDecoderTest extends CallAttemptTestBase {
         assertTrue(body.hasAdminKey());
         assertEquals(key, body.adminKey());
         assertTrue(body.hasExpirationTime());
-        assertEquals(
-                Timestamp.newBuilder().seconds(expirySecond.longValueExact()).build(), body.expirationTime());
+        assertEquals(Timestamp.newBuilder().seconds(expirySecond).build(), body.expirationTime());
         assertTrue(body.hasPayerAccountID());
         assertEquals(sender, body.payerAccountID());
     }
