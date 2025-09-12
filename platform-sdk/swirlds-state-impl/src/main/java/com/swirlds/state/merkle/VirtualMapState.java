@@ -77,7 +77,7 @@ import org.json.JSONObject;
  */
 public abstract class VirtualMapState<T extends VirtualMapState<T>> implements State {
 
-    static final String VM_LABEL = "state";
+    public static final String VM_LABEL = "state";
 
     private static final Logger logger = LogManager.getLogger(VirtualMapState.class);
 

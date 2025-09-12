@@ -5,7 +5,6 @@ import static com.swirlds.state.merkle.StateUtils.extractStateKeyValueStateId;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.platform.state.StateKey;
-import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.merkle.MerkleNode;
@@ -13,16 +12,16 @@ import com.swirlds.common.merkle.iterators.MerkleIterator;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.internal.merkle.VirtualLeafNode;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.Iterator;
 import java.util.NoSuchElementException;
 
-public class OnDiskIterator<K, V> extends BackedOnDiskIterator<K, V> {
+public class OnDiskIterator<K, V> implements Iterator<K> {
 
     private final int stateId;
     private final MerkleIterator<MerkleNode> itr;
     private K next = null;
 
-    public OnDiskIterator(@NonNull final VirtualMap virtualMap, @NonNull final Codec<K> keyCodec, final int stateId) {
-        super(virtualMap, keyCodec);
+    public OnDiskIterator(@NonNull final VirtualMap virtualMap, final int stateId) {
         this.stateId = stateId;
         itr = requireNonNull(virtualMap).treeIterator();
     }
