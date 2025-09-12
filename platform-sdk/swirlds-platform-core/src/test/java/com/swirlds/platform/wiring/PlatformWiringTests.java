@@ -46,8 +46,7 @@ import com.swirlds.platform.state.snapshot.StateSnapshotManager;
 import com.swirlds.platform.system.status.StatusStateMachine;
 import java.util.stream.Stream;
 import org.hiero.consensus.crypto.EventHasher;
-import org.hiero.consensus.event.creator.impl.EventCreationManager;
-import org.hiero.consensus.event.creator.impl.signing.SelfEventSigner;
+import org.hiero.consensus.event.creator.ConsensusEventCreator;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -81,8 +80,12 @@ class PlatformWiringTests {
         final WiringModel model =
                 WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent()).build();
 
-        final PlatformWiring wiring =
-                new PlatformWiring(platformContext, model, applicationCallbacks, mock(ExecutionLayer.class));
+        final PlatformWiring wiring = new PlatformWiring(
+                platformContext,
+                model,
+                applicationCallbacks,
+                mock(ExecutionLayer.class),
+                mock(ConsensusEventCreator.class));
 
         final PlatformComponentBuilder componentBuilder =
                 new PlatformComponentBuilder(mock(PlatformBuildingBlocks.class));
@@ -93,9 +96,7 @@ class PlatformWiringTests {
                 .withEventDeduplicator(mock(EventDeduplicator.class))
                 .withEventSignatureValidator(mock(EventSignatureValidator.class))
                 .withStateGarbageCollector(mock(StateGarbageCollector.class))
-                .withSelfEventSigner(mock(SelfEventSigner.class))
                 .withOrphanBuffer(mock(OrphanBuffer.class))
-                .withEventCreationManager(mock(EventCreationManager.class))
                 .withConsensusEngine(mock(ConsensusEngine.class))
                 .withConsensusEventStream(mock(ConsensusEventStream.class))
                 .withStatusStateMachine(mock(StatusStateMachine.class))

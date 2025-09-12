@@ -106,8 +106,8 @@ public final class DiagramCommand extends AbstractCommand {
         final WiringModel model = WiringModelBuilder.create(platformContext.getMetrics(), platformContext.getTime())
                 .build();
 
-        final PlatformWiring platformWiring =
-                new PlatformWiring(platformContext, model, callbacks, new NoOpExecutionLayer());
+        final PlatformWiring platformWiring = new PlatformWiring(
+                platformContext, model, callbacks, new NoOpExecutionLayer(), new NoOpConsensusEventCreator());
 
         final String diagramString = platformWiring
                 .getModel()

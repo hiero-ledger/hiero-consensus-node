@@ -265,19 +265,18 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
         try {
             ThreadContext.put(THREAD_CONTEXT_NODE_ID, toJSON(selfId));
 
-            if (lifeCycle == RUNNING) {
-                markerFileObserver.stopObserving();
-                assert platform != null; // platform must be initialized if lifeCycle is STARTED
-                try {
+            markerFileObserver.stopObserving();
+            try {
+                if (platform != null) {
                     platform.destroy();
-                } catch (final InterruptedException e) {
-                    throw new AssertionError("Unexpected interruption during platform shutdown", e);
                 }
-                platformStatus = null;
-                platform = null;
-                platformWiring = null;
-                model = null;
+            } catch (final InterruptedException e) {
+                throw new AssertionError("Unexpected interruption during platform shutdown", e);
             }
+            platformStatus = null;
+            platform = null;
+            platformWiring = null;
+            model = null;
             lifeCycle = SHUTDOWN;
 
         } finally {

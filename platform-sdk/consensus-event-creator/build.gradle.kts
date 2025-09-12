@@ -2,6 +2,9 @@
 plugins {
     id("org.hiero.gradle.module.library")
     id("org.hiero.gradle.feature.publish-artifactregistry")
+    id("org.hiero.gradle.feature.test-fixtures")
 }
 
 description = "Consensus Event Creator API"
+
+mainModuleInfo { annotationProcessor("com.swirlds.config.processor") }
