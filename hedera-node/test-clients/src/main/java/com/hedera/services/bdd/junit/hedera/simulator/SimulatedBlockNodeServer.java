@@ -101,6 +101,11 @@ public class SimulatedBlockNodeServer {
 
     private final AtomicBoolean sendingAcksEnabled = new AtomicBoolean(true);
 
+    // In-memory capture of block items per block number (only for fully received blocks)
+    // We record items in arrival order for each block, and seal them when proof arrives
+    private final Map<Long, List<BlockItem>> blockItemsByNumber = new ConcurrentHashMap<>();
+    private final Set<Long> sealedBlocks = ConcurrentHashMap.newKeySet();
+
     /**
      * Creates a new simulated block node server on the specified port.
      *
@@ -271,6 +276,25 @@ public class SimulatedBlockNodeServer {
     }
 
     /**
+     * Returns the captured and sealed blocks as a list of {@link com.hedera.hapi.block.stream.Block} objects
+     * in ascending block number order. Only blocks that have both header and proof (sealed) are returned.
+     */
+    @NonNull
+    public List<com.hedera.hapi.block.stream.Block> getCapturedBlocks() {
+        blockTrackingLock.readLock().lock();
+        try {
+            return sealedBlocks.stream()
+                    .sorted()
+                    .map(blockNum -> com.hedera.hapi.block.stream.Block.newBuilder()
+                            .items(blockItemsByNumber.getOrDefault(blockNum, List.of()))
+                            .build())
+                    .toList();
+        } finally {
+            blockTrackingLock.readLock().unlock();
+        }
+    }
+
+    /**
      * @return whether this server has ever been shutdown.
      */
     public boolean hasEverBeenShutdown() {
@@ -372,6 +396,9 @@ public class SimulatedBlockNodeServer {
 
                                     // Set the current block number being processed by THIS stream instance
                                     currentBlockNumber = blockNumber;
+                                    // Start capturing items for this block if not already
+                                    blockItemsByNumber.computeIfAbsent(blockNumber, k -> new ArrayList<>());
+                                    blockItemsByNumber.get(blockNumber).add(item);
                                     log.info(
                                             "Received BlockHeader for block {} on port {} from stream {}",
                                             blockNumber,
@@ -463,6 +490,10 @@ public class SimulatedBlockNodeServer {
                                     blocksWithProofs.add(blockNumber);
                                     streamingBlocks.remove(blockNumber); // No longer streaming this specific block
 
+                                    // Capture the proof and seal the block
+                                    blockItemsByNumber.computeIfAbsent(blockNumber, k -> new ArrayList<>()).add(item);
+                                    sealedBlocks.add(blockNumber);
+
                                     // Update last verified block number atomically
                                     final long newLastVerified = lastVerifiedBlockNumber.updateAndGet(
                                             currentMax -> Math.max(currentMax, blockNumber));
@@ -485,6 +516,12 @@ public class SimulatedBlockNodeServer {
 
                                     // Reset currentBlockNumber for this stream, as it finished sending this block
                                     currentBlockNumber = null;
+                                } else {
+                                    // Any other BlockItem belonging to the current block should be captured
+                                    if (currentBlockNumber != null) {
+                                        blockItemsByNumber.computeIfAbsent(currentBlockNumber, k -> new ArrayList<>())
+                                                .add(item);
+                                    }
                                 }
                             } // End of loop through BlockItems
                         }

@@ -233,11 +233,13 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
                 log.info(
                         "PR Check Override: blockStream.writerMode=FILE_AND_GRPC is set, configuring a Block Node network");
                 BlockNodeNetwork blockNodeNetwork = new BlockNodeNetwork();
+                // Create a single simulator instance and map all subprocess nodes to it
+                final long sharedBlockNodeId = 0L;
+                blockNodeNetwork.getBlockNodeModeById().put(sharedBlockNodeId, BlockNodeMode.SIMULATOR);
                 network.nodes().forEach(node -> {
-                    blockNodeNetwork.getBlockNodeModeById().put(node.getNodeId(), BlockNodeMode.SIMULATOR);
                     blockNodeNetwork
                             .getBlockNodeIdsBySubProcessNodeId()
-                            .put(node.getNodeId(), new long[] {node.getNodeId()});
+                            .put(node.getNodeId(), new long[] {sharedBlockNodeId});
                     blockNodeNetwork.getBlockNodePrioritiesBySubProcessNodeId().put(node.getNodeId(), new long[] {0});
                 });
                 blockNodeNetwork.start();

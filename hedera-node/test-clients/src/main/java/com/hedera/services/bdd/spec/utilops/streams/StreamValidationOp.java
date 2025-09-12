@@ -20,10 +20,13 @@ import static java.util.stream.Collectors.joining;
 
 import com.hedera.hapi.block.stream.Block;
 import com.hedera.node.app.history.impl.ProofControllerImpl;
+import com.hedera.services.bdd.junit.extensions.NetworkTargetingExtension;
 import com.hedera.services.bdd.junit.support.BlockStreamAccess;
 import com.hedera.services.bdd.junit.support.BlockStreamValidator;
 import com.hedera.services.bdd.junit.support.RecordStreamValidator;
 import com.hedera.services.bdd.junit.support.StreamFileAccess;
+import com.hedera.services.bdd.junit.hedera.BlockNodeNetwork;
+import com.hedera.services.bdd.junit.hedera.simulator.SimulatedBlockNodeServer;
 import com.hedera.services.bdd.junit.support.validators.BalanceReconciliationValidator;
 import com.hedera.services.bdd.junit.support.validators.BlockNoValidator;
 import com.hedera.services.bdd.junit.support.validators.ExpiryRecordsValidator;
@@ -145,28 +148,47 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
                 spec.targetNetworkType() == SUBPROCESS_NETWORK ? waitForFrozenNetwork(FREEZE_TIMEOUT) : noOp(),
                 // Wait for the final stream files to be created
                 sleepFor(STREAM_FILE_WAIT.toMillis()));
-        readMaybeBlockStreamsFor(spec)
-                .ifPresentOrElse(
-                        blocks -> {
-                            // Re-read the record streams since they may have been updated
-                            readMaybeRecordStreamDataFor(spec)
-                                    .ifPresentOrElse(
-                                            dataRef::set, () -> Assertions.fail("No record stream data found"));
-                            final var data = requireNonNull(dataRef.get());
-                            final var maybeErrors = BLOCK_STREAM_VALIDATOR_FACTORIES.stream()
-                                    .filter(factory -> factory.appliesTo(spec))
-                                    .map(factory -> factory.create(spec))
-                                    .flatMap(v -> v.validationErrorsIn(blocks, data))
-                                    .peek(t -> log.error("Block stream validation error", t))
-                                    .map(Throwable::getMessage)
-                                    .collect(joining(ERROR_PREFIX));
-                            if (!maybeErrors.isBlank()) {
-                                throw new AssertionError(
-                                        "Block stream validation failed:" + ERROR_PREFIX + maybeErrors);
-                            }
-                        },
-                        () -> Assertions.fail("No block streams found"));
-        validateProofs(spec);
+        final var diskBlocks = readMaybeBlockStreamsFor(spec).orElse(List.of());
+        final var simulatorBlocks = readMaybeSimulatorBlocks(spec);
+        boolean validatedAny = false;
+
+        // Re-read the record streams since they may have been updated
+        readMaybeRecordStreamDataFor(spec)
+                .ifPresentOrElse(dataRef::set, () -> Assertions.fail("No record stream data found"));
+        final var data = requireNonNull(dataRef.get());
+
+        if (!diskBlocks.isEmpty()) {
+            final var maybeErrors = BLOCK_STREAM_VALIDATOR_FACTORIES.stream()
+                    .filter(factory -> factory.appliesTo(spec))
+                    .map(factory -> factory.create(spec))
+                    .flatMap(v -> v.validationErrorsIn(diskBlocks, data))
+                    .peek(t -> log.error("Block stream validation error (disk)", t))
+                    .map(Throwable::getMessage)
+                    .collect(joining(ERROR_PREFIX));
+            if (!maybeErrors.isBlank()) {
+                throw new AssertionError("Block stream validation failed:" + ERROR_PREFIX + maybeErrors);
+            }
+            validatedAny = true;
+        }
+
+        if (!simulatorBlocks.isEmpty()) {
+            final var maybeErrors = BLOCK_STREAM_VALIDATOR_FACTORIES.stream()
+                    .filter(factory -> factory.appliesTo(spec))
+                    .map(factory -> factory.create(spec))
+                    .flatMap(v -> v.validationErrorsIn(simulatorBlocks, data))
+                    .peek(t -> log.error("Block stream validation error (simulator)", t))
+                    .map(Throwable::getMessage)
+                    .collect(joining(ERROR_PREFIX));
+            if (!maybeErrors.isBlank()) {
+                throw new AssertionError("Block stream validation failed:" + ERROR_PREFIX + maybeErrors);
+            }
+            validatedAny = true;
+        }
+
+        if (!validatedAny) {
+            Assertions.fail("No block streams found");
+        }
+        validateSimulatorProofReceipts(spec);
 
         return false;
     }
@@ -190,6 +212,22 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
             }
         }
         return Optional.ofNullable(blocks);
+    }
+
+    private static List<Block> readMaybeSimulatorBlocks(@NonNull final HapiSpec spec) {
+        final BlockNodeNetwork blockNodeNetwork = NetworkTargetingExtension.SHARED_BLOCK_NODE_NETWORK.get();
+        if (blockNodeNetwork == null) {
+            return List.of();
+        }
+        // Any simulator exists
+        return blockNodeNetwork.getSimulatedBlockNodeById().values().stream()
+                .findFirst()
+                .map(sim -> {
+                    final var blocks = sim.getCapturedBlocks();
+                    log.info("Read {} blocks from simulator", blocks.size());
+                    return blocks;
+                })
+                .orElse(List.of());
     }
 
     private static Optional<StreamFileAccess.RecordStreamData> readMaybeRecordStreamDataFor(
@@ -216,8 +254,20 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
         return Optional.ofNullable(data);
     }
 
-    private static void validateProofs(@NonNull final HapiSpec spec) {
+    /**
+     * Validates, when a block node simulator is active, that the simulator reports having
+     * received a proof for every block produced by the consensus node (as evidenced by
+     * the presence of a corresponding on-disk marker file). If no simulator is active,
+     * this validation is skipped.
+     */
+    private static void validateSimulatorProofReceipts(@NonNull final HapiSpec spec) {
+        final var blockNodeNetwork = NetworkTargetingExtension.SHARED_BLOCK_NODE_NETWORK.get();
+        if (blockNodeNetwork == null || blockNodeNetwork.getSimulatedBlockNodeById().isEmpty()) {
+            log.info("Skipping block proof validation: no block node simulator active");
+            return;
+        }
         log.info("Beginning block proof validation for each node in the network");
+        final var verifiedBlockNumbersAll = getAllVerifiedBlockNumbers(spec);
         spec.getNetworkNodes().forEach(node -> {
             try {
                 // Get all marker file numbers
@@ -229,15 +279,12 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
                     Assertions.fail(String.format("No marker files found for node %d", nodeId));
                 }
 
-                // Get verified block numbers from the simulator
-                final var verifiedBlockNumbers = getVerifiedBlockNumbers(spec, nodeId);
-
-                if (verifiedBlockNumbers.isEmpty()) {
+                if (verifiedBlockNumbersAll.isEmpty()) {
                     Assertions.fail(String.format("No verified blocks by block node simulator for node %d", nodeId));
                 }
 
                 for (final var markerFile : markerFileNumbers) {
-                    if (!verifiedBlockNumbers.contains(markerFile)) {
+                    if (!verifiedBlockNumbersAll.contains(markerFile)) {
                         Assertions.fail(String.format(
                                 "Marker file for block {%d} on node %d is not verified by the respective block node simulator",
                                 markerFile, nodeId));
@@ -251,22 +298,16 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
         log.info("Block proofs validation completed successfully");
     }
 
-    private static Set<Long> getVerifiedBlockNumbers(@NonNull final HapiSpec spec, final long nodeId) {
-        final var simulatedBlockNode = spec.getSimulatedBlockNodeById(nodeId);
-
-        if (simulatedBlockNode.hasEverBeenShutdown()) {
-            // Check whether other simulated block nodes have verified this block
-            return spec.getBlockNodeNetworkIds().stream()
-                    .filter(blockNodeId -> blockNodeId != nodeId)
-                    .map(blockNodeId ->
-                            spec.getSimulatedBlockNodeById(blockNodeId).getReceivedBlockNumbers())
-                    .reduce(new HashSet<>(), (acc, blockNumbers) -> {
-                        acc.addAll(blockNumbers);
-                        acc.addAll(simulatedBlockNode.getReceivedBlockNumbers());
-                        return acc;
-                    });
-        } else {
-            return simulatedBlockNode.getReceivedBlockNumbers();
+    private static Set<Long> getAllVerifiedBlockNumbers(@NonNull final HapiSpec spec) {
+        final var blockNodeNetwork = NetworkTargetingExtension.SHARED_BLOCK_NODE_NETWORK.get();
+        if (blockNodeNetwork == null) {
+            return Set.of();
         }
+        return blockNodeNetwork.getSimulatedBlockNodeById().values().stream()
+                .map(SimulatedBlockNodeServer::getReceivedBlockNumbers)
+                .reduce(new HashSet<>(), (acc, nums) -> {
+                    acc.addAll(nums);
+                    return acc;
+                });
     }
 }
