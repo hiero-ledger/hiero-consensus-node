@@ -9,9 +9,9 @@ import static com.hedera.services.bdd.suites.HapiSuite.FUNDING;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 
 import com.hedera.node.app.blocks.impl.streaming.FileBlockItemWriter;
-import com.hedera.services.bdd.junit.support.BlockStreamAccess;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.utilops.UtilOp;
+import com.swirlds.platform.blockstream.BlockStreamUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -125,7 +125,7 @@ public class HapiSpecWaitUntilNextBlock extends UtilOp {
     private long findLatestBlockNumber(Path blockDir) throws IOException {
         try (Stream<Path> files = Files.walk(blockDir)) {
             return files.filter(this::isBlockFile)
-                    .map(BlockStreamAccess::extractBlockNumber)
+                    .map(BlockStreamUtils::extractBlockNumber)
                     .filter(num -> num >= 0)
                     .max(Long::compareTo)
                     .orElse(-1L);

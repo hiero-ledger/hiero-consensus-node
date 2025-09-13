@@ -16,7 +16,6 @@ import com.hedera.node.app.hapi.utils.forensics.DifferingEntries;
 import com.hedera.node.app.hapi.utils.forensics.RecordStreamEntry;
 import com.hedera.node.app.hapi.utils.forensics.TransactionParts;
 import com.hedera.node.app.state.SingleTransactionRecord;
-import com.hedera.services.bdd.junit.support.BlockStreamAccess;
 import com.hedera.services.bdd.junit.support.BlockStreamValidator;
 import com.hedera.services.bdd.junit.support.StreamFileAccess;
 import com.hedera.services.bdd.junit.support.translators.BlockTransactionalUnitTranslator;
@@ -26,6 +25,7 @@ import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.utils.RcDiff;
 import com.hedera.services.stream.proto.TransactionSidecarRecord;
 import com.hederahashgraph.api.proto.java.Timestamp;
+import com.swirlds.platform.blockstream.BlockStreamUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Paths;
@@ -81,7 +81,7 @@ public class TransactionRecordParityValidator implements BlockStreamValidator {
                 .normalize();
         final var blocksLoc =
                 node0Data.resolve("blockStreams/block-11.12.3").toAbsolutePath().normalize();
-        final var blocks = BlockStreamAccess.BLOCK_STREAM_ACCESS.readBlocks(blocksLoc);
+        final var blocks = BlockStreamUtils.readBlocks(blocksLoc);
         final var recordsLoc = node0Data
                 .resolve("recordStreams/record11.12.3")
                 .toAbsolutePath()
