@@ -22,6 +22,7 @@ import static com.hedera.node.app.spi.validation.Validations.mustExist;
 import static com.hedera.node.app.spi.workflows.DispatchOptions.hookDispatch;
 import static com.hedera.node.app.spi.workflows.HandleException.validateFalse;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
+import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
@@ -54,12 +55,15 @@ import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
+import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.config.data.EntitiesConfig;
 import com.hedera.node.config.data.LedgerConfig;
 import com.hedera.node.config.data.TokensConfig;
 import com.hederahashgraph.api.proto.java.FeeData;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+
+import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
 import javax.inject.Inject;
@@ -118,11 +122,18 @@ public class ContractUpdateHandler implements TransactionHandler {
         if (op.hasAdminKey() && processAdminKey(op)) {
             throw new PreCheckException(INVALID_ADMIN_KEY);
         }
-        if (!op.hookCreationDetails().isEmpty()) {
-            final var hookIds = op.hookCreationDetails().stream()
+        validateHookCreations(op.hookCreationDetails());
+        if (!op.hookIdsToDelete().isEmpty()) {
+            validateTruePreCheck(op.hookIdsToDelete().stream().distinct().count() == op.hookIdsToDelete().size(),
+                    HOOK_ID_REPEATED_IN_CREATION_DETAILS);
+        }
+    }
+    static void validateHookCreations(final List<HookCreationDetails> details) throws PreCheckException {
+        if (!details.isEmpty()) {
+            final var hookIds = details.stream()
                     .map(HookCreationDetails::hookId)
                     .collect(Collectors.toSet());
-            if (hookIds.size() != op.hookCreationDetails().size()) {
+            if (hookIds.size() != details.size()) {
                 throw new PreCheckException(HOOK_ID_REPEATED_IN_CREATION_DETAILS);
             }
         }
@@ -394,7 +405,7 @@ public class ContractUpdateHandler implements TransactionHandler {
             if (nextId != null) {
                 creation.nextHookId(nextId);
             }
-            dispatchCreation(context, creation.build(), ContractUpdateStreamBuilder.class);
+            dispatchCreation(context, creation.build());
             nextId = d.hookId();
         }
     }
@@ -410,7 +421,7 @@ public class ContractUpdateHandler implements TransactionHandler {
             final var streamBuilder = context.dispatch(hookDispatch(
                     context.payer(),
                     TransactionBody.newBuilder().hookDispatch(hookDispatch).build(),
-                    ContractUpdateStreamBuilder.class));
+                    StreamBuilder.class));
             validateTrue(streamBuilder.status() == SUCCESS, streamBuilder.status());
         }
     }

@@ -5,6 +5,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.ACCOUNT_DELETED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.ACCOUNT_EXPIRED_AND_PENDING_REMOVAL;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.ACCOUNT_ID_DOES_NOT_EXIST;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.EXISTING_AUTOMATIC_ASSOCIATIONS_EXCEED_GIVEN_LIMIT;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOK_ID_REPEATED_IN_CREATION_DETAILS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ADMIN_KEY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_MAX_AUTO_ASSOCIATIONS;
@@ -39,6 +40,7 @@ import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.hooks.HookCreation;
+import com.hedera.hapi.node.hooks.HookCreationDetails;
 import com.hedera.hapi.node.hooks.HookDispatchTransactionBody;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.token.CryptoUpdateTransactionBody;
@@ -73,6 +75,8 @@ import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.charset.StandardCharsets;
+import java.util.HashSet;
+import java.util.stream.Collectors;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 
@@ -102,6 +106,19 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
         validateFalsePreCheck(
                 op.hasProxyAccountID() && !op.proxyAccountID().equals(AccountID.DEFAULT),
                 PROXY_ACCOUNT_ID_FIELD_IS_DEPRECATED);
+        if (!op.hookCreationDetails().isEmpty()) {
+            final var hookIds = op.hookCreationDetails().stream()
+                    .map(HookCreationDetails::hookId)
+                    .collect(Collectors.toSet());
+            if (hookIds.size() != op.hookCreationDetails().size()) {
+                throw new PreCheckException(HOOK_ID_REPEATED_IN_CREATION_DETAILS);
+            }
+        }
+        if(!op.hookIdsToDelete().isEmpty()){
+            final var distinctHookIds = op.hookIdsToDelete().stream().distinct().count();
+            validateTruePreCheck( distinctHookIds == op.hookIdsToDelete().size(),
+                    HOOK_ID_REPEATED_IN_CREATION_DETAILS);
+        }
     }
 
     @Override
@@ -147,7 +164,6 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
 
         // validate update account exists
         final var accountStore = context.storeFactory().writableStore(WritableAccountStore.class);
-        final var hookStore = context.storeFactory().readableStore(ReadableEvmHookStore.class);
         final var targetAccount =
                 TokenHandlerHelper.getIfUsable(target, accountStore, context.expiryValidator(), INVALID_ACCOUNT_ID);
         context.attributeValidator().validateMemo(op.memo());
@@ -164,18 +180,32 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
         if (targetAccount.expiredAndPendingRemoval()) {
             builder.expiredAndPendingRemoval(false);
         }
+        updateHooks(context, targetAccount, op, builder);
+
+        // Add account to the modifications in state
+        accountStore.put(builder.build());
+        context.savepointStack()
+                .getBaseBuilder(CryptoUpdateStreamBuilder.class)
+                .accountID(targetAccount.accountIdOrThrow());
+    }
+
+    private void updateHooks(final @NonNull HandleContext context,
+                             final Account targetAccount,
+                             final CryptoUpdateTransactionBody op,
+                             final Account.Builder builder) {
+        final var hookStore = context.storeFactory().readableStore(ReadableEvmHookStore.class);
+
         // compute head after deletes
         long headAfterDeletes = targetAccount.firstHookId();
         // Dispatch all the hooks to delete
         if (!op.hookIdsToDelete().isEmpty()) {
-            final var owner =
-                    HookEntityId.newBuilder().accountId(op.accountIDToUpdate()).build();
-            final var toDelete = new java.util.HashSet<>(op.hookIdsToDelete());
+            final var owner = HookEntityId.newBuilder().accountId(op.accountIDToUpdate()).build();
+            final var toDelete = new HashSet<>(op.hookIdsToDelete());
+            // skip over any deleted hooks to find the new head
             while (headAfterDeletes != 0 && toDelete.contains(headAfterDeletes)) {
                 final var state = hookStore.getEvmHook(new HookId(owner, headAfterDeletes));
                 headAfterDeletes = (state != null && state.nextHookId() != null) ? state.nextHookId() : 0L;
             }
-            // store will fix predecessor links for deleted hooks
             dispatchHookDeletions(context, op);
         }
         if (!op.hookCreationDetails().isEmpty()) {
@@ -184,12 +214,6 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
         } else if (!op.hookIdsToDelete().isEmpty()) {
             builder.firstHookId(headAfterDeletes);
         }
-
-        // Add account to the modifications in state
-        accountStore.put(builder.build());
-        context.savepointStack()
-                .getBaseBuilder(CryptoUpdateStreamBuilder.class)
-                .accountID(targetAccount.accountIdOrThrow());
     }
 
     private void dispatchHookCreations(
@@ -210,7 +234,8 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
         }
     }
 
-    private void dispatchHookDeletions(final @NonNull HandleContext context, final CryptoUpdateTransactionBody op) {
+    private void dispatchHookDeletions(final @NonNull HandleContext context,
+                                       final CryptoUpdateTransactionBody op) {
         final var hooksToDelete = op.hookIdsToDelete();
         for (final var hookId : hooksToDelete) {
             final var hookDispatch = HookDispatchTransactionBody.newBuilder()

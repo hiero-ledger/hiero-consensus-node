@@ -6,6 +6,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOK_ID_REPEATED_IN_CRE
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_GAS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_AUTORENEW_ACCOUNT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
+import static com.hedera.node.app.service.contract.impl.handlers.ContractUpdateHandler.validateHookCreations;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.throwIfUnsuccessfulCreate;
 import static com.hedera.node.app.spi.workflows.DispatchOptions.hookDispatch;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
@@ -13,6 +14,7 @@ import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePr
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.HookEntityId;
 import com.hedera.hapi.node.hooks.HookCreation;
@@ -22,6 +24,7 @@ import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.hapi.utils.fee.SigValueObj;
 import com.hedera.node.app.hapi.utils.fee.SmartContractFeeBuilder;
 import com.hedera.node.app.service.contract.impl.ContractServiceComponent;
+import com.hedera.node.app.service.contract.impl.exec.CallOutcome;
 import com.hedera.node.app.service.contract.impl.exec.TransactionComponent;
 import com.hedera.node.app.service.contract.impl.records.ContractCreateStreamBuilder;
 import com.hedera.node.app.service.token.ReadableAccountStore;
@@ -31,6 +34,7 @@ import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
+import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hederahashgraph.api.proto.java.FeeData;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
@@ -67,9 +71,6 @@ public class ContractCreateHandler extends AbstractContractTransactionHandler {
     public void handle(@NonNull final HandleContext context) throws HandleException {
         // Create the transaction-scoped component
         final var component = getTransactionComponent(context, CONTRACT_CREATE);
-
-        final var op = context.body().contractCreateInstanceOrThrow();
-
         // Run its in-scope transaction and get the outcome
         final var outcome = component.contextTransactionProcessor().call();
 
@@ -79,19 +80,7 @@ public class ContractCreateHandler extends AbstractContractTransactionHandler {
 
         throwIfUnsuccessfulCreate(outcome, component.hederaOperations());
 
-        if (!op.hookCreationDetails().isEmpty()) {
-            final var accountStore = context.storeFactory().readableStore(ReadableAccountStore.class);
-            final var created = accountStore.getContractById(requireNonNull(outcome.recipientIdIfCreated()));
-
-            dispatchHookCreations(
-                    context, op.hookCreationDetails(), requireNonNull(created).accountId());
-
-            final var updated = created.copyBuilder()
-                    .firstHookId(op.hookCreationDetails().getFirst().hookId())
-                    .numberHooksInUse(op.hookCreationDetails().size())
-                    .build();
-            context.storeFactory().serviceApi(TokenServiceApi.class).updateContract(updated);
-        }
+        createHooksIfAny(context, requireNonNull(outcome.recipientIdIfCreated()));
     }
 
     @Override
@@ -103,14 +92,7 @@ public class ContractCreateHandler extends AbstractContractTransactionHandler {
 
             final var intrinsicGas = gasCalculator.transactionIntrinsicGasCost(Bytes.wrap(new byte[0]), true);
             validateTruePreCheck(op.gas() >= intrinsicGas, INSUFFICIENT_GAS);
-            if (!op.hookCreationDetails().isEmpty()) {
-                final var hookIds = op.hookCreationDetails().stream()
-                        .map(HookCreationDetails::hookId)
-                        .collect(Collectors.toSet());
-                if (hookIds.size() != op.hookCreationDetails().size()) {
-                    throw new PreCheckException(HOOK_ID_REPEATED_IN_CREATION_DETAILS);
-                }
-            }
+            validateHookCreations(op.hookCreationDetails());
         } catch (@NonNull final Exception e) {
             bumpExceptionMetrics(CONTRACT_CREATE, e);
             throw e;
@@ -150,8 +132,34 @@ public class ContractCreateHandler extends AbstractContractTransactionHandler {
         return usageEstimator.getContractCreateTxFeeMatrices(txBody, sigValObj);
     }
 
-    private void dispatchHookCreations(
-            final @NonNull HandleContext context, final List<HookCreationDetails> hookDetails, final AccountID owner) {
+    /**
+     * If there are any hooks to create, creates them and updates the created contract to point to the first hook.
+     * @param context the handle context
+     * @param owner the created contract ID
+     */
+    private void createHooksIfAny(final @NonNull HandleContext context, final ContractID owner) {
+        final var op = context.body().contractCreateInstanceOrThrow();
+        if (!op.hookCreationDetails().isEmpty()) {
+            final var accountStore = context.storeFactory().readableStore(ReadableAccountStore.class);
+            final var created = requireNonNull(accountStore.getContractById(owner));
+
+            dispatchHookCreations(context, op.hookCreationDetails(),created.accountId());
+
+            final var updated = created.copyBuilder()
+                    .firstHookId(op.hookCreationDetails().getFirst().hookId())
+                    .numberHooksInUse(op.hookCreationDetails().size())
+                    .build();
+            context.storeFactory().serviceApi(TokenServiceApi.class).updateContract(updated);
+        }
+    }
+
+    /**
+     * Dispatches the hook creations in reverse order, so that the "next" pointers can be set correctly.
+     * @param context the handle context
+     * @param hookDetails the hook creation details
+     * @param owner the owner of the hooks (the created contract)
+     */
+    private void dispatchHookCreations(final @NonNull HandleContext context, final List<HookCreationDetails> hookDetails, final AccountID owner) {
         // empty list case or first insert into empty list
         Long nextId = null;
         for (int i = hookDetails.size() - 1; i >= 0; i--) {
@@ -162,8 +170,7 @@ public class ContractCreateHandler extends AbstractContractTransactionHandler {
             if (nextId != null) {
                 creation.nextHookId(nextId);
             }
-            dispatchCreation(context, creation.build(), ContractCreateStreamBuilder.class);
-            // This one becomes "next" for the previous node in the loop
+            dispatchCreation(context, creation.build());
             nextId = detail.hookId();
         }
     }
@@ -173,13 +180,13 @@ public class ContractCreateHandler extends AbstractContractTransactionHandler {
      * @param creation the hook creation to dispatch
      */
     static void dispatchCreation(
-            final @NonNull HandleContext context, final HookCreation creation, Class builderClass) {
+            final @NonNull HandleContext context, final HookCreation creation) {
         final var hookDispatch =
                 HookDispatchTransactionBody.newBuilder().creation(creation).build();
         final var streamBuilder = context.dispatch(hookDispatch(
                 context.payer(),
                 TransactionBody.newBuilder().hookDispatch(hookDispatch).build(),
-                builderClass));
+                StreamBuilder.class));
         validateTrue(streamBuilder.status() == SUCCESS, streamBuilder.status());
     }
 }

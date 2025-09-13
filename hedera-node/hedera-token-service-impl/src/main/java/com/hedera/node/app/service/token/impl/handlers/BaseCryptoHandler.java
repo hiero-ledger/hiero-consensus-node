@@ -81,17 +81,4 @@ public class BaseCryptoHandler {
                 CryptoTransferStreamBuilder.class));
         validateTrue(streamBuilder.status() == SUCCESS, streamBuilder.status());
     }
-
-    /**
-     * Validates that the given bytes are a valid "word" (i.e. a 32-byte value) for use in a lambda storage update.
-     * Specifically, it checks that the length is at most 32 bytes, and that it is in its minimal representation
-     * (i.e. no leading zeros).
-     * @param bytes the bytes to validate
-     * @throws PreCheckException if the bytes are not a valid word
-     */
-    private void validateWord(@NonNull final Bytes bytes) throws PreCheckException {
-        validateTruePreCheck(bytes.length() <= MAX_UPDATE_BYTES_LEN, HOOK_CREATION_BYTES_TOO_LONG);
-        final var minimalBytes = minimalRepresentationOf(bytes);
-        validateTruePreCheck(bytes.equals(minimalBytes), HOOK_CREATION_BYTES_MUST_USE_MINIMAL_REPRESENTATION);
-    }
 }

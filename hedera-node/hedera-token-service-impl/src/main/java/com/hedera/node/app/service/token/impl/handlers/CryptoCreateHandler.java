@@ -323,7 +323,9 @@ public class CryptoCreateHandler extends BaseCryptoHandler implements Transactio
     }
 
     private void dispatchHookCreations(
-            final @NonNull HandleContext context, final List<HookCreationDetails> hookDetails, final AccountID owner) {
+            final @NonNull HandleContext context,
+            final List<HookCreationDetails> hookDetails,
+            final AccountID owner) {
         // empty list case or first insert into empty list
         Long nextId = null;
         for (int i = hookDetails.size() - 1; i >= 0; i--) {
@@ -335,7 +337,6 @@ public class CryptoCreateHandler extends BaseCryptoHandler implements Transactio
                 creation.nextHookId(nextId);
             }
             dispatchCreation(context, creation.build());
-            // This one becomes "next" for the previous node in the loop
             nextId = detail.hookId();
         }
     }
