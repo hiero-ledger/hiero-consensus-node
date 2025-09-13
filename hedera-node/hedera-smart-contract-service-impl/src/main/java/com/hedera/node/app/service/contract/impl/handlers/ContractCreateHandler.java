@@ -2,6 +2,7 @@
 package com.hedera.node.app.service.contract.impl.handlers;
 
 import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CREATE;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOK_ID_REPEATED_IN_CREATION_DETAILS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_GAS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_AUTORENEW_ACCOUNT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
@@ -13,7 +14,6 @@ import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePr
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
-import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.HookEntityId;
 import com.hedera.hapi.node.hooks.HookCreation;
@@ -38,6 +38,7 @@ import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hederahashgraph.api.proto.java.FeeData;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
+import java.util.stream.Collectors;
 import javax.inject.Inject;
 import javax.inject.Provider;
 import javax.inject.Singleton;
@@ -75,11 +76,6 @@ public class ContractCreateHandler extends AbstractContractTransactionHandler {
         final var component = getTransactionComponent(context, CONTRACT_CREATE);
 
         final var op = context.body().contractCreateInstanceOrThrow();
-        ContractID predictedId = null;
-        if (!op.hookCreationDetails().isEmpty()) {
-            predictedId =
-                    entityIdFactory.newContractId(context.entityNumGenerator().peekAtNewEntityNum());
-        }
 
         // Run its in-scope transaction and get the outcome
         final var outcome = component.contextTransactionProcessor().call();
@@ -92,7 +88,7 @@ public class ContractCreateHandler extends AbstractContractTransactionHandler {
 
         if (!op.hookCreationDetails().isEmpty()) {
             final var accountStore = context.storeFactory().readableStore(ReadableAccountStore.class);
-            final var created = accountStore.getContractById(requireNonNull(predictedId));
+            final var created = accountStore.getContractById(requireNonNull(outcome.recipientIdIfCreated()));
 
             dispatchHookCreations(
                     context, op.hookCreationDetails(), requireNonNull(created).accountId());
@@ -114,6 +110,14 @@ public class ContractCreateHandler extends AbstractContractTransactionHandler {
 
             final var intrinsicGas = gasCalculator.transactionIntrinsicGasCost(Bytes.wrap(new byte[0]), true);
             validateTruePreCheck(op.gas() >= intrinsicGas, INSUFFICIENT_GAS);
+            if (!op.hookCreationDetails().isEmpty()) {
+                final var hookIds = op.hookCreationDetails().stream()
+                        .map(HookCreationDetails::hookId)
+                        .collect(Collectors.toSet());
+                if (hookIds.size() != op.hookCreationDetails().size()) {
+                    throw new PreCheckException(HOOK_ID_REPEATED_IN_CREATION_DETAILS);
+                }
+            }
         } catch (@NonNull final Exception e) {
             bumpExceptionMetrics(CONTRACT_CREATE, e);
             throw e;

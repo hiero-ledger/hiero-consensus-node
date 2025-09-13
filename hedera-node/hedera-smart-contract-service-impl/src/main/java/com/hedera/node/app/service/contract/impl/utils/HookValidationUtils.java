@@ -24,20 +24,6 @@ import java.util.List;
 
 public class HookValidationUtils {
 
-    /**
-     * Validates the hook creation details in a {@link CryptoCreateTransactionBody} and {@link CryptoUpdateTransactionBody}
-     * @param details the hook creation details to validate
-     * @throws PreCheckException if any validation fails
-     */
-    public static void validateHookPureChecks(final List<HookCreationDetails> details) throws PreCheckException {
-        final var hookIdsSeen = new HashSet<Long>();
-        for (final var hook : details) {
-            // No duplicate hook ids are allowed inside one txn
-            validateTruePreCheck(hookIdsSeen.add(hook.hookId()), HOOK_ID_REPEATED_IN_CREATION_DETAILS);
-            validateHook(hook);
-        }
-    }
-
     public static void validateHook(final HookCreationDetails hook) throws PreCheckException {
         validateTruePreCheck(hook.hookId() != 0L, INVALID_HOOK_ID);
         validateTruePreCheck(hook.extensionPoint() != null, HOOK_EXTENSION_EMPTY);
@@ -62,6 +48,7 @@ public class HookValidationUtils {
                     if (e.hasKey()) {
                         validateWord(e.keyOrThrow());
                     }
+                    validateWord(e.value());
                 }
             }
         }

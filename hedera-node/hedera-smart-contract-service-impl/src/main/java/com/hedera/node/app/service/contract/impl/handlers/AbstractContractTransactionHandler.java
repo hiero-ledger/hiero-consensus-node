@@ -19,7 +19,6 @@ import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
 import com.hederahashgraph.api.proto.java.FeeData;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.List;
 import javax.inject.Provider;
 import org.hyperledger.besu.evm.gascalculator.GasCalculator;
 
@@ -83,6 +82,4 @@ public abstract class AbstractContractTransactionHandler implements TransactionH
             @NonNull final HandleContext context, @NonNull final HederaFunctionality functionality) {
         return provider.get().create(context, functionality);
     }
-
-    protected record HookSummary(long initialLambdaSlots, List<Long> creationHookIds) {}
 }

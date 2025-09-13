@@ -4,6 +4,7 @@ package com.hedera.node.app.service.contract.impl.handlers;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CONTRACT_EXPIRED_AND_PENDING_REMOVAL;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.EXISTING_AUTOMATIC_ASSOCIATIONS_EXCEED_GIVEN_LIMIT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.EXPIRATION_REDUCTION_NOT_ALLOWED;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOK_ID_REPEATED_IN_CREATION_DETAILS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ADMIN_KEY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_AUTORENEW_ACCOUNT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_CONTRACT_ID;
@@ -14,7 +15,6 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.hapi.util.HapiUtils.EMPTY_KEY_LIST;
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
 import static com.hedera.node.app.service.contract.impl.handlers.ContractCreateHandler.dispatchCreation;
-import static com.hedera.node.app.service.contract.impl.utils.HookValidationUtils.validateHookPureChecks;
 import static com.hedera.node.app.service.token.api.AccountSummariesApi.SENTINEL_ACCOUNT_ID;
 import static com.hedera.node.app.spi.fees.Fees.CONSTANT_FEE_DATA;
 import static com.hedera.node.app.spi.validation.ExpiryMeta.NA;
@@ -34,6 +34,7 @@ import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.contract.ContractUpdateTransactionBody;
 import com.hedera.hapi.node.hooks.HookCreation;
+import com.hedera.hapi.node.hooks.HookCreationDetails;
 import com.hedera.hapi.node.hooks.HookDispatchTransactionBody;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.transaction.TransactionBody;
@@ -63,6 +64,7 @@ import com.hederahashgraph.api.proto.java.FeeData;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Optional;
+import java.util.stream.Collectors;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 
@@ -120,7 +122,12 @@ public class ContractUpdateHandler implements TransactionHandler {
             throw new PreCheckException(INVALID_ADMIN_KEY);
         }
         if (!op.hookCreationDetails().isEmpty()) {
-            validateHookPureChecks(op.hookCreationDetails());
+            final var hookIds = op.hookCreationDetails().stream()
+                    .map(HookCreationDetails::hookId)
+                    .collect(Collectors.toSet());
+            if (hookIds.size() != op.hookCreationDetails().size()) {
+                throw new PreCheckException(HOOK_ID_REPEATED_IN_CREATION_DETAILS);
+            }
         }
     }
 
@@ -170,7 +177,8 @@ public class ContractUpdateHandler implements TransactionHandler {
             final var owner = HookEntityId.newBuilder()
                     .accountId(originalAccount.accountId())
                     .build();
-            if (op.hookIdsToDelete().contains(headAfterDeletes)) {
+            final var toDelete = new java.util.HashSet<>(op.hookIdsToDelete());
+            while (headAfterDeletes != 0 && toDelete.contains(headAfterDeletes)) {
                 final var state = hookStore.getEvmHook(new HookId(owner, headAfterDeletes));
                 headAfterDeletes = (state != null && state.nextHookId() != null) ? state.nextHookId() : 0L;
             }
@@ -182,6 +190,12 @@ public class ContractUpdateHandler implements TransactionHandler {
             builder.firstHookId(op.hookCreationDetails().getFirst().hookId());
         } else if (!op.hookIdsToDelete().isEmpty()) {
             builder.firstHookId(headAfterDeletes);
+        }
+        if (!op.hookCreationDetails().isEmpty() || !op.hookIdsToDelete().isEmpty()) {
+            final var current = originalAccount.numberHooksInUse();
+            builder.numberHooksInUse(current
+                    - op.hookIdsToDelete().size()
+                    + op.hookCreationDetails().size());
         }
     }
 

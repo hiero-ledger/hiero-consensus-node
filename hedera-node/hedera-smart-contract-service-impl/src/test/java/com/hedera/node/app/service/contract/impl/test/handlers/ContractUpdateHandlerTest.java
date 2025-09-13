@@ -39,6 +39,10 @@ import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.contract.ContractUpdateTransactionBody;
+import com.hedera.hapi.node.hooks.EvmHookSpec;
+import com.hedera.hapi.node.hooks.HookCreationDetails;
+import com.hedera.hapi.node.hooks.HookExtensionPoint;
+import com.hedera.hapi.node.hooks.LambdaEvmHook;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.state.token.Account.Builder;
 import com.hedera.hapi.node.transaction.TransactionBody;
@@ -698,6 +702,7 @@ class ContractUpdateHandlerTest extends ContractHandlerTestBase {
                 .declineReward(true)
                 .autoRenewAccountId(AccountID.newBuilder().accountNum(10))
                 .maxAutomaticTokenAssociations(10)
+                .hookCreationDetails(hookDetails(1), hookDetails(2))
                 .build();
 
         final var updatedContract = subject.update(contractAccount, context, op);
@@ -712,6 +717,8 @@ class ContractUpdateHandlerTest extends ContractHandlerTestBase {
         assertTrue(updatedContract.build().declineReward());
         assertEquals(op.autoRenewAccountId(), updatedContract.build().autoRenewAccountId());
         assertEquals(op.maxAutomaticTokenAssociations(), updatedContract.build().maxAutoAssociations());
+        assertEquals(2, updatedContract.build().numberHooksInUse());
+        assertEquals(1, updatedContract.build().firstHookId());
         verify(attributeValidator, times(1)).validateMemo(op.memo());
     }
 
@@ -745,5 +752,48 @@ class ContractUpdateHandlerTest extends ContractHandlerTestBase {
                 .assertValidStakingElectionForUpdate(anyBoolean(), any(), any(), any(), any(), any());
         verify(tokenServiceApi, times(1)).updateContract(any());
         verify(recordBuilder, times(1)).contractID(any());
+    }
+
+    @Test
+    void creationSetsNewHeadAndCount() {
+        doReturn(attributeValidator).when(context).attributeValidator();
+        when(accountStore.getContractById(targetContractWithEvmAddress)).thenReturn(contract);
+        when(contract.accountIdOrThrow())
+                .thenReturn(AccountID.newBuilder().accountNum(999L).build());
+        when(contract.key()).thenReturn(Key.newBuilder().build());
+        when(context.expiryValidator()).thenReturn(expiryValidator);
+        given(context.storeFactory()).willReturn(storeFactory);
+        when(storeFactory.serviceApi(TokenServiceApi.class)).thenReturn(tokenServiceApi);
+        given(storeFactory.readableStore(ReadableAccountStore.class)).willReturn(accountStore);
+        final var txn = TransactionBody.newBuilder()
+                .contractUpdateInstance(ContractUpdateTransactionBody.newBuilder()
+                        .contractID(targetContractWithEvmAddress)
+                        .adminKey(adminKey)
+                        .hookCreationDetails(hookDetails(1), hookDetails(2))
+                        .memo("memo"))
+                .transactionID(transactionID)
+                .build();
+        when(context.body()).thenReturn(txn);
+        when(contract.copyBuilder()).thenReturn(mock(Builder.class));
+        when(context.savepointStack()).thenReturn(stack);
+        when(stack.getBaseBuilder(ContractUpdateStreamBuilder.class)).thenReturn(recordBuilder);
+
+        subject.handle(context);
+
+        verify(expiryValidator, times(1)).resolveUpdateAttempt(any(), any());
+        verify(tokenServiceApi, times(1))
+                .assertValidStakingElectionForUpdate(anyBoolean(), any(), any(), any(), any(), any());
+        verify(tokenServiceApi, times(1)).updateContract(any());
+        verify(recordBuilder, times(1)).contractID(any());
+    }
+
+    private static HookCreationDetails hookDetails(long id) {
+        final var spec = EvmHookSpec.newBuilder().contractId(ContractID.newBuilder().contractNum(321).build()).build();
+        final var lambda = LambdaEvmHook.newBuilder().spec(spec).build();
+        return HookCreationDetails.newBuilder()
+                .hookId(id)
+                .extensionPoint(HookExtensionPoint.ACCOUNT_ALLOWANCE_HOOK)
+                .lambdaEvmHook(lambda)
+                .build();
     }
 }

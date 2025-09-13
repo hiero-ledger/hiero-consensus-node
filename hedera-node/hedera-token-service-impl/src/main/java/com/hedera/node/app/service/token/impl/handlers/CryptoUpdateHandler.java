@@ -170,7 +170,8 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
         if (!op.hookIdsToDelete().isEmpty()) {
             final var owner =
                     HookEntityId.newBuilder().accountId(op.accountIDToUpdate()).build();
-            if (op.hookIdsToDelete().contains(headAfterDeletes)) {
+            final var toDelete = new java.util.HashSet<>(op.hookIdsToDelete());
+            while (headAfterDeletes != 0 && toDelete.contains(headAfterDeletes)) {
                 final var state = hookStore.getEvmHook(new HookId(owner, headAfterDeletes));
                 headAfterDeletes = (state != null && state.nextHookId() != null) ? state.nextHookId() : 0L;
             }
