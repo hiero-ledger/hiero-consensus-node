@@ -7,8 +7,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_GAS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_AUTORENEW_ACCOUNT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.throwIfUnsuccessfulCreate;
-import static com.hedera.node.app.spi.workflows.DispatchOptions.setupDispatch;
-import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.CUSTOM_FEE_CHARGING;
+import static com.hedera.node.app.spi.workflows.DispatchOptions.hookDispatch;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
 import static java.util.Objects.requireNonNull;
@@ -27,14 +26,12 @@ import com.hedera.node.app.service.contract.impl.exec.TransactionComponent;
 import com.hedera.node.app.service.contract.impl.records.ContractCreateStreamBuilder;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.api.TokenServiceApi;
-import com.hedera.node.app.spi.fees.FeeCharging;
-import com.hedera.node.app.spi.ids.EntityIdFactory;
+import com.hedera.node.app.service.token.records.CryptoTransferStreamBuilder;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
-import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hederahashgraph.api.proto.java.FeeData;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
@@ -52,7 +49,6 @@ import org.hyperledger.besu.evm.gascalculator.GasCalculator;
 public class ContractCreateHandler extends AbstractContractTransactionHandler {
     private static final AccountID REMOVE_AUTO_RENEW_ACCOUNT_SENTINEL =
             AccountID.newBuilder().shardNum(0).realmNum(0).accountNum(0).build();
-    private final EntityIdFactory entityIdFactory;
 
     /**
      * Constructs a {@link ContractCreateHandler} with the given {@link Provider} and {@link GasCalculator}.
@@ -64,10 +60,8 @@ public class ContractCreateHandler extends AbstractContractTransactionHandler {
     public ContractCreateHandler(
             @NonNull final Provider<TransactionComponent.Factory> provider,
             @NonNull final GasCalculator gasCalculator,
-            @NonNull final ContractServiceComponent component,
-            @NonNull final EntityIdFactory entityIdFactory) {
+            @NonNull final ContractServiceComponent component) {
         super(provider, gasCalculator, component);
-        this.entityIdFactory = requireNonNull(entityIdFactory);
     }
 
     @Override
@@ -182,13 +176,10 @@ public class ContractCreateHandler extends AbstractContractTransactionHandler {
     static void dispatchCreation(final @NonNull HandleContext context, final HookCreation creation) {
         final var hookDispatch =
                 HookDispatchTransactionBody.newBuilder().creation(creation).build();
-        final var streamBuilder = context.dispatch(setupDispatch(
+        final var streamBuilder = context.dispatch(hookDispatch(
                 context.payer(),
                 TransactionBody.newBuilder().hookDispatch(hookDispatch).build(),
-                StreamBuilder.class,
-                context.dispatchMetadata()
-                        .getMetadata(CUSTOM_FEE_CHARGING, FeeCharging.class)
-                        .orElse(null)));
+                CryptoTransferStreamBuilder.class));
         validateTrue(streamBuilder.status() == SUCCESS, streamBuilder.status());
     }
 }

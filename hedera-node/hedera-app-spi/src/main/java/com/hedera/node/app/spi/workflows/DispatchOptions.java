@@ -5,6 +5,7 @@ import static com.hedera.node.app.spi.fees.NoopFeeCharging.NOOP_FEE_CHARGING;
 import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.EMPTY_METADATA;
 import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.CUSTOM_FEE_CHARGING;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.SignedTxCustomizer.NOOP_SIGNED_TX_CUSTOMIZER;
+import static com.hedera.node.app.spi.workflows.record.StreamBuilder.SignedTxCustomizer.SUPPRESSING_SIGNED_TX_CUSTOMIZER;
 import static java.util.Collections.emptySet;
 import static java.util.Objects.requireNonNull;
 
@@ -377,5 +378,12 @@ public record DispatchOptions<T extends StreamBuilder>(
                 NOOP_SIGNED_TX_CUSTOMIZER,
                 innerTransactionBytes,
                 customFeeCharging);
+    }
+
+    public static <T extends StreamBuilder> DispatchOptions<T> hookDispatch(
+            @NonNull final AccountID payerId,
+            @NonNull final TransactionBody body,
+            @NonNull final Class<T> streamBuilderType) {
+        return stepDispatch(payerId, body, streamBuilderType, SUPPRESSING_SIGNED_TX_CUSTOMIZER);
     }
 }

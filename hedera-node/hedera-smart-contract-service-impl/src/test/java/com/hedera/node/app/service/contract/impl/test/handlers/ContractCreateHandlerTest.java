@@ -38,9 +38,7 @@ import com.hedera.node.app.service.contract.impl.state.RootProxyWorldUpdater;
 import com.hedera.node.app.spi.fees.FeeCalculator;
 import com.hedera.node.app.spi.fees.FeeCalculatorFactory;
 import com.hedera.node.app.spi.fees.FeeContext;
-import com.hedera.node.app.spi.fixtures.ids.FakeEntityIdFactoryImpl;
 import com.hedera.node.app.spi.fixtures.workflows.FakePreHandleContext;
-import com.hedera.node.app.spi.ids.EntityIdFactory;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
@@ -100,8 +98,6 @@ class ContractCreateHandlerTest extends ContractHandlerTestBase {
     @Mock
     private ContractsConfig contractsConfig;
 
-    private EntityIdFactory entityIdFactory = new FakeEntityIdFactoryImpl(0, 0);
-
     private final SystemContractMethodRegistry systemContractMethodRegistry = new SystemContractMethodRegistry();
 
     private final Metrics metrics = new NoOpMetrics();
@@ -114,7 +110,7 @@ class ContractCreateHandlerTest extends ContractHandlerTestBase {
     void setUp() {
         contractMetrics.createContractPrimaryMetrics();
         given(contractServiceComponent.contractMetrics()).willReturn(contractMetrics);
-        subject = new ContractCreateHandler(() -> factory, gasCalculator, contractServiceComponent, entityIdFactory);
+        subject = new ContractCreateHandler(() -> factory, gasCalculator, contractServiceComponent);
     }
 
     @Test

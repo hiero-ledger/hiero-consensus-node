@@ -5,8 +5,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOK_CREATION_BYTES_MUS
 import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOK_CREATION_BYTES_TOO_LONG;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.hapi.utils.contracts.HookUtils.minimalRepresentationOf;
-import static com.hedera.node.app.spi.workflows.DispatchOptions.setupDispatch;
-import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.CUSTOM_FEE_CHARGING;
+import static com.hedera.node.app.spi.workflows.DispatchOptions.hookDispatch;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
 
@@ -14,10 +13,9 @@ import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.hooks.HookCreation;
 import com.hedera.hapi.node.hooks.HookDispatchTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
-import com.hedera.node.app.spi.fees.FeeCharging;
+import com.hedera.node.app.service.token.records.CryptoTransferStreamBuilder;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.PreCheckException;
-import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.config.data.AccountsConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
@@ -77,13 +75,10 @@ public class BaseCryptoHandler {
     protected void dispatchCreation(final @NonNull HandleContext context, final HookCreation creation) {
         final var hookDispatch =
                 HookDispatchTransactionBody.newBuilder().creation(creation).build();
-        final var streamBuilder = context.dispatch(setupDispatch(
+        final var streamBuilder = context.dispatch(hookDispatch(
                 context.payer(),
                 TransactionBody.newBuilder().hookDispatch(hookDispatch).build(),
-                StreamBuilder.class,
-                context.dispatchMetadata()
-                        .getMetadata(CUSTOM_FEE_CHARGING, FeeCharging.class)
-                        .orElse(null)));
+                CryptoTransferStreamBuilder.class));
         validateTrue(streamBuilder.status() == SUCCESS, streamBuilder.status());
     }
 

@@ -19,8 +19,7 @@ import static com.hedera.node.app.service.token.api.AccountSummariesApi.SENTINEL
 import static com.hedera.node.app.spi.fees.Fees.CONSTANT_FEE_DATA;
 import static com.hedera.node.app.spi.validation.ExpiryMeta.NA;
 import static com.hedera.node.app.spi.validation.Validations.mustExist;
-import static com.hedera.node.app.spi.workflows.DispatchOptions.setupDispatch;
-import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.CUSTOM_FEE_CHARGING;
+import static com.hedera.node.app.spi.workflows.DispatchOptions.hookDispatch;
 import static com.hedera.node.app.spi.workflows.HandleException.validateFalse;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static java.util.Objects.requireNonNull;
@@ -45,7 +44,7 @@ import com.hedera.node.app.service.contract.impl.records.ContractUpdateStreamBui
 import com.hedera.node.app.service.contract.impl.state.WritableEvmHookStore;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.api.TokenServiceApi;
-import com.hedera.node.app.spi.fees.FeeCharging;
+import com.hedera.node.app.service.token.records.CryptoTransferStreamBuilder;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.ids.EntityIdFactory;
@@ -56,7 +55,6 @@ import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
-import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.config.data.EntitiesConfig;
 import com.hedera.node.config.data.LedgerConfig;
 import com.hedera.node.config.data.TokensConfig;
@@ -156,8 +154,7 @@ public class ContractUpdateHandler implements TransactionHandler {
         validateSemantics(toBeUpdated, context, op, accountStore);
 
         final var changed = update(requireNonNull(toBeUpdated), context, op);
-        updateHooks(context, op, changed, toBeUpdated);
-        context.storeFactory().serviceApi(TokenServiceApi.class).updateContract(changed.build());
+        context.storeFactory().serviceApi(TokenServiceApi.class).updateContract(changed);
         context.savepointStack()
                 .getBaseBuilder(ContractUpdateStreamBuilder.class)
                 .contractID(entityIdFactory.newContractId(
@@ -299,7 +296,7 @@ public class ContractUpdateHandler implements TransactionHandler {
      * @param op the body of contract update transaction
      * @return the updated account of the contract
      */
-    public Account.Builder update(
+    public Account update(
             @NonNull final Account contract,
             @NonNull final HandleContext context,
             @NonNull final ContractUpdateTransactionBody op) {
@@ -354,7 +351,8 @@ public class ContractUpdateHandler implements TransactionHandler {
         if (op.hasMaxAutomaticTokenAssociations()) {
             builder.maxAutoAssociations(op.maxAutomaticTokenAssociationsOrThrow());
         }
-        return builder;
+        updateHooks(context, op, builder, contract);
+        return builder.build();
     }
 
     @NonNull
@@ -410,13 +408,10 @@ public class ContractUpdateHandler implements TransactionHandler {
                     .hookIdToDelete(new HookId(
                             HookEntityId.newBuilder().accountId(owner).build(), hookId))
                     .build();
-            final var streamBuilder = context.dispatch(setupDispatch(
+            final var streamBuilder = context.dispatch(hookDispatch(
                     context.payer(),
                     TransactionBody.newBuilder().hookDispatch(hookDispatch).build(),
-                    StreamBuilder.class,
-                    context.dispatchMetadata()
-                            .getMetadata(CUSTOM_FEE_CHARGING, FeeCharging.class)
-                            .orElse(null)));
+                    CryptoTransferStreamBuilder.class));
             validateTrue(streamBuilder.status() == SUCCESS, streamBuilder.status());
         }
     }

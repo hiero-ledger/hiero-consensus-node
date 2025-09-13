@@ -5,7 +5,6 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.EMPTY_LAMBDA_STORAGE_UP
 import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOK_CREATION_BYTES_MUST_USE_MINIMAL_REPRESENTATION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOK_CREATION_BYTES_TOO_LONG;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOK_EXTENSION_EMPTY;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOK_ID_REPEATED_IN_CREATION_DETAILS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOK_IS_NOT_A_LAMBDA;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_HOOK_CREATION_SPEC;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_HOOK_ID;
@@ -14,13 +13,9 @@ import static com.hedera.node.app.service.contract.impl.handlers.LambdaSStoreHan
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
 
 import com.hedera.hapi.node.hooks.HookCreationDetails;
-import com.hedera.hapi.node.token.CryptoCreateTransactionBody;
-import com.hedera.hapi.node.token.CryptoUpdateTransactionBody;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.HashSet;
-import java.util.List;
 
 public class HookValidationUtils {
 

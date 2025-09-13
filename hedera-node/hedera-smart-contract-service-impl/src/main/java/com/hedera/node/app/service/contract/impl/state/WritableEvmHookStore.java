@@ -179,9 +179,6 @@ public class WritableEvmHookStore extends ReadableEvmHookStoreImpl {
                         next, nextState.copyBuilder().previousHookId(prevId).build());
             }
         }
-
-        // If this hook was the head for the extension point, update the head mapping accordingly.
-        // (Requires access to the extension-point → head HookId state, not shown here.)
     }
 
     /**

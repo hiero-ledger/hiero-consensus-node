@@ -54,8 +54,7 @@ public class HookDispatchHandler implements TransactionHandler {
             case CREATION -> {
                 final var creation = op.creationOrThrow();
                 final var details = creation.details();
-                final var hook = evmHookStore.getEvmHook(
-                        new HookId(creation.entityId(), creation.details().hookId()));
+                final var hook = evmHookStore.getEvmHook(new HookId(creation.entityId(), details.hookId()));
                 validateTrue(hook == null, HOOK_ID_IN_USE);
                 if (details.hasAdminKey()) {
                     context.attributeValidator().validateKey(details.adminKeyOrThrow(), INVALID_HOOK_ADMIN_KEY);
