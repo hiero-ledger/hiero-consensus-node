@@ -3,6 +3,7 @@ package com.swirlds.platform.wiring;
 
 import static com.swirlds.component.framework.schedulers.builders.TaskSchedulerConfiguration.DIRECT_THREADSAFE_CONFIGURATION;
 import static com.swirlds.component.framework.schedulers.builders.TaskSchedulerConfiguration.NO_OP_CONFIGURATION;
+import static com.swirlds.component.framework.wires.SolderType.DIRECT;
 import static com.swirlds.component.framework.wires.SolderType.INJECT;
 import static com.swirlds.component.framework.wires.SolderType.OFFER;
 
@@ -356,7 +357,8 @@ public class PlatformWiring {
                 .solderTo(eventCreationManagerWiring.getInputWire(EventCreationManager::registerEvent));
 
         model.getHealthMonitorWire()
-                .solderTo(eventCreationManagerWiring.getInputWire(EventCreationManager::reportUnhealthyDuration));
+                .solderTo(
+                        eventCreationManagerWiring.getInputWire(EventCreationManager::reportUnhealthyDuration), DIRECT);
 
         model.getHealthMonitorWire().solderTo(gossipWiring.getSystemHealthInput());
         model.getHealthMonitorWire()

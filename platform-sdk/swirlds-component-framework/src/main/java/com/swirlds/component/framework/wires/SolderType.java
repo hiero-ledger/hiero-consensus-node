@@ -20,5 +20,7 @@ public enum SolderType {
      * When data is passed to the input wire, call {@link InputWire#offer(Object)}. If the input wire has backpressure
      * enabled and the input wire is full, then the data will be dropped.
      */
-    OFFER
+    OFFER,
+
+    DIRECT
 }

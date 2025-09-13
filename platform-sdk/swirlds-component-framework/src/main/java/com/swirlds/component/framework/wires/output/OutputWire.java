@@ -144,6 +144,7 @@ public abstract class OutputWire<OUT> {
             case PUT -> addForwardingDestination(inputWire::put);
             case INJECT -> addForwardingDestination(inputWire::inject);
             case OFFER -> addForwardingDestination(inputWire::offer);
+            case DIRECT -> addForwardingDestination(inputWire::direct);
             default -> throw new IllegalArgumentException("Unknown solder type: " + solderType);
         }
     }
