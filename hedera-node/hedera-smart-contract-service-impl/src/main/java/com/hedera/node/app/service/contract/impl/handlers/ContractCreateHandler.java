@@ -26,7 +26,6 @@ import com.hedera.node.app.service.contract.impl.exec.TransactionComponent;
 import com.hedera.node.app.service.contract.impl.records.ContractCreateStreamBuilder;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.api.TokenServiceApi;
-import com.hedera.node.app.service.token.records.CryptoTransferStreamBuilder;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
@@ -163,7 +162,7 @@ public class ContractCreateHandler extends AbstractContractTransactionHandler {
             if (nextId != null) {
                 creation.nextHookId(nextId);
             }
-            dispatchCreation(context, creation.build());
+            dispatchCreation(context, creation.build(), ContractCreateStreamBuilder.class);
             // This one becomes "next" for the previous node in the loop
             nextId = detail.hookId();
         }
@@ -173,13 +172,14 @@ public class ContractCreateHandler extends AbstractContractTransactionHandler {
      * @param context the handle context
      * @param creation the hook creation to dispatch
      */
-    static void dispatchCreation(final @NonNull HandleContext context, final HookCreation creation) {
+    static void dispatchCreation(
+            final @NonNull HandleContext context, final HookCreation creation, Class builderClass) {
         final var hookDispatch =
                 HookDispatchTransactionBody.newBuilder().creation(creation).build();
         final var streamBuilder = context.dispatch(hookDispatch(
                 context.payer(),
                 TransactionBody.newBuilder().hookDispatch(hookDispatch).build(),
-                CryptoTransferStreamBuilder.class));
+                builderClass));
         validateTrue(streamBuilder.status() == SUCCESS, streamBuilder.status());
     }
 }

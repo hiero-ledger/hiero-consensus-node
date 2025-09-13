@@ -4,6 +4,7 @@ package com.hedera.node.app.service.contract.impl.test.handlers;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CONTRACT_EXPIRED_AND_PENDING_REMOVAL;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.EXISTING_AUTOMATIC_ASSOCIATIONS_EXCEED_GIVEN_LIMIT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.EXPIRATION_REDUCTION_NOT_ALLOWED;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOK_ID_REPEATED_IN_CREATION_DETAILS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ADMIN_KEY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_AUTORENEW_ACCOUNT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_CONTRACT_ID;
@@ -52,7 +53,6 @@ import com.hedera.node.app.service.contract.impl.handlers.ContractUpdateHandler;
 import com.hedera.node.app.service.contract.impl.records.ContractUpdateStreamBuilder;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.api.TokenServiceApi;
-import com.hedera.node.app.service.token.records.CryptoTransferStreamBuilder;
 import com.hedera.node.app.spi.fees.FeeCalculator;
 import com.hedera.node.app.spi.fees.FeeCalculatorFactory;
 import com.hedera.node.app.spi.fees.FeeContext;
@@ -127,7 +127,7 @@ class ContractUpdateHandlerTest extends ContractHandlerTestBase {
     private EntityIdFactory entityIdFactory;
 
     @Mock
-    private CryptoTransferStreamBuilder streamBuilder;
+    private ContractUpdateStreamBuilder streamBuilder;
 
     private ContractUpdateHandler subject;
 
@@ -801,7 +801,20 @@ class ContractUpdateHandlerTest extends ContractHandlerTestBase {
         verify(recordBuilder, times(1)).contractID(any());
     }
 
-    private static HookCreationDetails hookDetails(long id) {
+    @Test
+    void repeatedHookIdsInCreationDetailsFails() {
+        final var txn = TransactionBody.newBuilder()
+                .contractUpdateInstance(ContractUpdateTransactionBody.newBuilder()
+                        .contractID(targetContract)
+                        .hookCreationDetails(hookDetails(1), hookDetails(1)))
+                .transactionID(transactionID)
+                .build();
+        when(pureChecksContext.body()).thenReturn(txn);
+
+        assertThrowsPreCheck(() -> subject.pureChecks(pureChecksContext), HOOK_ID_REPEATED_IN_CREATION_DETAILS);
+    }
+
+    static HookCreationDetails hookDetails(long id) {
         final var spec = EvmHookSpec.newBuilder()
                 .contractId(ContractID.newBuilder().contractNum(321).build())
                 .build();

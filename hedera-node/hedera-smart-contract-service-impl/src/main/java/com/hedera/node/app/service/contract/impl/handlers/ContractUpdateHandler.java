@@ -44,7 +44,6 @@ import com.hedera.node.app.service.contract.impl.records.ContractUpdateStreamBui
 import com.hedera.node.app.service.contract.impl.state.WritableEvmHookStore;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.api.TokenServiceApi;
-import com.hedera.node.app.service.token.records.CryptoTransferStreamBuilder;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.ids.EntityIdFactory;
@@ -395,7 +394,7 @@ public class ContractUpdateHandler implements TransactionHandler {
             if (nextId != null) {
                 creation.nextHookId(nextId);
             }
-            dispatchCreation(context, creation.build());
+            dispatchCreation(context, creation.build(), ContractUpdateStreamBuilder.class);
             nextId = d.hookId();
         }
     }
@@ -411,7 +410,7 @@ public class ContractUpdateHandler implements TransactionHandler {
             final var streamBuilder = context.dispatch(hookDispatch(
                     context.payer(),
                     TransactionBody.newBuilder().hookDispatch(hookDispatch).build(),
-                    CryptoTransferStreamBuilder.class));
+                    ContractUpdateStreamBuilder.class));
             validateTrue(streamBuilder.status() == SUCCESS, streamBuilder.status());
         }
     }
