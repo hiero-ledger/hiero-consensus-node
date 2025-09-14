@@ -1,33 +1,30 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.handlers;
 
-import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOK_CREATION_BYTES_MUST_USE_MINIMAL_REPRESENTATION;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOK_CREATION_BYTES_TOO_LONG;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOK_ID_REPEATED_IN_CREATION_DETAILS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
-import static com.hedera.node.app.hapi.utils.contracts.HookUtils.minimalRepresentationOf;
 import static com.hedera.node.app.spi.workflows.DispatchOptions.hookDispatch;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
-import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.hooks.HookCreation;
+import com.hedera.hapi.node.hooks.HookCreationDetails;
 import com.hedera.hapi.node.hooks.HookDispatchTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.token.records.CryptoTransferStreamBuilder;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.config.data.AccountsConfig;
-import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * This class contains common functionality needed for crypto handlers.
  */
 public class BaseCryptoHandler {
-    private static final long MAX_UPDATE_BYTES_LEN = 32L;
-
     /**
      * Gets the accountId from the account number provided.
      * @param shard the account shard
@@ -75,10 +72,30 @@ public class BaseCryptoHandler {
     protected void dispatchCreation(final @NonNull HandleContext context, final HookCreation creation) {
         final var hookDispatch =
                 HookDispatchTransactionBody.newBuilder().creation(creation).build();
-        final var streamBuilder = context.dispatch(hookDispatch(
-                context.payer(),
-                TransactionBody.newBuilder().hookDispatch(hookDispatch).build(),
-                CryptoTransferStreamBuilder.class));
-        validateTrue(streamBuilder.status() == SUCCESS, streamBuilder.status());
+        try {
+            final var streamBuilder = context.dispatch(hookDispatch(
+                    context.payer(),
+                    TransactionBody.newBuilder().hookDispatch(hookDispatch).build(),
+                    CryptoTransferStreamBuilder.class));
+            validateTrue(streamBuilder.status() == SUCCESS, streamBuilder.status());
+        } catch (Exception e) {
+            e.printStackTrace();
+            throw e;
+        }
+    }
+
+    /**
+     * Validates the hook creation details list, if there are any duplicate hook IDs.
+     * @param details the list of hook creation details
+     * @throws PreCheckException if there are duplicate hook IDs
+     */
+    protected void validateHookDuplicates(final List<HookCreationDetails> details) throws PreCheckException {
+        if (!details.isEmpty()) {
+            final var hookIds =
+                    details.stream().map(HookCreationDetails::hookId).collect(Collectors.toSet());
+            if (hookIds.size() != details.size()) {
+                throw new PreCheckException(HOOK_ID_REPEATED_IN_CREATION_DETAILS);
+            }
+        }
     }
 }

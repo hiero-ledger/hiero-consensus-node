@@ -25,7 +25,6 @@ import javax.inject.Singleton;
  */
 @Singleton
 public class CryptoCreateValidator {
-
     /**
      * Default constructor for injection.
      */
@@ -42,7 +41,7 @@ public class CryptoCreateValidator {
      * {@link ResponseCodeEnum#BAD_ENCODING} if the key is empty or exceeds the maximum key depth. All other invalid
      * scenarios throw {@link HandleException} with {@link ResponseCodeEnum#INVALID_ADMIN_KEY}.
      *
-     * @param key The key to validate
+     * @param key                The key to validate
      * @param attributeValidator AttributeValidator
      * @param isInternalDispatch Whether this is a hollow account creation (permits empty key list)
      * @throws HandleException If the inputs are not invalid
@@ -73,10 +72,8 @@ public class CryptoCreateValidator {
         }
     }
 
-    /**
-     * Check if the number of auto associations is too many
+    /** Check if the number of auto associations is too many
      * or in the case of unlimited auto associations, check if the number is less than -1 or 0 if disabled.
-     *
      * @param numAssociations number to check
      * @param ledgerConfig LedgerConfig
      * @param entitiesConfig EntitiesConfig

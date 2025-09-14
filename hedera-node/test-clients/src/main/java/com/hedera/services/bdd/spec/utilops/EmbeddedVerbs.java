@@ -34,6 +34,7 @@ import com.hedera.services.bdd.spec.utilops.embedded.MutateSingletonOp;
 import com.hedera.services.bdd.spec.utilops.embedded.MutateStakingInfosOp;
 import com.hedera.services.bdd.spec.utilops.embedded.MutateTokenOp;
 import com.hedera.services.bdd.spec.utilops.embedded.ViewAccountOp;
+import com.hedera.services.bdd.spec.utilops.embedded.ViewContractOp;
 import com.hedera.services.bdd.spec.utilops.embedded.ViewKVStateOp;
 import com.hedera.services.bdd.spec.utilops.embedded.ViewMappingValueOp;
 import com.hedera.services.bdd.spec.utilops.embedded.ViewNodeOp;
@@ -121,6 +122,10 @@ public final class EmbeddedVerbs {
      */
     public static ViewAccountOp viewAccount(@NonNull final String name, @NonNull final Consumer<Account> observer) {
         return new ViewAccountOp(name, observer);
+    }
+
+    public static ViewContractOp viewContract(@NonNull final String name, @NonNull final Consumer<Account> observer) {
+        return new ViewContractOp(name, observer);
     }
 
     /**

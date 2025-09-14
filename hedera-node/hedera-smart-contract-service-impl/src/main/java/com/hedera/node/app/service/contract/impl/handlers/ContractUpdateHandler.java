@@ -45,6 +45,7 @@ import com.hedera.node.app.service.contract.impl.records.ContractUpdateStreamBui
 import com.hedera.node.app.service.contract.impl.state.WritableEvmHookStore;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.api.TokenServiceApi;
+import com.hedera.node.app.service.token.records.CryptoTransferStreamBuilder;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.ids.EntityIdFactory;
@@ -55,14 +56,12 @@ import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
-import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.config.data.EntitiesConfig;
 import com.hedera.node.config.data.LedgerConfig;
 import com.hedera.node.config.data.TokensConfig;
 import com.hederahashgraph.api.proto.java.FeeData;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -124,15 +123,17 @@ public class ContractUpdateHandler implements TransactionHandler {
         }
         validateHookCreations(op.hookCreationDetails());
         if (!op.hookIdsToDelete().isEmpty()) {
-            validateTruePreCheck(op.hookIdsToDelete().stream().distinct().count() == op.hookIdsToDelete().size(),
+            validateTruePreCheck(
+                    op.hookIdsToDelete().stream().distinct().count()
+                            == op.hookIdsToDelete().size(),
                     HOOK_ID_REPEATED_IN_CREATION_DETAILS);
         }
     }
+
     static void validateHookCreations(final List<HookCreationDetails> details) throws PreCheckException {
         if (!details.isEmpty()) {
-            final var hookIds = details.stream()
-                    .map(HookCreationDetails::hookId)
-                    .collect(Collectors.toSet());
+            final var hookIds =
+                    details.stream().map(HookCreationDetails::hookId).collect(Collectors.toSet());
             if (hookIds.size() != details.size()) {
                 throw new PreCheckException(HOOK_ID_REPEATED_IN_CREATION_DETAILS);
             }
@@ -163,14 +164,23 @@ public class ContractUpdateHandler implements TransactionHandler {
         final var toBeUpdated = accountStore.getContractById(target);
         validateSemantics(toBeUpdated, context, op, accountStore);
 
-        final var changed = update(requireNonNull(toBeUpdated), context, op);
-        context.storeFactory().serviceApi(TokenServiceApi.class).updateContract(changed);
+        var changed = update(requireNonNull(toBeUpdated), context, op);
+        updateHooks(context, op, changed, toBeUpdated);
+        context.storeFactory().serviceApi(TokenServiceApi.class).updateContract(changed.build());
         context.savepointStack()
                 .getBaseBuilder(ContractUpdateStreamBuilder.class)
                 .contractID(entityIdFactory.newContractId(
                         toBeUpdated.accountIdOrThrow().accountNumOrThrow()));
     }
-
+    /**
+     * Updates the hooks of the given account based on the provided operation.
+     * This includes handling hook deletions and creations.
+     *
+     * @param context the handle context
+     * @param op the contract update transaction body
+     * @param builder the account builder to update
+     * @param originalAccount the original account before updates
+     */
     private void updateHooks(
             final HandleContext context,
             final ContractUpdateTransactionBody op,
@@ -306,7 +316,7 @@ public class ContractUpdateHandler implements TransactionHandler {
      * @param op the body of contract update transaction
      * @return the updated account of the contract
      */
-    public Account update(
+    public Account.Builder update(
             @NonNull final Account contract,
             @NonNull final HandleContext context,
             @NonNull final ContractUpdateTransactionBody op) {
@@ -361,8 +371,7 @@ public class ContractUpdateHandler implements TransactionHandler {
         if (op.hasMaxAutomaticTokenAssociations()) {
             builder.maxAutoAssociations(op.maxAutomaticTokenAssociationsOrThrow());
         }
-        updateHooks(context, op, builder, contract);
-        return builder.build();
+        return builder;
     }
 
     @NonNull
@@ -421,7 +430,7 @@ public class ContractUpdateHandler implements TransactionHandler {
             final var streamBuilder = context.dispatch(hookDispatch(
                     context.payer(),
                     TransactionBody.newBuilder().hookDispatch(hookDispatch).build(),
-                    StreamBuilder.class));
+                    CryptoTransferStreamBuilder.class));
             validateTrue(streamBuilder.status() == SUCCESS, streamBuilder.status());
         }
     }

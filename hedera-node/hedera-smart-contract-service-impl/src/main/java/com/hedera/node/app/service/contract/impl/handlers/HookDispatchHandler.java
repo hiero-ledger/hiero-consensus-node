@@ -23,8 +23,14 @@ import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
 import com.hedera.node.config.data.HooksConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import javax.inject.Inject;
 
 public class HookDispatchHandler implements TransactionHandler {
+    @Inject
+    public HookDispatchHandler() {
+        // Dagger2
+    }
+
     @Override
     public void preHandle(@NonNull final PreHandleContext context) throws PreCheckException {
         // no-op

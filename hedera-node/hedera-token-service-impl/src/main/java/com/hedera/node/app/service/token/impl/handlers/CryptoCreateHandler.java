@@ -5,7 +5,6 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.ACCOUNT_DELETED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.ALIAS_ALREADY_ASSIGNED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.BAD_ENCODING;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.FAIL_INVALID;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOK_ID_REPEATED_IN_CREATION_DETAILS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ALIAS_KEY;
@@ -84,7 +83,6 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.stream.Collectors;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 
@@ -172,14 +170,7 @@ public class CryptoCreateHandler extends BaseCryptoHandler implements Transactio
         }
         validateTruePreCheck(key != null, KEY_NOT_PROVIDED);
         // since pure evm hooks are being removed, just added validations for lambda evm hooks for now
-        if (!op.hookCreationDetails().isEmpty()) {
-            final var hookIds = op.hookCreationDetails().stream()
-                    .map(HookCreationDetails::hookId)
-                    .collect(Collectors.toSet());
-            if (hookIds.size() != op.hookCreationDetails().size()) {
-                throw new PreCheckException(HOOK_ID_REPEATED_IN_CREATION_DETAILS);
-            }
-        }
+        validateHookDuplicates(op.hookCreationDetails());
     }
 
     @Override
@@ -323,9 +314,7 @@ public class CryptoCreateHandler extends BaseCryptoHandler implements Transactio
     }
 
     private void dispatchHookCreations(
-            final @NonNull HandleContext context,
-            final List<HookCreationDetails> hookDetails,
-            final AccountID owner) {
+            final @NonNull HandleContext context, final List<HookCreationDetails> hookDetails, final AccountID owner) {
         // empty list case or first insert into empty list
         Long nextId = null;
         for (int i = hookDetails.size() - 1; i >= 0; i--) {
