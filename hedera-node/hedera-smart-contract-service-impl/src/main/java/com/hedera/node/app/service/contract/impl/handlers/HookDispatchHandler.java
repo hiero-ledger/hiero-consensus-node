@@ -6,7 +6,6 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOK_DELETED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOK_ID_IN_USE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOK_NOT_FOUND;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_HOOK_ADMIN_KEY;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_HOOK_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
 import static com.hedera.node.app.service.contract.impl.utils.HookValidationUtils.validateHook;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
@@ -43,9 +42,6 @@ public class HookDispatchHandler implements TransactionHandler {
         validateTruePreCheck(op.hasCreation() || op.hasExecution() || op.hasHookIdToDelete(), INVALID_TRANSACTION_BODY);
         if (op.hasCreation()) {
             validateHook(op.creationOrThrow().details());
-        } else if (op.hasHookIdToDelete()) {
-            final var deletion = op.hookIdToDeleteOrThrow();
-            validateTruePreCheck(deletion.hookId() != 0L, INVALID_HOOK_ID);
         }
     }
 

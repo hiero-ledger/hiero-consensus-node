@@ -72,16 +72,11 @@ public class BaseCryptoHandler {
     protected void dispatchCreation(final @NonNull HandleContext context, final HookCreation creation) {
         final var hookDispatch =
                 HookDispatchTransactionBody.newBuilder().creation(creation).build();
-        try {
-            final var streamBuilder = context.dispatch(hookDispatch(
-                    context.payer(),
-                    TransactionBody.newBuilder().hookDispatch(hookDispatch).build(),
-                    CryptoTransferStreamBuilder.class));
-            validateTrue(streamBuilder.status() == SUCCESS, streamBuilder.status());
-        } catch (Exception e) {
-            e.printStackTrace();
-            throw e;
-        }
+        final var streamBuilder = context.dispatch(hookDispatch(
+                context.payer(),
+                TransactionBody.newBuilder().hookDispatch(hookDispatch).build(),
+                CryptoTransferStreamBuilder.class));
+        validateTrue(streamBuilder.status() == SUCCESS, streamBuilder.status());
     }
 
     /**
