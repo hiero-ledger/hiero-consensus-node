@@ -5,9 +5,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.EMPTY_LAMBDA_STORAGE_UP
 import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOK_CREATION_BYTES_MUST_USE_MINIMAL_REPRESENTATION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOK_CREATION_BYTES_TOO_LONG;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOK_EXTENSION_EMPTY;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOK_IS_NOT_A_LAMBDA;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_HOOK_CREATION_SPEC;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_HOOK_ID;
 import static com.hedera.node.app.hapi.utils.contracts.HookUtils.minimalRepresentationOf;
 import static com.hedera.node.app.service.contract.impl.handlers.LambdaSStoreHandler.MAX_UPDATE_BYTES_LEN;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
@@ -20,9 +18,8 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 public class HookValidationUtils {
 
     public static void validateHook(final HookCreationDetails hook) throws PreCheckException {
-        validateTruePreCheck(hook.hookId() != 0L, INVALID_HOOK_ID);
         validateTruePreCheck(hook.extensionPoint() != null, HOOK_EXTENSION_EMPTY);
-        validateTruePreCheck(hook.hasLambdaEvmHook(), HOOK_IS_NOT_A_LAMBDA);
+        validateTruePreCheck(hook.hasLambdaEvmHook(), INVALID_HOOK_CREATION_SPEC);
 
         final var lambda = hook.lambdaEvmHookOrThrow();
         validateTruePreCheck(lambda.hasSpec() && lambda.specOrThrow().hasContractId(), INVALID_HOOK_CREATION_SPEC);

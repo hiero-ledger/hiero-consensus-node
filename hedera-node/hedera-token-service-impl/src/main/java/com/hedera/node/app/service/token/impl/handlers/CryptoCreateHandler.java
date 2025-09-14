@@ -508,10 +508,14 @@ public class CryptoCreateHandler extends BaseCryptoHandler implements Transactio
         final var fee = feeCalculator
                 .addBytesPerTransaction(baseSize + (2 * LONG_SIZE) + BOOL_SIZE)
                 .addRamByteSeconds((CRYPTO_ENTITY_SIZES.fixedBytesInAccountRepr() + baseSize) * lifeTime)
-                .addNetworkRamByteSeconds(BASIC_ENTITY_ID_SIZE * USAGE_PROPERTIES.legacyReceiptStorageSecs())
-                .addStorageBytesSeconds(op.hookCreationDetails().size());
+                .addNetworkRamByteSeconds(BASIC_ENTITY_ID_SIZE * USAGE_PROPERTIES.legacyReceiptStorageSecs());
         if (!unlimitedAutoAssociations && op.maxAutomaticTokenAssociations() > 0) {
             fee.addRamByteSeconds(op.maxAutomaticTokenAssociations() * lifeTime * CREATE_SLOT_MULTIPLIER);
+        }
+        // Using SBS here because this part us not used in other calculations. It is a per hour cost
+        // so we convert to per second by multiplying by 1/3600. This will be changed with simple fees.
+        if (!op.hookCreationDetails().isEmpty()) {
+            fee.addStorageBytesSeconds(op.hookCreationDetails().size() * 3600L);
         }
         if (IMMUTABILITY_SENTINEL_KEY.equals(op.key())) {
             final var lazyCreationFee = feeContext.dispatchComputeFees(UPDATE_TXN_BODY_BUILDER, feeContext.payer());

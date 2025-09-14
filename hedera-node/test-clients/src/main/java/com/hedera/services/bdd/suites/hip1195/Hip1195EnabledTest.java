@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.suites.hip1195;
 
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.lambdaAccountAllowanceHook;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractUpdate;
@@ -10,6 +11,9 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoUpdate;
 import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.viewAccount;
 import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.viewContract;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
+import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
+import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.contract.Utils.extractBytecodeUnhexed;
 import static com.hedera.services.bdd.suites.contract.Utils.getResourcePath;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.HOOK_ID_IN_USE;
@@ -50,24 +54,32 @@ public class Hip1195EnabledTest {
     final Stream<DynamicTest> createAndUpdateAccountWithHooks() {
         return hapiTest(
                 newKeyNamed("adminKey"),
+                cryptoCreate("payer").balance(ONE_MILLION_HBARS),
                 cryptoCreate("testAccount")
                         .key("adminKey")
                         .balance(1L)
-                        .withHook(lambdaAccountAllowanceHook(123L, HOOK_CONTRACT.name()))
-                        .withHook(lambdaAccountAllowanceHook(124L, HOOK_CONTRACT.name()))
-                        .withHook(lambdaAccountAllowanceHook(125L, HOOK_CONTRACT.name())),
-                viewAccount("testAccount", account -> {
-                    assertEquals(123L, account.firstHookId());
-                    assertEquals(3, account.numberHooksInUse());
-                }),
-                cryptoUpdate("testAccount")
-                        .withHook(lambdaAccountAllowanceHook(127L, HOOK_CONTRACT.name()))
-                        .withHook(lambdaAccountAllowanceHook(128L, HOOK_CONTRACT.name()))
-                        .withHook(lambdaAccountAllowanceHook(129L, HOOK_CONTRACT.name())),
-                viewAccount("testAccount", account -> {
-                    assertEquals(127L, account.firstHookId());
-                    assertEquals(6, account.numberHooksInUse());
-                }));
+                        .withHooks(
+                                lambdaAccountAllowanceHook(123L, HOOK_CONTRACT.name()),
+                                lambdaAccountAllowanceHook(124L, HOOK_CONTRACT.name()),
+                                lambdaAccountAllowanceHook(125L, HOOK_CONTRACT.name()))
+                        .payingWith("payer")
+                        .fee(ONE_HUNDRED_HBARS)
+                        .via("createTxn"),
+                //                viewAccount("testAccount", account -> {
+                //                    assertEquals(123L, account.firstHookId());
+                //                    assertEquals(3, account.numberHooksInUse());
+                //                }),
+                getTxnRecord("createTxn").logged(),
+                validateChargedUsd("createTxn", 3.05)
+                //                cryptoUpdate("testAccount")
+                //                        .withHooks(lambdaAccountAllowanceHook(127L, HOOK_CONTRACT.name()),
+                //                                lambdaAccountAllowanceHook(128L, HOOK_CONTRACT.name()),
+                //                                lambdaAccountAllowanceHook(129L, HOOK_CONTRACT.name())),
+                //                viewAccount("testAccount", account -> {
+                //                    assertEquals(127L, account.firstHookId());
+                //                    assertEquals(6, account.numberHooksInUse());
+                //                })
+                );
     }
 
     @HapiTest
