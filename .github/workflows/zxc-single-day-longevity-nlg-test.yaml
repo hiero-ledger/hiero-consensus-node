@@ -386,10 +386,11 @@ jobs:
             ${run_NLGDebugparams} -cp /app/lib/*:\$(ls -1 /app/network-load-generator-*.jar) com.hedera.benchmark.${test} \
             ${NLGargs} -tt ${{ inputs.nlg-time }}m > client.log 2>&1 &"
           sleep 30
-      - id: waiterMatrix
+      - id: matrix
         run: |
           runs=$(((${{ inputs.nlg-time }}+${{ env.TIMEOUT_6H_LIMIT }}-1)/${{ env.TIMEOUT_6H_LIMIT }}))
           matrix=$(seq 1 1 ${runs} | perl -ne '~s/\n//g; print "\"$_\","' | sed -e 's/^\(.*\)[,]$/\1/g')
+          echo "value=[${matrix}]"
           echo "value=[${matrix}]" >> $GITHUB_OUTPUT
 
   longevity-tests-wait:
