@@ -388,9 +388,14 @@ public class SimulatedBlockNodeServer {
                                         lastVerifiedBlockNumber.set(externalLastVerifiedBlockNumberSupplier.get());
                                     }
 
-                                    final long lastVerifiedBlockNum = lastVerifiedBlockNumber.get();
-                                    if (blockNumber - lastVerifiedBlockNum > 1) {
-                                        handleBehindResponse(replies, blockNumber, lastVerifiedBlockNum);
+                                    // Compute server progress as the max of last verified and any in-flight block
+                                    final long highestInFlight = streamingBlocks.keySet().stream()
+                                            .mapToLong(Long::longValue)
+                                            .max()
+                                            .orElse(-1L);
+                                    final long serverProgress = Math.max(lastVerifiedBlockNumber.get(), highestInFlight);
+                                    if (blockNumber - serverProgress > 1) {
+                                        handleBehindResponse(replies, blockNumber, serverProgress);
                                         return;
                                     }
 
@@ -419,29 +424,22 @@ public class SimulatedBlockNodeServer {
 
                                     // Requirement 1: Check if another stream is currently sending this block's parts
                                     if (streamingBlocks.containsKey(blockNumber)) {
-                                        // If it's a different stream trying to send the same header
+                                        // If it's a different stream trying to send the same header, ignore it
                                         if (streamingBlocks.get(blockNumber) != replies) {
                                             log.warn(
-                                                    "Block {} header received from stream {}, but another stream ({}) is already sending parts. Sending SkipBlock to stream {} on port {}.",
+                                                    "Block {} header received from stream {}, but another stream ({}) already owns this block. Ignoring duplicate header.",
                                                     blockNumber,
                                                     replies.hashCode(),
-                                                    streamingBlocks
-                                                            .get(blockNumber)
-                                                            .hashCode(),
-                                                    replies.hashCode(),
-                                                    port);
-                                            sendSkipBlock(replies, blockNumber);
-                                            // Continue to the next BlockItem in the request
+                                                    streamingBlocks.get(blockNumber).hashCode());
+                                            // Ignore duplicates prior to clients receiving SkipBlock
                                             continue;
                                         }
                                         // If it's the same stream sending the header again (e.g., duplicate header item
-                                        // in
-                                        // the same request)
+                                        // in the same request), ignore it
                                         log.warn(
                                                 "Block {} header received again from the same stream {} while streaming. Ignoring duplicate header item.",
                                                 blockNumber,
                                                 replies.hashCode());
-                                        // Continue to the next BlockItem in the request
                                         continue;
                                     }
 
@@ -451,10 +449,26 @@ public class SimulatedBlockNodeServer {
                                     blocksWithHeadersOnly.add(blockNumber);
                                     streamingBlocks.put(blockNumber, replies);
                                     log.info(
-                                            "Accepted BlockHeader for block {}. Stream {} is now sending parts on port {}.",
+                                            "Accepted BlockHeader for block {}. Stream {} is now sending parts on port {}. Broadcasting SkipBlock to other streams.",
                                             blockNumber,
                                             replies.hashCode(),
                                             port);
+
+                                    // Proactively instruct all other streams to skip this block
+                                    for (final Pipeline<? super PublishStreamResponse> pipeline : activeStreams) {
+                                        if (pipeline != replies) {
+                                            try {
+                                                sendSkipBlock(pipeline, blockNumber);
+                                            } catch (final Exception e) {
+                                                log.error(
+                                                        "Failed to send SkipBlock for block {} to stream {} on port {}",
+                                                        blockNumber,
+                                                        pipeline.hashCode(),
+                                                        port,
+                                                        e);
+                                            }
+                                        }
+                                    }
 
                                 } else if (item.hasBlockProof()) {
                                     final var proof = item.blockProof();

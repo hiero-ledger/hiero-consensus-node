@@ -4,6 +4,8 @@ package com.hedera.services.bdd.spec.utilops.streams;
 import static com.hedera.node.config.types.StreamMode.RECORDS;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.BLOCK_STREAMS_DIR;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.RECORD_STREAMS_DIR;
+import static com.hedera.services.bdd.junit.hedera.ExternalPath.WORKING_DIR;
+import static com.hedera.services.bdd.junit.hedera.NodeSelector.byNodeId;
 import static com.hedera.services.bdd.junit.support.BlockStreamAccess.BLOCK_STREAM_ACCESS;
 import static com.hedera.services.bdd.junit.support.StreamFileAccess.STREAM_FILE_ACCESS;
 import static com.hedera.services.bdd.spec.TargetNetworkType.SUBPROCESS_NETWORK;
@@ -26,6 +28,7 @@ import com.hedera.services.bdd.junit.support.BlockStreamValidator;
 import com.hedera.services.bdd.junit.support.RecordStreamValidator;
 import com.hedera.services.bdd.junit.support.StreamFileAccess;
 import com.hedera.services.bdd.junit.hedera.BlockNodeNetwork;
+import com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNetwork;
 import com.hedera.services.bdd.junit.hedera.simulator.SimulatedBlockNodeServer;
 import com.hedera.services.bdd.junit.support.validators.BalanceReconciliationValidator;
 import com.hedera.services.bdd.junit.support.validators.BlockNoValidator;
@@ -39,9 +42,14 @@ import com.hedera.services.bdd.junit.support.validators.block.TransactionRecordP
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.utilops.UtilOp;
 import com.hedera.services.bdd.suites.regression.system.LifecycleTest;
+ 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.File;
+import java.io.IOException;
+import java.io.OutputStream;
+import java.io.UncheckedIOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.HashSet;
@@ -50,6 +58,8 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.zip.GZIPOutputStream;
+import java.io.BufferedOutputStream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.junit.jupiter.api.Assertions;
@@ -172,6 +182,7 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
         }
 
         if (!simulatorBlocks.isEmpty()) {
+            writeSimulatorBlocksToDisk(spec, simulatorBlocks);
             final var maybeErrors = BLOCK_STREAM_VALIDATOR_FACTORIES.stream()
                     .filter(factory -> factory.appliesTo(spec))
                     .map(factory -> factory.create(spec))
@@ -252,6 +263,49 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
             }
         }
         return Optional.ofNullable(data);
+    }
+
+    private static void writeSimulatorBlocksToDisk(@NonNull final HapiSpec spec, @NonNull final List<Block> blocks) {
+        try {
+            if (!(spec.targetNetworkOrThrow() instanceof SubProcessNetwork subProcessNetwork)) {
+                return;
+            }
+            final var node0 = subProcessNetwork.getRequiredNode(byNodeId(0));
+            final var outDir = node0.getExternalPath(WORKING_DIR)
+                    .resolve("data")
+                    .resolve("simulatorBlockStreams");
+            Files.createDirectories(outDir);
+
+            for (final var block : blocks) {
+                if (block.items().isEmpty() || !block.items().getFirst().hasBlockHeader()) {
+                    continue;
+                }
+                final long blockNumber = block.items().getFirst().blockHeaderOrThrow().number();
+                final var fileName = String.format("%036d.blk.gz", blockNumber);
+                final var filePath = outDir.resolve(fileName);
+
+                OutputStream out = null;
+                try {
+                    out = Files.newOutputStream(filePath);
+                    out = new BufferedOutputStream(out, 1024 * 1024);
+                    out = new GZIPOutputStream(out, 1024 * 256);
+                    out = new BufferedOutputStream(out, 1024 * 1024 * 4);
+                    final var bytes = com.hedera.hapi.block.stream.Block.PROTOBUF.toBytes(block).toByteArray();
+                    out.write(bytes);
+                } catch (final IOException e) {
+                    throw new UncheckedIOException(e);
+                } finally {
+                    if (out != null) {
+                        try {
+                            out.close();
+                        } catch (final IOException ignore) {
+                        }
+                    }
+                }
+            }
+        } catch (final IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
 
     /**

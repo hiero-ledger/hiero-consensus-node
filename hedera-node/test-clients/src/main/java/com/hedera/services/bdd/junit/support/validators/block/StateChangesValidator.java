@@ -94,6 +94,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.SplittableRandom;
+import java.util.UUID;
 import java.util.TreeMap;
 import java.util.regex.Pattern;
 import org.apache.logging.log4j.LogManager;
@@ -272,7 +273,16 @@ public class StateChangesValidator implements BlockStreamValidator {
         System.setProperty("hedera.realm", String.valueOf(realm));
 
         unarchiveGenesisNetworkJson(pathToUpgradeSysFilesLoc);
-        MerkleDb.setDefaultPath(pathToNode0.resolve("stateChangesValidator"));
+        // Use a unique MerkleDB directory per run to avoid conflicts when validators run multiple times
+        final var merkleDbBaseDir = pathToNode0.resolve("stateChangesValidator");
+        final var merkleDbRunDir = merkleDbBaseDir.resolve(UUID.randomUUID().toString());
+        try {
+            Files.createDirectories(merkleDbRunDir);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+        MerkleDb.resetDefaultInstancePath();
+        MerkleDb.setDefaultPath(merkleDbRunDir);
         final var bootstrapConfig = new BootstrapConfigProviderImpl().getConfiguration();
         final var versionConfig = bootstrapConfig.getConfigData(VersionConfig.class);
         final var servicesVersion = versionConfig.servicesVersion();
