@@ -446,7 +446,7 @@ jobs:
 
       - name: Wait for Longevity
         run: |
-          echo "Matrix loop number ${{ waiterMatrix.value }}"
+          echo "Matrix loop number ${{ matrix.value }}"
           set +x
           set +e
 
