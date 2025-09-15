@@ -696,9 +696,9 @@ jobs:
     name: Report Failures to Rootly
     runs-on: hiero-citr-linux-medium
     needs:
-      - longevity-tests-start
+      - longevity-tests-finish
       - single-day-longevity-test-result
-    if: ${{ (needs.longevity-tests-start.result != 'success' ||
+    if: ${{ (needs.longevity-tests-finish.result != 'success' ||
       needs.single-day-longevity-test-result.result != 'success') &&
       !cancelled() && always() }}
     steps:
@@ -731,7 +731,7 @@ jobs:
             echo 'summary<<EOF'
             echo "------------------------------------"
             echo "Status of each jobs:"
-            echo "- Longevity Tests Start: ${{ needs.longevity-tests-start.result }}"
+            echo "- Longevity Tests Start: ${{ needs.longevity-tests-finish.result }}"
             echo "- Single Day Longevity Test Result: ${{ needs.single-day-longevity-test-result.result }}"
             echo "------------------------------------"
             echo "Commit information:"
@@ -786,7 +786,7 @@ jobs:
   longevity-report-to-Slack:
     runs-on: hiero-citr-linux-medium
     needs:
-      - longevity-tests-start
+      - single-day-longevity-test-result
     steps:
       - name: Harden the runner (Audit all outbound calls)
         uses: step-security/harden-runner@002fdce3c6a235733a90a27c80493a3241e56863 # v2.12.1
@@ -816,11 +816,11 @@ jobs:
         run: |
 
           report="\
-            NftTransferLoadTest ${{ needs.longevity-tests-start.outputs.NFTscore }} \n\
-            HCSLoadTest ${{ needs.longevity-tests-start.outputs.HCSscore }} \n\
-            CryptoTransferLoadTest ${{ needs.longevity-tests-start.outputs.Cryptoscore }} \n\
-            HeliSwapLoadTest ${{ needs.longevity-tests-start.outputs.Heliscore }}\n\
-            SmartContractLoadTest ${{ needs.longevity-tests-start.outputs.Smartscore }}"
+            NftTransferLoadTest ${{ needs.longevity-tests-finish.outputs.NFTscore }} \n\
+            HCSLoadTest ${{ needs.longevity-tests-finish.outputs.HCSscore }} \n\
+            CryptoTransferLoadTest ${{ needs.longevity-tests-finish.outputs.Cryptoscore }} \n\
+            HeliSwapLoadTest ${{ needs.longevity-tests-finish.outputs.Heliscore }}\n\
+            SmartContractLoadTest ${{ needs.longevity-tests-finish.outputs.Smartscore }}"
           #last line is 5, it does not need comma block separator
           freport=`/usr/bin/echo -e "$report" | awk '{print $1" "$2}'| perl -ne 'if ($. < 5) {$comma=","} else {$comma="";} ($t,$d)=split(/\s+/,$_,2);printf("{\"type\": \"text\",\"text\": \"%-25s %7d \\\n\"}%s",$t,$d,$comma);'`
           freport="{\"type\": \"text\",\"text\": \"Name                          TPS\n\"},$freport"
