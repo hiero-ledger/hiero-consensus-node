@@ -68,24 +68,29 @@ class SetupStakeCommandTest extends YahcliTestBase {
         }
 
         @ParameterizedTest
-        @ValueSource(strings = {"100", "1000h", "5kh", "10mh", "1bh", "100H", "5KH", "10MH", "1BH", "500", "0"})
+        @MethodSource("validAmountValues")
         void validPerNodeAmountParses(String amount) {
             final var result = parseArgs(typicalGlobalOptions() + " activate-staking -p " + amount);
             assertCommandHierarchyOf(result, "yahcli", "activate-staking");
         }
 
         @ParameterizedTest
-        @ValueSource(strings = {"100", "1000h", "5kh", "10mh", "1bh", "100H", "5KH", "10MH", "1BH", "500", "0"})
+        @MethodSource("validAmountValues")
         void validStakingRewardRateParses(String amount) {
             final var result = parseArgs(typicalGlobalOptions() + " activate-staking -r " + amount);
             assertCommandHierarchyOf(result, "yahcli", "activate-staking");
         }
 
         @ParameterizedTest
-        @ValueSource(strings = {"100", "1000h", "5kh", "10mh", "1bh", "100H", "5KH", "10MH", "1BH", "500", "0"})
+        @MethodSource("validAmountValues")
         void validRewardAccountBalanceParses(String amount) {
             final var result = parseArgs(typicalGlobalOptions() + " activate-staking -b " + amount);
             assertCommandHierarchyOf(result, "yahcli", "activate-staking");
+        }
+
+        @SuppressWarnings("unused")
+        private static Stream<String> validAmountValues() {
+            return Stream.of("100", "1000h", "5kh", "10mh", "1bh", "100H", "5KH", "10MH", "1BH", "500", "0");
         }
 
         @Test
