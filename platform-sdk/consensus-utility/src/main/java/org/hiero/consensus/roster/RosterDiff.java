@@ -5,6 +5,7 @@ import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.util.HapiUtils;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.utility.Pair;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
@@ -25,7 +26,7 @@ public class RosterDiff {
      *
      * @param oldRoster The original Roster instance. Can be null.
      * @param newRoster The updated Roster instance. Can be null.
-     * @return A RosterComparisonResult object detailing the changes.
+     * @return A RosterDiffReport object detailing the changes.
      */
     @NonNull
     public static RosterDiffReport report(@Nullable final Roster oldRoster, @Nullable final Roster newRoster) {
@@ -81,6 +82,9 @@ public class RosterDiff {
      */
     public record RosterDiffReport(
             List<RosterEntry> added, List<RosterEntry> deleted, List<Pair<RosterEntry, RosterEntry>> modified) {
+
+        public static final String PARENT_FIELD_TAB = "  - ";
+        public static final String CHILD_FIELD_TAB = "    -- ";
 
         /**
          * Constructs a new RosterComparisonResult.
@@ -146,11 +150,14 @@ public class RosterDiff {
         private static void reportDiffForServiceEndpoint(
                 final RosterEntry oldE, final RosterEntry newE, final StringBuilder report) {
             if (!oldE.gossipEndpoint().equals(newE.gossipEndpoint())) {
-                report.append("  - gossipEndpoint: \n");
+                report.append(PARENT_FIELD_TAB);
+                report.append("gossipEndpoint: \n");
                 if (oldE.gossipEndpoint().size() != newE.gossipEndpoint().size()) {
                     report.append(String.format(
-                            "    -- size: %d -> %d",
-                            oldE.gossipEndpoint().size(), newE.gossipEndpoint().size()));
+                            "%ssize: %d -> %d",
+                            CHILD_FIELD_TAB,
+                            oldE.gossipEndpoint().size(),
+                            newE.gossipEndpoint().size()));
                     if (newE.gossipEndpoint().size() > oldE.gossipEndpoint().size()) {
                         report.append(". Only first entry will be used.");
                     }
@@ -167,12 +174,18 @@ public class RosterDiff {
         private static void reportDiffForCaCertificate(
                 final RosterEntry oldE, final RosterEntry newE, final StringBuilder report) {
             reportDiff(
-                    oldE, newE, report, RosterEntry::gossipCaCertificate, Object::toString, "  - gossipCaCertificate");
+                    oldE,
+                    newE,
+                    report,
+                    RosterEntry::gossipCaCertificate,
+                    Bytes::toBase64,
+                    PARENT_FIELD_TAB,
+                    "gossipCaCertificate");
         }
 
         private static void reportDiffForWeight(
                 final RosterEntry oldE, final RosterEntry newE, final StringBuilder report) {
-            reportDiff(oldE, newE, report, RosterEntry::weight, Object::toString, "  - weight");
+            reportDiff(oldE, newE, report, RosterEntry::weight, Object::toString, PARENT_FIELD_TAB, "weight");
         }
 
         private static <T, S> void reportDiff(
@@ -181,12 +194,13 @@ public class RosterDiff {
                 final StringBuilder report,
                 final Function<T, S> extract,
                 final Function<S, String> toString,
+                final String tab,
                 final String name) {
             final S oldValue = extract.apply(oldE);
             final S neValue = extract.apply(newE);
             if (!oldValue.equals(neValue)) {
-                report.append(
-                        String.format("%s: '%s' -> '%s'%n", name, toString.apply(oldValue), toString.apply(neValue)));
+                report.append(String.format(
+                        "%s%s: '%s' -> '%s'%n", tab, name, toString.apply(oldValue), toString.apply(neValue)));
             }
         }
 
@@ -198,12 +212,14 @@ public class RosterDiff {
                     report,
                     ServiceEndpoint::domainName,
                     Object::toString,
-                    "    -- domainName");
+                    CHILD_FIELD_TAB,
+                    "domainName");
         }
 
         private static void reportDiffForPort(
                 final StringBuilder report, final ServiceEndpoint oldEndpoint, final ServiceEndpoint newEndpoint) {
-            reportDiff(oldEndpoint, newEndpoint, report, ServiceEndpoint::port, Object::toString, "    -- port");
+            reportDiff(
+                    oldEndpoint, newEndpoint, report, ServiceEndpoint::port, Object::toString, CHILD_FIELD_TAB, "port");
         }
 
         private static void reportDiffForIpAddress(
@@ -213,8 +229,9 @@ public class RosterDiff {
                     newEndpoint,
                     report,
                     ServiceEndpoint::ipAddressV4,
-                    HapiUtils::asReadableIp,
-                    "    -- ipAddressV4");
+                    v -> HapiUtils.asReadableIp(v) + " (" + v.toBase64() + ")",
+                    CHILD_FIELD_TAB,
+                    "ipAddressV4");
         }
     }
 }
