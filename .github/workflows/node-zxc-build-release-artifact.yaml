@@ -107,7 +107,7 @@ env:
 
 permissions:
   id-token: write
-  contents: read
+  contents: write
 
 jobs:
   validate:
@@ -849,6 +849,28 @@ jobs:
         run: |
           SDK_ARCHIVE_DIR="${HOME}/sdk-archives"
           gsutil -m cp -r "${SDK_ARCHIVE_DIR}"/* gs://platform-sdk-ci-release-artifacts/${RELEASE_TAG}/
+
+      - name: Set GH Create Release Flag
+        id: set-gh-release-flags
+        if: ${{ inputs.version-policy == 'specified' && inputs.dry-run-enabled != true && inputs.release-profile != 'none' && !cancelled() && !failure() }}
+        run: |
+          CREATE_RELEASE="false"
+          if [[ "${{ inputs.ref-name }}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Tag ${GITHUB_REF#refs/tags/} matches release tag pattern"
+            CREATE_RELEASE="true"
+          fi
+
+          echo "create-release=${CREATE_RELEASE}" >> "${GITHUB_OUTPUT}"
+
+      - name: Create github release
+        if: ${{ steps.set-gh-release-flag.outputs.create-release == 'true' }}
+        uses: ncipollo/release-action@bcfe5470707e8832e12347755757cec0eb3c22af # v1.18.0
+        with:
+          tag: ${{ inputs.ref-name }}
+          prerelease: false
+          draft: false
+          generateReleaseNotes: true
+          skipIfReleaseExists: true
 
   send-notifications:
     name: Send Release Notifications
