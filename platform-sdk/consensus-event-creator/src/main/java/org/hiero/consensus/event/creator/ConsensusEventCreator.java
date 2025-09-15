@@ -4,6 +4,7 @@ package org.hiero.consensus.event.creator;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.time.Time;
+import com.swirlds.component.framework.component.InputWireLabel;
 import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.component.framework.wires.input.InputWire;
 import com.swirlds.component.framework.wires.output.OutputWire;
@@ -12,6 +13,7 @@ import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.security.SecureRandom;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
@@ -31,6 +33,7 @@ public interface ConsensusEventCreator {
      *
      * @return the {@link InputWire} for the received events
      */
+    @InputWireLabel("PlatformEvent")
     @NonNull
     InputWire<PlatformEvent> getOrderedEventsInputWire();
 
@@ -53,14 +56,26 @@ public interface ConsensusEventCreator {
      *
      * @return the {@link InputWire} for the health status
      */
+    @InputWireLabel("health info")
     @NonNull
     InputWire<Duration> getHealthStatusInputWire();
+
+    /**
+     * {@link InputWire} for the heartbeat signal received from the {@code HeartbeatGenerator}. The
+     * heartbeat signal is sent at regular intervals to trigger the creation of new events.
+     *
+     * @return the {@link InputWire} for the heartbeat signal
+     */
+    @InputWireLabel("heartbeat")
+    @NonNull
+    InputWire<Instant> getHeartbeatInputWire();
 
     /**
      * {@link InputWire} for the platform status received from the {@code StatusStateMachine}.
      *
      * @return the {@link InputWire} for the platform status
      */
+    @InputWireLabel("PlatformStatus")
     @NonNull
     InputWire<PlatformStatus> getPlatformStatusInputWire();
 
@@ -72,6 +87,7 @@ public interface ConsensusEventCreator {
      *
      * @return the {@link InputWire} for the sync round lag
      */
+    @InputWireLabel("sync round lag")
     @NonNull
     InputWire<Double> getSyncRoundLagInputWire();
 
@@ -139,6 +155,7 @@ public interface ConsensusEventCreator {
      *
      * @return the {@link InputWire} for the event window
      */
+    @InputWireLabel("event window")
     @NonNull
     InputWire<EventWindow> getEventWindowInputWire();
 
@@ -170,6 +187,7 @@ public interface ConsensusEventCreator {
      *
      * @return the {@link InputWire} to clear the event creation manager
      */
+    @InputWireLabel("clear")
     @NonNull
     InputWire<Object> getClearEventCreationMangerInputWire();
 }

@@ -5,7 +5,7 @@ import com.swirlds.cli.PlatformCli;
 import com.swirlds.cli.utility.AbstractCommand;
 import com.swirlds.cli.utility.SubcommandOf;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.component.framework.model.WiringModel;
+import com.swirlds.component.framework.model.TraceableWiringModel;
 import com.swirlds.component.framework.model.WiringModelBuilder;
 import com.swirlds.component.framework.model.diagram.ModelEdgeSubstitution;
 import com.swirlds.component.framework.model.diagram.ModelGroup;
@@ -23,6 +23,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
+import org.hiero.consensus.event.creator.ConsensusEventCreator;
 import picocli.CommandLine;
 
 @CommandLine.Command(
@@ -103,11 +104,14 @@ public final class DiagramCommand extends AbstractCommand {
 
         final ApplicationCallbacks callbacks = new ApplicationCallbacks(x -> {}, x -> {}, x -> {});
 
-        final WiringModel model = WiringModelBuilder.create(platformContext.getMetrics(), platformContext.getTime())
+        final TraceableWiringModel model = WiringModelBuilder.create(
+                        platformContext.getMetrics(), platformContext.getTime())
                 .build();
 
-        final PlatformWiring platformWiring = new PlatformWiring(
-                platformContext, model, callbacks, new NoOpExecutionLayer(), new NoOpConsensusEventCreator());
+        final ConsensusEventCreator consensusEventCreator =
+                new NoOpConsensusEventCreator(platformContext.getConfiguration(), model);
+        final PlatformWiring platformWiring =
+                new PlatformWiring(platformContext, model, callbacks, new NoOpExecutionLayer(), consensusEventCreator);
 
         final String diagramString = platformWiring
                 .getModel()

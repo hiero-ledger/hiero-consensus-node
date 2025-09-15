@@ -70,6 +70,7 @@ import java.util.Objects;
 import java.util.Queue;
 import org.hiero.consensus.crypto.EventHasher;
 import org.hiero.consensus.event.creator.ConsensusEventCreator;
+import org.hiero.consensus.event.creator.config.EventCreationConfig;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
@@ -359,6 +360,12 @@ public class PlatformWiring {
         splitOrphanBufferOutput.solderTo(branchDetectorWiring.getInputWire(BranchDetector::checkForBranches));
         branchDetectorWiring.getOutputWire().solderTo(branchReporterWiring.getInputWire(BranchReporter::reportBranch));
 
+        final double eventCreationHeartbeatFrequency = platformContext
+                .getConfiguration()
+                .getConfigData(EventCreationConfig.class)
+                .creationAttemptRate();
+        model.buildHeartbeatWire(eventCreationHeartbeatFrequency)
+                .solderTo(consensusEventCreator.getHeartbeatInputWire(), OFFER);
         model.buildHeartbeatWire(platformContext
                         .getConfiguration()
                         .getConfigData(PlatformStatusConfig.class)

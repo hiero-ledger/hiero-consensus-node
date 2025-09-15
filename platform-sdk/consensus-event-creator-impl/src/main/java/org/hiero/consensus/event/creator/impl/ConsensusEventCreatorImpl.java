@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.event.creator.impl;
 
-import static com.swirlds.component.framework.wires.SolderType.OFFER;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.state.roster.Roster;
@@ -16,9 +15,9 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.security.SecureRandom;
 import java.time.Duration;
+import java.time.Instant;
 import org.hiero.consensus.crypto.PlatformSigner;
 import org.hiero.consensus.event.creator.ConsensusEventCreator;
-import org.hiero.consensus.event.creator.config.EventCreationConfig;
 import org.hiero.consensus.event.creator.config.EventCreationWiringConfig;
 import org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreator;
 import org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreator.HashSigner;
@@ -70,6 +69,16 @@ public class ConsensusEventCreatorImpl implements ConsensusEventCreator {
      */
     @Override
     @NonNull
+    public InputWire<Instant> getHeartbeatInputWire() {
+        return requireNonNull(eventCreationManagerWiring, "Not initialized")
+                .getInputWire(EventCreationManager::maybeCreateEvent);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
     public InputWire<PlatformStatus> getPlatformStatusInputWire() {
         return requireNonNull(eventCreationManagerWiring, "Not initialized")
                 .getInputWire(EventCreationManager::updatePlatformStatus);
@@ -106,34 +115,16 @@ public class ConsensusEventCreatorImpl implements ConsensusEventCreator {
         this.eventCreationManagerWiring =
                 new ComponentWiring<>(model, EventCreationManager.class, wiringConfig.eventCreationManager());
 
-        // Set up heartbeat
-        final double eventCreationHeartbeatFrequency =
-                configuration.getConfigData(EventCreationConfig.class).creationAttemptRate();
-        model.buildHeartbeatWire(eventCreationHeartbeatFrequency)
-                .solderTo(eventCreationManagerWiring.getInputWire(EventCreationManager::maybeCreateEvent), OFFER);
-
         // Force not soldered wires to be built
         eventCreationManagerWiring.getInputWire(EventCreationManager::clear);
 
         // Create and bind components
-        eventCreationManagerWiring.bind(() -> createEventCreationManager(
-                configuration, metrics, time, random, keysAndCerts, roster, selfId, transactionSupplier));
-    }
-
-    private static EventCreationManager createEventCreationManager(
-            @NonNull final Configuration configuration,
-            @NonNull final Metrics metrics,
-            @NonNull final Time time,
-            @NonNull final SecureRandom random,
-            @NonNull final KeysAndCerts keysAndCerts,
-            @NonNull final Roster roster,
-            @NonNull final NodeId selfId,
-            @NonNull final TransactionSupplier transactionSupplier) {
-        final HashSigner hashSigner = data -> new PlatformSigner(keysAndCerts).sign(data);
-        final EventCreator eventCreator = new TipsetEventCreator(
-                configuration, metrics, time, random, hashSigner, roster, selfId, transactionSupplier);
-
-        return new DefaultEventCreationManager(configuration, metrics, time, transactionSupplier, eventCreator);
+        eventCreationManagerWiring.bind(() -> {
+            final HashSigner hashSigner = data -> new PlatformSigner(keysAndCerts).sign(data);
+            final EventCreator eventCreator = new TipsetEventCreator(
+                    configuration, metrics, time, random, hashSigner, roster, selfId, transactionSupplier);
+            return new DefaultEventCreationManager(configuration, metrics, time, transactionSupplier, eventCreator);
+        });
     }
 
     /**

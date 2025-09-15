@@ -8,13 +8,14 @@ import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
-import com.swirlds.component.framework.model.WiringModel;
+import com.swirlds.component.framework.model.TraceableWiringModel;
 import com.swirlds.component.framework.model.WiringModelBuilder;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.platform.builder.ApplicationCallbacks;
 import com.swirlds.platform.builder.ExecutionLayer;
 import com.swirlds.platform.builder.PlatformBuildingBlocks;
 import com.swirlds.platform.builder.PlatformComponentBuilder;
+import com.swirlds.platform.cli.NoOpConsensusEventCreator;
 import com.swirlds.platform.components.AppNotifier;
 import com.swirlds.platform.components.EventWindowManager;
 import com.swirlds.platform.components.SavedStateController;
@@ -77,15 +78,14 @@ class PlatformWiringTests {
     void testBindings(final PlatformContext platformContext) {
         final ApplicationCallbacks applicationCallbacks = new ApplicationCallbacks(x -> {}, x -> {}, x -> {});
 
-        final WiringModel model =
+        final TraceableWiringModel model =
                 WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent()).build();
 
+        final ConsensusEventCreator consensusEventCreator =
+                new NoOpConsensusEventCreator(platformContext.getConfiguration(), model);
+
         final PlatformWiring wiring = new PlatformWiring(
-                platformContext,
-                model,
-                applicationCallbacks,
-                mock(ExecutionLayer.class),
-                mock(ConsensusEventCreator.class));
+                platformContext, model, applicationCallbacks, mock(ExecutionLayer.class), consensusEventCreator);
 
         final PlatformComponentBuilder componentBuilder =
                 new PlatformComponentBuilder(mock(PlatformBuildingBlocks.class));
