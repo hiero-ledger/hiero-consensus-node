@@ -56,30 +56,12 @@ public class YahcliCommandParamsTest extends YahcliTestBase {
             assertThat(testSubjectCli().getFixedFee()).isEqualTo(Long.MAX_VALUE);
         }
 
-        @Test
-        void nonNumericFeeThrowsException() {
+        @ParameterizedTest
+        @ValueSource(strings = {"not-a-number", "123abc", "12.34", "1.23e10", "1,000", "1_000", "12.34.555.6666"})
+        void nonNumericFeeThrowsException(String invalidFeeValue) {
             ParameterException exception =
-                    assertThrows(ParameterException.class, () -> parseArgs(FixedFee.SHORT_OPT.str(), "not-a-number"));
-            assertThat(exception.getValue()).isEqualTo("not-a-number");
-
-            exception = assertThrows(ParameterException.class, () -> parseArgs(FixedFee.SHORT_OPT.str(), "123abc"));
-            assertThat(exception.getValue()).isEqualTo("123abc");
-
-            exception = assertThrows(ParameterException.class, () -> parseArgs(FixedFee.SHORT_OPT.str(), "12.34"));
-            assertThat(exception.getValue()).isEqualTo("12.34");
-
-            exception = assertThrows(ParameterException.class, () -> parseArgs(FixedFee.SHORT_OPT.str(), "1.23e10"));
-            assertThat(exception.getValue()).isEqualTo("1.23e10");
-
-            exception = assertThrows(ParameterException.class, () -> parseArgs(FixedFee.SHORT_OPT.str(), "1,000"));
-            assertThat(exception.getValue()).isEqualTo("1,000");
-
-            exception = assertThrows(ParameterException.class, () -> parseArgs(FixedFee.SHORT_OPT.str(), "1_000"));
-            assertThat(exception.getValue()).isEqualTo("1_000");
-
-            exception =
-                    assertThrows(ParameterException.class, () -> parseArgs(FixedFee.SHORT_OPT.str(), "12.34.555.6666"));
-            assertThat(exception.getValue()).isEqualTo("12.34.555.6666");
+                    assertThrows(ParameterException.class, () -> parseArgs(FixedFee.SHORT_OPT.str(), invalidFeeValue));
+            assertThat(exception.getValue()).isEqualTo(invalidFeeValue);
         }
     }
 
