@@ -83,6 +83,13 @@ public class QuiescenceController {
         pipelineTransactionCount.addAndGet(transactionCount);
     }
 
+    public void staleEvent(){
+        //TODO
+    }
+    public void platformStatusUpdate(){
+    //TODO
+    }
+
     public QuiescenceStatus getQuiescenceStatus() {
         if(!config.enabled()){
             return QuiescenceStatus.NOT_QUIESCENT;
