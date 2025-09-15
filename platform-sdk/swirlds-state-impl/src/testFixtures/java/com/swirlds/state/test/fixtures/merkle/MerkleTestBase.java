@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.state.test.fixtures.merkle;
 
-import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyDoesNotThrow;
 import static com.swirlds.state.lifecycle.StateMetadata.computeClassId;
 import static com.swirlds.state.lifecycle.StateMetadata.computeLabel;
 import static com.swirlds.state.merkle.StateUtils.getStateKeyForKv;
@@ -18,16 +17,12 @@ import com.swirlds.common.io.config.FileSystemManagerConfig;
 import com.swirlds.common.io.config.TemporaryFileConfig;
 import com.swirlds.common.io.streams.MerkleDataInputStream;
 import com.swirlds.common.io.streams.MerkleDataOutputStream;
-import com.swirlds.common.io.utility.FileUtils;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.crypto.MerkleCryptography;
 import com.swirlds.common.test.fixtures.merkle.TestMerkleCryptoFactory;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
-import com.swirlds.merkle.map.MerkleMap;
-import com.swirlds.merkledb.MerkleDb;
 import com.swirlds.merkledb.MerkleDbDataSourceBuilder;
-import com.swirlds.merkledb.MerkleDbTableConfig;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
 import com.swirlds.state.merkle.StateUtils;
@@ -44,17 +39,13 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.file.Path;
-import java.time.Duration;
-import java.time.temporal.ChronoUnit;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Stream;
 import org.hiero.base.constructable.ClassConstructorPair;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
-import org.hiero.base.crypto.DigestType;
 import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.provider.Arguments;
 
 /**
@@ -69,15 +60,12 @@ import org.junit.jupiter.params.provider.Arguments;
  * not exist.
  *
  * <p>Each service has a number of associated states, based on those defined in {@link
- * StateTestBase}. The {@link #FIRST_SERVICE} has "fruit" and "animal" states, while the {@link
- * #SECOND_SERVICE} has space, steam, and country themed states. Most of these are simple String
+ * StateTestBase}. The {@link #FIRST_SERVICE} has a "fruit" state, while the {@link
+ * #SECOND_SERVICE} has space and country themed states. Most of these are simple String
  * types for the key and value, but the space themed state uses Long as the key type.
  *
- * <p>This class defines all the {@link Codec}, and {@link MerkleMap}s
- * required to represent each of these. It does not create a {@link VirtualMap} automatically, but
- * does provide APIs to make it easy to create them (the {@link VirtualMap} has a lot of setup
- * complexity, and also requires a storage directory, so rather than creating these for every test
- * even if they don't need it, I just use it for virtual map specific tests).
+ * <p>This class defines all the {@link Codec}s required to represent each of these. It does not
+ * create a {@link VirtualMap} automatically, but does provide APIs to make it easy to create them.
  */
 public class MerkleTestBase extends StateTestBase {
 
@@ -89,11 +77,6 @@ public class MerkleTestBase extends StateTestBase {
             .withConfigDataType(FileSystemManagerConfig.class)
             .build();
 
-    private static final String ON_DISK_KEY_CLASS_ID_SUFFIX = "OnDiskKey";
-    private static final String ON_DISK_VALUE_CLASS_ID_SUFFIX = "OnDiskValue";
-    private static final String ON_DISK_KEY_SERIALIZER_CLASS_ID_SUFFIX = "OnDiskKeySerializer";
-    private static final String ON_DISK_VALUE_SERIALIZER_CLASS_ID_SUFFIX = "OnDiskValueSerializer";
-    private static final String IN_MEMORY_VALUE_CLASS_ID_SUFFIX = "InMemoryValue";
     private static final String SINGLETON_CLASS_ID_SUFFIX = "SingletonLeaf";
     private static final String QUEUE_NODE_CLASS_ID_SUFFIX = "QueueNode";
 
@@ -106,9 +89,6 @@ public class MerkleTestBase extends StateTestBase {
      * the test code.
      */
     protected ConstructableRegistry registry;
-
-    @TempDir
-    protected Path virtualDbPath;
 
     // An alternative "FRUIT" Map that is also part of FIRST_SERVICE, but based on VirtualMap
     protected String fruitVirtualLabel;
@@ -126,7 +106,6 @@ public class MerkleTestBase extends StateTestBase {
 
     /** Sets up the "Fruit" virtual map, label, and metadata. */
     protected void setupFruitVirtualMap() {
-        MerkleDb.resetDefaultInstancePath();
         fruitVirtualLabel = computeLabel(FIRST_SERVICE, FRUIT_STATE_KEY);
         fruitVirtualMap = createVirtualMap(fruitVirtualLabel);
     }
@@ -176,6 +155,7 @@ public class MerkleTestBase extends StateTestBase {
             registry.registerConstructables("org.hiero");
             registry.registerConstructables("com.swirlds.merkle");
             registry.registerConstructables("com.swirlds.merkle.tree");
+
             ConstructableRegistry.getInstance()
                     .registerConstructable(new ClassConstructorPair(
                             MerkleDbDataSourceBuilder.class, () -> new MerkleDbDataSourceBuilder(CONFIGURATION)));
@@ -187,8 +167,7 @@ public class MerkleTestBase extends StateTestBase {
 
     /** Creates a new arbitrary virtual map with the given label, storageDir, and metadata */
     protected VirtualMap createVirtualMap(String label) {
-        final var merkleDbTableConfig = new MerkleDbTableConfig((short) 1, DigestType.SHA_384, 100, 0);
-        final var builder = new MerkleDbDataSourceBuilder(virtualDbPath, merkleDbTableConfig, CONFIGURATION);
+        final var builder = new MerkleDbDataSourceBuilder(CONFIGURATION, 100, 0);
         return new VirtualMap(label, builder, CONFIGURATION);
     }
 
@@ -230,8 +209,6 @@ public class MerkleTestBase extends StateTestBase {
     /** A convenience method used to deserialize a merkle tree */
     protected <T extends MerkleNode> T parseTree(@NonNull final byte[] state, @NonNull final Path tempDir)
             throws IOException {
-        // Restore to a fresh MerkleDb instance
-        MerkleDb.resetDefaultInstancePath();
         final var byteInputStream = new ByteArrayInputStream(state);
         try (final var in = new MerkleDataInputStream(byteInputStream)) {
             return in.readMerkleTree(CONFIGURATION, tempDir, 100);
@@ -248,23 +225,9 @@ public class MerkleTestBase extends StateTestBase {
 
     @AfterEach
     void cleanUp() {
-        MerkleDb.resetDefaultInstancePath();
-
         if (fruitVirtualMap != null && fruitVirtualMap.getReservationCount() > -1) {
             fruitVirtualMap.release();
         }
-
         MerkleDbTestUtils.assertAllDatabasesClosed();
-
-        assertEventuallyDoesNotThrow(
-                () -> {
-                    try {
-                        FileUtils.deleteDirectory(virtualDbPath);
-                    } catch (IOException e) {
-                        throw new RuntimeException(e);
-                    }
-                },
-                Duration.of(1, ChronoUnit.SECONDS),
-                "Unable to delete virtual map directory");
     }
 }

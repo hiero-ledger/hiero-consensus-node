@@ -3,6 +3,7 @@ package com.hedera.services.bdd.suites.hip904;
 
 import static com.google.protobuf.ByteString.copyFromUtf8;
 import static com.hedera.node.app.hapi.utils.EthSigsUtils.recoverAddressFromPubKey;
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.TOKEN;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.accountWith;
@@ -72,6 +73,7 @@ import org.junit.jupiter.api.Tag;
 @HapiTestLifecycle
 @DisplayName("UnlimitedAutoAssociationSuite")
 @Tag(TOKEN)
+@Tag(MATS)
 public class UnlimitedAutoAssociationSuite {
     public static final int UNLIMITED_AUTO_ASSOCIATION_SLOTS = -1;
     private static final double expectedCreateHollowAccountFee = 0.0472956012;

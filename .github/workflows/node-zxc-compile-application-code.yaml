@@ -416,7 +416,7 @@ jobs:
         env:
           LC_ALL: en.UTF-8
           LANG: en_US.UTF-8
-        run: ${GRADLE_EXEC} hapiTestToken
+        run: ${GRADLE_EXEC} hapiTestToken${{ inputs.mats-suffix || '' }} --no-daemon
 
       - name: Publish HAPI Test (Token) Report
         uses: step-security/publish-unit-test-result-action@201bbe166c323b2f9dab6dfbf9d6b6c001bd0dce # v2.20.1

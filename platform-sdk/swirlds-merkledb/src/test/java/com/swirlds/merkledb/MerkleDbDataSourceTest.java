@@ -17,7 +17,6 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.function.CheckedConsumer;
 import com.swirlds.base.units.UnitConstants;
 import com.swirlds.common.config.StateCommonConfig;
-import com.swirlds.common.io.config.FileSystemManagerConfig;
 import com.swirlds.common.io.config.TemporaryFileConfig;
 import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
 import com.swirlds.config.api.Configuration;
@@ -63,11 +62,10 @@ class MerkleDbDataSourceTest {
     private static final int COUNT = 10_000;
     private static final Random RANDOM = new Random(1234);
 
-    private static Path testDirectory;
+    private Path testDirectory;
 
     @BeforeAll
     static void setup() throws Exception {
-        testDirectory = LegacyTemporaryFileBuilder.buildTemporaryFile("MerkleDbDataSourceTest", CONFIGURATION);
         ConstructableRegistry.getInstance().registerConstructables("com.swirlds.merkledb");
     }
 
@@ -80,6 +78,11 @@ class MerkleDbDataSourceTest {
     @BeforeEach
     void initializeDirectMemoryAtStart() {
         directMemoryUsedAtStart = getDirectMemoryUsedBytes();
+    }
+
+    @BeforeEach
+    void setupDatabaseDir() throws IOException {
+        testDirectory = LegacyTemporaryFileBuilder.buildTemporaryFile("MerkleDbDataSourceTest", CONFIGURATION);
     }
 
     @AfterEach
@@ -401,18 +404,12 @@ class MerkleDbDataSourceTest {
             IntStream.range(count - 1, count * 2 - 1).forEach(i -> assertLeaf(testType, dataSource, i, i));
             // create a snapshot
             snapshotDbPathRef[0] = testDirectory.resolve("merkledb-" + testType + "_SNAPSHOT");
-            final MerkleDb originalDb = dataSource.getDatabase();
-            dataSource.getDatabase().snapshot(snapshotDbPathRef[0], dataSource);
+            dataSource.snapshot(snapshotDbPathRef[0]);
             // close data source
             dataSource.close();
             // check directory is deleted on close
-            assertFalse(
-                    Files.exists(originalDb.getTableDir(tableName, dataSource.getTableId())),
-                    "Data source dir should be deleted");
-            final MerkleDb snapshotDb = MerkleDb.getInstance(snapshotDbPathRef[0], CONFIGURATION);
-            assertTrue(
-                    Files.exists(snapshotDb.getTableDir(tableName, dataSource.getTableId())),
-                    "Snapshot dir [" + snapshotDbPathRef[0] + "] should exist");
+            assertFalse(Files.exists(originalDbPath), "Data source dir should be deleted");
+            assertTrue(Files.exists(snapshotDbPathRef[0]), "Snapshot dir [" + snapshotDbPathRef[0] + "] should exist");
         });
 
         // reopen data source and check
@@ -451,7 +448,6 @@ class MerkleDbDataSourceTest {
         final int[] deltas = {-10, 0, 10};
         for (int delta : deltas) {
             createAndApplyDataSource(originalDbPath, tableName, testType, count + Math.abs(delta), 0, dataSource -> {
-                final int tableId = dataSource.getTableId();
                 // create some records
                 dataSource.saveRecords(
                         count - 1,
@@ -474,19 +470,19 @@ class MerkleDbDataSourceTest {
                 // create a snapshot
                 final Path snapshotDbPath =
                         testDirectory.resolve("merkledb-snapshotRestoreIndex-" + testType + "_SNAPSHOT");
-                dataSource.getDatabase().snapshot(snapshotDbPath, dataSource);
+                dataSource.snapshot(snapshotDbPath);
                 // close data source
                 dataSource.close();
 
-                final MerkleDb snapshotDb = MerkleDb.getInstance(snapshotDbPath, CONFIGURATION);
-                final MerkleDbPaths snapshotPaths = new MerkleDbPaths(snapshotDb.getTableDir(tableName, tableId));
+                final MerkleDbPaths snapshotPaths = new MerkleDbPaths(snapshotDbPath);
                 // Delete all indices
                 Files.delete(snapshotPaths.pathToDiskLocationLeafNodesFile);
                 Files.delete(snapshotPaths.pathToDiskLocationInternalNodesFile);
                 // There is no way to use MerkleDbPaths to get bucket index file path
                 Files.deleteIfExists(snapshotPaths.keyToPathDirectory.resolve(tableName + "_bucket_index.ll"));
 
-                final MerkleDbDataSource snapshotDataSource = snapshotDb.getDataSource(tableName, false);
+                final MerkleDbDataSource snapshotDataSource =
+                        testType.dataType().getDataSource(snapshotDbPath, tableName, false);
                 reinitializeDirectMemoryUsage();
                 // Check hashes
                 IntStream.range(0, count * 2 - 1 + 2 * delta).forEach(i -> assertHash(snapshotDataSource, i, i + 1));
@@ -691,8 +687,8 @@ class MerkleDbDataSourceTest {
                     IntStream.range(9, 19).mapToObj(i -> testType.dataType().createVirtualLeafRecord(i, i, 3 * i)),
                     Stream.empty());
             // Create snapshots
-            dataSource.getDatabase().snapshot(snapshotDbPath1, dataSource);
-            dataSource.getDatabase().snapshot(snapshotDbPath2, dataSource);
+            dataSource.snapshot(snapshotDbPath1);
+            dataSource.snapshot(snapshotDbPath2);
             // close data source
             dataSource.close();
         });
@@ -703,11 +699,10 @@ class MerkleDbDataSourceTest {
                 .withConfigDataType(VirtualMapConfig.class)
                 .withConfigDataType(TemporaryFileConfig.class)
                 .withConfigDataType(StateCommonConfig.class)
-                .withConfigDataType(FileSystemManagerConfig.class)
                 .withSource(new SimpleConfigSource("merkleDb.tablesToRepairHdhm", ""))
                 .build();
-        final MerkleDb snapshotDb1 = MerkleDb.getInstance(snapshotDbPath1, config1);
-        final MerkleDbDataSource snapshotDataSource1 = snapshotDb1.getDataSource(label, false);
+        final MerkleDbDataSource snapshotDataSource1 =
+                new MerkleDbDataSource(snapshotDbPath1, config1, label, false, false);
         IntStream.range(9, 19).forEach(i -> assertLeaf(testType, snapshotDataSource1, i, i, 2 * i, 3 * i));
         final Bytes staleKey = testType.dataType().createVirtualLongKey(8);
         assertEquals(8, snapshotDataSource1.findKey(staleKey));
@@ -719,11 +714,10 @@ class MerkleDbDataSourceTest {
                 .withConfigDataType(VirtualMapConfig.class)
                 .withConfigDataType(TemporaryFileConfig.class)
                 .withConfigDataType(StateCommonConfig.class)
-                .withConfigDataType(FileSystemManagerConfig.class)
                 .withSource(new SimpleConfigSource("merkleDb.tablesToRepairHdhm", label))
                 .build();
-        final MerkleDb snapshotDb2 = MerkleDb.getInstance(snapshotDbPath2, config2);
-        final MerkleDbDataSource snapshotDataSource2 = snapshotDb2.getDataSource(config2, label, false);
+        final MerkleDbDataSource snapshotDataSource2 =
+                new MerkleDbDataSource(snapshotDbPath2, config2, label, false, false);
         IntStream.range(9, 19).forEach(i -> assertLeaf(testType, snapshotDataSource2, i, i, 2 * i, 3 * i));
         assertEquals(-1, snapshotDataSource2.findKey(staleKey));
         snapshotDataSource2.close();
@@ -757,7 +751,10 @@ class MerkleDbDataSourceTest {
             // Now save some dirty leaves
             dataSource.saveRecords(15, 30, Stream.empty(), dirtyLeaves.stream(), Stream.empty(), false);
             assertEquals(1L, sourceCounter.get());
-            final var copy = dataSource.getDatabase().copyDataSource(dataSource, true, false);
+            final Path copyPath = LegacyTemporaryFileBuilder.buildTemporaryFile("copyStatisticsTest", CONFIGURATION);
+            dataSource.snapshot(copyPath);
+            final MerkleDbDataSource copy =
+                    testType.dataType().getDataSource(copyPath, dataSource.getTableName(), true);
             try {
                 assertEquals(
                         2L, metrics.getMetric("merkle_db", "merkledb_count").get(ValueType.VALUE));

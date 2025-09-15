@@ -161,7 +161,7 @@ jobs:
         with:
           workflow: .github/workflows/zxf-single-day-performance-test-controller.yaml
           repo: hiero-ledger/hiero-consensus-node # ensure we are executing in the hiero-ledger org
-          ref: main # ensure we are always using the workflow definition from the main branch
+          ref: ${{ github.ref }} # ensure we are always using the workflow definition from the called branch
           token: ${{ secrets.GH_ACCESS_TOKEN }}
           inputs: '{
             "ref": "${{ needs.promote-build-candidate.outputs.build-candidate-tag }}"
@@ -172,7 +172,7 @@ jobs:
         with:
           workflow: .github/workflows/zxf-single-day-longevity-test-controller.yaml
           repo: hiero-ledger/hiero-consensus-node # ensure we are executing in the hiero-ledger org
-          ref: main # ensure we are always using the workflow definition from the main branch
+          ref: ${{ github.ref }} # ensure we are always using the workflow definition from the called branch
           token: ${{ secrets.GH_ACCESS_TOKEN }}
           inputs: '{
             "ref": "${{ needs.promote-build-candidate.outputs.build-candidate-tag }}"
@@ -183,7 +183,7 @@ jobs:
         with:
           workflow: .github/workflows/zxf-single-day-canonical-test.yaml
           repo: hiero-ledger/hiero-consensus-node # ensure we are executing in the hiero-ledger org
-          ref: main # ensure we are always using the workflow definition from the main branch
+          ref: ${{ github.ref }} # ensure we are always using the workflow definition from the called branch
           token: ${{ secrets.GH_ACCESS_TOKEN }}
           inputs: '{
             "build-tag": "${{ needs.promote-build-candidate.outputs.build-candidate-tag }}"
