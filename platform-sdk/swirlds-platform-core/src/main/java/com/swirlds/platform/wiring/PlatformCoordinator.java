@@ -312,7 +312,7 @@ public record PlatformCoordinator(@NonNull PlatformComponents components) implem
     /**
      * @see AppNotifier#sendReconnectCompleteNotification
      */
-    public void sendAppNotifications(@NonNull final SignedState signedState) {
+    public void sendReconnectCompleteNotification(@NonNull final SignedState signedState) {
         components
                 .notifierWiring()
                 .getInputWire(AppNotifier::sendReconnectCompleteNotification)

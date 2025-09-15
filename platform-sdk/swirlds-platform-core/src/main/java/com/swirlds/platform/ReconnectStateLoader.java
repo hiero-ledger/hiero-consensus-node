@@ -150,7 +150,7 @@ public class ReconnectStateLoader {
             platformCoordinator.registerPcesDiscontinuity(signedState.getRound());
 
             // Notify any listeners that the reconnect has been completed
-            platformCoordinator.sendAppNotifications(signedState);
+            platformCoordinator.sendReconnectCompleteNotification(signedState);
 
         } catch (final RuntimeException e) {
             logger.debug(RECONNECT.getMarker(), "`loadReconnectState` : FAILED, reason: {}", e.getMessage());
