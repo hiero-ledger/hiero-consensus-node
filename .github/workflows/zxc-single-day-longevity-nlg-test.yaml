@@ -266,7 +266,7 @@ jobs:
           elif [[ "${NAMESPACE_ALIAS}" =~ ^AdHocSD[0-9]+$ ]]; then
             NETWORK_OWNER="adhoc-single-day-test"
           else
-            NETWORK_OWNER="adhoc-longevity-test"
+            NETWORK_OWNER="adhoc-performance-test"
           fi
           sed -i -e "s@%NETWORK_OWNER%@${NETWORK_OWNER}@g" init-containers-values7.yaml
 
@@ -349,7 +349,7 @@ jobs:
           elif [[ "${NAMESPACE_ALIAS}" =~ ^AdHocSD[0-9]+$ ]]; then
             NETWORK_OWNER="adhoc-single-day-test"
           else
-            NETWORK_OWNER="adhoc-longevity-test"
+            NETWORK_OWNER="adhoc-performance-test"
           fi
           sed -i -e "s@%NETWORK_OWNER%@${NETWORK_OWNER}@g" nlg-values.yaml
 
