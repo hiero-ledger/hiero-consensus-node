@@ -36,7 +36,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.junit.jupiter.api.DynamicTest;
 
-public class IvyFileScenarioSuite extends AbstractIvySuite {
+public class IvyFileScenarioSuite extends AbstractIvyScenariosSuite {
     private static final Logger log = LogManager.getLogger(IvyFileScenarioSuite.class);
 
     private final boolean novel;

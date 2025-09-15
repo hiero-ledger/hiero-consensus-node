@@ -10,6 +10,7 @@ import picocli.CommandLine;
         subcommands = {
             CommandLine.HelpCommand.class,
             ValidationScenariosCommand.class,
+            SysAccountsCheckCommand.class,
         },
         description = "Execution acceptance tests")
 public class IvyCommand implements Callable<Integer> {

@@ -23,7 +23,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.junit.jupiter.api.DynamicTest;
 
-public class IvyStakingScenarioSuite extends AbstractIvySuite {
+public class IvyStakingScenarioSuite extends AbstractIvyScenariosSuite {
     private static final Logger log = LogManager.getLogger(IvyStakingScenarioSuite.class);
 
     public IvyStakingScenarioSuite(
