@@ -14,7 +14,7 @@ import org.hiero.consensus.model.hashgraph.EventWindow;
  * @param eventWindow event window we see
  * @param tipHashes tips of our hashgraph
  */
-public record SyncData(EventWindow eventWindow, List<Hash> tipHashes) {
+public record SyncData(EventWindow eventWindow, List<Hash> tipHashes, boolean ignoreIncomingEvents) {
 
     /**
      * Convert protobuf communication version of class to internal one
@@ -32,7 +32,7 @@ public record SyncData(EventWindow eventWindow, List<Hash> tipHashes) {
                 gossipWindow.expiredThreshold());
         final var tips =
                 syncData.tips().stream().map(it -> new Hash(it.toByteArray())).collect(Collectors.toList());
-        return new SyncData(eventWindow, tips);
+        return new SyncData(eventWindow, tips, syncData.skipSendingEvents());
     }
 
     /**
@@ -47,6 +47,7 @@ public record SyncData(EventWindow eventWindow, List<Hash> tipHashes) {
                 .latestConsensusRound(eventWindow.latestConsensusRound())
                 .build());
         builder.tips(tipHashes.stream().map(Hash::getBytes).collect(Collectors.toList()));
+        builder.skipSendingEvents(ignoreIncomingEvents);
         return builder.build();
     }
 }
