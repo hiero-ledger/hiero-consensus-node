@@ -175,6 +175,13 @@ jobs:
           RESULT="${{ needs.run-single-day-performance-test.outputs.result }}"
           BUILD_NUM="${{ needs.verify-tag.outputs.build-number }}"
 
+          # Skip tagging if no build number is found
+          if [ -z "$BUILD_NUM" ]; then
+            echo "No build number found. Skipping tagging step." >> "${GITHUB_STEP_SUMMARY}"
+            exit 0
+          fi
+
+          # Populate the SDPT tag name and message
           if [ "$RESULT" == "success" ]; then
             TAG_NAME="sdpt-pass-${BUILD_NUM}"
             MSG="Single Day Performance Test passed for build-${BUILD_NUM}"
