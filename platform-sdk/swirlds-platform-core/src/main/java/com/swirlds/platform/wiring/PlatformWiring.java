@@ -132,15 +132,20 @@ public class PlatformWiring {
                 .solderTo(components.eventCreationManagerWiring().getInputWire(EventCreationManager::registerEvent));
 
         components
-                .model().getHealthMonitorWire()
-                .solderTo(components.eventCreationManagerWiring().getInputWire(EventCreationManager::reportUnhealthyDuration));
+                .model()
+                .getHealthMonitorWire()
+                .solderTo(components
+                        .eventCreationManagerWiring()
+                        .getInputWire(EventCreationManager::reportUnhealthyDuration));
 
         components
-                .model().getHealthMonitorWire().solderTo(components.gossipWiring().getSystemHealthInput());
+                .model()
+                .getHealthMonitorWire()
+                .solderTo(components.gossipWiring().getSystemHealthInput());
         components
-                .model().getHealthMonitorWire()
+                .model()
+                .getHealthMonitorWire()
                 .solderTo("executionHealthInput", "healthyDuration", execution::reportUnhealthyDuration);
-
 
         splitOrphanBufferOutput.solderTo(
                 components.branchDetectorWiring().getInputWire(BranchDetector::checkForBranches));
