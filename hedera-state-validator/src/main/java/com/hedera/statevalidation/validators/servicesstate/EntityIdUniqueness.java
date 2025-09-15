@@ -91,8 +91,6 @@ public class EntityIdUniqueness {
 
         ParallelProcessingUtil.processRange(0, lastEntityIdNumber, number -> {
                     int counter = 0;
-                    // try {
-
                     final Token token = tokensState.get(new TokenID(0, 0, number));
                     if (token != null) {
                         counter++;
@@ -137,15 +135,15 @@ public class EntityIdUniqueness {
 
                         final String errorMessage = String.format(
                                 """
-                                Entity ID %d is not unique, found %d entities.\s
-                                 Token = %s, \
-                                \s
-                                 Account = %s,\s
-                                 Contract = %s, \s
-                                 Topic = %s,\s
-                                 File = %s,\s
-                                 Schedule = %s
-                                """,
+                        Entity ID %d is not unique, found %d entities.\s
+                         Token = %s, \
+                        \s
+                         Account = %s,\s
+                         Contract = %s, \s
+                         Topic = %s,\s
+                         File = %s,\s
+                         Schedule = %s
+                        """,
                                 number, counter, token, account, contract, topic, file, schedule);
                         log.info(errorMessage);
                         issuesFound.incrementAndGet();

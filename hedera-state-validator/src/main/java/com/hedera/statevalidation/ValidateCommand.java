@@ -48,7 +48,7 @@ public class ValidateCommand implements Callable<Integer> {
         "rehash",
         "files",
         "compaction",
-        "entityIdUniqueness"
+        "entityIds"
     };
 
     @Override
