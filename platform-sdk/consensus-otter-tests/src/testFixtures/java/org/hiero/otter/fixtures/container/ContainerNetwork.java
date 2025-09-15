@@ -15,8 +15,6 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.Path;
 import java.security.KeyStoreException;
 import java.security.cert.CertificateEncodingException;
-import java.time.Duration;
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.Iterator;
@@ -29,7 +27,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.otter.fixtures.TimeManager;
-import org.hiero.otter.fixtures.TransactionFactory;
 import org.hiero.otter.fixtures.TransactionGenerator;
 import org.hiero.otter.fixtures.container.network.NetworkBehavior;
 import org.hiero.otter.fixtures.internal.AbstractNetwork;
@@ -54,10 +51,6 @@ public class ContainerNetwork extends AbstractNetwork {
 
     private static final Logger log = LogManager.getLogger();
 
-    private static final Duration DEFAULT_START_TIMEOUT = Duration.ofMinutes(2);
-    private static final Duration DEFAULT_FREEZE_TIMEOUT = Duration.ofMinutes(1);
-    private static final Duration DEFAULT_SHUTDOWN_TIMEOUT = Duration.ofMinutes(1);
-
     private final Network network = Network.newNetwork();
     private final RegularTimeManager timeManager;
     private final Path rootOutputDirectory;
@@ -79,7 +72,6 @@ public class ContainerNetwork extends AbstractNetwork {
             @NonNull final RegularTimeManager timeManager,
             @NonNull final ContainerTransactionGenerator transactionGenerator,
             @NonNull final Path rootOutputDirectory) {
-        super(DEFAULT_START_TIMEOUT, DEFAULT_FREEZE_TIMEOUT, DEFAULT_SHUTDOWN_TIMEOUT);
         this.timeManager = requireNonNull(timeManager);
         this.transactionGenerator = requireNonNull(transactionGenerator);
         this.rootOutputDirectory = requireNonNull(rootOutputDirectory);
@@ -95,15 +87,6 @@ public class ContainerNetwork extends AbstractNetwork {
     @NonNull
     protected TimeManager timeManager() {
         return timeManager;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    @NonNull
-    protected byte[] createFreezeTransaction(@NonNull final Instant freezeTime) {
-        return TransactionFactory.createFreezeTransaction(freezeTime).toByteArray();
     }
 
     /**

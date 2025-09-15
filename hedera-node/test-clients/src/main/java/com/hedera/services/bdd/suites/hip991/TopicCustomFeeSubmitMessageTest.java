@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.hip991;
 
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
 import static com.hedera.services.bdd.spec.keys.ControlForKey.forKey;
@@ -83,6 +84,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Tag;
 
 @HapiTestLifecycle
 @DisplayName("Submit message")
@@ -361,6 +363,7 @@ public class TopicCustomFeeSubmitMessageTest extends TopicCustomFeeBase {
         @HapiTest
         @DisplayName("Collector submits a message to a topic with fee of 1 FT.")
         // TOPIC_FEE_125
+        @Tag(MATS)
         final Stream<DynamicTest> collectorSubmitMessageToTopicWithFTFee() {
             final var collector = "collector";
             final var fee = fixedConsensusHtsFee(1, BASE_TOKEN, collector);

@@ -9,6 +9,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.Mockito.mock;
 
 import com.swirlds.base.test.fixtures.time.FakeTime;
@@ -517,7 +518,7 @@ class SyncPeerProtocolFactoryTests {
         final PeerProtocol peerProtocol = syncProtocol.createPeerInstance(peerId);
 
         // mock synchronize to throw a ParallelExecutionException
-        Mockito.when(shadowGraphSynchronizer.synchronize(any(), any()))
+        Mockito.when(shadowGraphSynchronizer.synchronize(any(), any(), anyBoolean()))
                 .thenThrow(new ParallelExecutionException(mock(Throwable.class)));
 
         assertEquals(2, countAvailablePermits(syncProtocol.getPermitProvider()));
@@ -545,7 +546,7 @@ class SyncPeerProtocolFactoryTests {
         final PeerProtocol peerProtocol = syncProtocol.createPeerInstance(peerId);
 
         // mock synchronize to throw a ParallelExecutionException with root cause being an IOException
-        Mockito.when(shadowGraphSynchronizer.synchronize(any(), any()))
+        Mockito.when(shadowGraphSynchronizer.synchronize(any(), any(), anyBoolean()))
                 .thenThrow(new ParallelExecutionException(new IOException()));
 
         assertEquals(2, countAvailablePermits(syncProtocol.getPermitProvider()));
@@ -572,7 +573,8 @@ class SyncPeerProtocolFactoryTests {
         final PeerProtocol peerProtocol = syncProtocol.createPeerInstance(peerId);
 
         // mock synchronize to throw a SyncException
-        Mockito.when(shadowGraphSynchronizer.synchronize(any(), any())).thenThrow(new SyncException(""));
+        Mockito.when(shadowGraphSynchronizer.synchronize(any(), any(), anyBoolean()))
+                .thenThrow(new SyncException(""));
 
         assertEquals(2, countAvailablePermits(syncProtocol.getPermitProvider()));
         peerProtocol.shouldAccept();
