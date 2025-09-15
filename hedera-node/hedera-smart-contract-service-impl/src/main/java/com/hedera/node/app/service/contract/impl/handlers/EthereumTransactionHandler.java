@@ -6,8 +6,10 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_GAS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_CONTRACT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ETHEREUM_TRANSACTION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_SOLIDITY_ADDRESS;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.NOT_SUPPORTED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.OK;
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
+import static com.hedera.node.app.hapi.utils.ethereum.EthTxData.getTransactionType;
 import static com.hedera.node.app.hapi.utils.ethereum.EthTxData.populateEthTxData;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.EVM_ADDRESS_LENGTH_AS_INT;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.throwIfUnsuccessfulCall;
@@ -23,6 +25,7 @@ import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.contract.EthereumTransactionBody;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxSigs;
 import com.hedera.node.app.service.contract.impl.ContractServiceComponent;
+import com.hedera.node.app.service.contract.impl.exec.FeatureFlags;
 import com.hedera.node.app.service.contract.impl.exec.TransactionComponent;
 import com.hedera.node.app.service.contract.impl.infra.EthTxSigsCache;
 import com.hedera.node.app.service.contract.impl.infra.EthereumCallDataHydration;
@@ -58,12 +61,14 @@ public class EthereumTransactionHandler extends AbstractContractTransactionHandl
     private final byte[] EMPTY_ADDRESS = new byte[20];
     private final EthTxSigsCache ethereumSignatures;
     private final EthereumCallDataHydration callDataHydration;
+    private final FeatureFlags featureFlags;
 
     /**
      * @param ethereumSignatures the ethereum signatures
      * @param callDataHydration the ethereum call data hydratino utility to be used for EthTxData
      * @param provider the provider to be used
      * @param gasCalculator the gas calculator to be used
+     * @param featureFlags the module feature flags
      */
     @Inject
     public EthereumTransactionHandler(
@@ -71,10 +76,12 @@ public class EthereumTransactionHandler extends AbstractContractTransactionHandl
             @NonNull final EthereumCallDataHydration callDataHydration,
             @NonNull final Provider<TransactionComponent.Factory> provider,
             @NonNull final GasCalculator gasCalculator,
-            @NonNull final ContractServiceComponent component) {
+            @NonNull final ContractServiceComponent component,
+            @NonNull final FeatureFlags featureFlags) {
         super(provider, gasCalculator, component);
         this.ethereumSignatures = requireNonNull(ethereumSignatures);
         this.callDataHydration = requireNonNull(callDataHydration);
+        this.featureFlags = requireNonNull(featureFlags);
     }
 
     @Override
@@ -85,6 +92,8 @@ public class EthereumTransactionHandler extends AbstractContractTransactionHandl
                 context.body().ethereumTransactionOrThrow(),
                 context.createStore(ReadableFileStore.class),
                 context.configuration());
+        // Also validate the transaction type
+        validateTransactionType(context.body().ethereumTransactionOrThrow());
     }
 
     @Override
@@ -211,6 +220,24 @@ public class EthereumTransactionHandler extends AbstractContractTransactionHandl
         } catch (RuntimeException ignore) {
             // Ignore and translate any signature computation exception
             throw new PreCheckException(INVALID_ETHEREUM_TRANSACTION);
+        }
+    }
+
+    /**
+     * Validates that the given transaction is a supported Ethereum transaction type
+     *
+     * @param op The Ethereum transaction body
+     * @throws PreCheckException thrown if the transaction type is not supported
+     */
+    private void validateTransactionType(
+            @NonNull final EthereumTransactionBody op)
+            throws PreCheckException {
+        final var type = getTransactionType(op.ethereumData().toByteArray());
+        validateTruePreCheck(type >= 0, NOT_SUPPORTED);
+
+        // Type 4 transactions are only supported if the feature flag is enabled
+        if(type == 4) {
+            validateTruePreCheck(featureFlags.isAuthorizationListEnabled(), NOT_SUPPORTED);
         }
     }
 }

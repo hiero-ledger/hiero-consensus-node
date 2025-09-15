@@ -12,11 +12,11 @@ import java.lang.annotation.Target;
 import javax.inject.Qualifier;
 
 /**
- * Qualifies a binding for use with the {@code v0.66} (Cancun) Services EVM.  Adds support for the
+ * Qualifies a binding for use with the {@code v0.70} (Cancun) Services EVM.  Adds support for the
  * Hedera EVM class for calculating and alternate ops duration and throttling system.
  */
 @Target({METHOD, PARAMETER, TYPE})
 @Retention(RUNTIME)
 @Documented
 @Qualifier
-public @interface ServicesV066 {}
+public @interface ServicesV070 {}

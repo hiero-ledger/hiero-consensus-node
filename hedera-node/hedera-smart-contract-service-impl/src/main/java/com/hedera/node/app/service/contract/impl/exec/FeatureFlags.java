@@ -78,4 +78,12 @@ public interface FeatureFlags {
     default boolean isAuthorizedRawMethodEnabled(@NonNull Configuration config) {
         return false;
     }
+
+    /**
+     *  If true, type 4 Ethereum transactions (EIP-7702 authorization lists) will be supported.
+     * @return true if type 4 Ethereum transactions are supported.
+     */
+    default boolean isAuthorizationListEnabled() {
+        return false;
+    }
 }
