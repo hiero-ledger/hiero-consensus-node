@@ -2,17 +2,9 @@
 package com.hedera.node.app.service.token.impl.handlers;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOK_ID_REPEATED_IN_CREATION_DETAILS;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
-import static com.hedera.node.app.spi.workflows.DispatchOptions.hookDispatch;
-import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 
 import com.hedera.hapi.node.base.AccountID;
-import com.hedera.hapi.node.hooks.HookCreation;
 import com.hedera.hapi.node.hooks.HookCreationDetails;
-import com.hedera.hapi.node.hooks.HookDispatchTransactionBody;
-import com.hedera.hapi.node.transaction.TransactionBody;
-import com.hedera.node.app.service.token.records.CryptoTransferStreamBuilder;
-import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.config.data.AccountsConfig;
 import com.swirlds.config.api.Configuration;
@@ -63,20 +55,6 @@ public class BaseCryptoHandler {
         return accountID != null
                 && ((accountID.hasAccountNum() && accountID.accountNumOrThrow() != 0L)
                         || (accountID.hasAlias() && accountID.aliasOrThrow().length() > 0));
-    }
-    /**
-     * Dispatches the hook creation to the given context.
-     * @param context the handle context
-     * @param creation the hook creation to dispatch
-     */
-    protected void dispatchCreation(final @NonNull HandleContext context, final HookCreation creation) {
-        final var hookDispatch =
-                HookDispatchTransactionBody.newBuilder().creation(creation).build();
-        final var streamBuilder = context.dispatch(hookDispatch(
-                context.payer(),
-                TransactionBody.newBuilder().hookDispatch(hookDispatch).build(),
-                CryptoTransferStreamBuilder.class));
-        validateTrue(streamBuilder.status() == SUCCESS, streamBuilder.status());
     }
 
     /**

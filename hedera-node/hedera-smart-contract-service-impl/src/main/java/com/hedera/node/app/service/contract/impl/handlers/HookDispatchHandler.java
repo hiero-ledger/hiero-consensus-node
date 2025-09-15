@@ -14,6 +14,7 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.HookId;
 import com.hedera.node.app.service.contract.impl.state.WritableEvmHookStore;
+import com.hedera.node.app.service.token.records.HookDispatchStreamBuilder;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
@@ -49,6 +50,8 @@ public class HookDispatchHandler implements TransactionHandler {
     public void handle(@NonNull final HandleContext context) throws HandleException {
         final var evmHookStore = context.storeFactory().writableStore(WritableEvmHookStore.class);
         final var op = context.body().hookDispatchOrThrow();
+        final var recordBuilder = context.savepointStack().getBaseBuilder(HookDispatchStreamBuilder.class);
+
         final var hookConfig = context.configuration().getConfigData(HooksConfig.class);
         validateTrue(hookConfig.hooksEnabled(), HOOKS_NOT_ENABLED);
 
@@ -69,6 +72,9 @@ public class HookDispatchHandler implements TransactionHandler {
                 final var hook = evmHookStore.getEvmHook(new HookId(deletion.entityId(), deletion.hookId()));
                 validateTrue(hook != null, HOOK_NOT_FOUND);
                 validateTrue(!hook.deleted(), HOOK_DELETED);
+                // Set the next available hook ID of the deleted hook to the record builder. This will be used by
+                // the caller to set the next available hook ID in the account if the deleted hook is the head
+                recordBuilder.nextHookId(hook.nextHookId());
 
                 evmHookStore.removeOrMarkDeleted(op.hookIdToDeleteOrThrow());
             }
