@@ -35,7 +35,7 @@ import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.HashedReservedSignedState;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.system.Platform;
-import com.swirlds.platform.wiring.PlatformWiring;
+import com.swirlds.platform.wiring.PlatformComponents;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -101,7 +101,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
     private OtterExecutionLayer executionLayer;
 
     @Nullable
-    private PlatformWiring platformWiring;
+    private PlatformComponents platformComponent;
 
     /**
      * Constructor of {@link TurtleNode}.
@@ -230,14 +230,16 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
                     .withMetricsDocumentationEnabled(false)
                     .withGossip(network.getGossipInstance(legacyNodeId));
 
-            platformWiring = platformBuildingBlocks.platformWiring();
+            platformComponent = platformBuildingBlocks.platformComponents();
 
-            platformWiring
-                    .getConsensusEngineOutputWire()
+            platformComponent
+                    .consensusEngineWiring()
+                    .consensusRoundsOutputWire()
                     .solderTo("nodeConsensusRoundsCollector", "consensusRounds", resultsCollector::addConsensusRounds);
 
-            platformWiring
-                    .getStatusStateMachineOutputWire()
+            platformComponent
+                    .statusStateMachineWiring()
+                    .getOutputWire()
                     .solderTo("nodePlatformStatusCollector", "platformStatus", this::handlePlatformStatusChange);
 
             InMemorySubscriptionManager.INSTANCE.subscribe(logEntry -> {
@@ -273,7 +275,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
                 }
                 platformStatus = null;
                 platform = null;
-                platformWiring = null;
+                platformComponent = null;
                 model = null;
             }
             lifeCycle = SHUTDOWN;
