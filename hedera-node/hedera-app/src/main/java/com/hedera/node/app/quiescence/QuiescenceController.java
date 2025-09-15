@@ -7,46 +7,115 @@ import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.base.time.Time;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.time.Instant;
 import java.util.Iterator;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
+import java.util.function.LongSupplier;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.event.Event;
 import org.hiero.consensus.model.transaction.Transaction;
 
 public class QuiescenceController {
-    private static final Function<Bytes, TransactionBody> TRANSACTION_BODY_PARSER = uncheckedParse(TransactionBody.PROTOBUF);
-    private static final Function<Bytes, SignedTransaction> SIGNED_TRANSACTION_PARSER = uncheckedParse(SignedTransaction.PROTOBUF);
-    private final AtomicLong pipelineTransactionCount = new AtomicLong(0);
+    private static final Logger logger = LogManager.getLogger(QuiescenceController.class);
+
+    private final QuiescenceConfig config;
+    private final Time time;
+    private final LongSupplier pendingTransactionCount;
+
+    private final Function<Bytes, TransactionBody> transactionBodyParser;
+    private final Function<Bytes, SignedTransaction> signedTransactionParser;
+    private final AtomicReference<Instant> nextTct;
+    private final AtomicLong pipelineTransactionCount;
+
+
+    public QuiescenceController(
+            final QuiescenceConfig config,
+            final Time time,
+            final LongSupplier pendingTransactionCount) {
+        this.config = Objects.requireNonNull(config);
+        this.time = Objects.requireNonNull(time);
+        this.pendingTransactionCount = Objects.requireNonNull(pendingTransactionCount);
+        transactionBodyParser = createParser(TransactionBody.PROTOBUF);
+        signedTransactionParser = createParser(SignedTransaction.PROTOBUF);
+        nextTct = new AtomicReference<>();
+        pipelineTransactionCount = new AtomicLong(0);
+    }
 
     public void fullySignedBlock(@NonNull final Block block) {
+        if(!config.enabled()){
+            return;
+        }
         final long transactionCount = block.items().stream()
                 .filter(BlockItem::hasSignedTransaction)
                 .map(BlockItem::signedTransaction)
                 .filter(Objects::nonNull)
-                .map(SIGNED_TRANSACTION_PARSER)
+                .map(signedTransactionParser)
                 .map(SignedTransaction::bodyBytes)
-                .map(TRANSACTION_BODY_PARSER)
+                .map(transactionBodyParser)
                 .filter(QuiescenceController::nonSignatureTransactions)
                 .count();
         final long updatedValue = pipelineTransactionCount.addAndGet(transactionCount);
         if (updatedValue < 0) {
-            System.out.println("error");
+            logger.error("Quiescence transaction count overflow, turning off quiescence");
+            disableQuiescence();
         }
     }
 
-    public void onPreHandle(@NonNull final Event event){
+    public void onPreHandle(@NonNull final Event event) {
+        if(!config.enabled()){
+            return;
+        }
         final Iterator<Transaction> iterator = event.transactionIterator();
         long transactionCount = 0;
-        while (iterator.hasNext()){
+        while (iterator.hasNext()) {
 
             if (nonSignatureTransactions(
-                    TRANSACTION_BODY_PARSER.apply(iterator.next().getApplicationTransaction()))) {
+                    transactionBodyParser.apply(iterator.next().getApplicationTransaction()))) {
                 transactionCount++;
             }
         }
         pipelineTransactionCount.addAndGet(transactionCount);
+    }
+
+    public QuiescenceStatus getQuiescenceStatus() {
+        if(!config.enabled()){
+            return QuiescenceStatus.NOT_QUIESCENT;
+        }
+        if (pipelineTransactionCount.get() > 0) {
+            return QuiescenceStatus.NOT_QUIESCENT;
+        }
+        final Instant tct = nextTct.get();
+        if (tct != null && tct.minus(config.tctDuration()).isBefore(time.now())) {
+            return QuiescenceStatus.NOT_QUIESCENT;
+        }
+        if (pendingTransactionCount.getAsLong() > 0) {
+            return QuiescenceStatus.BREAKING_QUIESCENCE;
+        }
+        return QuiescenceStatus.QUIESCENT;
+    }
+
+    private <T> Function<Bytes, T> createParser(@NonNull final Codec<T> codec) {
+        return bytes -> {
+            try {
+                return codec.parse(bytes);
+            } catch (final ParseException e) {
+                logger.error("Failed parsing transactions, turning off quiescence", e);
+                disableQuiescence();
+                return null;
+            }
+        };
+    }
+
+    private void disableQuiescence() {
+        // setting to a very high value to effectively disable quiescence
+        // if set to Long.MAX_VALUE, it may overflow and become negative
+        pipelineTransactionCount.set(Long.MAX_VALUE / 2);
     }
 
     private static boolean nonSignatureTransactions(@NonNull final TransactionBody body) {
@@ -54,13 +123,5 @@ public class QuiescenceController {
                 !body.hasHintsPartialSignature();
     }
 
-    private static <T> Function<Bytes, T> uncheckedParse(@NonNull final Codec<T> codec) {
-        return bytes -> {
-            try {
-                return codec.parse(bytes);
-            } catch (final ParseException e) {
-                throw new RuntimeException(e);
-            }
-        };
-    }
+
 }
