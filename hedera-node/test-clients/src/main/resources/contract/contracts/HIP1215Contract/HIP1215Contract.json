@@ -1,1 +1,189 @@
-[{"inputs":[{"internalType":"address","name":"scheduleAddress","type":"address"}],"name":"deleteScheduleExample","outputs":[{"internalType":"int64","name":"responseCode","type":"int64"}],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"address","name":"scheduleAddress","type":"address"}],"name":"deleteScheduleProxyExample","outputs":[{"internalType":"int64","name":"responseCode","type":"int64"}],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"address","name":"sender","type":"address"},{"internalType":"uint256","name":"expiryShift","type":"uint256"}],"name":"executeCallOnSenderSignatureExample","outputs":[{"internalType":"int64","name":"responseCode","type":"int64"},{"internalType":"address","name":"scheduleAddress","type":"address"}],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"uint256","name":"expiryShift","type":"uint256"}],"name":"hasScheduleCapacityExample","outputs":[{"internalType":"bool","name":"hasCapacity","type":"bool"}],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"uint256","name":"expiry","type":"uint256"},{"internalType":"uint256","name":"gasLimit","type":"uint256"}],"name":"hasScheduleCapacityProxy","outputs":[{"internalType":"bool","name":"hasCapacity","type":"bool"}],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"uint256","name":"expiryShift","type":"uint256"}],"name":"scheduleCallExample","outputs":[{"internalType":"int64","name":"responseCode","type":"int64"},{"internalType":"address","name":"scheduleAddress","type":"address"}],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"uint256","name":"expiryShift","type":"uint256"}],"name":"scheduleCallWithCapacityCheckAndDeleteExample","outputs":[{"internalType":"int64","name":"responseCode","type":"int64"},{"internalType":"address","name":"scheduleAddress","type":"address"}],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"address","name":"sender","type":"address"},{"internalType":"uint256","name":"expiryShift","type":"uint256"}],"name":"scheduleCallWithSenderExample","outputs":[{"internalType":"int64","name":"responseCode","type":"int64"},{"internalType":"address","name":"scheduleAddress","type":"address"}],"stateMutability":"nonpayable","type":"function"}]
+[
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "scheduleAddress",
+        "type": "address"
+      }
+    ],
+    "name": "deleteScheduleExample",
+    "outputs": [
+      {
+        "internalType": "int64",
+        "name": "responseCode",
+        "type": "int64"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "scheduleAddress",
+        "type": "address"
+      }
+    ],
+    "name": "deleteScheduleProxyExample",
+    "outputs": [
+      {
+        "internalType": "int64",
+        "name": "responseCode",
+        "type": "int64"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "sender",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "expiryShift",
+        "type": "uint256"
+      }
+    ],
+    "name": "executeCallOnSenderSignatureExample",
+    "outputs": [
+      {
+        "internalType": "int64",
+        "name": "responseCode",
+        "type": "int64"
+      },
+      {
+        "internalType": "address",
+        "name": "scheduleAddress",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "expiryShift",
+        "type": "uint256"
+      }
+    ],
+    "name": "hasScheduleCapacityExample",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "hasCapacity",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "expiry",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "gasLimit",
+        "type": "uint256"
+      }
+    ],
+    "name": "hasScheduleCapacityProxy",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "hasCapacity",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "expiryShift",
+        "type": "uint256"
+      }
+    ],
+    "name": "scheduleCallExample",
+    "outputs": [
+      {
+        "internalType": "int64",
+        "name": "responseCode",
+        "type": "int64"
+      },
+      {
+        "internalType": "address",
+        "name": "scheduleAddress",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "expiryShift",
+        "type": "uint256"
+      }
+    ],
+    "name": "scheduleCallWithCapacityCheckAndDeleteExample",
+    "outputs": [
+      {
+        "internalType": "int64",
+        "name": "responseCode",
+        "type": "int64"
+      },
+      {
+        "internalType": "address",
+        "name": "scheduleAddress",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "sender",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "expiryShift",
+        "type": "uint256"
+      }
+    ],
+    "name": "scheduleCallWithSenderExample",
+    "outputs": [
+      {
+        "internalType": "int64",
+        "name": "responseCode",
+        "type": "int64"
+      },
+      {
+        "internalType": "address",
+        "name": "scheduleAddress",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  }
+]
