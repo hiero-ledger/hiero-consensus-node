@@ -61,7 +61,7 @@ env:
   GS_ROOT_DIR: gs://performance-engineering-reports/ephemeral/test_runs
   GS_ROOT_HTTPS: https://perf.analytics.eng.hashgraph.io/ephemeral/test_runs
   #Release version from jFrog
-  NLG_VERSION: 0.6.2
+  NLG_VERSION: 0.6.3
 
 jobs:
   longevity-tests-start:
@@ -661,7 +661,7 @@ jobs:
           create_public_incident: "false"
           summary: ${{ steps.rootly-summary.outputs.summary }}
           severity: "Triage Event"
-          alert_ids: ${{ steps.rootly-alert.outputs.alert_ids }} || '' }}
+          alert_ids: ${{ steps.rootly-alert.outputs.alert_ids || '' }}
           environments: "CITR"
           incident_types: "Performance Engineering,Platform CI"
           services: ${{ steps.set-rootly-service.outputs.service }}
