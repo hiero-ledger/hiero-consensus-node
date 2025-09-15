@@ -11,18 +11,20 @@ import org.junit.jupiter.api.Test;
 import picocli.CommandLine;
 
 class VersionInfoCommandTest extends YahcliTestBase {
+    private static final String VERSION_COMMAND = "version";
+    private static final String TEST_IP_ADDRESS = "10.0.0.1";
 
     @Nested
     class HelpCommandParams {
         @Test
         void helpCommandParses() {
-            final var result = parseArgs(typicalGlobalOptions() + " version help");
-            assertCommandHierarchyOf(result, "yahcli", "version", "help");
+            final var result = parseArgs(typicalGlobalOptions() + " " + VERSION_COMMAND + " help");
+            assertCommandHierarchyOf(result, "yahcli", VERSION_COMMAND, "help");
         }
 
         @Test
         void invocationPrintsUsage() {
-            final var result = execute(typicalGlobalOptions() + " version help");
+            final var result = execute(typicalGlobalOptions() + " " + VERSION_COMMAND + " help");
             assertThat(result).isEqualTo(0);
             assertHasContent("Usage: yahcli version", "Get the deployed version of a network", "Commands:");
         }
@@ -32,22 +34,22 @@ class VersionInfoCommandTest extends YahcliTestBase {
     class VersionCommandParams {
         @Test
         void parsesCommandHierarchy() {
-            final var result = parseArgs(typicalGlobalOptions() + " version");
-            assertCommandHierarchyOf(result, "yahcli", "version");
+            final var result = parseArgs(typicalGlobalOptions() + " " + VERSION_COMMAND);
+            assertCommandHierarchyOf(result, "yahcli", VERSION_COMMAND);
         }
 
         @Test
         void registersAllSubcommands() {
-            final var result = parseArgs(typicalGlobalOptions() + " version");
-            final var subCmd = findSubcommand(result, "version").orElseThrow();
+            final var result = parseArgs(typicalGlobalOptions() + " " + VERSION_COMMAND);
+            final var subCmd = findSubcommand(result, VERSION_COMMAND).orElseThrow();
             assertThat(subCmd.subcommands().keySet()).isEqualTo(Set.of("help"));
         }
 
         @Test
         void versionCommandAcceptsNoAdditionalParams() {
             // Version command should work with just global params
-            final var result = parseArgs(typicalGlobalOptions() + " version");
-            final var cmdSpec = findSubcommand(result, "version");
+            final var result = parseArgs(typicalGlobalOptions() + " " + VERSION_COMMAND);
+            final var cmdSpec = findSubcommand(result, VERSION_COMMAND);
             assertThat(cmdSpec).isPresent();
             assertThat(cmdSpec.get().parent().name()).isEqualTo("yahcli");
         }
@@ -57,7 +59,7 @@ class VersionInfoCommandTest extends YahcliTestBase {
             // Version command should not accept extra parameters
             final var exception = assertThrows(
                     CommandLine.UnmatchedArgumentException.class,
-                    () -> parseArgs(typicalGlobalOptions() + " version extra-arg"));
+                    () -> parseArgs(typicalGlobalOptions() + " " + VERSION_COMMAND + " extra-arg"));
             assertThat(exception.getMessage()).contains("Unmatched argument");
             assertThat(exception.getMessage()).contains("extra-arg");
         }
@@ -67,7 +69,7 @@ class VersionInfoCommandTest extends YahcliTestBase {
             // Version command should not accept multiple extra parameters
             final var exception = assertThrows(
                     CommandLine.UnmatchedArgumentException.class,
-                    () -> parseArgs(typicalGlobalOptions() + " version arg1 arg2 arg3"));
+                    () -> parseArgs(typicalGlobalOptions() + " " + VERSION_COMMAND + " arg1 arg2 arg3"));
             assertThat(exception.getMessage()).contains("Unmatched argument");
             assertThat(exception.getMessage()).containsAnyOf("arg1", "arg2", "arg3");
         }
@@ -77,7 +79,7 @@ class VersionInfoCommandTest extends YahcliTestBase {
             // Version command should not accept command-specific options
             final var exception = assertThrows(
                     CommandLine.ParameterException.class,
-                    () -> parseArgs(typicalGlobalOptions() + " version --invalid-option"));
+                    () -> parseArgs(typicalGlobalOptions() + " " + VERSION_COMMAND + " --invalid-option"));
             assertThat(exception.getMessage()).containsIgnoringCase("unknown option");
             assertThat(exception.getMessage()).contains("--invalid-option");
         }
@@ -85,8 +87,8 @@ class VersionInfoCommandTest extends YahcliTestBase {
         @Test
         void versionCommandInheritsGlobalOptions() {
             // Version command should work with all valid global options
-            final var result = parseArgs("-c config.yml -n mainnet -a 3 -p 2 -f 100 version");
-            final var cmdSpec = findSubcommand(result, "version");
+            final var result = parseArgs("-c config.yml -n mainnet -a 3 -p 2 -f 100 " + VERSION_COMMAND);
+            final var cmdSpec = findSubcommand(result, VERSION_COMMAND);
             assertThat(cmdSpec).isPresent();
             assertThat(cmdSpec.get().parent().name()).isEqualTo("yahcli");
 
@@ -101,8 +103,8 @@ class VersionInfoCommandTest extends YahcliTestBase {
         @Test
         void versionCommandWithMinimalGlobalOptions() {
             // Version command should work with minimal required global options
-            final var result = parseArgs("-n testnet -p 2 version");
-            final var cmdSpec = findSubcommand(result, "version");
+            final var result = parseArgs("-n testnet -p 2 " + VERSION_COMMAND);
+            final var cmdSpec = findSubcommand(result, VERSION_COMMAND);
             assertThat(cmdSpec).isPresent();
             assertThat(cmdSpec.get().parent().name()).isEqualTo("yahcli");
         }
@@ -110,8 +112,8 @@ class VersionInfoCommandTest extends YahcliTestBase {
         @Test
         void versionCommandWorksWithScheduleOption() {
             // Version command should work with the schedule option
-            final var result = parseArgs(typicalGlobalOptions() + " -s version");
-            final var cmdSpec = findSubcommand(result, "version");
+            final var result = parseArgs(typicalGlobalOptions() + " -s " + VERSION_COMMAND);
+            final var cmdSpec = findSubcommand(result, VERSION_COMMAND);
             assertThat(cmdSpec).isPresent();
             assertThat(testSubjectCli().isScheduled()).isTrue();
         }
@@ -119,8 +121,8 @@ class VersionInfoCommandTest extends YahcliTestBase {
         @Test
         void versionCommandWorksWithWorkingDirOption() {
             // Version command should work with working directory option
-            final var result = parseArgs(typicalGlobalOptions() + " -w /custom/path version");
-            final var cmdSpec = findSubcommand(result, "version");
+            final var result = parseArgs(typicalGlobalOptions() + " -w /custom/path " + VERSION_COMMAND);
+            final var cmdSpec = findSubcommand(result, VERSION_COMMAND);
             assertThat(cmdSpec).isPresent();
             assertThat(testSubjectCli().getWorkingDir()).isEqualTo("/custom/path");
         }
@@ -128,8 +130,8 @@ class VersionInfoCommandTest extends YahcliTestBase {
         @Test
         void versionCommandWorksWithNodeIpOption() {
             // Version command should work with node IP option
-            final var result = parseArgs(typicalGlobalOptions() + " -i 127.0.0.1 version");
-            final var cmdSpec = findSubcommand(result, "version");
+            final var result = parseArgs(typicalGlobalOptions() + " -i 127.0.0.1 " + VERSION_COMMAND);
+            final var cmdSpec = findSubcommand(result, VERSION_COMMAND);
             assertThat(cmdSpec).isPresent();
             assertThat(testSubjectCli().getNodeIpv4Addr()).isEqualTo("127.0.0.1");
         }
@@ -137,8 +139,8 @@ class VersionInfoCommandTest extends YahcliTestBase {
         @Test
         void versionCommandWorksWithOutputFileOption() {
             // Version command should work with output file option
-            final var result = parseArgs(typicalGlobalOptions() + " -o output.txt version");
-            final var cmdSpec = findSubcommand(result, "version");
+            final var result = parseArgs(typicalGlobalOptions() + " -o output.txt " + VERSION_COMMAND);
+            final var cmdSpec = findSubcommand(result, VERSION_COMMAND);
             assertThat(cmdSpec).isPresent();
             assertThat(testSubjectCli().getOutputFile()).isEqualTo("output.txt");
         }
@@ -146,8 +148,8 @@ class VersionInfoCommandTest extends YahcliTestBase {
         @Test
         void versionCommandWorksWithVerboseOption() {
             // Version command should work with verbose/log level option
-            final var result = parseArgs(typicalGlobalOptions() + " -v DEBUG version");
-            final var cmdSpec = findSubcommand(result, "version");
+            final var result = parseArgs(typicalGlobalOptions() + " -v DEBUG " + VERSION_COMMAND);
+            final var cmdSpec = findSubcommand(result, VERSION_COMMAND);
             assertThat(cmdSpec).isPresent();
             assertThat(testSubjectCli().getLogLevel().toString()).isEqualTo("DEBUG");
         }
@@ -155,9 +157,10 @@ class VersionInfoCommandTest extends YahcliTestBase {
         @Test
         void versionCommandWorksWithAllGlobalOptions() {
             // Version command should work with all global options combined
-            final var result = parseArgs(
-                    "-c custom.yml -n previewnet -a 5 -p 10 -f 500 -i 10.0.0.1 -w /tmp -o results.log -v INFO -s version");
-            final var cmdSpec = findSubcommand(result, "version");
+            final var result = parseArgs(String.format(
+                    "-c custom.yml -n previewnet -a 5 -p 10 -f 500 -i %s -w /tmp -o results.log -v INFO -s %s",
+                    TEST_IP_ADDRESS, VERSION_COMMAND));
+            final var cmdSpec = findSubcommand(result, VERSION_COMMAND);
             assertThat(cmdSpec).isPresent();
             assertThat(cmdSpec.get().parent().name()).isEqualTo("yahcli");
 
@@ -167,7 +170,7 @@ class VersionInfoCommandTest extends YahcliTestBase {
             assertThat(testSubjectCli().getNodeAccount()).isEqualTo("5");
             assertThat(testSubjectCli().getPayer()).isEqualTo("10");
             assertThat(testSubjectCli().getFixedFee()).isEqualTo(500L);
-            assertThat(testSubjectCli().getNodeIpv4Addr()).isEqualTo("10.0.0.1");
+            assertThat(testSubjectCli().getNodeIpv4Addr()).isEqualTo(TEST_IP_ADDRESS);
             assertThat(testSubjectCli().getWorkingDir()).isEqualTo("/tmp");
             assertThat(testSubjectCli().getOutputFile()).isEqualTo("results.log");
             assertThat(testSubjectCli().getLogLevel().toString()).isEqualTo("INFO");
@@ -179,6 +182,6 @@ class VersionInfoCommandTest extends YahcliTestBase {
     void versionCommandIsRegisteredInMainYahcli() {
         // Verify that the version command is properly registered in main yahcli
         final var allSubcommands = testSubjectCL().getSubcommands().keySet();
-        assertThat(allSubcommands).contains("version");
+        assertThat(allSubcommands).contains(VERSION_COMMAND);
     }
 }
