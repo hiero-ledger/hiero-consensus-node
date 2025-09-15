@@ -172,7 +172,7 @@ public class ContractUpdateHandler implements TransactionHandler {
      * @param builder the account builder to update
      * @param originalAccount the original account before updates
      */
-    private void updateHooks(
+    public void updateHooks(
             final HandleContext context,
             final ContractUpdateTransactionBody op,
             final Account.Builder builder,

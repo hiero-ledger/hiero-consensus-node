@@ -22,7 +22,7 @@ import com.hedera.hapi.node.base.KeyList;
 import com.hedera.hapi.node.base.ThresholdKey;
 import com.hedera.hapi.node.hooks.LambdaMappingEntry;
 import com.hedera.hapi.node.hooks.LambdaStorageSlot;
-import com.hedera.node.app.service.contract.impl.state.ReadableEvmHookStoreImpl;
+import com.hedera.node.app.service.contract.ReadableEvmHookStore;
 import com.hedera.node.app.service.contract.impl.state.WritableEvmHookStore;
 import com.hedera.node.app.service.token.api.TokenServiceApi;
 import com.hedera.node.app.spi.workflows.HandleContext;
@@ -75,7 +75,7 @@ public class LambdaSStoreHandler implements TransactionHandler {
     public void preHandle(@NonNull final PreHandleContext context) throws PreCheckException {
         requireNonNull(context);
         final var op = context.body().lambdaSstoreOrThrow();
-        final var store = context.createStore(ReadableEvmHookStoreImpl.class);
+        final var store = context.createStore(ReadableEvmHookStore.class);
         final var hook = store.getEvmHook(op.hookIdOrThrow());
         validateTruePreCheck(hook != null, HOOK_NOT_FOUND);
         validateFalsePreCheck(hook.deleted(), HOOK_DELETED);

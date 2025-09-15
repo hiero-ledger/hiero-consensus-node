@@ -17,7 +17,6 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcingContextual;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_DELETED;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.HOOK_DELETED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.HOOK_IS_NOT_A_LAMBDA;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.HOOK_NOT_FOUND;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_HOOK_ID;
@@ -110,7 +109,7 @@ public class RepeatableLambdaSStoreTests {
 
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
-        testLifecycle.overrideInClass(Map.of("hedera.hooksEnabled", "true"));
+        testLifecycle.overrideInClass(Map.of("hooks.hooksEnabled", "true"));
         // Manually insert a hook on the owner account for LambdaSStore testing only
         testLifecycle.doAdhoc(
                 HOOK_CONTRACT.getInfo(),
@@ -154,7 +153,7 @@ public class RepeatableLambdaSStoreTests {
                 sourcingContextual(RepeatableLambdaSStoreTests::deletedHookCreation),
                 accountLambdaSStore(HOOK_OWNER.name(), DELETED_HOOK_ID)
                         .putSlot(Bytes.EMPTY, Bytes.EMPTY)
-                        .hasKnownStatus(HOOK_DELETED));
+                        .hasKnownStatus(HOOK_NOT_FOUND));
     }
 
     @Order(5)
