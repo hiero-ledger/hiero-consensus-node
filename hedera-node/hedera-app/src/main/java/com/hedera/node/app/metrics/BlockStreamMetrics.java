@@ -10,11 +10,8 @@ import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.EnumMap;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 import javax.inject.Inject;
 import javax.inject.Singleton;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.hiero.block.api.PublishStreamRequest;
 import org.hiero.block.api.PublishStreamResponse;
 
@@ -24,8 +21,6 @@ import org.hiero.block.api.PublishStreamResponse;
  */
 @Singleton
 public class BlockStreamMetrics {
-    private static final Logger logger = LogManager.getLogger(BlockStreamMetrics.class);
-
     private static final String CATEGORY = "blockStream";
 
     private static final String GROUP_CONN = "conn";
@@ -59,6 +54,8 @@ public class BlockStreamMetrics {
     private Counter conn_createFailureCounter;
     private LongGauge conn_activeConnIpGauge;
     private Counter conn_endOfStreamLimitCounter;
+    private DoubleGauge conn_ackLatencyGauge;
+    private Counter conn_highLatencyCounter;
 
     // buffer metrics
     private static final long BACK_PRESSURE_ACTIVE = 3;
@@ -76,10 +73,6 @@ public class BlockStreamMetrics {
     private LongGauge buffer_oldestBlockGauge;
     private LongGauge buffer_newestBlockGauge;
 
-    // Map to track acknowledgement latency metrics per block node
-    private final Map<String, DoubleGauge> acknowledgementLatencyGauges = new ConcurrentHashMap<>();
-    // Map to track high latency events per block node
-    private final Map<String, Counter> highLatencyCounters = new ConcurrentHashMap<>();
     /**
      * Constructor of this class.
      *
@@ -275,6 +268,14 @@ public class BlockStreamMetrics {
                 .withDescription(
                         "Number of times the active block node connection has exceeded the allowed number of EndOfStream responses");
         conn_endOfStreamLimitCounter = metrics.getOrCreate(endOfStreamLimitCfg);
+
+        final DoubleGauge.Config ackLatencyCfg = newDoubleGauge(GROUP_CONN, "acknowledgementLatency")
+                .withDescription("Latency (ms) for block acknowledgements from the active block node connection");
+        conn_ackLatencyGauge = metrics.getOrCreate(ackLatencyCfg);
+
+        final Counter.Config highLatencyCfg = newCounter(GROUP_CONN, "highLatencyEvents")
+                .withDescription("Count of high latency events from the active block node connection");
+        conn_highLatencyCounter = metrics.getOrCreate(highLatencyCfg);
     }
 
     /**
@@ -333,6 +334,21 @@ public class BlockStreamMetrics {
      */
     public void recordActiveConnectionIp(final long ipAddress) {
         conn_activeConnIpGauge.set(ipAddress);
+    }
+
+    /**
+     * Records the latency for a block acknowledgement from a specific block node.
+     * @param latencyMs the latency in milliseconds
+     */
+    public void recordAcknowledgementLatency(final long latencyMs) {
+        conn_ackLatencyGauge.set(latencyMs);
+    }
+
+    /**
+     * Record a high-latency event for a specific block node.
+     */
+    public void recordHighLatencyEvent() {
+        conn_highLatencyCounter.increment();
     }
 
     // Connection RECV metrics -----------------------------------------------------------------------------------------
@@ -515,46 +531,5 @@ public class BlockStreamMetrics {
     private LongGauge.Config newLongGauge(final String group, final String metric) {
         final String metricName = group + "_" + metric;
         return new LongGauge.Config(CATEGORY, metricName);
-    }
-
-    /**
-     * Records the latency for a block acknowledgement from a specific block node.
-     *
-     * @param nodeAddress the block node address
-     * @param latencyMs the latency in milliseconds
-     */
-    public void recordAcknowledgementLatency(@NonNull final String nodeAddress, final long latencyMs) {
-        requireNonNull(nodeAddress, "nodeAddress must not be null");
-
-        // Get or create a gauge for this specific block node
-        final long localNodeId = selfNodeInfo.nodeId();
-        final String metricName = "blockNodeLatency_" + nodeAddress + "_node" + localNodeId;
-        final DoubleGauge latencyGauge = acknowledgementLatencyGauges.computeIfAbsent(nodeAddress, address -> {
-            return metrics.getOrCreate(new DoubleGauge.Config(APP_CATEGORY, metricName)
-                    .withDescription("Latency (ms) for block acknowledgements from block node " + address));
-        });
-
-        // Update the gauge with the current latency
-        latencyGauge.set(latencyMs);
-    }
-
-    /**
-     * Records a high-latency event for a specific block node.
-     *
-     * @param nodeAddress the block node address
-     */
-    public void recordHighLatencyEvent(@NonNull final String nodeAddress) {
-        requireNonNull(nodeAddress, "nodeAddress must not be null");
-
-        // Get or create a counter for this specific block node
-        final long localNodeId = selfNodeInfo.nodeId();
-        final String metricName = "highLatencyEvents_" + nodeAddress + "_node" + localNodeId;
-        final Counter highLatencyCounter = highLatencyCounters.computeIfAbsent(
-                nodeAddress,
-                address -> metrics.getOrCreate(new Counter.Config(APP_CATEGORY, metricName)
-                        .withDescription("Count of high latency events from block node " + address)));
-
-        // Increment the counter
-        highLatencyCounter.increment();
     }
 }

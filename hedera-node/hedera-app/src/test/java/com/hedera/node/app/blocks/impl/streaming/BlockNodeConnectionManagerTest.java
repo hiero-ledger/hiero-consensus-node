@@ -1401,14 +1401,13 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     @Test
     void testHighLatencyTracking() {
         final BlockNodeConfig nodeConfig = newBlockNodeConfig(8080, 1);
-        final String nodeAddress = nodeConfig.address() + ":" + nodeConfig.port();
         final Instant ackedTime = Instant.now();
 
         connectionManager.recordBlockSent(nodeConfig, 1L, ackedTime);
         connectionManager.recordBlockAckAndCheckLatency(nodeConfig, 1L, ackedTime.plusMillis(1000));
 
-        verify(metrics).recordAcknowledgementLatency(nodeAddress, 1000);
-        verify(metrics).recordHighLatencyEvent(nodeAddress);
+        verify(metrics).recordAcknowledgementLatency(1000);
+        verify(metrics).recordHighLatencyEvent();
         verifyNoMoreInteractions(metrics);
     }
 

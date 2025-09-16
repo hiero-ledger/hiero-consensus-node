@@ -524,7 +524,8 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                         && !request.blockItems().blockItems().isEmpty()) {
                     // Find the first block item
                     // if it is a block proof, record the time it was sent
-                    final BlockItem firstItem = request.blockItems().blockItems().getFirst();
+                    final BlockItem firstItem =
+                            request.blockItems().blockItems().getFirst();
                     if (firstItem.hasBlockProof()) {
                         blockNodeConnectionManager.recordBlockSent(
                                 blockNodeConfig, firstItem.blockProof().block(), Instant.now());

@@ -1117,10 +1117,9 @@ public class BlockNodeConnectionManager {
                 blockNumber, timestamp, highLatencyThresholdMs, highLatencyEventsBeforeSwitching);
 
         // Update metrics
-        final String nodeAddress = blockNodeConfig.address() + ":" + blockNodeConfig.port();
-        blockStreamMetrics.recordAcknowledgementLatency(nodeAddress, result.latencyMs());
+        blockStreamMetrics.recordAcknowledgementLatency(result.latencyMs());
         if (result.isHighLatency()) {
-            blockStreamMetrics.recordHighLatencyEvent(nodeAddress);
+            blockStreamMetrics.recordHighLatencyEvent();
         }
 
         return result;

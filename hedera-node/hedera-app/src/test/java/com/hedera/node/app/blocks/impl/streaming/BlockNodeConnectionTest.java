@@ -165,7 +165,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         final PublishStreamResponse response = createBlockAckResponse(10L);
         when(connectionManager.currentStreamingBlockNumber())
                 .thenReturn(-1L); // we aren't streaming anything to the block node
-        when(connectionManager.recordBlockAckAndCheckLatency(eq(nodeConfig), eq(10L), any()))
+        when(connectionManager.recordBlockAckAndCheckLatency(eq(connection.getNodeConfig()), eq(10L), any()))
                 .thenReturn(latencyResult);
         when(latencyResult.shouldSwitch()).thenReturn(false);
 
@@ -185,7 +185,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
 
         when(connectionManager.currentStreamingBlockNumber()).thenReturn(10L);
         when(bufferService.getLastBlockNumberProduced()).thenReturn(10L);
-        when(connectionManager.recordBlockAckAndCheckLatency(eq(nodeConfig), eq(8L), any()))
+        when(connectionManager.recordBlockAckAndCheckLatency(eq(connection.getNodeConfig()), eq(8L), any()))
                 .thenReturn(latencyResult);
         when(latencyResult.shouldSwitch()).thenReturn(false);
 
@@ -210,7 +210,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
 
         when(connectionManager.currentStreamingBlockNumber()).thenReturn(11L);
         when(bufferService.getLastBlockNumberProduced()).thenReturn(10L);
-        when(connectionManager.recordBlockAckAndCheckLatency(eq(nodeConfig), eq(11L), any()))
+        when(connectionManager.recordBlockAckAndCheckLatency(eq(connection.getNodeConfig()), eq(11L), any()))
                 .thenReturn(latencyResult);
         when(latencyResult.shouldSwitch()).thenReturn(false);
 
@@ -232,7 +232,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
 
         when(connectionManager.currentStreamingBlockNumber()).thenReturn(10L);
         when(bufferService.getLastBlockNumberProduced()).thenReturn(12L);
-        when(connectionManager.recordBlockAckAndCheckLatency(eq(nodeConfig), eq(11L), any()))
+        when(connectionManager.recordBlockAckAndCheckLatency(eq(connection.getNodeConfig()), eq(11L), any()))
                 .thenReturn(latencyResult);
         when(latencyResult.shouldSwitch()).thenReturn(false);
 
