@@ -153,7 +153,7 @@ Notes:
 
 The `apply-blocks` command uses a set of block files to advance a given state from the current state to the target state.
 
-**Usage:**
+### Usage:
 
 ```bash
 
