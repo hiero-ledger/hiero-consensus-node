@@ -502,5 +502,6 @@ public class PlatformWiring {
         components.stateSnapshotManagerWiring().getInputWire(StateSnapshotManager::dumpStateTask);
         components.branchDetectorWiring().getInputWire(BranchDetector::clear);
         components.branchReporterWiring().getInputWire(BranchReporter::clear);
+        components.platformMonitorWiring().getInputWire(PlatformMonitor::submitStatusAction);
     }
 }
