@@ -399,7 +399,7 @@ jobs:
   longevity-tests-wait:
     name: Wait for Longevity test
     runs-on: hiero-citr-linux-large
-    if: env.testDone != 'true'
+    if: ${{ env.testDone != 'true' }}
     needs:
       - longevity-tests-start
     strategy:
