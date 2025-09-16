@@ -1,6 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.demo.iss;
-
-import static com.swirlds.state.lifecycle.StateMetadata.computeLabel;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.primitives.ProtoLong;
@@ -40,9 +39,14 @@ public class V0660ISSTestingToolSchema extends Schema {
     @NonNull
     @Override
     public Set<StateDefinition> statesToCreate() {
-        return Set.of(StateDefinition.singleton(RUNNING_SUM_STATE_ID, RUNNING_SUM_STATE_KEY, ProtoLong.PROTOBUF),
-                StateDefinition.singleton(GENESIS_TIMESTAMP_STATE_ID, GENESIS_TIMESTAMP_STATE_KEY, ProtoString.PROTOBUF),
+        return Set.of(
+                StateDefinition.singleton(RUNNING_SUM_STATE_ID, RUNNING_SUM_STATE_KEY, ProtoLong.PROTOBUF),
+                StateDefinition.singleton(
+                        GENESIS_TIMESTAMP_STATE_ID, GENESIS_TIMESTAMP_STATE_KEY, ProtoString.PROTOBUF),
                 StateDefinition.queue(PLANNED_ISS_LIST_STATE_ID, PLANNED_ISS_LIST_STATE_KEY, PlannedIssCodec.INSTANCE),
-                StateDefinition.queue(PLANNED_LOG_ERROR_LIST_STATE_ID, PLANNED_LOG_ERROR_LIST_STATE_KEY, PlannedLogErrorCodec.INSTANCE));
+                StateDefinition.queue(
+                        PLANNED_LOG_ERROR_LIST_STATE_ID,
+                        PLANNED_LOG_ERROR_LIST_STATE_KEY,
+                        PlannedLogErrorCodec.INSTANCE));
     }
 }

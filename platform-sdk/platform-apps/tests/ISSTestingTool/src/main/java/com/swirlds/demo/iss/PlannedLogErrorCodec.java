@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.demo.iss;
 
 import com.hedera.pbj.runtime.Codec;
@@ -16,8 +17,8 @@ public class PlannedLogErrorCodec implements Codec<PlannedLogError> {
 
     @NonNull
     @Override
-    public PlannedLogError parse(@NonNull ReadableSequentialData in, boolean strictMode, boolean parseUnknownFields,
-            int maxDepth) {
+    public PlannedLogError parse(
+            @NonNull ReadableSequentialData in, boolean strictMode, boolean parseUnknownFields, int maxDepth) {
         return new PlannedLogError(in);
     }
 

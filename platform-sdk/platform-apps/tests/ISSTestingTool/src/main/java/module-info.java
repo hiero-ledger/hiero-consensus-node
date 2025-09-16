@@ -6,6 +6,7 @@ module com.swirlds.demo.iss {
     requires com.swirlds.common;
     requires com.swirlds.config.api;
     requires com.swirlds.logging;
+    requires com.swirlds.merkledb;
     requires com.swirlds.metrics.api;
     requires com.swirlds.platform.core.test.fixtures;
     requires com.swirlds.platform.core;
@@ -18,6 +19,4 @@ module com.swirlds.demo.iss {
     requires org.hiero.consensus.utility;
     requires org.apache.logging.log4j;
     requires static com.github.spotbugs.annotations;
-    requires org.hiero.base.crypto;
-    requires com.swirlds.merkledb;
 }

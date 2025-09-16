@@ -9,7 +9,6 @@ import com.hedera.hapi.node.base.SemanticVersion;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.merkledb.MerkleDbDataSourceBuilder;
-import com.swirlds.merkledb.MerkleDbTableConfig;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.system.DefaultSwirldMain;
@@ -25,10 +24,6 @@ import java.util.Random;
 import java.util.function.Function;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.base.constructable.ClassConstructorPair;
-import org.hiero.base.constructable.ConstructableRegistry;
-import org.hiero.base.constructable.ConstructableRegistryException;
-import org.hiero.base.crypto.DigestType;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.notification.IssNotification;
 
@@ -145,7 +140,8 @@ public class ISSTestingToolMain extends DefaultSwirldMain<ISSTestingToolState> {
         final Configuration configuration =
                 ConfigurationBuilder.create().autoDiscoverExtensions().build();
         final MerkleDbConfig merkleDbConfig = configuration.getConfigData(MerkleDbConfig.class);
-        final VirtualDataSourceBuilder dsBuilder = new MerkleDbDataSourceBuilder(configuration, 1_000_000, merkleDbConfig.hashesRamToDiskThreshold());
+        final VirtualDataSourceBuilder dsBuilder =
+                new MerkleDbDataSourceBuilder(configuration, 1_000_000, merkleDbConfig.hashesRamToDiskThreshold());
         final VirtualMap virtualMap = new VirtualMap("VMM-ISS-TT", dsBuilder, configuration);
         virtualMap.registerMetrics(getGlobalMetrics());
         return virtualMap;

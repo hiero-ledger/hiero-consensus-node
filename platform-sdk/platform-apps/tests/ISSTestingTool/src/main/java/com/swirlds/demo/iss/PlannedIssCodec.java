@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.demo.iss;
 
 import com.hedera.pbj.runtime.Codec;
@@ -5,7 +6,6 @@ import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.io.IOException;
 import java.time.Duration;
 import java.util.ArrayList;
 
@@ -17,13 +17,13 @@ public class PlannedIssCodec implements Codec<PlannedIss> {
 
     @NonNull
     @Override
-    public PlannedIss parse(@NonNull ReadableSequentialData in, boolean strictMode, boolean parseUnknownFields,
-            int maxDepth) throws ParseException {
+    public PlannedIss parse(
+            @NonNull ReadableSequentialData in, boolean strictMode, boolean parseUnknownFields, int maxDepth) {
         return new PlannedIss(in);
     }
 
     @Override
-    public void write(@NonNull PlannedIss item, @NonNull WritableSequentialData out) throws IOException {
+    public void write(@NonNull PlannedIss item, @NonNull WritableSequentialData out) {
         item.writeTo(out);
     }
 
@@ -41,7 +41,8 @@ public class PlannedIssCodec implements Codec<PlannedIss> {
     }
 
     @Override
-    public boolean fastEquals(@NonNull PlannedIss plannedIss, @NonNull ReadableSequentialData input) throws ParseException {
+    public boolean fastEquals(@NonNull PlannedIss plannedIss, @NonNull ReadableSequentialData input)
+            throws ParseException {
         final PlannedIss other = parse(input);
         return plannedIss.equals(other);
     }

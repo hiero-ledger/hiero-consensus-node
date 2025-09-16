@@ -1,19 +1,30 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.demo.iss;
 
+import static com.swirlds.demo.iss.V0660ISSTestingToolSchema.ISS_SERVICE_NAME;
+import static com.swirlds.demo.iss.V0660ISSTestingToolSchema.RUNNING_SUM_STATE_ID;
+import static com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer.CONFIGURATION;
 import static org.assertj.core.api.AssertionsForInterfaceTypes.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.hedera.hapi.node.state.primitives.ProtoLong;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.test.fixtures.Randotron;
-import com.swirlds.state.merkle.singleton.StringLeaf;
+import com.swirlds.merkledb.MerkleDbDataSourceBuilder;
+import com.swirlds.merkledb.config.MerkleDbConfig;
+import com.swirlds.state.lifecycle.StateDefinition;
+import com.swirlds.state.lifecycle.StateMetadata;
+import com.swirlds.state.spi.ReadableSingletonState;
+import com.swirlds.virtualmap.VirtualMap;
+import com.swirlds.virtualmap.datasource.VirtualDataSourceBuilder;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Random;
 import java.util.function.Consumer;
@@ -30,7 +41,6 @@ import org.junit.jupiter.api.Test;
 
 class ISSTestingToolStateTest {
 
-    private static final int RUNNING_SUM_INDEX = 3;
     private ISSTestingToolState state;
     private ISSTestingToolConsensusStateEventHandler consensusStateEventHandler;
     private Round round;
@@ -43,7 +53,19 @@ class ISSTestingToolStateTest {
 
     @BeforeEach
     void setUp() {
-        state = new ISSTestingToolState();
+        final MerkleDbConfig merkleDbConfig = CONFIGURATION.getConfigData(MerkleDbConfig.class);
+        final VirtualDataSourceBuilder dsBuilder =
+                new MerkleDbDataSourceBuilder(CONFIGURATION, 1_000_000, merkleDbConfig.hashesRamToDiskThreshold());
+        final VirtualMap virtualMap = new VirtualMap("VMM-ISS-TT-UNIT-T", dsBuilder, CONFIGURATION);
+        state = new ISSTestingToolState(virtualMap);
+
+        final var schema = new V0660ISSTestingToolSchema();
+        schema.statesToCreate().stream()
+                .sorted(Comparator.comparing(StateDefinition::stateId))
+                .forEach(def -> {
+                    state.initializeState(new StateMetadata<>(ISS_SERVICE_NAME, schema, def));
+                });
+
         consensusStateEventHandler = new ISSTestingToolConsensusStateEventHandler();
         final var random = new Random();
         round = mock(Round.class);
@@ -81,8 +103,10 @@ class ISSTestingToolStateTest {
         verify(event, times(2)).getConsensusTimestamp();
         verify(event, times(1)).consensusTransactionIterator();
 
-        assertThat(Long.parseLong(((StringLeaf) state.getChild(RUNNING_SUM_INDEX)).getLabel()))
-                .isPositive();
+        final ReadableSingletonState<ProtoLong> runningSumState =
+                state.getReadableStates(ISS_SERVICE_NAME).getSingleton(RUNNING_SUM_STATE_ID);
+        final ProtoLong runningSumProto = runningSumState.get();
+        assertThat(runningSumProto.value()).isPositive();
         assertThat(consumedTransactions).isEmpty();
     }
 
@@ -103,7 +127,9 @@ class ISSTestingToolStateTest {
         verify(event, times(2)).getConsensusTimestamp();
         verify(event, times(1)).consensusTransactionIterator();
 
-        assertThat((StringLeaf) state.getChild(RUNNING_SUM_INDEX)).isNull();
+        final ReadableSingletonState<ProtoLong> runningSumState =
+                state.getReadableStates(ISS_SERVICE_NAME).getSingleton(RUNNING_SUM_STATE_ID);
+        assertThat(runningSumState.get()).isNull();
         assertThat(consumedTransactions).hasSize(1);
     }
 
@@ -135,7 +161,9 @@ class ISSTestingToolStateTest {
         verify(event, times(2)).getConsensusTimestamp();
         verify(event, times(1)).consensusTransactionIterator();
 
-        assertThat((StringLeaf) state.getChild(RUNNING_SUM_INDEX)).isNull();
+        final ReadableSingletonState<ProtoLong> runningSumState =
+                state.getReadableStates(ISS_SERVICE_NAME).getSingleton(RUNNING_SUM_STATE_ID);
+        assertThat(runningSumState.get()).isNull();
         assertThat(consumedTransactions).hasSize(3);
     }
 
@@ -157,8 +185,10 @@ class ISSTestingToolStateTest {
         verify(event, times(2)).getConsensusTimestamp();
         verify(event, times(1)).consensusTransactionIterator();
 
-        assertThat(Long.parseLong(((StringLeaf) state.getChild(RUNNING_SUM_INDEX)).getLabel()))
-                .isZero();
+        final ReadableSingletonState<ProtoLong> runningSumState =
+                state.getReadableStates(ISS_SERVICE_NAME).getSingleton(RUNNING_SUM_STATE_ID);
+        final ProtoLong runningSumProto = runningSumState.get();
+        assertThat(runningSumProto.value()).isZero();
         assertThat(consumedTransactions).isEmpty();
     }
 
@@ -180,8 +210,10 @@ class ISSTestingToolStateTest {
         verify(event, times(2)).getConsensusTimestamp();
         verify(event, times(1)).consensusTransactionIterator();
 
-        assertThat(Long.parseLong(((StringLeaf) state.getChild(RUNNING_SUM_INDEX)).getLabel()))
-                .isZero();
+        final ReadableSingletonState<ProtoLong> runningSumState =
+                state.getReadableStates(ISS_SERVICE_NAME).getSingleton(RUNNING_SUM_STATE_ID);
+        final ProtoLong runningSumProto = runningSumState.get();
+        assertThat(runningSumProto.value()).isZero();
         assertThat(consumedTransactions).isEmpty();
     }
 

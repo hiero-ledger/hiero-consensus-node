@@ -19,41 +19,30 @@ import static com.swirlds.demo.iss.V0660ISSTestingToolSchema.RUNNING_SUM_STATE_I
 import static com.swirlds.platform.state.service.PlatformStateFacade.DEFAULT_PLATFORM_STATE_FACADE;
 import static com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer.registerMerkleStateRootClassIds;
 
+import com.hedera.hapi.node.state.primitives.ProtoLong;
+import com.hedera.hapi.node.state.primitives.ProtoString;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.merkle.MerkleNode;
-import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.state.lifecycle.StateDefinition;
 import com.swirlds.state.lifecycle.StateMetadata;
-import com.swirlds.state.merkle.MerkleStateRoot;
 import com.swirlds.state.merkle.VirtualMapState;
-import com.swirlds.state.merkle.disk.OnDiskReadableSingletonState;
 import com.swirlds.state.merkle.disk.OnDiskWritableSingletonState;
-import com.swirlds.state.merkle.singleton.StringLeaf;
 import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.state.spi.ReadableQueueState;
 import com.swirlds.state.spi.ReadableSingletonState;
 import com.swirlds.state.spi.ReadableStates;
 import com.swirlds.state.spi.WritableQueueState;
+import com.swirlds.state.spi.WritableSingletonState;
 import com.swirlds.state.spi.WritableStates;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.function.Supplier;
-import org.hiero.base.constructable.ConstructableIgnored;
-import org.hiero.base.io.SelfSerializable;
-import org.hiero.base.io.streams.SerializableDataInputStream;
-import org.hiero.base.io.streams.SerializableDataOutputStream;
 import org.hiero.consensus.model.event.ConsensusEvent;
 
 /**
@@ -78,12 +67,12 @@ public class ISSTestingToolState extends VirtualMapState<ISSTestingToolState> im
     /**
      * A list of ISS incidents that will be triggered at a predetermined consensus time
      */
-    private List<PlannedIss> plannedIssList;
+    private List<PlannedIss> plannedIssList = new LinkedList<>();
 
     /**
      * A list of errors that will be logged at a predetermined consensus time
      */
-    private List<PlannedLogError> plannedLogErrorList;
+    private List<PlannedLogError> plannedLogErrorList = new LinkedList<>();
 
     public ISSTestingToolState(@NonNull final VirtualMap virtualMap) {
         super(virtualMap);
@@ -143,7 +132,8 @@ public class ISSTestingToolState extends VirtualMapState<ISSTestingToolState> im
             plannedIssList.forEach(plannedIssState::add);
             ((CommittableWritableStates) plannedIssState).commit();
 
-            final WritableQueueState<PlannedLogError> plannedLogErrorState = writableStates.getQueue(PLANNED_LOG_ERROR_LIST_STATE_ID);
+            final WritableQueueState<PlannedLogError> plannedLogErrorState =
+                    writableStates.getQueue(PLANNED_LOG_ERROR_LIST_STATE_ID);
             plannedLogErrorList.forEach(plannedLogErrorState::add);
             ((CommittableWritableStates) plannedLogErrorState).commit();
         } else {
@@ -155,7 +145,8 @@ public class ISSTestingToolState extends VirtualMapState<ISSTestingToolState> im
                 this.runningSum = runningSum;
             }
 
-            final ReadableSingletonState<String> genesisTimestampState = readableStates.getSingleton(GENESIS_TIMESTAMP_STATE_ID);
+            final ReadableSingletonState<String> genesisTimestampState =
+                    readableStates.getSingleton(GENESIS_TIMESTAMP_STATE_ID);
             final String genesisTimestampString = genesisTimestampState.get();
             if (genesisTimestampString != null) {
                 this.genesisTimestamp = Instant.parse(genesisTimestampString);
@@ -164,8 +155,11 @@ public class ISSTestingToolState extends VirtualMapState<ISSTestingToolState> im
             final ReadableQueueState<PlannedIss> plannedIssState = readableStates.getQueue(PLANNED_ISS_LIST_STATE_ID);
             plannedIssState.iterator().forEachRemaining(plannedIss -> this.plannedIssList.add(plannedIss));
 
-            final ReadableQueueState<PlannedLogError> plannedLogErrorState = readableStates.getQueue(PLANNED_LOG_ERROR_LIST_STATE_ID);
-            plannedLogErrorState.iterator().forEachRemaining(plannedLogError -> this.plannedLogErrorList.add(plannedLogError));
+            final ReadableQueueState<PlannedLogError> plannedLogErrorState =
+                    readableStates.getQueue(PLANNED_LOG_ERROR_LIST_STATE_ID);
+            plannedLogErrorState
+                    .iterator()
+                    .forEachRemaining(plannedLogError -> this.plannedLogErrorList.add(plannedLogError));
         }
     }
 
@@ -175,13 +169,19 @@ public class ISSTestingToolState extends VirtualMapState<ISSTestingToolState> im
     void captureTimestamp(@NonNull final ConsensusEvent event) {
         if (genesisTimestamp == null) {
             genesisTimestamp = event.getConsensusTimestamp();
-            getWritableStates(ISS_SERVICE_NAME).getSingleton(GENESIS_TIMESTAMP_STATE_ID).put(genesisTimestamp.toString());
+            final WritableSingletonState<ProtoString> genesisTimestampState =
+                    getWritableStates(ISS_SERVICE_NAME).getSingleton(GENESIS_TIMESTAMP_STATE_ID);
+            genesisTimestampState.put(new ProtoString(genesisTimestamp.toString()));
+            ((OnDiskWritableSingletonState<ProtoString>) genesisTimestampState).commit();
         }
     }
 
     void incrementRunningSum(long delta) {
         runningSum += delta;
-        getWritableStates(ISS_SERVICE_NAME).getSingleton(RUNNING_SUM_STATE_ID).put(runningSum);
+        final WritableSingletonState<ProtoLong> runningSumState =
+                getWritableStates(ISS_SERVICE_NAME).getSingleton(RUNNING_SUM_STATE_ID);
+        runningSumState.put(new ProtoLong(runningSum));
+        ((OnDiskWritableSingletonState<ProtoLong>) runningSumState).commit();
     }
 
     Instant getGenesisTimestamp() {
