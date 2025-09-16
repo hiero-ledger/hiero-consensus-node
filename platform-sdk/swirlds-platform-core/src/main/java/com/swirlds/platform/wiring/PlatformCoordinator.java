@@ -23,11 +23,10 @@ import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.state.signed.StateSignatureCollector;
 import com.swirlds.platform.state.snapshot.StateDumpRequest;
 import com.swirlds.platform.state.snapshot.StateSnapshotManager;
+import com.swirlds.platform.system.PlatformMonitor;
 import com.swirlds.platform.system.status.StatusActionSubmitter;
 import com.swirlds.platform.system.status.StatusStateMachine;
 import com.swirlds.platform.system.status.actions.PlatformStatusAction;
-import com.swirlds.platform.system.PlatformMonitor;
-import com.swirlds.platform.wiring.components.GossipWiring;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
 import org.hiero.consensus.event.creator.impl.EventCreationManager;
@@ -201,8 +200,8 @@ public record PlatformCoordinator(@NonNull PlatformComponents components) implem
     @NonNull
     public StatusActionSubmitter getStatusActionSubmitter() {
         return action -> components
-                .statusStateMachineWiring()
-                .getInputWire(StatusStateMachine::submitStatusAction)
+                .platformMonitorWiring()
+                .getInputWire(PlatformMonitor::submitStatusAction)
                 .put(action);
     }
 
@@ -276,8 +275,8 @@ public record PlatformCoordinator(@NonNull PlatformComponents components) implem
      */
     public void submitStatusAction(@NonNull final PlatformStatusAction action) {
         components
-                .statusStateMachineWiring()
-                .getInputWire(StatusStateMachine::submitStatusAction)
+                .platformMonitorWiring()
+                .getInputWire(PlatformMonitor::submitStatusAction)
                 .put(action);
     }
 
