@@ -149,7 +149,7 @@ Notes:
 - Order of entries is consistent across runs and ordered by path, unless `-Dsorted=true` is specified.
 - In case of `-Dsorted=true`, the data is sorted by the **byte representation of the key**, which doesn't always map to natural ordering. For example, varint encoding does not preserve numerical ordering under lexicographical byte comparison, particularly when values cross boundaries that affect the number of bytes or the leading byte values. However, it will produce a stable ordering across different versions of the state, which is critically important for differential testing.
 
-### Updating State with a Block Stream
+## Updating State with a Block Stream
 
 The `apply-blocks` command uses a set of block files to advance a given state from the current state to the target state.
 
