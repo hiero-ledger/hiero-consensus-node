@@ -191,7 +191,7 @@ class SetupStakeCommandTest extends YahcliTestBase {
     @Nested
     class ScaledAmountValidation {
         @ParameterizedTest
-        @MethodSource("validScaledAmounts")
+        @ValueSource(strings = {"1h", "10kh", "100mh", "1000bh", "1H", "10KH", "100MH", "1000BH", "0", "123456789", "999h", "1bh"})
         void validScaledAmountsAccepted(String amount) {
             // Test that valid scaled amounts with proper suffixes are accepted
             final var result = parseArgs(typicalGlobalOptions() + " activate-staking -p " + amount);
@@ -199,14 +199,14 @@ class SetupStakeCommandTest extends YahcliTestBase {
         }
 
         @ParameterizedTest
-        @MethodSource("validEdgeCaseAmounts")
+        @ValueSource(strings = {"0", "1", "999", "1h", "1000H"})
         void validEdgeCaseAmountsAccepted(String amount) {
             final var result = parseArgs(typicalGlobalOptions() + " activate-staking -p " + amount);
             assertCommandHierarchyOf(result, "yahcli", "activate-staking");
         }
 
         @ParameterizedTest
-        @MethodSource("invalidEdgeCaseAmounts")
+        @ValueSource(strings = {"h", "kh", "1x", "1gh", "-1", "1.5", "1e5", "abc", "999999999999999999999"})
         void invalidEdgeCaseAmountsParsedButWillFailOnExecution(String amount) {
             // These values are accepted during parsing but would fail during execution
             final var result = parseArgs(typicalGlobalOptions() + " activate-staking -p " + amount);
@@ -221,18 +221,6 @@ class SetupStakeCommandTest extends YahcliTestBase {
             assertThat(exception.getMessage()).contains("Unmatched argument");
         }
 
-        static Stream<String> validScaledAmounts() {
-            return Stream.of(
-                    "1h", "10kh", "100mh", "1000bh", "1H", "10KH", "100MH", "1000BH", "0", "123456789", "999h", "1bh");
-        }
-
-        static Stream<String> validEdgeCaseAmounts() {
-            return Stream.of("0", "1", "999", "1h", "1000H");
-        }
-
-        static Stream<String> invalidEdgeCaseAmounts() {
-            return Stream.of("h", "kh", "1x", "1gh", "-1", "1.5", "1e5", "abc", "999999999999999999999");
-        }
     }
 
     @Nested
