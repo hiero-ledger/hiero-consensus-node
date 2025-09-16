@@ -381,6 +381,6 @@ jobs:
           severity: "Triage Event"
           alert_ids: ${{ steps.create-rootly-alert.outputs.alert_id || '' }}
           environments: "CITR"
-          incident_types: "Platform CI,Performance Engineering"
+          incident_types: "Platform CI"
           services: ${{ steps.set-rootly-service.outputs.service }}
           teams: "Platform CI,Performance Engineering"
