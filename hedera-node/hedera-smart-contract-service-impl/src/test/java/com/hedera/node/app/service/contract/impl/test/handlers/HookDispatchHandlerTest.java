@@ -32,12 +32,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-/**
- * Unit tests for {@link HookDispatchHandler}.
- * <p>
- * IMPORTANT: This test uses Mockito inline to mock final PBJ classes. Ensure you have the
- * mockito-inline dependency (see below).
- */
 @ExtendWith(MockitoExtension.class)
 class HookDispatchHandlerTest extends ContractHandlerTestBase {
     @Mock
