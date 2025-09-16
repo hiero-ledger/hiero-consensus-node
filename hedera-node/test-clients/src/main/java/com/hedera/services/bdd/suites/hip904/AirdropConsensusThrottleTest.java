@@ -3,6 +3,7 @@ package com.hedera.services.bdd.suites.hip904;
 
 import static com.hedera.services.bdd.junit.ContextRequirement.PROPERTY_OVERRIDES;
 import static com.hedera.services.bdd.junit.ContextRequirement.THROTTLE_OVERRIDES;
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.TOKEN;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.keys.SigControl.SECP256K1_ON;
@@ -45,6 +46,7 @@ import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
 @Tag(TOKEN)
+@Tag(MATS)
 public class AirdropConsensusThrottleTest {
     private static final Logger LOG = LogManager.getLogger(AirdropConsensusThrottleTest.class);
 

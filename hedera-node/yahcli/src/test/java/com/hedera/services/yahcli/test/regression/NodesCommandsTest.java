@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.hedera.services.yahcli.test.scenarios;
+package com.hedera.services.yahcli.test.regression;
 
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
@@ -28,7 +28,7 @@ public class NodesCommandsTest {
         final var newNodeNum = new AtomicLong();
         final var adminKey = "adminKey";
         final var adminKeyFileName = adminKey + ".pem";
-        final var certFilePath = loadResourceFile("s-public-node1.pem");
+        final var certFilePath = loadResourceFile("testFiles/s-public-node1.pem");
         return hapiTest(
                 newKeyNamed(adminKey)
                         .shape(SigControl.ED25519_ON)
