@@ -125,7 +125,7 @@ jobs:
 
       - name: Checkout PBJ and Besu
         run: |
-          git clone --branch v0.11.15--single-branch https://"${{ secrets.perf_ghp }}"@github.com/hashgraph/pbj.git pbj
+          git clone --branch v0.11.15 --single-branch https://"${{ secrets.perf_ghp }}"@github.com/hashgraph/pbj.git pbj
           git clone --branch 24.3.3 --single-branch https://github.com/hyperledger/besu.git besu
 
       - name: Check Test Asset
