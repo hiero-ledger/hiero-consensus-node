@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.statevalidation.blockstream;
 
+import static com.hedera.services.bdd.junit.support.validators.block.BlockStreamUtils.*;
 import static com.hedera.statevalidation.ApplyBlocksCommand.DEFAULT_TARGET_ROUND;
 import static com.hedera.statevalidation.blockstream.BlockStreamUtils.mapKeyFor;
 import static com.hedera.statevalidation.blockstream.BlockStreamUtils.mapValueFor;
 import static com.hedera.statevalidation.blockstream.BlockStreamUtils.queuePushFor;
 import static com.hedera.statevalidation.blockstream.BlockStreamUtils.singletonPutFor;
-import static com.hedera.statevalidation.blockstream.BlockStreamUtils.stateNameOf;
 import static com.hedera.statevalidation.parameterresolver.StateResolver.PLATFORM_CONTEXT;
 import static com.swirlds.platform.state.service.PlatformStateFacade.DEFAULT_PLATFORM_STATE_FACADE;
 import static java.util.Objects.requireNonNull;

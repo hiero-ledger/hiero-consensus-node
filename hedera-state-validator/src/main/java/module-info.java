@@ -19,6 +19,7 @@ module com.hedera.state.validator {
     requires com.hedera.node.app;
     requires com.hedera.node.config;
     requires com.hedera.node.hapi;
+    requires com.hedera.node.test.clients;
     requires com.hedera.pbj.runtime;
     requires com.swirlds.base;
     requires com.swirlds.cli;
