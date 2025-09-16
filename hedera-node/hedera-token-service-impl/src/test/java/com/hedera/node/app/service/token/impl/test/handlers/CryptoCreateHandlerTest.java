@@ -56,6 +56,7 @@ import com.hedera.node.app.service.token.impl.handlers.CryptoCreateHandler;
 import com.hedera.node.app.service.token.impl.test.handlers.util.CryptoHandlerTestBase;
 import com.hedera.node.app.service.token.impl.validators.CryptoCreateValidator;
 import com.hedera.node.app.service.token.records.CryptoCreateStreamBuilder;
+import com.hedera.node.app.service.token.records.HookDispatchStreamBuilder;
 import com.hedera.node.app.spi.fees.FeeCalculatorFactory;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
@@ -101,6 +102,9 @@ class CryptoCreateHandlerTest extends CryptoHandlerTestBase {
     private CryptoCreateStreamBuilder recordBuilder;
 
     @Mock
+    private HookDispatchStreamBuilder hookDispatchStreamBuilder;
+
+    @Mock
     private HandleContext.SavepointStack stack;
 
     @Mock
@@ -124,8 +128,7 @@ class CryptoCreateHandlerTest extends CryptoHandlerTestBase {
     @Mock
     private PureChecksContext pureChecksContext;
 
-    @Mock
-    private FakeEntityIdFactoryImpl idFactory;
+    private FakeEntityIdFactoryImpl idFactory = new FakeEntityIdFactoryImpl(0, 0);
 
     private CryptoCreateHandler subject;
 

@@ -44,6 +44,7 @@ import com.hedera.node.app.service.contract.impl.records.ContractCreateStreamBui
 import com.hedera.node.app.service.contract.impl.state.RootProxyWorldUpdater;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.api.TokenServiceApi;
+import com.hedera.node.app.service.token.records.HookDispatchStreamBuilder;
 import com.hedera.node.app.spi.fees.FeeCalculator;
 import com.hedera.node.app.spi.fees.FeeCalculatorFactory;
 import com.hedera.node.app.spi.fees.FeeContext;
@@ -93,6 +94,9 @@ class ContractCreateHandlerTest extends ContractHandlerTestBase {
 
     @Mock
     private ContractCreateStreamBuilder streamBuilder;
+
+    @Mock
+    private HookDispatchStreamBuilder hookDispatchStreamBuilder;
 
     @Mock
     private HandleContext.SavepointStack stack;
@@ -170,8 +174,8 @@ class ContractCreateHandlerTest extends ContractHandlerTestBase {
         when(accountStore.getContractById(CALLED_CONTRACT_ID)).thenReturn(account);
         when(account.copyBuilder()).thenReturn(builder);
         given(context.payer()).willReturn(payer);
-        given(context.dispatch(any(DispatchOptions.class))).willReturn(streamBuilder);
-        when(streamBuilder.status()).thenReturn(SUCCESS);
+        given(context.dispatch(any(DispatchOptions.class))).willReturn(hookDispatchStreamBuilder);
+        when(hookDispatchStreamBuilder.status()).thenReturn(SUCCESS);
 
         assertDoesNotThrow(() -> subject.handle(context));
 
@@ -187,7 +191,6 @@ class ContractCreateHandlerTest extends ContractHandlerTestBase {
         given(component.contextTransactionProcessor()).willReturn(processor);
         given(component.hederaOperations()).willReturn(hederaOperations);
         given(context.savepointStack()).willReturn(stack);
-        given(context.body()).willReturn(contractCreateTransactionWithInsufficientGas());
         given(stack.getBaseBuilder(ContractCreateStreamBuilder.class)).willReturn(streamBuilder);
         final var expectedResult = HALT_RESULT.asProtoResultOf(null, baseProxyWorldUpdater, null);
         final var expectedOutcome = new CallOutcome(

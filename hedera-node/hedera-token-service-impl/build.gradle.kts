@@ -3,8 +3,6 @@ plugins { id("org.hiero.gradle.module.library") }
 
 description = "Default Hedera Token Service Implementation"
 
-dependencies { implementation(project(":app-service-contract")) }
-
 mainModuleInfo { annotationProcessor("dagger.compiler") }
 
 testModuleInfo {

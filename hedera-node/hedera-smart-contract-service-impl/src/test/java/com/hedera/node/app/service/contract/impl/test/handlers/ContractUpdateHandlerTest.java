@@ -53,6 +53,7 @@ import com.hedera.node.app.service.contract.impl.handlers.ContractUpdateHandler;
 import com.hedera.node.app.service.contract.impl.records.ContractUpdateStreamBuilder;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.api.TokenServiceApi;
+import com.hedera.node.app.service.token.records.HookDispatchStreamBuilder;
 import com.hedera.node.app.spi.fees.FeeCalculator;
 import com.hedera.node.app.spi.fees.FeeCalculatorFactory;
 import com.hedera.node.app.spi.fees.FeeContext;
@@ -127,7 +128,7 @@ class ContractUpdateHandlerTest extends ContractHandlerTestBase {
     private EntityIdFactory entityIdFactory;
 
     @Mock
-    private ContractUpdateStreamBuilder streamBuilder;
+    private HookDispatchStreamBuilder streamBuilder;
 
     private ContractUpdateHandler subject;
 
@@ -736,7 +737,6 @@ class ContractUpdateHandlerTest extends ContractHandlerTestBase {
     @Test
     void updateAllFields() {
         when(context.attributeValidator()).thenReturn(attributeValidator);
-        when(context.storeFactory()).thenReturn(storeFactory);
         when(context.payer()).thenReturn(asAccount("0.0.10"));
         given(context.dispatch(any(DispatchOptions.class))).willReturn(streamBuilder);
         given(streamBuilder.status()).willReturn(SUCCESS);
@@ -767,6 +767,8 @@ class ContractUpdateHandlerTest extends ContractHandlerTestBase {
         assertTrue(updatedContract.build().declineReward());
         assertEquals(op.autoRenewAccountId(), updatedContract.build().autoRenewAccountId());
         assertEquals(op.maxAutomaticTokenAssociations(), updatedContract.build().maxAutoAssociations());
+
+        subject.updateHooks(context, op, updatedContract, contractAccount);
         assertEquals(2, updatedContract.build().numberHooksInUse());
         assertEquals(1, updatedContract.build().firstHookId());
         verify(attributeValidator, times(1)).validateMemo(op.memo());

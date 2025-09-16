@@ -35,6 +35,7 @@ import static com.hedera.node.app.service.token.AliasUtils.extractEvmAddress;
 import static com.hedera.node.app.service.token.AliasUtils.isEntityNumAlias;
 import static com.hedera.node.app.service.token.AliasUtils.isKeyAlias;
 import static com.hedera.node.app.service.token.AliasUtils.isOfEvmAddressSize;
+import static com.hedera.node.app.service.token.HookDispatchUtils.dispatchHookCreations;
 import static com.hedera.node.app.service.token.impl.handlers.BaseTokenHandler.UNLIMITED_AUTOMATIC_ASSOCIATIONS;
 import static com.hedera.node.app.service.token.impl.handlers.staking.StakingUtilities.NOT_REWARDED_SINCE_LAST_STAKING_META_CHANGE;
 import static com.hedera.node.app.service.token.impl.handlers.staking.StakingUtilities.NO_STAKE_PERIOD_START;
@@ -48,11 +49,8 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.Duration;
 import com.hedera.hapi.node.base.HederaFunctionality;
-import com.hedera.hapi.node.base.HookEntityId;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.SubType;
-import com.hedera.hapi.node.hooks.HookCreation;
-import com.hedera.hapi.node.hooks.HookCreationDetails;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.token.CryptoCreateTransactionBody;
 import com.hedera.hapi.node.token.CryptoUpdateTransactionBody;
@@ -81,7 +79,6 @@ import com.hedera.node.config.data.TokensConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -274,7 +271,7 @@ public class CryptoCreateHandler extends BaseCryptoHandler implements Transactio
         if (!op.hookCreationDetails().isEmpty()) {
             final var owner =
                     entityIdFactory.newAccountId(context.entityNumGenerator().peekAtNewEntityNum());
-            dispatchHookCreations(context, op.hookCreationDetails(), owner);
+            dispatchHookCreations(context, op.hookCreationDetails(), 0L, owner);
         }
 
         // Build the new account to be persisted based on the transaction body and save the newly created account
@@ -310,23 +307,6 @@ public class CryptoCreateHandler extends BaseCryptoHandler implements Transactio
                 }
                 accountStore.putAndIncrementCountAlias(alias, createdAccountID);
             }
-        }
-    }
-
-    private void dispatchHookCreations(
-            final @NonNull HandleContext context, final List<HookCreationDetails> hookDetails, final AccountID owner) {
-        // empty list case or first insert into empty list
-        Long nextId = null;
-        for (int i = hookDetails.size() - 1; i >= 0; i--) {
-            final var detail = hookDetails.get(i);
-            final var creation = HookCreation.newBuilder()
-                    .entityId(HookEntityId.newBuilder().accountId(owner).build())
-                    .details(detail);
-            if (nextId != null) {
-                creation.nextHookId(nextId);
-            }
-            dispatchCreation(context, creation.build());
-            nextId = detail.hookId();
         }
     }
 

@@ -4,22 +4,15 @@ package com.hedera.node.app.service.contract.impl.handlers;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CREATE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_GAS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_AUTORENEW_ACCOUNT;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.service.contract.impl.handlers.ContractUpdateHandler.validateHookCreations;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.throwIfUnsuccessfulCreate;
-import static com.hedera.node.app.spi.workflows.DispatchOptions.hookDispatch;
-import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
+import static com.hedera.node.app.service.token.HookDispatchUtils.dispatchHookCreations;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.HederaFunctionality;
-import com.hedera.hapi.node.base.HookEntityId;
-import com.hedera.hapi.node.hooks.HookCreation;
-import com.hedera.hapi.node.hooks.HookCreationDetails;
-import com.hedera.hapi.node.hooks.HookDispatchTransactionBody;
-import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.hapi.utils.fee.SigValueObj;
 import com.hedera.node.app.hapi.utils.fee.SmartContractFeeBuilder;
 import com.hedera.node.app.service.contract.impl.ContractServiceComponent;
@@ -27,7 +20,6 @@ import com.hedera.node.app.service.contract.impl.exec.TransactionComponent;
 import com.hedera.node.app.service.contract.impl.records.ContractCreateStreamBuilder;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.api.TokenServiceApi;
-import com.hedera.node.app.service.token.records.CryptoTransferStreamBuilder;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
@@ -35,7 +27,6 @@ import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hederahashgraph.api.proto.java.FeeData;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.List;
 import javax.inject.Inject;
 import javax.inject.Provider;
 import javax.inject.Singleton;
@@ -140,7 +131,7 @@ public class ContractCreateHandler extends AbstractContractTransactionHandler {
             final var accountStore = context.storeFactory().readableStore(ReadableAccountStore.class);
             final var created = requireNonNull(accountStore.getContractById(owner));
 
-            dispatchHookCreations(context, op.hookCreationDetails(), created.accountId());
+            dispatchHookCreations(context, op.hookCreationDetails(), 0L, created.accountId());
 
             final var updated = created.copyBuilder()
                     .firstHookId(op.hookCreationDetails().getFirst().hookId())
@@ -148,42 +139,5 @@ public class ContractCreateHandler extends AbstractContractTransactionHandler {
                     .build();
             context.storeFactory().serviceApi(TokenServiceApi.class).updateContract(updated);
         }
-    }
-
-    /**
-     * Dispatches the hook creations in reverse order, so that the "next" pointers can be set correctly.
-     * @param context the handle context
-     * @param hookDetails the hook creation details
-     * @param owner the owner of the hooks (the created contract)
-     */
-    private void dispatchHookCreations(
-            final @NonNull HandleContext context, final List<HookCreationDetails> hookDetails, final AccountID owner) {
-        // empty list case or first insert into empty list
-        Long nextId = null;
-        for (int i = hookDetails.size() - 1; i >= 0; i--) {
-            final var detail = hookDetails.get(i);
-            final var creation = HookCreation.newBuilder()
-                    .entityId(HookEntityId.newBuilder().accountId(owner).build())
-                    .details(detail);
-            if (nextId != null) {
-                creation.nextHookId(nextId);
-            }
-            dispatchCreation(context, creation.build());
-            nextId = detail.hookId();
-        }
-    }
-    /**
-     * Dispatches the hook creation to the given context.
-     * @param context the handle context
-     * @param creation the hook creation to dispatch
-     */
-    static void dispatchCreation(final @NonNull HandleContext context, final HookCreation creation) {
-        final var hookDispatch =
-                HookDispatchTransactionBody.newBuilder().creation(creation).build();
-        final var streamBuilder = context.dispatch(hookDispatch(
-                context.payer(),
-                TransactionBody.newBuilder().hookDispatch(hookDispatch).build(),
-                CryptoTransferStreamBuilder.class));
-        validateTrue(streamBuilder.status() == SUCCESS, streamBuilder.status());
     }
 }

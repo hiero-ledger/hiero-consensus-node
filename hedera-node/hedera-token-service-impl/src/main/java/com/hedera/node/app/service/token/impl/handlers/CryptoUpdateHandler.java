@@ -11,7 +11,6 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ADMIN_KEY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_MAX_AUTO_ASSOCIATIONS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.PROXY_ACCOUNT_ID_FIELD_IS_DEPRECATED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.REQUESTED_NUM_AUTOMATIC_ASSOCIATIONS_EXCEEDS_ASSOCIATION_LIMIT;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.hapi.fees.pricing.BaseOperationUsage.THREE_MONTHS_IN_SECONDS;
 import static com.hedera.node.app.hapi.fees.usage.SingletonEstimatorUtils.ESTIMATOR_UTILS;
 import static com.hedera.node.app.hapi.fees.usage.crypto.CryptoOpsUsage.UPDATE_SLOT_MULTIPLIER;
@@ -20,11 +19,12 @@ import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.BASIC_ENTITY_ID_SIZE
 import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.INT_SIZE;
 import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.LONG_SIZE;
 import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.getAccountKeyStorageSize;
+import static com.hedera.node.app.service.token.HookDispatchUtils.dispatchHookCreations;
+import static com.hedera.node.app.service.token.HookDispatchUtils.dispatchHookDeletions;
 import static com.hedera.node.app.service.token.api.AccountSummariesApi.SENTINEL_ACCOUNT_ID;
 import static com.hedera.node.app.service.token.api.AccountSummariesApi.SENTINEL_NODE_ID;
 import static com.hedera.node.app.spi.validation.AttributeValidator.isImmutableKey;
 import static com.hedera.node.app.spi.validation.ExpiryMeta.NA;
-import static com.hedera.node.app.spi.workflows.DispatchOptions.hookDispatch;
 import static com.hedera.node.app.spi.workflows.HandleException.validateFalse;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateFalsePreCheck;
@@ -33,25 +33,19 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HederaFunctionality;
-import com.hedera.hapi.node.base.HookEntityId;
-import com.hedera.hapi.node.base.HookId;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.base.Timestamp;
-import com.hedera.hapi.node.hooks.HookCreation;
-import com.hedera.hapi.node.hooks.HookDispatchTransactionBody;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.token.CryptoUpdateTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.hapi.utils.CommonPbjConverters;
 import com.hedera.node.app.hapi.utils.EntityType;
-import com.hedera.node.app.service.contract.ReadableEvmHookStore;
 import com.hedera.node.app.service.token.CryptoSignatureWaivers;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.impl.WritableAccountStore;
 import com.hedera.node.app.service.token.impl.util.TokenHandlerHelper;
 import com.hedera.node.app.service.token.impl.validators.StakingValidator;
-import com.hedera.node.app.service.token.records.CryptoTransferStreamBuilder;
 import com.hedera.node.app.service.token.records.CryptoUpdateStreamBuilder;
 import com.hedera.node.app.spi.fees.FeeCalculator;
 import com.hedera.node.app.spi.fees.FeeContext;
@@ -65,14 +59,12 @@ import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
 import com.hedera.node.config.data.AutoRenewConfig;
 import com.hedera.node.config.data.EntitiesConfig;
-import com.hedera.node.config.data.HooksConfig;
 import com.hedera.node.config.data.LedgerConfig;
 import com.hedera.node.config.data.TokensConfig;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.charset.StandardCharsets;
-import java.util.HashSet;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 
@@ -181,6 +173,7 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
     /**
      * Update hooks if any in the transaction. This includes dispatching hook creations and deletions.
      * This method also updates the firstHookId and numberHooksInUse in the account builder.
+     *
      * @param context the handle context
      * @param targetAccount the account to be updated
      * @param op the crypto update transaction body
@@ -191,74 +184,24 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
             final Account targetAccount,
             final CryptoUpdateTransactionBody op,
             final Account.Builder builder) {
-        final var hookStore = context.storeFactory().readableStore(ReadableEvmHookStore.class);
-
         // compute head after deletes
-        long headAfterDeletes = targetAccount.firstHookId();
+        long currentHead = targetAccount.firstHookId();
+        long headAfterDeletes = currentHead;
         // Dispatch all the hooks to delete
         if (!op.hookIdsToDelete().isEmpty()) {
-            final var owner =
-                    HookEntityId.newBuilder().accountId(op.accountIDToUpdate()).build();
-            final var toDelete = new HashSet<>(op.hookIdsToDelete());
-            // skip over any deleted hooks to find the new head
-            while (headAfterDeletes != 0 && toDelete.contains(headAfterDeletes)) {
-                final var state = hookStore.getEvmHook(new HookId(owner, headAfterDeletes));
-                headAfterDeletes = (state != null && state.nextHookId() != null) ? state.nextHookId() : 0L;
-            }
-            dispatchHookDeletions(context, op);
+            headAfterDeletes =
+                    dispatchHookDeletions(context, op.hookIdsToDelete(), currentHead, op.accountIDToUpdate());
         }
         if (!op.hookCreationDetails().isEmpty()) {
-            dispatchHookCreations(context, op, headAfterDeletes);
+            dispatchHookCreations(context, op.hookCreationDetails(), headAfterDeletes, op.accountIDToUpdate());
+        }
+        // Update firstHookId in the account if needed.
+        // If there are creations, always the first hookId created will be the firstHookId.
+        // If there are only deletions, then set as the head after deletions
+        if (!op.hookCreationDetails().isEmpty()) {
             builder.firstHookId(op.hookCreationDetails().getFirst().hookId());
         } else if (!op.hookIdsToDelete().isEmpty()) {
             builder.firstHookId(headAfterDeletes);
-        }
-    }
-    /**
-     * Dispatches the hook creations in reverse order, so that the "next" pointers can be set correctly.
-     *
-     * @param context the handle context
-     * @param op the crypto update transaction body
-     * @param headAfterDeletes the head of the hook list after deletions
-     */
-    private void dispatchHookCreations(
-            final HandleContext context, final CryptoUpdateTransactionBody op, final Long headAfterDeletes) {
-        final var ownerId =
-                HookEntityId.newBuilder().accountId(op.accountIDToUpdate()).build();
-        // Build new block A → B → C → existingHead
-        Long nextId = headAfterDeletes == 0 ? null : headAfterDeletes;
-        final var creations = op.hookCreationDetails();
-        for (int i = creations.size() - 1; i >= 0; i--) {
-            final var d = creations.get(i);
-            final var creation = HookCreation.newBuilder().entityId(ownerId).details(d);
-            if (nextId != null) {
-                creation.nextHookId(nextId);
-            }
-            dispatchCreation(context, creation.build());
-            nextId = d.hookId();
-        }
-    }
-
-    /**
-     * Dispatch all the hooks to delete.
-     * @param context the handle context
-     * @param op the crypto update transaction body
-     */
-    private void dispatchHookDeletions(final @NonNull HandleContext context, final CryptoUpdateTransactionBody op) {
-        final var hooksToDelete = op.hookIdsToDelete();
-        for (final var hookId : hooksToDelete) {
-            final var hookDispatch = HookDispatchTransactionBody.newBuilder()
-                    .hookIdToDelete(new HookId(
-                            HookEntityId.newBuilder()
-                                    .accountId(op.accountIDToUpdate())
-                                    .build(),
-                            hookId))
-                    .build();
-            final var streamBuilder = context.dispatch(hookDispatch(
-                    context.payer(),
-                    TransactionBody.newBuilder().hookDispatch(hookDispatch).build(),
-                    CryptoTransferStreamBuilder.class));
-            validateTrue(streamBuilder.status() == SUCCESS, streamBuilder.status());
         }
     }
 
@@ -347,7 +290,6 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
         final var tokensConfig = context.configuration().getConfigData(TokensConfig.class);
         final var ledgerConfig = context.configuration().getConfigData(LedgerConfig.class);
         final var entitiesConfig = context.configuration().getConfigData(EntitiesConfig.class);
-        final var hookConfig = context.configuration().getConfigData(HooksConfig.class);
 
         // validate expiry metadata
         final var currentMetadata = new ExpiryMeta(

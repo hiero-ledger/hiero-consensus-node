@@ -1,14 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.junit.support.validators.block;
 
-import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.workingDirFor;
+import static java.time.ZoneOffset.UTC;
 
 import com.hedera.hapi.block.stream.Block;
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.services.bdd.junit.support.BlockStreamAccess;
 import com.hedera.services.bdd.junit.support.BlockStreamValidator;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.nio.file.Paths;
+import java.nio.file.Path;
+import java.time.Instant;
 import java.util.List;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -23,14 +24,20 @@ public class BlockContentsValidator implements BlockStreamValidator {
     private static final int REASONABLE_NUM_PENDING_PROOFS_AT_FREEZE = 3;
 
     public static void main(String[] args) {
-        final var node0Dir = Paths.get("hedera-node/test-clients")
-                .resolve(workingDirFor(0, "hapi"))
-                .toAbsolutePath()
-                .normalize();
-        final var validator = new BlockContentsValidator();
-        final var blocks =
-                BlockStreamAccess.BLOCK_STREAM_ACCESS.readBlocks(node0Dir.resolve("data/blockStreams/block-11.12.3"));
-        validator.validateBlocks(blocks);
+        final var node0Dir = "/Users/neeharikasompalli/Documents/Hedera/Repos/Triage/ScriptsWorking/blocks0.0.3/";
+        final var blocks = BlockStreamAccess.BLOCK_STREAM_ACCESS.readBlocks(
+                Path.of(node0Dir).toAbsolutePath());
+        for (final var block : blocks) {
+            // get consensus time
+            for (final var item : block.items()) {
+                if (item.hasBlockHeader()) {
+                    System.out.println("Consensus time: "
+                            + Instant.ofEpochSecond(
+                                            item.blockHeader().blockTimestamp().seconds())
+                                    .atZone(UTC));
+                }
+            }
+        }
     }
 
     public static final Factory FACTORY = spec -> new BlockContentsValidator();
