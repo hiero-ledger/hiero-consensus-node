@@ -33,6 +33,8 @@ then
   rm -rf output/*
   rm -rf data/saved/com.hedera.services.ServicesMain/${node_id}/123/*
   export PATH=/usr/local/java/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+  if [ 1 -eq 0 ]
+  then
   echo "Generate module allowances:";
   echo > module_reads.txt
   java -p $(find data/lib/* -type f -name '*.jar' -printf "%p:") --list-modules |  grep -E '[\.]hiero|[\.]swirlds|[\.]hedera|[\.]pbj|hyperledger[\.]besu' > packs.txt
@@ -47,6 +49,8 @@ then
   export DISABLE_JDK_SERIAL_FILTER=true
   find data/lib/* -type f -name '*.jar' -printf "%p:" > module_path.txt
   export EXTRA_COBERTURA_OPTS="-Dnet.sourceforge.cobertura.datafile=/tmp/cobertura.ser --module-path $(cat module_path.txt) --add-modules cobertura --add-reads cobertura=ALL-UNNAMED --add-opens cobertura/net.sourceforge.cobertura=ALL-UNNAMED  --add-modules org.slf4j --add-reads cobertura=org.slf4j --add-reads org.slf4j=cobertura $(cat module_reads.txt)"
+  fi
+  export EXTRA_COBERTURA_OPTS="--illegal-access=warn -Dnet.sourceforge.cobertura.datafile=/tmp/cobertura.ser -Dio.grpc.netty.shaded.io.netty.tryReflectionSetAccessible=true"
 fi
 
 if [ "$isToClean" = "import" ]
