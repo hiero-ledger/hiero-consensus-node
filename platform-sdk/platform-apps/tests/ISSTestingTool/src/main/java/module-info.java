@@ -18,4 +18,6 @@ module com.swirlds.demo.iss {
     requires org.hiero.consensus.utility;
     requires org.apache.logging.log4j;
     requires static com.github.spotbugs.annotations;
+    requires org.hiero.base.crypto;
+    requires com.swirlds.merkledb;
 }
