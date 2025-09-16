@@ -13,6 +13,7 @@ import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.reset;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
@@ -30,6 +31,7 @@ import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodHandles.Lookup;
 import java.lang.invoke.VarHandle;
 import java.lang.reflect.Method;
+import java.net.InetAddress;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
@@ -554,9 +556,10 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         assertThat(streamingBlockNumber).hasValue(-1L);
         assertThat(jumpTargetBlock).hasValue(-1L);
 
+        verify(metrics).recordNoActiveConnection();
         verifyNoInteractions(executorService);
         verifyNoInteractions(bufferService);
-        verifyNoInteractions(metrics);
+        verifyNoMoreInteractions(metrics);
     }
 
     @Test
@@ -715,15 +718,19 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     @Test
     void testConnectionTask_higherPriorityConnectionExists_withForce() {
         isActiveFlag().set(true);
+
         final AtomicReference<BlockNodeConnection> activeConnectionRef = activeConnection();
         final BlockNodeConnection activeConnection = mock(BlockNodeConnection.class);
         final BlockNodeConfig activeConnectionConfig = newBlockNodeConfig(8080, 1);
         doReturn(activeConnectionConfig).when(activeConnection).getNodeConfig();
         activeConnectionRef.set(activeConnection);
 
+        final InetAddress address = mock(InetAddress.class);
+        when(address.getAddress()).thenReturn(new byte[] {127, 0, 0, 1});
         final BlockNodeConnection newConnection = mock(BlockNodeConnection.class);
         final BlockNodeConfig newConnectionConfig = newBlockNodeConfig(8081, 2);
         doReturn(newConnectionConfig).when(newConnection).getNodeConfig();
+        doReturn(address).when(newConnection).nodeAddress();
 
         connectionManager.new BlockNodeConnectionTask(newConnection, Duration.ofSeconds(1), null, true).run();
 
@@ -731,16 +738,18 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
         verify(activeConnection).getNodeConfig();
         verify(activeConnection).close(true);
-        verify(newConnection).getNodeConfig();
+        verify(newConnection, times(2)).getNodeConfig();
+        verify(newConnection).nodeAddress();
         verify(newConnection).createRequestPipeline();
         verify(newConnection).updateConnectionState(ConnectionState.ACTIVE);
         verify(bufferService).getLastBlockNumberProduced();
+        verify(metrics).recordActiveConnectionIp(anyLong());
 
         verifyNoMoreInteractions(activeConnection);
         verifyNoMoreInteractions(newConnection);
         verifyNoInteractions(executorService);
         verifyNoMoreInteractions(bufferService);
-        verifyNoInteractions(metrics);
+        verifyNoMoreInteractions(metrics);
     }
 
     @Test
@@ -754,9 +763,12 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         activeConnectionRef.set(activeConnection);
         isActiveFlag().set(true);
 
+        final InetAddress address = mock(InetAddress.class);
+        when(address.getAddress()).thenReturn(new byte[] {127, 0, 0, 1});
         final BlockNodeConnection newConnection = mock(BlockNodeConnection.class);
         final BlockNodeConfig newConnectionConfig = newBlockNodeConfig(8081, 1);
         doReturn(newConnectionConfig).when(newConnection).getNodeConfig();
+        doReturn(address).when(newConnection).nodeAddress();
 
         connectionManager.new BlockNodeConnectionTask(newConnection, Duration.ofSeconds(1), 30L, false).run();
 
@@ -766,15 +778,17 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
         verify(activeConnection).getNodeConfig();
         verify(activeConnection).close(true);
-        verify(newConnection).getNodeConfig();
+        verify(newConnection, times(2)).getNodeConfig();
+        verify(newConnection).nodeAddress();
         verify(newConnection).createRequestPipeline();
         verify(newConnection).updateConnectionState(ConnectionState.ACTIVE);
+        verify(metrics).recordActiveConnectionIp(anyLong());
 
         verifyNoMoreInteractions(activeConnection);
         verifyNoMoreInteractions(newConnection);
         verifyNoInteractions(executorService);
         verifyNoMoreInteractions(bufferService);
-        verifyNoInteractions(metrics);
+        verifyNoMoreInteractions(metrics);
     }
 
     @Test
@@ -800,7 +814,12 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
         doReturn(10L).when(bufferService).getLastBlockNumberProduced();
 
+        final BlockNodeConfig newConnectionConfig = newBlockNodeConfig(8081, 1);
         final BlockNodeConnection newConnection = mock(BlockNodeConnection.class);
+        final InetAddress address = mock(InetAddress.class);
+        when(address.getAddress()).thenReturn(new byte[] {127, 0, 0, 1});
+        doReturn(address).when(newConnection).nodeAddress();
+        doReturn(newConnectionConfig).when(newConnection).getNodeConfig();
 
         connectionManager.new BlockNodeConnectionTask(newConnection, Duration.ofSeconds(1), null, false).run();
 
@@ -809,12 +828,15 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
         verify(newConnection).createRequestPipeline();
         verify(newConnection).updateConnectionState(ConnectionState.ACTIVE);
+        verify(newConnection).getNodeConfig();
+        verify(newConnection).nodeAddress();
         verify(bufferService).getLastBlockNumberProduced();
+        verify(metrics).recordActiveConnectionIp(anyLong());
 
         verifyNoMoreInteractions(newConnection);
         verifyNoInteractions(executorService);
         verifyNoMoreInteractions(bufferService);
-        verifyNoInteractions(metrics);
+        verifyNoMoreInteractions(metrics);
     }
 
     @Test
@@ -829,9 +851,12 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
                 .close(true);
         activeConnectionRef.set(activeConnection);
 
+        final InetAddress address = mock(InetAddress.class);
+        when(address.getAddress()).thenReturn(new byte[] {127, 0, 0, 1});
         final BlockNodeConnection newConnection = mock(BlockNodeConnection.class);
         final BlockNodeConfig newConnectionConfig = newBlockNodeConfig(8081, 1);
         doReturn(newConnectionConfig).when(newConnection).getNodeConfig();
+        doReturn(address).when(newConnection).nodeAddress();
 
         connectionManager.new BlockNodeConnectionTask(newConnection, Duration.ofSeconds(1), 30L, false).run();
 
@@ -841,15 +866,17 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
         verify(activeConnection).getNodeConfig();
         verify(activeConnection).close(true);
-        verify(newConnection).getNodeConfig();
+        verify(newConnection, times(2)).getNodeConfig();
+        verify(newConnection).nodeAddress();
         verify(newConnection).createRequestPipeline();
         verify(newConnection).updateConnectionState(ConnectionState.ACTIVE);
+        verify(metrics).recordActiveConnectionIp(anyLong());
 
         verifyNoMoreInteractions(activeConnection);
         verifyNoMoreInteractions(newConnection);
         verifyNoInteractions(executorService);
         verifyNoMoreInteractions(bufferService);
-        verifyNoInteractions(metrics);
+        verifyNoMoreInteractions(metrics);
     }
 
     @Test
@@ -868,11 +895,11 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
         verify(connection).createRequestPipeline();
         verify(executorService).schedule(eq(task), anyLong(), eq(TimeUnit.MILLISECONDS));
-
+        verify(metrics).recordConnectionCreateFailure();
         verifyNoMoreInteractions(connection);
         verifyNoMoreInteractions(executorService);
         verifyNoInteractions(bufferService);
-        verifyNoInteractions(metrics);
+        verifyNoMoreInteractions(metrics);
     }
 
     @Test
@@ -891,11 +918,11 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
         verify(connection).createRequestPipeline();
         verify(executorService).schedule(eq(task), anyLong(), eq(TimeUnit.MILLISECONDS));
-
+        verify(metrics).recordConnectionCreateFailure();
         verifyNoMoreInteractions(connection);
         verifyNoMoreInteractions(executorService);
         verifyNoInteractions(bufferService);
-        verifyNoInteractions(metrics);
+        verifyNoMoreInteractions(metrics);
     }
 
     @Test
@@ -925,14 +952,13 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
         verify(connection).createRequestPipeline();
         verify(executorService).schedule(eq(task), anyLong(), eq(TimeUnit.MILLISECONDS));
-
         verify(connection).getNodeConfig();
         verify(connection).close(true);
-
+        verify(metrics).recordConnectionCreateFailure();
         verifyNoMoreInteractions(connection);
         verifyNoMoreInteractions(executorService);
         verifyNoInteractions(bufferService);
-        verifyNoInteractions(metrics);
+        verifyNoMoreInteractions(metrics);
     }
 
     @Test

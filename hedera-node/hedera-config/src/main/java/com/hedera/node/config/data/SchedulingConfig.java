@@ -17,6 +17,7 @@ public record SchedulingConfig(
         @ConfigProperty(defaultValue = "100") @NetworkProperty int maxTxnPerSec,
         @ConfigProperty(defaultValue = "1000") @NetworkProperty int consTimeSeparationNanos,
         @ConfigProperty(defaultValue = "100") @NetworkProperty int reservedSystemTxnNanos,
+        @ConfigProperty(defaultValue = "30") @NetworkProperty int maxExpirySecsToCheckPerUserTxn,
         @ConfigProperty(defaultValue = "10000000") @NetworkProperty long maxNumber,
         @ConfigProperty(defaultValue = "5356800") @NetworkProperty long maxExpirationFutureSeconds,
         @ConfigProperty(defaultValue =

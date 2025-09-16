@@ -36,7 +36,6 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.fcqueue.FCQueue;
 import com.swirlds.merkle.map.MerkleMap;
 import com.swirlds.merkledb.MerkleDbDataSourceBuilder;
-import com.swirlds.merkledb.MerkleDbTableConfig;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.state.State;
@@ -95,7 +94,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.concurrent.interrupt.InterruptableConsumer;
 import org.hiero.base.constructable.ConstructableIgnored;
-import org.hiero.base.crypto.DigestType;
 
 /**
  * An implementation of {@link State}.
@@ -988,14 +986,8 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
             // Create Virtual Map
 
             final MerkleDbConfig merkleDbConfig = configuration.getConfigData(MerkleDbConfig.class);
-            final var tableConfig = new MerkleDbTableConfig(
-                    (short) 1,
-                    DigestType.SHA_384,
-                    // FUTURE WORK: drop StateDefinition.maxKeysHint and load VM size
-                    // from VirtualMapConfig.size instead
-                    merkleDbConfig.initialCapacity(),
-                    merkleDbConfig.hashesRamToDiskThreshold());
-            final var dsBuilder = new MerkleDbDataSourceBuilder(tableConfig, configuration);
+            final var dsBuilder = new MerkleDbDataSourceBuilder(
+                    configuration, merkleDbConfig.initialCapacity(), merkleDbConfig.hashesRamToDiskThreshold());
             final var virtualMap = new VirtualMap(VM_LABEL, dsBuilder, configuration);
 
             // Initialize migration metrics
