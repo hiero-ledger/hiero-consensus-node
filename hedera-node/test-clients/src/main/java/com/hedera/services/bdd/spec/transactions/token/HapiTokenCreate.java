@@ -4,6 +4,7 @@ package com.hedera.services.bdd.spec.transactions.token;
 import static com.hedera.node.app.hapi.fees.usage.token.TokenOpsUsageUtils.TOKEN_OPS_USAGE_UTILS;
 import static com.hedera.node.app.hapi.utils.CommonUtils.extractTransactionBodyUnchecked;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asTokenString;
+import static com.hedera.services.bdd.spec.keys.SigMapGenerator.Nature.FULL_PREFIXES;
 import static com.hedera.services.bdd.spec.transactions.TxnFactory.defaultExpiryNowFor;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.bannerWith;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.suFrom;
@@ -28,6 +29,7 @@ import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.dsl.utils.KeyMetadata;
 import com.hedera.services.bdd.spec.fees.AdapterUtils;
 import com.hedera.services.bdd.spec.keys.KeyRole;
+import com.hedera.services.bdd.spec.keys.TrieSigMapGenerator;
 import com.hedera.services.bdd.spec.transactions.HapiTxnOp;
 import com.hedera.services.bdd.spec.transactions.TxnUtils;
 import com.hedera.services.bdd.suites.utils.contracts.precompile.TokenKeyType;
@@ -109,6 +111,7 @@ public class HapiTokenCreate extends HapiTxnOp<HapiTokenCreate> {
 
     public HapiTokenCreate(final String token) {
         this.token = token;
+        sigMapPrefixes(TrieSigMapGenerator.withNature(FULL_PREFIXES));
     }
 
     public void setTokenPrefix(final String prefix) {
