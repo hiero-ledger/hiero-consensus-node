@@ -146,7 +146,7 @@ jobs:
             # Commit list output (multiline)
             {
               echo 'commit-list<<EOF'
-              echo "${COMMIT_LIST}"
+              echo "${COMMIT_LIST//\`/}"
               echo EOF
             } >> "${GITHUB_OUTPUT}"
 
