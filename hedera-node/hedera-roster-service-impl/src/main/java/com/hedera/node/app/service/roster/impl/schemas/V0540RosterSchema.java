@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.hedera.node.app.roster.schemas;
+package com.hedera.node.app.service.roster.impl.schemas;
 
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
+import com.hedera.node.app.service.roster.RosterTransplantSchema;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.VersionConfig;
 import com.swirlds.platform.state.service.PlatformStateFacade;
@@ -27,7 +28,7 @@ import org.hiero.consensus.roster.RosterUtils;
 import org.hiero.consensus.roster.WritableRosterStore;
 
 /**
- * Initial {@link com.hedera.node.app.roster.RosterService} schema that registers two states,
+ * Initial {@link com.hedera.node.app.service.roster.RosterService} schema that registers two states,
  * <ol>
  *     <li>A mapping from roster hashes to rosters (which may be either candidate or active).</li>
  *     <li>A singleton that contains the history of active rosters along with the round numbers where

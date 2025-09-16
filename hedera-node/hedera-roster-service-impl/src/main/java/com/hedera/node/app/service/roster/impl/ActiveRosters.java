@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.hedera.node.app.roster;
+package com.hedera.node.app.service.roster.impl;
 
 import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.toCollection;
@@ -20,10 +20,10 @@ import java.util.function.Function;
 import org.hiero.consensus.roster.ReadableRosterStore;
 
 /**
- * Contains the active rosters for the {@link RosterService}'s current phase; and the <b>transition</b> from a
+ * Contains the active rosters for the {@link RosterServiceImpl}'s current phase; and the <b>transition</b> from a
  * <b>source roster</b> to a <b>target roster</b>, if applicable.
  * <p>
- * Recall the {@link RosterService} has three phases, each of which involves either one or two active rosters; and
+ * Recall the {@link RosterServiceImpl} has three phases, each of which involves either one or two active rosters; and
  * possibly implies a roster transition:
  * <ol>
  *     <li>{@link Phase#BOOTSTRAP} - There is a single active roster, the <b>genesis roster</b>, with an implied
@@ -45,19 +45,19 @@ public class ActiveRosters {
     private final Function<Bytes, Roster> lookup;
 
     /**
-     * The phase of the {@link RosterService} in which these active rosters are being used.
+     * The phase of the {@link RosterServiceImpl} in which these active rosters are being used.
      */
     public enum Phase {
         /**
-         * The {@link RosterService} is in the bootstrap phase.
+         * The {@link RosterServiceImpl} is in the bootstrap phase.
          */
         BOOTSTRAP,
         /**
-         * The {@link RosterService} is in a transition phase.
+         * The {@link RosterServiceImpl} is in a transition phase.
          */
         TRANSITION,
         /**
-         * The {@link RosterService} is in a handoff phase.
+         * The {@link RosterServiceImpl} is in a handoff phase.
          */
         HANDOFF,
     }
@@ -94,7 +94,7 @@ public class ActiveRosters {
     }
 
     /**
-     * Returns the phase of the {@link RosterService} in which these active rosters are being used.
+     * Returns the phase of the {@link RosterServiceImpl} in which these active rosters are being used.
      */
     public Phase phase() {
         return phase;
@@ -120,9 +120,9 @@ public class ActiveRosters {
     }
 
     /**
-     * Assuming the {@link RosterService} is in a transition phase, returns the source roster hash.
+     * Assuming the {@link RosterServiceImpl} is in a transition phase, returns the source roster hash.
      *
-     * @throws IllegalStateException if the {@link RosterService} is not in a transition phase
+     * @throws IllegalStateException if the {@link RosterServiceImpl} is not in a transition phase
      */
     public @NonNull Bytes sourceRosterHash() {
         return switch (phase) {
@@ -132,9 +132,9 @@ public class ActiveRosters {
     }
 
     /**
-     * Assuming the {@link RosterService} is in a transition phase, returns the target roster hash.
+     * Assuming the {@link RosterServiceImpl} is in a transition phase, returns the target roster hash.
      *
-     * @throws IllegalStateException if the {@link RosterService} is not in a transition phase
+     * @throws IllegalStateException if the {@link RosterServiceImpl} is not in a transition phase
      */
     public @NonNull Bytes targetRosterHash() {
         return switch (phase) {
@@ -144,9 +144,9 @@ public class ActiveRosters {
     }
 
     /**
-     * Assuming the {@link RosterService} is in a transition phase, returns the target roster.
+     * Assuming the {@link RosterServiceImpl} is in a transition phase, returns the target roster.
      *
-     * @throws IllegalStateException if the {@link RosterService} is not in a transition phase
+     * @throws IllegalStateException if the {@link RosterServiceImpl} is not in a transition phase
      */
     public @NonNull Roster targetRoster() {
         return switch (phase) {
@@ -163,10 +163,10 @@ public class ActiveRosters {
     }
 
     /**
-     * Assuming the {@link RosterService} is in a transition phase, returns the transition weights
+     * Assuming the {@link RosterServiceImpl} is in a transition phase, returns the transition weights
      * from the source roster to the target roster.
      *
-     * @throws IllegalStateException if the {@link RosterService} is in a handoff phase
+     * @throws IllegalStateException if the {@link RosterServiceImpl} is in a handoff phase
      */
     public RosterTransitionWeights transitionWeights() {
         return switch (phase) {
@@ -178,7 +178,7 @@ public class ActiveRosters {
     }
 
     /**
-     * Assuming the {@link RosterService} is in a transition phase, returns the possibly empty set of
+     * Assuming the {@link RosterServiceImpl} is in a transition phase, returns the possibly empty set of
      * node IDs that were removed from the source roster in the target roster.
      */
     public SortedSet<Long> removedNodeIds() {

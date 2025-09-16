@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.hedera.node.app.roster;
+package com.hedera.node.app.service.roster.impl;
 
-import static com.swirlds.platform.state.service.PlatformStateService.PLATFORM_STATE_SERVICE;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.state.roster.Roster;
-import com.hedera.node.app.roster.schemas.V0540RosterSchema;
+import com.hedera.node.app.service.roster.impl.schemas.V0540RosterSchema;
 import com.swirlds.platform.state.service.PlatformStateFacade;
+import com.swirlds.platform.state.service.PlatformStateService;
 import com.swirlds.state.State;
 import com.swirlds.state.lifecycle.SchemaRegistry;
 import com.swirlds.state.lifecycle.Service;
@@ -21,8 +21,8 @@ import org.hiero.consensus.roster.WritableRosterStore;
  * Registers the roster schemas with the {@link SchemaRegistry}.
  * Not exposed outside `hedera-app`.
  */
-public class RosterService implements Service {
-    public static final int MIGRATION_ORDER = PLATFORM_STATE_SERVICE.migrationOrder() - 1;
+public class RosterServiceImpl implements Service {
+    public static final int MIGRATION_ORDER = PlatformStateService.PLATFORM_STATE_SERVICE.migrationOrder() - 1;
 
     public static final String NAME = "RosterService";
 
@@ -44,7 +44,7 @@ public class RosterService implements Service {
 
     private final PlatformStateFacade platformStateFacade;
 
-    public RosterService(
+    public RosterServiceImpl(
             @NonNull final Predicate<Roster> canAdopt,
             @NonNull final BiConsumer<Roster, Roster> onAdopt,
             @NonNull final Supplier<State> stateSupplier,
