@@ -46,10 +46,6 @@ import com.swirlds.platform.state.snapshot.StateSnapshotManager;
 import com.swirlds.platform.system.PlatformMonitor;
 import com.swirlds.platform.system.state.notifications.StateHashedNotification;
 import com.swirlds.platform.system.status.PlatformStatusConfig;
-import com.swirlds.platform.system.status.StatusActionSubmitter;
-import com.swirlds.platform.wiring.components.GossipWiring;
-import com.swirlds.platform.wiring.components.PcesReplayerWiring;
-import com.swirlds.platform.wiring.components.RunningEventHashOverrideWiring;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
 import java.util.Queue;
@@ -174,7 +170,7 @@ public class PlatformWiring {
                         .getConfiguration()
                         .getConfigData(PlatformStatusConfig.class)
                         .statusStateMachineHeartbeatPeriod())
-                .solderTo(platformMonitorWiring.getInputWire(PlatformMonitor::heartbeat), OFFER);
+                .solderTo(components.platformMonitorWiring().getInputWire(PlatformMonitor::heartbeat), OFFER);
 
         components
                 .eventCreationManagerWiring()
@@ -277,7 +273,7 @@ public class PlatformWiring {
                 .buildTransformer("RoundsToCesEvents", "consensus rounds", ConsensusRound::getStreamedEvents)
                 .solderTo(components.consensusEventStreamWiring().getInputWire(ConsensusEventStream::addEvents));
 
-        consensusRoundOutputWire.solderTo(platformMonitorWiring.getInputWire(PlatformMonitor::consensusRound));
+        consensusRoundOutputWire.solderTo(components.platformMonitorWiring().getInputWire(PlatformMonitor::consensusRound));
 
         // The TransactionHandler output is split into two types: system transactions, and state with complexity.
         final OutputWire<Queue<ScopedSystemTransaction<StateSignatureTransaction>>>
@@ -322,7 +318,7 @@ public class PlatformWiring {
                 .getOutputWire()
                 .solderTo(components.stateHasherWiring().getInputWire(StateHasher::hashState));
 
-        var config = platformContext.getConfiguration().getConfigData(PlatformSchedulersConfig.class);
+        final var config = platformContext.getConfiguration().getConfigData(PlatformSchedulersConfig.class);
         components
                 .model()
                 .buildHeartbeatWire(config.stateGarbageCollectorHeartbeatPeriod())
@@ -370,9 +366,9 @@ public class PlatformWiring {
                                 .getInputWire(InlinePcesWriter::setMinimumAncientIdentifierToStore),
                         INJECT);
 
-        stateSnapshotManagerWiring
+        components.stateSnapshotManagerWiring()
                 .getOutputWire()
-                .solderTo(platformMonitorWiring.getInputWire(PlatformMonitor::stateWrittenToDisk));
+                .solderTo(components.platformMonitorWiring().getInputWire(PlatformMonitor::stateWrittenToDisk));
 
         components
                 .runningEventHashOverrideWiring()
@@ -386,26 +382,27 @@ public class PlatformWiring {
                 .solderTo(
                         components.consensusEventStreamWiring().getInputWire(ConsensusEventStream::legacyHashOverride));
 
-        final OutputWire<IssNotification> splitIssDetectorOutput = issDetectorWiring.getSplitOutput();
-        splitIssDetectorOutput.solderTo(issHandlerWiring.getInputWire(IssHandler::issObserved));
-        issDetectorWiring
+        final OutputWire<IssNotification> splitIssDetectorOutput =
+                components.issDetectorWiring().getSplitOutput();
+        splitIssDetectorOutput.solderTo(components.issHandlerWiring().getInputWire(IssHandler::issObserved));
+        components.issDetectorWiring()
                 .getOutputWire()
-                .solderTo(platformMonitorWiring.getInputWire(PlatformMonitor::issNotification));
+                .solderTo(components.platformMonitorWiring().getInputWire(PlatformMonitor::issNotification));
 
         completeReservedSignedStatesWire.solderTo(components
                 .latestCompleteStateNotifierWiring()
                 .getInputWire(LatestCompleteStateNotifier::latestCompleteStateHandler));
 
-        platformMonitorWiring
+        components.platformMonitorWiring()
                 .getOutputWire()
-                .solderTo(eventCreationManagerWiring.getInputWire(EventCreationManager::updatePlatformStatus));
-        platformMonitorWiring
+                .solderTo(components.eventCreationManagerWiring().getInputWire(EventCreationManager::updatePlatformStatus));
+        components.platformMonitorWiring()
                 .getOutputWire()
-                .solderTo(consensusEngineWiring.getInputWire(ConsensusEngine::updatePlatformStatus), INJECT);
-        platformMonitorWiring
+                .solderTo(components.consensusEngineWiring().getInputWire(ConsensusEngine::updatePlatformStatus), INJECT);
+        components.platformMonitorWiring()
                 .getOutputWire()
                 .solderTo("ExecutionStatusHandler", "status updates", execution::newPlatformStatus);
-        platformMonitorWiring.getOutputWire().solderTo(gossipWiring.getPlatformStatusInput(), INJECT);
+        components.platformMonitorWiring().getOutputWire().solderTo(components.gossipWiring().getPlatformStatusInput(), INJECT);
 
         solderNotifier(components);
 
@@ -464,7 +461,7 @@ public class PlatformWiring {
                 components.issDetectorWiring().getSplitOutput();
         issNotificationOutputWire.solderTo(components.notifierWiring().getInputWire(AppNotifier::sendIssNotification));
         components
-                .statusStateMachineWiring()
+                .platformMonitorWiring()
                 .getOutputWire()
                 .solderTo(components.notifierWiring().getInputWire(AppNotifier::sendPlatformStatusChangeNotification));
     }
