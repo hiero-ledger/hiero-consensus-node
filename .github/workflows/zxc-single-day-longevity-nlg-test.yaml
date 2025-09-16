@@ -398,7 +398,7 @@ jobs:
   longevity-tests-wait:
     name: Wait for Longevity test
     runs-on: hiero-citr-linux-large
-    if: $ {{ env.testDone == 0 }}
+    if: ${{ env.testDone == 0 }}
     needs:
       - longevity-tests-start
     strategy:
@@ -548,6 +548,7 @@ jobs:
     name: Wait for Longevity test
     runs-on: hiero-citr-linux-large
     needs:
+      - longevity-tests-start
       - longevity-tests-wait
     outputs:
       NFTscore: ${{ steps.NftTransferLoadTestLogs.outputs.value }}
@@ -722,6 +723,7 @@ jobs:
     name: Report Failures to Rootly
     runs-on: hiero-citr-linux-medium
     needs:
+      - longevity-tests-start
       - longevity-tests-finish
       - single-day-longevity-test-result
     if: ${{ (needs.longevity-tests-finish.result != 'success' ||
