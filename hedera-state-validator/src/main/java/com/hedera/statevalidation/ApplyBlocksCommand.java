@@ -36,7 +36,7 @@ public class ApplyBlocksCommand extends AbstractCommand {
 
     @CommandLine.Parameters(index = "0", description = "The path to a directory tree containing block stream files.")
     private void setBlockStreamDirectory(final Path blockStreamDirectory) {
-        this.blockStreamDirectory = pathMustExist(eventStreamDirectory.toAbsolutePath());
+        this.blockStreamDirectory = pathMustExist(blockStreamDirectory.toAbsolutePath());
     }
 
     @CommandLine.Option(
