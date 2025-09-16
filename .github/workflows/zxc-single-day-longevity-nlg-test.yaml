@@ -82,9 +82,10 @@ jobs:
         with:
           egress-policy: audit
 
-      - name: Checkout Code
+      - name: Checkout target CN Code
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
+          path: target_consensus_node
           ref: ${{ inputs.ref }}
 
       - name: Check Test Asset
@@ -197,12 +198,15 @@ jobs:
       - name: Set hederahash sha value
         id: hederahash
         run: |
-          hederahash="$(git rev-parse HEAD)"
+          hederahash="$(git -C target_consensus_node rev-parse HEAD)"
           echo "sha=${hederahash}" >> "${GITHUB_OUTPUT}"
           echo "hederahash=${hederahash}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
 
       - name: Compile
-        run: ./gradlew clean assemble
+        run: |
+          cd "${{ github.workspace }}"/target_consensus_node
+          ./gradlew clean assemble
+          cd "${{ github.workspace }}"
 
       - name: Setup Node
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
@@ -257,15 +261,15 @@ jobs:
           cp "${{ github.workspace }}"/.github/workflows/support/citr/nlg-values.yaml nlg-values.yaml
 
           # Generate the init-containers-values7.yaml inline
-          cp "${{ github.workspace }}"/.github/workflows/support/citr/init-containers-values7.yaml init-containers-values7.yaml
+          cp "${{ github.workspace }}"/.github/workflows/support/citr/init-containers-values10.yaml init-containers-values10.yaml
 
           # Update Taskfile values
           sed -i -e "s@%HOME%@${HOME}@g" -e "s@%SOLO_NAMESPACE%@${{ steps.set-namespace.outputs.namespace }}@g" \
-          -e "s@%HEDERA_SERVICES_ROOT%@${curdir}@g" Taskfile.yml
+          -e "s@%HEDERA_SERVICES_ROOT%@${curdir}/target_consensus_node@g" Taskfile.yml
 
           # Update Init Containers values
           NETWORK_ID="$(echo "${{ steps.set-namespace.outputs.namespace }}" | perl -pne '~s/^.*[^\d](\d+)$/$1/g')"
-          sed -i -e "s@%NETWORK_ID%@${NETWORK_ID}@g" init-containers-values7.yaml
+          sed -i -e "s@%NETWORK_ID%@${NETWORK_ID}@g" init-containers-values10.yaml
 
           if [[ "${NAMESPACE_ALIAS}" =~ ^SDPT[0-9]+$ ]]; then
             NETWORK_OWNER="single-day-perf-test"
@@ -274,7 +278,7 @@ jobs:
           else
             NETWORK_OWNER="adhoc-performance-test"
           fi
-          sed -i -e "s@%NETWORK_OWNER%@${NETWORK_OWNER}@g" init-containers-values7.yaml
+          sed -i -e "s@%NETWORK_OWNER%@${NETWORK_OWNER}@g" init-containers-values10.yaml
 
           # Generate the application.properties file inline
           cp "${{ github.workspace }}"/.github/workflows/support/citr/application.properties.txt application.properties
