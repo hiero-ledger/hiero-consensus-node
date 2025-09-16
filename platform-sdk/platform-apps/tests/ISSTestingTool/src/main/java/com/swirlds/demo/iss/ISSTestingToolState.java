@@ -116,7 +116,6 @@ public class ISSTestingToolState extends VirtualMapState<ISSTestingToolState> im
                 .forEach(def -> {
                     super.initializeState(new StateMetadata<>(ISS_SERVICE_NAME, schema, def));
                 });
-        // do something with migration context?
 
         // since the test occurrences are relative to the genesis timestamp, the data only needs to be parsed at genesis
         if (trigger == InitTrigger.GENESIS) {
@@ -130,12 +129,12 @@ public class ISSTestingToolState extends VirtualMapState<ISSTestingToolState> im
 
             final WritableQueueState<PlannedIss> plannedIssState = writableStates.getQueue(PLANNED_ISS_LIST_STATE_ID);
             plannedIssList.forEach(plannedIssState::add);
-            ((CommittableWritableStates) plannedIssState).commit();
 
             final WritableQueueState<PlannedLogError> plannedLogErrorState =
                     writableStates.getQueue(PLANNED_LOG_ERROR_LIST_STATE_ID);
             plannedLogErrorList.forEach(plannedLogErrorState::add);
-            ((CommittableWritableStates) plannedLogErrorState).commit();
+
+            ((CommittableWritableStates) writableStates).commit();
         } else {
             final ReadableStates readableStates = getReadableStates(ISS_SERVICE_NAME);
 
