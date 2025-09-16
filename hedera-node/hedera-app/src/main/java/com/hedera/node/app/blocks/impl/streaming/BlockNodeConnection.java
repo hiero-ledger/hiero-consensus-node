@@ -3,8 +3,10 @@ package com.hedera.node.app.blocks.impl.streaming;
 
 import static java.util.Objects.requireNonNull;
 import static org.hiero.block.api.PublishStreamRequest.EndStream.Code.RESET;
+import static org.hiero.block.api.PublishStreamRequest.EndStream.Code.TIMEOUT;
 import static org.hiero.block.api.PublishStreamRequest.EndStream.Code.TOO_FAR_BEHIND;
 
+import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.node.app.metrics.BlockStreamMetrics;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockNodeConnectionConfig;
@@ -13,6 +15,7 @@ import com.hedera.pbj.runtime.grpc.Pipeline;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.net.InetAddress;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.Objects;
 import java.util.concurrent.Flow;
 import java.util.concurrent.ScheduledExecutorService;
@@ -288,6 +291,17 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
         logger.debug("[{}] BlockAcknowledgement received for block {}", this, acknowledgedBlockNumber);
 
         acknowledgeBlocks(acknowledgedBlockNumber, true);
+
+        // Evaluate latency and high-latency QoS via the connection manager
+        final var result = blockNodeConnectionManager.recordBlockAckAndCheckLatency(
+                blockNodeConfig, acknowledgedBlockNumber, Instant.now());
+        if (result.shouldSwitch() && !blockNodeConnectionManager.isOnlyOneBlockNodeConfigured()) {
+            logger.info(
+                    "[{}] Block node has exceeded high latency threshold {} times consecutively.",
+                    this,
+                    result.consecutiveHighLatencyEvents());
+            endStreamAndReschedule(TIMEOUT, LONGER_RETRY_DELAY);
+        }
     }
 
     /**
@@ -340,7 +354,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
         // Check if we've exceeded the EndOfStream rate limit
         // Record the EndOfStream event and check if the rate limit has been exceeded.
         // The connection manager maintains persistent stats for each node across connections.
-        if (blockNodeConnectionManager.recordEndOfStreamAndCheckLimit(blockNodeConfig)) {
+        if (blockNodeConnectionManager.recordEndOfStreamAndCheckLimit(blockNodeConfig, Instant.now())) {
             logger.debug(
                     "[{}] Block node has exceeded the allowed number of EndOfStream responses (received={}, "
                             + "permitted={}, timeWindow={}); reconnection scheduled for {}",
@@ -503,6 +517,19 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                     blockStreamMetrics.recordRequestSent(request.request().kind());
                     blockStreamMetrics.recordBlockItemsSent(
                             request.blockItems().blockItems().size());
+                }
+
+                // Record the timestamp when the block is sent
+                if (request.blockItems() != null
+                        && !request.blockItems().blockItems().isEmpty()) {
+                    // Find the first block item
+                    // if it is a block proof, record the time it was sent
+                    final BlockItem firstItem =
+                            request.blockItems().blockItems().getFirst();
+                    if (firstItem.hasBlockProof()) {
+                        blockNodeConnectionManager.recordBlockSent(
+                                blockNodeConfig, firstItem.blockProof().block(), Instant.now());
+                    }
                 }
             } catch (final RuntimeException e) {
                 blockStreamMetrics.recordRequestSendFailure();

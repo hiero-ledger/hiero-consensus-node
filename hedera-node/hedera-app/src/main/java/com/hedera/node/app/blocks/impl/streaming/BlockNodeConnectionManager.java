@@ -176,6 +176,15 @@ public class BlockNodeConnectionManager {
     private final Duration endOfStreamScheduleDelay;
 
     /**
+     * Configuration property: threshold in milliseconds above which a block acknowledgement is considered high latency.
+     */
+    private final long highLatencyThresholdMs;
+    /**
+     * Configuration property: number of consecutive high latency events before considering switching nodes.
+     */
+    private final int highLatencyEventsBeforeSwitching;
+
+    /**
      * Creates a new BlockNodeConnectionManager with the given configuration from disk.
      * @param configProvider the configuration to use
      * @param blockBufferService the block stream state manager
@@ -199,6 +208,8 @@ public class BlockNodeConnectionManager {
         this.maxEndOfStreamsAllowed = blockNodeConnectionConfig.maxEndOfStreamsAllowed();
         this.endOfStreamTimeFrame = blockNodeConnectionConfig.endOfStreamTimeFrame();
         this.endOfStreamScheduleDelay = blockNodeConnectionConfig.endOfStreamScheduleDelay();
+        this.highLatencyThresholdMs = blockNodeConnectionConfig.highLatencyThresholdMs();
+        this.highLatencyEventsBeforeSwitching = blockNodeConnectionConfig.highLatencyEventsBeforeSwitching();
 
         isStreamingEnabled.set(isStreamingEnabled());
 
@@ -278,7 +289,11 @@ public class BlockNodeConnectionManager {
         }
     }
 
-    private boolean isOnlyOneBlockNodeConfigured() {
+    /**
+     * Checks if there is only one block node configured.
+     * @return whether there is only one block node configured
+     */
+    public boolean isOnlyOneBlockNodeConfigured() {
         return availableBlockNodes.size() == 1;
     }
 
@@ -988,16 +1003,15 @@ public class BlockNodeConnectionManager {
      * @param blockNodeConfig the configuration for the block node
      * @return true if the rate limit is exceeded, otherwise false
      */
-    public boolean recordEndOfStreamAndCheckLimit(@NonNull final BlockNodeConfig blockNodeConfig) {
+    public boolean recordEndOfStreamAndCheckLimit(
+            @NonNull final BlockNodeConfig blockNodeConfig, @NonNull final Instant timestamp) {
         if (!isStreamingEnabled.get()) {
             return false;
         }
         requireNonNull(blockNodeConfig, "blockNodeConfig must not be null");
 
-        final Instant now = Instant.now();
         final BlockNodeStats stats = nodeStats.computeIfAbsent(blockNodeConfig, k -> new BlockNodeStats());
-
-        return stats.addEndOfStreamAndCheckLimit(now, maxEndOfStreamsAllowed, endOfStreamTimeFrame);
+        return stats.addEndOfStreamAndCheckLimit(timestamp, maxEndOfStreamsAllowed, endOfStreamTimeFrame);
     }
 
     /**
@@ -1062,5 +1076,52 @@ public class BlockNodeConnectionManager {
         final long octet3 = 256L * (bytes[2] & 0xFF);
         final long octet4 = 1L * (bytes[3] & 0xFF);
         return octet1 + octet2 + octet3 + octet4;
+    }
+
+    /**
+     * Records when a block was sent to a block node. This enables latency measurement upon acknowledgement.
+     *
+     * @param blockNodeConfig the target block node configuration
+     * @param blockNumber the block number sent
+     * @param timestamp the timestamp when the block was sent
+     */
+    public void recordBlockSent(
+            @NonNull final BlockNodeConfig blockNodeConfig, final long blockNumber, @NonNull final Instant timestamp) {
+        if (!isStreamingEnabled.get()) {
+            return;
+        }
+        requireNonNull(blockNodeConfig, "blockNodeConfig must not be null");
+
+        final BlockNodeStats stats = nodeStats.computeIfAbsent(blockNodeConfig, k -> new BlockNodeStats());
+        stats.recordBlockSent(blockNumber, timestamp);
+    }
+
+    /**
+     * Records a block acknowledgement and evaluates latency for a given block node. Updates metrics and determines
+     * whether a switch should be considered due to consecutive high-latency events.
+     *
+     * @param blockNodeConfig the block node configuration that acknowledged the block
+     * @param blockNumber the acknowledged block number
+     * @param timestamp the timestamp of the block acknowledgement
+     * @return the evaluation result including latency and switching decision
+     */
+    public BlockNodeStats.HighLatencyResult recordBlockAckAndCheckLatency(
+            @NonNull final BlockNodeConfig blockNodeConfig, final long blockNumber, @NonNull final Instant timestamp) {
+        if (!isStreamingEnabled.get()) {
+            return new BlockNodeStats.HighLatencyResult(0L, 0, false, false);
+        }
+        requireNonNull(blockNodeConfig, "blockNodeConfig must not be null");
+
+        final BlockNodeStats stats = nodeStats.computeIfAbsent(blockNodeConfig, k -> new BlockNodeStats());
+        final BlockNodeStats.HighLatencyResult result = stats.recordAcknowledgementAndEvaluate(
+                blockNumber, timestamp, highLatencyThresholdMs, highLatencyEventsBeforeSwitching);
+
+        // Update metrics
+        blockStreamMetrics.recordAcknowledgementLatency(result.latencyMs());
+        if (result.isHighLatency()) {
+            blockStreamMetrics.recordHighLatencyEvent();
+        }
+
+        return result;
     }
 }

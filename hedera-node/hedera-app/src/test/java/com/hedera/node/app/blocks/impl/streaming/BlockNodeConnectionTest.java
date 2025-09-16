@@ -46,6 +46,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
     private static final long ONCE_PER_DAY_MILLIS = Duration.ofHours(24).toMillis();
     private static final VarHandle isStreamingEnabledHandle;
+    private static final String LOCALHOST_8080 = "localhost:8080";
 
     static {
         try {
@@ -65,6 +66,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
     private BlockStreamMetrics metrics;
     private Pipeline<? super PublishStreamRequest> requestPipeline;
     private ScheduledExecutorService executorService;
+    private BlockNodeStats.HighLatencyResult latencyResult;
 
     @BeforeEach
     void beforeEach() {
@@ -76,6 +78,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         metrics = mock(BlockStreamMetrics.class);
         requestPipeline = mock(Pipeline.class);
         executorService = mock(ScheduledExecutorService.class);
+        latencyResult = mock(BlockNodeStats.HighLatencyResult.class);
 
         connection = new BlockNodeConnection(
                 configProvider,
@@ -162,6 +165,9 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         final PublishStreamResponse response = createBlockAckResponse(10L);
         when(connectionManager.currentStreamingBlockNumber())
                 .thenReturn(-1L); // we aren't streaming anything to the block node
+        when(connectionManager.recordBlockAckAndCheckLatency(eq(connection.getNodeConfig()), eq(10L), any()))
+                .thenReturn(latencyResult);
+        when(latencyResult.shouldSwitch()).thenReturn(false);
 
         connection.updateConnectionState(ConnectionState.ACTIVE);
         connection.onNext(response);
@@ -179,6 +185,9 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
 
         when(connectionManager.currentStreamingBlockNumber()).thenReturn(10L);
         when(bufferService.getLastBlockNumberProduced()).thenReturn(10L);
+        when(connectionManager.recordBlockAckAndCheckLatency(eq(connection.getNodeConfig()), eq(8L), any()))
+                .thenReturn(latencyResult);
+        when(latencyResult.shouldSwitch()).thenReturn(false);
 
         connection.updateConnectionState(ConnectionState.ACTIVE);
         connection.onNext(response);
@@ -201,6 +210,9 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
 
         when(connectionManager.currentStreamingBlockNumber()).thenReturn(11L);
         when(bufferService.getLastBlockNumberProduced()).thenReturn(10L);
+        when(connectionManager.recordBlockAckAndCheckLatency(eq(connection.getNodeConfig()), eq(11L), any()))
+                .thenReturn(latencyResult);
+        when(latencyResult.shouldSwitch()).thenReturn(false);
 
         connection.updateConnectionState(ConnectionState.ACTIVE);
         connection.onNext(response);
@@ -220,6 +232,9 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
 
         when(connectionManager.currentStreamingBlockNumber()).thenReturn(10L);
         when(bufferService.getLastBlockNumberProduced()).thenReturn(12L);
+        when(connectionManager.recordBlockAckAndCheckLatency(eq(connection.getNodeConfig()), eq(11L), any()))
+                .thenReturn(latencyResult);
+        when(latencyResult.shouldSwitch()).thenReturn(false);
 
         connection.updateConnectionState(ConnectionState.ACTIVE);
         connection.onNext(response);
