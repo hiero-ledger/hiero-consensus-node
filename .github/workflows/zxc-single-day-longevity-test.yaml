@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-name: "ZXC: [CITR] Single Day Longevity NLG Test"
+name: "ZXC: [CITR] Single Day Longevity Test"
 
 on:
   workflow_call:
@@ -34,13 +34,6 @@ on:
         default: ""
         type: string
         description: 'Add props to application.properties, e.g. "blockStream.streamMode=RECORDS". Newline is "\n"'
-      # For Adhoc runs, we use Chicago:                 k8s.pft.chi.lat.ope.eng.hashgraph.io
-      # For official Single Day tests, we use Dallas:   k8s.pft.dal.lat.ope.eng.hashgraph.io
-      kubernetes-cluster:
-        required: true
-        type: string
-        default: "k8s.pft.chi.lat.ope.eng.hashgraph.io"
-        description: "Kubernetes cluster to run"
       add-settings:
         required: false
         default: ""
@@ -68,7 +61,7 @@ env:
   GS_ROOT_DIR: gs://performance-engineering-reports/ephemeral/test_runs
   GS_ROOT_HTTPS: https://perf.analytics.eng.hashgraph.io/ephemeral/test_runs
   #Release version from jFrog
-  NLG_VERSION: 0.6.2
+  NLG_VERSION: 0.6.3
 
 jobs:
   longevity-tests-start:
@@ -94,6 +87,15 @@ jobs:
         with:
           ref: ${{ inputs.ref }}
 
+      - name: Check Test Asset
+        id: set-k8s-cluster
+        run: |
+          K8S_CLUSTER="k8s.pft.dal.lat.ope.eng.hashgraph.io"
+          if [[ "${{ inputs.test-asset }}" =~ ^AdHoc(SD)?[0-9]+$ ]]; then
+            K8S_CLUSTER="k8s.pft.chi.lat.ope.eng.hashgraph.io"
+          fi
+          echo "kubernetes-cluster=${K8S_CLUSTER}" >> "${GITHUB_OUTPUT}"
+
       - name: Install KubeCtl
         uses: step-security/setup-kubectl@2edbf6aff97d814e9dc52827498ac51fe972e6d0 # v4.0.0
         with:
@@ -117,7 +119,7 @@ jobs:
         with:
           proxy: hashgraph.teleport.sh:443
           token: gh-citr-performance-svcs-bot
-          kubernetes-cluster: ${{ inputs.kubernetes-cluster }}
+          kubernetes-cluster: ${{ steps.set-k8s-cluster.outputs.kubernetes-cluster }}
           certificate-ttl: 20h
 
       - name: Authenticate to Google Cloud
@@ -227,7 +229,7 @@ jobs:
       - name: Deploy with Solo
         env:
           NAMESPACE_ALIAS: ${{ inputs.test-asset }}
-          CONTEXT: hashgraph.teleport.sh-${{ inputs.kubernetes-cluster }}
+          CONTEXT: hashgraph.teleport.sh-${{ steps.set-k8s-cluster.outputs.kubernetes-cluster }}
         run: |
           set +x
           set +e
@@ -659,9 +661,9 @@ jobs:
           create_public_incident: "false"
           summary: ${{ steps.rootly-summary.outputs.summary }}
           severity: "Triage Event"
-          alert_ids: ${{ steps.rootly-alert.outputs.alert_ids }} || '' }}
+          alert_ids: ${{ steps.rootly-alert.outputs.alert_ids || '' }}
           environments: "CITR"
-          incident_types: "Performance Engineering,Platform CI"
+          incident_types: "Platform CI"
           services: ${{ steps.set-rootly-service.outputs.service }}
           teams: "Performance Engineering,Platform CI"
 
