@@ -10,14 +10,33 @@ import com.hedera.pbj.runtime.ProtoParserTools;
 import com.hedera.pbj.runtime.ProtoWriterTools;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
+import com.swirlds.state.spi.ReadableQueueState;
+import com.swirlds.state.spi.WritableQueueState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 
+/**
+ * A class to work with {@link ReadableQueueState} and {@link WritableQueueState} states. Every
+ * queue state has two indices. Head index is where queue elements are retrieved from using
+ * {@link ReadableQueueState#peek()} or {@link WritableQueueState#poll()} methods. Tail index is
+ * where elements are added to the queue using {@link WritableQueueState#add(Object)} method.
+ * These two indices for every queue state are the state of this queue state. This class is used
+ * to store the state in the underlying virtual map.
+ *
+ * <p>This class corresponds to com.hedera.hapi.platform.state.QueueState generated from HAPI
+ * sources. The generated class isn't used in swirlds-state-api/impl modules to avoid
+ * dependency on HAPI.
+ *
+ * @param head queue state head index
+ * @param tail queue state tail index
+ */
 public record QueueState(long head, long tail) {
 
+    // Corresponds to QueueState.head field in virtual_map_state.proto
     private static final FieldDefinition FIELD_QUEUESTATE_HEAD =
             new FieldDefinition("head", FieldType.UINT64, false, true, false, 1);
 
+    // Corresponds to QueueState.tail field in virtual_map_state.proto
     private static final FieldDefinition FIELD_QUEUESTATE_TAIL =
             new FieldDefinition("tail", FieldType.UINT64, false, true, false, 2);
 
@@ -33,14 +52,26 @@ public record QueueState(long head, long tail) {
         }
     }
 
+    /**
+     * Creates a new {@link QueueState} object to use when an element is added to a queue state.
+     */
     public QueueState elementAdded() {
         return new QueueState(head, tail + 1);
     }
 
+    /**
+     * Creates a new {@link QueueState} object to use when an element is removed from a queue state.
+     */
     public QueueState elementRemoved() {
         return new QueueState(head + 1, tail);
     }
 
+    /**
+     * PBJ codec to handle queue state records.
+     *
+     * <p>This codec is similar to QueueStateProtoCodec generated from HAPI sources. See
+     * virtual_map_state.proto for details.
+     */
     public static class QueueStateCodec implements Codec<QueueState> {
 
         public static final Codec<QueueState> INSTANCE = new QueueStateCodec();

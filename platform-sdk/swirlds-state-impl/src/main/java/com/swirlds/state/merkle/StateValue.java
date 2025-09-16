@@ -13,13 +13,51 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.util.Objects;
 
+/**
+ * A record to store state values. These records are used by readable and writable
+ * state classes to read from / write to the underlying store (virtual map).
+ *
+ * <p>This class is very similar, but more generic than a class with the same name
+ * generated from HAPI sources, com.hedera.hapi.platform.state.StateValue. The
+ * generated class is not used in the current module to avoid a compile-time
+ * dependency on HAPI.
+ *
+ * <p>At the bytes level, these two classes must be bit to bit identical. It means,
+ * bytes for a state value record serialized using {@link StateValueCodec} must be
+ * identical to bytes created using HAPI StateValue and its codec. These bytes are
+ * a protobuf OneOf field with ID that corresponds to the state ID, field value is
+ * the domain value message. See StateValue.value OneOf definition in
+ * virtual_map_state.proto for details.
+ *
+ * <p>This record can be used to create state values with state IDs different from
+ * what are used in Hedera. Value types may also be different, not just Hedera types,
+ * which is very helpful for testing.
+ *
+ * @param stateId state ID
+ * @param value domain value object
+ * @param <V> domain value type
+ */
 public record StateValue<V>(int stateId, @NonNull V value) {
 
-    public static int extractStateIdFromStateValue(@NonNull final Bytes stateValue) {
+    /**
+     * Given state value bytes, extract state ID from them. Value bytes must be in
+     * com.hedera.hapi.platform.state.StateValue format, that it a domain value wrapped into a
+     * OneOf field.
+     */
+    public static int extractStateIdFromStateValueOneOf(@NonNull final Bytes stateValue) {
         Objects.requireNonNull(stateValue, "Null state value");
         return ProtoParserTools.readNextFieldNumber(stateValue.toReadableSequentialData());
     }
 
+    /**
+     * PBJ codec to handle state value records.
+     *
+     * <p>This codec is similar to StateValueProtoCodec generated from HAPI sources, but
+     * it doesn't check Hedera state IDs and value types, they can be arbitrary, not just
+     * what is defined in virtual_map_state.proto.
+     *
+     * @param <V> domain value type
+     */
     public static final class StateValueCodec<V> implements Codec<StateValue<V>> {
 
         private final int stateId;

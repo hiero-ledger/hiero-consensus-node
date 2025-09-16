@@ -26,7 +26,7 @@ import com.swirlds.base.utility.Pair;
 import com.swirlds.common.threading.manager.AdHocThreadManager;
 import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.snapshot.DeserializedSignedState;
-import com.swirlds.state.merkle.StateKey;
+import com.swirlds.state.merkle.StateKeyUtils;
 import com.swirlds.state.merkle.StateValue;
 import com.swirlds.state.spi.ReadableKVState;
 import com.swirlds.virtualmap.VirtualMap;
@@ -78,8 +78,8 @@ public class TokenRelationsIntegrity {
         InterruptableConsumer<Pair<Bytes, Bytes>> handler = pair -> {
             final Bytes keyBytes = pair.left();
             final Bytes valueBytes = pair.right();
-            final int readKeyStateId = StateKey.extractStateIdFromStateKey(keyBytes);
-            final int readValueStateId = StateValue.extractStateIdFromStateValue(valueBytes);
+            final int readKeyStateId = StateKeyUtils.extractStateIdFromStateKeyOneOf(keyBytes);
+            final int readValueStateId = StateValue.extractStateIdFromStateValueOneOf(valueBytes);
             if ((readKeyStateId == tokenRelsStateId) && (readValueStateId == tokenRelsStateId)) {
                 try {
                     final com.hedera.hapi.platform.state.StateKey stateKey =

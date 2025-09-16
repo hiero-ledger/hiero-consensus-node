@@ -171,47 +171,42 @@ public final class StateUtils {
     }
 
     /**
-     * Creates an instance of {@link StateKey} for a singleton state, serializes into a {@link Bytes} object
-     * and returns it. The result is cached to avoid repeated allocations.
+     * Creates a state key for a singleton state and serializes into a {@link Bytes} object.
+     * The result is cached to avoid repeated allocations.
      *
-     * @param stateId     the state ID
-     * @return a {@link StateKey} for the singleton serialized into {@link Bytes} object
-     * @throws IllegalArgumentException if the derived state ID is not within the range [0..65535]
+     * @param stateId the state ID
+     * @return a state key for the singleton serialized into {@link Bytes} object
      */
     public static Bytes getStateKeyForSingleton(final int stateId) {
         Bytes key = VIRTUAL_MAP_KEY_CACHE[stateId];
         if (key == null) {
-            key = StateKey.singletonKey(stateId);
+            key = StateKeyUtils.singletonKey(stateId);
             VIRTUAL_MAP_KEY_CACHE[stateId] = key;
         }
         return key;
     }
 
     /**
-     * Creates an instance of {@link StateKey} for a queue element, serializes into a {@link Bytes} object
-     * and returns it.
+     * Creates a state key for a queue element and serializes into a {@link Bytes} object.
      *
-     * @param stateId     the state ID
-     * @param index       the queue element index
-     * @return a {@link StateKey} for a queue element serialized into {@link Bytes} object
-     * @throws IllegalArgumentException if the derived state ID is not within the range [0..65535]
+     * @param stateId the state ID
+     * @param index the queue element index
+     * @return a state key for a queue element serialized into {@link Bytes} object
      */
     public static Bytes getStateKeyForQueue(final int stateId, final long index) {
-        return StateKey.queueKey(stateId, index);
+        return StateKeyUtils.queueKey(stateId, index);
     }
 
     /**
-     * Creates an instance of {@link StateKey} for a k/v state, serializes into a {@link Bytes} object
-     * and returns it.
+     * Creates a state key for a k/v state and serializes into a {@link Bytes} object.
      *
-     * @param <K>         the type of the key
-     * @param stateId     the state ID
-     * @param key         the key object
-     * @return a {@link StateKey} for a k/v state, serialized into {@link Bytes} object
-     * @throws IllegalArgumentException if the derived state ID is not within the range [0..65535]
+     * @param <K> the type of the key
+     * @param stateId the state ID
+     * @param key the key object
+     * @return a state key for a k/v state, serialized into {@link Bytes} object
      */
     public static <K> Bytes getStateKeyForKv(final int stateId, final K key, final Codec<K> keyCodec) {
-        return StateKey.kvKey(stateId, key, keyCodec);
+        return StateKeyUtils.kvKey(stateId, key, keyCodec);
     }
 
     /**

@@ -858,7 +858,7 @@ public abstract class VirtualMapState<T extends VirtualMapState<T>> implements S
                 final String stateKey = stateDefinition.stateKey();
 
                 if (stateDefinition.singleton()) {
-                    final Bytes singletonKey = StateKey.singletonKey(stateId);
+                    final Bytes singletonKey = StateKeyUtils.singletonKey(stateId);
                     final VirtualLeafBytes<?> leafBytes = recordAccessor.findLeafRecord(singletonKey);
                     if (leafBytes != null) {
                         final var hash = recordAccessor.findHash(leafBytes.path());
@@ -870,7 +870,7 @@ public abstract class VirtualMapState<T extends VirtualMapState<T>> implements S
                         singletons.put(computeLabel(serviceName, stateKey), singletonJson);
                     }
                 } else if (stateDefinition.queue()) {
-                    final Bytes queueStateKey = StateKey.queueStateKey(stateId);
+                    final Bytes queueStateKey = StateKeyUtils.queueStateKey(stateId);
                     final VirtualLeafBytes<?> leafBytes = recordAccessor.findLeafRecord(queueStateKey);
                     if (leafBytes != null) {
                         try {

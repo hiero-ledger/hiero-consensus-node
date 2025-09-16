@@ -8,7 +8,7 @@ import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.iterators.MerkleIterator;
-import com.swirlds.state.merkle.StateKey;
+import com.swirlds.state.merkle.StateKeyUtils;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.internal.merkle.VirtualLeafNode;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -43,10 +43,10 @@ public class OnDiskIterator<K> implements Iterator<K> {
             final MerkleNode merkleNode = itr.next();
             if (merkleNode instanceof VirtualLeafNode leaf) {
                 final Bytes stateKey = leaf.getKey();
-                final int nextNextStateId = StateKey.extractStateIdFromStateKey(stateKey);
+                final int nextNextStateId = StateKeyUtils.extractStateIdFromStateKeyOneOf(stateKey);
                 if (stateId == nextNextStateId) {
                     try {
-                        this.next = StateKey.parseKeyFromStateKey(stateKey, keyCodec);
+                        this.next = StateKeyUtils.extractKeyFromStateKeyOneOf(stateKey, keyCodec);
                         return true;
                     } catch (final ParseException e) {
                         throw new RuntimeException("Failed to parse a key", e);

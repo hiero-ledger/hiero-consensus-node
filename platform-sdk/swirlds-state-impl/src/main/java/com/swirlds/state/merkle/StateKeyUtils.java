@@ -15,12 +15,34 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Objects;
 
-public class StateKey {
+/**
+ * A set of utility methods to work with state keys. These methods are used by readable
+ * and writable state classes to create keys to read from or write to the underlying store
+ * (virtual map).
+ *
+ * <p>There are two reasons for this class to exist. First, to avoid HAPI dependency in
+ * the swirlds-state-impl module. In particular, there should be no references to
+ * com.hedera.hapi.platform.state.StateKey class. However, at the bytes level, all keys
+ * created with methods in this class must be fully bit to bit compatible with Hedera
+ * state keys. In particular, every state key must be a domain key wrapped into a OneOf.
+ * This corresponds to StateKey.key OneOf defined in virtual_map_state.proto.
+ *
+ * <p>The second reason is to let create state keys with state IDs, which aren't
+ * necessarily state IDs used in Hedera. Key types may also be different from Hedera
+ * types. For example, state ID 2 in Hedera is for accounts, key type is AccountID, and
+ * value type is Account. Using {@link #kvKey(int, Object, Codec)} method it is possible
+ * to create a K/V key for state ID 2 with a different key type, all is needed is a key
+ * object and the corresponding key codec. Another example is state ID 11111, it doesn't
+ * correspond to any real Hedera state. If an instance of com.hedera.hapi.platform.state.StateKey
+ * is created for state ID 11111, an exception will be thrown. However, it's possible to
+ * create keys with this state ID using methods in this class.
+ */
+public class StateKeyUtils {
 
     // StateKey.key OneOf field number for singletons
     private static final int FIELD_NUM_SINGLETON = 1;
 
-    private StateKey() {}
+    private StateKeyUtils() {}
 
     // Singleton key: OneOf field number is FIELD_NUM_SINGLETON (1), field value is varint,
     // the value is singleton state ID
@@ -81,18 +103,31 @@ public class StateKey {
         }
     }
 
-    public static int extractStateIdFromStateKey(@NonNull final Bytes stateKey) {
+    /**
+     * Given state key bytes, extract state ID from them. Key bytes must be in
+     * com.hedera.hapi.platform.state.StateKey format, that it a domain key wrapped into a
+     * OneOf field.
+     */
+    public static int extractStateIdFromStateKeyOneOf(@NonNull final Bytes stateKey) {
         Objects.requireNonNull(stateKey, "Null state key");
+        // Assumption is the key bytes are a OneOf
         return ProtoParserTools.readNextFieldNumber(stateKey.toReadableSequentialData());
     }
 
-    public static <K> K parseKeyFromStateKey(@NonNull final Bytes stateKey, @NonNull final Codec<K> keyCodec)
+    /**
+     * Given state key bytes, extract a key from them. Key bytes must be in
+     * com.hedera.hapi.platform.state.StateKey format, that it a domain key wrapped into a
+     * OneOf field.
+     *
+     * @throws ParseException if domain key bytes cannot be parsed using the provided codec
+     */
+    public static <K> K extractKeyFromStateKeyOneOf(@NonNull final Bytes stateKey, @NonNull final Codec<K> keyCodec)
             throws ParseException {
         Objects.requireNonNull(stateKey, "Null state key");
         Objects.requireNonNull(keyCodec, "Null key codec");
         final ReadableSequentialData in = stateKey.toReadableSequentialData();
         final int tag = in.readVarInt(false);
-        assert tag >> ProtoParserTools.TAG_FIELD_OFFSET == extractStateIdFromStateKey(stateKey);
+        assert tag >> ProtoParserTools.TAG_FIELD_OFFSET == extractStateIdFromStateKeyOneOf(stateKey);
         assert tag >> ProtoParserTools.TAG_FIELD_OFFSET != FIELD_NUM_SINGLETON; // must not be a singleton key
         final int size = in.readVarInt(false);
         assert in.position() + size == stateKey.length();
