@@ -163,9 +163,6 @@ jobs:
           repo: hiero-ledger/hiero-consensus-node # ensure we are executing in the hiero-ledger org
           ref: ${{ github.ref }} # ensure we are always using the workflow definition from the called branch
           token: ${{ secrets.GH_ACCESS_TOKEN }}
-          inputs: '{
-            "ref": "${{ needs.promote-build-candidate.outputs.build-candidate-tag }}"
-            }'
 
       - name: "Trigger ZXF: [CITR] Single Day Longevity Test (SDLT)"
         uses: step-security/workflow-dispatch@b4c1dc0afa074d0b4f0e653d3b80d4b2798599aa # v1.2.7
@@ -174,9 +171,6 @@ jobs:
           repo: hiero-ledger/hiero-consensus-node # ensure we are executing in the hiero-ledger org
           ref: ${{ github.ref }} # ensure we are always using the workflow definition from the called branch
           token: ${{ secrets.GH_ACCESS_TOKEN }}
-          inputs: '{
-            "ref": "${{ needs.promote-build-candidate.outputs.build-candidate-tag }}"
-            }'
 
       - name: "Trigger ZXF: [CITR] Single Day Canonical Test (SDCT)"
         uses: step-security/workflow-dispatch@b4c1dc0afa074d0b4f0e653d3b80d4b2798599aa # v1.2.7
