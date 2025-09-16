@@ -191,7 +191,21 @@ class SetupStakeCommandTest extends YahcliTestBase {
     @Nested
     class ScaledAmountValidation {
         @ParameterizedTest
-        @ValueSource(strings = {"1h", "10kh", "100mh", "1000bh", "1H", "10KH", "100MH", "1000BH", "0", "123456789", "999h", "1bh"})
+        @ValueSource(
+                strings = {
+                    "1h",
+                    "10kh",
+                    "100mh",
+                    "1000bh",
+                    "1H",
+                    "10KH",
+                    "100MH",
+                    "1000BH",
+                    "0",
+                    "123456789",
+                    "999h",
+                    "1bh"
+                })
         void validScaledAmountsAccepted(String amount) {
             // Test that valid scaled amounts with proper suffixes are accepted
             final var result = parseArgs(typicalGlobalOptions() + " activate-staking -p " + amount);
@@ -220,7 +234,6 @@ class SetupStakeCommandTest extends YahcliTestBase {
                     () -> parseArgs(typicalGlobalOptions() + " activate-staking -p \" \""));
             assertThat(exception.getMessage()).contains("Unmatched argument");
         }
-
     }
 
     @Nested
