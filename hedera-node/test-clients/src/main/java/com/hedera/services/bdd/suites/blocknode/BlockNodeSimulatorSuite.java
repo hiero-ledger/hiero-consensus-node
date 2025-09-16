@@ -9,6 +9,7 @@ import static com.hedera.services.bdd.spec.utilops.BlockNodeSimulatorVerbs.block
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertHgcaaLogContainsTimeframe;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertHgcaaLogDoesNotContain;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepForSeconds;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitForActive;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitForAny;
@@ -44,22 +45,45 @@ public class BlockNodeSimulatorSuite {
 
     @HapiTest
     @HapiBlockNode(
-            networkSize = 1,
-            blockNodeConfigs = {@BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.SIMULATOR)},
+            networkSize = 4,
+            blockNodeConfigs = {@BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.LOCAL_NODE)},
             subProcessNodeConfigs = {
                 @SubProcessNodeConfig(
                         nodeId = 0,
                         blockNodeIds = {0},
                         blockNodePriorities = {0},
                         applicationPropertiesOverrides = {
-                            "blockStream.streamMode", "BOTH",
-                            "blockStream.writerMode", "FILE_AND_GRPC"
-                        })
+                            "blockStream.streamMode", "BLOCKS",
+                            "blockStream.writerMode", "GRPC"
+                        }),
+                    @SubProcessNodeConfig(
+                            nodeId = 1,
+                            blockNodeIds = {0},
+                            blockNodePriorities = {0},
+                            applicationPropertiesOverrides = {
+                                    "blockStream.streamMode", "BLOCKS",
+                                    "blockStream.writerMode", "GRPC"
+                            }),
+                    @SubProcessNodeConfig(
+                            nodeId = 2,
+                            blockNodeIds = {0},
+                            blockNodePriorities = {0},
+                            applicationPropertiesOverrides = {
+                                    "blockStream.streamMode", "BLOCKS",
+                                    "blockStream.writerMode", "GRPC"
+                            }), @SubProcessNodeConfig(
+                    nodeId = 3,
+                    blockNodeIds = {0},
+                    blockNodePriorities = {0},
+                    applicationPropertiesOverrides = {
+                            "blockStream.streamMode", "BLOCKS",
+                            "blockStream.writerMode", "GRPC"
+                    })
             })
     @Order(0)
     final Stream<DynamicTest> node0StreamingHappyPath() {
         return hapiTest(
-                waitUntilNextBlocks(100).withBackgroundTraffic(true),
+                sleepForSeconds(10000000000L),
                 assertHgcaaLogDoesNotContain(byNodeId(0), "ERROR", Duration.ofSeconds(5)));
     }
 
@@ -249,7 +273,7 @@ public class BlockNodeSimulatorSuite {
 
     @HapiTest
     @HapiBlockNode(
-            networkSize = 2,
+            networkSize = 3,
             blockNodeConfigs = {@BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.SIMULATOR)},
             subProcessNodeConfigs = {
                 @SubProcessNodeConfig(
@@ -267,12 +291,20 @@ public class BlockNodeSimulatorSuite {
                         applicationPropertiesOverrides = {
                             "blockStream.streamMode", "BOTH",
                             "blockStream.writerMode", "FILE_AND_GRPC"
-                        })
+                        }),
+                    @SubProcessNodeConfig(
+                            nodeId = 2,
+                            blockNodeIds = {0},
+                            blockNodePriorities = {0},
+                            applicationPropertiesOverrides = {
+                                    "blockStream.streamMode", "BOTH",
+                                    "blockStream.writerMode", "FILE_AND_GRPC"
+                            })
             })
     @Order(4)
     final Stream<DynamicTest> twoNodesStreamingOneBlockNodeHappyPath() {
         return hapiTest(
-                waitUntilNextBlocks(10).withBackgroundTraffic(true),
+                waitUntilNextBlocks(15).withBackgroundTraffic(true),
                 assertHgcaaLogDoesNotContain(allNodes(), "ERROR", Duration.ofSeconds(5)));
     }
 

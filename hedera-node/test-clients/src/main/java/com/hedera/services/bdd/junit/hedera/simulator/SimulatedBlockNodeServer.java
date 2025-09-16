@@ -389,13 +389,9 @@ public class SimulatedBlockNodeServer {
                                     }
 
                                     // Compute server progress as the max of last verified and any in-flight block
-                                    final long highestInFlight = streamingBlocks.keySet().stream()
-                                            .mapToLong(Long::longValue)
-                                            .max()
-                                            .orElse(-1L);
-                                    final long serverProgress = Math.max(lastVerifiedBlockNumber.get(), highestInFlight);
-                                    if (blockNumber - serverProgress > 1) {
-                                        handleBehindResponse(replies, blockNumber, serverProgress);
+                                    final long lastVerifiedBlockNum = lastVerifiedBlockNumber.get();
+                                    if (blockNumber - lastVerifiedBlockNum > 1) {
+                                        handleBehindResponse(replies, blockNumber, lastVerifiedBlockNum);
                                         return;
                                     }
 
@@ -453,23 +449,6 @@ public class SimulatedBlockNodeServer {
                                             blockNumber,
                                             replies.hashCode(),
                                             port);
-
-                                    // Proactively instruct all other streams to skip this block
-                                    for (final Pipeline<? super PublishStreamResponse> pipeline : activeStreams) {
-                                        if (pipeline != replies) {
-                                            try {
-                                                sendSkipBlock(pipeline, blockNumber);
-                                            } catch (final Exception e) {
-                                                log.error(
-                                                        "Failed to send SkipBlock for block {} to stream {} on port {}",
-                                                        blockNumber,
-                                                        pipeline.hashCode(),
-                                                        port,
-                                                        e);
-                                            }
-                                        }
-                                    }
-
                                 } else if (item.hasBlockProof()) {
                                     final var proof = item.blockProof();
                                     final long blockNumber = proof.block();
