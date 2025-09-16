@@ -303,8 +303,8 @@ public class BlockNodeConnectionManager {
             final URL blockNodeUrl = blockNodeUri.toURL();
             blockAddress = InetAddress.getByName(blockNodeUrl.getHost());
         } catch (final IOException e) {
-            logger.error("Failed to resolve block node host ({}:{})", nodeConfig.address(), nodeConfig.port());
-            throw new IllegalArgumentException("Failed to resolve block node host");
+            logger.error("Failed to resolve block node host ({}:{})", nodeConfig.address(), nodeConfig.port(), e);
+            throw new IllegalArgumentException("Failed to resolve block node host", e);
         }
 
         final WebClient webClient = WebClient.builder()
@@ -906,6 +906,13 @@ public class BlockNodeConnectionManager {
 
                     final BlockNodeConfig nodeCfg = connection.getNodeConfig();
                     final InetAddress nodeAddress = connection.nodeAddress();
+                    // TODO: Use metric labels to capture active node's IP
+                    // Once our metrics library supports labels, we will want to re-use the metric below to instead
+                    // emit a single value, like '1', and include a label called something like 'blockNodeIp' with the
+                    // value being the resolved block node's IP. Then the Grafana dashboard can be updated to use the
+                    // label value and show which block node the consensus node is connected to at any given time.
+                    // It may also be better to have a background task that runs every second or something that
+                    // continuously emits the metric instead of just when a connection is promoted to active.
                     final long ipAsInteger = calculateIpAsInteger(nodeAddress);
                     blockStreamMetrics.recordActiveConnectionIp(ipAsInteger);
 
