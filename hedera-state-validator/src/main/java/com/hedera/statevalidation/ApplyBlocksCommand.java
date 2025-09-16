@@ -60,8 +60,7 @@ public class ApplyBlocksCommand extends AbstractCommand {
     @CommandLine.Option(
             names = {"-h", "--expected-hash"},
             defaultValue = "",
-            description = "The last round that should be applied to the state, any higher rounds are ignored. "
-                    + "Default = apply all available rounds")
+            description = "Expected hash of the resulting state")
     private void setExpectedHash(final String expectedHash) {
         this.expectedHash = expectedHash;
     }

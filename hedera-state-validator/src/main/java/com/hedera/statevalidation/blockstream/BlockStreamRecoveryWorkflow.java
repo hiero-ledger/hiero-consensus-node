@@ -25,9 +25,8 @@ import com.swirlds.state.spi.CommittableWritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Path;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
+import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.consensus.model.node.NodeId;
 
 /**
@@ -35,8 +34,6 @@ import org.hiero.consensus.model.node.NodeId;
  * is advanced to the target round
  */
 public class BlockStreamRecoveryWorkflow {
-
-    private final Set<String> servicesWritten = new HashSet<>();
 
     private final MerkleNodeState state;
     private final long targetRound;
@@ -56,7 +53,12 @@ public class BlockStreamRecoveryWorkflow {
     public static void applyBlocks(
             Path blockStreamDirectory, NodeId selfId, long targetRound, Path outputPath, String expectedHash)
             throws IOException {
-        DeserializedSignedState deserializedSignedState = StateResolver.initState();
+        DeserializedSignedState deserializedSignedState = null;
+        try {
+            deserializedSignedState = StateResolver.initState();
+        } catch (ConstructableRegistryException e) {
+            throw new RuntimeException(e);
+        }
         MerkleNodeState state =
                 deserializedSignedState.reservedSignedState().get().getState();
         final var blocks = BlockStreamUtils.readBlocks(blockStreamDirectory, false);
@@ -108,11 +110,9 @@ public class BlockStreamRecoveryWorkflow {
                     }
                 }
 
-                servicesWritten.clear();
                 if (item.hasStateChanges()) {
                     applyStateChanges(item.stateChangesOrThrow());
                 }
-                servicesWritten.forEach(name -> ((CommittableWritableStates) state.getWritableStates(name)).commit());
             }
         }
 
@@ -166,7 +166,6 @@ public class BlockStreamRecoveryWorkflow {
             }
             final var serviceName = stateName.substring(0, delimIndex);
             final var writableStates = state.getWritableStates(serviceName);
-            servicesWritten.add(serviceName);
             final var stateKey = stateName.substring(delimIndex + 1);
             switch (stateChange.changeOperation().kind()) {
                 case UNSET -> throw new IllegalStateException("Change operation is not set");
