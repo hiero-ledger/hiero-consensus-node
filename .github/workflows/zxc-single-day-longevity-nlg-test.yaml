@@ -541,7 +541,7 @@ jobs:
           exit ${ec}
 
   longevity-tests-finish:
-    name: Wait for Longevity test
+    name: Read results of Longevity test
     runs-on: hiero-citr-linux-large
     if: always()
     needs:
@@ -811,7 +811,9 @@ jobs:
   longevity-report-to-Slack:
     runs-on: hiero-citr-linux-medium
     needs:
+      - longevity-tests-finish
       - single-day-longevity-test-result
+
     steps:
       - name: Harden the runner (Audit all outbound calls)
         uses: step-security/harden-runner@002fdce3c6a235733a90a27c80493a3241e56863 # v2.12.1
