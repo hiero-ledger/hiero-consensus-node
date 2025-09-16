@@ -12,6 +12,7 @@ import com.hederahashgraph.api.proto.java.FeeData;
 import com.hederahashgraph.api.proto.java.ResponseType;
 import com.hederahashgraph.api.proto.java.Timestamp;
 import com.hederahashgraph.api.proto.java.TransactionBody;
+
 import java.time.Duration;
 import java.time.Instant;
 import javax.inject.Inject;
@@ -57,6 +58,12 @@ public final class SmartContractFeeBuilder extends FeeBuilder {
         rbs = getBaseTransactionRecordSize(txBody) * (RECEIPT_STORAGE_TIME_SEC + THRESHOLD_STORAGE_TIME_SEC);
         long rbsNetwork = getDefaultRbhNetworkSize() + BASIC_ENTITY_ID_SIZE * (RECEIPT_STORAGE_TIME_SEC);
 
+        // Using SBS here because this part us not used in other calculations. It is a per hour cost
+        // so we convert to per second by multiplying by 1/3600. This will be changed with simple fees.
+        final var hookCreations = txBody.getContractCreateInstance().getHookCreationDetailsCount();
+        if (hookCreations > 0) {
+            sbs = hookCreations * 3600L;
+        }
         FeeComponents feeMatricesForTx = FeeComponents.newBuilder()
                 .setBpt(bpt)
                 .setVpt(vpt)
@@ -71,7 +78,9 @@ public final class SmartContractFeeBuilder extends FeeBuilder {
         return getFeeDataMatrices(feeMatricesForTx, sigValObj.getPayerAcctSigCount(), rbsNetwork);
     }
 
-    /** Calculates the total bytes in Contract Create Transaction body. */
+    /**
+     * Calculates the total bytes in Contract Create Transaction body.
+     */
     private int getContractCreateTransactionBodySize(TransactionBody txBody) {
         /*
          * FileID fileID - BASIC_ENTITY_ID_SIZE Key adminKey - calculated value int64 gas - LONG_SIZE uint64
@@ -277,7 +286,9 @@ public final class SmartContractFeeBuilder extends FeeBuilder {
         return getQueryFeeDataMatrices(feeMatrices);
     }
 
-    /** Calculates the total bytes in a Contract Update Transaction. */
+    /**
+     * Calculates the total bytes in a Contract Update Transaction.
+     */
     private int getContractUpdateBodyTxSize(TransactionBody txBody) {
         /*
          * ContractID contractID - BASIC_ENTITY_ID_SIZE Timestamp expirationTime - LONG_SIZE + INT_SIZE
@@ -315,7 +326,9 @@ public final class SmartContractFeeBuilder extends FeeBuilder {
         return contractUpdateBodySize;
     }
 
-    /** Calculates the total bytes in a Contract Call body Transaction. */
+    /**
+     * Calculates the total bytes in a Contract Call body Transaction.
+     */
     private int getContractCallBodyTxSize(TransactionBody txBody) {
         /*
          * ContractID contractID - BASIC_ENTITY_ID_SIZE int64 gas - LONG_SIZE int64 amount - LONG_SIZE bytes
@@ -337,7 +350,9 @@ public final class SmartContractFeeBuilder extends FeeBuilder {
         return contractCallBodySize;
     }
 
-    /** Calculates the total bytes in a Contract Call body Transaction. */
+    /**
+     * Calculates the total bytes in a Contract Call body Transaction.
+     */
     private int getEthereumTransactionBodyTxSize(TransactionBody txBody) {
         /*
          * AccountId contractID - BASIC_ENTITY_ID_SIZE int64 gas - LONG_SIZE int64 amount - LONG_SIZE bytes

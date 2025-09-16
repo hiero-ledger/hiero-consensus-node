@@ -7,6 +7,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractUpdate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoUpdate;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.viewAccount;
 import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.viewContract;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
@@ -15,6 +16,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.contract.Utils.extractBytecodeUnhexed;
 import static com.hedera.services.bdd.suites.contract.Utils.getResourcePath;
+import static com.hedera.services.bdd.suites.schedule.ScheduleUtils.SIMPLE_UPDATE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.HOOK_ID_IN_USE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.HOOK_ID_REPEATED_IN_CREATION_DETAILS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.HOOK_NOT_FOUND;
@@ -141,33 +143,40 @@ public class Hip1195EnabledTest {
 
     @HapiTest
     final Stream<DynamicTest> contractCreateWithHooks() {
-        final var OWNER = "contractOwner";
-        final AtomicReference<ContractID> contractId = new AtomicReference<>();
         return hapiTest(
-                contractCreate(OWNER)
-                        .inlineInitCode(extractBytecodeUnhexed(getResourcePath("CreateTrivial", ".bin")))
-                        .exposingContractIdTo(contractId::set)
+                cryptoCreate("payer").balance(ONE_MILLION_HBARS),
+                uploadInitCode(SIMPLE_UPDATE),
+                contractCreate(SIMPLE_UPDATE)
+                        .gas(300_000L)
                         .balance(0)
                         .withHooks(
                                 lambdaAccountAllowanceHook(21L, HOOK_CONTRACT.name()),
-                                lambdaAccountAllowanceHook(22L, HOOK_CONTRACT.name())),
-                viewContract(OWNER, (Account c) -> {
+                                lambdaAccountAllowanceHook(22L, HOOK_CONTRACT.name()))
+                        .payingWith("payer")
+                        .via("createContractTxn"),
+                viewContract(SIMPLE_UPDATE, (Account c) -> {
                     assertEquals(21L, c.firstHookId(), "firstHookId should be the first id in the list");
                     assertEquals(2, c.numberHooksInUse(), "contract account should track hook count");
                 }),
-                contractUpdate(OWNER)
+                // $2 for hooks, $0.73 for create
+                validateChargedUsd("createContractTxn", 2.73),
+                contractUpdate(SIMPLE_UPDATE)
                         .withHooks(
                                 lambdaAccountAllowanceHook(21L, HOOK_UPDATE_CONTRACT.name()),
                                 lambdaAccountAllowanceHook(23L, HOOK_CONTRACT.name()))
                         .hasKnownStatus(HOOK_ID_IN_USE),
-                contractUpdate(OWNER)
+                contractUpdate(SIMPLE_UPDATE)
                         .removingHook(21L)
                         .withHooks(
                                 lambdaAccountAllowanceHook(23L, HOOK_UPDATE_CONTRACT.name()),
-                                lambdaAccountAllowanceHook(21L, HOOK_CONTRACT.name())),
-                viewContract(OWNER, (Account c) -> {
+                                lambdaAccountAllowanceHook(21L, HOOK_CONTRACT.name()))
+                        .payingWith("payer")
+                        .via("contractUpdateTxn"),
+                viewContract(SIMPLE_UPDATE, (Account c) -> {
                     assertEquals(23L, c.firstHookId());
                     assertEquals(3, c.numberHooksInUse());
-                }));
+                }),
+                validateChargedUsd("contractUpdateTxn", 3.026)
+        );
     }
 }
