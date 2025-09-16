@@ -177,7 +177,7 @@ jobs:
           echo "namespace=${NAMESPACE_PREFIX}${n}" >> "${GITHUB_ENV}"
           echo "namespace=${NAMESPACE_PREFIX}${n}" >> "${GITHUB_OUTPUT}"
           echo "namespace=${NAMESPACE_PREFIX}${n}" >> "${GITHUB_STEP_SUMMARY}"
-          echo "testDone=0" >> "${GITHUB_ENV}"
+          echo "testDone=false" >> "${GITHUB_ENV}"
 
       - name: Print parameters
         run: |
@@ -398,7 +398,7 @@ jobs:
   longevity-tests-wait:
     name: Wait for Longevity test
     runs-on: hiero-citr-linux-large
-    if: ${{ env.testDone == 0 }}
+    if: env.testDone != 'true'
     needs:
       - longevity-tests-start
     strategy:
@@ -537,7 +537,7 @@ jobs:
             echo "Continue to wait in next Runner ..."
             ec=0
           else
-            echo "testDone=1" >> "${GITHUB_ENV}"
+            echo "testDone=true" >> "${GITHUB_ENV}"
           fi
 
           tail "${{ github.workspace }}"/report/client.log
