@@ -12,4 +12,4 @@ maxEventQueueForCons,                          1000
 merkleDb.hashesRamToDiskThreshold,             8388608
 event.creation.maxCreationRate,                20
 virtualMap.familyThrottleThreshold,            6000000000
-consensus.roundsExpired,                       2500
+consensus.roundsExpired,                       1000
