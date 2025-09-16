@@ -71,7 +71,6 @@ import com.swirlds.common.merkle.crypto.MerkleCryptography;
 import com.swirlds.common.merkle.utility.MerkleTreeVisualizer;
 import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.common.test.fixtures.merkle.TestMerkleCryptoFactory;
-import com.swirlds.merkledb.MerkleDb;
 import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.state.lifecycle.Service;
@@ -272,7 +271,6 @@ public class StateChangesValidator implements BlockStreamValidator {
         System.setProperty("hedera.realm", String.valueOf(realm));
 
         unarchiveGenesisNetworkJson(pathToUpgradeSysFilesLoc);
-        MerkleDb.setDefaultPath(pathToNode0.resolve("stateChangesValidator"));
         final var bootstrapConfig = new BootstrapConfigProviderImpl().getConfiguration();
         final var versionConfig = bootstrapConfig.getConfigData(VersionConfig.class);
         final var servicesVersion = versionConfig.servicesVersion();
