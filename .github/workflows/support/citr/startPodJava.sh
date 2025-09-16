@@ -33,6 +33,8 @@ then
   rm -rf output/*
   rm -rf data/saved/com.hedera.services.ServicesMain/${node_id}/123/*
   export PATH=/usr/local/java/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+  cp .archive/config.txt .
+  rm -rf .archive
   if [ 1 -eq 0 ]
   then
   echo "Generate module allowances:";
