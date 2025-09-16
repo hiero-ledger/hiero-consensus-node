@@ -49,12 +49,10 @@ import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.config.data.HederaConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-
 import org.apache.tuweni.bytes.Bytes;
 import org.apache.tuweni.bytes.Bytes32;
 import org.apache.tuweni.units.bigints.UInt256;
@@ -183,8 +181,8 @@ public class ConversionUtils {
         final var integralAddress = accountID.hasAccountNum()
                 ? asEvmAddress(accountID.accountNumOrThrow())
                 : accountID
-                .aliasOrElse(com.hedera.pbj.runtime.io.buffer.Bytes.EMPTY)
-                .toByteArray();
+                        .aliasOrElse(com.hedera.pbj.runtime.io.buffer.Bytes.EMPTY)
+                        .toByteArray();
         return asHeadlongAddress(integralAddress);
     }
 
@@ -347,7 +345,7 @@ public class ConversionUtils {
                         access.isReadOnly()
                                 ? null
                                 : tuweniToPbjBytes(
-                                requireNonNull(access.writtenValue()).trimLeadingZeros())));
+                                        requireNonNull(access.writtenValue()).trimLeadingZeros())));
             }
             allStateChanges.add(new ContractStateChange(storageAccess.contractID(), changes));
         }
@@ -913,7 +911,7 @@ public class ConversionUtils {
         return isLongZero(address)
                 ? address
                 : asLongZeroAddress(
-                proxyUpdaterFor(frame).getHederaContractId(address).contractNumOrThrow());
+                        proxyUpdaterFor(frame).getHederaContractId(address).contractNumOrThrow());
     }
 
     private static long maybeMissingNumberOf(
@@ -1114,7 +1112,7 @@ public class ConversionUtils {
      * @return remove the leading 0x from an Ethereum content
      */
     public static byte[] removeIfAnyLeading0x(com.hedera.pbj.runtime.io.buffer.Bytes contents) {
-        final var hexPrefix = new byte[]{(byte) '0', (byte) 'x'};
+        final var hexPrefix = new byte[] {(byte) '0', (byte) 'x'};
         final var offset = contents.matchesPrefix(hexPrefix) ? hexPrefix.length : 0L;
         final var len = contents.length() - offset;
         return contents.getBytes(offset, len).toByteArray();
