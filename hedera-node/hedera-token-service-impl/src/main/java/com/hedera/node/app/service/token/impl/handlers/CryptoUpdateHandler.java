@@ -21,6 +21,7 @@ import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.LONG_SIZE;
 import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.getAccountKeyStorageSize;
 import static com.hedera.node.app.service.token.HookDispatchUtils.dispatchHookCreations;
 import static com.hedera.node.app.service.token.HookDispatchUtils.dispatchHookDeletions;
+import static com.hedera.node.app.service.token.HookDispatchUtils.validateHookDuplicates;
 import static com.hedera.node.app.service.token.api.AccountSummariesApi.SENTINEL_ACCOUNT_ID;
 import static com.hedera.node.app.service.token.api.AccountSummariesApi.SENTINEL_NODE_ID;
 import static com.hedera.node.app.spi.validation.AttributeValidator.isImmutableKey;

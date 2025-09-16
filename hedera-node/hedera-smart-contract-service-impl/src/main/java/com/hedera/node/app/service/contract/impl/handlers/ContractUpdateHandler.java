@@ -4,7 +4,6 @@ package com.hedera.node.app.service.contract.impl.handlers;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CONTRACT_EXPIRED_AND_PENDING_REMOVAL;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.EXISTING_AUTOMATIC_ASSOCIATIONS_EXCEED_GIVEN_LIMIT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.EXPIRATION_REDUCTION_NOT_ALLOWED;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOK_ID_REPEATED_IN_CREATION_DETAILS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ADMIN_KEY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_AUTORENEW_ACCOUNT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_CONTRACT_ID;
@@ -13,13 +12,13 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.MODIFYING_IMMUTABLE_CON
 import static com.hedera.hapi.node.base.ResponseCodeEnum.REQUESTED_NUM_AUTOMATIC_ASSOCIATIONS_EXCEEDS_ASSOCIATION_LIMIT;
 import static com.hedera.hapi.util.HapiUtils.EMPTY_KEY_LIST;
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
+import static com.hedera.node.app.service.token.HookDispatchUtils.validateHookDuplicates;
 import static com.hedera.node.app.service.token.api.AccountSummariesApi.SENTINEL_ACCOUNT_ID;
 import static com.hedera.node.app.spi.fees.Fees.CONSTANT_FEE_DATA;
 import static com.hedera.node.app.spi.validation.ExpiryMeta.NA;
 import static com.hedera.node.app.spi.validation.Validations.mustExist;
 import static com.hedera.node.app.spi.workflows.HandleException.validateFalse;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
-import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
@@ -28,7 +27,6 @@ import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.contract.ContractUpdateTransactionBody;
-import com.hedera.hapi.node.hooks.HookCreationDetails;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.node.app.hapi.utils.fee.SigValueObj;
 import com.hedera.node.app.hapi.utils.fee.SmartContractFeeBuilder;
@@ -53,9 +51,7 @@ import com.hedera.node.config.data.TokensConfig;
 import com.hederahashgraph.api.proto.java.FeeData;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.util.List;
 import java.util.Optional;
-import java.util.stream.Collectors;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 
@@ -112,23 +108,7 @@ public class ContractUpdateHandler implements TransactionHandler {
         if (op.hasAdminKey() && processAdminKey(op)) {
             throw new PreCheckException(INVALID_ADMIN_KEY);
         }
-        validateHookCreations(op.hookCreationDetails());
-        if (!op.hookIdsToDelete().isEmpty()) {
-            validateTruePreCheck(
-                    op.hookIdsToDelete().stream().distinct().count()
-                            == op.hookIdsToDelete().size(),
-                    HOOK_ID_REPEATED_IN_CREATION_DETAILS);
-        }
-    }
-
-    static void validateHookCreations(final List<HookCreationDetails> details) throws PreCheckException {
-        if (!details.isEmpty()) {
-            final var hookIds =
-                    details.stream().map(HookCreationDetails::hookId).collect(Collectors.toSet());
-            if (hookIds.size() != details.size()) {
-                throw new PreCheckException(HOOK_ID_REPEATED_IN_CREATION_DETAILS);
-            }
-        }
+        validateHookDuplicates(op.hookCreationDetails(), op.hookIdsToDelete());
     }
 
     private boolean isAdminSigRequired(final ContractUpdateTransactionBody op) {

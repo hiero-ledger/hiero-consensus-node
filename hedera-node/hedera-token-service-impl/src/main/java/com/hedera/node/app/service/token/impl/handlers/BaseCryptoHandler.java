@@ -1,17 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.handlers;
 
-import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOK_ID_REPEATED_IN_CREATION_DETAILS;
-
 import com.hedera.hapi.node.base.AccountID;
-import com.hedera.hapi.node.hooks.HookCreationDetails;
-import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.config.data.AccountsConfig;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.util.List;
-import java.util.stream.Collectors;
 
 /**
  * This class contains common functionality needed for crypto handlers.
@@ -55,20 +49,5 @@ public class BaseCryptoHandler {
         return accountID != null
                 && ((accountID.hasAccountNum() && accountID.accountNumOrThrow() != 0L)
                         || (accountID.hasAlias() && accountID.aliasOrThrow().length() > 0));
-    }
-
-    /**
-     * Validates the hook creation details list, if there are any duplicate hook IDs.
-     * @param details the list of hook creation details
-     * @throws PreCheckException if there are duplicate hook IDs
-     */
-    protected void validateHookDuplicates(final List<HookCreationDetails> details) throws PreCheckException {
-        if (!details.isEmpty()) {
-            final var hookIds =
-                    details.stream().map(HookCreationDetails::hookId).collect(Collectors.toSet());
-            if (hookIds.size() != details.size()) {
-                throw new PreCheckException(HOOK_ID_REPEATED_IN_CREATION_DETAILS);
-            }
-        }
     }
 }

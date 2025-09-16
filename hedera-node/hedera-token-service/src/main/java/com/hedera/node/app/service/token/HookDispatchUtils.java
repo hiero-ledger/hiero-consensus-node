@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token;
 
+import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOK_ID_REPEATED_IN_CREATION_DETAILS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.spi.workflows.DispatchOptions.hookDispatch;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
+import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HookEntityId;
@@ -14,8 +16,10 @@ import com.hedera.hapi.node.hooks.HookDispatchTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.token.records.HookDispatchStreamBuilder;
 import com.hedera.node.app.spi.workflows.HandleContext;
+import com.hedera.node.app.spi.workflows.PreCheckException;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
+import java.util.stream.Collectors;
 
 public class HookDispatchUtils {
     public static long dispatchHookDeletions(
@@ -82,5 +86,34 @@ public class HookDispatchUtils {
                 TransactionBody.newBuilder().hookDispatch(hookDispatch).build(),
                 HookDispatchStreamBuilder.class));
         validateTrue(streamBuilder.status() == SUCCESS, streamBuilder.status());
+    }
+    /**
+     * Validates the hook creation details list, if there are any duplicate hook IDs.
+     * @param details the list of hook creation details
+     * @throws PreCheckException if there are duplicate hook IDs
+     */
+    public static void validateHookDuplicates(final List<HookCreationDetails> details) throws PreCheckException {
+        if (!details.isEmpty()) {
+            final var hookIds =
+                    details.stream().map(HookCreationDetails::hookId).collect(Collectors.toSet());
+            if (hookIds.size() != details.size()) {
+                throw new PreCheckException(HOOK_ID_REPEATED_IN_CREATION_DETAILS);
+            }
+        }
+    }
+    /**
+     * Validates the hook creation details and deletions list, if there are any duplicate hook IDs.
+     * @param details the list of hook creation details
+     * @param hookIdsToDelete the list of hook IDs to delete
+     * @throws PreCheckException if there are duplicate hook IDs
+     */
+    public static void validateHookDuplicates(final List<HookCreationDetails> details, List<Long> hookIdsToDelete)
+            throws PreCheckException {
+        validateHookDuplicates(details);
+        if (!hookIdsToDelete.isEmpty()) {
+            validateTruePreCheck(
+                    hookIdsToDelete.stream().distinct().count() == hookIdsToDelete.size(),
+                    HOOK_ID_REPEATED_IN_CREATION_DETAILS);
+        }
     }
 }
