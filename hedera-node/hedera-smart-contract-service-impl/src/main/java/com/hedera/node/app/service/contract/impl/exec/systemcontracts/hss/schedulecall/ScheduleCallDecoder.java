@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.exec.systemcontracts.hss.schedulecall;
 
-import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.MAX_LONG_VALUE;
-import static java.math.BigInteger.ZERO;
 import static java.util.Objects.requireNonNull;
 
 import com.esaulpaugh.headlong.abi.Address;
@@ -70,11 +68,9 @@ public class ScheduleCallDecoder {
             throw new IllegalStateException("Unexpected function selector");
         }
 
-        final long expirySecond =
-                ZERO.max(MAX_LONG_VALUE.min(call.get(paramIndex++))).longValueExact();
-        final long gasLimit =
-                ZERO.max(MAX_LONG_VALUE.min(call.get(paramIndex++))).longValueExact();
-        final long value = ZERO.max(MAX_LONG_VALUE.min(call.get(paramIndex++))).longValueExact();
+        final long expirySecond = ConversionUtils.uintToLong(call.get(paramIndex++));
+        final long gasLimit = ConversionUtils.uintToLong(call.get(paramIndex++));
+        final long value = ConversionUtils.uintToLong(call.get(paramIndex++));
         final byte[] callData = call.get(paramIndex);
 
         // convert parameters

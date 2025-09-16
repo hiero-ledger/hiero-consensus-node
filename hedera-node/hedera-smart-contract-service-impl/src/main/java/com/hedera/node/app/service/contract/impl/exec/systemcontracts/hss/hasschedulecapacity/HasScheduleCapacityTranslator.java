@@ -1,9 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.exec.systemcontracts.hss.hasschedulecapacity;
 
-import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.MAX_LONG_VALUE;
-import static java.math.BigInteger.ZERO;
-
 import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.AbstractCallTranslator;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.Call;
@@ -12,6 +9,7 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.Return
 import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethod;
 import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethod.Category;
 import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethodRegistry;
+import com.hedera.node.app.service.contract.impl.utils.ConversionUtils;
 import com.hedera.node.config.data.ContractsConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Optional;
@@ -53,9 +51,8 @@ public class HasScheduleCapacityTranslator extends AbstractCallTranslator<HssCal
     @Override
     public Call callFrom(@NonNull final HssCallAttempt attempt) {
         final var call = HAS_SCHEDULE_CAPACITY.decodeCall(attempt.inputBytes());
-        final long expiry = ZERO.max(MAX_LONG_VALUE.min(call.get(EXPIRY_INDEX))).longValueExact();
-        final long gasLimit =
-                ZERO.max(MAX_LONG_VALUE.min(call.get(GAS_LIMIT_INDEX))).longValueExact();
+        final long expiry = ConversionUtils.uintToLong(call.get(EXPIRY_INDEX));
+        final long gasLimit = ConversionUtils.uintToLong(call.get(GAS_LIMIT_INDEX));
         return new HasScheduleCapacityCall(attempt, expiry, gasLimit);
     }
 }
