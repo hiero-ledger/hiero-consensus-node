@@ -159,6 +159,10 @@ public class CryptoOpsUsage {
         if (slotRbsDelta > 0) {
             accumulator.addRbs(slotRbsDelta);
         }
+        if (cryptoUpdateMeta.getNumHookCreations() > 0 || cryptoUpdateMeta.getNumHookDeletions() > 0) {
+            accumulator.addSbs(
+                    (cryptoUpdateMeta.getNumHookCreations() + cryptoUpdateMeta.getNumHookDeletions()) * 3600L);
+        }
     }
 
     public void cryptoCreateUsage(
@@ -183,7 +187,7 @@ public class CryptoOpsUsage {
         accumulator.addBpt(baseSize + 2 * LONG_SIZE + BOOL_SIZE);
         accumulator.addRbs((CRYPTO_ENTITY_SIZES.fixedBytesInAccountRepr() + baseSize) * lifeTime);
         accumulator.addNetworkRbs(BASIC_ENTITY_ID_SIZE * USAGE_PROPERTIES.legacyReceiptStorageSecs());
-        accumulator.addSbs(cryptoCreateMeta.getNumHooks());
+        accumulator.addSbs(cryptoCreateMeta.getNumHooks() * 3600L);
     }
 
     public void cryptoApproveAllowanceUsage(

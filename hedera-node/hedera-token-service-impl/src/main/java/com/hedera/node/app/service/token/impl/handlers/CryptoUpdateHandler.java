@@ -494,10 +494,16 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
                 Math.max(explicitAutoAssocSlotLifetime, oldLifetime),
                 newSlotsUsage,
                 Math.max(explicitAutoAssocSlotLifetime, newLifetime));
-        return feeCalculator
+        final var fees = feeCalculator
                 .addBytesPerTransaction(baseSize)
                 .addRamByteSeconds(rbsDelta > 0 ? rbsDelta : 0)
-                .addRamByteSeconds(slotRbsDelta > 0 ? slotRbsDelta : 0)
-                .calculate();
+                .addRamByteSeconds(slotRbsDelta > 0 ? slotRbsDelta : 0);
+        if (!op.hookCreationDetails().isEmpty() || !op.hookIdsToDelete().isEmpty()) {
+            // Using SBS here because this part us not used in other calculations. It is a per hour cost
+            // so we convert to per second by multiplying by 1/3600. This will be changed with simple fees.
+            fees.addStorageBytesSeconds(
+                    (op.hookCreationDetails().size() + op.hookIdsToDelete().size()) * 3600L);
+        }
+        return fees.calculate();
     }
 }

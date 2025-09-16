@@ -2,7 +2,6 @@
 package com.hedera.services.bdd.suites.hip1195;
 
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
-import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.lambdaAccountAllowanceHook;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractUpdate;
@@ -65,21 +64,26 @@ public class Hip1195EnabledTest {
                         .payingWith("payer")
                         .fee(ONE_HUNDRED_HBARS)
                         .via("createTxn"),
-                //                viewAccount("testAccount", account -> {
-                //                    assertEquals(123L, account.firstHookId());
-                //                    assertEquals(3, account.numberHooksInUse());
-                //                }),
-                getTxnRecord("createTxn").logged(),
-                validateChargedUsd("createTxn", 3.05)
-                //                cryptoUpdate("testAccount")
-                //                        .withHooks(lambdaAccountAllowanceHook(127L, HOOK_CONTRACT.name()),
-                //                                lambdaAccountAllowanceHook(128L, HOOK_CONTRACT.name()),
-                //                                lambdaAccountAllowanceHook(129L, HOOK_CONTRACT.name())),
-                //                viewAccount("testAccount", account -> {
-                //                    assertEquals(127L, account.firstHookId());
-                //                    assertEquals(6, account.numberHooksInUse());
-                //                })
-                );
+                viewAccount("testAccount", account -> {
+                    assertEquals(123L, account.firstHookId());
+                    assertEquals(3, account.numberHooksInUse());
+                }),
+                // $1 for each hook and $0.05 for the create itself
+                validateChargedUsd("createTxn", 3.05),
+                cryptoUpdate("testAccount")
+                        .withHooks(
+                                lambdaAccountAllowanceHook(127L, HOOK_CONTRACT.name()),
+                                lambdaAccountAllowanceHook(128L, HOOK_CONTRACT.name()),
+                                lambdaAccountAllowanceHook(129L, HOOK_CONTRACT.name()))
+                        .removingHooks(124L)
+                        .payingWith("payer")
+                        .via("updateTxn"),
+                viewAccount("testAccount", account -> {
+                    assertEquals(127L, account.firstHookId());
+                    assertEquals(5, account.numberHooksInUse());
+                }),
+                // $1 for each hook and $0.00022 for the update itself
+                validateChargedUsd("updateTxn", 4.00022));
     }
 
     @HapiTest
