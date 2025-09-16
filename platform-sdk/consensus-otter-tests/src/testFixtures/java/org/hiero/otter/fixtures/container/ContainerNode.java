@@ -154,7 +154,7 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
         log.info("Starting node {}...", selfId);
 
         final InitRequest initRequest = InitRequest.newBuilder()
-                .setSelfId(ProtobufConverter.fromModel(selfId))
+                .setSelfId(ProtobufConverter.toLegacy(selfId))
                 .build();
         //noinspection ResultOfMethodCallIgnored
         containerControlBlockingStub.init(initRequest);

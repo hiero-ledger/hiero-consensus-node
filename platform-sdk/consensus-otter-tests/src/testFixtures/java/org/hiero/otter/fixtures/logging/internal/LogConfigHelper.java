@@ -17,6 +17,8 @@ import static com.swirlds.logging.legacy.LogMarker.TESTING_EXCEPTIONS_ACCEPTABLE
 import static com.swirlds.logging.legacy.LogMarker.THREADS;
 import static com.swirlds.logging.legacy.LogMarker.VIRTUAL_MERKLE_STATS;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.swirlds.logging.legacy.LogMarker;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -62,6 +64,8 @@ public final class LogConfigHelper {
     public static final String DEFAULT_PATTERN =
             "%d{yyyy-MM-dd HH:mm:ss.SSS} [%t] %notEmpty{[%marker] }%-5level %logger{36} - %msg %n";
 
+    private static final ObjectMapper objectMapper = new ObjectMapper();
+
     private LogConfigHelper() {
         // utility
     }
@@ -93,14 +97,20 @@ public final class LogConfigHelper {
     public static FilterComponentBuilder createNodeOnlyFilter(
             @NonNull final ConfigurationBuilder<BuiltConfiguration> builder, @NonNull final NodeId nodeId) {
         // Create JSON formatted value to match what TurtleNode sets in ThreadContext
-        final com.hedera.hapi.platform.state.NodeId pbjNodeId = com.hedera.hapi.platform.state.NodeId.newBuilder()
-                .id(nodeId.id())
-                .build();
-        final String jsonNodeId = com.hedera.hapi.platform.state.NodeId.JSON.toJSON(pbjNodeId);
+        final String jsonNodeId = getJsonNodeId(nodeId);
         final KeyValuePairComponentBuilder keyValuePair = builder.newKeyValuePair("nodeId", jsonNodeId);
 
         return builder.newFilter("ThreadContextMapFilter", Result.NEUTRAL, Result.DENY)
                 .addComponent(keyValuePair);
+    }
+
+    @NonNull
+    private static String getJsonNodeId(@NonNull final NodeId nodeId) {
+        try {
+            return objectMapper.writeValueAsString(nodeId);
+        } catch (final JsonProcessingException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     /**
@@ -116,10 +126,7 @@ public final class LogConfigHelper {
     public static FilterComponentBuilder createExcludeNodeFilter(
             @NonNull final ConfigurationBuilder<BuiltConfiguration> builder, @NonNull final NodeId nodeId) {
         // Create JSON formatted value to match what TurtleNode sets in ThreadContext
-        final com.hedera.hapi.platform.state.NodeId pbjNodeId = com.hedera.hapi.platform.state.NodeId.newBuilder()
-                .id(nodeId.id())
-                .build();
-        final String jsonNodeId = com.hedera.hapi.platform.state.NodeId.JSON.toJSON(pbjNodeId);
+        final String jsonNodeId = getJsonNodeId(nodeId);
         final KeyValuePairComponentBuilder keyValuePair = builder.newKeyValuePair("nodeId", jsonNodeId);
 
         return builder.newFilter("ThreadContextMapFilter", Result.DENY, Result.NEUTRAL)

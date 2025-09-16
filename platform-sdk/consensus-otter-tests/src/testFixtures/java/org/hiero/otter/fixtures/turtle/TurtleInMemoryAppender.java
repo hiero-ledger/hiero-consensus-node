@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.turtle;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonMappingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -21,6 +24,8 @@ import org.hiero.otter.fixtures.logging.StructuredLog;
 import org.hiero.otter.fixtures.logging.internal.AbstractInMemoryAppender;
 import org.hiero.otter.fixtures.logging.internal.InMemorySubscriptionManager;
 
+import static com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES;
+
 /**
  * An {@link Appender} implementation for Log4j2 that provides in-memory storage
  * for log events. This appender is used in testing to capture logs
@@ -32,7 +37,12 @@ import org.hiero.otter.fixtures.logging.internal.InMemorySubscriptionManager;
 @Plugin(name = "TurtleInMemoryAppender", category = Node.CATEGORY, elementType = Appender.ELEMENT_TYPE)
 public class TurtleInMemoryAppender extends AbstractInMemoryAppender {
 
+    private static final ObjectMapper objectMapper = new ObjectMapper();
     private final List<StructuredLog> logs = Collections.synchronizedList(new ArrayList<>());
+
+    static {
+        objectMapper.configure(FAIL_ON_UNKNOWN_PROPERTIES, false);
+    }
 
     /**
      * Converts a {@link NodeId} to a string representation suitable for thread context.
@@ -43,7 +53,11 @@ public class TurtleInMemoryAppender extends AbstractInMemoryAppender {
     @Nullable
     public static String toJSON(@Nullable final NodeId nodeId) {
         Objects.requireNonNull(nodeId);
-        return com.hedera.hapi.platform.state.NodeId.JSON.toJSON(toProto(nodeId));
+        try {
+            return objectMapper.writeValueAsString(nodeId);
+        } catch (final JsonProcessingException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     private static com.hedera.hapi.platform.state.NodeId toProto(@NonNull final NodeId nodeId) {
@@ -65,11 +79,9 @@ public class TurtleInMemoryAppender extends AbstractInMemoryAppender {
             return null;
         }
         try {
-            final com.hedera.hapi.platform.state.NodeId protoNodeId =
-                    com.hedera.hapi.platform.state.NodeId.JSON.parseStrict(Bytes.wrap(value));
-            return NodeId.of(protoNodeId.id());
-        } catch (final ParseException e) {
-            return null;
+            return objectMapper.readValue(value, NodeId.class);
+        } catch (final JsonProcessingException e) {
+            throw new RuntimeException(e);
         }
     }
 
@@ -86,7 +98,7 @@ public class TurtleInMemoryAppender extends AbstractInMemoryAppender {
      * {@inheritDoc}
      */
     @Override
-    public void append(final LogEvent event) {
+    public void append(@NonNull final LogEvent event) {
         final NodeId nodeId = fromJSON(event.getContextData().getValue(TurtleNode.THREAD_CONTEXT_NODE_ID));
         final StructuredLog structuredLog = createStructuredLog(event, nodeId);
         logs.add(structuredLog);

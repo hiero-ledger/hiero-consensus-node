@@ -19,13 +19,13 @@ public class ProtobufConverter {
     private ProtobufConverter() {}
 
     /**
-     * Converts a PBJ NodeId to a Legacy NodeId.
+     * Converts a consensus model NodeId to a Legacy NodeId.
      *
-     * @param sourceNodeId the PBJ NodeId to convert
+     * @param sourceNodeId the consensus model NodeId to convert
      * @return the converted Legacy NodeId
      */
     @NonNull
-    public static com.hedera.hapi.platform.state.legacy.NodeId fromModel(
+    public static com.hedera.hapi.platform.state.legacy.NodeId toLegacy(
             @NonNull final org.hiero.consensus.model.node.NodeId sourceNodeId) {
         return com.hedera.hapi.platform.state.legacy.NodeId.newBuilder()
                 .setId(sourceNodeId.id())
