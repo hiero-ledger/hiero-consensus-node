@@ -166,6 +166,8 @@ public class WritableEvmHookStore extends ReadableEvmHookStoreImpl {
             final var prevState = hookStates.get(prev);
             if (prevState != null) {
                 hookStates.put(prev, prevState.copyBuilder().nextHookId(nextId).build());
+            } else {
+                log.warn("Inconsistent state: previous hook {} not found when unlinking {}", prev, hookId);
             }
         }
         if (nextId != null) {
@@ -177,6 +179,8 @@ public class WritableEvmHookStore extends ReadableEvmHookStoreImpl {
             if (nextState != null) {
                 hookStates.put(
                         next, nextState.copyBuilder().previousHookId(prevId).build());
+            } else {
+                log.warn("Inconsistent state: next hook {} not found when unlinking {}", next, hookId);
             }
         }
     }

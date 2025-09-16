@@ -252,6 +252,9 @@ public enum BlockStreamAccess {
         if (name.endsWith(".pnd.json")) {
             return false;
         }
+        if (name.endsWith("blk.gz")) {
+            return true;
+        }
         // Check for marker file
         final var markerFile =
                 path.resolveSibling(name.replace(".blk.gz", ".mf").replace(".blk", ".mf"));

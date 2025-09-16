@@ -4,7 +4,10 @@ package com.hedera.node.app.service.token.records;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 
 /**
- * Exposes the record customizations needed for a HAPI contract call transaction.
+ * A {@link StreamBuilder} that can record the next hook ID to be used in the stream.
+ * This information is not used in record stream or block stream. But is useful for
+ * updating the first hookId in the {@link com.hedera.hapi.node.state.hooks.EvmHookState}
+ * after a series of hook deletions in a transaction.
  */
 public interface HookDispatchStreamBuilder extends StreamBuilder {
     /**

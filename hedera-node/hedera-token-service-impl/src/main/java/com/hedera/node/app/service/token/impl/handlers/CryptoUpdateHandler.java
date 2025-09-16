@@ -41,7 +41,6 @@ import com.hedera.hapi.node.token.CryptoUpdateTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.hapi.utils.CommonPbjConverters;
 import com.hedera.node.app.hapi.utils.EntityType;
-import com.hedera.node.app.service.contract.ReadableEvmHookStore;
 import com.hedera.node.app.service.token.CryptoSignatureWaivers;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.impl.WritableAccountStore;
@@ -60,7 +59,6 @@ import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
 import com.hedera.node.config.data.AutoRenewConfig;
 import com.hedera.node.config.data.EntitiesConfig;
-import com.hedera.node.config.data.HooksConfig;
 import com.hedera.node.config.data.LedgerConfig;
 import com.hedera.node.config.data.TokensConfig;
 import com.swirlds.config.api.Configuration;
@@ -186,8 +184,6 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
             final Account targetAccount,
             final CryptoUpdateTransactionBody op,
             final Account.Builder builder) {
-        final var hookStore = context.storeFactory().readableStore(ReadableEvmHookStore.class);
-
         // compute head after deletes
         long currentHead = targetAccount.firstHookId();
         long headAfterDeletes = currentHead;
@@ -198,6 +194,11 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
         }
         if (!op.hookCreationDetails().isEmpty()) {
             dispatchHookCreations(context, op.hookCreationDetails(), headAfterDeletes, op.accountIDToUpdate());
+        }
+        // Update firstHookId in the account if needed.
+        // If there are creations, always the first hookId created will be the firstHookId.
+        // If there are only deletions, then set as the head after deletions
+        if (!op.hookCreationDetails().isEmpty()) {
             builder.firstHookId(op.hookCreationDetails().getFirst().hookId());
         } else if (!op.hookIdsToDelete().isEmpty()) {
             builder.firstHookId(headAfterDeletes);
@@ -289,7 +290,6 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
         final var tokensConfig = context.configuration().getConfigData(TokensConfig.class);
         final var ledgerConfig = context.configuration().getConfigData(LedgerConfig.class);
         final var entitiesConfig = context.configuration().getConfigData(EntitiesConfig.class);
-        final var hookConfig = context.configuration().getConfigData(HooksConfig.class);
 
         // validate expiry metadata
         final var currentMetadata = new ExpiryMeta(
