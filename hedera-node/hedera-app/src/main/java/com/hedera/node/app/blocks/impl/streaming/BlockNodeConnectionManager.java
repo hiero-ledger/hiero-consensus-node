@@ -26,6 +26,9 @@ import io.helidon.webclient.api.WebClient;
 import io.helidon.webclient.grpc.GrpcClientProtocolConfig;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.net.InetAddress;
+import java.net.URI;
+import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -285,15 +288,27 @@ public class BlockNodeConnectionManager {
      * @param nodeConfig the configuration to use for a specific block node to connect to
      * @return a gRPC client
      */
-    private @NonNull BlockStreamPublishServiceClient createNewGrpcClient(@NonNull final BlockNodeConfig nodeConfig) {
+    private @NonNull BlockNodeClient createNewGrpcClient(@NonNull final BlockNodeConfig nodeConfig) {
         requireNonNull(nodeConfig);
 
         final Tls tls = Tls.builder().enabled(false).build();
         final PbjGrpcClientConfig grpcConfig =
                 new PbjGrpcClientConfig(Duration.ofSeconds(30), tls, Optional.of(""), "application/grpc");
 
+        final URI blockNodeUri = URI.create("http://" + nodeConfig.address() + ":" + nodeConfig.port());
+        final InetAddress blockAddress;
+
+        // Attempt to resolve the address of the block node
+        try {
+            final URL blockNodeUrl = blockNodeUri.toURL();
+            blockAddress = InetAddress.getByName(blockNodeUrl.getHost());
+        } catch (final IOException e) {
+            logger.error("Failed to resolve block node host ({}:{})", nodeConfig.address(), nodeConfig.port());
+            throw new IllegalArgumentException("Failed to resolve block node host");
+        }
+
         final WebClient webClient = WebClient.builder()
-                .baseUri("http://" + nodeConfig.address() + ":" + nodeConfig.port())
+                .baseUri(blockNodeUri)
                 .tls(tls)
                 .protocolConfigs(List.of(GrpcClientProtocolConfig.builder()
                         .abortPollTimeExpired(false)
@@ -302,8 +317,12 @@ public class BlockNodeConnectionManager {
                 .connectTimeout(Duration.ofSeconds(10))
                 .build();
 
-        return new BlockStreamPublishServiceClient(new PbjGrpcClient(webClient, grpcConfig), OPTIONS);
+        final BlockStreamPublishServiceClient client =
+                new BlockStreamPublishServiceClient(new PbjGrpcClient(webClient, grpcConfig), OPTIONS);
+        return new BlockNodeClient(blockAddress, client);
     }
+
+    private record BlockNodeClient(InetAddress address, BlockStreamPublishServiceClient client) {}
 
     /**
      * Closes a connection and reschedules it with the specified delay.
@@ -601,15 +620,16 @@ public class BlockNodeConnectionManager {
         requireNonNull(nodeConfig);
 
         // Create the connection object with fresh gRPC client
-        final BlockStreamPublishServiceClient grpcClient = createNewGrpcClient(nodeConfig);
+        final BlockNodeClient bnClient = createNewGrpcClient(nodeConfig);
         final BlockNodeConnection connection = new BlockNodeConnection(
                 configProvider,
                 nodeConfig,
                 this,
                 blockBufferService,
-                grpcClient,
+                bnClient.client,
                 blockStreamMetrics,
-                sharedExecutorService);
+                sharedExecutorService,
+                bnClient.address);
 
         connections.put(nodeConfig, connection);
         return connection;
@@ -628,6 +648,7 @@ public class BlockNodeConnectionManager {
 
         final BlockNodeConnection activeConnection = activeConnectionRef.get();
         if (activeConnection == null) {
+            blockStreamMetrics.recordNoActiveConnection();
             logger.debug("No active connections available for streaming block {}", blockNumber);
             return;
         }
@@ -882,6 +903,18 @@ public class BlockNodeConnectionManager {
                             blockNumber != null ? blockNumber : blockBufferService.getLastBlockNumberProduced();
 
                     jumpTargetBlock.set(blockToJumpTo);
+
+                    final BlockNodeConfig nodeCfg = connection.getNodeConfig();
+                    final InetAddress nodeAddress = connection.nodeAddress();
+                    final long ipAsInteger = calculateIpAsInteger(nodeAddress);
+                    blockStreamMetrics.recordActiveConnectionIp(ipAsInteger);
+
+                    logger.info(
+                            "Active block node connection updated to: {}:{} (resolvedIp: {}, resolvedIpAsInt={})",
+                            nodeCfg.address(),
+                            nodeCfg.port(),
+                            nodeAddress.getHostAddress(),
+                            ipAsInteger);
                 } else {
                     // Another connection task has preempted this task... reschedule and try again
                     reschedule();
@@ -899,7 +932,8 @@ public class BlockNodeConnectionManager {
                     }
                 }
             } catch (final Exception e) {
-                logger.debug("[{}] Failed to establish connection to block node; will schedule a retry", connection);
+                logger.debug("[{}] Failed to establish connection to block node; will schedule a retry", connection, e);
+                blockStreamMetrics.recordConnectionCreateFailure();
                 reschedule();
             }
         }
@@ -1006,5 +1040,27 @@ public class BlockNodeConnectionManager {
         requireNonNull(blockNodeConfig, "blockNodeConfig must not be null");
         final BlockNodeStats stats = nodeStats.get(blockNodeConfig);
         return stats != null ? stats.getEndOfStreamCount() : 0;
+    }
+
+    /**
+     * Converts the specified IPv4 address into an integer value.
+     *
+     * @param address the address to convert
+     * @return a long that represents the IP address
+     * @throws IllegalArgumentException when the specified address is not IPv4
+     */
+    private static long calculateIpAsInteger(@NonNull final InetAddress address) {
+        requireNonNull(address);
+        final byte[] bytes = address.getAddress();
+
+        if (bytes.length != 4) {
+            throw new IllegalArgumentException("Only IPv4 addresses are supported");
+        }
+
+        final long octet1 = 256L * 256 * 256 * (bytes[0] & 0xFF);
+        final long octet2 = 256L * 256 * (bytes[1] & 0xFF);
+        final long octet3 = 256L * (bytes[2] & 0xFF);
+        final long octet4 = 1L * (bytes[3] & 0xFF);
+        return octet1 + octet2 + octet3 + octet4;
     }
 }
