@@ -39,6 +39,7 @@ import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.status.StatusActionSubmitter;
+import com.swirlds.platform.wiring.PlatformComponents;
 import com.swirlds.platform.wiring.PlatformWiring;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -477,10 +478,12 @@ public final class PlatformBuilder {
             };
         }
 
-        final PlatformWiring platformWiring = new PlatformWiring(platformContext, model, callbacks, execution);
+        var platformComponentWiring = PlatformComponents.create(platformContext, model, callbacks);
+
+        PlatformWiring.wire(platformContext, execution, platformComponentWiring);
 
         final PlatformBuildingBlocks buildingBlocks = new PlatformBuildingBlocks(
-                platformWiring,
+                platformComponentWiring,
                 platformContext,
                 model,
                 keysAndCerts,
