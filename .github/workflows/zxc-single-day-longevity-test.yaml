@@ -57,7 +57,7 @@ permissions:
 
 env:
   NAMESPACE_PREFIX: solo-sdlt-n
-  TIMEOUT_6H_LIMIT: 5 #340
+  TIMEOUT_6H_LIMIT: 340
   GS_ROOT_DIR: gs://performance-engineering-reports/ephemeral/test_runs
   GS_ROOT_HTTPS: https://perf.analytics.eng.hashgraph.io/ephemeral/test_runs
   #Release version from jFrog
