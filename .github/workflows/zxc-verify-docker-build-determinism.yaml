@@ -304,7 +304,18 @@ jobs:
         run: |
           brew install docker 
           brew install colima
-          colima start 
+          colima start --vm-type=vz --cpu=2 --memory=4 --disk=10
+
+      - name: Show CoLima Logs (macOS)
+        if: ${{ runner.os == 'macOS' && failure() }}
+        run: |
+          echo "::group::Serial Logs"
+          cat ${HOME}/.colima/_lima/colima/serial*.log
+          echo "::endgroup::"
+          
+          echo "::group::Error Logs"
+          cat ${HOME}/.colima/_lima/colima/ha.stderr.log
+          echo "::endgroup::"
 
       - name: Determine Home Directory
         id: home
