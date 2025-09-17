@@ -295,16 +295,6 @@ public class BlockStreamBuilder
      */
     private long nextHookId;
 
-    @Override
-    public void nextHookId(final long nextHookId) {
-        this.nextHookId = nextHookId;
-    }
-
-    @Override
-    public long getNextHookId() {
-        return nextHookId;
-    }
-
     // --- Fields used to build the TransactionOutput(s) ---
     /**
      * Enumerates the types of contract operations that may have a result.
@@ -1306,6 +1296,16 @@ public class BlockStreamBuilder
     @NonNull
     public HandleContext.TransactionCategory category() {
         return category;
+    }
+
+    @Override
+    public void nextHookId(final long nextHookId) {
+        this.nextHookId = nextHookId;
+    }
+
+    @Override
+    public long getNextHookId() {
+        return nextHookId;
     }
 
     @Override
