@@ -196,8 +196,8 @@ public class V0490FileSchema extends Schema {
      * Given a {@link SystemContext}, dispatches a synthetic file update transaction for the given file ID and contents.
      *
      * @param systemContext the system context
-     * @param fileId        the file ID
-     * @param contents      the contents of the file
+     * @param fileId the file ID
+     * @param contents the contents of the file
      */
     public static void dispatchSynthFileUpdate(
             @NonNull final SystemContext systemContext, @NonNull final FileID fileId, @NonNull final Bytes contents) {
@@ -316,6 +316,7 @@ public class V0490FileSchema extends Schema {
 
             return builder.build();
         } catch (final Exception e) {
+            e.printStackTrace();
             throw new IllegalArgumentException("Unable to parse fee schedule file", e);
         }
     }
@@ -361,7 +362,7 @@ public class V0490FileSchema extends Schema {
     }
 
     private static FeeComponents parseFeeComponents(@NonNull final JsonNode componentNode) {
-        return FeeComponents.newBuilder()
+        final var feeComponents = FeeComponents.newBuilder()
                 .constant(componentNode.get("constant").asLong())
                 .bpt(componentNode.get("bpt").asLong())
                 .vpt(componentNode.get("vpt").asLong())
@@ -371,8 +372,12 @@ public class V0490FileSchema extends Schema {
                 .bpr(componentNode.get("bpr").asLong())
                 .sbpr(componentNode.get("sbpr").asLong())
                 .min(componentNode.get("min").asLong())
-                .max(componentNode.get("max").asLong())
-                .build();
+                .max(componentNode.get("max").asLong());
+        // This is only used for ContractUpdate
+        if (componentNode.get("tv") != null) {
+            feeComponents.tv(componentNode.get("tv").asLong());
+        }
+        return feeComponents.build();
     }
 
     // ================================================================================================================

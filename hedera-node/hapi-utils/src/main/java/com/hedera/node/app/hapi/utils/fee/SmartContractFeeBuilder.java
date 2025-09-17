@@ -12,7 +12,6 @@ import com.hederahashgraph.api.proto.java.FeeData;
 import com.hederahashgraph.api.proto.java.ResponseType;
 import com.hederahashgraph.api.proto.java.Timestamp;
 import com.hederahashgraph.api.proto.java.TransactionBody;
-
 import java.time.Duration;
 import java.time.Instant;
 import javax.inject.Inject;
@@ -160,6 +159,13 @@ public final class SmartContractFeeBuilder extends FeeBuilder {
 
         rbs = getBaseTransactionRecordSize(txBody) * (RECEIPT_STORAGE_TIME_SEC + THRESHOLD_STORAGE_TIME_SEC);
 
+        // Using TV here because this part us not used in other calculations.
+        // This will be changed with simple fees.
+        final var hookCreations = txBody.getContractUpdateInstance().getHookCreationDetailsCount();
+        final var hookDeletions = txBody.getContractUpdateInstance().getHookIdsToDeleteCount();
+        if (hookCreations > 0 || hookDeletions > 0) {
+            tv = (hookCreations + hookDeletions) * 1000L;
+        }
         FeeComponents feeMatricesForTx = FeeComponents.newBuilder()
                 .setBpt(bpt)
                 .setVpt(vpt)

@@ -14,8 +14,6 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
-import static com.hedera.services.bdd.suites.contract.Utils.extractBytecodeUnhexed;
-import static com.hedera.services.bdd.suites.contract.Utils.getResourcePath;
 import static com.hedera.services.bdd.suites.schedule.ScheduleUtils.SIMPLE_UPDATE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.HOOK_ID_IN_USE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.HOOK_ID_REPEATED_IN_CREATION_DETAILS;
@@ -28,10 +26,8 @@ import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.dsl.annotations.Contract;
 import com.hedera.services.bdd.spec.dsl.entities.SpecContract;
-import com.hederahashgraph.api.proto.java.ContractID;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
@@ -176,7 +172,7 @@ public class Hip1195EnabledTest {
                     assertEquals(23L, c.firstHookId());
                     assertEquals(3, c.numberHooksInUse());
                 }),
-                validateChargedUsd("contractUpdateTxn", 3.026)
-        );
+                // $3 for hooks, $0.026 for update
+                validateChargedUsd("contractUpdateTxn", 3.026));
     }
 }
