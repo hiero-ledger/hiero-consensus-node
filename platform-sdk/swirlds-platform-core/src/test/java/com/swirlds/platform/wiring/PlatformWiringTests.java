@@ -88,7 +88,8 @@ class PlatformWiringTests {
                 PlatformComponents.create(platformContext, model, applicationCallbacks);
         PlatformWiring.wire(platformContext, mock(ExecutionLayer.class), platformComponents);
 
-        final PlatformComponentBuilder componentBuilder = new PlatformComponentBuilder(createBuildingBlocks(platformContext));
+        final PlatformComponentBuilder componentBuilder =
+                new PlatformComponentBuilder(createBuildingBlocks(platformContext));
 
         final PlatformCoordinator coordinator = new PlatformCoordinator(platformComponents);
         componentBuilder
@@ -160,7 +161,7 @@ class PlatformWiringTests {
     private static PlatformBuildingBlocks createBuildingBlocks(final PlatformContext context) {
         final PlatformBuildingBlocks blocks = mock(PlatformBuildingBlocks.class);
         when(blocks.platformContext()).thenReturn(context);
-        when(blocks.secureRandomSupplier()).thenReturn(()->mock(SecureRandom.class));
+        when(blocks.secureRandomSupplier()).thenReturn(() -> mock(SecureRandom.class));
         final RosterHistory rosterHistory = mock(RosterHistory.class);
         when(rosterHistory.getCurrentRoster()).thenReturn(Roster.DEFAULT);
         when(blocks.rosterHistory()).thenReturn(rosterHistory);

@@ -81,8 +81,7 @@ public class DefaultEventCreationManager implements EventCreationManager {
      * {@link #initialize(Configuration, Metrics, Time, SecureRandom, KeysAndCerts, Roster, NodeId,
      * EventTransactionSupplier, SignatureTransactionCheck)} must be called before use.
      */
-    public DefaultEventCreationManager() {
-    }
+    public DefaultEventCreationManager() {}
 
     @Override
     public void initialize(
@@ -149,8 +148,6 @@ public class DefaultEventCreationManager implements EventCreationManager {
                 .setMetricsNamePrefix("eventCreation")
                 .build();
     }
-
-
 
     /**
      * Check that the manager has been initialized.
