@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.event.creator.impl;
 
 import com.hedera.hapi.node.state.roster.Roster;
@@ -45,12 +46,8 @@ public class EventCreationManagerService implements EventCreationManager {
                 selfId,
                 transactionSupplier);
 
-        eventCreationManager = new DefaultEventCreationManager(
-                configuration,
-                metrics,
-                time,
-                signatureTransactionCheck,
-                eventCreator);
+        eventCreationManager =
+                new DefaultEventCreationManager(configuration, metrics, time, signatureTransactionCheck, eventCreator);
     }
 
     @Nullable

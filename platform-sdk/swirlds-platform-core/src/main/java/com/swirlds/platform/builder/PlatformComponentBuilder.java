@@ -468,8 +468,10 @@ public class PlatformComponentBuilder {
     @NonNull
     public EventCreationManager buildEventCreationManager() {
         if (eventCreationManager == null) {
-            eventCreationManager = ServiceLoader.load(EventCreationManager.class).stream().findFirst()
-                    .orElseThrow(()->new IllegalStateException("No EventCreationManager implementation found!")).get();
+            eventCreationManager = ServiceLoader.load(EventCreationManager.class).stream()
+                    .findFirst()
+                    .orElseThrow(() -> new IllegalStateException("No EventCreationManager implementation found!"))
+                    .get();
         }
         eventCreationManager.initialize(
                 blocks.platformContext().getConfiguration(),

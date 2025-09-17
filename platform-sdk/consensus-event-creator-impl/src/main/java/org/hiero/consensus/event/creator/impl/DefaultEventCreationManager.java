@@ -21,8 +21,8 @@ import java.util.List;
 import java.util.Objects;
 import org.hiero.consensus.event.FutureEventBuffer;
 import org.hiero.consensus.event.FutureEventBufferingOption;
-import org.hiero.consensus.event.creator.EventCreationManager;
 import org.hiero.consensus.event.creator.EventCreationConfig;
+import org.hiero.consensus.event.creator.EventCreationManager;
 import org.hiero.consensus.event.creator.impl.rules.AggregateEventCreationRules;
 import org.hiero.consensus.event.creator.impl.rules.EventCreationRule;
 import org.hiero.consensus.event.creator.impl.rules.MaximumRateRule;
@@ -110,8 +110,6 @@ public class DefaultEventCreationManager implements EventCreationManager {
                 .setMetricsNamePrefix("eventCreation")
                 .build();
     }
-
-
 
     /**
      * {@inheritDoc}
@@ -221,10 +219,15 @@ public class DefaultEventCreationManager implements EventCreationManager {
     }
 
     @Override
-    public void initialize(@NonNull final Configuration configuration, @NonNull final Metrics metrics,
+    public void initialize(
+            @NonNull final Configuration configuration,
+            @NonNull final Metrics metrics,
             @NonNull final Time time,
-            @NonNull final SecureRandom random, @NonNull final KeysAndCerts keysAndCerts, @NonNull final Roster roster,
-            @NonNull final NodeId selfId, @NonNull final EventTransactionSupplier transactionSupplier,
+            @NonNull final SecureRandom random,
+            @NonNull final KeysAndCerts keysAndCerts,
+            @NonNull final Roster roster,
+            @NonNull final NodeId selfId,
+            @NonNull final EventTransactionSupplier transactionSupplier,
             @NonNull final SignatureTransactionCheck signatureTransactionCheck) {
         throw new UnsupportedOperationException("Already initialized");
     }
