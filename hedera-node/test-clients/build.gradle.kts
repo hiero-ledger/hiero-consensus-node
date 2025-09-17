@@ -81,7 +81,7 @@ val prCheckTags =
         // Copy vals to the MATS variants
         val originalEntries = toMap() // Create a snapshot of current entries
         originalEntries.forEach { (taskName: String, tags: String) ->
-            put("$taskName$matsSuffix", "($tags)&MATS")
+            put("$taskName$matsSuffix", "($tags)&$matsSuffix")
         }
     }
 val remoteCheckTags =
@@ -355,13 +355,17 @@ val prEmbeddedCheckTags =
         // Copy vals to the MATS variants
         val originalEntries = toMap() // Create a snapshot of current entries
         originalEntries.forEach { (taskName: String, tags: String) ->
-            put("$taskName$matsSuffix", "($tags)&MATS")
+            put("$taskName$matsSuffix", "($tags)&$matsSuffix")
         }
     }
 
 tasks {
     prEmbeddedCheckTags.forEach { (taskName, _) ->
-        register(taskName) { dependsOn("testEmbedded") }
+        register(taskName) {
+            getByName(taskName).group =
+                "hapi-test${if (taskName.endsWith(matsSuffix)) "-mats" else ""}"
+            dependsOn("testEmbedded")
+        }
     }
 }
 
@@ -418,7 +422,7 @@ val prRepeatableCheckTags =
         // Copy vals to the MATS variants
         val originalEntries = toMap() // Create a snapshot of current entries
         originalEntries.forEach { (taskName: String, tags: String) ->
-            put("$taskName$matsSuffix", "($tags)&MATS")
+            put("$taskName$matsSuffix", "($tags)&$matsSuffix")
         }
     }
 
