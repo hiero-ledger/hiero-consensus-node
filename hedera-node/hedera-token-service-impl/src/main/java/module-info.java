@@ -15,7 +15,6 @@ module com.hedera.node.app.service.token.impl {
     requires transitive com.swirlds.state.api;
     requires transitive dagger;
     requires transitive javax.inject;
-    requires com.hedera.node.app.service.contract; // javax.annotation.processing.Generated
     requires com.swirlds.base;
     requires com.swirlds.common;
     requires com.github.spotbugs.annotations;

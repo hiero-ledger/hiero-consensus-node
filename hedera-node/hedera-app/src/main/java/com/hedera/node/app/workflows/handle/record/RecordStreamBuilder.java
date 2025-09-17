@@ -216,6 +216,11 @@ public class RecordStreamBuilder
      * ops duration used by the contract transaction
      */
     private long opsDuration;
+    /**
+     * The next hook ID after the hook dispatch.
+     * This is useful to set the first hookId on the account if the head is deleted
+     */
+    private long nextHookId;
 
     public RecordStreamBuilder(
             @NonNull final ReversingBehavior reversingBehavior,
@@ -1311,11 +1316,11 @@ public class RecordStreamBuilder
 
     @Override
     public void nextHookId(final long nextHookId) {
-        // No-op
+        this.nextHookId = nextHookId;
     }
 
     @Override
     public long getNextHookId() {
-        return 0;
+        return nextHookId;
     }
 }

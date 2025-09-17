@@ -61,20 +61,6 @@ class OrderedComparisonTest {
     }
 
     @Test
-    void test() throws IOException {
-        final var issStreamLoc = "/Users/neeharikasompalli/Documents/Hedera/Repos/Triage/ScriptsWorking/node0";
-
-        final var issStream = parseV6RecordStreamEntriesIn(issStreamLoc);
-        for (var entry : issStream) {
-            if (entry.function() == HederaFunctionality.CryptoTransfer) {
-                if (entry.parts().body().getTransactionID().getAccountID().getAccountNum() == 1262695) {
-                    System.out.println(entry.body());
-                }
-            }
-        }
-    }
-
-    @Test
     void onlyEqualLengthsCanBeDiffed() {
         final var parts = new TransactionParts(
                 Transaction.getDefaultInstance(), TransactionBody.getDefaultInstance(), FileAppend);

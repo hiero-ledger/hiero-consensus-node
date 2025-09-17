@@ -4,9 +4,9 @@ package com.hedera.node.app.service.contract.impl.handlers;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CREATE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_GAS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_AUTORENEW_ACCOUNT;
-import static com.hedera.node.app.service.contract.impl.handlers.ContractUpdateHandler.validateHookCreations;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.throwIfUnsuccessfulCreate;
 import static com.hedera.node.app.service.token.HookDispatchUtils.dispatchHookCreations;
+import static com.hedera.node.app.service.token.HookDispatchUtils.validateHookDuplicates;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
 import static java.util.Objects.requireNonNull;
 
@@ -80,7 +80,7 @@ public class ContractCreateHandler extends AbstractContractTransactionHandler {
 
             final var intrinsicGas = gasCalculator.transactionIntrinsicGasCost(Bytes.wrap(new byte[0]), true);
             validateTruePreCheck(op.gas() >= intrinsicGas, INSUFFICIENT_GAS);
-            validateHookCreations(op.hookCreationDetails());
+            validateHookDuplicates(op.hookCreationDetails());
         } catch (@NonNull final Exception e) {
             bumpExceptionMetrics(CONTRACT_CREATE, e);
             throw e;

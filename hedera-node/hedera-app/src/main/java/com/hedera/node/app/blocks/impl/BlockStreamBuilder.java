@@ -289,15 +289,11 @@ public class BlockStreamBuilder
      */
     private final List<TokenAssociation> automaticTokenAssociations = new LinkedList<>();
 
-    @Override
-    public void nextHookId(final long nextHookId) {
-        // No-op, hooks are not supported in the block stream
-    }
-
-    @Override
-    public long getNextHookId() {
-        return 0;
-    }
+    /**
+     * The next hook ID after the hook dispatch.
+     * This is useful to set the first hookId on the account if the head is deleted
+     */
+    private long nextHookId;
 
     // --- Fields used to build the TransactionOutput(s) ---
     /**
@@ -1300,6 +1296,16 @@ public class BlockStreamBuilder
     @NonNull
     public HandleContext.TransactionCategory category() {
         return category;
+    }
+
+    @Override
+    public void nextHookId(final long nextHookId) {
+        this.nextHookId = nextHookId;
+    }
+
+    @Override
+    public long getNextHookId() {
+        return nextHookId;
     }
 
     @Override
