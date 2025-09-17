@@ -9,6 +9,7 @@ Deep dive into the Turtle simulated testing environment for fast, deterministic 
 - [🌐 Network Simulation](#-network-simulation)
 - [⏱️ Time Management](#-time-management)
 - [🎲 Deterministic Testing](#-deterministic-testing)
+- [📝 Per-Node Logging](#-per-node-logging)
 
 ## 🎯 Overview
 
@@ -370,6 +371,29 @@ void testDeterministicBehavior(@NonNull final TestEnvironment env) throws Interr
     assertThat(lastRound).isEqualTo(35);
 }
 ```
+
+## 📝 Per-Node Logging
+
+All Turtle nodes share one JVM, so log routing depends on the `nodeId` stored in Log4j2's
+`ThreadContext`. Enter node code paths inside a scope and let the helpers propagate the MDC:
+
+```java
+try (var scope = NodeLoggingContext.install(Long.toString(nodeId.id()))) {
+    scheduler = NodeLoggingContext.wrap(Executors.newSingleThreadScheduledExecutor(
+            new ContextAwareThreadFactory()));
+    scheduler.schedule(NodeLoggingContext.wrap(() -> logger.info("tick")), 1, TimeUnit.SECONDS);
+}
+```
+
+- Wrap every `ExecutorService` / `ScheduledExecutorService` with `NodeLoggingContext.wrap(...)`
+  before handing it to platform components or `CompletableFuture`.
+- When a framework forces the common fork-join pool, wrap the runnable/callable itself with
+  `NodeLoggingContext.wrap(...)` so the captured context is restored on execution.
+- Avoid direct `new Thread(...)`; if unavoidable, build it through `ContextAwareThreadFactory` to
+  apply the snapshot automatically.
+
+With propagation in place the routing appender emits `node-${ctx:nodeId}.log` files and the
+`node-unknown` fallback remains empty during normal operation.
 
 ## 🔗 Related Documentation
 

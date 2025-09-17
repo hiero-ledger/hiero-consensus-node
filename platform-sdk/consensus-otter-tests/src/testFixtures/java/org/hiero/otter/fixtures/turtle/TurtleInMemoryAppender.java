@@ -17,6 +17,7 @@ import org.apache.logging.log4j.core.config.plugins.Plugin;
 import org.apache.logging.log4j.core.config.plugins.PluginAttribute;
 import org.apache.logging.log4j.core.config.plugins.PluginFactory;
 import org.hiero.otter.fixtures.logging.StructuredLog;
+import org.hiero.otter.fixtures.logging.context.NodeLoggingContext;
 import org.hiero.otter.fixtures.logging.internal.AbstractInMemoryAppender;
 import org.hiero.otter.fixtures.logging.internal.InMemorySubscriptionManager;
 
@@ -33,32 +34,20 @@ public class TurtleInMemoryAppender extends AbstractInMemoryAppender {
 
     private final List<StructuredLog> logs = Collections.synchronizedList(new ArrayList<>());
 
-    /**
-     * Converts a {@link NodeId} to a string representation suitable for thread context.
-     *
-     * @param nodeId the {@link NodeId} to convert
-     * @return a {@code String} representation of the {@link NodeId} in JSON format, or {@code null} if the input is {@code null}
-     */
     @Nullable
-    public static String toJSON(@Nullable final NodeId nodeId) {
-        return nodeId == null ? null : NodeId.JSON.toJSON(nodeId);
-    }
-
-    /**
-     * Parses a string representation of a {@link NodeId} from the thread context.
-     *
-     * @param value the string representation of the {@link NodeId}
-     * @return a {@link NodeId} object if parsing is successful, or {@code null} if the input is {@code null} or empty
-     */
-    @Nullable
-    public static NodeId fromJSON(@Nullable final String value) {
-        if (value == null || value.isEmpty()) {
+    private static NodeId parseNodeId(@Nullable final String value) {
+        if (value == null || value.isBlank()) {
             return null;
         }
         try {
-            return NodeId.JSON.parseStrict(Bytes.wrap(value));
-        } catch (final ParseException e) {
-            return null;
+            final long id = Long.parseLong(value);
+            return NodeId.newBuilder().id(id).build();
+        } catch (final NumberFormatException e) {
+            try {
+                return NodeId.JSON.parseStrict(Bytes.wrap(value));
+            } catch (final ParseException ex) {
+                return null;
+            }
         }
     }
 
@@ -76,7 +65,7 @@ public class TurtleInMemoryAppender extends AbstractInMemoryAppender {
      */
     @Override
     public void append(final LogEvent event) {
-        final NodeId nodeId = fromJSON(event.getContextData().getValue(TurtleNode.THREAD_CONTEXT_NODE_ID));
+        final NodeId nodeId = parseNodeId(event.getContextData().getValue(NodeLoggingContext.NODE_ID_KEY));
         final StructuredLog structuredLog = createStructuredLog(event, nodeId);
         logs.add(structuredLog);
         InMemorySubscriptionManager.INSTANCE.notifySubscribers(structuredLog);

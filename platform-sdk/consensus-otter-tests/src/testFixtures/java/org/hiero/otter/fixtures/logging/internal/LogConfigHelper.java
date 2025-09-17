@@ -46,20 +46,20 @@ public final class LogConfigHelper {
             INVALID_EVENT_ERROR,
             THREADS,
             STARTUP,
+            MERKLE_DB,
             PLATFORM_STATUS,
             RECONNECT,
             FREEZE,
             STATE_TO_DISK,
             DEMO_INFO,
-            TESTING_EXCEPTIONS_ACCEPTABLE_RECONNECT);
+            TESTING_EXCEPTIONS_ACCEPTABLE_RECONNECT,
+            STATE_HASH);
 
-    /** Ignoring marker used from threads without correct ThreadContext */
-    private static final Set<LogMarker> IGNORED_MARKERS =
-            Set.of(STARTUP, MERKLE_DB, VIRTUAL_MERKLE_STATS, STATE_HASH, STATE_TO_DISK, PLATFORM_STATUS);
+    private static final Set<LogMarker> IGNORED_CONSOLE_MARKERS = Set.of(STARTUP, MERKLE_DB, VIRTUAL_MERKLE_STATS);
 
     /** Default pattern for text-based appenders. */
     public static final String DEFAULT_PATTERN =
-            "%d{yyyy-MM-dd HH:mm:ss.SSS} [%t] %notEmpty{[%marker] }%-5level %logger{36} - %msg %n";
+            "%d{yyyy-MM-dd HH:mm:ss.SSS} [%t] %notEmpty{[node=%X{nodeId}] }%notEmpty{[%marker] }%-5level %logger{36} - %msg %n";
 
     private LogConfigHelper() {
         // utility
@@ -91,9 +91,8 @@ public final class LogConfigHelper {
     @NonNull
     public static FilterComponentBuilder createNodeOnlyFilter(
             @NonNull final ConfigurationBuilder<BuiltConfiguration> builder, @NonNull final NodeId nodeId) {
-        // Create JSON formatted value to match what TurtleNode sets in ThreadContext
-        final String jsonNodeId = NodeId.JSON.toJSON(nodeId);
-        final KeyValuePairComponentBuilder keyValuePair = builder.newKeyValuePair("nodeId", jsonNodeId);
+        final String contextValue = Long.toString(nodeId.id());
+        final KeyValuePairComponentBuilder keyValuePair = builder.newKeyValuePair("nodeId", contextValue);
 
         return builder.newFilter("ThreadContextMapFilter", Result.NEUTRAL, Result.DENY)
                 .addComponent(keyValuePair);
@@ -111,9 +110,8 @@ public final class LogConfigHelper {
     @NonNull
     public static FilterComponentBuilder createExcludeNodeFilter(
             @NonNull final ConfigurationBuilder<BuiltConfiguration> builder, @NonNull final NodeId nodeId) {
-        // Create JSON formatted value to match what TurtleNode sets in ThreadContext
-        final String jsonNodeId = NodeId.JSON.toJSON(nodeId);
-        final KeyValuePairComponentBuilder keyValuePair = builder.newKeyValuePair("nodeId", jsonNodeId);
+        final String contextValue = Long.toString(nodeId.id());
+        final KeyValuePairComponentBuilder keyValuePair = builder.newKeyValuePair("nodeId", contextValue);
 
         return builder.newFilter("ThreadContextMapFilter", Result.DENY, Result.NEUTRAL)
                 .addComponent(keyValuePair);
@@ -141,8 +139,7 @@ public final class LogConfigHelper {
 
     /**
      * Creates a filter component that DENYs all events containing any marker listed in
-     * {@link #IGNORED_MARKERS}. This is useful for suppressing log output originating from helper
-     * threads where {@link ThreadContext} is not properly propagated yet.
+     * {@link #IGNORED_CONSOLE_MARKERS}. This is useful for suppressing log output to the console
      *
      * @param builder the configuration builder
      * @return a composite {@link ComponentBuilder} that suppresses unwanted markers
@@ -151,7 +148,7 @@ public final class LogConfigHelper {
     public static ComponentBuilder<?> creatIgnoreMarkerFilters(
             @NonNull final ConfigurationBuilder<BuiltConfiguration> builder) {
         final ComponentBuilder<?> ignoredMarkerFilters = builder.newComponent("Filters");
-        for (final LogMarker marker : IGNORED_MARKERS) {
+        for (final LogMarker marker : IGNORED_CONSOLE_MARKERS) {
             ignoredMarkerFilters.addComponent(builder.newFilter("MarkerFilter", Result.DENY, Result.NEUTRAL)
                     .addAttribute("marker", marker));
         }
