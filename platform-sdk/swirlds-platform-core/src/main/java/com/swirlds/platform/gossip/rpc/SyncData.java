@@ -13,8 +13,9 @@ import org.hiero.consensus.model.hashgraph.EventWindow;
  * Wrapper class for representing combination of event window and tip hashes used in the rpc sync protocol
  * @param eventWindow event window we see
  * @param tipHashes tips of our hashgraph
+ * @param dontReceiveEvents we don't want to be sent any events from the peer due to the health of the system
  */
-public record SyncData(EventWindow eventWindow, List<Hash> tipHashes, boolean ignoreIncomingEvents) {
+public record SyncData(EventWindow eventWindow, List<Hash> tipHashes, boolean dontReceiveEvents) {
 
     /**
      * Convert protobuf communication version of class to internal one
@@ -47,7 +48,7 @@ public record SyncData(EventWindow eventWindow, List<Hash> tipHashes, boolean ig
                 .latestConsensusRound(eventWindow.latestConsensusRound())
                 .build());
         builder.tips(tipHashes.stream().map(Hash::getBytes).collect(Collectors.toList()));
-        builder.skipSendingEvents(ignoreIncomingEvents);
+        builder.skipSendingEvents(dontReceiveEvents);
         return builder.build();
     }
 }

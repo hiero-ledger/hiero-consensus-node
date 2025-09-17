@@ -227,7 +227,7 @@ public class RpcPeerHandler implements GossipRpcReceiver {
         state.eventsTheyHave.addAll(knownTips);
         this.syncMetrics.reportSyncPhase(peerId, SyncPhase.EXCHANGING_EVENTS);
 
-        if (!state.remoteSyncData.ignoreIncomingEvents()) {
+        if (!state.remoteSyncData.dontReceiveEvents()) {
             // create a send list based on the known set
             final List<PlatformEvent> sendList = sharedShadowgraphSynchronizer.createSendList(
                     selfId, state.eventsTheyHave, state.mySyncData.eventWindow(), state.remoteSyncData.eventWindow());
@@ -245,7 +245,7 @@ public class RpcPeerHandler implements GossipRpcReceiver {
     @Override
     public void receiveEvents(@NonNull final List<GossipEvent> gossipEvents) {
         final SyncData mySyncData = state.mySyncData;
-        if (mySyncData != null && mySyncData.ignoreIncomingEvents()) {
+        if (mySyncData != null && mySyncData.dontReceiveEvents()) {
             // we ignore all incoming events - they should not be sent to us in first place
             logger.warn(
                     SYNC_INFO.getMarker(), "We have asked for no events, but still received an event from {}", peerId);
