@@ -485,8 +485,11 @@ public class ThrottleAccumulator {
             };
         } catch (Exception ex) {
             log.error(
-                    "Error in throttle evaluation for transaction {}, throttling transaction",
+                    "Error in throttle evaluation for transaction "
+                            + "functionality: {}, payer: {}, transactionId: {}, throttling transaction",
                     txnInfo.functionality(),
+                    txnInfo.payerID(),
+                    txnInfo.transactionID(),
                     ex);
             return true;
         }
@@ -501,6 +504,11 @@ public class ThrottleAccumulator {
         final var txnBody = txnInfo.txBody();
         final var op = txnBody.scheduleCreateOrThrow();
         if (!op.hasScheduledTransactionBody()) {
+            log.warn(
+                    "ScheduleCreate transaction missing "
+                            + "scheduledTransactionBody, throttling - payer: {}, transactionId: {}",
+                    txnInfo.payerID(),
+                    txnInfo.transactionID());
             return true;
         }
         final var scheduled = op.scheduledTransactionBodyOrThrow();
@@ -524,6 +532,11 @@ public class ThrottleAccumulator {
         if (!schedulingConfig.longTermEnabled()) {
             if (scheduledFunction == CRYPTO_TRANSFER) {
                 if (!scheduled.hasCryptoTransfer()) {
+                    log.warn(
+                            "ScheduleCreate with CRYPTO_TRANSFER function missing cryptoTransfer body, "
+                                    + "throttling - payer: {}, transactionId: {}",
+                            txnInfo.payerID(),
+                            txnInfo.transactionID());
                     return true;
                 }
                 final var transfer = scheduled.cryptoTransferOrThrow();
