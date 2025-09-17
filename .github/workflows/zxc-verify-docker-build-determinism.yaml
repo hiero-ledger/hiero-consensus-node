@@ -215,13 +215,14 @@ jobs:
         # not supporting BuildKit and the Buildx plugin.
         # GitHub hosted MacOS and Ubuntu runners are temporarily disabled.
         os:
-          - ubuntu-24.04
+          #- ubuntu-24.04
           #- ubuntu-22.04
           - macos-13
+          - macos-14
           #- macos-12
           #- macos-11
           #- hiero-network-node-linux-medium
-          - hiero-network-node-linux-large
+          #- hiero-network-node-linux-large
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
@@ -298,11 +299,12 @@ jobs:
           sudo rm -rvf /usr/local/bin/docker* || true
           sudo rm -rvf /usr/local/bin/*lima* || true
 
-      - name: Install Lima (macOS)
+      - name: Install CoLima (macOS)
         if: ${{ runner.os == 'macOS' }}
         run: |
-          VERSION="v0.20.0"
-          curl -fsSL "https://github.com/lima-vm/lima/releases/download/${VERSION}/lima-${VERSION:1}-$(uname -s)-$(uname -m).tar.gz" | sudo tar Cxzvm /usr/local
+          brew install docker 
+          brew install colima
+          colima start 
 
       - name: Determine Home Directory
         id: home
