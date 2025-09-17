@@ -417,72 +417,77 @@ public class ThrottleAccumulator {
             final boolean isJumboTransactionsEnabled =
                     configuration.getConfigData(JumboTransactionsConfig.class).isEnabled();
 
-        // Note that by payer exempt from throttling we mean just that those transactions will not be throttled,
-        // such payer accounts neither impact the throttles nor are they impacted by them
-        // In the current mono-service implementation we have the same behavior, additionally it is
-        // possible that transaction can also be exempt from affecting congestion levels separate from throttle
-        // exemption
-        // but this is only possible for the case of triggered transactions which is not yet implemented (see
-        // MonoMultiplierSources.java)
-        final boolean isPayerThrottleExempt = throttleExempt(txnInfo.payerID(), configuration);
-        if (isPayerThrottleExempt) {
-            return false;
-        }
+            // Note that by payer exempt from throttling we mean just that those transactions will not be throttled,
+            // such payer accounts neither impact the throttles nor are they impacted by them
+            // In the current mono-service implementation we have the same behavior, additionally it is
+            // possible that transaction can also be exempt from affecting congestion levels separate from throttle
+            // exemption
+            // but this is only possible for the case of triggered transactions which is not yet implemented (see
+            // MonoMultiplierSources.java)
+            final boolean isPayerThrottleExempt = throttleExempt(txnInfo.payerID(), configuration);
+            if (isPayerThrottleExempt) {
+                return false;
+            }
 
-        if (isGasExhausted(txnInfo, now, configuration, throttleUsages)) {
-            lastTxnWasGasThrottled = true;
-            return true;
-        }
+            if (isGasExhausted(txnInfo, now, configuration, throttleUsages)) {
+                lastTxnWasGasThrottled = true;
+                return true;
+            }
 
-        if (isJumboTransactionsEnabled) {
-            final var allowedHederaFunctionalities =
-                    configuration.getConfigData(JumboTransactionsConfig.class).allowedHederaFunctionalities();
-            if (allowedHederaFunctionalities.contains(fromPbj(txnInfo.functionality()))) {
-                final var bytesUsage = txnInfo.signedTx().protobufSize();
-                final var maxRegularTxnSize =
-                        configuration.getConfigData(HederaConfig.class).transactionMaxBytes();
+            if (isJumboTransactionsEnabled) {
+                final var allowedHederaFunctionalities = configuration
+                        .getConfigData(JumboTransactionsConfig.class)
+                        .allowedHederaFunctionalities();
+                if (allowedHederaFunctionalities.contains(fromPbj(txnInfo.functionality()))) {
+                    final var bytesUsage = txnInfo.signedTx().protobufSize();
+                    final var maxRegularTxnSize =
+                            configuration.getConfigData(HederaConfig.class).transactionMaxBytes();
 
-                final var excessBytes = bytesUsage > maxRegularTxnSize ? bytesUsage - maxRegularTxnSize : 0;
-                if (shouldThrottleBasedExcessBytes(excessBytes, now, throttleUsages)) {
-                    return true;
+                    final var excessBytes = bytesUsage > maxRegularTxnSize ? bytesUsage - maxRegularTxnSize : 0;
+                    if (shouldThrottleBasedExcessBytes(excessBytes, now, throttleUsages)) {
+                        return true;
+                    }
                 }
             }
-        }
 
-        final var manager = functionReqs.get(function);
-        if (manager == null) {
-            return true;
-        }
+            final var manager = functionReqs.get(function);
+            if (manager == null) {
+                return true;
+            }
 
-        return switch (function) {
-            case SCHEDULE_CREATE -> {
-                if (isScheduled) {
-                    throw new IllegalStateException("ScheduleCreate cannot be a child!");
+            return switch (function) {
+                case SCHEDULE_CREATE -> {
+                    if (isScheduled) {
+                        throw new IllegalStateException("ScheduleCreate cannot be a child!");
+                    }
+                    yield shouldThrottleScheduleCreate(manager, txnInfo, now, state, throttleUsages);
                 }
-                yield shouldThrottleScheduleCreate(manager, txnInfo, now, state, throttleUsages);
-            }
-            case TOKEN_MINT ->
-                shouldThrottleMint(manager, txnInfo.txBody().tokenMint(), now, configuration, throttleUsages);
-            case CRYPTO_TRANSFER -> {
-                final var accountStore = new ReadableStoreFactory(state).getStore(ReadableAccountStore.class);
-                final var relationStore = new ReadableStoreFactory(state).getStore(ReadableTokenRelationStore.class);
-                yield shouldThrottleCryptoTransfer(
-                        manager,
-                        now,
-                        configuration,
-                        getImplicitCreationsCount(txnInfo.txBody(), accountStore),
-                        getAutoAssociationsCount(txnInfo.txBody(), relationStore),
-                        throttleUsages);
-            }
-            case ETHEREUM_TRANSACTION -> {
-                final var accountStore = new ReadableStoreFactory(state).getStore(ReadableAccountStore.class);
-                yield shouldThrottleEthTxn(
-                        manager, now, getImplicitCreationsCount(txnInfo.txBody(), accountStore), throttleUsages);
-            }
-            default -> !manager.allReqsMetAt(now, throttleUsages);
-        };
+                case TOKEN_MINT ->
+                    shouldThrottleMint(manager, txnInfo.txBody().tokenMint(), now, configuration, throttleUsages);
+                case CRYPTO_TRANSFER -> {
+                    final var accountStore = new ReadableStoreFactory(state).getStore(ReadableAccountStore.class);
+                    final var relationStore =
+                            new ReadableStoreFactory(state).getStore(ReadableTokenRelationStore.class);
+                    yield shouldThrottleCryptoTransfer(
+                            manager,
+                            now,
+                            configuration,
+                            getImplicitCreationsCount(txnInfo.txBody(), accountStore),
+                            getAutoAssociationsCount(txnInfo.txBody(), relationStore),
+                            throttleUsages);
+                }
+                case ETHEREUM_TRANSACTION -> {
+                    final var accountStore = new ReadableStoreFactory(state).getStore(ReadableAccountStore.class);
+                    yield shouldThrottleEthTxn(
+                            manager, now, getImplicitCreationsCount(txnInfo.txBody(), accountStore), throttleUsages);
+                }
+                default -> !manager.allReqsMetAt(now, throttleUsages);
+            };
         } catch (Exception ex) {
-            log.error("Error in throttle evaluation for transaction {}, throttling transaction", txnInfo.functionality(), ex);
+            log.error(
+                    "Error in throttle evaluation for transaction {}, throttling transaction",
+                    txnInfo.functionality(),
+                    ex);
             return true;
         }
     }

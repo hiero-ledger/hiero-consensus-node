@@ -47,6 +47,7 @@ import com.hedera.hapi.node.base.TransferList;
 import com.hedera.hapi.node.contract.ContractCallTransactionBody;
 import com.hedera.hapi.node.contract.ContractCreateTransactionBody;
 import com.hedera.hapi.node.contract.EthereumTransactionBody;
+import com.hedera.hapi.node.network.NetworkGetVersionInfoQuery;
 import com.hedera.hapi.node.scheduled.SchedulableTransactionBody;
 import com.hedera.hapi.node.scheduled.ScheduleCreateTransactionBody;
 import com.hedera.hapi.node.scheduled.ScheduleSignTransactionBody;
@@ -57,8 +58,6 @@ import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.token.CryptoGetAccountBalanceQuery;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.hapi.node.token.TokenMintTransactionBody;
-import com.hedera.hapi.node.network.NetworkGetVersionInfoQuery;
-import com.hedera.hapi.node.consensus.ConsensusSubmitMessageTransactionBody;
 import com.hedera.hapi.node.transaction.Query;
 import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.ThrottleDefinitions;
@@ -1826,9 +1825,8 @@ class ThrottleAccumulatorTest {
         subject.rebuildFor(defs);
 
         // Create a ScheduleCreateTransactionBody without scheduledTransactionBody
-        final var scheduleCreateWithoutBody = ScheduleCreateTransactionBody.newBuilder()
-                .waitForExpiry(false)
-                .build();
+        final var scheduleCreateWithoutBody =
+                ScheduleCreateTransactionBody.newBuilder().waitForExpiry(false).build();
 
         final var body = TransactionBody.newBuilder()
                 .transactionID(TransactionID.newBuilder().accountID(PAYER_ID).build())
@@ -1999,13 +1997,11 @@ class ThrottleAccumulatorTest {
         subject.rebuildFor(defs);
 
         // Create ScheduleCreateTransactionBody without scheduledTransactionBody
-        final var scheduleCreateBody = ScheduleCreateTransactionBody.newBuilder()
-                .memo("test schedule")
-                .build();
+        final var scheduleCreateBody =
+                ScheduleCreateTransactionBody.newBuilder().memo("test schedule").build();
 
-        final var txnBody = TransactionBody.newBuilder()
-                .scheduleCreate(scheduleCreateBody)
-                .build();
+        final var txnBody =
+                TransactionBody.newBuilder().scheduleCreate(scheduleCreateBody).build();
 
         final var signedTx = SignedTransaction.newBuilder()
                 .bodyBytes(TransactionBody.PROTOBUF.toBytes(txnBody))
@@ -2055,9 +2051,9 @@ class ThrottleAccumulatorTest {
                 .build();
         given(state.getReadableStates(TokenService.NAME)).willReturn(states);
 
-        //then
-        assertDoesNotThrow(() -> subject.checkAndEnforceThrottle(
-                CRYPTO_GET_ACCOUNT_BALANCE, TIME_INSTANT, query, state, PAYER_ID),
+        // then
+        assertDoesNotThrow(
+                () -> subject.checkAndEnforceThrottle(CRYPTO_GET_ACCOUNT_BALANCE, TIME_INSTANT, query, state, PAYER_ID),
                 "CryptoGetAccountBalance with missing cryptoGetAccountBalance should not throw exception");
     }
 
@@ -2078,9 +2074,8 @@ class ThrottleAccumulatorTest {
         subject.rebuildFor(defs);
 
         final var txnBody = TransactionBody.newBuilder()
-                .contractCreateInstance(ContractCreateTransactionBody.newBuilder()
-                        .gas(1000L)
-                        .build())
+                .contractCreateInstance(
+                        ContractCreateTransactionBody.newBuilder().gas(1000L).build())
                 .build();
 
         final var signedTx = SignedTransaction.newBuilder()
