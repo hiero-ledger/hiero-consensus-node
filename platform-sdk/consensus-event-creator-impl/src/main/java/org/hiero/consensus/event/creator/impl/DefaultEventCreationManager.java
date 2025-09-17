@@ -19,6 +19,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import org.hiero.consensus.crypto.PlatformSigner;
 import org.hiero.consensus.event.FutureEventBuffer;
 import org.hiero.consensus.event.FutureEventBufferingOption;
 import org.hiero.consensus.event.creator.EventCreationConfig;
@@ -29,6 +30,7 @@ import org.hiero.consensus.event.creator.impl.rules.MaximumRateRule;
 import org.hiero.consensus.event.creator.impl.rules.PlatformHealthRule;
 import org.hiero.consensus.event.creator.impl.rules.PlatformStatusRule;
 import org.hiero.consensus.event.creator.impl.rules.SyncLagRule;
+import org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreator;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.KeysAndCerts;
@@ -45,17 +47,17 @@ public class DefaultEventCreationManager implements EventCreationManager {
     /**
      * Creates events.
      */
-    private final EventCreator creator;
+    private EventCreator creator;
 
     /**
      * Rules that say if event creation is permitted.
      */
-    private final EventCreationRule eventCreationRules;
+    private EventCreationRule eventCreationRules;
 
     /**
      * Tracks the current phase of event creation.
      */
-    private final PhaseTimer<EventCreationStatus> phase;
+    private PhaseTimer<EventCreationStatus> phase;
 
     /**
      * The current platform status.
@@ -67,7 +69,7 @@ public class DefaultEventCreationManager implements EventCreationManager {
      */
     private Duration unhealthyDuration = Duration.ZERO;
 
-    private final FutureEventBuffer futureEventBuffer;
+    private FutureEventBuffer futureEventBuffer;
 
     /**
      * How many rounds are we behind the median of the network when comparing latest consensus round reported by syncs
@@ -75,22 +77,59 @@ public class DefaultEventCreationManager implements EventCreationManager {
     private double syncRoundLag;
 
     /**
-     * Constructor.
+     * Default constructor required by service loader.
+     * {@link #initialize(Configuration, Metrics, Time, SecureRandom, KeysAndCerts, Roster, NodeId,
+     * EventTransactionSupplier, SignatureTransactionCheck)} must be called before use.
+     */
+    public DefaultEventCreationManager() {
+    }
+
+    @Override
+    public void initialize(
+            @NonNull final Configuration configuration,
+            @NonNull final Metrics metrics,
+            @NonNull final Time time,
+            @NonNull final SecureRandom random,
+            @NonNull final KeysAndCerts keysAndCerts,
+            @NonNull final Roster roster,
+            @NonNull final NodeId selfId,
+            @NonNull final EventTransactionSupplier transactionSupplier,
+            @NonNull final SignatureTransactionCheck signatureTransactionCheck) {
+        if (creator != null || eventCreationRules != null || phase != null || futureEventBuffer != null) {
+            throw new IllegalStateException("EventCreationManager already initialized");
+        }
+
+        final EventCreator eventCreator = new TipsetEventCreator(
+                configuration,
+                metrics,
+                time,
+                random,
+                data -> new PlatformSigner(keysAndCerts).sign(data),
+                roster,
+                selfId,
+                transactionSupplier);
+        this.initialize(configuration, metrics, time, signatureTransactionCheck, eventCreator);
+    }
+
+    /**
+     * Initialization for using a custom event creator.
      *
      * @param configuration             provides the configuration for the event creator
      * @param metrics                   provides the metrics for the event creator
      * @param time                      provides the time source for the event creator
      * @param signatureTransactionCheck checks for pending signature transactions
-     * @param creator                   creates events
+     * @param eventCreator              creates events
      */
-    public DefaultEventCreationManager(
+    public void initialize(
             @NonNull final Configuration configuration,
             @NonNull final Metrics metrics,
             @NonNull final Time time,
             @NonNull final SignatureTransactionCheck signatureTransactionCheck,
-            @NonNull final EventCreator creator) {
-
-        this.creator = Objects.requireNonNull(creator);
+            @NonNull final EventCreator eventCreator) {
+        if (creator != null || eventCreationRules != null || phase != null || futureEventBuffer != null) {
+            throw new IllegalStateException("EventCreationManager already initialized");
+        }
+        this.creator = Objects.requireNonNull(eventCreator);
 
         final EventCreationConfig config = configuration.getConfigData(EventCreationConfig.class);
 
@@ -111,12 +150,26 @@ public class DefaultEventCreationManager implements EventCreationManager {
                 .build();
     }
 
+
+
+    /**
+     * Check that the manager has been initialized.
+     *
+     * @throws IllegalStateException if the manager has not been initialized
+     */
+    private void checkIfInitialized() {
+        if (creator == null || eventCreationRules == null || phase == null || futureEventBuffer == null) {
+            throw new IllegalStateException("EventCreationManager not initialized");
+        }
+    }
+
     /**
      * {@inheritDoc}
      */
     @Override
     @Nullable
     public PlatformEvent maybeCreateEvent() {
+        checkIfInitialized();
         if (!eventCreationRules.isEventCreationPermitted()) {
             phase.activatePhase(eventCreationRules.getEventCreationStatus());
             return null;
@@ -143,6 +196,7 @@ public class DefaultEventCreationManager implements EventCreationManager {
      */
     @Override
     public void registerEvent(@NonNull final PlatformEvent event) {
+        checkIfInitialized();
         final PlatformEvent nonFutureEvent = futureEventBuffer.addEvent(event);
         if (nonFutureEvent != null) {
             creator.registerEvent(event);
@@ -154,6 +208,7 @@ public class DefaultEventCreationManager implements EventCreationManager {
      */
     @Override
     public void setEventWindow(@NonNull final EventWindow eventWindow) {
+        checkIfInitialized();
         creator.setEventWindow(eventWindow);
         futureEventBuffer.updateEventWindow(eventWindow).forEach(creator::registerEvent);
     }
@@ -163,6 +218,7 @@ public class DefaultEventCreationManager implements EventCreationManager {
      */
     @Override
     public void clear() {
+        checkIfInitialized();
         creator.clear();
         phase.activatePhase(IDLE);
         futureEventBuffer.clear();
@@ -175,6 +231,7 @@ public class DefaultEventCreationManager implements EventCreationManager {
      */
     @Override
     public void updatePlatformStatus(@NonNull final PlatformStatus platformStatus) {
+        checkIfInitialized();
         this.platformStatus = Objects.requireNonNull(platformStatus);
     }
 
@@ -183,11 +240,13 @@ public class DefaultEventCreationManager implements EventCreationManager {
      */
     @Override
     public void reportUnhealthyDuration(@NonNull final Duration duration) {
+        checkIfInitialized();
         unhealthyDuration = Objects.requireNonNull(duration);
     }
 
     @Override
     public void reportSyncRoundLag(@NonNull final Double lag) {
+        checkIfInitialized();
         syncRoundLag = Objects.requireNonNull(lag);
     }
 
@@ -216,19 +275,5 @@ public class DefaultEventCreationManager implements EventCreationManager {
      */
     public double getSyncRoundLag() {
         return syncRoundLag;
-    }
-
-    @Override
-    public void initialize(
-            @NonNull final Configuration configuration,
-            @NonNull final Metrics metrics,
-            @NonNull final Time time,
-            @NonNull final SecureRandom random,
-            @NonNull final KeysAndCerts keysAndCerts,
-            @NonNull final Roster roster,
-            @NonNull final NodeId selfId,
-            @NonNull final EventTransactionSupplier transactionSupplier,
-            @NonNull final SignatureTransactionCheck signatureTransactionCheck) {
-        throw new UnsupportedOperationException("Already initialized");
     }
 }

@@ -23,16 +23,17 @@ import org.hiero.consensus.model.transaction.SignatureTransactionCheck;
 public interface EventCreationManager {
 
     /**
-     * Initialize the components
+     * Initialize the event creator
      *
-     * @param configuration
-     * @param metrics
-     * @param time
-     * @param random
-     * @param keysAndCerts
-     * @param roster
-     * @param selfId
-     * @param transactionSupplier
+     * @param configuration             provides the configuration for the event creator
+     * @param metrics                   provides the metrics for the event creator
+     * @param time                      provides the time source for the event creator
+     * @param random                    provides the secure random source for the event creator
+     * @param keysAndCerts              provides the key for signing events
+     * @param roster                    provides the current roster
+     * @param selfId                    the ID of this node
+     * @param transactionSupplier       provides transactions to include in events
+     * @param signatureTransactionCheck checks for pending signature transactions
      */
     void initialize(
             @NonNull Configuration configuration,

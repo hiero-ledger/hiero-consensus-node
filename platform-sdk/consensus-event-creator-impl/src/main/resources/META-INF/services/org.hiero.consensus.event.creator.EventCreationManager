@@ -1,1 +1,1 @@
-org.hiero.consensus.event.creator.impl.EventCreationManagerService
+org.hiero.consensus.event.creator.impl.DefaultEventCreationManager

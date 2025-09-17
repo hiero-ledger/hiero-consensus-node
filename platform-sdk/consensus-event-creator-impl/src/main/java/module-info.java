@@ -22,5 +22,5 @@ module org.hiero.consensus.event.creator.impl {
     requires static transitive com.github.spotbugs.annotations;
 
     provides org.hiero.consensus.event.creator.EventCreationManager with
-            org.hiero.consensus.event.creator.impl.EventCreationManagerService;
+            org.hiero.consensus.event.creator.impl.DefaultEventCreationManager;
 }

@@ -17,7 +17,6 @@ import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.metrics.api.Metrics;
 import java.time.Duration;
 import java.util.List;
-import org.hiero.consensus.event.creator.EventCreationManager;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.model.test.fixtures.hashgraph.EventWindowBuilder;
@@ -28,7 +27,7 @@ class EventCreationManagerTests {
     private EventCreator creator;
     private List<PlatformEvent> eventsToCreate;
     private FakeTime time;
-    private EventCreationManager manager;
+    private DefaultEventCreationManager manager;
 
     @BeforeEach
     void setUp() {
@@ -44,7 +43,8 @@ class EventCreationManagerTests {
                 .getOrCreateConfig();
         final Metrics metrics = new NoOpMetrics();
 
-        manager = new DefaultEventCreationManager(configuration, metrics, time, () -> false, creator);
+        manager = new DefaultEventCreationManager();
+        manager.initialize(configuration, metrics, time, () -> false, creator);
 
         manager.updatePlatformStatus(PlatformStatus.ACTIVE);
     }
