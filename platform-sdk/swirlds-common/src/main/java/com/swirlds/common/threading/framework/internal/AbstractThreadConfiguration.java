@@ -244,8 +244,7 @@ public abstract class AbstractThreadConfiguration<C extends AbstractThreadConfig
 
             try {
                 configureThread(Thread.currentThread());
-                wrapRunnableWithSnapshot(
-                                Objects.requireNonNull(getRunnable(), "runnable must not be null"), snapshot)
+                wrapRunnableWithSnapshot(Objects.requireNonNull(getRunnable(), "runnable must not be null"), snapshot)
                         .run();
             } finally {
                 originalConfiguration.configureThread(Thread.currentThread());
@@ -646,7 +645,8 @@ public abstract class AbstractThreadConfiguration<C extends AbstractThreadConfig
                 new ArrayList<>(ThreadContext.getImmutableStack().asList()));
     }
 
-    protected Runnable wrapRunnableWithSnapshot(@NonNull final Runnable runnable, @NonNull final ContextSnapshot snapshot) {
+    protected Runnable wrapRunnableWithSnapshot(
+            @NonNull final Runnable runnable, @NonNull final ContextSnapshot snapshot) {
         return () -> {
             final ContextSnapshot previous = captureContextSnapshot();
             applyContextSnapshot(snapshot);

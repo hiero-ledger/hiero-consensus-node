@@ -242,7 +242,9 @@ public final class NodeLoggingContext {
 
         @Override
         public <T> List<Future<T>> invokeAll(
-                @NonNull final Collection<? extends Callable<T>> tasks, final long timeout, @NonNull final TimeUnit unit)
+                @NonNull final Collection<? extends Callable<T>> tasks,
+                final long timeout,
+                @NonNull final TimeUnit unit)
                 throws InterruptedException {
             return delegate.invokeAll(wrapCallables(tasks), timeout, unit);
         }
@@ -255,7 +257,9 @@ public final class NodeLoggingContext {
 
         @Override
         public <T> T invokeAny(
-                @NonNull final Collection<? extends Callable<T>> tasks, final long timeout, @NonNull final TimeUnit unit)
+                @NonNull final Collection<? extends Callable<T>> tasks,
+                final long timeout,
+                @NonNull final TimeUnit unit)
                 throws InterruptedException, ExecutionException, TimeoutException {
             return delegate.invokeAny(wrapCallables(tasks), timeout, unit);
         }
@@ -271,8 +275,7 @@ public final class NodeLoggingContext {
         }
     }
 
-    private static final class ContextPropagatingScheduledExecutorService
-            extends ContextPropagatingExecutorService
+    private static final class ContextPropagatingScheduledExecutorService extends ContextPropagatingExecutorService
             implements ScheduledExecutorService {
 
         private final ScheduledExecutorService delegate;
@@ -283,24 +286,32 @@ public final class NodeLoggingContext {
         }
 
         @Override
-        public ScheduledFuture<?> schedule(@NonNull final Runnable command, final long delay, @NonNull final TimeUnit unit) {
+        public ScheduledFuture<?> schedule(
+                @NonNull final Runnable command, final long delay, @NonNull final TimeUnit unit) {
             return delegate.schedule(NodeLoggingContext.wrap(command), delay, unit);
         }
 
         @Override
-        public <V> ScheduledFuture<V> schedule(@NonNull final Callable<V> callable, final long delay, @NonNull final TimeUnit unit) {
+        public <V> ScheduledFuture<V> schedule(
+                @NonNull final Callable<V> callable, final long delay, @NonNull final TimeUnit unit) {
             return delegate.schedule(NodeLoggingContext.wrap(callable), delay, unit);
         }
 
         @Override
         public ScheduledFuture<?> scheduleAtFixedRate(
-                @NonNull final Runnable command, final long initialDelay, final long period, @NonNull final TimeUnit unit) {
+                @NonNull final Runnable command,
+                final long initialDelay,
+                final long period,
+                @NonNull final TimeUnit unit) {
             return delegate.scheduleAtFixedRate(NodeLoggingContext.wrap(command), initialDelay, period, unit);
         }
 
         @Override
         public ScheduledFuture<?> scheduleWithFixedDelay(
-                @NonNull final Runnable command, final long initialDelay, final long delay, @NonNull final TimeUnit unit) {
+                @NonNull final Runnable command,
+                final long initialDelay,
+                final long delay,
+                @NonNull final TimeUnit unit) {
             return delegate.scheduleWithFixedDelay(NodeLoggingContext.wrap(command), initialDelay, delay, unit);
         }
     }

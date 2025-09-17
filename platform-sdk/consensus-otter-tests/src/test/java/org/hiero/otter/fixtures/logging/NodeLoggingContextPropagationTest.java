@@ -67,8 +67,12 @@ final class NodeLoggingContextPropagationTest {
         InMemorySubscriptionManager.INSTANCE.subscribe(log -> {
             final String message = log.message();
             if (message.startsWith("APP-")) {
-                final String key = log.nodeId() == null ? "unknown" : Long.toString(log.nodeId().id());
-                logsByNode.computeIfAbsent(key, k -> new CopyOnWriteArrayList<>()).add(log);
+                final String key = log.nodeId() == null
+                        ? "unknown"
+                        : Long.toString(log.nodeId().id());
+                logsByNode
+                        .computeIfAbsent(key, k -> new CopyOnWriteArrayList<>())
+                        .add(log);
             }
             return SubscriberAction.CONTINUE;
         });
@@ -94,8 +98,10 @@ final class NodeLoggingContextPropagationTest {
 
         final List<StructuredLog> nodeALogs = logsByNode.getOrDefault("1", List.of());
         final List<StructuredLog> nodeBLogs = logsByNode.getOrDefault("2", List.of());
-        final List<String> nodeAMessages = nodeALogs.stream().map(StructuredLog::message).toList();
-        final List<String> nodeBMessages = nodeBLogs.stream().map(StructuredLog::message).toList();
+        final List<String> nodeAMessages =
+                nodeALogs.stream().map(StructuredLog::message).toList();
+        final List<String> nodeBMessages =
+                nodeBLogs.stream().map(StructuredLog::message).toList();
 
         assertThat(nodeALogs).hasSizeGreaterThanOrEqualTo(5);
         assertThat(nodeBLogs).hasSizeGreaterThanOrEqualTo(5);
@@ -109,16 +115,14 @@ final class NodeLoggingContextPropagationTest {
             assertThat(log.nodeId().id()).isEqualTo(2L);
         });
 
-        assertThat(nodeALogs)
-                .anySatisfy(log -> {
-                    assertThat(log.marker()).isNotNull();
-                    assertThat(log.marker().getName()).isEqualTo(STARTUP.getMarker().getName());
-                });
-        assertThat(nodeBLogs)
-                .anySatisfy(log -> {
-                    assertThat(log.marker()).isNotNull();
-                    assertThat(log.marker().getName()).isEqualTo(STARTUP.getMarker().getName());
-                });
+        assertThat(nodeALogs).anySatisfy(log -> {
+            assertThat(log.marker()).isNotNull();
+            assertThat(log.marker().getName()).isEqualTo(STARTUP.getMarker().getName());
+        });
+        assertThat(nodeBLogs).anySatisfy(log -> {
+            assertThat(log.marker()).isNotNull();
+            assertThat(log.marker().getName()).isEqualTo(STARTUP.getMarker().getName());
+        });
 
         assertThat(nodeAMessages)
                 .contains(
@@ -149,8 +153,8 @@ final class NodeLoggingContextPropagationTest {
 
             final ScheduledExecutorService scheduler = NodeLoggingContext.wrap(
                     Executors.newSingleThreadScheduledExecutor(new ContextAwareThreadFactory()));
-            final ExecutorService executor = NodeLoggingContext.wrap(
-                    Executors.newFixedThreadPool(2, new ContextAwareThreadFactory()));
+            final ExecutorService executor =
+                    NodeLoggingContext.wrap(Executors.newFixedThreadPool(2, new ContextAwareThreadFactory()));
 
             try {
                 executor.submit(() -> {
@@ -160,11 +164,14 @@ final class NodeLoggingContextPropagationTest {
                         .get(5, TimeUnit.SECONDS);
 
                 final CountDownLatch scheduledLatch = new CountDownLatch(1);
-                final ScheduledFuture<?> scheduledFuture = scheduler.schedule(() -> {
-                    OTTER_LOGGER.info(infoMarker, "{}|scheduled", otterPrefix);
-                    APP_LOGGER.info(infoMarker, "{}|scheduled", appPrefix);
-                    scheduledLatch.countDown();
-                }, 25, TimeUnit.MILLISECONDS);
+                final ScheduledFuture<?> scheduledFuture = scheduler.schedule(
+                        () -> {
+                            OTTER_LOGGER.info(infoMarker, "{}|scheduled", otterPrefix);
+                            APP_LOGGER.info(infoMarker, "{}|scheduled", appPrefix);
+                            scheduledLatch.countDown();
+                        },
+                        25,
+                        TimeUnit.MILLISECONDS);
                 scheduledFuture.get(5, TimeUnit.SECONDS);
                 scheduledLatch.await(5, TimeUnit.SECONDS);
 

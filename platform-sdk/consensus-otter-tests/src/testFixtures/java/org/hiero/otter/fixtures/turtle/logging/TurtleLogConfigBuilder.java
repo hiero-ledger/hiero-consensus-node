@@ -71,12 +71,10 @@ public final class TurtleLogConfigBuilder {
         final LayoutComponentBuilder standardLayout =
                 builder.newLayout("PatternLayout").addAttribute("pattern", DEFAULT_PATTERN);
 
-        final ComponentBuilder<?> perNodeRoutes = builder
-                .newComponent("Routes")
-                .addAttribute("pattern", "$${ctx:nodeId:-unknown}");
-        final ComponentBuilder<?> perNodeHashRoutes = builder
-                .newComponent("Routes")
-                .addAttribute("pattern", "$${ctx:nodeId:-unknown}");
+        final ComponentBuilder<?> perNodeRoutes =
+                builder.newComponent("Routes").addAttribute("pattern", "$${ctx:nodeId:-unknown}");
+        final ComponentBuilder<?> perNodeHashRoutes =
+                builder.newComponent("Routes").addAttribute("pattern", "$${ctx:nodeId:-unknown}");
         final List<FilterComponentBuilder> excludeNodeFilters = new ArrayList<>();
 
         for (final Map.Entry<NodeId, Path> entry : nodeLogDirs.entrySet()) {
@@ -133,25 +131,19 @@ public final class TurtleLogConfigBuilder {
                 .addAttribute("key", "unknown")
                 .addAttribute("ref", fallbackHashAppender.getName()));
 
-        final AppenderComponentBuilder routingAppender = builder
-                .newAppender("PerNodeRouting", "Routing")
-                .addComponent(perNodeRoutes);
+        final AppenderComponentBuilder routingAppender =
+                builder.newAppender("PerNodeRouting", "Routing").addComponent(perNodeRoutes);
         builder.add(routingAppender);
 
-        final AppenderComponentBuilder routingHashAppender = builder
-                .newAppender("PerNodeHashRouting", "Routing")
-                .addComponent(perNodeHashRoutes);
+        final AppenderComponentBuilder routingHashAppender =
+                builder.newAppender("PerNodeHashRouting", "Routing").addComponent(perNodeHashRoutes);
         builder.add(routingHashAppender);
 
         final ComponentBuilder<?> excludeNodeFilter =
                 combineFilters(builder, excludeNodeFilters.toArray(new FilterComponentBuilder[0]));
 
-        final ComponentBuilder<?> consoleFilters =
-                combineFilters(
-                        builder,
-                        createThresholdFilter(builder),
-                        excludeNodeFilter,
-                        creatIgnoreMarkerFilters(builder));
+        final ComponentBuilder<?> consoleFilters = combineFilters(
+                builder, createThresholdFilter(builder), excludeNodeFilter, creatIgnoreMarkerFilters(builder));
 
         final AppenderComponentBuilder consoleAppender = builder.newAppender("Console", "Console")
                 .addAttribute("target", Target.SYSTEM_OUT)
