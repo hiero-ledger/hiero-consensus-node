@@ -1370,7 +1370,7 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
         }
     }
 
-    private MerkleNodeState withListeners(@NonNull final MerkleNodeState root) {
+    public MerkleNodeState withListeners(@NonNull final MerkleNodeState root) {
         root.registerCommitListener(boundaryStateChangeListener);
         root.registerCommitListener(immediateStateChangeListener);
         return root;

@@ -70,9 +70,7 @@ val prCheckTags =
     buildMap<String, String> {
         put("hapiTestAdhoc", "ADHOC")
         put("hapiTestCrypto", "CRYPTO")
-        put("hapiTestToken", "TOKEN")
         put("hapiTestRestart", "RESTART|UPGRADE")
-        put("hapiTestSmartContract", "SMART_CONTRACT")
         put("hapiTestNDReconnect", "ND_RECONNECT")
         put("hapiTestTimeConsuming", "LONG_RUNNING")
         put("hapiTestIss", "ISS")
@@ -95,7 +93,6 @@ val remoteCheckTags =
                     "hapiTestIssMATS",
                     "hapiTestRestart",
                     "hapiTestRestartMATS",
-                    "hapiTestToken",
                     "hapiTestTokenMATS",
                 )
         }
@@ -104,9 +101,7 @@ val prCheckStartPorts =
     buildMap<String, String> {
         put("hapiTestAdhoc", "25000")
         put("hapiTestCrypto", "25200")
-        put("hapiTestToken", "25400")
         put("hapiTestRestart", "25600")
-        put("hapiTestSmartContract", "25800")
         put("hapiTestNDReconnect", "26000")
         put("hapiTestTimeConsuming", "26200")
         put("hapiTestIss", "26400")
@@ -159,8 +154,6 @@ val prCheckNetSizeOverrides =
     buildMap<String, String> {
         put("hapiTestAdhoc", "3")
         put("hapiTestCrypto", "3")
-        put("hapiTestToken", "3")
-        put("hapiTestSmartContract", "4")
 
         // Copy vals to the MATS variants
         val originalEntries = toMap() // Create a snapshot of current entries
@@ -356,6 +349,8 @@ tasks.register<Test>("testRemote") {
 val prEmbeddedCheckTags =
     buildMap<String, String> {
         put("hapiEmbeddedMisc", "EMBEDDED")
+        put("hapiTestToken", "TOKEN")
+        put("hapiTestSmartContract", "SMART_CONTRACT")
 
         // Copy vals to the MATS variants
         val originalEntries = toMap() // Create a snapshot of current entries
@@ -386,7 +381,8 @@ tasks.register<Test>("testEmbedded") {
         includeTags(
             if (ciTagExpression.isBlank())
                 "none()|!(RESTART|ND_RECONNECT|UPGRADE|REPEATABLE|ONLY_SUBPROCESS|ISS)"
-            else "(${ciTagExpression}|STREAM_VALIDATION|LOG_VALIDATION)&!(INTEGRATION|ISS)"
+            else
+                "(${ciTagExpression}|STREAM_VALIDATION|LOG_VALIDATION)&!(INTEGRATION|ISS|ONLY_SUBPROCESS)"
         )
     }
 

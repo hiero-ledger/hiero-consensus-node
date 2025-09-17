@@ -154,6 +154,7 @@ public abstract class AbstractEmbeddedHedera implements EmbeddedHedera {
                 metricsConfig);
         state = new FakeState();
         rebuildHedera();
+        hedera.withListeners(state);
         Runtime.getRuntime().addShutdownHook(new Thread(executorService::shutdownNow));
     }
 
@@ -167,6 +168,7 @@ public abstract class AbstractEmbeddedHedera implements EmbeddedHedera {
 
     @Override
     public void start() {
+
         hedera.initializeStatesApi(state, trigger, ServicesMain.buildPlatformConfig());
         hedera.setInitialStateHash(FAKE_START_OF_STATE_HASH);
         hedera.onStateInitialized(state, fakePlatform(), trigger);

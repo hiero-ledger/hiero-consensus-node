@@ -40,7 +40,6 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
-import org.junit.jupiter.api.Tag;
 
 /**
  * Verifies the node operator port is not available to any queries when it is disabled. Since
@@ -48,7 +47,6 @@ import org.junit.jupiter.api.Tag;
  * is a lifecycle test that restarts the shared network with the operator port disabled, and
  * then restarts it again with the port re-enabled.
  */
-@Tag(TOKEN)
 @HapiTestLifecycle
 public class DisabledNodeOperatorTest extends NodeOperatorQueriesBase implements LifecycleTest {
     @BeforeAll
