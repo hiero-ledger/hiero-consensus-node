@@ -73,8 +73,6 @@ import org.hiero.consensus.crypto.DefaultEventHasher;
 import org.hiero.consensus.crypto.EventHasher;
 import org.hiero.consensus.crypto.PlatformSigner;
 import org.hiero.consensus.event.creator.EventCreationManager;
-import org.hiero.consensus.event.creator.impl.signing.DefaultSelfEventSigner;
-import org.hiero.consensus.event.creator.impl.signing.SelfEventSigner;
 import org.hiero.consensus.model.event.CesEvent;
 
 /**
@@ -103,7 +101,6 @@ public class PlatformComponentBuilder {
     private InternalEventValidator internalEventValidator;
     private EventDeduplicator eventDeduplicator;
     private EventSignatureValidator eventSignatureValidator;
-    private SelfEventSigner selfEventSigner;
     private StateGarbageCollector stateGarbageCollector;
     private OrphanBuffer orphanBuffer;
     private EventCreationManager eventCreationManager;
@@ -371,38 +368,6 @@ public class PlatformComponentBuilder {
             stateGarbageCollector = new DefaultStateGarbageCollector(blocks.platformContext());
         }
         return stateGarbageCollector;
-    }
-
-    /**
-     * Provide a self event signer in place of the platform's default self event signer.
-     *
-     * @param selfEventSigner the self event signer to use
-     * @return this builder
-     */
-    @NonNull
-    public PlatformComponentBuilder withSelfEventSigner(@NonNull final SelfEventSigner selfEventSigner) {
-        throwIfAlreadyUsed();
-        if (this.selfEventSigner != null) {
-            throw new IllegalStateException("Self event signer has already been set");
-        }
-        this.selfEventSigner = Objects.requireNonNull(selfEventSigner);
-        return this;
-    }
-
-    /**
-     * Build the self event signer if it has not yet been built. If one has been provided via
-     * {@link #withSelfEventSigner(SelfEventSigner)}, that signer will be used. If this method is called more than once,
-     * only the first call will build the self event signer. Otherwise, the default signer will be created and
-     * returned.
-     *
-     * @return the self event signer
-     */
-    @NonNull
-    public SelfEventSigner buildSelfEventSigner() {
-        if (selfEventSigner == null) {
-            selfEventSigner = new DefaultSelfEventSigner(blocks.keysAndCerts());
-        }
-        return selfEventSigner;
     }
 
     /**
