@@ -48,8 +48,6 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Scanner;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.base.crypto.Hash;
@@ -398,14 +396,12 @@ public class CrystalTransplantCommand extends AbstractCommand {
                 continue;
             }
 
-            final int idx = indexOfKey(line);
-            if (idx >= 0) {
-                final String originalValue = line.substring(idx).trim();
-                final SemanticVersion parsed = HapiUtils.fromString(originalValue);
-                final SemanticVersion bumped =
-                        parsed.copyBuilder().patch(parsed.patch() + 1).build();
-                final String bumpedValue = HapiUtils.toString(bumped).replace("v", "");
-                final String newLine = line.substring(0, idx) + bumpedValue;
+            if (line.startsWith(CONFIG_KEY)) {
+                final String originalValue =
+                        line.replace(CONFIG_KEY, "").replace("=", "").trim();
+                final long parsed = Long.getLong(originalValue);
+                final long bumped = parsed + 1;
+                final String newLine = CONFIG_KEY + "=" + bumped;
                 lines.set(i, newLine);
                 updated = true;
                 break; // Update only the first occurrence
@@ -413,10 +409,7 @@ public class CrystalTransplantCommand extends AbstractCommand {
         }
 
         if (!updated) {
-            final SemanticVersion newVersion =
-                    SemanticVersion.newBuilder().major(1).build();
-            lines.add(String.format(
-                    "%s=%s", CONFIG_KEY, HapiUtils.toString(newVersion).replace("v", "")));
+            lines.add(String.format("%s=%s", CONFIG_KEY, 1));
         }
 
         Files.write(propertiesPath, lines, StandardCharsets.UTF_8);
@@ -454,23 +447,6 @@ public class CrystalTransplantCommand extends AbstractCommand {
     private static boolean isComment(@NonNull final String line) {
         final String trimmed = line.stripLeading();
         return trimmed.startsWith("#") || trimmed.startsWith("!");
-    }
-
-    /**
-     * Finds the index of the end of a key in a line of text. The key matches a predefined configuration key, which can
-     * be optionally surrounded by whitespace and followed by either a colon (:) or an equal sign (=).
-     *
-     * @param line the line of text to search, must not be null
-     * @return the index of the character immediately after the key if it is found, or -1 if the key is not found
-     */
-    private static int indexOfKey(@NonNull final String line) {
-        Objects.requireNonNull(line, "line must not be null");
-        final Pattern pattern = Pattern.compile("^\\s*" + Pattern.quote(CONFIG_KEY) + "\\s*[:=]");
-        final Matcher matcher = pattern.matcher(line);
-        if (matcher.find()) {
-            return matcher.end();
-        }
-        return -1;
     }
 
     /**
