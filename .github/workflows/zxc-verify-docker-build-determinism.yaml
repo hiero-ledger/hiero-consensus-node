@@ -217,6 +217,7 @@ jobs:
         os:
           - ubuntu-24.04
           #- ubuntu-22.04
+          - macos-13
           #- macos-12
           #- macos-11
           #- hiero-network-node-linux-medium
