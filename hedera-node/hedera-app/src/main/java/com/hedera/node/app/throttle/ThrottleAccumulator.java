@@ -492,6 +492,10 @@ public class ThrottleAccumulator {
             List<ThrottleUsage> throttleUsages) {
         final var txnBody = txnInfo.txBody();
         final var op = txnBody.scheduleCreateOrThrow();
+        if (!op.hasScheduledTransactionBody()) {
+            // throttle the transaction, if it is not valid
+            return true;
+        }
         final var scheduled = op.scheduledTransactionBodyOrThrow();
         final var schedule = Schedule.newBuilder()
                 .originalCreateTransaction(txnBody)
