@@ -2,7 +2,6 @@
 package org.hiero.otter.fixtures.internal;
 
 import static java.util.Objects.requireNonNull;
-import static org.assertj.core.api.Assertions.fail;
 import static org.hiero.consensus.model.status.PlatformStatus.ACTIVE;
 import static org.hiero.consensus.model.status.PlatformStatus.FREEZE_COMPLETE;
 
@@ -141,9 +140,7 @@ public abstract class AbstractNetwork implements Network {
         transactionGenerator().start();
 
         log.debug("Waiting for nodes to become active...");
-        if (!timeManager().waitForCondition(() -> allNodesInStatus(ACTIVE), timeout)) {
-            fail("Timeout while waiting for nodes to become active.");
-        }
+        timeManager().waitForCondition(() -> allNodesInStatus(ACTIVE), timeout);
     }
 
     /**
@@ -282,9 +279,11 @@ public abstract class AbstractNetwork implements Network {
                 .submitTransaction(freezeTransaction);
 
         log.debug("Waiting for nodes to freeze...");
-        if (!timeManager().waitForCondition(() -> allNodesInStatus(FREEZE_COMPLETE), timeout)) {
-            fail("Timeout while waiting for all nodes to freeze.");
-        }
+        timeManager()
+                .waitForCondition(
+                        () -> allNodesInStatus(FREEZE_COMPLETE),
+                        timeout,
+                        "Timeout while waiting for all nodes to freeze.");
 
         transactionGenerator().stop();
     }
@@ -602,7 +601,8 @@ public abstract class AbstractNetwork implements Network {
         /**
          * Gets the nodes in this partition.
          *
-         * <p>Note: While the returned set is unmodifiable, the {@link Set} can still change if the partitions are changed
+         * <p>Note: While the returned set is unmodifiable, the {@link Set} can still change if the partitions are
+         * changed
          *
          * @return an unmodifiable set of nodes in this partition
          */

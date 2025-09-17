@@ -78,11 +78,11 @@ env:
   #Thresholds for performance
   #benchmarks
   #CryptoTransfer   HCS   NftTransfer SmartContract HeliSwap CryptoBenchMerkleDb
-  #         20398 23374         12078          8259     1187               20023
+  #         20398 23374         12078          8259     1187               27818
   #-15%
-  #         17338 19867         10266          7020     1008               17019
+  #         17338 19867         10266          7020     1008               23645
   MinNFTscore: 10266
-  MinMerkleDBscore: 17019
+  MinMerkleDBscore: 23645
   MinHCSLoadTest: 19867
   MinCryptoTransferLoadTest: 17338
   MinHeliSwapLoadTest: 1008
@@ -1044,7 +1044,7 @@ jobs:
       - name: Extract benchmark score of CryptoBenchMerkleDb test
         id: CryptoBenchMerkleDbLogs
         run: |
-          result="$(grep 'CryptoBench.transferPrefetch' "${{ github.workspace }}"/report/swirlds-benchmarks.log | tail -n 1 | awk '{print $9}' | awk -F \. '{print $1}')"
+          result=$(grep 'Total transactions:' "${{ github.workspace }}"/report/swirlds-benchmarks.log | tail -n 1 | awk '{print $NF}')
           echo "value=${result}" >> $GITHUB_OUTPUT
           echo "value=${result}"
 
@@ -1307,22 +1307,6 @@ jobs:
           external_id: ${{ github.run_id }}
           external_url: "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
           environments: "CITR"
-
-      - name: Create Rootly Incident
-        if: ${{ steps.check-test-asset.outputs.is-adhoc == 'false' }}
-        uses: pandaswhocode/rootly-incident-action@4327542435bb4c8c48f15fba47efb87a28f8533f # v2.0.1
-        with:
-          api_key: ${{ secrets.rootly-api-token }}
-          title: ${{ steps.rootly-summary.outputs.title }}
-          kind: "normal"
-          create_public_incident: "false"
-          summary: ${{ steps.rootly-summary.outputs.summary }}
-          severity: "Triage Event"
-          alert_ids: ${{ steps.rootly-alert.outputs.alert_ids || '' }}
-          environments: "CITR"
-          incident_types: "Platform CI"
-          services: ${{ steps.set-rootly-service.outputs.service }}
-          teams: "Performance Engineering,Platform CI"
 
   performance-report-to-slack:
     runs-on: hiero-citr-linux-medium
