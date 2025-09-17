@@ -42,7 +42,7 @@ class PlatformStateFacadeTest {
         final String virtualMapLabelForState =
                 "vm-state-" + PlatformStateFacadeTest.class.getSimpleName() + "-" + java.util.UUID.randomUUID();
         state = TestHederaVirtualMapState.createInstanceWithVirtualMapLabel(virtualMapLabelForState);
-        TestingAppStateInitializer.DEFAULT.initPlatformState(state);
+        TestingAppStateInitializer.initPlatformState(state);
         final String virtualMapLabelForEmptyState =
                 "vm-state-empty-" + PlatformStateFacadeTest.class.getSimpleName() + "-" + java.util.UUID.randomUUID();
         emptyState = TestHederaVirtualMapState.createInstanceWithVirtualMapLabel(virtualMapLabelForEmptyState);
@@ -184,7 +184,7 @@ class PlatformStateFacadeTest {
                 "vm-" + PlatformStateFacadeTest.class.getSimpleName() + "-" + java.util.UUID.randomUUID();
         TestHederaVirtualMapState randomState =
                 TestHederaVirtualMapState.createInstanceWithVirtualMapLabel(virtualMapLabel);
-        TestingAppStateInitializer.DEFAULT.initPlatformState(randomState);
+        TestingAppStateInitializer.initPlatformState(randomState);
         PlatformStateModifier randomPlatformState = randomPlatformState(randomState, platformStateFacade);
         final var newSnapshot = randomPlatformState.getSnapshot();
         platformStateFacade.setSnapshotTo(state, newSnapshot);

@@ -90,7 +90,7 @@ class StateRegistryTests {
         // Deserialize a state
         final TestMerkleStateRoot stateToSerialize = new TestMerkleStateRoot();
         final TestPlatformStateFacade platformStateFacade = new TestPlatformStateFacade();
-        TestingAppStateInitializer.DEFAULT.initPlatformState(stateToSerialize);
+        TestingAppStateInitializer.initPlatformState(stateToSerialize);
         final var platformState = platformStateFacade.getWritablePlatformStateOf(stateToSerialize);
         platformState.bulkUpdate(v -> {
             v.setCreationSoftwareVersion(version);

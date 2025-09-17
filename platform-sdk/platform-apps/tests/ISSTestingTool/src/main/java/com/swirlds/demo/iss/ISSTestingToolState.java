@@ -11,11 +11,11 @@ package com.swirlds.demo.iss;
  * DISTRIBUTING THIS SOFTWARE OR ITS DERIVATIVES.
  */
 
-import static com.swirlds.demo.iss.V0660ISSTestingToolSchema.GENESIS_TIMESTAMP_STATE_ID;
-import static com.swirlds.demo.iss.V0660ISSTestingToolSchema.ISS_SERVICE_NAME;
-import static com.swirlds.demo.iss.V0660ISSTestingToolSchema.PLANNED_ISS_LIST_STATE_ID;
-import static com.swirlds.demo.iss.V0660ISSTestingToolSchema.PLANNED_LOG_ERROR_LIST_STATE_ID;
-import static com.swirlds.demo.iss.V0660ISSTestingToolSchema.RUNNING_SUM_STATE_ID;
+import static com.swirlds.demo.iss.V0670ISSTestingToolSchema.GENESIS_TIMESTAMP_STATE_ID;
+import static com.swirlds.demo.iss.V0670ISSTestingToolSchema.ISS_SERVICE_NAME;
+import static com.swirlds.demo.iss.V0670ISSTestingToolSchema.PLANNED_ISS_LIST_STATE_ID;
+import static com.swirlds.demo.iss.V0670ISSTestingToolSchema.PLANNED_LOG_ERROR_LIST_STATE_ID;
+import static com.swirlds.demo.iss.V0670ISSTestingToolSchema.RUNNING_SUM_STATE_ID;
 import static com.swirlds.platform.state.service.PlatformStateFacade.DEFAULT_PLATFORM_STATE_FACADE;
 import static com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer.registerMerkleStateRootClassIds;
 
@@ -110,7 +110,7 @@ public class ISSTestingToolState extends VirtualMapState<ISSTestingToolState> im
                 platformContext.getMerkleCryptography(),
                 () -> DEFAULT_PLATFORM_STATE_FACADE.roundOf(this));
 
-        final var schema = new V0660ISSTestingToolSchema();
+        final var schema = new V0670ISSTestingToolSchema();
         schema.statesToCreate().stream()
                 .sorted(Comparator.comparing(StateDefinition::stateId))
                 .forEach(def -> {
@@ -138,17 +138,17 @@ public class ISSTestingToolState extends VirtualMapState<ISSTestingToolState> im
         } else {
             final ReadableStates readableStates = getReadableStates(ISS_SERVICE_NAME);
 
-            final ReadableSingletonState<Long> runningSumState = readableStates.getSingleton(RUNNING_SUM_STATE_ID);
-            final Long runningSum = runningSumState.get();
+            final ReadableSingletonState<ProtoLong> runningSumState = readableStates.getSingleton(RUNNING_SUM_STATE_ID);
+            final ProtoLong runningSum = runningSumState.get();
             if (runningSum != null) {
-                this.runningSum = runningSum;
+                this.runningSum = runningSum.value();
             }
 
-            final ReadableSingletonState<String> genesisTimestampState =
+            final ReadableSingletonState<ProtoString> genesisTimestampState =
                     readableStates.getSingleton(GENESIS_TIMESTAMP_STATE_ID);
-            final String genesisTimestampString = genesisTimestampState.get();
+            final ProtoString genesisTimestampString = genesisTimestampState.get();
             if (genesisTimestampString != null) {
-                this.genesisTimestamp = Instant.parse(genesisTimestampString);
+                this.genesisTimestamp = Instant.parse(genesisTimestampString.value());
             }
 
             final ReadableQueueState<PlannedIss> plannedIssState = readableStates.getQueue(PLANNED_ISS_LIST_STATE_ID);

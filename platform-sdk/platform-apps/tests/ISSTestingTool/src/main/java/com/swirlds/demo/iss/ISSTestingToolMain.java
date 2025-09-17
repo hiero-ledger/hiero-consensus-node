@@ -93,7 +93,7 @@ public class ISSTestingToolMain extends DefaultSwirldMain<ISSTestingToolState> {
     @NonNull
     public ISSTestingToolState newStateRoot() {
         final ISSTestingToolState state = new ISSTestingToolState(createVirtualMap());
-        TestingAppStateInitializer.DEFAULT.initStates(state);
+        TestingAppStateInitializer.initStates(state);
         return state;
     }
 
@@ -104,7 +104,7 @@ public class ISSTestingToolMain extends DefaultSwirldMain<ISSTestingToolState> {
     public Function<VirtualMap, ISSTestingToolState> stateRootFromVirtualMap() {
         return (virtualMap) -> {
             final ISSTestingToolState state = new ISSTestingToolState(virtualMap);
-            TestingAppStateInitializer.DEFAULT.initStates(state);
+            TestingAppStateInitializer.initStates(state);
             return state;
         };
     }
@@ -142,7 +142,7 @@ public class ISSTestingToolMain extends DefaultSwirldMain<ISSTestingToolState> {
         final MerkleDbConfig merkleDbConfig = configuration.getConfigData(MerkleDbConfig.class);
         final VirtualDataSourceBuilder dsBuilder =
                 new MerkleDbDataSourceBuilder(configuration, 1_000_000, merkleDbConfig.hashesRamToDiskThreshold());
-        final VirtualMap virtualMap = new VirtualMap("VMM-ISS-TT", dsBuilder, configuration);
+        final VirtualMap virtualMap = new VirtualMap("ISSTestingTool", dsBuilder, configuration);
         virtualMap.registerMetrics(getGlobalMetrics());
         return virtualMap;
     }
