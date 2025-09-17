@@ -57,6 +57,8 @@ import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.token.CryptoGetAccountBalanceQuery;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.hapi.node.token.TokenMintTransactionBody;
+import com.hedera.hapi.node.network.NetworkGetVersionInfoQuery;
+import com.hedera.hapi.node.consensus.ConsensusSubmitMessageTransactionBody;
 import com.hedera.hapi.node.transaction.Query;
 import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.ThrottleDefinitions;
@@ -1826,7 +1828,6 @@ class ThrottleAccumulatorTest {
         // Create a ScheduleCreateTransactionBody without scheduledTransactionBody
         final var scheduleCreateWithoutBody = ScheduleCreateTransactionBody.newBuilder()
                 .waitForExpiry(false)
-                // Note: intentionally NOT setting .scheduledTransactionBody(...)
                 .build();
 
         final var body = TransactionBody.newBuilder()
@@ -1979,5 +1980,129 @@ class ThrottleAccumulatorTest {
         final var txn =
                 TransactionBody.newBuilder().cryptoTransfer(cryptoTransferBody).build();
         given(transactionInfo.txBody()).willReturn(txn);
+    }
+
+    @Test
+    void scheduleCreateWithMissingScheduledTransactionBodyIsThrottled() throws IOException, ParseException {
+        // given
+        final var config = HederaTestConfigBuilder.create().getOrCreateConfig();
+        given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1));
+        subject = new ThrottleAccumulator(
+                () -> CAPACITY_SPLIT,
+                configProvider::getConfiguration,
+                FRONTEND_THROTTLE,
+                throttleMetrics,
+                gasThrottle,
+                bytesThrottle,
+                opsDurationThrottle);
+        final var defs = getThrottleDefs("bootstrap/throttles.json");
+        subject.rebuildFor(defs);
+
+        // Create ScheduleCreateTransactionBody without scheduledTransactionBody
+        final var scheduleCreateBody = ScheduleCreateTransactionBody.newBuilder()
+                .memo("test schedule")
+                .build();
+
+        final var txnBody = TransactionBody.newBuilder()
+                .scheduleCreate(scheduleCreateBody)
+                .build();
+
+        final var signedTx = SignedTransaction.newBuilder()
+                .bodyBytes(TransactionBody.PROTOBUF.toBytes(txnBody))
+                .build();
+        final var txnInfo = new TransactionInfo(
+                signedTx,
+                txnBody,
+                TransactionID.newBuilder().accountID(PAYER_ID).build(),
+                PAYER_ID,
+                SignatureMap.DEFAULT,
+                Bytes.EMPTY,
+                SCHEDULE_CREATE,
+                null);
+
+        // when
+        final boolean result = subject.checkAndEnforceThrottle(txnInfo, TIME_INSTANT, state, null);
+
+        // then
+        assertTrue(result, "ScheduleCreate with missing scheduledTransactionBody should be throttled");
+    }
+
+    @Test
+    void cryptoGetAccountBalanceWithoutQueryBodyReturnsZeroAssociations() throws IOException, ParseException {
+        // given
+        final var config = HederaTestConfigBuilder.create()
+                .withValue("tokens.countingGetBalanceThrottleEnabled", true)
+                .getOrCreateConfig();
+        given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1));
+        subject = new ThrottleAccumulator(
+                () -> CAPACITY_SPLIT,
+                configProvider::getConfiguration,
+                FRONTEND_THROTTLE,
+                throttleMetrics,
+                gasThrottle,
+                bytesThrottle,
+                opsDurationThrottle);
+        final var defs = getThrottleDefs("bootstrap/throttles.json");
+        subject.rebuildFor(defs);
+
+        final var query = Query.newBuilder()
+                .networkGetVersionInfo(NetworkGetVersionInfoQuery.DEFAULT)
+                .build();
+
+        final var states = MapReadableStates.builder()
+                .state(new MapReadableKVState<>(TokenService.NAME, ACCOUNTS_KEY, Map.of()))
+                .state(new MapReadableKVState<>(TokenService.NAME, ALIASES_KEY, Map.of()))
+                .build();
+        given(state.getReadableStates(TokenService.NAME)).willReturn(states);
+
+        //then
+        assertDoesNotThrow(() -> subject.checkAndEnforceThrottle(
+                CRYPTO_GET_ACCOUNT_BALANCE, TIME_INSTANT, query, state, PAYER_ID),
+                "CryptoGetAccountBalance with missing cryptoGetAccountBalance should not throw exception");
+    }
+
+    @Test
+    void tryEThrowExceptionInShouldThrottleTxnIsCaughtAndThrottles() throws IOException, ParseException {
+        // given
+        final var config = HederaTestConfigBuilder.create().getOrCreateConfig();
+        given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1));
+        subject = new ThrottleAccumulator(
+                () -> CAPACITY_SPLIT,
+                configProvider::getConfiguration,
+                FRONTEND_THROTTLE,
+                throttleMetrics,
+                gasThrottle,
+                bytesThrottle,
+                opsDurationThrottle);
+        final var defs = getThrottleDefs("bootstrap/throttles.json");
+        subject.rebuildFor(defs);
+
+        final var txnBody = TransactionBody.newBuilder()
+                .contractCreateInstance(ContractCreateTransactionBody.newBuilder()
+                        .gas(1000L)
+                        .build())
+                .build();
+
+        final var signedTx = SignedTransaction.newBuilder()
+                .bodyBytes(TransactionBody.PROTOBUF.toBytes(txnBody))
+                .build();
+        final var txnInfo = new TransactionInfo(
+                signedTx,
+                txnBody,
+                TransactionID.newBuilder().accountID(PAYER_ID).build(),
+                PAYER_ID,
+                SignatureMap.DEFAULT,
+                Bytes.EMPTY,
+                CONTRACT_CREATE,
+                null);
+
+        // Mock state
+        given(state.getReadableStates(any())).willThrow(new RuntimeException("Test exception"));
+
+        // when
+        final boolean result = subject.checkAndEnforceThrottle(txnInfo, TIME_INSTANT, state, null);
+
+        // then
+        assertTrue(result, "Should throttle txn with exception in shouldThrottleTxn");
     }
 }

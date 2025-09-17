@@ -277,14 +277,12 @@ public class ThrottleAccumulator {
     }
 
     private int getAssociationCount(@NonNull final Query query, @NonNull final ReadableAccountStore accountStore) {
-        final var accountID = query.cryptogetAccountBalanceOrThrow().accountID();
-        if (accountID != null) {
-            final var account = accountStore.getAccountById(accountID);
-            if (account != null) {
-                return account.numberAssociations();
-            }
+        if (!query.hasCryptogetAccountBalance()) {
+            return 0;
         }
-        return 0;
+        final var accountID = query.cryptogetAccountBalanceOrThrow().accountID();
+        final var account = accountID != null ? accountStore.getAccountById(accountID) : null;
+        return account != null ? account.numberAssociations() : 0;
     }
 
     /**
@@ -413,10 +411,11 @@ public class ThrottleAccumulator {
             @NonNull final Instant now,
             @NonNull final State state,
             List<ThrottleUsage> throttleUsages) {
-        final var function = txnInfo.functionality();
-        final var configuration = configSupplier.get();
-        final boolean isJumboTransactionsEnabled =
-                configuration.getConfigData(JumboTransactionsConfig.class).isEnabled();
+        try {
+            final var function = txnInfo.functionality();
+            final var configuration = configSupplier.get();
+            final boolean isJumboTransactionsEnabled =
+                    configuration.getConfigData(JumboTransactionsConfig.class).isEnabled();
 
         // Note that by payer exempt from throttling we mean just that those transactions will not be throttled,
         // such payer accounts neither impact the throttles nor are they impacted by them
@@ -482,6 +481,10 @@ public class ThrottleAccumulator {
             }
             default -> !manager.allReqsMetAt(now, throttleUsages);
         };
+        } catch (Exception ex) {
+            log.error("Error in throttle evaluation for transaction {}, throttling transaction", txnInfo.functionality(), ex);
+            return true;
+        }
     }
 
     private boolean shouldThrottleScheduleCreate(
@@ -493,7 +496,6 @@ public class ThrottleAccumulator {
         final var txnBody = txnInfo.txBody();
         final var op = txnBody.scheduleCreateOrThrow();
         if (!op.hasScheduledTransactionBody()) {
-            // throttle the transaction, if it is not valid
             return true;
         }
         final var scheduled = op.scheduledTransactionBodyOrThrow();
@@ -516,6 +518,9 @@ public class ThrottleAccumulator {
         final var schedulingConfig = config.getConfigData(SchedulingConfig.class);
         if (!schedulingConfig.longTermEnabled()) {
             if (scheduledFunction == CRYPTO_TRANSFER) {
+                if (!scheduled.hasCryptoTransfer()) {
+                    return true;
+                }
                 final var transfer = scheduled.cryptoTransferOrThrow();
                 if (usesAliases(transfer)) {
                     final var accountStore = new ReadableStoreFactory(state).getStore(ReadableAccountStore.class);
