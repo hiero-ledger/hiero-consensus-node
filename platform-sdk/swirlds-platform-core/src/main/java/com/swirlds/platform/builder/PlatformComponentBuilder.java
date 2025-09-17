@@ -68,15 +68,13 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Objects;
+import java.util.ServiceLoader;
 import org.hiero.consensus.crypto.DefaultEventHasher;
 import org.hiero.consensus.crypto.EventHasher;
 import org.hiero.consensus.crypto.PlatformSigner;
-import org.hiero.consensus.event.creator.impl.DefaultEventCreationManager;
-import org.hiero.consensus.event.creator.impl.EventCreationManager;
-import org.hiero.consensus.event.creator.impl.EventCreator;
+import org.hiero.consensus.event.creator.EventCreationManager;
 import org.hiero.consensus.event.creator.impl.signing.DefaultSelfEventSigner;
 import org.hiero.consensus.event.creator.impl.signing.SelfEventSigner;
-import org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreator;
 import org.hiero.consensus.model.event.CesEvent;
 
 /**
@@ -470,23 +468,19 @@ public class PlatformComponentBuilder {
     @NonNull
     public EventCreationManager buildEventCreationManager() {
         if (eventCreationManager == null) {
-            final EventCreator eventCreator = new TipsetEventCreator(
-                    blocks.platformContext().getConfiguration(),
-                    blocks.platformContext().getMetrics(),
-                    blocks.platformContext().getTime(),
-                    blocks.secureRandomSupplier().get(),
-                    data -> new PlatformSigner(blocks.keysAndCerts()).sign(data),
-                    blocks.rosterHistory().getCurrentRoster(),
-                    blocks.selfId(),
-                    blocks.execution());
-
-            eventCreationManager = new DefaultEventCreationManager(
-                    blocks.platformContext().getConfiguration(),
-                    blocks.platformContext().getMetrics(),
-                    blocks.platformContext().getTime(),
-                    blocks.execution(),
-                    eventCreator);
+            eventCreationManager = ServiceLoader.load(EventCreationManager.class).stream().findFirst()
+                    .orElseThrow(()->new IllegalStateException("No EventCreationManager implementation found!")).get();
         }
+        eventCreationManager.initialize(
+                blocks.platformContext().getConfiguration(),
+                blocks.platformContext().getMetrics(),
+                blocks.platformContext().getTime(),
+                blocks.secureRandomSupplier().get(),
+                blocks.keysAndCerts(),
+                blocks.rosterHistory().getCurrentRoster(),
+                blocks.selfId(),
+                blocks.execution(),
+                blocks.execution());
         return eventCreationManager;
     }
 

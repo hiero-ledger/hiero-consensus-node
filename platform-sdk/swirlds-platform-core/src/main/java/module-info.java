@@ -3,6 +3,7 @@
  * The Swirlds public API module used by platform applications.
  */
 module com.swirlds.platform.core {
+    uses org.hiero.consensus.event.creator.EventCreationManager;
 
     /* Public Package Exports. This list should remain alphabetized. */
     exports com.swirlds.platform;

@@ -6,6 +6,7 @@ import static org.hiero.consensus.event.creator.impl.EventCreationStatus.IDLE;
 import static org.hiero.consensus.event.creator.impl.EventCreationStatus.NO_ELIGIBLE_PARENTS;
 import static org.hiero.consensus.event.creator.impl.EventCreationStatus.RATE_LIMITED;
 
+import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.metrics.extensions.PhaseTimer;
 import com.swirlds.common.metrics.extensions.PhaseTimerBuilder;
@@ -13,13 +14,15 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.security.SecureRandom;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import org.hiero.consensus.event.FutureEventBuffer;
 import org.hiero.consensus.event.FutureEventBufferingOption;
-import org.hiero.consensus.event.creator.impl.config.EventCreationConfig;
+import org.hiero.consensus.event.creator.EventCreationManager;
+import org.hiero.consensus.event.creator.EventCreationConfig;
 import org.hiero.consensus.event.creator.impl.rules.AggregateEventCreationRules;
 import org.hiero.consensus.event.creator.impl.rules.EventCreationRule;
 import org.hiero.consensus.event.creator.impl.rules.MaximumRateRule;
@@ -28,7 +31,10 @@ import org.hiero.consensus.event.creator.impl.rules.PlatformStatusRule;
 import org.hiero.consensus.event.creator.impl.rules.SyncLagRule;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
+import org.hiero.consensus.model.node.KeysAndCerts;
+import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
+import org.hiero.consensus.model.transaction.EventTransactionSupplier;
 import org.hiero.consensus.model.transaction.SignatureTransactionCheck;
 
 /**
@@ -104,6 +110,8 @@ public class DefaultEventCreationManager implements EventCreationManager {
                 .setMetricsNamePrefix("eventCreation")
                 .build();
     }
+
+
 
     /**
      * {@inheritDoc}
@@ -210,5 +218,14 @@ public class DefaultEventCreationManager implements EventCreationManager {
      */
     public double getSyncRoundLag() {
         return syncRoundLag;
+    }
+
+    @Override
+    public void initialize(@NonNull final Configuration configuration, @NonNull final Metrics metrics,
+            @NonNull final Time time,
+            @NonNull final SecureRandom random, @NonNull final KeysAndCerts keysAndCerts, @NonNull final Roster roster,
+            @NonNull final NodeId selfId, @NonNull final EventTransactionSupplier transactionSupplier,
+            @NonNull final SignatureTransactionCheck signatureTransactionCheck) {
+        throw new UnsupportedOperationException("Already initialized");
     }
 }
