@@ -130,13 +130,19 @@ val prCheckPropOverrides =
             "hapiTestCrypto",
             "tss.hintsEnabled=true,blockStream.blockPeriod=1s,blockStream.writerMode=FILE_AND_GRPC",
         )
-        put("hapiTestSmartContract", "tss.historyEnabled=false,blockStream.writerMode=FILE_AND_GRPC")
+        put(
+            "hapiTestSmartContract",
+            "tss.historyEnabled=false,blockStream.writerMode=FILE_AND_GRPC",
+        )
         put(
             "hapiTestRestart",
             "tss.hintsEnabled=true,tss.forceHandoffs=true,tss.initialCrsParties=16,blockStream.blockPeriod=1s",
         )
         put("hapiTestMisc", "nodes.nodeRewardsEnabled=false,blockStream.writerMode=FILE_AND_GRPC")
-        put("hapiTestTimeConsuming", "nodes.nodeRewardsEnabled=false,blockStream.writerMode=FILE_AND_GRPC")
+        put(
+            "hapiTestTimeConsuming",
+            "nodes.nodeRewardsEnabled=false,blockStream.writerMode=FILE_AND_GRPC",
+        )
         put("hapiTestMiscRecords", "blockStream.streamMode=RECORDS,nodes.nodeRewardsEnabled=false")
 
         // Copy vals to the MATS variants

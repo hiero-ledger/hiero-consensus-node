@@ -268,14 +268,14 @@ public class BlockNodeSimulatorSuite {
                             "blockStream.streamMode", "BOTH",
                             "blockStream.writerMode", "FILE_AND_GRPC"
                         }),
-                    @SubProcessNodeConfig(
-                            nodeId = 2,
-                            blockNodeIds = {0},
-                            blockNodePriorities = {0},
-                            applicationPropertiesOverrides = {
-                                    "blockStream.streamMode", "BOTH",
-                                    "blockStream.writerMode", "FILE_AND_GRPC"
-                            })
+                @SubProcessNodeConfig(
+                        nodeId = 2,
+                        blockNodeIds = {0},
+                        blockNodePriorities = {0},
+                        applicationPropertiesOverrides = {
+                            "blockStream.streamMode", "BOTH",
+                            "blockStream.writerMode", "FILE_AND_GRPC"
+                        })
             })
     @Order(4)
     final Stream<DynamicTest> twoNodesStreamingOneBlockNodeHappyPath() {

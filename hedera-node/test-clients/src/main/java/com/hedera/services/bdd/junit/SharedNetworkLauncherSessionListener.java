@@ -248,8 +248,9 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
                         .getPostInitWorkingDirActions()
                         .add(blockNodeNetwork::configureBlockNodeConnectionInformation);
 
-                final boolean loggingEnabled = Boolean.parseBoolean(Optional.ofNullable(System.getProperty("hapi.spec.logging.blocknode"))
-                        .orElse("false"));
+                final boolean loggingEnabled =
+                        Boolean.parseBoolean(Optional.ofNullable(System.getProperty("hapi.spec.logging.blocknode"))
+                                .orElse("false"));
                 if (loggingEnabled) {
                     subProcessNetwork
                             .getPostInitWorkingDirActions()

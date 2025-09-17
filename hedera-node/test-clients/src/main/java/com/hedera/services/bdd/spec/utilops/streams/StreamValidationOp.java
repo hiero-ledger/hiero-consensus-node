@@ -23,13 +23,13 @@ import static java.util.stream.Collectors.joining;
 import com.hedera.hapi.block.stream.Block;
 import com.hedera.node.app.history.impl.ProofControllerImpl;
 import com.hedera.services.bdd.junit.extensions.NetworkTargetingExtension;
+import com.hedera.services.bdd.junit.hedera.BlockNodeNetwork;
+import com.hedera.services.bdd.junit.hedera.simulator.SimulatedBlockNodeServer;
+import com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNetwork;
 import com.hedera.services.bdd.junit.support.BlockStreamAccess;
 import com.hedera.services.bdd.junit.support.BlockStreamValidator;
 import com.hedera.services.bdd.junit.support.RecordStreamValidator;
 import com.hedera.services.bdd.junit.support.StreamFileAccess;
-import com.hedera.services.bdd.junit.hedera.BlockNodeNetwork;
-import com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNetwork;
-import com.hedera.services.bdd.junit.hedera.simulator.SimulatedBlockNodeServer;
 import com.hedera.services.bdd.junit.support.validators.BalanceReconciliationValidator;
 import com.hedera.services.bdd.junit.support.validators.BlockNoValidator;
 import com.hedera.services.bdd.junit.support.validators.ExpiryRecordsValidator;
@@ -42,9 +42,9 @@ import com.hedera.services.bdd.junit.support.validators.block.TransactionRecordP
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.utilops.UtilOp;
 import com.hedera.services.bdd.suites.regression.system.LifecycleTest;
- 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.io.BufferedOutputStream;
 import java.io.File;
 import java.io.IOException;
 import java.io.OutputStream;
@@ -59,7 +59,6 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.zip.GZIPOutputStream;
-import java.io.BufferedOutputStream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.junit.jupiter.api.Assertions;
@@ -284,16 +283,16 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
                 return;
             }
             final var node0 = subProcessNetwork.getRequiredNode(byNodeId(0));
-            final var outDir = node0.getExternalPath(WORKING_DIR)
-                    .resolve("data")
-                    .resolve("simulatorBlockStreams");
+            final var outDir =
+                    node0.getExternalPath(WORKING_DIR).resolve("data").resolve("simulatorBlockStreams");
             Files.createDirectories(outDir);
 
             for (final var block : blocks) {
                 if (block.items().isEmpty() || !block.items().getFirst().hasBlockHeader()) {
                     continue;
                 }
-                final long blockNumber = block.items().getFirst().blockHeaderOrThrow().number();
+                final long blockNumber =
+                        block.items().getFirst().blockHeaderOrThrow().number();
                 final var fileName = String.format("%036d.blk.gz", blockNumber);
                 final var filePath = outDir.resolve(fileName);
 
@@ -303,7 +302,9 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
                     out = new BufferedOutputStream(out, 1024 * 1024);
                     out = new GZIPOutputStream(out, 1024 * 256);
                     out = new BufferedOutputStream(out, 1024 * 1024 * 4);
-                    final var bytes = com.hedera.hapi.block.stream.Block.PROTOBUF.toBytes(block).toByteArray();
+                    final var bytes = com.hedera.hapi.block.stream.Block.PROTOBUF
+                            .toBytes(block)
+                            .toByteArray();
                     out.write(bytes);
                 } catch (final IOException e) {
                     throw new UncheckedIOException(e);
@@ -329,7 +330,8 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
      */
     private static void validateSimulatorProofReceipts(@NonNull final HapiSpec spec) {
         final var blockNodeNetwork = NetworkTargetingExtension.SHARED_BLOCK_NODE_NETWORK.get();
-        if (blockNodeNetwork == null || blockNodeNetwork.getSimulatedBlockNodeById().isEmpty()) {
+        if (blockNodeNetwork == null
+                || blockNodeNetwork.getSimulatedBlockNodeById().isEmpty()) {
             log.info("Skipping block proof validation: no block node simulator active");
             return;
         }

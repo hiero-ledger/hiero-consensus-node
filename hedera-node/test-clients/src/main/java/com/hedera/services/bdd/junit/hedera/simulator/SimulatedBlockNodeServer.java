@@ -426,7 +426,9 @@ public class SimulatedBlockNodeServer {
                                                     "Block {} header received from stream {}, but another stream ({}) already owns this block. Ignoring duplicate header.",
                                                     blockNumber,
                                                     replies.hashCode(),
-                                                    streamingBlocks.get(blockNumber).hashCode());
+                                                    streamingBlocks
+                                                            .get(blockNumber)
+                                                            .hashCode());
                                             // Ignore duplicates prior to clients receiving SkipBlock
                                             continue;
                                         }
@@ -484,7 +486,9 @@ public class SimulatedBlockNodeServer {
                                     streamingBlocks.remove(blockNumber); // No longer streaming this specific block
 
                                     // Capture the proof and seal the block
-                                    blockItemsByNumber.computeIfAbsent(blockNumber, k -> new ArrayList<>()).add(item);
+                                    blockItemsByNumber
+                                            .computeIfAbsent(blockNumber, k -> new ArrayList<>())
+                                            .add(item);
                                     sealedBlocks.add(blockNumber);
 
                                     // Update last verified block number atomically
@@ -512,7 +516,8 @@ public class SimulatedBlockNodeServer {
                                 } else {
                                     // Any other BlockItem belonging to the current block should be captured
                                     if (currentBlockNumber != null) {
-                                        blockItemsByNumber.computeIfAbsent(currentBlockNumber, k -> new ArrayList<>())
+                                        blockItemsByNumber
+                                                .computeIfAbsent(currentBlockNumber, k -> new ArrayList<>())
                                                 .add(item);
                                     }
                                 }
