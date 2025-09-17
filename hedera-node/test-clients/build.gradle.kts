@@ -223,6 +223,10 @@ tasks.register<Test>("testSubprocess") {
     systemProperty("hapi.spec.default.shard", 11)
     systemProperty("hapi.spec.default.realm", 12)
 
+    if (ciTagExpression.contains("BLOCK_NODE_SIMULATOR")) {
+        systemProperty("hapi.spec.logging.blocknode", "true")
+    }
+
     // Gather overrides into a single comma‐separated list
     val testOverrides =
         gradle.startParameter.taskNames

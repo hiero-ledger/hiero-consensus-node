@@ -247,9 +247,14 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
                 subProcessNetwork
                         .getPostInitWorkingDirActions()
                         .add(blockNodeNetwork::configureBlockNodeConnectionInformation);
-                subProcessNetwork
-                        .getPostInitWorkingDirActions()
-                        .add(node -> subProcessNetwork.configureBlockNodeCommunicationLogLevel(node, "DEBUG"));
+
+                final boolean loggingEnabled = Boolean.parseBoolean(Optional.ofNullable(System.getProperty("hapi.spec.logging.blocknode"))
+                        .orElse("false"));
+                if (loggingEnabled) {
+                    subProcessNetwork
+                            .getPostInitWorkingDirActions()
+                            .add(node -> subProcessNetwork.configureBlockNodeCommunicationLogLevel(node, "DEBUG"));
+                }
             }
         }
     }

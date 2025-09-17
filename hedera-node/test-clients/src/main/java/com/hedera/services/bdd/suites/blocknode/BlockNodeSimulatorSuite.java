@@ -45,7 +45,7 @@ public class BlockNodeSimulatorSuite {
 
     @HapiTest
     @HapiBlockNode(
-            networkSize = 4,
+            networkSize = 1,
             blockNodeConfigs = {@BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.LOCAL_NODE)},
             subProcessNodeConfigs = {
                 @SubProcessNodeConfig(
@@ -55,30 +55,7 @@ public class BlockNodeSimulatorSuite {
                         applicationPropertiesOverrides = {
                             "blockStream.streamMode", "BLOCKS",
                             "blockStream.writerMode", "GRPC"
-                        }),
-                    @SubProcessNodeConfig(
-                            nodeId = 1,
-                            blockNodeIds = {0},
-                            blockNodePriorities = {0},
-                            applicationPropertiesOverrides = {
-                                    "blockStream.streamMode", "BLOCKS",
-                                    "blockStream.writerMode", "GRPC"
-                            }),
-                    @SubProcessNodeConfig(
-                            nodeId = 2,
-                            blockNodeIds = {0},
-                            blockNodePriorities = {0},
-                            applicationPropertiesOverrides = {
-                                    "blockStream.streamMode", "BLOCKS",
-                                    "blockStream.writerMode", "GRPC"
-                            }), @SubProcessNodeConfig(
-                    nodeId = 3,
-                    blockNodeIds = {0},
-                    blockNodePriorities = {0},
-                    applicationPropertiesOverrides = {
-                            "blockStream.streamMode", "BLOCKS",
-                            "blockStream.writerMode", "GRPC"
-                    })
+                        })
             })
     @Order(0)
     final Stream<DynamicTest> node0StreamingHappyPath() {

@@ -167,6 +167,19 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
                 .ifPresentOrElse(dataRef::set, () -> Assertions.fail("No record stream data found"));
         final var data = requireNonNull(dataRef.get());
 
+        // If there are on-disk blocks and simulator blocks, let's compare them byte for byte
+        if (!diskBlocks.isEmpty() && !simulatorBlocks.isEmpty()) {
+            for (int i = 0; i < diskBlocks.size(); i++) {
+                final var diskBlock = diskBlocks.get(i);
+                final var simBlock = simulatorBlocks.get(i);
+                if (!diskBlock.equals(simBlock)) {
+                    throw new AssertionError(String.format(
+                            "Block stream mismatch at index %d: disk block %s, simulator block %s",
+                            i, diskBlock, simBlock));
+                }
+            }
+        }
+
         if (!diskBlocks.isEmpty()) {
             final var maybeErrors = BLOCK_STREAM_VALIDATOR_FACTORIES.stream()
                     .filter(factory -> factory.appliesTo(spec))
