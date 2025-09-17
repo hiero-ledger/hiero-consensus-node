@@ -309,17 +309,6 @@ jobs:
           fi
           echo "service=${ROOTLY_SERVICE}" >> "${GITHUB_OUTPUT}"
 
-      - name: Set Incident Creation Flag
-        id: set-create-incident
-        run: |
-          CREATE_INCIDENT="false"
-          if [[ "${{ needs.canonical-test.outputs.start-canonical-test }}" == "failure" ]] \
-            || [[ "${{ needs.canonical-test.outputs.check-if-exist }}" == "failure" ]] \
-            || [[ "${{ needs.canonical-test.outputs.parameters }}" == "failure" ]]; then
-            CREATE_INCIDENT="true"
-          fi
-          echo "create=${CREATE_INCIDENT}" >> "${GITHUB_OUTPUT}"
-
       - name: Build Rootly Summary
         id: rootly-summary
         run: |
@@ -368,19 +357,3 @@ jobs:
           environments: "CITR"
           external_id: ${{ github.run_id }}
           external_url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-
-      - name: Create Rootly Incident
-        if: ${{ steps.set-create-incident.outputs.create == 'true' }}
-        uses: pandaswhocode/rootly-incident-action@4327542435bb4c8c48f15fba47efb87a28f8533f # v2.0.1
-        with:
-          api_key: ${{ secrets.ROOTLY_API_TOKEN }}
-          title: "${{ steps.rootly-summary.outputs.title }}"
-          kind: "normal"
-          create_public_incident: "false"
-          summary: "${{ steps.rootly-summary.outputs.summary }}"
-          severity: "Triage Event"
-          alert_ids: ${{ steps.create-rootly-alert.outputs.alert_id || '' }}
-          environments: "CITR"
-          incident_types: "Platform CI"
-          services: ${{ steps.set-rootly-service.outputs.service }}
-          teams: "Platform CI,Performance Engineering"
