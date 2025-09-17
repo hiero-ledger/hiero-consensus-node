@@ -114,7 +114,7 @@ public class TestingAppStateInitializer {
      * @param state the state to initialize
      * @return a list of builders for the states that were initialized. Currently, returns an empty list.
      */
-    public List<Builder> initStates(@NonNull final MerkleNodeState state) {
+    public static List<Builder> initStates(@NonNull final MerkleNodeState state) {
         List<Builder> list = new ArrayList<>();
         list.addAll(initPlatformState(state));
         list.addAll(initRosterState(state));
@@ -128,7 +128,7 @@ public class TestingAppStateInitializer {
      * @param state the state to initialize
      * @return a list of builders for the states that were initialized. Currently, returns an empty list.
      */
-    public List<Builder> initPlatformState(@NonNull final MerkleNodeState state) {
+    public static List<Builder> initPlatformState(@NonNull final MerkleNodeState state) {
         final var schema = new V0540PlatformStateSchema(
                 config -> SemanticVersion.newBuilder().minor(1).build());
         schema.statesToCreate().stream()
@@ -165,7 +165,7 @@ public class TestingAppStateInitializer {
      * @param state the state to initialize
      * @return a list of builders for the states that were initialized. Currently, returns an empty list.
      */
-    public List<Builder> initRosterState(@NonNull final MerkleNodeState state) {
+    public static List<Builder> initRosterState(@NonNull final MerkleNodeState state) {
         if (!(state instanceof MerkleStateRoot<?>) && !(state instanceof VirtualMapState<?>)) {
             throw new IllegalArgumentException("Can only be used with MerkleStateRoot or VirtualMapState instances");
         }

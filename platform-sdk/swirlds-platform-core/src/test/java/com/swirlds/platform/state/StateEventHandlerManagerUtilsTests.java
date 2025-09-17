@@ -22,7 +22,7 @@ public class StateEventHandlerManagerUtilsTests {
         final String virtualMapLabel =
                 "vm-" + StateEventHandlerManagerUtilsTests.class.getSimpleName() + "-" + java.util.UUID.randomUUID();
         final MerkleNodeState state = TestHederaVirtualMapState.createInstanceWithVirtualMapLabel(virtualMapLabel);
-        TestingAppStateInitializer.DEFAULT.initPlatformState(state);
+        TestingAppStateInitializer.initPlatformState(state);
         state.getRoot().reserve();
         final StateMetrics stats = mock(StateMetrics.class);
         final State result = SwirldStateManagerUtils.fastCopy(
