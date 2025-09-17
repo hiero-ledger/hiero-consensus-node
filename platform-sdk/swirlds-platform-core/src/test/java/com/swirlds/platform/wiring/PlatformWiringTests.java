@@ -3,7 +3,9 @@ package com.swirlds.platform.wiring;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
+import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.metrics.noop.NoOpMetrics;
@@ -44,9 +46,11 @@ import com.swirlds.platform.state.signed.StateSignatureCollector;
 import com.swirlds.platform.state.signer.StateSigner;
 import com.swirlds.platform.state.snapshot.StateSnapshotManager;
 import com.swirlds.platform.system.status.StatusStateMachine;
+import java.security.SecureRandom;
 import java.util.stream.Stream;
 import org.hiero.consensus.crypto.EventHasher;
 import org.hiero.consensus.event.creator.EventCreationManager;
+import org.hiero.consensus.roster.RosterHistory;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -84,8 +88,7 @@ class PlatformWiringTests {
                 PlatformComponents.create(platformContext, model, applicationCallbacks);
         PlatformWiring.wire(platformContext, mock(ExecutionLayer.class), platformComponents);
 
-        final PlatformComponentBuilder componentBuilder =
-                new PlatformComponentBuilder(mock(PlatformBuildingBlocks.class));
+        final PlatformComponentBuilder componentBuilder = new PlatformComponentBuilder(createBuildingBlocks(platformContext));
 
         final PlatformCoordinator coordinator = new PlatformCoordinator(platformComponents);
         componentBuilder
@@ -152,5 +155,15 @@ class PlatformWiringTests {
         coordinator.start();
         assertFalse(model.checkForUnboundInputWires());
         coordinator.stop();
+    }
+
+    private static PlatformBuildingBlocks createBuildingBlocks(final PlatformContext context) {
+        final PlatformBuildingBlocks blocks = mock(PlatformBuildingBlocks.class);
+        when(blocks.platformContext()).thenReturn(context);
+        when(blocks.secureRandomSupplier()).thenReturn(()->mock(SecureRandom.class));
+        final RosterHistory rosterHistory = mock(RosterHistory.class);
+        when(rosterHistory.getCurrentRoster()).thenReturn(Roster.DEFAULT);
+        when(blocks.rosterHistory()).thenReturn(rosterHistory);
+        return blocks;
     }
 }
