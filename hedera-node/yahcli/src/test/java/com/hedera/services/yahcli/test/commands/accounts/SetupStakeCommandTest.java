@@ -72,6 +72,7 @@ class SetupStakeCommandTest extends YahcliTestBase {
         void validPerNodeAmountParses(String amount) {
             final var result = parseArgs(typicalGlobalOptions() + " activate-staking -p " + amount);
             assertCommandHierarchyOf(result, "yahcli", "activate-staking");
+            assertThat((String) result.subcommand().matchedOptionValue("-p", null)).isEqualTo(amount);
         }
 
         @ParameterizedTest
@@ -79,6 +80,7 @@ class SetupStakeCommandTest extends YahcliTestBase {
         void validStakingRewardRateParses(String amount) {
             final var result = parseArgs(typicalGlobalOptions() + " activate-staking -r " + amount);
             assertCommandHierarchyOf(result, "yahcli", "activate-staking");
+            assertThat((String) result.subcommand().matchedOptionValue("-r", null)).isEqualTo(amount);
         }
 
         @ParameterizedTest
@@ -86,6 +88,7 @@ class SetupStakeCommandTest extends YahcliTestBase {
         void validRewardAccountBalanceParses(String amount) {
             final var result = parseArgs(typicalGlobalOptions() + " activate-staking -b " + amount);
             assertCommandHierarchyOf(result, "yahcli", "activate-staking");
+            assertThat((String) result.subcommand().matchedOptionValue("-b", null)).isEqualTo(amount);
         }
 
         @SuppressWarnings("unused")
@@ -97,6 +100,9 @@ class SetupStakeCommandTest extends YahcliTestBase {
         void multipleValidOptionsCanBeCombined() {
             final var result = parseArgs(typicalGlobalOptions() + " activate-staking -p 1000h -r 5kh -b 10mh");
             assertCommandHierarchyOf(result, "yahcli", "activate-staking");
+            assertThat((String) result.subcommand().matchedOptionValue("-p", null)).isEqualTo("1000h");
+            assertThat((String) result.subcommand().matchedOptionValue("-r", null)).isEqualTo("5kh");
+            assertThat((String) result.subcommand().matchedOptionValue("-b", null)).isEqualTo("10mh");
         }
 
         @Test
@@ -105,6 +111,9 @@ class SetupStakeCommandTest extends YahcliTestBase {
                     typicalGlobalOptions()
                             + " activate-staking --per-node-amount 1000h --staking-reward-rate 5kh --reward-account-balance 10mh");
             assertCommandHierarchyOf(result, "yahcli", "activate-staking");
+            assertThat((String) result.subcommand().matchedOptionValue("--per-node-amount", null)).isEqualTo("1000h");
+            assertThat((String) result.subcommand().matchedOptionValue("--staking-reward-rate", null)).isEqualTo("5kh");
+            assertThat((String) result.subcommand().matchedOptionValue("--reward-account-balance", null)).isEqualTo("10mh");
         }
 
         @ParameterizedTest
@@ -207,9 +216,9 @@ class SetupStakeCommandTest extends YahcliTestBase {
                     "1bh"
                 })
         void validScaledAmountsAccepted(String amount) {
-            // Test that valid scaled amounts with proper suffixes are accepted
             final var result = parseArgs(typicalGlobalOptions() + " activate-staking -p " + amount);
             assertCommandHierarchyOf(result, "yahcli", "activate-staking");
+            assertThat((String) result.subcommand().matchedOptionValue("-p", null)).isEqualTo(amount);
         }
 
         @ParameterizedTest
@@ -217,6 +226,7 @@ class SetupStakeCommandTest extends YahcliTestBase {
         void validEdgeCaseAmountsAccepted(String amount) {
             final var result = parseArgs(typicalGlobalOptions() + " activate-staking -p " + amount);
             assertCommandHierarchyOf(result, "yahcli", "activate-staking");
+            assertThat((String) result.subcommand().matchedOptionValue("-p", null)).isEqualTo(amount);
         }
 
         @ParameterizedTest
@@ -244,6 +254,9 @@ class SetupStakeCommandTest extends YahcliTestBase {
                     typicalGlobalOptions()
                             + " activate-staking --per-node-amount 1000h --staking-reward-rate 500h --reward-account-balance 250000h");
             assertCommandHierarchyOf(result, "yahcli", "activate-staking");
+            assertThat((String) result.subcommand().matchedOptionValue("--per-node-amount", null)).isEqualTo("1000h");
+            assertThat((String) result.subcommand().matchedOptionValue("--staking-reward-rate", null)).isEqualTo("500h");
+            assertThat((String) result.subcommand().matchedOptionValue("--reward-account-balance", null)).isEqualTo("250000h");
         }
 
         @Test
@@ -255,6 +268,12 @@ class SetupStakeCommandTest extends YahcliTestBase {
 
             assertCommandHierarchyOf(shortResult, "yahcli", "activate-staking");
             assertCommandHierarchyOf(longResult, "yahcli", "activate-staking");
+            assertThat((String) shortResult.subcommand().matchedOptionValue("-p", null)).isEqualTo("100h");
+            assertThat((String) shortResult.subcommand().matchedOptionValue("-r", null)).isEqualTo("50h");
+            assertThat((String) shortResult.subcommand().matchedOptionValue("-b", null)).isEqualTo("1000h");
+            assertThat((String) longResult.subcommand().matchedOptionValue("--per-node-amount", null)).isEqualTo("100h");
+            assertThat((String) longResult.subcommand().matchedOptionValue("--staking-reward-rate", null)).isEqualTo("50h");
+            assertThat((String) longResult.subcommand().matchedOptionValue("--reward-account-balance", null)).isEqualTo("1000h");
         }
 
         @Test
@@ -262,6 +281,9 @@ class SetupStakeCommandTest extends YahcliTestBase {
             final var result =
                     parseArgs(typicalGlobalOptions() + " activate-staking -p 100h --staking-reward-rate 50h -b 1000h");
             assertCommandHierarchyOf(result, "yahcli", "activate-staking");
+            assertThat((String) result.subcommand().matchedOptionValue("-p", null)).isEqualTo("100h");
+            assertThat((String) result.subcommand().matchedOptionValue("--staking-reward-rate", null)).isEqualTo("50h");
+            assertThat((String) result.subcommand().matchedOptionValue("-b", null)).isEqualTo("1000h");
         }
 
         @Test
