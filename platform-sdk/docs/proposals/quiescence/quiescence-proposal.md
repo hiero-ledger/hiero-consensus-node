@@ -4,7 +4,7 @@
 
 Quiescence is a feature that stops event creation when it is unnecessary.
 Please refer to
-the [Quiescence HIP](https://github.com/lpetrovic05/hiero-improvement-proposals-lazar/blob/quiescence-hip/HIP/hip-xxxx-quiescence.md)
+the [Quiescence HIP](https://github.com/hiero-ledger/hiero-improvement-proposals/blob/main/HIP/hip-1238.md)
 for the high level information about this feature.
 
 | Metadata           | Entities             |
@@ -182,13 +182,4 @@ New unit tests for the quiescence component should be written for the following 
   should create a QB event with that transaction.
 - If a QB is created, it should not create another QB with the same self-parent even if there are pending transactions
   that need to reach consensus.
-
-### Integration Tests
-
-An Otter test should be created that submits transactions periodically and validates the following:
-
-- Event creation is stopped when transactions stop being submitted
-- Event creation is started again when a transaction is submitted
-- Platform status is updated to `QUIESCED` when event creation is stopped
-- A freeze should be set at the end of this test, and the freeze should occur even if no transactions are submitted
 
