@@ -17,7 +17,6 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcingContextual;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_DELETED;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.HOOK_IS_NOT_A_LAMBDA;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.HOOK_NOT_FOUND;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_HOOK_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.LAMBDA_STORAGE_UPDATE_BYTES_MUST_USE_MINIMAL_REPRESENTATION;
@@ -34,7 +33,6 @@ import com.hedera.hapi.node.hooks.HookCreation;
 import com.hedera.hapi.node.hooks.HookCreationDetails;
 import com.hedera.hapi.node.hooks.LambdaEvmHook;
 import com.hedera.hapi.node.hooks.LambdaMappingEntry;
-import com.hedera.hapi.node.hooks.PureEvmHook;
 import com.hedera.hapi.node.state.hooks.EvmHookState;
 import com.hedera.hapi.node.state.hooks.LambdaSlotKey;
 import com.hedera.node.app.service.contract.ContractService;
@@ -134,16 +132,6 @@ public class RepeatableLambdaSStoreTests {
         return hapiTest(accountLambdaSStore(HOOK_OWNER.name(), MISSING_HOOK_ID)
                 .putSlot(Bytes.EMPTY, Bytes.EMPTY)
                 .hasKnownStatus(HOOK_NOT_FOUND));
-    }
-
-    @Order(3)
-    @RepeatableHapiTest(NEEDS_STATE_ACCESS)
-    Stream<DynamicTest> cannotManageStorageOfPureEvmHook() {
-        return hapiTest(
-                sourcingContextual(RepeatableLambdaSStoreTests::pureHookCreation),
-                accountLambdaSStore(HOOK_OWNER.name(), PURE_HOOK_ID)
-                        .putSlot(Bytes.EMPTY, Bytes.EMPTY)
-                        .hasKnownStatus(HOOK_IS_NOT_A_LAMBDA));
     }
 
     @Order(4)
@@ -328,15 +316,6 @@ public class RepeatableLambdaSStoreTests {
                         origCount.get() + delta.getAsLong(),
                         account.numberLambdaStorageSlots(),
                         "Wrong # of lambda storage slots")));
-    }
-
-    private static SpecOperation pureHookCreation(@NonNull final HapiSpec spec) {
-        return hookCreation(
-                spec,
-                (contractId, details) -> details.hookId(PURE_HOOK_ID)
-                        .pureEvmHook(PureEvmHook.newBuilder()
-                                .spec(EvmHookSpec.newBuilder().contractId(contractId))),
-                false);
     }
 
     private static SpecOperation lambdaHookCreation(@NonNull final HapiSpec spec) {

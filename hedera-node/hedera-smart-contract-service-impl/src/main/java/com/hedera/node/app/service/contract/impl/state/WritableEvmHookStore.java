@@ -4,7 +4,6 @@ package com.hedera.node.app.service.contract.impl.state;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOK_ID_IN_USE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOK_NOT_FOUND;
 import static com.hedera.hapi.node.state.hooks.EvmHookType.LAMBDA;
-import static com.hedera.hapi.node.state.hooks.EvmHookType.PURE;
 import static com.hedera.node.app.hapi.utils.EntityType.HOOK;
 import static com.hedera.node.app.hapi.utils.EntityType.LAMBDA_STORAGE;
 import static com.hedera.node.app.hapi.utils.contracts.HookUtils.leftPad32;
@@ -197,13 +196,10 @@ public class WritableEvmHookStore extends ReadableEvmHookStoreImpl {
         validateTrue(hookStates.get(hookId) == null, HOOK_ID_IN_USE);
         final var type =
                 switch (details.hook().kind()) {
-                    case PURE_EVM_HOOK -> PURE;
                     case LAMBDA_EVM_HOOK -> LAMBDA;
                     default -> throw new IllegalStateException("Not an EVM hook - " + creation);
                 };
-        final var evmHookSpec = type == PURE
-                ? details.pureEvmHookOrThrow().specOrThrow()
-                : details.lambdaEvmHookOrThrow().specOrThrow();
+        final var evmHookSpec = details.lambdaEvmHookOrThrow().specOrThrow();
         final var state = EvmHookState.newBuilder()
                 .hookId(hookId)
                 .type(type)
