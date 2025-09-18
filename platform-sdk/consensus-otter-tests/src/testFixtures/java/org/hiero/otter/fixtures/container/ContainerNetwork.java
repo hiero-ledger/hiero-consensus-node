@@ -70,7 +70,6 @@ public class ContainerNetwork extends AbstractNetwork {
      * @param rootOutputDirectory the root output directory for the network
      */
     public ContainerNetwork(
-            @NonNull final Random random,
             @NonNull final RegularTimeManager timeManager,
             @NonNull final ContainerTransactionGenerator transactionGenerator,
             @NonNull final Path rootOutputDirectory) {
@@ -79,7 +78,7 @@ public class ContainerNetwork extends AbstractNetwork {
         this.rootOutputDirectory = requireNonNull(rootOutputDirectory);
         this.dockerImage = new ImageFromDockerfile()
                 .withDockerfile(Path.of("..", "consensus-otter-docker-app", "build", "data", "Dockerfile"));
-        this.topology = new GeoMeshTopologyImpl(this::createContainerNodes, this::addInstrumentedNode, random);
+        this.topology = new GeoMeshTopologyImpl(this::createContainerNodes, this::addInstrumentedNode, new Random());
         transactionGenerator.setNodesSupplier(topology::nodes);
     }
 

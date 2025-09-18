@@ -17,10 +17,12 @@ import java.time.Duration;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.assertj.core.data.Percentage;
 import org.hiero.otter.fixtures.Node;
+import org.hiero.otter.fixtures.container.network.Toxic.LatencyToxic;
 import org.hiero.otter.fixtures.internal.network.ConnectionKey;
 import org.hiero.otter.fixtures.network.BandwidthLimit;
 import org.hiero.otter.fixtures.network.Topology.ConnectionData;
@@ -78,6 +80,8 @@ public class NetworkBehavior {
                 final String connectionName = "%d-%d".formatted(sender.id(), receiver.id());
                 final Proxy proxy = new Proxy(connectionName, listenAddress, receiverAddress, true);
                 proxies.put(connectionKey, toxiproxyClient.createProxy(proxy));
+                final LatencyToxic latencyToxic = new LatencyToxic(INITIAL_STATE.latency(), INITIAL_STATE.jitter());
+                toxiproxyClient.createToxic(proxy, latencyToxic);
                 connections.put(connectionKey, INITIAL_STATE);
             }
         }
@@ -99,10 +103,18 @@ public class NetworkBehavior {
                 final ConnectionKey connectionKey = new ConnectionKey(sender.selfId(), receiver.selfId());
                 final ConnectionData oldConnectionData = connections.getOrDefault(connectionKey, DISCONNECTED);
                 final ConnectionData newConnectionData = newConnections.getOrDefault(connectionKey, DISCONNECTED);
-                if (oldConnectionData.connected() && !newConnectionData.connected()) {
-                    disconnect(connectionKey);
-                } else if (!oldConnectionData.connected() && newConnectionData.connected()) {
-                    connect(connectionKey);
+                if (newConnectionData.connected()) {
+                    if (!oldConnectionData.connected()) {
+                        connect(connectionKey);
+                    }
+                    if (!Objects.equals(oldConnectionData.latency(), newConnectionData.latency())
+                            || !Objects.equals(oldConnectionData.jitter(), newConnectionData.jitter())) {
+                        setLatency(connectionKey, newConnectionData);
+                    }
+                } else {
+                    if (oldConnectionData.connected()) {
+                        disconnect(connectionKey);
+                    }
                 }
             }
         }
@@ -127,6 +139,22 @@ public class NetworkBehavior {
                     .formatted(connectionKey.sender(), connectionKey.receiver()));
         }
         proxies.put(connectionKey, toxiproxyClient.updateProxy(proxy.withEnabled(false)));
+    }
+
+    private void setLatency(
+            @NonNull final ConnectionKey connectionKey, @NonNull final ConnectionData newConnectionData) {
+        log.debug(
+                "Setting latency between sender {} and receiver {} to {}",
+                connectionKey.sender(),
+                connectionKey.receiver(),
+                newConnectionData.latency());
+        final Proxy proxy = proxies.get(connectionKey);
+        if (proxy == null) {
+            throw new IllegalStateException("No proxy found for sender %s and receiver %s"
+                    .formatted(connectionKey.sender(), connectionKey.receiver()));
+        }
+        final LatencyToxic latencyToxic = new LatencyToxic(newConnectionData.latency(), newConnectionData.jitter());
+        toxiproxyClient.updateToxic(proxy, latencyToxic);
     }
 
     /**
