@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.queries;
 
-import static com.hedera.services.bdd.junit.TestTags.TOKEN;
+import static com.hedera.services.bdd.junit.TestTags.ONLY_SUBPROCESS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.lessThan;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.contractCallLocal;
@@ -40,6 +40,7 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.Tag;
 
 /**
  * Verifies the node operator port is not available to any queries when it is disabled. Since
@@ -47,6 +48,7 @@ import org.junit.jupiter.api.DynamicTest;
  * is a lifecycle test that restarts the shared network with the operator port disabled, and
  * then restarts it again with the port re-enabled.
  */
+@Tag(ONLY_SUBPROCESS)
 @HapiTestLifecycle
 public class DisabledNodeOperatorTest extends NodeOperatorQueriesBase implements LifecycleTest {
     @BeforeAll
