@@ -88,28 +88,30 @@ val remoteCheckTags =
                     "hapiTestIssMATS",
                     "hapiTestRestart",
                     "hapiTestRestartMATS",
+                    "hapiTestToken",
                     "hapiTestTokenMATS",
                 )
         }
         .mapKeys { (key, _) -> key.replace("hapiTest", "remoteTest") }
-val prCheckStartPorts =
-    buildMap<String, String> {
-        put("hapiTestAdhoc", "25000")
-        put("hapiTestCrypto", "25200")
-        put("hapiTestRestart", "25600")
-        put("hapiTestNDReconnect", "26000")
-        put("hapiTestTimeConsuming", "26200")
-        put("hapiTestIss", "26400")
-        put("hapiTestMisc", "26800")
-        put("hapiTestBlockNodeCommunication", "27000")
-        put("hapiTestMiscRecords", "27200")
+val prCheckStartPorts = buildMap {
+    put("hapiTestAdhoc", "25000")
+    put("hapiTestCrypto", "25200")
+    put("hapiTestToken", "25400")
+    put("hapiTestRestart", "25600")
+    put("hapiTestSmartContract", "25800")
+    put("hapiTestNDReconnect", "26000")
+    put("hapiTestTimeConsuming", "26200")
+    put("hapiTestIss", "26400")
+    put("hapiTestMisc", "26800")
+    put("hapiTestBlockNodeCommunication", "27000")
+    put("hapiTestMiscRecords", "27200")
 
-        // Create the MATS variants
-        val originalEntries = toMap() // Create a snapshot of current entries
-        originalEntries.forEach { (taskName: String, port: String) ->
-            put("$taskName$matsSuffix", port)
-        }
+    // Create the MATS variants
+    val originalEntries = toMap() // Create a snapshot of current entries
+    originalEntries.forEach { (taskName: String, port: String) ->
+        put("$taskName$matsSuffix", port)
     }
+}
 val prCheckPropOverrides =
     buildMap<String, String> {
         put(
@@ -145,17 +147,18 @@ val prCheckPrepareUpgradeOffsets =
 // Note: no MATS variants needed for history proofs
 val prCheckNumHistoryProofsToObserve = mapOf("hapiTestAdhoc" to "0", "hapiTestSmartContract" to "0")
 // Use to override the default network size for a specific test task
-val prCheckNetSizeOverrides =
-    buildMap<String, String> {
-        put("hapiTestAdhoc", "3")
-        put("hapiTestCrypto", "3")
+val prCheckNetSizeOverrides = buildMap {
+    put("hapiTestAdhoc", "3")
+    put("hapiTestCrypto", "3")
+    put("hapiTestToken", "3")
+    put("hapiTestSmartContract", "4")
 
-        // Copy vals to the MATS variants
-        val originalEntries = toMap() // Create a snapshot of current entries
-        originalEntries.forEach { (taskName: String, size: String) ->
-            put("$taskName$matsSuffix", size)
-        }
+    // Copy vals to the MATS variants
+    val originalEntries = toMap() // Create a snapshot of current entries
+    originalEntries.forEach { (taskName: String, size: String) ->
+        put("$taskName$matsSuffix", size)
     }
+}
 
 tasks {
     prCheckTags.forEach { (taskName, _) ->

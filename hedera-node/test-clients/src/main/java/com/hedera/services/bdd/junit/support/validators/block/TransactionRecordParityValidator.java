@@ -4,6 +4,7 @@ package com.hedera.services.bdd.junit.support.validators.block;
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.pbjToProto;
 import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.workingDirFor;
+import static com.hedera.services.bdd.spec.TargetNetworkType.SUBPROCESS_NETWORK;
 import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.counting;
 import static java.util.stream.Collectors.groupingBy;
@@ -54,7 +55,7 @@ public class TransactionRecordParityValidator implements BlockStreamValidator {
         public boolean appliesTo(@NonNull final HapiSpec spec) {
             requireNonNull(spec);
             // Embedded networks don't have saved states or a Merkle tree to validate hashes against
-            return true;
+            return spec.targetNetworkOrThrow().type() == SUBPROCESS_NETWORK;
         }
 
         @Override
