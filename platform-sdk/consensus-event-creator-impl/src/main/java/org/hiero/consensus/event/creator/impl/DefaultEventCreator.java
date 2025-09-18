@@ -23,7 +23,7 @@ import org.hiero.consensus.crypto.PlatformSigner;
 import org.hiero.consensus.event.FutureEventBuffer;
 import org.hiero.consensus.event.FutureEventBufferingOption;
 import org.hiero.consensus.event.creator.EventCreationConfig;
-import org.hiero.consensus.event.creator.EventCreationManager;
+import org.hiero.consensus.event.creator.EventCreatorModule;
 import org.hiero.consensus.event.creator.impl.rules.AggregateEventCreationRules;
 import org.hiero.consensus.event.creator.impl.rules.EventCreationRule;
 import org.hiero.consensus.event.creator.impl.rules.MaximumRateRule;
@@ -40,9 +40,9 @@ import org.hiero.consensus.model.transaction.EventTransactionSupplier;
 import org.hiero.consensus.model.transaction.SignatureTransactionCheck;
 
 /**
- * Default implementation of the {@link EventCreationManager}.
+ * Default implementation of the {@link EventCreatorModule}.
  */
-public class DefaultEventCreationManager implements EventCreationManager {
+public class DefaultEventCreator implements EventCreatorModule {
 
     /**
      * Creates events.
@@ -81,7 +81,7 @@ public class DefaultEventCreationManager implements EventCreationManager {
      * {@link #initialize(Configuration, Metrics, Time, SecureRandom, KeysAndCerts, Roster, NodeId,
      * EventTransactionSupplier, SignatureTransactionCheck)} must be called before use.
      */
-    public DefaultEventCreationManager() {}
+    public DefaultEventCreator() {}
 
     @Override
     public void initialize(

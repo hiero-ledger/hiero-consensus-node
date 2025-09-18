@@ -20,7 +20,7 @@ import org.hiero.consensus.model.transaction.SignatureTransactionCheck;
 /**
  * Creates and signs events. Will sometimes decide not to create new events based on external rules.
  */
-public interface EventCreationManager {
+public interface EventCreatorModule {
 
     /**
      * Initialize the event creator
@@ -83,6 +83,11 @@ public interface EventCreationManager {
      */
     void reportUnhealthyDuration(@NonNull final Duration duration);
 
+    /**
+     * Report the lag in rounds behind the other nodes. A negative value means we are ahead of the other nodes.
+     *
+     * @param lag the lag in rounds behind the other nodes
+     */
     void reportSyncRoundLag(@NonNull Double lag);
 
     /**

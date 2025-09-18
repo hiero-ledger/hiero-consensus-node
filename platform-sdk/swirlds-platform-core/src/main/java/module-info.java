@@ -1,9 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
+
+import org.hiero.consensus.event.creator.EventCreatorModule;
+
 /**
  * The Swirlds public API module used by platform applications.
  */
 module com.swirlds.platform.core {
-    uses org.hiero.consensus.event.creator.EventCreationManager;
+    uses EventCreatorModule;
 
     /* Public Package Exports. This list should remain alphabetized. */
     exports com.swirlds.platform;

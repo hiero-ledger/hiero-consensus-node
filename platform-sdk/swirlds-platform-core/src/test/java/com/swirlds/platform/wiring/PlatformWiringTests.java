@@ -49,7 +49,7 @@ import com.swirlds.platform.system.status.StatusStateMachine;
 import java.security.SecureRandom;
 import java.util.stream.Stream;
 import org.hiero.consensus.crypto.EventHasher;
-import org.hiero.consensus.event.creator.EventCreationManager;
+import org.hiero.consensus.event.creator.EventCreatorModule;
 import org.hiero.consensus.roster.RosterHistory;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -99,7 +99,7 @@ class PlatformWiringTests {
                 .withEventSignatureValidator(mock(EventSignatureValidator.class))
                 .withStateGarbageCollector(mock(StateGarbageCollector.class))
                 .withOrphanBuffer(mock(OrphanBuffer.class))
-                .withEventCreationManager(mock(EventCreationManager.class))
+                .withEventCreator(mock(EventCreatorModule.class))
                 .withConsensusEngine(mock(ConsensusEngine.class))
                 .withConsensusEventStream(mock(ConsensusEventStream.class))
                 .withStatusStateMachine(mock(StatusStateMachine.class))
