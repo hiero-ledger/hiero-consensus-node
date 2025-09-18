@@ -10,6 +10,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.List;
+import java.util.Random;
 import java.util.Set;
 import org.hiero.otter.fixtures.Capability;
 import org.hiero.otter.fixtures.Network;
@@ -49,7 +50,8 @@ public class ContainerTestEnvironment implements TestEnvironment {
         } catch (final IOException ex) {
             fail("Failed to prepare directory: " + rootOutputDirectory, ex);
         }
-        network = new ContainerNetwork(timeManager, transactionGenerator, rootOutputDirectory);
+
+        network = new ContainerNetwork(new Random(), timeManager, transactionGenerator, rootOutputDirectory);
     }
 
     /**

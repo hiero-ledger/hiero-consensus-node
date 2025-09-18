@@ -176,7 +176,7 @@ public class GeoMeshTopologyImpl implements GeoMeshTopology {
     private record Connection(@NonNull Node node1, @NonNull Node node2) {
         private Connection(@NonNull final Node node1, @NonNull final Node node2) {
             final boolean isFirstIdLess =
-                    node1().selfId().id() < node2().selfId().id();
+                    node1.selfId().id() < node2.selfId().id();
             this.node1 = isFirstIdLess ? node1 : node2;
             this.node2 = isFirstIdLess ? node2 : node1;
         }
