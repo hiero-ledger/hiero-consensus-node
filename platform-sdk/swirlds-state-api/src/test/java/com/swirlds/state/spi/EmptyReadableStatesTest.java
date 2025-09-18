@@ -9,6 +9,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 class EmptyReadableStatesTest extends StateTestBase {
+
     private final EmptyReadableStates states = new EmptyReadableStates();
 
     @Test
@@ -26,31 +27,24 @@ class EmptyReadableStatesTest extends StateTestBase {
     @Test
     @DisplayName("Contains is always false")
     void contains() {
-        assertThat(states.contains(FRUIT_STATE_KEY)).isFalse();
+        assertThat(states.contains(FRUIT_STATE_ID)).isFalse();
     }
 
     @Test
-    @DisplayName("Throws NPE if the key is null")
-    void nullKey() {
-        //noinspection DataFlowIssue
-        assertThatThrownBy(() -> states.get(null)).isInstanceOf(NullPointerException.class);
+    @DisplayName("Throws IAE for an unknown K/V state ID")
+    void unknownKVStateId() {
+        assertThatThrownBy(() -> states.get(UNKNOWN_STATE_ID)).isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test
-    @DisplayName("Throws IAE for any non-null key")
-    void nonNullKey() {
-        assertThatThrownBy(() -> states.get(UNKNOWN_STATE_KEY)).isInstanceOf(IllegalArgumentException.class);
+    @DisplayName("Throws IAE for an unknown singleton state ID")
+    void unknownSingletonStateId() {
+        assertThatThrownBy(() -> states.getSingleton(UNKNOWN_STATE_ID)).isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test
-    @DisplayName("Throws IAE for any non-null singleton key")
-    void nonNullSingletonKey() {
-        assertThatThrownBy(() -> states.getSingleton(UNKNOWN_STATE_KEY)).isInstanceOf(IllegalArgumentException.class);
-    }
-
-    @Test
-    @DisplayName("Throws IAE for any non-null queue key")
-    void nonNullQueueKey() {
-        assertThatThrownBy(() -> states.getQueue(UNKNOWN_STATE_KEY)).isInstanceOf(IllegalArgumentException.class);
+    @DisplayName("Throws IAE for an unknown queue state ID")
+    void unknownQueueStateId() {
+        assertThatThrownBy(() -> states.getQueue(UNKNOWN_STATE_ID)).isInstanceOf(IllegalArgumentException.class);
     }
 }

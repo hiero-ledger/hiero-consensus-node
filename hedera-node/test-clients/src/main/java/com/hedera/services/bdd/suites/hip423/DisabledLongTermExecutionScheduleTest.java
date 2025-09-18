@@ -61,6 +61,8 @@ public class DisabledLongTermExecutionScheduleTest {
         lifecycle.overrideInClass(Map.of(
                 "scheduling.longTermEnabled",
                 "false",
+                "scheduling.maxExpirySecsToCheckPerUserTxn",
+                "" + Integer.MAX_VALUE,
                 "scheduling.whitelist",
                 "CryptoTransfer,ConsensusSubmitMessage,TokenBurn,TokenMint,CryptoApproveAllowance"));
     }

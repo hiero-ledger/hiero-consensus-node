@@ -6,6 +6,7 @@ import static com.hedera.hapi.node.hooks.HookExtensionPoint.ACCOUNT_ALLOWANCE_HO
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.toPbj;
 import static com.hedera.node.app.hapi.utils.contracts.HookUtils.leftPad32;
 import static com.hedera.node.app.hapi.utils.contracts.HookUtils.slotKeyOfMappingEntry;
+import static com.hedera.node.app.service.contract.impl.schemas.V065ContractSchema.EVM_HOOK_STATES_STATE_ID;
 import static com.hedera.services.bdd.junit.RepeatableReason.NEEDS_STATE_ACCESS;
 import static com.hedera.services.bdd.junit.TestTags.INTEGRATION;
 import static com.hedera.services.bdd.junit.hedera.embedded.EmbeddedMode.REPEATABLE;
@@ -77,6 +78,7 @@ import org.junit.jupiter.api.TestMethodOrder;
 // Ordered because a final test deletes the hook owner and confirms its LambdaSStore operations fail
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 public class RepeatableLambdaSStoreTests {
+
     private static final long PURE_HOOK_ID = 123L;
     private static final long LAMBDA_HOOK_ID = 124L;
     private static final long DELETED_HOOK_ID = 125L;
@@ -298,8 +300,8 @@ public class RepeatableLambdaSStoreTests {
     }
 
     private static SpecOperation assertLambdaHasSlotUsage(final long hookId, final long numSlots) {
-        return sourcingContextual(
-                spec -> new ViewKVStateOp<HookId, EvmHookState>(ContractService.NAME, "EVM_HOOK_STATES", state -> {
+        return sourcingContextual(spec ->
+                new ViewKVStateOp<HookId, EvmHookState>(ContractService.NAME, EVM_HOOK_STATES_STATE_ID, state -> {
                     final var hookEntityId = new HookEntityId(
                             new OneOf<>(ACCOUNT_ID, toPbj(spec.registry().getAccountID(HOOK_OWNER.name()))));
                     final var HookId = new HookId(hookEntityId, hookId);

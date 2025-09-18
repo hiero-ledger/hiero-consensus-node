@@ -8,8 +8,8 @@ import static com.hedera.node.app.hapi.utils.EntityType.HOOK;
 import static com.hedera.node.app.hapi.utils.EntityType.LAMBDA_STORAGE;
 import static com.hedera.node.app.hapi.utils.contracts.HookUtils.leftPad32;
 import static com.hedera.node.app.hapi.utils.contracts.HookUtils.slotKeyOfMappingEntry;
-import static com.hedera.node.app.service.contract.impl.schemas.V065ContractSchema.EVM_HOOK_STATES_KEY;
-import static com.hedera.node.app.service.contract.impl.schemas.V065ContractSchema.LAMBDA_STORAGE_KEY;
+import static com.hedera.node.app.service.contract.impl.schemas.V065ContractSchema.EVM_HOOK_STATES_STATE_ID;
+import static com.hedera.node.app.service.contract.impl.schemas.V065ContractSchema.LAMBDA_STORAGE_STATE_ID;
 import static com.hedera.node.app.service.contract.impl.state.StorageAccess.StorageAccessType.INSERTION;
 import static com.hedera.node.app.service.contract.impl.state.StorageAccess.StorageAccessType.REMOVAL;
 import static com.hedera.node.app.service.contract.impl.state.StorageAccess.StorageAccessType.UPDATE;
@@ -57,8 +57,8 @@ public class WritableEvmHookStore extends ReadableEvmHookStoreImpl {
             @NonNull final WritableStates states, @NonNull final WritableEntityCounters entityCounters) {
         super(states);
         this.entityCounters = requireNonNull(entityCounters);
-        this.hookStates = states.get(EVM_HOOK_STATES_KEY);
-        this.storage = states.get(LAMBDA_STORAGE_KEY);
+        this.hookStates = states.get(EVM_HOOK_STATES_STATE_ID);
+        this.storage = states.get(LAMBDA_STORAGE_STATE_ID);
     }
 
     /**

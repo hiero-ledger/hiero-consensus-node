@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.test;
 
-import static org.assertj.core.api.Fail.fail;
 import static org.hiero.consensus.model.status.PlatformStatus.ACTIVE;
 import static org.hiero.consensus.model.status.PlatformStatus.BEHIND;
 import static org.hiero.consensus.model.status.PlatformStatus.CHECKING;
@@ -73,10 +72,10 @@ public class ReconnectTest {
         nodeToReconnectStatusResults.clear();
 
         // Wait for the node we just killed to become behind enough to require a reconnect.
-        if (!timeManager.waitForCondition(
-                () -> network.nodeIsBehindByNodeCount(nodeToReconnect, 0.5), Duration.ofSeconds(60))) {
-            fail("Node did not fall behind in the time allotted.");
-        }
+        timeManager.waitForCondition(
+                () -> network.nodeIsBehindByNodeCount(nodeToReconnect, 0.5),
+                Duration.ofSeconds(60),
+                "Node did not fall behind in the time allotted.");
 
         // Restart the node that was killed
         nodeToReconnect.start();
@@ -84,14 +83,10 @@ public class ReconnectTest {
         // First we must wait for the node to come back up and report that it is behind.
         // If we wait for it to be active, this check will pass immediately because that was the last status it had
         // and we will check the value before the node has a change to tell us that it is behind.
-        if (!timeManager.waitForCondition(nodeToReconnect::isBehind, Duration.ofSeconds(30))) {
-            fail("Node did not become active in the time allotted.");
-        }
+        timeManager.waitForCondition(nodeToReconnect::isBehind, Duration.ofSeconds(30));
 
         // Now we wait for the node to reconnect and become active again.
-        if (!timeManager.waitForCondition(nodeToReconnect::isActive, Duration.ofSeconds(30))) {
-            fail("Node did not become active in the time allotted.");
-        }
+        timeManager.waitForCondition(nodeToReconnect::isActive, Duration.ofSeconds(30));
 
         // Validations
         assertThat(network.newLogResults()).haveNoErrorLevelMessages();
