@@ -343,18 +343,18 @@ tasks.register<Test>("testRemote") {
 
 val prEmbeddedCheckTags = buildMap {
     put("hapiEmbeddedMisc", "EMBEDDED")
-    put("hapiTestTokenMATS", "TOKEN")
-    put("hapiTestCryptoMATS", "CRYPTO")
-    put("hapiTestSmartContractMATS", "SMART_CONTRACT")
-    put("hapiTestMiscMATS", miscTags)
-    put("hapiTestMiscRecordsMATS", miscTags)
+    put("hapiTestToken$matsSuffix", "TOKEN")
+    put("hapiTestCrypto$matsSuffix", "CRYPTO")
+    put("hapiTestSmartContract$matsSuffix", "SMART_CONTRACT")
+    put("hapiTestMisc$matsSuffix", "($miscTags)")
+    put("hapiTestMiscRecords$matsSuffix", "($miscTags)")
 
     // fix me (do we need these?)
-    put("hapiTestAdhocMATS", "ADHOC")
-    put("hapiTestNDReconnectMATS", "ND_RECONNECT")
-    put("hapiTestTimeConsumingMATS", "LONG_RUNNING")
-    put("hapiTestIssMATS", "ISS")
-    put("hapiTestBlockNodeCommunicationMATS", "BLOCK_NODE_SIMULATOR")
+    put("hapiTestAdhoc$matsSuffix", "ADHOC")
+    put("hapiTestNDReconnect$matsSuffix", "ND_RECONNECT")
+    put("hapiTestTimeConsuming$matsSuffix", "LONG_RUNNING")
+    put("hapiTestIss$matsSuffix", "ISS")
+    put("hapiTestBlockNodeCommunication$matsSuffix", "BLOCK_NODE_SIMULATOR")
 }
 
 tasks {
@@ -383,7 +383,7 @@ tasks.register<Test>("testEmbedded") {
             if (ciTagExpression.isBlank())
                 "none()|!(RESTART|ND_RECONNECT|UPGRADE|REPEATABLE|ONLY_SUBPROCESS|ISS)"
             else
-                "(${ciTagExpression}|STREAM_VALIDATION|LOG_VALIDATION)&!(INTEGRATION|ISS|ONLY_SUBPROCESS)"
+                "(${ciTagExpression}|STREAM_VALIDATION|LOG_VALIDATION)&!(INTEGRATION|ISS|ONLY_SUBPROCESS|REPEATABLE)"
         )
     }
 
@@ -406,22 +406,28 @@ tasks.register<Test>("testEmbedded") {
     systemProperty("hapi.spec.default.shard", 0)
     systemProperty("hapi.spec.default.realm", 0)
 
+    // Default quiet mode is "false" unless we are running in CI or set it explicitly to "true"
+    systemProperty(
+        "hapi.spec.quiet.mode",
+        System.getProperty("hapi.spec.quiet.mode")
+            ?: if (ciTagExpression.isNotBlank()) "true" else "false",
+    )
+
     // Limit heap and number of processors
     maxHeapSize = "8g"
     jvmArgs("-XX:ActiveProcessorCount=6")
     modularity.inferModulePath.set(false)
 }
 
-val prRepeatableCheckTags =
-    buildMap<String, String> {
-        put("hapiRepeatableMisc", "REPEATABLE")
+val prRepeatableCheckTags = buildMap {
+    put("hapiRepeatableMisc", "REPEATABLE")
 
-        // Copy vals to the MATS variants
-        val originalEntries = toMap() // Create a snapshot of current entries
-        originalEntries.forEach { (taskName: String, tags: String) ->
-            put("$taskName$matsSuffix", "($tags)&$matsSuffix")
-        }
+    // Copy vals to the MATS variants
+    val originalEntries = toMap() // Create a snapshot of current entries
+    originalEntries.forEach { (taskName: String, tags: String) ->
+        put("$taskName$matsSuffix", "($tags)&$matsSuffix")
     }
+}
 
 tasks {
     prRepeatableCheckTags.forEach { (taskName, _) ->
@@ -445,7 +451,7 @@ tasks.register<Test>("testRepeatable") {
     useJUnitPlatform {
         includeTags(
             if (ciTagExpression.isBlank())
-                "none()|!(RESTART|ND_RECONNECT|UPGRADE|EMBEDDED|NOT_REPEATABLE|ONLY_SUBPROCESS|ISS)"
+                "none()|!(RESTART|ND_RECONNECT|UPGRADE|ONLY_EMBEDDED|NOT_REPEATABLE|ONLY_SUBPROCESS|ISS)"
             else "(${ciTagExpression}|STREAM_VALIDATION|LOG_VALIDATION)&!(INTEGRATION|ISS)"
         )
     }
