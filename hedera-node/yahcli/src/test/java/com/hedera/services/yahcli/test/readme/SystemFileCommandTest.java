@@ -18,7 +18,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.google.protobuf.ByteString;
-import com.hedera.services.bdd.junit.HapiTest;
+import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.junit.OrderedInIsolation;
 import com.hedera.services.bdd.suites.utils.sysfiles.serdes.StandardSerdes;
 import com.hedera.services.bdd.suites.utils.sysfiles.serdes.SysFileSerde;
@@ -38,7 +38,7 @@ import org.junit.jupiter.api.Tag;
 public class SystemFileCommandTest {
 
     @Order(0)
-    @HapiTest
+    @LeakyHapiTest
     final Stream<DynamicTest> readmeSystemFileUpdateExample() {
         final var fileNum = Utils.rationalized("address-book");
         final SysFileSerde<String> serde = StandardSerdes.SYS_FILE_SERDES.get(fileNum);
@@ -98,7 +98,6 @@ public class SystemFileCommandTest {
         return Path.of(DEFAULT_WORKING_DIR.get(), TEST_NETWORK, "sysfiles", "addressBook.json");
     }
 
-    // add new entry in the address book
     private void editAddressBookContent() {
         try {
             final var addressBookContent = Files.readString(addressBookFilePath());
