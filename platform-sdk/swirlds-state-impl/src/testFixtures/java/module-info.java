@@ -5,7 +5,7 @@ open module com.swirlds.state.impl.test.fixtures {
     requires transitive com.swirlds.base;
     requires transitive com.swirlds.common;
     requires transitive com.swirlds.config.api;
-    requires transitive com.swirlds.merkle;
+
     requires transitive com.swirlds.metrics.api;
     requires transitive com.swirlds.state.api.test.fixtures;
     requires transitive com.swirlds.state.api;
@@ -16,6 +16,7 @@ open module com.swirlds.state.impl.test.fixtures {
     requires com.swirlds.common.test.fixtures;
     requires com.swirlds.fcqueue;
     requires com.swirlds.logging;
+    requires com.swirlds.merkle;
     requires com.swirlds.merkledb.test.fixtures;
     requires com.swirlds.merkledb;
     requires org.junit.jupiter.api;
