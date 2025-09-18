@@ -6,8 +6,8 @@ on:
     inputs:
       test-asset:
         required: true
-        default: "SDLT2"
-        description: "Longevity test on given Longevity Machine (AdHoc5,6,7, AdHocSD8,9, or SDLT2)"
+        default: "ADHOC5"
+        description: "Longevity test on given Longevity Machine (AdHoc5,6,7, AdHocSD8,9, or MDLT3,4)"
         type: string
       ref:
         required: true
@@ -184,7 +184,7 @@ jobs:
           set +e
           #trim RUN_HCN_VERSION
           echo "RUN_HCN_VERSION=$(echo ${{ inputs.ref }} | awk '{print $1}')" >> "${GITHUB_ENV}"
-          n="$(echo "${{ inputs.test-asset }}" | perl -ne 'print "$2\n" if /^(AdHocSD|AdHoc|SDPT|SDLT)(\d+)$/')"
+          n="$(echo "${{ inputs.test-asset }}" | perl -ne 'print "$2\n" if /^.*([^\d]])(\d+)$/')"
           echo "namespace=${NAMESPACE_PREFIX}${n}" >> "${GITHUB_ENV}"
           echo "namespace=${NAMESPACE_PREFIX}${n}" >> "${GITHUB_OUTPUT}"
           echo "namespace=${NAMESPACE_PREFIX}${n}" >> "${GITHUB_STEP_SUMMARY}"
@@ -266,7 +266,7 @@ jobs:
           cp "${{ github.workspace }}"/.github/workflows/support/citr/nlg-values.yaml nlg-values.yaml
 
           # Generate the init-containers-values7.yaml inline
-          cp "${{ github.workspace }}"/.github/workflows/support/citr/init-containers-values10.yaml init-containers-values10.yaml
+          cp "${{ github.workspace }}"/.github/workflows/support/citr/init-containers-values7.yaml init-containers-values7.yaml
 
           # Update Taskfile values
           sed -i -e "s@%HOME%@${HOME}@g" -e "s@%SOLO_NAMESPACE%@${{ steps.set-namespace.outputs.namespace }}@g" \
@@ -274,16 +274,16 @@ jobs:
 
           # Update Init Containers values
           NETWORK_ID="$(echo "${{ steps.set-namespace.outputs.namespace }}" | perl -pne '~s/^.*[^\d](\d+)$/$1/g')"
-          sed -i -e "s@%NETWORK_ID%@${NETWORK_ID}@g" init-containers-values10.yaml
+          sed -i -e "s@%NETWORK_ID%@${NETWORK_ID}@g" init-containers-values7.yaml
 
-          if [[ "${NAMESPACE_ALIAS}" =~ ^SDPT[0-9]+$ ]]; then
-            NETWORK_OWNER="single-day-perf-test"
+          if [[ "${NAMESPACE_ALIAS}" =~ ^MDLT[0-9]+$ ]]; then
+            NETWORK_OWNER="multi-day-longevity-test"
           elif [[ "${NAMESPACE_ALIAS}" =~ ^AdHocSD[0-9]+$ ]]; then
             NETWORK_OWNER="adhoc-single-day-test"
           else
             NETWORK_OWNER="adhoc-performance-test"
           fi
-          sed -i -e "s@%NETWORK_OWNER%@${NETWORK_OWNER}@g" init-containers-values10.yaml
+          sed -i -e "s@%NETWORK_OWNER%@${NETWORK_OWNER}@g" init-containers-values7.yaml
 
           # Generate the application.properties file inline
           cp "${{ github.workspace }}"/.github/workflows/support/citr/application.properties.txt application.properties
@@ -359,8 +359,8 @@ jobs:
 
           NETWORK_ID="$(echo "${{ steps.set-namespace.outputs.namespace }}" | perl -pne '~s/^.*[^\d](\d+)$/$1/g')"
           sed -i -e "s@%NETWORK_ID%@${NETWORK_ID}@g" nlg-values.yaml
-          if [[ "${NAMESPACE_ALIAS}" =~ ^SDPT[0-9]+$ ]]; then
-            NETWORK_OWNER="single-day-perf-test"
+          if [[ "${NAMESPACE_ALIAS}" =~ ^MDLT[0-9]+$ ]]; then
+            NETWORK_OWNER="multi-day-longevity-test"
           elif [[ "${NAMESPACE_ALIAS}" =~ ^AdHocSD[0-9]+$ ]]; then
             NETWORK_OWNER="adhoc-single-day-test"
           else

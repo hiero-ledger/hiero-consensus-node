@@ -7,10 +7,10 @@ includes:
 vars:
   solo_home_override_dir: "%HOME%/.solo"
 env:
-  SOLO_NETWORK_SIZE: 10
+  SOLO_NETWORK_SIZE: 7
   SOLO_NAMESPACE: %SOLO_NAMESPACE%
   CONSENSUS_NODE_VERSION: v0.59.0
-  VALUES_FLAG: "--values-file {{.USER_WORKING_DIR}}/init-containers-values10.yaml"
+  VALUES_FLAG: "--values-file {{.USER_WORKING_DIR}}/init-containers-values7.yaml"
   SETTINGS_FLAG: "--settings-txt {{.USER_WORKING_DIR}}/settings.txt"
   SOLO_HOME: "{{.solo_home_override_dir}}"
   LOG4J2_FLAG: "--log4j2-xml {{.USER_WORKING_DIR}}/log4j2.xml"
