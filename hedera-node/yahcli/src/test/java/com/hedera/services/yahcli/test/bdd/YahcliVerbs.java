@@ -97,17 +97,6 @@ public class YahcliVerbs {
     }
 
     /**
-     * Returns an operation that invokes a yahcli {@code freeze-upgrade} subcommand with the given args,
-     *
-     * @param args the arguments to pass to the freeze-upgrade subcommand
-     * @return the operation that will execute the freeze-upgrade subcommand
-     */
-    public static YahcliCallOperation yahcliFreezeUpgrade(@NonNull final String... args) {
-        requireNonNull(args);
-        return new YahcliCallOperation(prepend(args, "freeze-upgrade"));
-    }
-
-    /**
      * Returns an operation that invokes a yahcli {@code freeze-abort} subcommand with the given args,
      *
      * @param args the arguments to pass to the freeze-abort subcommand
