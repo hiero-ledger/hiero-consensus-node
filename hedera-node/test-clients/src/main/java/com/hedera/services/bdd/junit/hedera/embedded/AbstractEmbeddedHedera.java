@@ -199,6 +199,14 @@ public abstract class AbstractEmbeddedHedera implements EmbeddedHedera {
     }
 
     @Override
+    public void closeStreams() {
+        // close the block and record stream
+        // FUTURE set last freeze round in the state, and use the actual round number
+        hedera.blockStreamManager().endRound(state, 0); // fakePlatform().lastRoundNo());
+        hedera.blockRecordManager().close();
+    }
+
+    @Override
     public FakeState state() {
         return state;
     }

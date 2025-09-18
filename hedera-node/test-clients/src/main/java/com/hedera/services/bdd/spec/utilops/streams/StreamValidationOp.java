@@ -9,8 +9,8 @@ import static com.hedera.services.bdd.junit.support.StreamFileAccess.STREAM_FILE
 import static com.hedera.services.bdd.spec.TargetNetworkType.SUBPROCESS_NETWORK;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.freezeOnly;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.noOp;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitForFrozenNetwork;
@@ -142,7 +142,9 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
         allRunFor(
                 spec,
                 freezeOnly().payingWith(GENESIS).startingIn(2).seconds(),
-                spec.targetNetworkType() == SUBPROCESS_NETWORK ? waitForFrozenNetwork(FREEZE_TIMEOUT) : noOp(),
+                spec.targetNetworkType() == SUBPROCESS_NETWORK
+                        ? waitForFrozenNetwork(FREEZE_TIMEOUT)
+                        : doingContextual(s -> spec.embeddedHederaOrThrow().closeStreams()),
                 // Wait for the final stream files to be created
                 sleepFor(STREAM_FILE_WAIT.toMillis()));
         readMaybeBlockStreamsFor(spec)

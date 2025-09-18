@@ -39,6 +39,8 @@ public interface EmbeddedHedera {
      */
     void stop();
 
+    void closeStreams();
+
     /**
      * Returns the fake state of the embedded Hedera node.
      * @return the fake state of the embedded Hedera node
