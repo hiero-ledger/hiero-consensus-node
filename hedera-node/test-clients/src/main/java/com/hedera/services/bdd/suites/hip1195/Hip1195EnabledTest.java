@@ -6,6 +6,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnUtils.lambdaAccountAl
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractUpdate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoUpdate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.viewAccount;
@@ -26,6 +27,7 @@ import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.dsl.annotations.Contract;
 import com.hedera.services.bdd.spec.dsl.entities.SpecContract;
+import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Map;
 import java.util.stream.Stream;
@@ -81,7 +83,14 @@ public class Hip1195EnabledTest {
                     assertEquals(5, account.numberHooksInUse());
                 }),
                 // $1 for each hook and $0.00022 for the update itself
-                validateChargedUsd("updateTxn", 4.00022));
+                validateChargedUsd("updateTxn", 4.00022),
+                cryptoTransfer(TokenMovement.movingHbar(10).between("payer", "testAccount"))
+                        .withPreHookFor("payer", 125L, 25_000L, "")
+                        .withPrePostHookFor("testAccount", 128L, 25_000L, "")
+                        .payingWith("payer")
+                        .via("xferTxn"),
+                // $0.0001 for the hooks, $0.05 for the hook invocation
+                validateChargedUsd("xferTxn", 0.0001 + 0.1));
     }
 
     @HapiTest

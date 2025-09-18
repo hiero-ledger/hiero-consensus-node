@@ -8,6 +8,7 @@ import static java.util.stream.Collectors.toList;
 
 import com.google.protobuf.ByteString;
 import com.google.protobuf.UInt32Value;
+import com.hedera.hapi.node.base.TransferList;
 import com.hedera.node.app.hapi.fees.usage.BaseTransactionMeta;
 import com.hedera.node.app.hapi.fees.usage.crypto.CryptoTransferMeta;
 import com.hedera.node.app.hapi.fees.usage.state.UsageAccumulator;
@@ -17,6 +18,7 @@ import com.hedera.services.bdd.spec.fees.AdapterUtils;
 import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
 import com.hederahashgraph.api.proto.java.AccountAmount;
 import com.hederahashgraph.api.proto.java.AccountID;
+import com.hederahashgraph.api.proto.java.CryptoTransferTransactionBody;
 import com.hederahashgraph.api.proto.java.FeeData;
 import com.hederahashgraph.api.proto.java.NftTransfer;
 import com.hederahashgraph.api.proto.java.TokenID;
@@ -210,6 +212,8 @@ public abstract class HapiBaseTransfer<T extends HapiTxnOp<T>> extends HapiTxnOp
             numTokenTransfers += tokenTransfers.getTransfersCount();
             numNftOwnershipChanges += tokenTransfers.getNftTransfersCount();
         }
+
+        final var numHookInvocations = countNumHookInvocations(op);
         final var xferUsageMeta =
                 new CryptoTransferMeta(multiplier, numTokensInvolved, numTokenTransfers, numNftOwnershipChanges);
 
@@ -218,5 +222,36 @@ public abstract class HapiBaseTransfer<T extends HapiTxnOp<T>> extends HapiTxnOp
 
         final var feeData = AdapterUtils.feeDataFrom(accumulator);
         return feeData.toBuilder().setSubType(xferUsageMeta.getSubType()).build();
+    }
+
+    private static int countNumHookInvocations(final CryptoTransferTransactionBody op) {
+        long count = 0L;
+        for (final var aa : op.getTransfers().getAccountAmountsList()) {
+            if (hasAnyAllowanceHook(aa)) {
+                count++;
+            }
+        }
+        for (final var ttl : op.tokenTransfers()) {
+            for (final var aa : ttl.transfers()) {
+                if (hasAnyAllowanceHook(aa)) {
+                    count++;
+                }
+            }
+            for (final var nft : ttl.nftTransfers()) {
+                count += countNftAllowanceHooks(nft);
+            }
+        }
+        return Math.toIntExact(count);
+    }
+
+    private static boolean hasAnyAllowanceHook(final com.hedera.hapi.node.base.AccountAmount aa) {
+        return aa.hasPreTxAllowanceHook() || aa.hasPrePostTxAllowanceHook();
+    }
+
+    private static int countNftAllowanceHooks(final com.hedera.hapi.node.base.NftTransfer nft) {
+        int count = 0;
+        if (nft.hasPreTxSenderAllowanceHook() || nft.hasPrePostTxSenderAllowanceHook()) count++;
+        if (nft.hasPreTxReceiverAllowanceHook() || nft.hasPrePostTxReceiverAllowanceHook()) count++;
+        return count;
     }
 }

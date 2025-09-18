@@ -259,6 +259,7 @@ public class CryptoTransferHandler extends TransferExecutor implements Transacti
                 + TOKEN_ENTITY_SIZES.bytesUsedToRecordTokenTransfers(
                         weightedTokensInvolved, weightedTokenXfers, numNftOwnershipChanges);
 
+        final var numHookInvocations = countNumHookInvocations(op);
         /* Get subType based on the above information */
         final var subType = getSubType(
                 numNftOwnershipChanges,
@@ -271,7 +272,39 @@ public class CryptoTransferHandler extends TransferExecutor implements Transacti
                 .feeCalculator(subType)
                 .addBytesPerTransaction(bpt)
                 .addRamByteSeconds(rbs * USAGE_PROPERTIES.legacyReceiptStorageSecs())
+                .addStorageBytesSeconds(numHookInvocations * 3600L)
                 .calculate();
+    }
+
+    private int countNumHookInvocations(final CryptoTransferTransactionBody op) {
+        long count = 0L;
+        for (final var aa : op.transfersOrElse(TransferList.DEFAULT).accountAmounts()) {
+            if (hasAnyAllowanceHook(aa)) {
+                count++;
+            }
+        }
+        for (final var ttl : op.tokenTransfers()) {
+            for (final var aa : ttl.transfers()) {
+                if (hasAnyAllowanceHook(aa)) {
+                    count++;
+                }
+            }
+            for (final var nft : ttl.nftTransfers()) {
+                count += countNftAllowanceHooks(nft);
+            }
+        }
+        return Math.toIntExact(count);
+    }
+
+    private boolean hasAnyAllowanceHook(final AccountAmount aa) {
+        return aa.hasPreTxAllowanceHook() || aa.hasPrePostTxAllowanceHook();
+    }
+
+    private int countNftAllowanceHooks(final NftTransfer nft) {
+        int count = 0;
+        if (nft.hasPreTxSenderAllowanceHook() || nft.hasPrePostTxSenderAllowanceHook()) count++;
+        if (nft.hasPreTxReceiverAllowanceHook() || nft.hasPrePostTxReceiverAllowanceHook()) count++;
+        return count;
     }
 
     /**
