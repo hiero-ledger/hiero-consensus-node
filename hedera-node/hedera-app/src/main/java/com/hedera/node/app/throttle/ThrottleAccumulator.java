@@ -515,13 +515,6 @@ public class ThrottleAccumulator {
                         throw new HandleException(ResponseCodeEnum.INVALID_TOKEN_ID);
                     }
                 }
-                case CRYPTO_TRANSFER -> {
-                    final var cryptoTransfer = txnBody.cryptoTransferOrThrow();
-                    if (cryptoTransfer.transfers() == null
-                            && cryptoTransfer.tokenTransfers().isEmpty()) {
-                        throw new HandleException(ResponseCodeEnum.EMPTY_TRANSACTION_BODY);
-                    }
-                }
                 case ETHEREUM_TRANSACTION -> {
                     final var ethTxn = txnBody.ethereumTransactionOrThrow();
                     if (ethTxn.ethereumData() == null || ethTxn.ethereumData().length() == 0) {
