@@ -48,7 +48,7 @@ import org.junit.jupiter.api.Order;
 @HapiTestLifecycle
 public class AtomicBatchTokenAirdropTest {
 
-    private static final String DEFAULT_BATCH_OPERATOR = "batchOperator";
+    private static final String DEFAULT_BATCH_OPERATOR = "batchTokenAirdropOperator";
 
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {

@@ -78,6 +78,12 @@ val prCheckTags = buildMap {
     put("hapiTestBlockNodeCommunication", "BLOCK_NODE_SIMULATOR")
     put("hapiTestMisc", miscTags)
     put("hapiTestMiscRecords", miscTags)
+
+    // Copy vals to the MATS variants
+    val originalEntries = toMap() // Create a snapshot of current entries
+    originalEntries.forEach { (taskName: String, tags: String) ->
+        put("$taskName$matsSuffix", "($tags)&$matsSuffix")
+    }
 }
 val remoteCheckTags =
     prCheckTags
@@ -345,19 +351,20 @@ tasks.register<Test>("testRemote") {
 }
 
 val prEmbeddedCheckTags = buildMap {
+    val embeddedSuffix = "Embedded"
     put("hapiEmbeddedMisc", "EMBEDDED")
-    put("hapiTestToken$matsSuffix", "TOKEN")
-    put("hapiTestCrypto$matsSuffix", "CRYPTO")
-    put("hapiTestSmartContract$matsSuffix", "SMART_CONTRACT")
-    put("hapiTestMisc$matsSuffix", "($miscTags)")
-    put("hapiTestMiscRecords$matsSuffix", "($miscTags)")
+    put("hapiTestToken$embeddedSuffix", "TOKEN")
+    put("hapiTestCrypto$embeddedSuffix", "CRYPTO")
+    put("hapiTestSmartContract$embeddedSuffix", "SMART_CONTRACT")
+    put("hapiTestMisc$embeddedSuffix", "($miscTags)")
+    put("hapiTestMiscRecords$embeddedSuffix", "($miscTags)")
 
     // fix me (do we need these?)
-    put("hapiTestAdhoc$matsSuffix", "ADHOC")
-    put("hapiTestNDReconnect$matsSuffix", "ND_RECONNECT")
-    put("hapiTestTimeConsuming$matsSuffix", "LONG_RUNNING")
-    put("hapiTestIss$matsSuffix", "ISS")
-    put("hapiTestBlockNodeCommunication$matsSuffix", "BLOCK_NODE_SIMULATOR")
+    put("hapiTestAdhoc$embeddedSuffix", "ADHOC")
+    put("hapiTestNDReconnect$embeddedSuffix", "ND_RECONNECT")
+    put("hapiTestTimeConsuming$embeddedSuffix", "LONG_RUNNING")
+    put("hapiTestIss$embeddedSuffix", "ISS")
+    put("hapiTestBlockNodeCommunication$embeddedSuffix", "BLOCK_NODE_SIMULATOR")
 }
 
 tasks {
@@ -384,9 +391,9 @@ tasks.register<Test>("testEmbedded") {
     useJUnitPlatform {
         includeTags(
             if (ciTagExpression.isBlank())
-                "none()|!(RESTART|ND_RECONNECT|UPGRADE|REPEATABLE|ONLY_SUBPROCESS|ISS)"
+                "none()|!(RESTART|ND_RECONNECT|UPGRADE|REPEATABLE|ONLY_SUBPROCESS|ISS|MATS)"
             else
-                "(${ciTagExpression}|STREAM_VALIDATION|LOG_VALIDATION)&!(INTEGRATION|ISS|ONLY_SUBPROCESS|REPEATABLE)"
+                "(${ciTagExpression}|STREAM_VALIDATION|LOG_VALIDATION)&!(INTEGRATION|ISS|ONLY_SUBPROCESS|REPEATABLE|MATS)"
         )
     }
 
