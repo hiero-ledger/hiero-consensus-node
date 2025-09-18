@@ -353,11 +353,11 @@ tasks.register<Test>("testRemote") {
 val prEmbeddedCheckTags = buildMap {
     val embeddedSuffix = "Embedded"
     put("hapiEmbeddedMisc", "EMBEDDED")
-    put("hapiTestToken$embeddedSuffix", "TOKEN")
-    put("hapiTestCrypto$embeddedSuffix", "CRYPTO")
-    put("hapiTestSmartContract$embeddedSuffix", "SMART_CONTRACT")
-    put("hapiTestMisc$embeddedSuffix", "($miscTags)")
-    put("hapiTestMiscRecords$embeddedSuffix", "($miscTags)")
+    put("hapiEmbeddedMiscMATS", "EMBEDDED")
+    put("hapiEmbeddedToken", "TOKEN")
+    put("hapiEmbeddedCrypto$embeddedSuffix", "CRYPTO")
+    put("hapiEmbeddedSmartContract$embeddedSuffix", "SMART_CONTRACT")
+    put("hapiEmbeddedMiscRecords$embeddedSuffix", "($miscTags)")
 
     // fix me (do we need these?)
     put("hapiTestAdhoc$embeddedSuffix", "ADHOC")
