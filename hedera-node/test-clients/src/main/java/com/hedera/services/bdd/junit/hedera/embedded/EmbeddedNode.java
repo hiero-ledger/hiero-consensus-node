@@ -11,8 +11,6 @@ import static com.hedera.services.bdd.junit.hedera.ExternalPath.RECORD_STREAMS_D
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.UPGRADE_ARTIFACTS_DIR;
 import static com.hedera.services.bdd.junit.hedera.embedded.EmbeddedNetwork.CONCURRENT_WORKING_DIR;
 import static com.hedera.services.bdd.junit.hedera.embedded.EmbeddedNetwork.REPEATABLE_WORKING_DIR;
-import static com.hedera.services.bdd.junit.hedera.subprocess.ConditionStatus.REACHED;
-import static com.hedera.services.bdd.junit.hedera.subprocess.ProcessUtils.conditionFuture;
 import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.ensureDir;
 import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.updateUpgradeArtifactsProperty;
 
@@ -97,17 +95,17 @@ public class EmbeddedNode extends AbstractLocalNode<EmbeddedNode> implements Hed
     @Override
     public CompletableFuture<Void> statusFuture(
             @Nullable final Consumer<NodeStatus> nodeStatusObserver, @NonNull final PlatformStatus... statuses) {
-        return conditionFuture(() -> REACHED, () -> 1000L);
+        throw new UnsupportedOperationException("Prefer awaiting status of the embedded network");
     }
 
     @Override
     public CompletableFuture<Void> minLogsFuture(@NonNull final String pattern, final int n) {
-        return CompletableFuture.completedFuture(null);
+        throw new UnsupportedOperationException("Logs not reliably written in an embedded network");
     }
 
     @Override
     public CompletableFuture<Void> stopFuture() {
-        return CompletableFuture.completedFuture(null);
+        throw new UnsupportedOperationException("Cannot stop a single node in an embedded network");
     }
 
     @Override

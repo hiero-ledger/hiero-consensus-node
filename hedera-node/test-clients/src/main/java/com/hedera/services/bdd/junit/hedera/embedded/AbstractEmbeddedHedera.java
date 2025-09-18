@@ -154,7 +154,6 @@ public abstract class AbstractEmbeddedHedera implements EmbeddedHedera {
                 metricsConfig);
         state = new FakeState();
         rebuildHedera();
-        hedera.withListeners(state);
         Runtime.getRuntime().addShutdownHook(new Thread(executorService::shutdownNow));
     }
 
@@ -196,14 +195,6 @@ public abstract class AbstractEmbeddedHedera implements EmbeddedHedera {
         fakePlatform().notifyListeners(FREEZE_COMPLETE_NOTIFICATION);
         hedera.newPlatformStatus(FREEZE_COMPLETE_NOTIFICATION.getNewStatus());
         executorService.shutdownNow();
-    }
-
-    @Override
-    public void closeStreams() {
-        // close the block and record stream
-        // FUTURE set last freeze round in the state, and use the actual round number
-        hedera.blockStreamManager().endRound(state, 0); // fakePlatform().lastRoundNo());
-        hedera.blockRecordManager().close();
     }
 
     @Override
