@@ -1800,59 +1800,6 @@ class ThrottleAccumulatorTest {
         verify(throttleMetrics).updateAllMetrics();
     }
 
-    @Test
-    void throttlesScheduleCreateWithMissingScheduledTransactionBody() throws IOException, ParseException {
-        // given
-        subject = new ThrottleAccumulator(
-                () -> CAPACITY_SPLIT,
-                configProvider::getConfiguration,
-                FRONTEND_THROTTLE,
-                throttleMetrics,
-                gasThrottle,
-                bytesThrottle,
-                opsDurationThrottle);
-
-        given(configProvider.getConfiguration()).willReturn(configuration);
-        given(configuration.getConfigData(AccountsConfig.class)).willReturn(accountsConfig);
-        given(accountsConfig.lastThrottleExempt()).willReturn(100L);
-        given(configuration.getConfigData(ContractsConfig.class)).willReturn(contractsConfig);
-        given(contractsConfig.throttleThrottleByGas()).willReturn(false);
-        given(configuration.getConfigData(JumboTransactionsConfig.class)).willReturn(jumboTransactionsConfig);
-        given(jumboTransactionsConfig.isEnabled()).willReturn(false);
-
-        final var defs = getThrottleDefs("bootstrap/schedule-create-throttles.json");
-        subject.rebuildFor(defs);
-
-        // Create a ScheduleCreateTransactionBody without scheduledTransactionBody
-        final var scheduleCreateWithoutBody =
-                ScheduleCreateTransactionBody.newBuilder().waitForExpiry(false).build();
-
-        final var body = TransactionBody.newBuilder()
-                .transactionID(TransactionID.newBuilder().accountID(PAYER_ID).build())
-                .scheduleCreate(scheduleCreateWithoutBody)
-                .build();
-
-        final var signedTx = SignedTransaction.newBuilder()
-                .bodyBytes(TransactionBody.PROTOBUF.toBytes(body))
-                .build();
-
-        final var txnInfo = new TransactionInfo(
-                signedTx,
-                body,
-                TransactionID.newBuilder().accountID(PAYER_ID).build(),
-                PAYER_ID,
-                SignatureMap.DEFAULT,
-                Bytes.EMPTY,
-                SCHEDULE_CREATE,
-                null);
-
-        // when
-        final var shouldThrottle = subject.checkAndEnforceThrottle(txnInfo, TIME_INSTANT, state, null);
-
-        // then
-        assertTrue(shouldThrottle, "ScheduleCreate with missing scheduledTransactionBody should be throttled");
-    }
-
     @NonNull
     private static Bytes keyToBytes(Key key) throws IOException, ParseException {
         final var dataBuffer = getThreadLocalDataBuffer();
@@ -1977,48 +1924,5 @@ class ThrottleAccumulatorTest {
         final var txn =
                 TransactionBody.newBuilder().cryptoTransfer(cryptoTransferBody).build();
         given(transactionInfo.txBody()).willReturn(txn);
-    }
-
-    @Test
-    void scheduleCreateWithMissingScheduledTransactionBodyIsThrottled() throws IOException, ParseException {
-        // given
-        final var config = HederaTestConfigBuilder.create().getOrCreateConfig();
-        given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1));
-        subject = new ThrottleAccumulator(
-                () -> CAPACITY_SPLIT,
-                configProvider::getConfiguration,
-                FRONTEND_THROTTLE,
-                throttleMetrics,
-                gasThrottle,
-                bytesThrottle,
-                opsDurationThrottle);
-        final var defs = getThrottleDefs("bootstrap/throttles.json");
-        subject.rebuildFor(defs);
-
-        // Create ScheduleCreateTransactionBody without scheduledTransactionBody
-        final var scheduleCreateBody =
-                ScheduleCreateTransactionBody.newBuilder().memo("test schedule").build();
-
-        final var txnBody =
-                TransactionBody.newBuilder().scheduleCreate(scheduleCreateBody).build();
-
-        final var signedTx = SignedTransaction.newBuilder()
-                .bodyBytes(TransactionBody.PROTOBUF.toBytes(txnBody))
-                .build();
-        final var txnInfo = new TransactionInfo(
-                signedTx,
-                txnBody,
-                TransactionID.newBuilder().accountID(PAYER_ID).build(),
-                PAYER_ID,
-                SignatureMap.DEFAULT,
-                Bytes.EMPTY,
-                SCHEDULE_CREATE,
-                null);
-
-        // when
-        final boolean result = subject.checkAndEnforceThrottle(txnInfo, TIME_INSTANT, state, null);
-
-        // then
-        assertTrue(result, "ScheduleCreate with missing scheduledTransactionBody should be throttled");
     }
 }

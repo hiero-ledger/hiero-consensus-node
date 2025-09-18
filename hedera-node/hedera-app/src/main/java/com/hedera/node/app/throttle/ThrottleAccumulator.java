@@ -277,12 +277,14 @@ public class ThrottleAccumulator {
     }
 
     private int getAssociationCount(@NonNull final Query query, @NonNull final ReadableAccountStore accountStore) {
-        if (!query.hasCryptogetAccountBalance()) {
-            return 0;
-        }
         final var accountID = query.cryptogetAccountBalanceOrThrow().accountID();
-        final var account = accountID != null ? accountStore.getAccountById(accountID) : null;
-        return account != null ? account.numberAssociations() : 0;
+        if (accountID != null) {
+            final var account = accountStore.getAccountById(accountID);
+            if (account != null) {
+                return account.numberAssociations();
+            }
+        }
+        return 0;
     }
 
     /**
@@ -411,88 +413,75 @@ public class ThrottleAccumulator {
             @NonNull final Instant now,
             @NonNull final State state,
             List<ThrottleUsage> throttleUsages) {
-        try {
-            final var function = txnInfo.functionality();
-            final var configuration = configSupplier.get();
-            final boolean isJumboTransactionsEnabled =
-                    configuration.getConfigData(JumboTransactionsConfig.class).isEnabled();
+        final var function = txnInfo.functionality();
+        final var configuration = configSupplier.get();
+        final boolean isJumboTransactionsEnabled =
+                configuration.getConfigData(JumboTransactionsConfig.class).isEnabled();
 
-            // Note that by payer exempt from throttling we mean just that those transactions will not be throttled,
-            // such payer accounts neither impact the throttles nor are they impacted by them
-            // In the current mono-service implementation we have the same behavior, additionally it is
-            // possible that transaction can also be exempt from affecting congestion levels separate from throttle
-            // exemption
-            // but this is only possible for the case of triggered transactions which is not yet implemented (see
-            // MonoMultiplierSources.java)
-            final boolean isPayerThrottleExempt = throttleExempt(txnInfo.payerID(), configuration);
-            if (isPayerThrottleExempt) {
-                return false;
-            }
+        // Note that by payer exempt from throttling we mean just that those transactions will not be throttled,
+        // such payer accounts neither impact the throttles nor are they impacted by them
+        // In the current mono-service implementation we have the same behavior, additionally it is
+        // possible that transaction can also be exempt from affecting congestion levels separate from throttle
+        // exemption
+        // but this is only possible for the case of triggered transactions which is not yet implemented (see
+        // MonoMultiplierSources.java)
+        final boolean isPayerThrottleExempt = throttleExempt(txnInfo.payerID(), configuration);
+        if (isPayerThrottleExempt) {
+            return false;
+        }
 
-            if (isGasExhausted(txnInfo, now, configuration, throttleUsages)) {
-                lastTxnWasGasThrottled = true;
-                return true;
-            }
-
-            if (isJumboTransactionsEnabled) {
-                final var allowedHederaFunctionalities = configuration
-                        .getConfigData(JumboTransactionsConfig.class)
-                        .allowedHederaFunctionalities();
-                if (allowedHederaFunctionalities.contains(fromPbj(txnInfo.functionality()))) {
-                    final var bytesUsage = txnInfo.signedTx().protobufSize();
-                    final var maxRegularTxnSize =
-                            configuration.getConfigData(HederaConfig.class).transactionMaxBytes();
-
-                    final var excessBytes = bytesUsage > maxRegularTxnSize ? bytesUsage - maxRegularTxnSize : 0;
-                    if (shouldThrottleBasedExcessBytes(excessBytes, now, throttleUsages)) {
-                        return true;
-                    }
-                }
-            }
-
-            final var manager = functionReqs.get(function);
-            if (manager == null) {
-                return true;
-            }
-
-            return switch (function) {
-                case SCHEDULE_CREATE -> {
-                    if (isScheduled) {
-                        throw new IllegalStateException("ScheduleCreate cannot be a child!");
-                    }
-                    yield shouldThrottleScheduleCreate(manager, txnInfo, now, state, throttleUsages);
-                }
-                case TOKEN_MINT ->
-                    shouldThrottleMint(manager, txnInfo.txBody().tokenMint(), now, configuration, throttleUsages);
-                case CRYPTO_TRANSFER -> {
-                    final var accountStore = new ReadableStoreFactory(state).getStore(ReadableAccountStore.class);
-                    final var relationStore =
-                            new ReadableStoreFactory(state).getStore(ReadableTokenRelationStore.class);
-                    yield shouldThrottleCryptoTransfer(
-                            manager,
-                            now,
-                            configuration,
-                            getImplicitCreationsCount(txnInfo.txBody(), accountStore),
-                            getAutoAssociationsCount(txnInfo.txBody(), relationStore),
-                            throttleUsages);
-                }
-                case ETHEREUM_TRANSACTION -> {
-                    final var accountStore = new ReadableStoreFactory(state).getStore(ReadableAccountStore.class);
-                    yield shouldThrottleEthTxn(
-                            manager, now, getImplicitCreationsCount(txnInfo.txBody(), accountStore), throttleUsages);
-                }
-                default -> !manager.allReqsMetAt(now, throttleUsages);
-            };
-        } catch (Exception ex) {
-            log.error(
-                    "Error in throttle evaluation for transaction "
-                            + "functionality: {}, payer: {}, transactionId: {}, throttling transaction",
-                    txnInfo.functionality(),
-                    txnInfo.payerID(),
-                    txnInfo.transactionID(),
-                    ex);
+        if (isGasExhausted(txnInfo, now, configuration, throttleUsages)) {
+            lastTxnWasGasThrottled = true;
             return true;
         }
+
+        if (isJumboTransactionsEnabled) {
+            final var allowedHederaFunctionalities =
+                    configuration.getConfigData(JumboTransactionsConfig.class).allowedHederaFunctionalities();
+            if (allowedHederaFunctionalities.contains(fromPbj(txnInfo.functionality()))) {
+                final var bytesUsage = txnInfo.signedTx().protobufSize();
+                final var maxRegularTxnSize =
+                        configuration.getConfigData(HederaConfig.class).transactionMaxBytes();
+
+                final var excessBytes = bytesUsage > maxRegularTxnSize ? bytesUsage - maxRegularTxnSize : 0;
+                if (shouldThrottleBasedExcessBytes(excessBytes, now, throttleUsages)) {
+                    return true;
+                }
+            }
+        }
+
+        final var manager = functionReqs.get(function);
+        if (manager == null) {
+            return true;
+        }
+
+        return switch (function) {
+            case SCHEDULE_CREATE -> {
+                if (isScheduled) {
+                    throw new IllegalStateException("ScheduleCreate cannot be a child!");
+                }
+                yield shouldThrottleScheduleCreate(manager, txnInfo, now, state, throttleUsages);
+            }
+            case TOKEN_MINT ->
+                shouldThrottleMint(manager, txnInfo.txBody().tokenMint(), now, configuration, throttleUsages);
+            case CRYPTO_TRANSFER -> {
+                final var accountStore = new ReadableStoreFactory(state).getStore(ReadableAccountStore.class);
+                final var relationStore = new ReadableStoreFactory(state).getStore(ReadableTokenRelationStore.class);
+                yield shouldThrottleCryptoTransfer(
+                        manager,
+                        now,
+                        configuration,
+                        getImplicitCreationsCount(txnInfo.txBody(), accountStore),
+                        getAutoAssociationsCount(txnInfo.txBody(), relationStore),
+                        throttleUsages);
+            }
+            case ETHEREUM_TRANSACTION -> {
+                final var accountStore = new ReadableStoreFactory(state).getStore(ReadableAccountStore.class);
+                yield shouldThrottleEthTxn(
+                        manager, now, getImplicitCreationsCount(txnInfo.txBody(), accountStore), throttleUsages);
+            }
+            default -> !manager.allReqsMetAt(now, throttleUsages);
+        };
     }
 
     private boolean shouldThrottleScheduleCreate(
@@ -503,14 +492,6 @@ public class ThrottleAccumulator {
             List<ThrottleUsage> throttleUsages) {
         final var txnBody = txnInfo.txBody();
         final var op = txnBody.scheduleCreateOrThrow();
-        if (!op.hasScheduledTransactionBody()) {
-            log.warn(
-                    "ScheduleCreate transaction missing "
-                            + "scheduledTransactionBody, throttling - payer: {}, transactionId: {}",
-                    txnInfo.payerID(),
-                    txnInfo.transactionID());
-            return true;
-        }
         final var scheduled = op.scheduledTransactionBodyOrThrow();
         final var schedule = Schedule.newBuilder()
                 .originalCreateTransaction(txnBody)
@@ -531,14 +512,6 @@ public class ThrottleAccumulator {
         final var schedulingConfig = config.getConfigData(SchedulingConfig.class);
         if (!schedulingConfig.longTermEnabled()) {
             if (scheduledFunction == CRYPTO_TRANSFER) {
-                if (!scheduled.hasCryptoTransfer()) {
-                    log.warn(
-                            "ScheduleCreate with CRYPTO_TRANSFER function missing cryptoTransfer body, "
-                                    + "throttling - payer: {}, transactionId: {}",
-                            txnInfo.payerID(),
-                            txnInfo.transactionID());
-                    return true;
-                }
                 final var transfer = scheduled.cryptoTransferOrThrow();
                 if (usesAliases(transfer)) {
                     final var accountStore = new ReadableStoreFactory(state).getStore(ReadableAccountStore.class);
