@@ -9,6 +9,7 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.config.extensions.export.ConfigExport;
 import com.swirlds.config.extensions.sources.LegacyFileConfigSource;
+import com.swirlds.merkledb.MerkleDbDataSourceBuilder;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
 import java.io.IOException;
@@ -119,6 +120,8 @@ public abstract class BaseBench {
                     new ClassConstructorPair(BenchmarkMerkleInternal.class, BenchmarkMerkleInternal::new));
             registry.registerConstructable(new ClassConstructorPair(BenchmarkKey.class, BenchmarkKey::new));
             registry.registerConstructable(new ClassConstructorPair(BenchmarkValue.class, BenchmarkValue::new));
+            registry.registerConstructable(new ClassConstructorPair(
+                    MerkleDbDataSourceBuilder.class, () -> new MerkleDbDataSourceBuilder(configuration)));
         } catch (ConstructableRegistryException ex) {
             logger.error("Failed to construct registry", ex);
         }
