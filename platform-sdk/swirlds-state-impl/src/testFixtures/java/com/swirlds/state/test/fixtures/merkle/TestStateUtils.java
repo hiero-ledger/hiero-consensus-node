@@ -7,7 +7,6 @@ import com.swirlds.state.test.fixtures.merkle.disk.OnDiskKeySerializer;
 import com.swirlds.state.test.fixtures.merkle.disk.OnDiskValue;
 import com.swirlds.state.test.fixtures.merkle.disk.OnDiskValueSerializer;
 import com.swirlds.state.test.fixtures.merkle.memory.InMemoryValue;
-import com.swirlds.state.test.fixtures.merkle.memory.InMemoryWritableKVState;
 import com.swirlds.state.test.fixtures.merkle.queue.QueueNode;
 import com.swirlds.state.test.fixtures.merkle.singleton.SingletonNode;
 import com.swirlds.state.test.fixtures.merkle.singleton.StringLeaf;
@@ -24,9 +23,7 @@ public class TestStateUtils {
      * will only be used for in-memory states, it is safe to register for on-disk ones as well.
      *
      * <p>The implementation will take the service name and the state key and compute a hash for it.
-     * It will then convert the hash to a long, and use that as the class ID. It will then register
-     * an {@link InMemoryWritableKVState}'s value merkle type to be deserialized, answering with the
-     * generated class ID.
+     *
      *
      * @deprecated Registrations should be removed when there are no longer any objects of the relevant class.
      * Once all registrations have been removed, this method itself should be deleted.
@@ -81,7 +78,6 @@ public class TestStateUtils {
                     SingletonNode.class,
                     () -> new SingletonNode<>(
                             md.serviceName(),
-                            md.stateDefinition().stateKey(),
                             md.singletonClassId(),
                             md.stateDefinition().valueCodec(),
                             null)));
@@ -89,7 +85,6 @@ public class TestStateUtils {
                     QueueNode.class,
                     () -> new QueueNode<>(
                             md.serviceName(),
-                            md.stateDefinition().stateKey(),
                             md.queueNodeClassId(),
                             md.singletonClassId(),
                             md.stateDefinition().valueCodec())));

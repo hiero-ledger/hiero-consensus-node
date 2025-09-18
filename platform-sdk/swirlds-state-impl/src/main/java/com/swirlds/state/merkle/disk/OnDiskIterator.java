@@ -3,6 +3,7 @@ package com.swirlds.state.merkle.disk;
 
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.merkle.MerkleNode;
@@ -27,7 +28,7 @@ public class OnDiskIterator<K> implements Iterator<K> {
 
     private K next = null;
 
-    public OnDiskIterator(@NonNull final VirtualMap virtualMap, final int stateId) {
+    public OnDiskIterator(@NonNull final VirtualMap virtualMap, @NonNull final Codec<K> keyCodec, final int stateId) {
         this.stateId = stateId;
         this.keyCodec = requireNonNull(keyCodec);
         itr = requireNonNull(virtualMap).treeIterator();

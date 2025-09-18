@@ -1,25 +1,18 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.state.merkle;
 
-import static com.swirlds.state.lifecycle.StateMetadata.computeLabel;
-
 import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
-import com.swirlds.base.utility.Pair;
+import com.swirlds.state.merkle.disk.QueueState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.nio.ByteBuffer;
-import java.util.Map;
-import java.util.Objects;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.function.IntFunction;
 
 /** Utility class for working with states. */
 public final class StateUtils {

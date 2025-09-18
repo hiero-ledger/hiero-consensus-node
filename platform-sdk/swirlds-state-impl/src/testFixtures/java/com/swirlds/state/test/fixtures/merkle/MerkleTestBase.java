@@ -30,8 +30,6 @@ import com.swirlds.state.merkle.StateValue;
 import com.swirlds.state.merkle.StateValue.StateValueCodec;
 import com.swirlds.state.test.fixtures.StateTestBase;
 import com.swirlds.state.test.fixtures.TestArgumentUtils;
-import com.swirlds.state.test.fixtures.merkle.memory.InMemoryKey;
-import com.swirlds.state.test.fixtures.merkle.memory.InMemoryValue;
 import com.swirlds.state.test.fixtures.merkle.queue.QueueNode;
 import com.swirlds.state.test.fixtures.merkle.singleton.SingletonNode;
 import com.swirlds.virtualmap.VirtualMap;

@@ -5,7 +5,6 @@ import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.state.StateChangeListener.StateType.MAP;
 import static com.swirlds.state.StateChangeListener.StateType.QUEUE;
 import static com.swirlds.state.StateChangeListener.StateType.SINGLETON;
-import static com.swirlds.state.lifecycle.StateMetadata.computeLabel;
 import static java.util.Objects.requireNonNull;
 
 import com.swirlds.base.time.Time;
@@ -19,7 +18,6 @@ import com.swirlds.common.utility.Labeled;
 import com.swirlds.common.utility.RuntimeObjectRecord;
 import com.swirlds.common.utility.RuntimeObjectRegistry;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.merkle.map.MerkleMap;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.state.State;
 import com.swirlds.state.StateChangeListener;
@@ -42,8 +40,6 @@ import com.swirlds.state.spi.WritableSingletonStateBase;
 import com.swirlds.state.spi.WritableStates;
 import com.swirlds.state.test.fixtures.merkle.disk.BackedReadableKVState;
 import com.swirlds.state.test.fixtures.merkle.disk.BackedWritableKVState;
-import com.swirlds.state.test.fixtures.merkle.memory.InMemoryReadableKVState;
-import com.swirlds.state.test.fixtures.merkle.memory.InMemoryWritableKVState;
 import com.swirlds.state.test.fixtures.merkle.queue.BackedReadableQueueState;
 import com.swirlds.state.test.fixtures.merkle.queue.BackedWritableQueueState;
 import com.swirlds.state.test.fixtures.merkle.queue.QueueNode;
@@ -398,7 +394,7 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
         final var def = md.stateDefinition();
         final var serviceName = md.serviceName();
         final var stateMetadata = services.computeIfAbsent(serviceName, k -> new HashMap<>());
-        stateMetadata.put(def.stateKey(), md);
+        stateMetadata.put(def.stateId(), md);
 
         // We also need to add/update the metadata of the service in the writableStatesMap so that
         // it isn't stale or incomplete (e.g. in a genesis case)

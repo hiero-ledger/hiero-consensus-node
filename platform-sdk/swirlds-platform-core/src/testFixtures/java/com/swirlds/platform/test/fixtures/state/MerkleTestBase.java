@@ -4,15 +4,10 @@ package com.swirlds.platform.test.fixtures.state;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.pbj.runtime.Codec;
-import com.swirlds.merkle.map.MerkleMap;
-import com.swirlds.common.merkle.MerkleNode;
-import com.swirlds.common.utility.Labeled;
 import com.swirlds.state.lifecycle.StateDefinition;
 import com.swirlds.state.lifecycle.StateMetadata;
 import com.swirlds.state.test.fixtures.StateTestBase;
 import com.swirlds.state.test.fixtures.merkle.TestSchema;
-import com.swirlds.state.test.fixtures.merkle.memory.InMemoryKey;
-import com.swirlds.state.test.fixtures.merkle.memory.InMemoryValue;
 import com.swirlds.virtualmap.VirtualMap;
 
 /**
