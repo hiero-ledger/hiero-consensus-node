@@ -178,7 +178,7 @@ public class SendCommand implements Callable<Integer> {
     private String maybeScheduleFail(boolean isSchedule) {
         final var message = new StringBuilder();
         if (isSchedule) {
-            message.append("to schedule sent ");
+            message.append("could not schedule send ");
         } else {
             message.append("could not send ");
         }
@@ -189,7 +189,7 @@ public class SendCommand implements Callable<Integer> {
         final var message = new StringBuilder();
         if (isSchedule) {
             final var scheduleId = delegate.getScheduleId().get();
-            message.append(" with schedule ID ");
+            message.append(" and schedule ID ");
             message.append(
                     asEntityString(scheduleId.getShardNum(), scheduleId.getRealmNum(), scheduleId.getScheduleNum()));
         }
