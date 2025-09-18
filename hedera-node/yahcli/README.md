@@ -411,10 +411,8 @@ staging its artifacts for NMT to use. This looks like,
 $ docker run -it -v $(pwd):/launch gcr.io/hedera-registry/yahcli:${TAG) -n localhost -p 58 prepare-upgrade \
 
 > --upgrade-zip-hash 5d3b0e619d8513dfbf606ef00a2e83ba97d736f5f5ba61561d895ea83a6d4c34fce05d6cd74c83ec171f710e37e12aab
->
-> ```
->
-> ```
+
+```
 
 # Launching an NMT telemetry upgrade
 
@@ -429,10 +427,8 @@ $ docker run -it -v $(pwd):/launch gcr.io/hedera-registry/yahcli:${TAG) -n local
 
 > --upgrade-zip-hash 8ec75ab44b6c8ccac4a6e7f7d77b5a66280cad8d8a86ed961975a3bea597613f83af9075f65786bf9101d50047ca768f \
 > --start-time 2022-01-01.00:00:00
->
-> ```
->
-> ```
+
+```
 
 # Scheduling a network freeze
 

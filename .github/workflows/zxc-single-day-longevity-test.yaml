@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-name: "ZXC: [CITR] Single Day Longevity NLG Test"
+name: "ZXC: [CITR] Single Day Longevity Test"
 
 on:
   workflow_call:
@@ -650,22 +650,6 @@ jobs:
           external_id: ${{ github.run_id }}
           external_url: "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
           environments: "CITR"
-
-      - name: Create Rootly Incident
-        if: ${{ steps.check-test-asset.outputs.is-adhoc == 'false' }}
-        uses: pandaswhocode/rootly-incident-action@4327542435bb4c8c48f15fba47efb87a28f8533f # v2.0.1
-        with:
-          api_key: ${{ secrets.rootly-api-token }}
-          title: ${{ steps.rootly-summary.outputs.title }}
-          kind: "normal"
-          create_public_incident: "false"
-          summary: ${{ steps.rootly-summary.outputs.summary }}
-          severity: "Triage Event"
-          alert_ids: ${{ steps.rootly-alert.outputs.alert_ids }} || '' }}
-          environments: "CITR"
-          incident_types: "Performance Engineering,Platform CI"
-          services: ${{ steps.set-rootly-service.outputs.service }}
-          teams: "Performance Engineering,Platform CI"
 
   longevity-report-to-Slack:
     runs-on: hiero-citr-linux-medium
