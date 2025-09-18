@@ -361,7 +361,7 @@ public class BlockNodeConnectionManager {
         logger.debug("[{}] Immediately scheduling connection at block {}", connection, blockNumber);
 
         // Schedule restart at the specific block
-        scheduleConnectionAttempt(connection, Duration.ZERO, blockNumber, false);
+        scheduleConnectionAttempt(connection.getNodeConfig(), Duration.ZERO, blockNumber, false);
     }
 
     /**
@@ -376,10 +376,10 @@ public class BlockNodeConnectionManager {
         if (isOnlyOneBlockNodeConfigured()) {
             // If there is only one block node configured, we will not try to select a new node
             // Schedule a retry for the failed connection with no delay
-            scheduleConnectionAttempt(connection, Duration.ofSeconds(0), null, false);
+            scheduleConnectionAttempt(connection.getNodeConfig(), Duration.ZERO, null, false);
         } else {
             // Schedule retry for the failed connection after a delay
-            scheduleConnectionAttempt(connection, delay, null, false);
+            scheduleConnectionAttempt(connection.getNodeConfig(), delay, null, false);
             // Immediately try to find and connect to the next available node
             selectNewBlockNodeForStreaming(false);
         }
@@ -417,38 +417,51 @@ public class BlockNodeConnectionManager {
      * Schedules a connection attempt (or retry) for the given Block Node connection
      * after the specified delay. Handles adding/removing the connection from the retry map.
      *
-     * @param connection the connection to schedule a retry for
+     * @param blockNodeConfig the connection to schedule a retry for
      * @param initialDelay the delay before the first attempt in this sequence executes
      * @param blockNumber the block number to use once reconnected
      */
     public void scheduleConnectionAttempt(
-            @NonNull final BlockNodeConnection connection,
+            @NonNull final BlockNodeConfig blockNodeConfig,
             @NonNull final Duration initialDelay,
             @Nullable final Long blockNumber) {
-        scheduleConnectionAttempt(connection, initialDelay, blockNumber, false);
+        scheduleConnectionAttempt(blockNodeConfig, initialDelay, blockNumber, false);
     }
 
     private void scheduleConnectionAttempt(
-            @NonNull final BlockNodeConnection connection,
+            @NonNull final BlockNodeConfig blockNodeConfig,
             @NonNull final Duration initialDelay,
             @Nullable final Long blockNumber,
             final boolean force) {
         if (!isStreamingEnabled.get()) {
             return;
         }
-
-        requireNonNull(connection);
+        requireNonNull(blockNodeConfig);
         requireNonNull(initialDelay);
-        final long delayMillis = Math.max(0, initialDelay.toMillis());
 
-        if (blockNumber == null) {
-            logger.debug("[{}] Scheduling reconnection for node in {} ms", connection, delayMillis);
-        } else {
-            logger.debug(
-                    "[{}] Scheduling reconnection for node at block {} in {} ms", connection, blockNumber, delayMillis);
+        final long delayMillis = Math.max(0, initialDelay.toMillis());
+        final BlockNodeConnection newConnection;
+
+        try {
+            newConnection = createConnection(blockNodeConfig);
+        } catch (final IllegalArgumentException e) {
+            logger.error(
+                    "Failed to create connection for block node @ {}:{} due to invalid configuration",
+                    blockNodeConfig.address(),
+                    blockNodeConfig.port(),
+                    e);
+            return;
         }
 
-        final BlockNodeConnection newConnection = createConnection(connection.getNodeConfig());
+        if (blockNumber == null) {
+            logger.debug("[{}] Scheduling reconnection for node in {} ms", newConnection, delayMillis);
+        } else {
+            logger.debug(
+                    "[{}] Scheduling reconnection for node at block {} in {} ms",
+                    newConnection,
+                    blockNumber,
+                    delayMillis);
+        }
 
         // Schedule the first attempt using the connectionExecutor
         try {
@@ -456,11 +469,9 @@ public class BlockNodeConnectionManager {
                     new BlockNodeConnectionTask(newConnection, initialDelay, blockNumber, force),
                     delayMillis,
                     TimeUnit.MILLISECONDS);
-            logger.debug("[{}] Successfully scheduled reconnection task", connection);
+            logger.debug("[{}] Successfully scheduled reconnection task", newConnection);
         } catch (final Exception e) {
-            logger.error("[{}] Failed to schedule connection task for block node", connection, e);
-            // Consider closing the connection object if scheduling fails
-            connection.close(true);
+            logger.error("[{}] Failed to schedule connection task for block node", newConnection, e);
         }
     }
 
@@ -548,11 +559,9 @@ public class BlockNodeConnectionManager {
         }
 
         logger.debug("Selected block node {}:{} for connection attempt", selectedNode.address(), selectedNode.port());
-        // If we selected a node, schedule the connection attempt.
-        final BlockNodeConnection connection = createConnection(selectedNode);
 
         // Immediately schedule the FIRST connection attempt.
-        scheduleConnectionAttempt(connection, Duration.ZERO, null, force);
+        scheduleConnectionAttempt(selectedNode, Duration.ZERO, null, force);
 
         return true;
     }
@@ -619,7 +628,7 @@ public class BlockNodeConnectionManager {
     private BlockNodeConnection createConnection(@NonNull final BlockNodeConfig nodeConfig) {
         requireNonNull(nodeConfig);
 
-        // Create the connection object with fresh gRPC client
+        // Create the connection object with a fresh gRPC client
         final BlockNodeClient bnClient = createNewGrpcClient(nodeConfig);
         final BlockNodeConnection connection = new BlockNodeConnection(
                 configProvider,

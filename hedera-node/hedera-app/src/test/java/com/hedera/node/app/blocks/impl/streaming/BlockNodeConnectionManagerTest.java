@@ -5,6 +5,7 @@ import static java.util.Objects.requireNonNull;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchException;
 import static org.assertj.core.api.Assertions.fail;
+import static org.assertj.core.api.AssertionsForClassTypes.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
@@ -22,6 +23,7 @@ import static org.mockito.Mockito.when;
 import com.hedera.node.app.blocks.impl.streaming.BlockNodeConnection.ConnectionState;
 import com.hedera.node.app.blocks.impl.streaming.BlockNodeConnectionManager.BlockNodeConnectionTask;
 import com.hedera.node.app.metrics.BlockStreamMetrics;
+import com.hedera.node.app.spi.fixtures.util.LogCaptor;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.internal.network.BlockNodeConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -43,6 +45,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.LockSupport;
+import org.apache.logging.log4j.LogManager;
 import org.hiero.block.api.PublishStreamRequest;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -67,6 +70,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     private static final MethodHandle jumpToBlockIfNeededHandle;
     private static final MethodHandle processStreamingToBlockNodeHandle;
     private static final MethodHandle blockStreamWorkerLoopHandle;
+    private static final MethodHandle createNewGrpcClientHandle;
 
     static {
         try {
@@ -108,6 +112,11 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
                     BlockNodeConnectionManager.class.getDeclaredMethod("blockStreamWorkerLoop");
             blockStreamWorkerLoop.setAccessible(true);
             blockStreamWorkerLoopHandle = lookup.unreflect(blockStreamWorkerLoop);
+
+            final Method createNewGrpcClientMethod =
+                    BlockNodeConnectionManager.class.getDeclaredMethod("createNewGrpcClient", BlockNodeConfig.class);
+            createNewGrpcClientMethod.setAccessible(true);
+            createNewGrpcClientHandle = lookup.unreflect(createNewGrpcClientMethod);
         } catch (final Exception e) {
             throw new RuntimeException(e);
         }
@@ -181,7 +190,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         final BlockNodeConfig nodeConfig = newBlockNodeConfig(8080, 1);
         doReturn(nodeConfig).when(connection).getNodeConfig();
 
-        connectionManager.scheduleConnectionAttempt(connection, Duration.ofSeconds(2), 100L);
+        connectionManager.scheduleConnectionAttempt(connection.getNodeConfig(), Duration.ofSeconds(2), 100L);
 
         verify(executorService).schedule(any(BlockNodeConnectionTask.class), eq(2_000L), eq(TimeUnit.MILLISECONDS));
         verifyNoMoreInteractions(connection);
@@ -196,7 +205,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         final BlockNodeConfig nodeConfig = newBlockNodeConfig(8080, 1);
         doReturn(nodeConfig).when(connection).getNodeConfig();
 
-        connectionManager.scheduleConnectionAttempt(connection, Duration.ofSeconds(-2), 100L);
+        connectionManager.scheduleConnectionAttempt(connection.getNodeConfig(), Duration.ofSeconds(-2), 100L);
 
         verify(executorService).schedule(any(BlockNodeConnectionTask.class), eq(0L), eq(TimeUnit.MILLISECONDS));
         verifyNoInteractions(bufferService);
@@ -207,6 +216,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
     @Test
     void testScheduleConnectionAttempt_failure() {
+        final var logCaptor = new LogCaptor(LogManager.getLogger(BlockNodeConnectionManager.class));
         final BlockNodeConnection connection = mock(BlockNodeConnection.class);
         final BlockNodeConfig nodeConfig = newBlockNodeConfig(8080, 1);
         doReturn(nodeConfig).when(connection).getNodeConfig();
@@ -214,10 +224,12 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
                 .when(executorService)
                 .schedule(any(Runnable.class), anyLong(), any(TimeUnit.class));
 
-        connectionManager.scheduleConnectionAttempt(connection, Duration.ofSeconds(2), 100L);
+        connectionManager.scheduleConnectionAttempt(connection.getNodeConfig(), Duration.ofSeconds(2), 100L);
+
+        assertThat(logCaptor.errorLogs())
+                .anyMatch(msg -> msg.contains("Failed to schedule connection task for block node"));
 
         verify(executorService).schedule(any(BlockNodeConnectionTask.class), eq(2_000L), eq(TimeUnit.MILLISECONDS));
-        verify(connection).close(true);
         verifyNoInteractions(bufferService);
         verifyNoInteractions(metrics);
         verifyNoMoreInteractions(executorService);
@@ -1299,7 +1311,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         isStreamingEnabled.set(false);
         final BlockNodeConnection connection = mock(BlockNodeConnection.class);
 
-        connectionManager.scheduleConnectionAttempt(connection, Duration.ZERO, 10L);
+        connectionManager.scheduleConnectionAttempt(newBlockNodeConfig(8080, 1), Duration.ZERO, 10L);
 
         verifyNoInteractions(connection);
         verifyNoInteractions(bufferService);
@@ -1397,7 +1409,35 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         verifyNoInteractions(metrics);
     }
 
+    @Test
+    void testCreateNewGrpcClient() {
+        // Given
+        final BlockNodeConfig nodeConfig = new BlockNodeConfig("::1", 50211, 1);
+
+        assertThatThrownBy(() -> invoke_createNewGrpcClient(nodeConfig))
+                .isInstanceOf(RuntimeException.class)
+                .hasCauseInstanceOf(java.lang.IllegalArgumentException.class);
+    }
+
+    @Test
+    void testCreateNewGrpcClientInvalidHost() {
+        // Given
+        final BlockNodeConfig nodeConfig = new BlockNodeConfig("invalid.hostname.for.test", 50211, 1);
+
+        assertThatThrownBy(() -> invoke_createNewGrpcClient(nodeConfig))
+                .isInstanceOf(RuntimeException.class)
+                .hasCauseInstanceOf(java.lang.IllegalArgumentException.class);
+    }
+
     // Utilities
+
+    private void invoke_createNewGrpcClient(final BlockNodeConfig config) {
+        try {
+            createNewGrpcClientHandle.invoke(connectionManager, config);
+        } catch (final Throwable t) {
+            throw new RuntimeException(t);
+        }
+    }
 
     private void invoke_blockStreamWorkerLoop() {
         try {
