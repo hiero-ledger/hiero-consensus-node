@@ -386,14 +386,12 @@ public class TipsetEventCreator implements EventCreator {
      */
     @NonNull
     private UnsignedEvent assembleEventObject(@Nullable final PlatformEvent otherParent) {
-        final Instant timeCreated = calculateNewEventCreationTime(time.now(), lastSelfEvent, otherParent);
-
         final UnsignedEvent event = new UnsignedEvent(
                 selfId,
                 lastSelfEvent == null ? null : lastSelfEvent.getDescriptor(),
                 otherParent == null ? Collections.emptyList() : Collections.singletonList(otherParent.getDescriptor()),
                 eventWindow.newEventBirthRound(),
-                timeCreated,
+                calculateNewEventCreationTime(lastSelfEvent, otherParent),
                 transactionSupplier.getTransactionsForEvent(),
                 random.nextLong(0, roster.rosterEntries().size() + 1));
         eventHasher.hashUnsignedEvent(event);
@@ -441,14 +439,12 @@ public class TipsetEventCreator implements EventCreator {
      * Regardless of whatever the host computer's clock says, the event creation time must always advance from self
      * parent to child.
      *
-     * @param now         the current time
      * @param selfParent  the self parent
      * @param otherParent the other parent
      * @return the creation time for the new event
      */
     @NonNull
-    private static Instant calculateNewEventCreationTime(
-            @NonNull final Instant now,
+    private Instant calculateNewEventCreationTime(
             @Nullable final PlatformEvent selfParent,
             @Nullable final PlatformEvent otherParent) {
         // Get the max received time of the parents
@@ -457,7 +453,7 @@ public class TipsetEventCreator implements EventCreator {
                 .map(PlatformEvent::getTimeReceived)
                 .max(Instant::compareTo)
                 // if it's a genesis event, just use the current time
-                .orElse(now);
+                .orElse(time.now());
 
         // This is a fallback in case the system clock malfunctions for some reason.
         // We must ensure the new event is after its self parent, otherwise it will be rejected by the network.

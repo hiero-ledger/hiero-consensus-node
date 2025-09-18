@@ -60,7 +60,8 @@ message EventCore {
   int64 birth_round = 2;
 
   /**
-   * The wall clock time at which the event was created, according to the node creating the event.<br/>
+   * The wall clock time at which the latest parent has been received by this node.<br/>
+   * If the event has no parents, this value will just be the wall clock time when creating this event.<br/>
    * If the event has a self parent, this timestamp MUST be strictly greater than the `time_created` of the self parent.
    */
   proto.Timestamp time_created = 3;
