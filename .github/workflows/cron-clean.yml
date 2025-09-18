@@ -37,7 +37,7 @@ jobs:
           proxy: hashgraph.teleport.sh:443
           token: gh-citr-performance-svcs-bot
 
-      - name: Authorize Teleport K8S Access
+      - name: Authorize Teleport K8S Access to Dallas Cluster
         id: auth-k8s-dal
         uses: teleport-actions/auth-k8s@677da98eaa78a5e649d4c5b4012750af4c28af73 # v2.0.3
         with:
