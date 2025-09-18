@@ -25,7 +25,6 @@ import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.contract.EthereumTransactionBody;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxSigs;
 import com.hedera.node.app.service.contract.impl.ContractServiceComponent;
-import com.hedera.node.app.service.contract.impl.exec.FeatureFlags;
 import com.hedera.node.app.service.contract.impl.exec.TransactionComponent;
 import com.hedera.node.app.service.contract.impl.infra.EthTxSigsCache;
 import com.hedera.node.app.service.contract.impl.infra.EthereumCallDataHydration;
@@ -40,6 +39,7 @@ import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
+import com.hedera.node.config.data.ContractsConfig;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
@@ -61,14 +61,12 @@ public class EthereumTransactionHandler extends AbstractContractTransactionHandl
     private final byte[] EMPTY_ADDRESS = new byte[20];
     private final EthTxSigsCache ethereumSignatures;
     private final EthereumCallDataHydration callDataHydration;
-    private final FeatureFlags featureFlags;
 
     /**
      * @param ethereumSignatures the ethereum signatures
      * @param callDataHydration the ethereum call data hydratino utility to be used for EthTxData
      * @param provider the provider to be used
      * @param gasCalculator the gas calculator to be used
-     * @param featureFlags the module feature flags
      */
     @Inject
     public EthereumTransactionHandler(
@@ -76,12 +74,10 @@ public class EthereumTransactionHandler extends AbstractContractTransactionHandl
             @NonNull final EthereumCallDataHydration callDataHydration,
             @NonNull final Provider<TransactionComponent.Factory> provider,
             @NonNull final GasCalculator gasCalculator,
-            @NonNull final ContractServiceComponent component,
-            @NonNull final FeatureFlags featureFlags) {
+            @NonNull final ContractServiceComponent component) {
         super(provider, gasCalculator, component);
         this.ethereumSignatures = requireNonNull(ethereumSignatures);
         this.callDataHydration = requireNonNull(callDataHydration);
-        this.featureFlags = requireNonNull(featureFlags);
     }
 
     @Override
@@ -93,7 +89,7 @@ public class EthereumTransactionHandler extends AbstractContractTransactionHandl
                 context.createStore(ReadableFileStore.class),
                 context.configuration());
         // Also validate the transaction type
-        validateTransactionType(context.body().ethereumTransactionOrThrow());
+        validateTransactionType(context.body().ethereumTransactionOrThrow(), context.configuration());
     }
 
     @Override
@@ -229,15 +225,14 @@ public class EthereumTransactionHandler extends AbstractContractTransactionHandl
      * @param op The Ethereum transaction body
      * @throws PreCheckException thrown if the transaction type is not supported
      */
-    private void validateTransactionType(
-            @NonNull final EthereumTransactionBody op)
+    private void validateTransactionType(@NonNull final EthereumTransactionBody op, @NonNull final Configuration config)
             throws PreCheckException {
+        final var contractsConfig = config.getConfigData(ContractsConfig.class);
+
         final var type = getTransactionType(op.ethereumData().toByteArray());
         validateTruePreCheck(type >= 0, NOT_SUPPORTED);
 
-        // Type 4 transactions are only supported if the feature flag is enabled
-        if(type == 4) {
-            validateTruePreCheck(featureFlags.isAuthorizationListEnabled(), NOT_SUPPORTED);
-        }
+        // Type 4 transactions are only supported if the feature flag is disabled
+        validateFalsePreCheck(contractsConfig.evmPectraEnabled() && type == 4, NOT_SUPPORTED);
     }
 }
