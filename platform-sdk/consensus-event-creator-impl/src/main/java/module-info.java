@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 import org.hiero.consensus.event.creator.EventCreatorModule;
 import org.hiero.consensus.event.creator.impl.DefaultEventCreator;
 

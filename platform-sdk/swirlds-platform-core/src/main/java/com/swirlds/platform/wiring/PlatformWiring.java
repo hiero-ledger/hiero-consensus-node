@@ -81,8 +81,7 @@ public class PlatformWiring {
         components
                 .gossipWiring()
                 .getSyncLagOutput()
-                .solderTo(
-                        components.eventCreationManagerWiring().getInputWire(EventCreatorModule::reportSyncRoundLag));
+                .solderTo(components.eventCreationManagerWiring().getInputWire(EventCreatorModule::reportSyncRoundLag));
 
         components
                 .eventHasherWiring()
@@ -396,9 +395,8 @@ public class PlatformWiring {
         components
                 .statusStateMachineWiring()
                 .getOutputWire()
-                .solderTo(components
-                        .eventCreationManagerWiring()
-                        .getInputWire(EventCreatorModule::updatePlatformStatus));
+                .solderTo(
+                        components.eventCreationManagerWiring().getInputWire(EventCreatorModule::updatePlatformStatus));
         components
                 .statusStateMachineWiring()
                 .getOutputWire()
