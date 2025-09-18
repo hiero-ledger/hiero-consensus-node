@@ -11,7 +11,7 @@ on:
 
 jobs:
   performance-tests-start:
-    runs-on: hiero-network-node-linux-small-scheduler
+    runs-on: hiero-citr-linux-small
 
     steps:
       - name: Harden the runner (Audit all outbound calls)
