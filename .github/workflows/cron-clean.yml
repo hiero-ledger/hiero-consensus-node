@@ -61,7 +61,7 @@ jobs:
           done
           exit 0
 
-      - name: Authorize Teleport K8S Access
+      - name: Authorize Teleport K8S Access to Chicago Cluster
         id: auth-k8s-chi
         uses: teleport-actions/auth-k8s@677da98eaa78a5e649d4c5b4012750af4c28af73 # v2.0.3
         with:
