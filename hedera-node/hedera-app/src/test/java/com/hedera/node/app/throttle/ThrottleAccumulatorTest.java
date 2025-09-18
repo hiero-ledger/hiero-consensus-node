@@ -47,7 +47,6 @@ import com.hedera.hapi.node.base.TransferList;
 import com.hedera.hapi.node.contract.ContractCallTransactionBody;
 import com.hedera.hapi.node.contract.ContractCreateTransactionBody;
 import com.hedera.hapi.node.contract.EthereumTransactionBody;
-import com.hedera.hapi.node.network.NetworkGetVersionInfoQuery;
 import com.hedera.hapi.node.scheduled.SchedulableTransactionBody;
 import com.hedera.hapi.node.scheduled.ScheduleCreateTransactionBody;
 import com.hedera.hapi.node.scheduled.ScheduleSignTransactionBody;
@@ -2022,5 +2021,4 @@ class ThrottleAccumulatorTest {
         // then
         assertTrue(result, "ScheduleCreate with missing scheduledTransactionBody should be throttled");
     }
-
 }
