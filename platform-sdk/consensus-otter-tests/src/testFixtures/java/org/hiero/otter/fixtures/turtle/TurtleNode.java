@@ -240,8 +240,8 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
                             wrapConsumerWithNodeContext(this::handlePlatformStatusChange));
 
             InMemorySubscriptionManager.INSTANCE.subscribe(logEntry -> {
-                    resultsCollector.addLogEntry(logEntry);
-                    return lifeCycle == DESTROYED ? UNSUBSCRIBE : CONTINUE;
+                resultsCollector.addLogEntry(logEntry);
+                return lifeCycle == DESTROYED ? UNSUBSCRIBE : CONTINUE;
             });
 
             platform = platformComponentBuilder.build();
