@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.junit.hedera.embedded;
 
+import static com.hedera.services.bdd.junit.SharedNetworkLauncherSessionListener.CLASSIC_HAPI_TEST_NETWORK_SIZE;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.APPLICATION_PROPERTIES;
 import static com.hedera.services.bdd.junit.hedera.embedded.EmbeddedMode.REPEATABLE;
 import static com.hedera.services.bdd.junit.hedera.subprocess.ConditionStatus.PENDING;
@@ -78,7 +79,7 @@ public class EmbeddedNetwork extends AbstractNetwork {
             @NonNull final String name, @NonNull final String workingDir, @NonNull final EmbeddedMode mode) {
         super(
                 name,
-                IntStream.range(0, 1)
+                IntStream.range(0, CLASSIC_HAPI_TEST_NETWORK_SIZE)
                         .<HederaNode>mapToObj(nodeId -> new EmbeddedNode(
                                 // All non-embedded node working directories are mapped to the embedded node0
                                 classicMetadataFor(
