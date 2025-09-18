@@ -119,6 +119,7 @@ jobs:
       - name: Report Failure (Rootly)
         if: ${{ !inputs.dry-run-enabled && !cancelled() && failure() && always() }}
         uses: pandaswhocode/rootly-alert-action@fdae1529e5aed62040016accf719a0ceb7dae57f # v1.0.0
+        continue-on-error: true
         with:
           api_key: ${{ secrets.ROOTLY_API_TOKEN }}
           summary: "Hiero Consensus Node - XTS Candidate Tagging Failed"
