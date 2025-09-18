@@ -161,7 +161,7 @@ public final class TurtleLogConfigBuilder {
 
         builder.add(root);
 
-        builder.add(builder.newLogger("org.hiero.otter", Level.ALL)
+        builder.add(builder.newLogger("org.hiero.otter", Level.INFO)
                 .add(builder.newAppenderRef("Console"))
                 .addAttribute("additivity", false));
 
