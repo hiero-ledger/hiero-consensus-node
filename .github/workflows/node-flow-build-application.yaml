@@ -293,7 +293,7 @@ jobs:
         run: |
           ROOTLY_SERVICE_NAME="CITR General"
           if [[ "${{ needs.deploy-ci-trigger.result }}" =~ ^(cancelled|failure)$ ]] \
-            || [[ "${{ needs.mats-unit-tests.outputs.failure-mode }}" == "ci_cd" ]]; then
+            || [[ "${{ needs.mats-unit-tests.outputs.failure-mode }}" == "workflow" ]]; then
             ROOTLY_SERVICE_NAME="CI/CD Workflows"
           fi
           echo "service=${ROOTLY_SERVICE_NAME}" >> "${GITHUB_OUTPUT}"

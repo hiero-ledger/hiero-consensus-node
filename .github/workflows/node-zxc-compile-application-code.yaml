@@ -851,7 +851,6 @@ jobs:
             "${{ steps.setup-java.outcome || 'skipped' }}"
             "${{ steps.setup-gradle.outcome || 'skipped' }}"
             "${{ steps.setup-node.outcome || 'skipped' }}"
-            "${{ steps.gradle-build.outcome || 'skipped' }}"
             "${{ steps.check-dependency-scopes.outcome || 'skipped' }}"
             "${{ steps.snyk-scan.outcome || 'skipped' }}"
             "${{ steps.snyk-code.outcome || 'skipped' }}"
@@ -860,6 +859,7 @@ jobs:
           
           # We can break this down further to set additional failure modes
           general_statuses=(
+            "${{ steps.gradle-build.outcome || 'skipped' }}"
             "${{ steps.gradle-test.outcome || 'skipped' }}"
             "${{ steps.gradle-timing-sensitive.outcome || 'skipped' }}"
             "${{ steps.gradle-time-consuming.outcome || 'skipped' }}"
@@ -894,7 +894,7 @@ jobs:
           
           # If no general failure, check CI/CD specific steps
           if has_failure "${ci_cd_statuses[@]}"; then
-            failure_mode="ci_cd"
+            failure_mode="workflow"
           fi
           
           echo "failure-mode=${failure_mode}" >> "${GITHUB_OUTPUT}"
