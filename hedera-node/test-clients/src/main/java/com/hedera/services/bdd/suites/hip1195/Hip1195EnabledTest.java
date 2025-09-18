@@ -147,6 +147,36 @@ public class Hip1195EnabledTest {
     }
 
     @HapiTest
+    final Stream<DynamicTest> deleteAllHooks() {
+        final var OWNER = "acctHeadRun";
+        final long A = 1L, B = 2L, C = 3L, D = 4L;
+
+        return hapiTest(
+                newKeyNamed("k"),
+                cryptoCreate(OWNER)
+                        .key("k")
+                        .balance(1L)
+                        .withHooks(
+                                lambdaAccountAllowanceHook(A, HOOK_CONTRACT.name()),
+                                lambdaAccountAllowanceHook(B, HOOK_CONTRACT.name()),
+                                lambdaAccountAllowanceHook(C, HOOK_CONTRACT.name())),
+                viewAccount(OWNER, (Account a) -> {
+                    assertEquals(A, a.firstHookId());
+                    assertEquals(3, a.numberHooksInUse());
+                }),
+                cryptoUpdate(OWNER).removingHooks(A, B, C),
+                viewAccount(OWNER, (Account a) -> {
+                    assertEquals(0L, a.firstHookId());
+                    assertEquals(3, a.numberHooksInUse());
+                }),
+                cryptoUpdate(OWNER)
+                        .removingHooks(A)
+                        .withHooks(lambdaAccountAllowanceHook(A, HOOK_CONTRACT.name()))
+                        .hasKnownStatus(HOOK_NOT_FOUND),
+                cryptoUpdate(OWNER).removingHooks(D).withHooks(lambdaAccountAllowanceHook(D, HOOK_CONTRACT.name())));
+    }
+
+    @HapiTest
     final Stream<DynamicTest> contractCreateWithHooks() {
         return hapiTest(
                 cryptoCreate("payer").balance(ONE_MILLION_HBARS),

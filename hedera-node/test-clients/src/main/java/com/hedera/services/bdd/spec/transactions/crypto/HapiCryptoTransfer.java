@@ -398,39 +398,69 @@ public class HapiCryptoTransfer extends HapiBaseTransfer<HapiCryptoTransfer> {
                 .build();
     }
 
-    public HapiCryptoTransfer withPreHookFor(final String account, final long hookId, final long gasLimit, final String dataUtf8) {
-        fungibleHooksByAccount.put(account, HookSpec.pre(hookId, gasLimit, dataUtf8 == null ? ByteString.EMPTY : ByteString.copyFromUtf8(dataUtf8)));
+    public HapiCryptoTransfer withPreHookFor(
+            final String account, final long hookId, final long gasLimit, final String dataUtf8) {
+        fungibleHooksByAccount.put(
+                account,
+                HookSpec.pre(
+                        hookId, gasLimit, dataUtf8 == null ? ByteString.EMPTY : ByteString.copyFromUtf8(dataUtf8)));
         return this;
     }
-    public HapiCryptoTransfer withPreHookFor(final String account, final long hookId, final long gasLimit, final ByteString data) {
+
+    public HapiCryptoTransfer withPreHookFor(
+            final String account, final long hookId, final long gasLimit, final ByteString data) {
         fungibleHooksByAccount.put(account, HookSpec.pre(hookId, gasLimit, data));
         return this;
     }
 
-    public HapiCryptoTransfer withPrePostHookFor(final String account, final long hookId, final long gasLimit, final String dataUtf8) {
-        fungibleHooksByAccount.put(account, HookSpec.prePost(hookId, gasLimit, dataUtf8 == null ? ByteString.EMPTY : ByteString.copyFromUtf8(dataUtf8)));
+    public HapiCryptoTransfer withPrePostHookFor(
+            final String account, final long hookId, final long gasLimit, final String dataUtf8) {
+        fungibleHooksByAccount.put(
+                account,
+                HookSpec.prePost(
+                        hookId, gasLimit, dataUtf8 == null ? ByteString.EMPTY : ByteString.copyFromUtf8(dataUtf8)));
         return this;
     }
-    public HapiCryptoTransfer withPrePostHookFor(final String account, final long hookId, final long gasLimit, final ByteString data) {
+
+    public HapiCryptoTransfer withPrePostHookFor(
+            final String account, final long hookId, final long gasLimit, final ByteString data) {
         fungibleHooksByAccount.put(account, HookSpec.prePost(hookId, gasLimit, data));
         return this;
     }
 
-    public HapiCryptoTransfer withNftSenderPreHookFor(final String account, final long hookId, final long gasLimit, final String dataUtf8) {
-        nftSenderHooksByAccount.put(account, HookSpec.pre(hookId, gasLimit, dataUtf8 == null ? ByteString.EMPTY : ByteString.copyFromUtf8(dataUtf8)));
-        return this;
-    }
-    public HapiCryptoTransfer withNftSenderPrePostHookFor(final String account, final long hookId, final long gasLimit, final String dataUtf8) {
-        nftSenderHooksByAccount.put(account, HookSpec.prePost(hookId, gasLimit, dataUtf8 == null ? ByteString.EMPTY : ByteString.copyFromUtf8(dataUtf8)));
+    public HapiCryptoTransfer withNftSenderPreHookFor(
+            final String account, final long hookId, final long gasLimit, final String dataUtf8) {
+        nftSenderHooksByAccount.put(
+                account,
+                HookSpec.pre(
+                        hookId, gasLimit, dataUtf8 == null ? ByteString.EMPTY : ByteString.copyFromUtf8(dataUtf8)));
         return this;
     }
 
-    public HapiCryptoTransfer withNftReceiverPreHookFor(final String account, final long hookId, final long gasLimit, final String dataUtf8) {
-        nftReceiverHooksByAccount.put(account, HookSpec.pre(hookId, gasLimit, dataUtf8 == null ? ByteString.EMPTY : ByteString.copyFromUtf8(dataUtf8)));
+    public HapiCryptoTransfer withNftSenderPrePostHookFor(
+            final String account, final long hookId, final long gasLimit, final String dataUtf8) {
+        nftSenderHooksByAccount.put(
+                account,
+                HookSpec.prePost(
+                        hookId, gasLimit, dataUtf8 == null ? ByteString.EMPTY : ByteString.copyFromUtf8(dataUtf8)));
         return this;
     }
-    public HapiCryptoTransfer withNftReceiverPrePostHookFor(final String account, final long hookId, final long gasLimit, final String dataUtf8) {
-        nftReceiverHooksByAccount.put(account, HookSpec.prePost(hookId, gasLimit, dataUtf8 == null ? ByteString.EMPTY : ByteString.copyFromUtf8(dataUtf8)));
+
+    public HapiCryptoTransfer withNftReceiverPreHookFor(
+            final String account, final long hookId, final long gasLimit, final String dataUtf8) {
+        nftReceiverHooksByAccount.put(
+                account,
+                HookSpec.pre(
+                        hookId, gasLimit, dataUtf8 == null ? ByteString.EMPTY : ByteString.copyFromUtf8(dataUtf8)));
+        return this;
+    }
+
+    public HapiCryptoTransfer withNftReceiverPrePostHookFor(
+            final String account, final long hookId, final long gasLimit, final String dataUtf8) {
+        nftReceiverHooksByAccount.put(
+                account,
+                HookSpec.prePost(
+                        hookId, gasLimit, dataUtf8 == null ? ByteString.EMPTY : ByteString.copyFromUtf8(dataUtf8)));
         return this;
     }
 
@@ -529,10 +559,8 @@ public class HapiCryptoTransfer extends HapiBaseTransfer<HapiCryptoTransfer> {
                 .setGasLimit(spec.gasLimit)
                 .setData(spec.data)
                 .build();
-        final var hook = HookCall.newBuilder()
-                .setHookId(spec.hookId)
-                .setEvmHookCall(evm)
-                .build();
+        final var hook =
+                HookCall.newBuilder().setHookId(spec.hookId).setEvmHookCall(evm).build();
 
         if (spec.prePost) {
             aaB.setPrePostTxAllowanceHook(hook);
@@ -542,8 +570,12 @@ public class HapiCryptoTransfer extends HapiBaseTransfer<HapiCryptoTransfer> {
     }
 
     private void applyHookToNftSender(final NftTransfer.Builder nftB, final HookSpec spec) {
-        final var evm = EvmHookCall.newBuilder().setGasLimit(spec.gasLimit).setData(spec.data).build();
-        final var hook = HookCall.newBuilder().setHookId(spec.hookId).setEvmHookCall(evm).build();
+        final var evm = EvmHookCall.newBuilder()
+                .setGasLimit(spec.gasLimit)
+                .setData(spec.data)
+                .build();
+        final var hook =
+                HookCall.newBuilder().setHookId(spec.hookId).setEvmHookCall(evm).build();
         if (spec.prePost) {
             nftB.setPrePostTxSenderAllowanceHook(hook);
         } else {
@@ -552,8 +584,12 @@ public class HapiCryptoTransfer extends HapiBaseTransfer<HapiCryptoTransfer> {
     }
 
     private void applyHookToNftReceiver(final NftTransfer.Builder nftB, final HookSpec spec) {
-        final var evm = EvmHookCall.newBuilder().setGasLimit(spec.gasLimit).setData(spec.data).build();
-        final var hook = HookCall.newBuilder().setHookId(spec.hookId).setEvmHookCall(evm).build();
+        final var evm = EvmHookCall.newBuilder()
+                .setGasLimit(spec.gasLimit)
+                .setData(spec.data)
+                .build();
+        final var hook =
+                HookCall.newBuilder().setHookId(spec.hookId).setEvmHookCall(evm).build();
         if (spec.prePost) {
             nftB.setPrePostTxReceiverAllowanceHook(hook);
         } else {

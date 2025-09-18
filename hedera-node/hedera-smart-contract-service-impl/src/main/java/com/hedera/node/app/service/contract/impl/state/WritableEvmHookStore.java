@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.state;
 
+import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOK_DELETION_REQUIRES_ZERO_STORAGE_SLOTS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOK_ID_IN_USE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOK_NOT_FOUND;
 import static com.hedera.hapi.node.state.hooks.EvmHookType.LAMBDA;
@@ -136,20 +137,13 @@ public class WritableEvmHookStore extends ReadableEvmHookStoreImpl {
      * @param hookId the lambda ID
      * @throws HandleException if the lambda ID is not found
      */
-    public void removeOrMarkDeleted(@NonNull final HookId hookId) {
+    public void remove(@NonNull final HookId hookId) {
         final var state = hookStates.get(hookId);
         validateTrue(state != null, HOOK_NOT_FOUND);
-        if (state.numStorageSlots() > 0) {
-            log.info(
-                    "Marking hook {} as deleted, but not removing it because it has {} storage slots",
-                    hookId,
-                    state.numStorageSlots());
-            hookStates.put(hookId, state.copyBuilder().deleted(true).build());
-        } else {
-            unlinkNeighbors(state);
-            hookStates.remove(hookId);
-            entityCounters.decrementEntityTypeCounter(HOOK);
-        }
+        validateTrue(state.numStorageSlots() == 0, HOOK_DELETION_REQUIRES_ZERO_STORAGE_SLOTS);
+        unlinkNeighbors(state);
+        hookStates.remove(hookId);
+        entityCounters.decrementEntityTypeCounter(HOOK);
     }
 
     private void unlinkNeighbors(@NonNull final EvmHookState state) {
