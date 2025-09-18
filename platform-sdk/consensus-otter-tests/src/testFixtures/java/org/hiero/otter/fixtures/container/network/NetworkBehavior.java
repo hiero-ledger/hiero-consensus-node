@@ -90,7 +90,7 @@ public class NetworkBehavior {
      * @param newConnections a map of connections representing the current state of the network
      */
     public void onConnectionsChanged(
-            @NonNull List<Node> nodes, @NonNull final Map<ConnectionKey, ConnectionData> newConnections) {
+            @NonNull final List<Node> nodes, @NonNull final Map<ConnectionKey, ConnectionData> newConnections) {
         for (final Node sender : nodes) {
             for (final Node receiver : nodes) {
                 if (sender.equals(receiver)) {
