@@ -10,14 +10,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.spy;
 
-import com.swirlds.merkledb.MerkleDb;
 import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.state.signed.SignedStateReference;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
 import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -31,11 +29,6 @@ class SignedStateReferenceTests {
      */
     public static SignedState buildSignedState() {
         return new RandomSignedStateGenerator().build();
-    }
-
-    @BeforeEach
-    void setUp() {
-        MerkleDb.resetDefaultInstancePath();
     }
 
     @AfterEach
@@ -112,11 +105,8 @@ class SignedStateReferenceTests {
     @Test
     @DisplayName("Replacement Test")
     void replacementTest() {
-        MerkleDb.resetDefaultInstancePath();
         final SignedState state1 = buildSignedState();
-        MerkleDb.resetDefaultInstancePath();
         final SignedState state2 = buildSignedState();
-        MerkleDb.resetDefaultInstancePath();
         final SignedState state3 = buildSignedState();
 
         final SignedStateReference reference = new SignedStateReference(state1, "test");

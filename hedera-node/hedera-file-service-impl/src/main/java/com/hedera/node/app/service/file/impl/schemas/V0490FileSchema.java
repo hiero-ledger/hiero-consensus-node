@@ -2,6 +2,7 @@
 package com.hedera.node.app.service.file.impl.schemas;
 
 import static com.hedera.hapi.node.base.HederaFunctionality.fromString;
+import static com.swirlds.state.lifecycle.StateMetadata.computeLabel;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.base.utility.CommonUtils.hex;
@@ -33,7 +34,10 @@ import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.hapi.node.transaction.ExchangeRate;
 import com.hedera.hapi.node.transaction.ExchangeRateSet;
 import com.hedera.hapi.node.transaction.ThrottleDefinitions;
+import com.hedera.hapi.platform.state.SingletonType;
+import com.hedera.hapi.platform.state.StateKey;
 import com.hedera.node.app.service.addressbook.ReadableNodeStore;
+import com.hedera.node.app.service.file.FileService;
 import com.hedera.node.app.spi.workflows.SystemContext;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BootstrapConfig;
@@ -80,10 +84,14 @@ import org.apache.logging.log4j.Logger;
  */
 @Singleton
 public class V0490FileSchema extends Schema {
+
     private static final Logger logger = LogManager.getLogger(V0490FileSchema.class);
 
-    public static final String BLOBS_KEY = "FILES";
-    public static final String UPGRADE_DATA_KEY = "UPGRADE_DATA[FileID[shardNum=%d, realmNum=%d, fileNum=%d]]";
+    public static final String FILES_KEY = "FILES";
+    public static final int FILES_STATE_ID = StateKey.KeyOneOfType.FILESERVICE_I_FILES.protoOrdinal();
+    public static final String FILES_STATE_LABEL = computeLabel(FileService.NAME, FILES_KEY);
+
+    public static final String UPGRADE_DATA_STATE_KEY_PATTERN = "FileService_I_UPGRADE_DATA_%d";
 
     /**
      * The default throttle definitions resource. Used as the ultimate fallback if the configured file and resource is
@@ -119,18 +127,20 @@ public class V0490FileSchema extends Schema {
     @SuppressWarnings("rawtypes")
     public Set<StateDefinition> statesToCreate(@NonNull final Configuration config) {
         final Set<StateDefinition> definitions = new LinkedHashSet<>();
-        definitions.add(StateDefinition.onDisk(BLOBS_KEY, FileID.PROTOBUF, File.PROTOBUF, MAX_FILES_HINT));
+        definitions.add(
+                StateDefinition.onDisk(FILES_STATE_ID, FILES_KEY, FileID.PROTOBUF, File.PROTOBUF, MAX_FILES_HINT));
 
         final FilesConfig filesConfig = config.getConfigData(FilesConfig.class);
-        final HederaConfig hederaConfig = config.getConfigData(HederaConfig.class);
         final LongPair fileNums = filesConfig.softwareUpdateRange();
         final long firstUpdateNum = fileNums.left();
         final long lastUpdateNum = fileNums.right();
 
         // initializing the files 150 -159
         for (var updateNum = firstUpdateNum; updateNum <= lastUpdateNum; updateNum++) {
-            final var stateKey = UPGRADE_DATA_KEY.formatted(hederaConfig.shard(), hederaConfig.realm(), updateNum);
-            definitions.add(StateDefinition.queue(stateKey, ProtoBytes.PROTOBUF));
+            final var stateKey =
+                    UPGRADE_DATA_STATE_KEY_PATTERN.formatted(updateNum).toUpperCase();
+            final int stateId = SingletonType.valueOf(stateKey).protoOrdinal();
+            definitions.add(StateDefinition.queue(stateId, stateKey, ProtoBytes.PROTOBUF));
         }
 
         return definitions;
