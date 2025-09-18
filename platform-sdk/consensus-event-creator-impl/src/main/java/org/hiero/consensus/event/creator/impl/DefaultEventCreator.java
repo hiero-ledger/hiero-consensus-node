@@ -150,23 +150,11 @@ public class DefaultEventCreator implements EventCreatorModule {
     }
 
     /**
-     * Check that the manager has been initialized.
-     *
-     * @throws IllegalStateException if the manager has not been initialized
-     */
-    private void checkIfInitialized() {
-        if (creator == null || eventCreationRules == null || phase == null || futureEventBuffer == null) {
-            throw new IllegalStateException("EventCreationManager not initialized");
-        }
-    }
-
-    /**
      * {@inheritDoc}
      */
     @Override
     @Nullable
     public PlatformEvent maybeCreateEvent() {
-        checkIfInitialized();
         if (!eventCreationRules.isEventCreationPermitted()) {
             phase.activatePhase(eventCreationRules.getEventCreationStatus());
             return null;
@@ -193,7 +181,6 @@ public class DefaultEventCreator implements EventCreatorModule {
      */
     @Override
     public void registerEvent(@NonNull final PlatformEvent event) {
-        checkIfInitialized();
         final PlatformEvent nonFutureEvent = futureEventBuffer.addEvent(event);
         if (nonFutureEvent != null) {
             creator.registerEvent(event);
@@ -205,7 +192,6 @@ public class DefaultEventCreator implements EventCreatorModule {
      */
     @Override
     public void setEventWindow(@NonNull final EventWindow eventWindow) {
-        checkIfInitialized();
         creator.setEventWindow(eventWindow);
         futureEventBuffer.updateEventWindow(eventWindow).forEach(creator::registerEvent);
     }
@@ -215,7 +201,6 @@ public class DefaultEventCreator implements EventCreatorModule {
      */
     @Override
     public void clear() {
-        checkIfInitialized();
         creator.clear();
         phase.activatePhase(IDLE);
         futureEventBuffer.clear();
@@ -228,7 +213,6 @@ public class DefaultEventCreator implements EventCreatorModule {
      */
     @Override
     public void updatePlatformStatus(@NonNull final PlatformStatus platformStatus) {
-        checkIfInitialized();
         this.platformStatus = Objects.requireNonNull(platformStatus);
     }
 
@@ -237,13 +221,14 @@ public class DefaultEventCreator implements EventCreatorModule {
      */
     @Override
     public void reportUnhealthyDuration(@NonNull final Duration duration) {
-        checkIfInitialized();
         unhealthyDuration = Objects.requireNonNull(duration);
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void reportSyncRoundLag(@NonNull final Double lag) {
-        checkIfInitialized();
         syncRoundLag = Objects.requireNonNull(lag);
     }
 
