@@ -670,5 +670,10 @@ public abstract class AbstractThreadConfiguration<C extends AbstractThreadConfig
         }
     }
 
+    /**
+     * Captured Log4j MDC state consisting of the context map and stack at the moment a task is wrapped.
+     * Each executor worker restores this snapshot before running a task and reinstates the previous
+     * values afterwards so diagnostic context survives thread hops.
+     */
     protected record ContextSnapshot(@NonNull Map<String, String> map, @NonNull List<String> stack) {}
 }

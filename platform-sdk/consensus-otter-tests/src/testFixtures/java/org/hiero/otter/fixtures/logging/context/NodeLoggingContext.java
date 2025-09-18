@@ -29,12 +29,6 @@ public final class NodeLoggingContext {
     /** ThreadContext key that stores the node identifier. */
     public static final String NODE_ID_KEY = "nodeId";
 
-    static {
-        if (System.getProperty("log4j2.isThreadContextMapInheritable") == null) {
-            System.setProperty("log4j2.isThreadContextMapInheritable", "true");
-        }
-    }
-
     private NodeLoggingContext() {
         // utility
     }
@@ -181,6 +175,11 @@ public final class NodeLoggingContext {
         }
     }
 
+    /**
+     * ExecutorService decorator that captures the NodeLoggingContext at submission time and
+     * reinstalls it on the worker thread before the delegate executes the task.
+     * This keeps per-node MDC state intact even when work hops across thread pools.
+     */
     private static class ContextPropagatingExecutorService implements ExecutorService {
 
         private final ExecutorService delegate;

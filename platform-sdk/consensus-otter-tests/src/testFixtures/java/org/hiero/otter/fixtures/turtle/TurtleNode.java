@@ -41,7 +41,6 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.Objects;
 import java.util.function.Consumer;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.status.PlatformStatus;
@@ -241,12 +240,8 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
                             wrapConsumerWithNodeContext(this::handlePlatformStatusChange));
 
             InMemorySubscriptionManager.INSTANCE.subscribe(logEntry -> {
-                try (var nestedScope = installNodeContext()) {
-                    if (Objects.equals(logEntry.nodeId(), selfId)) {
-                        resultsCollector.addLogEntry(logEntry);
-                    }
+                    resultsCollector.addLogEntry(logEntry);
                     return lifeCycle == DESTROYED ? UNSUBSCRIBE : CONTINUE;
-                }
             });
 
             platform = platformComponentBuilder.build();

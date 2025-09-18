@@ -46,20 +46,20 @@ public final class LogConfigHelper {
             INVALID_EVENT_ERROR,
             THREADS,
             STARTUP,
-            MERKLE_DB,
             PLATFORM_STATUS,
             RECONNECT,
             FREEZE,
             STATE_TO_DISK,
             DEMO_INFO,
             TESTING_EXCEPTIONS_ACCEPTABLE_RECONNECT,
+            MERKLE_DB,
             STATE_HASH);
 
     private static final Set<LogMarker> IGNORED_CONSOLE_MARKERS = Set.of(STARTUP, MERKLE_DB, VIRTUAL_MERKLE_STATS);
 
     /** Default pattern for text-based appenders. */
     public static final String DEFAULT_PATTERN =
-            "%d{yyyy-MM-dd HH:mm:ss.SSS} [%t] %notEmpty{[node=%X{nodeId}] }%notEmpty{[%marker] }%-5level %logger{36} - %msg %n";
+            "%d{yyyy-MM-dd HH:mm:ss.SSS} [%t] }%notEmpty{[%marker] }%-5level %logger{36} - %msg %n";
 
     private LogConfigHelper() {
         // utility
