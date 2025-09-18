@@ -11,6 +11,10 @@ on:
         description: "The custom job name to use for the job:"
         required: false
         type: string
+      solo-version:
+        description: "The version of solo to install (if not specified, latest will be used):"
+        required: false
+        type: string
     secrets:
       access-token:
         description: "GitHub Access Token with write permissions to the repository."
@@ -151,7 +155,7 @@ jobs:
       # Install solo and configure to use the artifacts from
       # the hiero-consensus-node build
       - name: Install Solo
-        run: npm install -g @hashgraph/solo@0.37.1
+        run: npm install -g @hashgraph/solo@${{ inputs.solo-version || 'latest' }}
 
       # Set up kind; needed for configuring the solo environment
       - name: Setup Kind
