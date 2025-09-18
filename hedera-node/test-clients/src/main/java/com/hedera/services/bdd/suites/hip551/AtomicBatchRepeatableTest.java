@@ -50,8 +50,13 @@ public class AtomicBatchRepeatableTest {
 
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
-        testLifecycle.overrideInClass(
-                Map.of("atomicBatch.isEnabled", "true", "atomicBatch.maxNumberOfTransactions", "50"));
+        testLifecycle.overrideInClass(Map.of(
+                "atomicBatch.isEnabled",
+                "true",
+                "scheduling.maxExpirySecsToCheckPerUserTxn",
+                "" + Integer.MAX_VALUE,
+                "atomicBatch.maxNumberOfTransactions",
+                "50"));
     }
 
     @LeakyRepeatableHapiTest({NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION})

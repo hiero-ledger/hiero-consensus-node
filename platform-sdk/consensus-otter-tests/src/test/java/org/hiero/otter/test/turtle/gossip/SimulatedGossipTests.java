@@ -81,14 +81,8 @@ class SimulatedGossipTests {
         for (final NodeId sender : addressBook.getNodeIdSet()) {
             for (final NodeId receiver : addressBook.getNodeIdSet()) {
                 if (!sender.equals(receiver)) {
-                    final com.hedera.hapi.platform.state.NodeId fromNode =
-                            com.hedera.hapi.platform.state.NodeId.newBuilder()
-                                    .id(sender.id())
-                                    .build();
-                    final com.hedera.hapi.platform.state.NodeId toNode =
-                            com.hedera.hapi.platform.state.NodeId.newBuilder()
-                                    .id(receiver.id())
-                                    .build();
+                    final NodeId fromNode = NodeId.of(sender.id());
+                    final NodeId toNode = NodeId.of(receiver.id());
                     connections.put(new ConnectionKey(fromNode, toNode), connectionData);
                 }
             }

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.handle.steps;
 
-import static com.hedera.node.app.service.networkadmin.impl.schemas.V0490FreezeSchema.FREEZE_TIME_KEY;
+import static com.hedera.node.app.service.networkadmin.impl.schemas.V0490FreezeSchema.FREEZE_TIME_STATE_ID;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.Timestamp;
@@ -41,6 +41,7 @@ import org.hiero.consensus.roster.WritableRosterStore;
  */
 @Singleton
 public class PlatformStateUpdates {
+
     private static final Logger logger = LogManager.getLogger(PlatformStateUpdates.class);
 
     private final BiConsumer<Roster, Path> rosterExportHelper;
@@ -79,7 +80,7 @@ public class PlatformStateUpdates {
                     logger.info("Transaction freeze of type {} detected", freezeType);
                     // Copy freeze time to platform state
                     final var states = state.getReadableStates(FreezeService.NAME);
-                    final ReadableSingletonState<Timestamp> freezeTimeState = states.getSingleton(FREEZE_TIME_KEY);
+                    final ReadableSingletonState<Timestamp> freezeTimeState = states.getSingleton(FREEZE_TIME_STATE_ID);
                     final var freezeTime = requireNonNull(freezeTimeState.get());
                     final var freezeTimeInstant = Instant.ofEpochSecond(freezeTime.seconds(), freezeTime.nanos());
                     logger.info("Freeze time will be {}", freezeTimeInstant);

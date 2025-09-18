@@ -320,12 +320,7 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
                 RecycleBin.create(metrics, platformConfig, getStaticThreadManager(), time, fileSystemManager, selfId);
         ConsensusStateEventHandler<MerkleNodeState> consensusStateEventHandler = hedera.newConsensusStateEvenHandler();
         final PlatformContext platformContext = PlatformContext.create(
-                platformConfig,
-                Time.getCurrent(),
-                metrics,
-                FileSystemManager.create(platformConfig),
-                recycleBin,
-                merkleCryptography);
+                platformConfig, Time.getCurrent(), metrics, fileSystemManager, recycleBin, merkleCryptography);
         final Optional<AddressBook> maybeDiskAddressBook = loadLegacyAddressBook();
         final HashedReservedSignedState reservedState = loadInitialState(
                 recycleBin,

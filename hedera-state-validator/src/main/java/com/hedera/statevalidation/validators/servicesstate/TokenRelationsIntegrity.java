@@ -2,9 +2,7 @@
 package com.hedera.statevalidation.validators.servicesstate;
 
 import static com.hedera.statevalidation.validators.ParallelProcessingUtil.VALIDATOR_FORK_JOIN_POOL;
-import static com.swirlds.state.merkle.StateUtils.extractStateKeyValueStateId;
 import static com.swirlds.state.merkle.StateUtils.getStateKeyForKv;
-import static com.swirlds.state.merkle.StateUtils.stateIdFor;
 import static org.junit.jupiter.api.Assertions.*;
 
 import com.hedera.hapi.node.base.AccountID;
@@ -13,8 +11,6 @@ import com.hedera.hapi.node.state.common.EntityIDPair;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.state.token.Token;
 import com.hedera.hapi.node.state.token.TokenRelation;
-import com.hedera.hapi.platform.state.StateKey;
-import com.hedera.hapi.platform.state.StateValue;
 import com.hedera.node.app.ids.EntityIdService;
 import com.hedera.node.app.ids.ReadableEntityIdStoreImpl;
 import com.hedera.node.app.service.token.TokenService;
@@ -30,6 +26,8 @@ import com.swirlds.base.utility.Pair;
 import com.swirlds.common.threading.manager.AdHocThreadManager;
 import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.snapshot.DeserializedSignedState;
+import com.swirlds.state.merkle.StateKeyUtils;
+import com.swirlds.state.merkle.StateValue;
 import com.swirlds.state.spi.ReadableKVState;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.VirtualMapMigration;
@@ -58,9 +56,9 @@ public class TokenRelationsIntegrity {
         final ReadableEntityIdStore entityCounters =
                 new ReadableEntityIdStoreImpl(merkleNodeState.getReadableStates(EntityIdService.NAME));
         final ReadableKVState<AccountID, Account> tokenAccounts =
-                merkleNodeState.getReadableStates(TokenService.NAME).get(V0490TokenSchema.ACCOUNTS_KEY);
+                merkleNodeState.getReadableStates(TokenService.NAME).get(V0490TokenSchema.ACCOUNTS_STATE_ID);
         final ReadableKVState<TokenID, Token> tokenTokens =
-                merkleNodeState.getReadableStates(TokenService.NAME).get(V0490TokenSchema.TOKENS_KEY);
+                merkleNodeState.getReadableStates(TokenService.NAME).get(V0490TokenSchema.TOKENS_STATE_ID);
 
         assertNotNull(entityCounters);
         assertNotNull(tokenAccounts);
@@ -75,22 +73,24 @@ public class TokenRelationsIntegrity {
         AtomicInteger accountFailCounter = new AtomicInteger(0);
         AtomicInteger tokenFailCounter = new AtomicInteger(0);
 
-        final int targetStateId = stateIdFor(TokenService.NAME, V0490TokenSchema.TOKEN_RELS_KEY);
+        final int tokenRelsStateId = V0490TokenSchema.TOKEN_RELS_STATE_ID;
 
         InterruptableConsumer<Pair<Bytes, Bytes>> handler = pair -> {
             final Bytes keyBytes = pair.left();
             final Bytes valueBytes = pair.right();
-            final int readKeyStateId = extractStateKeyValueStateId(keyBytes);
-            final int readValueStateId = extractStateKeyValueStateId(valueBytes);
-            if ((readKeyStateId == targetStateId) && (readValueStateId == targetStateId)) {
+            final int readKeyStateId = StateKeyUtils.extractStateIdFromStateKeyOneOf(keyBytes);
+            final int readValueStateId = StateValue.extractStateIdFromStateValueOneOf(valueBytes);
+            if ((readKeyStateId == tokenRelsStateId) && (readValueStateId == tokenRelsStateId)) {
                 try {
-                    final StateKey stateKey = StateKey.PROTOBUF.parse(keyBytes);
+                    final com.hedera.hapi.platform.state.StateKey stateKey =
+                            com.hedera.hapi.platform.state.StateKey.PROTOBUF.parse(keyBytes);
 
                     final EntityIDPair entityIDPair = stateKey.key().as();
                     final AccountID accountId1 = entityIDPair.accountId();
                     final TokenID tokenId1 = entityIDPair.tokenId();
 
-                    final StateValue stateValue = StateValue.PROTOBUF.parse(valueBytes);
+                    final com.hedera.hapi.platform.state.StateValue stateValue =
+                            com.hedera.hapi.platform.state.StateValue.PROTOBUF.parse(valueBytes);
                     final TokenRelation tokenRelation = stateValue.value().as();
                     final AccountID accountId2 = tokenRelation.accountId();
                     final TokenID tokenId2 = tokenRelation.tokenId();
@@ -104,12 +104,12 @@ public class TokenRelationsIntegrity {
                     assertEquals(tokenId1, tokenId2);
 
                     if (!virtualMap.containsKey(
-                            getStateKeyForKv(TokenService.NAME, V0490TokenSchema.ACCOUNTS_KEY, accountId1))) {
+                            getStateKeyForKv(V0490TokenSchema.ACCOUNTS_STATE_ID, accountId1, AccountID.PROTOBUF))) {
                         accountFailCounter.incrementAndGet();
                     }
 
                     if (!virtualMap.containsKey(
-                            getStateKeyForKv(TokenService.NAME, V0490TokenSchema.TOKENS_KEY, tokenId1))) {
+                            getStateKeyForKv(V0490TokenSchema.TOKENS_STATE_ID, tokenId1, TokenID.PROTOBUF))) {
                         tokenFailCounter.incrementAndGet();
                     }
                     objectsProcessed.incrementAndGet();
