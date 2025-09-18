@@ -302,7 +302,7 @@ jobs:
       - name: Install CoLima (macOS)
         if: ${{ runner.os == 'macOS' }}
         run: |
-          brew install docker 
+          brew install docker
           brew install colima
           colima start --vm-type=vz --cpu=2 --memory=4 --disk=10
 
@@ -312,7 +312,7 @@ jobs:
           echo "::group::Serial Logs"
           cat ${HOME}/.colima/_lima/colima/serial*.log
           echo "::endgroup::"
-          
+
           echo "::group::Error Logs"
           cat ${HOME}/.colima/_lima/colima/ha.stderr.log
           echo "::endgroup::"
