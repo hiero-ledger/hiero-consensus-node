@@ -6,6 +6,7 @@ import static com.hedera.hapi.node.freeze.FreezeType.FREEZE_UPGRADE;
 import static com.hedera.hapi.node.freeze.FreezeType.PREPARE_UPGRADE;
 import static com.hedera.hapi.node.freeze.FreezeType.TELEMETRY_UPGRADE;
 import static com.hedera.hapi.node.freeze.FreezeType.UNKNOWN_FREEZE_TYPE;
+import static com.hedera.node.app.hapi.utils.CommonUtils.noThrowSha384HashOf;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.FileID;
@@ -37,6 +38,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.Arrays;
+import java.util.Objects;
 import java.util.concurrent.Executor;
 import javax.inject.Inject;
 import javax.inject.Named;
@@ -84,12 +86,14 @@ public class FreezeHandler implements TransactionHandler {
 
         final FreezeTransactionBody freezeTxn = context.body().freezeOrThrow();
         final FreezeType freezeType = freezeTxn.freezeType();
+        log.fatal("matt: prehandling freeze of type {}", freezeType);
         if (Arrays.asList(FREEZE_UPGRADE, TELEMETRY_UPGRADE, PREPARE_UPGRADE).contains(freezeType)) {
             // from proto specs, it looks like updateFileId not required for FREEZE_UPGRADE and TELEMETRY_UPGRADE
             // but specs aren't very clear previous code in FreezeTransitionLogic checks for it in all 3 cases,
             // so we will do the same
             final ReadableUpgradeFileStore upgradeStore = context.createStore(ReadableUpgradeFileStore.class);
             final var filesConfig = context.configuration().getConfigData(FilesConfig.class);
+            log.fatal("matt: freeze type as expected. verifying updated file");
             verifyUpdateFile(freezeTxn, upgradeStore, filesConfig.softwareUpdateRange());
         }
         // no need to add any keys to the context because this transaction does not require any signatures
@@ -293,6 +297,20 @@ public class FreezeHandler implements TransactionHandler {
         }
         if (upgradeStore.peek(updateFileID) == null) {
             throw new PreCheckException(ResponseCodeEnum.FREEZE_UPDATE_FILE_DOES_NOT_EXIST);
+        }
+        if (freezeTxn.freezeType() == PREPARE_UPGRADE
+                || freezeTxn.freezeType() == FREEZE_UPGRADE
+                || freezeTxn.freezeType() == TELEMETRY_UPGRADE) {
+            try {
+                final var fileBytes = upgradeStore.getFull(updateFileID);
+                final var fileHash = noThrowSha384HashOf(fileBytes);
+                if (!Objects.equals(fileHash, freezeTxn.fileHash())) {
+                    throw new PreCheckException(ResponseCodeEnum.UPDATE_FILE_HASH_DOES_NOT_MATCH_PREPARED);
+                }
+            } catch (IOException e) {
+                log.error("Unable to read bytes of file {}", updateFileID, e);
+                throw new PreCheckException(ResponseCodeEnum.FILE_SYSTEM_EXCEPTION);
+            }
         }
     }
 }
