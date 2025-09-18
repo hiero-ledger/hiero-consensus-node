@@ -3,7 +3,7 @@ package com.hedera.node.app.workflows.dispatcher;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.params.provider.Arguments.arguments;
-import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
@@ -63,7 +63,7 @@ class WritableStoreFactoryImplTest {
 
     @BeforeEach
     void setUp() {
-        lenient().when(writableStates.get(anyString())).thenReturn(writableKVState);
+        lenient().when(writableStates.get(anyInt())).thenReturn(writableKVState);
     }
 
     @ParameterizedTest

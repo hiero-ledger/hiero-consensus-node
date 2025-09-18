@@ -37,12 +37,13 @@ public class IntrospectCommand implements Runnable {
             throw new RuntimeException(e);
         }
 
+        final int stateId = StateIds.stateIdFor(serviceName, stateName);
         if (keyInfo == null) {
             // we assume it's a singleton
-            final SingletonIntrospector introspector = new SingletonIntrospector(state, serviceName, stateName);
+            final SingletonIntrospector introspector = new SingletonIntrospector(state, serviceName, stateId);
             introspector.introspect();
         } else {
-            final KvIntrospector introspector = new KvIntrospector(state, serviceName, stateName, keyInfo);
+            final KvIntrospector introspector = new KvIntrospector(state, serviceName, stateId, keyInfo);
             introspector.introspect();
         }
     }

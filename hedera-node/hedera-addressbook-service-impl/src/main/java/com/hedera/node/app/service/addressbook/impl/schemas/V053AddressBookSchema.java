@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.addressbook.impl.schemas;
 
+import static com.swirlds.state.lifecycle.StateMetadata.computeLabel;
 import static java.util.Collections.emptyMap;
 import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.toMap;
@@ -14,6 +15,8 @@ import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.hapi.node.state.addressbook.Node;
 import com.hedera.hapi.node.state.common.EntityNumber;
+import com.hedera.hapi.platform.state.StateKey;
+import com.hedera.node.app.service.addressbook.AddressBookService;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.lifecycle.StateDefinition;
@@ -31,14 +34,20 @@ import org.apache.logging.log4j.Logger;
  * Genesis schema of the address book service.
  */
 public class V053AddressBookSchema extends Schema {
+
     private static final Logger log = LogManager.getLogger(V053AddressBookSchema.class);
+
     private static final Pattern IPV4_ADDRESS_PATTERN =
             Pattern.compile("^((25[0-5]|(2[0-4]|1\\d|[1-9]|)\\d)\\.?\\b){4}$");
 
     private static final long MAX_NODES = 100L;
+
     private static final SemanticVersion VERSION =
             SemanticVersion.newBuilder().major(0).minor(53).patch(0).build();
+
     public static final String NODES_KEY = "NODES";
+    public static final int NODES_STATE_ID = StateKey.KeyOneOfType.ADDRESSBOOKSERVICE_I_NODES.protoOrdinal();
+    public static final String NODES_STATE_LABEL = computeLabel(AddressBookService.NAME, NODES_KEY);
 
     public V053AddressBookSchema() {
         super(VERSION);
@@ -47,7 +56,8 @@ public class V053AddressBookSchema extends Schema {
     @NonNull
     @Override
     public Set<StateDefinition> statesToCreate() {
-        return Set.of(StateDefinition.onDisk(NODES_KEY, EntityNumber.PROTOBUF, Node.PROTOBUF, MAX_NODES));
+        return Set.of(
+                StateDefinition.onDisk(NODES_STATE_ID, NODES_KEY, EntityNumber.PROTOBUF, Node.PROTOBUF, MAX_NODES));
     }
 
     /**

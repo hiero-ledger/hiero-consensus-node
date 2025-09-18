@@ -155,6 +155,7 @@ jobs:
       enable-unit-tests: false
       enable-hapi-tests-token: true
       enable-network-log-capture: true
+      mats-suffix: MATS
     secrets:
       access-token: ${{ secrets.GITHUB_TOKEN }}
       gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}

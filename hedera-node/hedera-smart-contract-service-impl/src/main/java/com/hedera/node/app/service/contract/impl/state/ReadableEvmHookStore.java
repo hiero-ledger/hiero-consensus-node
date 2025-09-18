@@ -2,8 +2,8 @@
 package com.hedera.node.app.service.contract.impl.state;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOK_NOT_FOUND;
-import static com.hedera.node.app.service.contract.impl.schemas.V065ContractSchema.EVM_HOOK_STATES_KEY;
-import static com.hedera.node.app.service.contract.impl.schemas.V065ContractSchema.LAMBDA_STORAGE_KEY;
+import static com.hedera.node.app.service.contract.impl.schemas.V065ContractSchema.EVM_HOOK_STATES_STATE_ID;
+import static com.hedera.node.app.service.contract.impl.schemas.V065ContractSchema.LAMBDA_STORAGE_STATE_ID;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.HookId;
@@ -23,13 +23,14 @@ import java.util.List;
  * Read-only access to lambda states.
  */
 public class ReadableEvmHookStore {
+
     private final ReadableKVState<LambdaSlotKey, SlotValue> storage;
     private final ReadableKVState<HookId, EvmHookState> hookStates;
 
     public ReadableEvmHookStore(@NonNull final ReadableStates states) {
         requireNonNull(states);
-        this.storage = states.get(LAMBDA_STORAGE_KEY);
-        this.hookStates = states.get(EVM_HOOK_STATES_KEY);
+        this.storage = states.get(LAMBDA_STORAGE_STATE_ID);
+        this.hookStates = states.get(EVM_HOOK_STATES_STATE_ID);
     }
 
     public record EvmHookView(@NonNull EvmHookState state, @NonNull List<Slot> selectedSlots) {
