@@ -8,7 +8,9 @@ import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_CREATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_GET_ACCOUNT_BALANCE;
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_TRANSFER;
 import static com.hedera.hapi.node.base.HederaFunctionality.ETHEREUM_TRANSACTION;
+import static com.hedera.hapi.node.base.HederaFunctionality.SCHEDULE_CREATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_ASSOCIATE_TO_ACCOUNT;
+import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_MINT;
 import static com.hedera.hapi.util.HapiUtils.functionOf;
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
 import static com.hedera.node.app.hapi.utils.ethereum.EthTxData.populateEthTxData;
@@ -29,6 +31,7 @@ import com.hedera.hapi.node.base.AccountAmount;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.NftTransfer;
+import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.base.TransactionID;
@@ -415,6 +418,10 @@ public class ThrottleAccumulator {
             List<ThrottleUsage> throttleUsages) {
         final var function = txnInfo.functionality();
         final var configuration = configSupplier.get();
+
+        // Perform precheck validation first to avoid busy waiting on client
+        validateTransactionBody(txnInfo.txBody(), function);
+
         final boolean isJumboTransactionsEnabled =
                 configuration.getConfigData(JumboTransactionsConfig.class).isEnabled();
 
@@ -482,6 +489,66 @@ public class ThrottleAccumulator {
             }
             default -> !manager.allReqsMetAt(now, throttleUsages);
         };
+    }
+
+    /**
+     * Validates the transaction body for required fields to prevent malformed transactions
+     * from causing busy waiting on the client. Throws HandleException for immediate rejection.
+     *
+     * @param txnBody the transaction body to validate
+     * @param function the transaction functionality type
+     * @throws HandleException if validation fails for malformed transactions
+     */
+    private void validateTransactionBody(
+            @NonNull final TransactionBody txnBody, @NonNull final HederaFunctionality function) {
+        try {
+            switch (function) {
+                case SCHEDULE_CREATE -> {
+                    final var scheduleCreate = txnBody.scheduleCreateOrThrow();
+                    if (!scheduleCreate.hasScheduledTransactionBody()) {
+                        throw new HandleException(ResponseCodeEnum.INVALID_SCHEDULE_ID);
+                    }
+                }
+                case TOKEN_MINT -> {
+                    final var tokenMint = txnBody.tokenMintOrThrow();
+                    if (!tokenMint.hasToken()) {
+                        throw new HandleException(ResponseCodeEnum.INVALID_TOKEN_ID);
+                    }
+                }
+                case CRYPTO_TRANSFER -> {
+                    final var cryptoTransfer = txnBody.cryptoTransferOrThrow();
+                    if (cryptoTransfer.transfers() == null
+                            && cryptoTransfer.tokenTransfers().isEmpty()) {
+                        throw new HandleException(ResponseCodeEnum.EMPTY_TRANSACTION_BODY);
+                    }
+                }
+                case ETHEREUM_TRANSACTION -> {
+                    final var ethTxn = txnBody.ethereumTransactionOrThrow();
+                    if (ethTxn.ethereumData() == null || ethTxn.ethereumData().length() == 0) {
+                        throw new HandleException(ResponseCodeEnum.INVALID_ETHEREUM_TRANSACTION);
+                    }
+                }
+                case CONTRACT_CREATE -> {
+                    final var contractCreate = txnBody.contractCreateInstanceOrThrow();
+                    if (!contractCreate.hasFileID()
+                            && (!contractCreate.hasInitcode()
+                                    || contractCreate.initcode().length() == 0)) {
+                        throw new HandleException(ResponseCodeEnum.CONTRACT_BYTECODE_EMPTY);
+                    }
+                }
+                case CONTRACT_CALL -> {
+                    final var contractCall = txnBody.contractCallOrThrow();
+                    if (!contractCall.hasContractID()) {
+                        throw new HandleException(ResponseCodeEnum.INVALID_CONTRACT_ID);
+                    }
+                }
+            }
+        } catch (Exception e) {
+            if (e instanceof HandleException) {
+                throw e;
+            }
+            throw new HandleException(ResponseCodeEnum.INVALID_TRANSACTION_BODY);
+        }
     }
 
     private boolean shouldThrottleScheduleCreate(

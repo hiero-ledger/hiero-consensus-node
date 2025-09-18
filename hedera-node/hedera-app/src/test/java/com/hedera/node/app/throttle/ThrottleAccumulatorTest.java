@@ -27,6 +27,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
@@ -37,6 +38,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hedera.hapi.node.base.AccountAmount;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.Key;
+import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.ScheduleID;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.SignatureMap;
@@ -72,6 +74,7 @@ import com.hedera.node.app.spi.fixtures.util.LogCaptor;
 import com.hedera.node.app.spi.fixtures.util.LogCaptureExtension;
 import com.hedera.node.app.spi.fixtures.util.LoggingSubject;
 import com.hedera.node.app.spi.fixtures.util.LoggingTarget;
+import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.throttle.ThrottleAccumulator.ThrottleType;
 import com.hedera.node.app.throttle.ThrottleAccumulator.Verbose;
 import com.hedera.node.app.workflows.TransactionInfo;
@@ -1784,6 +1787,197 @@ class ThrottleAccumulatorTest {
     }
 
     @Test
+    void scheduleCreateWithMissingScheduledTransactionBodyThrowsException() throws Exception {
+        // Given
+        setupThrottleSubject();
+        final var scheduleCreate = ScheduleCreateTransactionBody.newBuilder()
+                .waitForExpiry(false)
+                .build(); // Missing scheduledTransactionBody
+
+        final var body = TransactionBody.newBuilder()
+                .transactionID(TransactionID.newBuilder().accountID(PAYER_ID).build())
+                .scheduleCreate(scheduleCreate)
+                .build();
+
+        final var signedTx = SignedTransaction.newBuilder()
+                .bodyBytes(TransactionBody.PROTOBUF.toBytes(body))
+                .build();
+
+        final var txnInfo = new TransactionInfo(
+                signedTx,
+                body,
+                TransactionID.newBuilder().accountID(PAYER_ID).build(),
+                PAYER_ID,
+                SignatureMap.DEFAULT,
+                Bytes.EMPTY,
+                SCHEDULE_CREATE,
+                null);
+
+        // When & Then
+        final var exception = assertThrows(
+                HandleException.class, () -> subject.checkAndEnforceThrottle(txnInfo, TIME_INSTANT, state, null));
+        assertEquals(ResponseCodeEnum.INVALID_SCHEDULE_ID, exception.getStatus());
+    }
+
+    @Test
+    void tokenMintWithMissingTokenThrowsException() throws Exception {
+        // Given
+        setupThrottleSubject();
+        final var tokenMint = TokenMintTransactionBody.newBuilder().amount(100L).build(); // Missing token
+
+        final var body = TransactionBody.newBuilder()
+                .transactionID(TransactionID.newBuilder().accountID(PAYER_ID).build())
+                .tokenMint(tokenMint)
+                .build();
+
+        final var signedTx = SignedTransaction.newBuilder()
+                .bodyBytes(TransactionBody.PROTOBUF.toBytes(body))
+                .build();
+
+        final var txnInfo = new TransactionInfo(
+                signedTx,
+                body,
+                TransactionID.newBuilder().accountID(PAYER_ID).build(),
+                PAYER_ID,
+                SignatureMap.DEFAULT,
+                Bytes.EMPTY,
+                TOKEN_MINT,
+                null);
+
+        // When & Then
+        final var exception = assertThrows(
+                HandleException.class, () -> subject.checkAndEnforceThrottle(txnInfo, TIME_INSTANT, state, null));
+        assertEquals(ResponseCodeEnum.INVALID_TOKEN_ID, exception.getStatus());
+    }
+
+    @Test
+    void cryptoTransferWithEmptyTransfersThrowsException() throws Exception {
+        // Given
+        setupThrottleSubject();
+        final var cryptoTransfer =
+                CryptoTransferTransactionBody.newBuilder().build(); // Empty transfers and tokenTransfers
+
+        final var body = TransactionBody.newBuilder()
+                .transactionID(TransactionID.newBuilder().accountID(PAYER_ID).build())
+                .cryptoTransfer(cryptoTransfer)
+                .build();
+
+        final var signedTx = SignedTransaction.newBuilder()
+                .bodyBytes(TransactionBody.PROTOBUF.toBytes(body))
+                .build();
+
+        final var txnInfo = new TransactionInfo(
+                signedTx,
+                body,
+                TransactionID.newBuilder().accountID(PAYER_ID).build(),
+                PAYER_ID,
+                SignatureMap.DEFAULT,
+                Bytes.EMPTY,
+                CRYPTO_TRANSFER,
+                null);
+
+        // When & Then
+        final var exception = assertThrows(
+                HandleException.class, () -> subject.checkAndEnforceThrottle(txnInfo, TIME_INSTANT, state, null));
+        assertEquals(ResponseCodeEnum.EMPTY_TRANSACTION_BODY, exception.getStatus());
+    }
+
+    @Test
+    void ethereumTransactionWithMissingDataThrowsException() throws Exception {
+        // Given
+        setupThrottleSubject();
+        final var ethTxn = EthereumTransactionBody.newBuilder().build(); // Missing ethereumData
+
+        final var body = TransactionBody.newBuilder()
+                .transactionID(TransactionID.newBuilder().accountID(PAYER_ID).build())
+                .ethereumTransaction(ethTxn)
+                .build();
+
+        final var signedTx = SignedTransaction.newBuilder()
+                .bodyBytes(TransactionBody.PROTOBUF.toBytes(body))
+                .build();
+
+        final var txnInfo = new TransactionInfo(
+                signedTx,
+                body,
+                TransactionID.newBuilder().accountID(PAYER_ID).build(),
+                PAYER_ID,
+                SignatureMap.DEFAULT,
+                Bytes.EMPTY,
+                ETHEREUM_TRANSACTION,
+                null);
+
+        // When & Then
+        final var exception = assertThrows(
+                HandleException.class, () -> subject.checkAndEnforceThrottle(txnInfo, TIME_INSTANT, state, null));
+        assertEquals(ResponseCodeEnum.INVALID_ETHEREUM_TRANSACTION, exception.getStatus());
+    }
+
+    @Test
+    void contractCreateWithMissingBytecodeAndFileIdThrowsException() throws Exception {
+        // Given
+        setupThrottleSubject();
+        final var contractCreate =
+                ContractCreateTransactionBody.newBuilder().gas(100000L).build(); // Missing both fileID and initcode
+
+        final var body = TransactionBody.newBuilder()
+                .transactionID(TransactionID.newBuilder().accountID(PAYER_ID).build())
+                .contractCreateInstance(contractCreate)
+                .build();
+
+        final var signedTx = SignedTransaction.newBuilder()
+                .bodyBytes(TransactionBody.PROTOBUF.toBytes(body))
+                .build();
+
+        final var txnInfo = new TransactionInfo(
+                signedTx,
+                body,
+                TransactionID.newBuilder().accountID(PAYER_ID).build(),
+                PAYER_ID,
+                SignatureMap.DEFAULT,
+                Bytes.EMPTY,
+                CONTRACT_CREATE,
+                null);
+
+        // When & Then
+        final var exception = assertThrows(
+                HandleException.class, () -> subject.checkAndEnforceThrottle(txnInfo, TIME_INSTANT, state, null));
+        assertEquals(ResponseCodeEnum.CONTRACT_BYTECODE_EMPTY, exception.getStatus());
+    }
+
+    @Test
+    void contractCallWithMissingContractIdThrowsException() throws Exception {
+        // Given
+        setupThrottleSubject();
+        final var contractCall =
+                ContractCallTransactionBody.newBuilder().gas(100000L).build(); // Missing contractID
+
+        final var body = TransactionBody.newBuilder()
+                .transactionID(TransactionID.newBuilder().accountID(PAYER_ID).build())
+                .contractCall(contractCall)
+                .build();
+
+        final var signedTx = SignedTransaction.newBuilder()
+                .bodyBytes(TransactionBody.PROTOBUF.toBytes(body))
+                .build();
+
+        final var txnInfo = new TransactionInfo(
+                signedTx,
+                body,
+                TransactionID.newBuilder().accountID(PAYER_ID).build(),
+                PAYER_ID,
+                SignatureMap.DEFAULT,
+                Bytes.EMPTY,
+                CONTRACT_CALL,
+                null);
+
+        // When & Then
+        final var exception = assertThrows(
+                HandleException.class, () -> subject.checkAndEnforceThrottle(txnInfo, TIME_INSTANT, state, null));
+        assertEquals(ResponseCodeEnum.INVALID_CONTRACT_ID, exception.getStatus());
+    }
+
+    @Test
     void updateMetrics() {
         // given
         subject = new ThrottleAccumulator(
@@ -1924,5 +2118,22 @@ class ThrottleAccumulatorTest {
         final var txn =
                 TransactionBody.newBuilder().cryptoTransfer(cryptoTransferBody).build();
         given(transactionInfo.txBody()).willReturn(txn);
+    }
+
+    private void setupThrottleSubject() throws Exception {
+        subject = new ThrottleAccumulator(
+                () -> CAPACITY_SPLIT,
+                configProvider::getConfiguration,
+                FRONTEND_THROTTLE,
+                throttleMetrics,
+                gasThrottle,
+                bytesThrottle,
+                opsDurationThrottle);
+        lenient().when(configProvider.getConfiguration()).thenReturn(configuration);
+        lenient().when(configuration.getConfigData(AccountsConfig.class)).thenReturn(accountsConfig);
+        lenient().when(accountsConfig.lastThrottleExempt()).thenReturn(100L);
+
+        final var defs = getThrottleDefs("bootstrap/throttles.json");
+        subject.rebuildFor(defs);
     }
 }
