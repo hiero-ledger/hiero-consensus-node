@@ -137,11 +137,4 @@ public class QuiescenceController {
         return !body.hasStateSignatureTransaction() &&
                 !body.hasHintsPartialSignature();
     }
-
-    private static boolean nonSignatureTransactions(@NonNull final TransactionBody body) {
-        return !body.hasStateSignatureTransaction() &&
-                !body.hasHintsPartialSignature();
-    }
-
-
 }

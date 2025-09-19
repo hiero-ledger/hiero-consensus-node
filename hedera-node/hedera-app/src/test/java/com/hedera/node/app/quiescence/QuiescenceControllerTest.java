@@ -47,14 +47,42 @@ class QuiescenceControllerTest {
 
     @Test
     void basicBehavior() {
-        assertEquals(QUIESCENT, controller.getQuiescenceStatus(),
-                "Initially the status should be quiescent");
+        assertEquals(QUIESCENT, controller.getQuiescenceStatus(), "Initially the status should be quiescent");
         controller.onPreHandle(createEvent(TXN_TRANSFER));
         assertEquals(NOT_QUIESCENT, controller.getQuiescenceStatus(),
                 "Since a transaction was received through pre-handle, the status should be not quiescent");
         controller.fullySignedBlock(createBlock(TXN_TRANSFER));
         assertEquals(QUIESCENT, controller.getQuiescenceStatus(),
                 "Once that transaction has been included in a block, the status should be quiescent again");
+    }
+
+    @Test
+    void signaturesAreIgnored() {
+        assertEquals(QUIESCENT, controller.getQuiescenceStatus(), "Initially the status should be quiescent");
+        controller.onPreHandle(createEvent(TXN_STATE_SIG, TXN_HINTS_SIG));
+        assertEquals(QUIESCENT, controller.getQuiescenceStatus(),
+                "Signature transactions should be ignored, so the status should remain quiescent");
+        controller.onPreHandle(createEvent(TXN_STATE_SIG, TXN_HINTS_SIG, TXN_TRANSFER));
+        assertEquals(NOT_QUIESCENT, controller.getQuiescenceStatus(),
+                "A single non-signature transaction should make the status not quiescent");
+        controller.fullySignedBlock(createBlock(TXN_STATE_SIG, TXN_HINTS_SIG));
+        assertEquals(NOT_QUIESCENT, controller.getQuiescenceStatus(),
+                "Signature transactions should be ignored, so the status should remain not quiescent");
+    }
+
+    @Test
+    void staleEvents(){
+        controller.onPreHandle(createEvent(TXN_TRANSFER));
+        assertEquals(NOT_QUIESCENT, controller.getQuiescenceStatus(),
+                "Since a transaction was received through pre-handle, the status should be not quiescent");
+        controller.staleEvent(createEvent(TXN_TRANSFER));
+        assertEquals(QUIESCENT, controller.getQuiescenceStatus(),
+                "A stale event should remove the transaction from the pipeline, so the status should be quiescent again");
+    }
+
+    @Test
+    void platformStatusUpdate(){
+        
     }
 
     private Block createBlock(final TransactionBody... txns) {
