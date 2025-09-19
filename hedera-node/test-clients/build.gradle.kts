@@ -355,18 +355,11 @@ tasks.register<Test>("testRemote") {
 
 val prEmbeddedCheckTags =
     buildMap<String, String> {
-        put("hapiEmbeddedMisc", "EMBEDDED")
-        put("hapiEmbeddedToken", "TOKEN")
-        put("hapiEmbeddedCrypto", "CRYPTO")
-        put("hapiEmbeddedSmartContract", "SMART_CONTRACT")
+        put("hapiEmbeddedToken", "TOKEN&!MATS")
+        put("hapiEmbeddedCrypto", "CRYPTO&!MATS")
+        put("hapiEmbeddedSmartContract", "SMART_CONTRACT&!MATS")
+        put("hapiEmbeddedMisc", "EMBEDDED&!MATS")
         put("hapiEmbeddedMiscRecords", "($miscTags)")
-
-        // fix me (do we need these?)
-        put("hapiEmbeddedAdhoc", "ADHOC")
-        put("hapiEmbeddedNDReconnect", "ND_RECONNECT")
-        put("hapiEmbeddedTimeConsuming", "LONG_RUNNING")
-        put("hapiEmbeddedIss", "ISS")
-        put("hapiEmbeddedBlockNodeCommunication", "BLOCK_NODE_SIMULATOR")
     }
 
 tasks {
@@ -393,7 +386,7 @@ tasks.register<Test>("testEmbedded") {
     useJUnitPlatform {
         includeTags(
             if (ciTagExpression.isBlank())
-                "none()|!(RESTART|ND_RECONNECT|UPGRADE|REPEATABLE|ONLY_SUBPROCESS|ISS|MATS)"
+                "none()|!(RESTART|ND_RECONNECT|UPGRADE|REPEATABLE|ONLY_SUBPROCESS|ISS)"
             else
                 "(${ciTagExpression}|STREAM_VALIDATION|LOG_VALIDATION)&!(INTEGRATION|ISS|ONLY_SUBPROCESS|REPEATABLE|MATS)"
         )
