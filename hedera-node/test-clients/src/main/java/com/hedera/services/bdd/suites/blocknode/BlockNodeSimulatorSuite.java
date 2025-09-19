@@ -450,7 +450,7 @@ public class BlockNodeSimulatorSuite {
                             BLOCK_PERIOD_SECONDS + "s"
                         })
             })
-    @Order(7)
+    @Order(8)
     final Stream<DynamicTest> testBlockBufferDurability() {
         /*
         1. Create some background traffic for a while.
@@ -506,5 +506,57 @@ public class BlockNodeSimulatorSuite {
                 // acknowledged all old blocks and the new blocks (Note: DEBUG logging is required for this to pass)
                 sourcingContextual(spec -> assertHgcaaLogContainsTimeframe(
                         byNodeId(0), timeRef::get, Duration.ofMinutes(3), Duration.ofMinutes(3), "saturation=0.0%")));
+    }
+
+    @HapiTest
+    @HapiBlockNode(
+            networkSize = 1,
+            blockNodeConfigs = {
+                @BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.SIMULATOR),
+                @BlockNodeConfig(nodeId = 1, mode = BlockNodeMode.SIMULATOR)
+            },
+            subProcessNodeConfigs = {
+                @SubProcessNodeConfig(
+                        nodeId = 0,
+                        blockNodeIds = {0, 1},
+                        blockNodePriorities = {0, 1},
+                        applicationPropertiesOverrides = {
+                            "blockStream.streamMode",
+                            "BOTH",
+                            "blockStream.writerMode",
+                            "FILE_AND_GRPC",
+                            "blockNode.maxEndOfStreamsAllowed",
+                            "1"
+                        })
+            })
+    @Order(9)
+    final Stream<DynamicTest> node0StreamingMultipleEndOfStreamsReceived() {
+        final AtomicReference<Instant> time = new AtomicReference<>();
+        final List<Integer> portNumbers = new ArrayList<>();
+        return hapiTest(
+                doingContextual(spec -> {
+                    portNumbers.add(spec.getBlockNodePortById(0));
+                    portNumbers.add(spec.getBlockNodePortById(1));
+                }),
+                waitUntilNextBlocks(5).withBackgroundTraffic(true),
+                doingContextual(spec -> time.set(Instant.now())),
+                blockNodeSimulator(0).sendEndOfStreamImmediately(Code.TIMEOUT).withBlockNumber(9L),
+                blockNodeSimulator(0).sendEndOfStreamImmediately(Code.TIMEOUT).withBlockNumber(10L),
+                sourcingContextual(spec -> assertHgcaaLogContainsTimeframe(
+                        byNodeId(0),
+                        time::get,
+                        Duration.ofMinutes(1),
+                        Duration.of(45, SECONDS),
+                        String.format(
+                                "[localhost:%s/ACTIVE] Block node has exceeded the allowed number of EndOfStream responses",
+                                portNumbers.getFirst()),
+                        String.format("Selected block node localhost:%s for connection attempt", portNumbers.getLast()),
+                        String.format(
+                                "[localhost:%s/PENDING] Connection state transitioned from UNINITIALIZED to PENDING",
+                                portNumbers.getLast()),
+                        String.format(
+                                "[localhost:%s/ACTIVE] Connection state transitioned from PENDING to ACTIVE",
+                                portNumbers.getLast()))),
+                waitUntilNextBlocks(5).withBackgroundTraffic(true));
     }
 }
