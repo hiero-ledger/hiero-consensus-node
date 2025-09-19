@@ -101,6 +101,11 @@ public class SimulatedBlockNodeServer {
 
     private final AtomicBoolean sendingAcksEnabled = new AtomicBoolean(true);
 
+    // In-memory capture of block items per block number (only for fully received blocks)
+    // We record items in arrival order for each block, and seal them when proof arrives
+    private final Map<Long, List<BlockItem>> blockItemsByNumber = new ConcurrentHashMap<>();
+    private final Set<Long> sealedBlocks = ConcurrentHashMap.newKeySet();
+
     /**
      * Creates a new simulated block node server on the specified port.
      *
@@ -271,6 +276,25 @@ public class SimulatedBlockNodeServer {
     }
 
     /**
+     * Returns the captured and sealed blocks as a list of {@link com.hedera.hapi.block.stream.Block} objects
+     * in ascending block number order. Only blocks that have both header and proof (sealed) are returned.
+     */
+    @NonNull
+    public List<com.hedera.hapi.block.stream.Block> getCapturedBlocks() {
+        blockTrackingLock.readLock().lock();
+        try {
+            return sealedBlocks.stream()
+                    .sorted()
+                    .map(blockNum -> com.hedera.hapi.block.stream.Block.newBuilder()
+                            .items(blockItemsByNumber.getOrDefault(blockNum, List.of()))
+                            .build())
+                    .toList();
+        } finally {
+            blockTrackingLock.readLock().unlock();
+        }
+    }
+
+    /**
      * @return whether this server has ever been shutdown.
      */
     public boolean hasEverBeenShutdown() {
@@ -364,6 +388,7 @@ public class SimulatedBlockNodeServer {
                                         lastVerifiedBlockNumber.set(externalLastVerifiedBlockNumberSupplier.get());
                                     }
 
+                                    // Compute server progress as the max of last verified and any in-flight block
                                     final long lastVerifiedBlockNum = lastVerifiedBlockNumber.get();
                                     if (blockNumber - lastVerifiedBlockNum > 1) {
                                         handleBehindResponse(replies, blockNumber, lastVerifiedBlockNum);
@@ -372,6 +397,9 @@ public class SimulatedBlockNodeServer {
 
                                     // Set the current block number being processed by THIS stream instance
                                     currentBlockNumber = blockNumber;
+                                    // Start capturing items for this block if not already
+                                    blockItemsByNumber.computeIfAbsent(blockNumber, k -> new ArrayList<>());
+                                    blockItemsByNumber.get(blockNumber).add(item);
                                     log.info(
                                             "Received BlockHeader for block {} on port {} from stream {}",
                                             blockNumber,
@@ -392,29 +420,24 @@ public class SimulatedBlockNodeServer {
 
                                     // Requirement 1: Check if another stream is currently sending this block's parts
                                     if (streamingBlocks.containsKey(blockNumber)) {
-                                        // If it's a different stream trying to send the same header
+                                        // If it's a different stream trying to send the same header, ignore it
                                         if (streamingBlocks.get(blockNumber) != replies) {
                                             log.warn(
-                                                    "Block {} header received from stream {}, but another stream ({}) is already sending parts. Sending SkipBlock to stream {} on port {}.",
+                                                    "Block {} header received from stream {}, but another stream ({}) already owns this block. Ignoring duplicate header.",
                                                     blockNumber,
                                                     replies.hashCode(),
                                                     streamingBlocks
                                                             .get(blockNumber)
-                                                            .hashCode(),
-                                                    replies.hashCode(),
-                                                    port);
-                                            sendSkipBlock(replies, blockNumber);
-                                            // Continue to the next BlockItem in the request
+                                                            .hashCode());
+                                            // Ignore duplicates prior to clients receiving SkipBlock
                                             continue;
                                         }
                                         // If it's the same stream sending the header again (e.g., duplicate header item
-                                        // in
-                                        // the same request)
+                                        // in the same request), ignore it
                                         log.warn(
                                                 "Block {} header received again from the same stream {} while streaming. Ignoring duplicate header item.",
                                                 blockNumber,
                                                 replies.hashCode());
-                                        // Continue to the next BlockItem in the request
                                         continue;
                                     }
 
@@ -424,11 +447,10 @@ public class SimulatedBlockNodeServer {
                                     blocksWithHeadersOnly.add(blockNumber);
                                     streamingBlocks.put(blockNumber, replies);
                                     log.info(
-                                            "Accepted BlockHeader for block {}. Stream {} is now sending parts on port {}.",
+                                            "Accepted BlockHeader for block {}. Stream {} is now sending parts on port {}. Broadcasting SkipBlock to other streams.",
                                             blockNumber,
                                             replies.hashCode(),
                                             port);
-
                                 } else if (item.hasBlockProof()) {
                                     final var proof = item.blockProof();
                                     final long blockNumber = proof.block();
@@ -463,6 +485,12 @@ public class SimulatedBlockNodeServer {
                                     blocksWithProofs.add(blockNumber);
                                     streamingBlocks.remove(blockNumber); // No longer streaming this specific block
 
+                                    // Capture the proof and seal the block
+                                    blockItemsByNumber
+                                            .computeIfAbsent(blockNumber, k -> new ArrayList<>())
+                                            .add(item);
+                                    sealedBlocks.add(blockNumber);
+
                                     // Update last verified block number atomically
                                     final long newLastVerified = lastVerifiedBlockNumber.updateAndGet(
                                             currentMax -> Math.max(currentMax, blockNumber));
@@ -485,6 +513,13 @@ public class SimulatedBlockNodeServer {
 
                                     // Reset currentBlockNumber for this stream, as it finished sending this block
                                     currentBlockNumber = null;
+                                } else {
+                                    // Any other BlockItem belonging to the current block should be captured
+                                    if (currentBlockNumber != null) {
+                                        blockItemsByNumber
+                                                .computeIfAbsent(currentBlockNumber, k -> new ArrayList<>())
+                                                .add(item);
+                                    }
                                 }
                             } // End of loop through BlockItems
                         }
