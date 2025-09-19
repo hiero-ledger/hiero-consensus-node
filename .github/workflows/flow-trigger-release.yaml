@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-name: "[Main] Create New Release"
+name: "[Release] Create New Release"
 on:
   workflow_dispatch:
     inputs:
