@@ -226,7 +226,7 @@ public abstract class HapiBaseTransfer<T extends HapiTxnOp<T>> extends HapiTxnOp
 
     private static long gatherHookGasLimit(final CryptoTransferTransactionBody op) {
         long totalGas = 0L;
-        if(op.hasTransfers()){
+        if (op.hasTransfers()) {
             for (final var aa : op.getTransfers().getAccountAmountsList()) {
                 totalGas = addAllowanceHookGas(totalGas, aa);
             }
@@ -241,35 +241,40 @@ public abstract class HapiBaseTransfer<T extends HapiTxnOp<T>> extends HapiTxnOp
         }
         return totalGas;
     }
+
     private static long addAllowanceHookGas(long gasTillNow, final AccountAmount aa) {
         if (aa.hasPreTxAllowanceHook()) {
-            gasTillNow = clampedAdd(gasTillNow,
-                    aa.getPreTxAllowanceHook().getEvmHookCall().getGasLimit());
+            gasTillNow = clampedAdd(
+                    gasTillNow, aa.getPreTxAllowanceHook().getEvmHookCall().getGasLimit());
         }
         if (aa.hasPrePostTxAllowanceHook()) {
-            gasTillNow = clampedAdd(gasTillNow,
-                    aa.getPrePostTxAllowanceHook().getEvmHookCall().getGasLimit());
-        }
-        return gasTillNow;
-    }
-    private static long addNftHookGas(long gasTillNow, final NftTransfer nft) {
-        if (nft.hasPreTxSenderAllowanceHook()) {
-            gasTillNow = clampedAdd(gasTillNow,
-                    nft.getPreTxSenderAllowanceHook().getEvmHookCall().getGasLimit());
-        }
-        if (nft.hasPrePostTxSenderAllowanceHook()) {
-            gasTillNow = clampedAdd(gasTillNow,
-                    nft.getPreTxSenderAllowanceHook().getEvmHookCall().getGasLimit());
-        }
-        if (nft.hasPreTxReceiverAllowanceHook()) {
-            gasTillNow = clampedAdd(gasTillNow,
-                    nft.getPreTxReceiverAllowanceHook().getEvmHookCall().getGasLimit());
-        }
-        if (nft.hasPrePostTxReceiverAllowanceHook()) {
-            gasTillNow = clampedAdd(gasTillNow,
-                    nft.getPrePostTxReceiverAllowanceHook().getEvmHookCall().getGasLimit());
+            gasTillNow = clampedAdd(
+                    gasTillNow, aa.getPrePostTxAllowanceHook().getEvmHookCall().getGasLimit());
         }
         return gasTillNow;
     }
 
+    private static long addNftHookGas(long gasTillNow, final NftTransfer nft) {
+        if (nft.hasPreTxSenderAllowanceHook()) {
+            gasTillNow = clampedAdd(
+                    gasTillNow,
+                    nft.getPreTxSenderAllowanceHook().getEvmHookCall().getGasLimit());
+        }
+        if (nft.hasPrePostTxSenderAllowanceHook()) {
+            gasTillNow = clampedAdd(
+                    gasTillNow,
+                    nft.getPreTxSenderAllowanceHook().getEvmHookCall().getGasLimit());
+        }
+        if (nft.hasPreTxReceiverAllowanceHook()) {
+            gasTillNow = clampedAdd(
+                    gasTillNow,
+                    nft.getPreTxReceiverAllowanceHook().getEvmHookCall().getGasLimit());
+        }
+        if (nft.hasPrePostTxReceiverAllowanceHook()) {
+            gasTillNow = clampedAdd(
+                    gasTillNow,
+                    nft.getPrePostTxReceiverAllowanceHook().getEvmHookCall().getGasLimit());
+        }
+        return gasTillNow;
+    }
 }

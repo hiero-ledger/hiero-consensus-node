@@ -54,7 +54,6 @@ import com.hedera.node.config.data.AccountsConfig;
 import com.hedera.node.config.data.FeesConfig;
 import com.hedera.node.config.data.LedgerConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
-
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -262,7 +261,7 @@ public class CryptoTransferHandler extends TransferExecutor implements Transacti
         weightedTokensInvolved += tokenMultiplier * involvedTokens.size();
         long rbs = (totalXfers * LONG_ACCOUNT_AMOUNT_BYTES)
                 + TOKEN_ENTITY_SIZES.bytesUsedToRecordTokenTransfers(
-                weightedTokensInvolved, weightedTokenXfers, numNftOwnershipChanges);
+                        weightedTokensInvolved, weightedTokenXfers, numNftOwnershipChanges);
 
         final var totalGasLimitOfHooks = gatherHookGasLimit(op);
         final var usesHooks = totalGasLimitOfHooks != 0;
@@ -318,11 +317,13 @@ public class CryptoTransferHandler extends TransferExecutor implements Transacti
      */
     private static long addAllowanceHookGas(long gasTillNow, final AccountAmount aa) {
         if (aa.hasPreTxAllowanceHook()) {
-            gasTillNow = clampedAdd(gasTillNow,
+            gasTillNow = clampedAdd(
+                    gasTillNow,
                     aa.preTxAllowanceHookOrThrow().evmHookCallOrThrow().gasLimit());
         }
         if (aa.hasPrePostTxAllowanceHook()) {
-            gasTillNow = clampedAdd(gasTillNow,
+            gasTillNow = clampedAdd(
+                    gasTillNow,
                     aa.prePostTxAllowanceHookOrThrow().evmHookCallOrThrow().gasLimit());
         }
         return gasTillNow;
@@ -333,20 +334,28 @@ public class CryptoTransferHandler extends TransferExecutor implements Transacti
      */
     private static long addNftHookGas(long gasTillNow, final NftTransfer nft) {
         if (nft.hasPreTxSenderAllowanceHook()) {
-            gasTillNow = clampedAdd(gasTillNow,
+            gasTillNow = clampedAdd(
+                    gasTillNow,
                     nft.preTxSenderAllowanceHookOrThrow().evmHookCallOrThrow().gasLimit());
         }
         if (nft.hasPrePostTxSenderAllowanceHook()) {
-            gasTillNow = clampedAdd(gasTillNow,
-                    nft.prePostTxSenderAllowanceHookOrThrow().evmHookCallOrThrow().gasLimit());
+            gasTillNow = clampedAdd(
+                    gasTillNow,
+                    nft.prePostTxSenderAllowanceHookOrThrow()
+                            .evmHookCallOrThrow()
+                            .gasLimit());
         }
         if (nft.hasPreTxReceiverAllowanceHook()) {
-            gasTillNow = clampedAdd(gasTillNow,
+            gasTillNow = clampedAdd(
+                    gasTillNow,
                     nft.preTxReceiverAllowanceHookOrThrow().evmHookCallOrThrow().gasLimit());
         }
         if (nft.hasPrePostTxReceiverAllowanceHook()) {
-            gasTillNow = clampedAdd(gasTillNow,
-                    nft.prePostTxReceiverAllowanceHookOrThrow().evmHookCallOrThrow().gasLimit());
+            gasTillNow = clampedAdd(
+                    gasTillNow,
+                    nft.prePostTxReceiverAllowanceHookOrThrow()
+                            .evmHookCallOrThrow()
+                            .gasLimit());
         }
         return gasTillNow;
     }

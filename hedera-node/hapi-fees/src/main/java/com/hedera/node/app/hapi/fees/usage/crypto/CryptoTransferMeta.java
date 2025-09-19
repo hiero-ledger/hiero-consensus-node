@@ -23,6 +23,7 @@ public class CryptoTransferMeta {
         this.numFungibleTokenTransfers = numFungibleTokenTransfers;
         this.numNftOwnershipChanges = numNftOwnershipChanges;
     }
+
     public long getHookGasLimit() {
         return hookGasLimit;
     }
@@ -84,7 +85,7 @@ public class CryptoTransferMeta {
     }
 
     public SubType getSubType() {
-        if(hookGasLimit > 0) {
+        if (hookGasLimit > 0) {
             return SubType.CRYPTO_TRANSFER_WITH_HOOKS;
         }
         if (numNftOwnershipChanges != 0) {

@@ -31,8 +31,10 @@ import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.dsl.annotations.Contract;
 import com.hedera.services.bdd.spec.dsl.entities.SpecContract;
 import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
+import com.hederahashgraph.api.proto.java.ContractID;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
@@ -217,6 +219,8 @@ public class Hip1195EnabledTest {
 
     @HapiTest
     final Stream<DynamicTest> contractCreateWithHooks() {
+        final var OWNER = "contractOwner";
+        final AtomicReference<ContractID> contractId = new AtomicReference<>();
         return hapiTest(
                 cryptoCreate("payer").balance(ONE_MILLION_HBARS),
                 uploadInitCode(SIMPLE_UPDATE),

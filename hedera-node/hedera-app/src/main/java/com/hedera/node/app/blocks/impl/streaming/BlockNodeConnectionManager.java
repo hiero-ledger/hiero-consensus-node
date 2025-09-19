@@ -357,7 +357,7 @@ public class BlockNodeConnectionManager {
         if (isOnlyOneBlockNodeConfigured()) {
             // If there is only one block node configured, we will not try to select a new node
             // Schedule a retry for the failed connection with no delay
-            scheduleConnectionAttempt(connection, Duration.ofSeconds(0), null, false);
+            scheduleConnectionAttempt(connection, Duration.ZERO, null, false);
         } else {
             // Schedule retry for the failed connection after a delay
             scheduleConnectionAttempt(connection, delay, null, false);
