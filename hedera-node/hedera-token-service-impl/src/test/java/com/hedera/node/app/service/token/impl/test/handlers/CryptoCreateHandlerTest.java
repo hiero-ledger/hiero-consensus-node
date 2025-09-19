@@ -16,8 +16,8 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.KEY_REQUIRED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.MEMO_TOO_LONG;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.PROXY_ACCOUNT_ID_FIELD_IS_DEPRECATED;
 import static com.hedera.hapi.node.base.SubType.DEFAULT;
-import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_KEY;
-import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ALIASES_KEY;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_STATE_ID;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ALIASES_STATE_ID;
 import static com.hedera.node.app.spi.fixtures.workflows.ExceptionConditions.responseCode;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThatThrownBy;
@@ -87,6 +87,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
  */
 @ExtendWith(MockitoExtension.class)
 class CryptoCreateHandlerTest extends CryptoHandlerTestBase {
+
     @Mock(strictness = LENIENT)
     private HandleContext handleContext;
 
@@ -726,7 +727,7 @@ class CryptoCreateHandlerTest extends CryptoHandlerTestBase {
         final var writableAliases = emptyWritableAliasStateBuilder()
                 .value(new ProtoBytes(Bytes.wrap(evmAddress)), idFactory.newAccountId(accountNum))
                 .build();
-        given(writableStates.<ProtoBytes, AccountID>get(ALIASES_KEY)).willReturn(writableAliases);
+        given(writableStates.<ProtoBytes, AccountID>get(ALIASES_STATE_ID)).willReturn(writableAliases);
         writableStore = new WritableAccountStore(writableStates, entityCounters);
         when(storeFactory.writableStore(WritableAccountStore.class)).thenReturn(writableStore);
 
@@ -764,7 +765,7 @@ class CryptoCreateHandlerTest extends CryptoHandlerTestBase {
     private void changeAccountToDeleted() {
         final var copy = account.copyBuilder().deleted(true).build();
         writableAccounts.put(id, copy);
-        given(writableStates.<AccountID, Account>get(ACCOUNTS_KEY)).willReturn(writableAccounts);
+        given(writableStates.<AccountID, Account>get(ACCOUNTS_STATE_ID)).willReturn(writableAccounts);
         writableStore = new WritableAccountStore(writableStates, entityCounters);
     }
 

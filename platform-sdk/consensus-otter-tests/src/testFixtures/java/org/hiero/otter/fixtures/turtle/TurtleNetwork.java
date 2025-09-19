@@ -4,7 +4,6 @@ package org.hiero.otter.fixtures.turtle;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.state.roster.Roster;
-import com.hedera.hapi.platform.state.NodeId;
 import com.swirlds.common.test.fixtures.Randotron;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -19,6 +18,7 @@ import java.util.concurrent.Executors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.node.KeysAndCerts;
+import org.hiero.consensus.model.node.NodeId;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.TimeManager;
 import org.hiero.otter.fixtures.TransactionGenerator;
@@ -116,7 +116,7 @@ public class TurtleNetwork extends AbstractNetwork implements TimeTickReceiver {
         simulatedNetwork = new SimulatedNetwork(randotron, roster);
 
         return roster.rosterEntries().stream()
-                .map(entry -> NodeId.newBuilder().id(entry.nodeId()).build())
+                .map(entry -> NodeId.of(entry.nodeId()))
                 .sorted(Comparator.comparing(NodeId::id))
                 .map(nodeId -> createTurtleNode(nodeId, roster, rosterBuilder.getPrivateKeys(nodeId)))
                 .toList();
