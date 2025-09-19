@@ -15,6 +15,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.otter.fixtures.InstrumentedNode;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.TimeManager;
 import org.hiero.otter.fixtures.TransactionGenerator;
@@ -94,9 +95,22 @@ public class ContainerNetwork extends AbstractNetwork {
      */
     @Override
     @NonNull
-    protected ContainerNode createNode(@NonNull final NodeId nodeId, @NonNull final KeysAndCerts keysAndCerts) {
+    protected ContainerNode doCreateNode(@NonNull final NodeId nodeId, @NonNull final KeysAndCerts keysAndCerts) {
         final Path outputDir = rootOutputDirectory.resolve("node-" + nodeId.id());
         final ContainerNode node = new ContainerNode(nodeId, keysAndCerts, network, dockerImage, outputDir);
+        timeManager.addTimeTickReceiver(node);
+        return node;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
+    protected InstrumentedNode doCreateInstrumentedNode(@NonNull final NodeId nodeId,
+            @NonNull final KeysAndCerts keysAndCerts) {
+        final Path outputDir = rootOutputDirectory.resolve("node-" + nodeId.id());
+        final InstrumentedContainerNode node = new InstrumentedContainerNode(nodeId, keysAndCerts, network, dockerImage, outputDir);
         timeManager.addTimeTickReceiver(node);
         return node;
     }

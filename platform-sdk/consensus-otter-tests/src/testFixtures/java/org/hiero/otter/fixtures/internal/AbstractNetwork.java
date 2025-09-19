@@ -40,6 +40,7 @@ import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.otter.fixtures.AsyncNetworkActions;
+import org.hiero.otter.fixtures.InstrumentedNode;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.TimeManager;
@@ -99,7 +100,7 @@ public abstract class AbstractNetwork implements Network {
 
     private final Random random;
     private final Map<NodeId, PartitionImpl> partitions = new HashMap<>();
-    private final Topology topology = new MeshTopologyImpl(this::createNodes);
+    private final Topology topology = new MeshTopologyImpl(this::createNodes, this::createInstrumentedNode);
 
     protected State state = State.INIT;
     protected WeightGenerator weightGenerator = WeightGenerators.GAUSSIAN;
@@ -158,7 +159,15 @@ public abstract class AbstractNetwork implements Network {
         this.weightGenerator = requireNonNull(weightGenerator);
     }
 
-    protected abstract Node createNode(@NonNull final NodeId nodeId, @NonNull final KeysAndCerts keysAndCerts);
+    /**
+     * Creates a new node with the given ID and keys and certificates. This is a factory method that must be
+     * implemented by subclasses to create nodes specific to the environment.
+     *
+     * @param nodeId the ID of the node to create
+     * @param keysAndCerts the keys and certificates for the node
+     * @return the newly created node
+     */
+    protected abstract Node doCreateNode(@NonNull final NodeId nodeId, @NonNull final KeysAndCerts keysAndCerts);
 
     private List<Node> createNodes(final int count) {
         throwIfInState(State.RUNNING, "Cannot add nodes while the network is running.");
@@ -168,8 +177,31 @@ public abstract class AbstractNetwork implements Network {
             final List<NodeId> nodeIds =
                     IntStream.range(0, count).mapToObj(i -> getNextNodeId()).toList();
             return CryptoStatic.generateKeysAndCerts(nodeIds, null).entrySet().stream()
-                    .map(entry -> createNode(entry.getKey(), entry.getValue()))
+                    .map(entry -> doCreateNode(entry.getKey(), entry.getValue()))
                     .toList();
+        } catch (final ExecutionException | InterruptedException | KeyStoreException e) {
+            throw new RuntimeException("Exception while generating KeysAndCerts", e);
+        }
+    }
+
+    /**
+     * Creates a new instrumented node with the given ID and keys and certificates. This is a factory method that must
+     * be implemented by subclasses to create instrumented nodes specific to the environment.
+     *
+     * @param nodeId the ID of the instrumented node to create
+     * @param keysAndCerts the keys and certificates for the instrumented node
+     * @return the newly created instrumented node
+     */
+    protected abstract InstrumentedNode doCreateInstrumentedNode(@NonNull final NodeId nodeId, @NonNull final KeysAndCerts keysAndCerts);
+
+    private InstrumentedNode createInstrumentedNode() {
+        throwIfInState(State.RUNNING, "Cannot add nodes while the network is running.");
+        throwIfInState(State.SHUTDOWN, "Cannot add nodes after the network has been started.");
+
+        try {
+            final NodeId nodeId = getNextNodeId();
+            final KeysAndCerts keysAndCerts = CryptoStatic.generateKeysAndCerts(List.of(nodeId), null).get(nodeId);
+            return doCreateInstrumentedNode(nodeId, keysAndCerts);
         } catch (final ExecutionException | InterruptedException | KeyStoreException e) {
             throw new RuntimeException("Exception while generating KeysAndCerts", e);
         }

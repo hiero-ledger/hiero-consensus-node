@@ -17,6 +17,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.otter.fixtures.InstrumentedNode;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.TimeManager;
@@ -99,9 +100,21 @@ public class TurtleNetwork extends AbstractNetwork implements TimeTickReceiver {
      */
     @Override
     @NonNull
-    protected TurtleNode createNode(@NonNull final NodeId nodeId, @NonNull final KeysAndCerts keysAndCerts) {
+    protected TurtleNode doCreateNode(@NonNull final NodeId nodeId, @NonNull final KeysAndCerts keysAndCerts) {
         final Path outputDir = rootOutputDirectory.resolve("node-" + nodeId.id());
         return new TurtleNode(
+                randotron, timeManager.time(), nodeId, keysAndCerts, simulatedNetwork, logging, outputDir);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
+    protected InstrumentedNode doCreateInstrumentedNode(@NonNull final NodeId nodeId,
+            @NonNull final KeysAndCerts keysAndCerts) {
+        final Path outputDir = rootOutputDirectory.resolve("node-" + nodeId.id());
+        return new InstrumentedTurtleNode(
                 randotron, timeManager.time(), nodeId, keysAndCerts, simulatedNetwork, logging, outputDir);
     }
 
