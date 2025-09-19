@@ -50,8 +50,11 @@ import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.block.api.BlockNodeServiceInterface.BlockNodeServiceClient;
 import org.hiero.block.api.BlockStreamPublishServiceInterface.BlockStreamPublishServiceClient;
 import org.hiero.block.api.PublishStreamRequest;
+import org.hiero.block.api.ServerStatusRequest;
+import org.hiero.block.api.ServerStatusResponse;
 
 /**
  * Manages connections to block nodes in a Hedera network, handling connection lifecycle, node selection,
@@ -280,29 +283,50 @@ public class BlockNodeConnectionManager {
     }
 
     /**
-     * Creates a new gRPC client based on the specified configuration.
+     * Creates a new gRPC publish client based on the specified configuration.
      *
      * @param nodeConfig the configuration to use for a specific block node to connect to
-     * @return a gRPC client
+     * @return a gRPC publish client
      */
-    private @NonNull BlockStreamPublishServiceClient createNewGrpcClient(@NonNull final BlockNodeConfig nodeConfig) {
+    private @NonNull BlockStreamPublishServiceClient createNewPublishClient(@NonNull final BlockNodeConfig nodeConfig) {
         requireNonNull(nodeConfig);
 
         final Tls tls = Tls.builder().enabled(false).build();
         final PbjGrpcClientConfig grpcConfig =
                 new PbjGrpcClientConfig(Duration.ofSeconds(30), tls, Optional.of(""), "application/grpc");
+        final WebClient webClient = createNewWebClient(nodeConfig);
 
-        final WebClient webClient = WebClient.builder()
+        return new BlockStreamPublishServiceClient(new PbjGrpcClient(webClient, grpcConfig), OPTIONS);
+    }
+
+    /**
+     * Creates a new gRPC server status client based on the specified configuration.
+     *
+     * @param nodeConfig the configuration to use for a specific block node to connect to
+     * @return a gRPC server status client
+     */
+    private @NonNull BlockNodeServiceClient createNewServerStatusClient(@NonNull final BlockNodeConfig nodeConfig) {
+        requireNonNull(nodeConfig);
+
+        final Tls tls = Tls.builder().enabled(false).build();
+        final PbjGrpcClientConfig grpcConfig =
+                new PbjGrpcClientConfig(Duration.ofSeconds(30), tls, Optional.of(""), "application/grpc");
+        final WebClient webClient = createNewWebClient(nodeConfig);
+
+        return new BlockNodeServiceClient(new PbjGrpcClient(webClient, grpcConfig), OPTIONS);
+    }
+
+    private @NonNull WebClient createNewWebClient(@NonNull final BlockNodeConfig nodeConfig) {
+        requireNonNull(nodeConfig);
+        return WebClient.builder()
                 .baseUri("http://" + nodeConfig.address() + ":" + nodeConfig.port())
-                .tls(tls)
+                .tls(Tls.builder().enabled(false))
                 .protocolConfigs(List.of(GrpcClientProtocolConfig.builder()
                         .abortPollTimeExpired(false)
                         .pollWaitTime(Duration.ofSeconds(30))
                         .build()))
                 .connectTimeout(Duration.ofSeconds(10))
                 .build();
-
-        return new BlockStreamPublishServiceClient(new PbjGrpcClient(webClient, grpcConfig), OPTIONS);
     }
 
     /**
@@ -600,8 +624,73 @@ public class BlockNodeConnectionManager {
     private BlockNodeConnection createConnection(@NonNull final BlockNodeConfig nodeConfig) {
         requireNonNull(nodeConfig);
 
-        // Create the connection object with fresh gRPC client
-        final BlockStreamPublishServiceClient grpcClient = createNewGrpcClient(nodeConfig);
+        // Create the connection object with fresh gRPC publish client
+        final BlockStreamPublishServiceClient grpcClient = createNewPublishClient(nodeConfig);
+
+        // Call serverStatus endpoint before establishing the BlockNodeConnection
+        try {
+            final var serverStatusClient = createNewServerStatusClient(nodeConfig);
+
+            // Build the request
+            final ServerStatusRequest statusRequest =
+                    ServerStatusRequest.newBuilder().build();
+
+            // Make the unary call
+            ServerStatusResponse statusResponse = serverStatusClient.serverStatus(statusRequest);
+
+            final long lastAvailableBlockFromBlockNode = statusResponse.lastAvailableBlock();
+            final long highestAckedBlock = blockBufferService.getHighestAckedBlockNumber();
+            final long earliestBlockNumber = blockBufferService.getEarliestAvailableBlockNumber();
+
+            // If the block node is too far behind, log and return
+            if (lastAvailableBlockFromBlockNode < earliestBlockNumber && lastAvailableBlockFromBlockNode != -1) {
+                logger.warn(
+                        "Block node {}:{} is too far behind (lastAvailableBlockFromBlockNode={}, earliestAvailableBlockFromConsensusNode={}). Not establishing connection.",
+                        nodeConfig.address(),
+                        nodeConfig.port(),
+                        lastAvailableBlockFromBlockNode,
+                        earliestBlockNumber);
+                managedChannel.shutdown();
+                return;
+            }
+
+            // If the block node is behind, but we have the block in buffer, jump to the block we have
+            if (lastAvailableBlockFromBlockNode < highestAckedBlock) {
+                logger.info(
+                        "Block node {}:{} is behind but block {} is available in buffer. Will jump to this block.",
+                        nodeConfig.address(),
+                        nodeConfig.port(),
+                        lastAvailableBlockFromBlockNode + 1);
+                final BlockNodeConnection connection = new BlockNodeConnection(
+                        configProvider,
+                        nodeConfig,
+                        this,
+                        blockBufferService,
+                        grpcClient,
+                        blockStreamMetrics,
+                        sharedExecutorService);
+                connections.put(nodeConfig, connection);
+                scheduleConnectionAttempt(connection, Duration.ZERO, lastAvailableBlockFromBlockNode + 1);
+                return;
+            }
+
+            // Otherwise, proceed with establishing the connection as normal
+            logger.info(
+                    "Server status for node {}:{}: firstAvailableBlock={}, lastAvailableBlock={}",
+                    nodeConfig.address(),
+                    nodeConfig.port(),
+                    statusResponse.firstAvailableBlock(),
+                    statusResponse.lastAvailableBlock());
+        } catch (Exception e) {
+            logger.error(
+                    "Failed to get server status from block node {}:{}: {}",
+                    nodeConfig.address(),
+                    nodeConfig.port(),
+                    e.getMessage(),
+                    e);
+            return;
+        }
+
         final BlockNodeConnection connection = new BlockNodeConnection(
                 configProvider,
                 nodeConfig,
@@ -737,9 +826,12 @@ public class BlockNodeConnectionManager {
                     requestIndex);
             final PublishStreamRequest publishStreamRequest = blockState.getRequest(requestIndex);
             if (publishStreamRequest != null) {
-                connection.sendRequest(publishStreamRequest);
-                blockState.markRequestSent(requestIndex);
-                requestIndex++;
+                if (connection.sendRequest(publishStreamRequest)) {
+                    blockState.markRequestSent(requestIndex);
+                    requestIndex++;
+                } else {
+                    return true; // If the stream observer is not ready, we should sleep and wait for the next iteration
+                }
             }
         }
 
