@@ -22,6 +22,7 @@ import com.swirlds.platform.state.iss.internal.RoundHashValidator;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.util.MarkerFileWriter;
+import com.swirlds.platform.wiring.PlatformCoordinator;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
@@ -106,6 +107,7 @@ public class DefaultIssDetector implements IssDetector {
      */
     private final long latestFreezeRound;
 
+    private final PlatformCoordinator platformCoordinator = null;
     /**
      * Create an object that tracks reported hashes and detects ISS events.
      *

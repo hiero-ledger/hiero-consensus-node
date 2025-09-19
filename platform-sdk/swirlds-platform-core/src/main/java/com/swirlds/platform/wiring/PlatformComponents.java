@@ -33,6 +33,7 @@ import com.swirlds.platform.eventhandling.TransactionPrehandler;
 import com.swirlds.platform.publisher.PlatformPublisher;
 import com.swirlds.platform.state.hasher.StateHasher;
 import com.swirlds.platform.state.hashlogger.HashLogger;
+import com.swirlds.platform.state.iss.CatastrophicActionTrigger;
 import com.swirlds.platform.state.iss.IssDetector;
 import com.swirlds.platform.state.iss.IssHandler;
 import com.swirlds.platform.state.nexus.LatestCompleteStateNexus;
@@ -42,8 +43,12 @@ import com.swirlds.platform.state.signed.SignedStateSentinel;
 import com.swirlds.platform.state.signed.StateGarbageCollector;
 import com.swirlds.platform.state.signed.StateSignatureCollector;
 import com.swirlds.platform.state.signer.StateSigner;
+import com.swirlds.platform.state.snapshot.SavedStateActionTrigger;
 import com.swirlds.platform.state.snapshot.StateSnapshotManager;
-import com.swirlds.platform.system.PlatformMonitor;
+import com.swirlds.platform.system.SelfEventConsensusMonitor;
+import com.swirlds.platform.system.StatusStateMachine;
+import com.swirlds.platform.system.status.actions.PlatformStatusAction;
+import com.swirlds.platform.uptime.UptimeTracker;
 import com.swirlds.platform.wiring.components.ConsensusWiring;
 import com.swirlds.platform.wiring.components.GossipWiring;
 import com.swirlds.platform.wiring.components.PcesReplayerWiring;
@@ -100,9 +105,13 @@ public record PlatformComponents(
         ComponentWiring<StateHasher, ReservedSignedState> stateHasherWiring,
         ComponentWiring<AppNotifier, Void> notifierWiring,
         ComponentWiring<PlatformPublisher, Void> platformPublisherWiring,
-        ComponentWiring<PlatformMonitor, PlatformStatus> platformMonitorWiring,
+        ComponentWiring<StatusStateMachine, PlatformStatus> statusStateMachineWiring,
         ComponentWiring<BranchDetector, PlatformEvent> branchDetectorWiring,
-        ComponentWiring<BranchReporter, Void> branchReporterWiring) {
+        ComponentWiring<BranchReporter, Void> branchReporterWiring,
+        ComponentWiring<UptimeTracker, PlatformStatusAction> uptimeTrackerWiring,
+        ComponentWiring<SelfEventConsensusMonitor, PlatformStatusAction> selfEventConsensusMonitorWiring,
+        ComponentWiring<CatastrophicActionTrigger, PlatformStatusAction> catastrophicActionTriggerWiring,
+        ComponentWiring<SavedStateActionTrigger, PlatformStatusAction> savedStateActionTriggerWiring) {
 
     /**
      * Bind components to the wiring.
@@ -160,7 +169,7 @@ public record PlatformComponents(
         notifierWiring.bind(notifier);
         platformPublisherWiring.bind(platformPublisher);
         stateGarbageCollectorWiring.bind(builder::buildStateGarbageCollector);
-        platformMonitorWiring.bind(builder::buildPlatformMonitor);
+        statusStateMachineWiring.bind(builder::buildPlatformMonitor);
         signedStateSentinelWiring.bind(builder::buildSignedStateSentinel);
         gossipWiring.bind(builder.buildGossip());
         branchDetectorWiring.bind(builder::buildBranchDetector);
@@ -277,8 +286,8 @@ public record PlatformComponents(
                 new ComponentWiring<>(model, StateGarbageCollector.class, config.stateGarbageCollector());
         final ComponentWiring<SignedStateSentinel, Void> signedStateSentinelWiring =
                 new ComponentWiring<>(model, SignedStateSentinel.class, config.signedStateSentinel());
-        final ComponentWiring<PlatformMonitor, PlatformStatus> platformMonitorWiring =
-                new ComponentWiring<>(model, PlatformMonitor.class, config.platformMonitor());
+        final ComponentWiring<StatusStateMachine, PlatformStatus> platformMonitorWiring =
+                new ComponentWiring<>(model, StatusStateMachine.class, config.platformMonitor());
 
         final ComponentWiring<BranchDetector, PlatformEvent> branchDetectorWiring =
                 new ComponentWiring<>(model, BranchDetector.class, config.branchDetector());
@@ -319,6 +328,10 @@ public record PlatformComponents(
                 platformPublisherWiring,
                 platformMonitorWiring,
                 branchDetectorWiring,
-                branchReporterWiring);
+                branchReporterWiring,
+                null, // todo
+                null, // todo
+                null, // todo
+                null); // todo
     }
 }

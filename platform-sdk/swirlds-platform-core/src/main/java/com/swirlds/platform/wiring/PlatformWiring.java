@@ -33,6 +33,7 @@ import com.swirlds.platform.eventhandling.TransactionPrehandler;
 import com.swirlds.platform.publisher.PlatformPublisher;
 import com.swirlds.platform.state.hasher.StateHasher;
 import com.swirlds.platform.state.hashlogger.HashLogger;
+import com.swirlds.platform.state.iss.CatastrophicActionTrigger;
 import com.swirlds.platform.state.iss.IssDetector;
 import com.swirlds.platform.state.iss.IssHandler;
 import com.swirlds.platform.state.nexus.LatestCompleteStateNexus;
@@ -42,10 +43,14 @@ import com.swirlds.platform.state.signed.SignedStateSentinel;
 import com.swirlds.platform.state.signed.StateGarbageCollector;
 import com.swirlds.platform.state.signed.StateSignatureCollector;
 import com.swirlds.platform.state.signer.StateSigner;
+import com.swirlds.platform.state.snapshot.SavedStateActionTrigger;
 import com.swirlds.platform.state.snapshot.StateSnapshotManager;
-import com.swirlds.platform.system.PlatformMonitor;
+import com.swirlds.platform.system.SelfEventConsensusMonitor;
+import com.swirlds.platform.system.StatusStateMachine;
 import com.swirlds.platform.system.state.notifications.StateHashedNotification;
 import com.swirlds.platform.system.status.PlatformStatusConfig;
+import com.swirlds.platform.system.status.actions.TimeElapsedAction;
+import com.swirlds.platform.uptime.UptimeTracker;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
 import java.util.Queue;
@@ -170,7 +175,10 @@ public class PlatformWiring {
                         .getConfiguration()
                         .getConfigData(PlatformStatusConfig.class)
                         .statusStateMachineHeartbeatPeriod())
-                .solderTo(components.platformMonitorWiring().getInputWire(PlatformMonitor::heartbeat), OFFER);
+                .buildTransformer("Heartbeat to time elapsed action", "Heartbeat", TimeElapsedAction::new)
+                .solderTo(
+                        components.statusStateMachineWiring().getInputWire(StatusStateMachine::submitStatusAction),
+                        OFFER);
 
         components
                 .eventCreationManagerWiring()
@@ -234,6 +242,16 @@ public class PlatformWiring {
                 .getOutputWire()
                 .solderTo(components.stateSnapshotManagerWiring().getInputWire(StateSnapshotManager::saveStateTask));
 
+        components
+                .stateSnapshotManagerWiring()
+                .getOutputWire()
+                .solderTo(components.savedStateActionTriggerWiring().getInputWire(SavedStateActionTrigger::trigger));
+
+        components
+                .savedStateActionTriggerWiring()
+                .getOutputWire()
+                .solderTo(components.statusStateMachineWiring().getInputWire(StatusStateMachine::submitStatusAction));
+
         // Filter to complete states only and add a 3rd reservation since completes states are used in two input wires.
         final OutputWire<ReservedSignedState> completeReservedSignedStatesWire = allReservedSignedStatesWire
                 .buildFilter("completeStateFilter", "states", rs -> {
@@ -273,8 +291,15 @@ public class PlatformWiring {
                 .buildTransformer("RoundsToCesEvents", "consensus rounds", ConsensusRound::getStreamedEvents)
                 .solderTo(components.consensusEventStreamWiring().getInputWire(ConsensusEventStream::addEvents));
 
-        consensusRoundOutputWire.solderTo(
-                components.platformMonitorWiring().getInputWire(PlatformMonitor::consensusRound));
+        consensusRoundOutputWire.solderTo(components
+                .selfEventConsensusMonitorWiring()
+                .getInputWire(SelfEventConsensusMonitor::selfEventInConsensusRound));
+
+        components
+                .selfEventConsensusMonitorWiring()
+                .getOutputWire()
+                .solderTo(components.statusStateMachineWiring().getInputWire(StatusStateMachine::submitStatusAction));
+        consensusRoundOutputWire.solderTo(components.uptimeTrackerWiring().getInputWire(UptimeTracker::trackRound));
 
         // The TransactionHandler output is split into two types: system transactions, and state with complexity.
         final OutputWire<Queue<ScopedSystemTransaction<StateSignatureTransaction>>>
@@ -341,6 +366,17 @@ public class PlatformWiring {
         hashedStateOutputWire.solderTo(components.hashLoggerWiring().getInputWire(HashLogger::logHashes));
         hashedStateOutputWire.solderTo(components.stateSignerWiring().getInputWire(StateSigner::signState));
         hashedStateOutputWire.solderTo(components.issDetectorWiring().getInputWire(IssDetector::handleState));
+
+        components
+                .issDetectorWiring()
+                .getOutputWire()
+                .solderTo(
+                        components.catastrophicActionTriggerWiring().getInputWire(CatastrophicActionTrigger::trigger));
+        components
+                .catastrophicActionTriggerWiring()
+                .getOutputWire()
+                .solderTo(components.statusStateMachineWiring().getInputWire(StatusStateMachine::submitStatusAction));
+
         hashedStateOutputWire
                 .buildTransformer("postHasher_notifier", "hashed states", StateHashedNotification::from)
                 .solderTo(components.notifierWiring().getInputWire(AppNotifier::sendStateHashedNotification));
@@ -368,11 +404,6 @@ public class PlatformWiring {
                         INJECT);
 
         components
-                .stateSnapshotManagerWiring()
-                .getOutputWire()
-                .solderTo(components.platformMonitorWiring().getInputWire(PlatformMonitor::stateWrittenToDisk));
-
-        components
                 .runningEventHashOverrideWiring()
                 .runningHashUpdateOutput()
                 .solderTo(components
@@ -387,32 +418,28 @@ public class PlatformWiring {
         final OutputWire<IssNotification> splitIssDetectorOutput =
                 components.issDetectorWiring().getSplitOutput();
         splitIssDetectorOutput.solderTo(components.issHandlerWiring().getInputWire(IssHandler::issObserved));
-        components
-                .issDetectorWiring()
-                .getOutputWire()
-                .solderTo(components.platformMonitorWiring().getInputWire(PlatformMonitor::issNotification));
 
         completeReservedSignedStatesWire.solderTo(components
                 .latestCompleteStateNotifierWiring()
                 .getInputWire(LatestCompleteStateNotifier::latestCompleteStateHandler));
 
         components
-                .platformMonitorWiring()
+                .statusStateMachineWiring()
                 .getOutputWire()
                 .solderTo(components
                         .eventCreationManagerWiring()
                         .getInputWire(EventCreationManager::updatePlatformStatus));
         components
-                .platformMonitorWiring()
+                .statusStateMachineWiring()
                 .getOutputWire()
                 .solderTo(
                         components.consensusEngineWiring().getInputWire(ConsensusEngine::updatePlatformStatus), INJECT);
         components
-                .platformMonitorWiring()
+                .statusStateMachineWiring()
                 .getOutputWire()
                 .solderTo("ExecutionStatusHandler", "status updates", execution::newPlatformStatus);
         components
-                .platformMonitorWiring()
+                .statusStateMachineWiring()
                 .getOutputWire()
                 .solderTo(components.gossipWiring().getPlatformStatusInput(), INJECT);
 
@@ -473,7 +500,7 @@ public class PlatformWiring {
                 components.issDetectorWiring().getSplitOutput();
         issNotificationOutputWire.solderTo(components.notifierWiring().getInputWire(AppNotifier::sendIssNotification));
         components
-                .platformMonitorWiring()
+                .statusStateMachineWiring()
                 .getOutputWire()
                 .solderTo(components.notifierWiring().getInputWire(AppNotifier::sendPlatformStatusChangeNotification));
     }
@@ -502,6 +529,6 @@ public class PlatformWiring {
         components.stateSnapshotManagerWiring().getInputWire(StateSnapshotManager::dumpStateTask);
         components.branchDetectorWiring().getInputWire(BranchDetector::clear);
         components.branchReporterWiring().getInputWire(BranchReporter::clear);
-        components.platformMonitorWiring().getInputWire(PlatformMonitor::submitStatusAction);
+        components.statusStateMachineWiring().getInputWire(StatusStateMachine::submitStatusAction);
     }
 }

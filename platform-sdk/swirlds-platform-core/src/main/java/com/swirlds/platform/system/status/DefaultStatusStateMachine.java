@@ -9,6 +9,7 @@ import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.formatting.UnitFormatter;
 import com.swirlds.logging.legacy.payload.PlatformStatusPayload;
+import com.swirlds.platform.system.StatusStateMachine;
 import com.swirlds.platform.system.status.actions.CatastrophicFailureAction;
 import com.swirlds.platform.system.status.actions.DoneReplayingEventsAction;
 import com.swirlds.platform.system.status.actions.FallenBehindAction;
@@ -33,8 +34,8 @@ import org.hiero.consensus.model.status.PlatformStatus;
 /**
  * A state machine that processes {@link PlatformStatusAction}s
  */
-public class StatusStateMachine {
-    private static final Logger logger = LogManager.getLogger(StatusStateMachine.class);
+public class DefaultStatusStateMachine implements StatusStateMachine {
+    private static final Logger logger = LogManager.getLogger(DefaultStatusStateMachine.class);
 
     /**
      * A source of time
@@ -58,7 +59,7 @@ public class StatusStateMachine {
      *
      * @param platformContext the platform context
      */
-    public StatusStateMachine(@NonNull final PlatformContext platformContext) {
+    public DefaultStatusStateMachine(@NonNull final PlatformContext platformContext) {
         this.time = platformContext.getTime();
         this.currentStatusLogic =
                 new StartingUpStatusLogic(platformContext.getConfiguration().getConfigData(PlatformStatusConfig.class));

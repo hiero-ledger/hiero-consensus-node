@@ -37,9 +37,9 @@ import org.junit.jupiter.api.Test;
 /**
  * Traverses every edge of the state machine
  */
-class PlatformStatusStateMachineTests {
+class PlatformDefaultStatusStateMachineTests {
     private FakeTime time;
-    private StatusStateMachine stateMachine;
+    private DefaultStatusStateMachine stateMachine;
 
     @BeforeEach
     void setup() {
@@ -54,7 +54,7 @@ class PlatformStatusStateMachineTests {
                 .withConfiguration(configuration)
                 .build();
 
-        stateMachine = new StatusStateMachine(platformContextBuilder);
+        stateMachine = new DefaultStatusStateMachine(platformContextBuilder);
     }
 
     @Test

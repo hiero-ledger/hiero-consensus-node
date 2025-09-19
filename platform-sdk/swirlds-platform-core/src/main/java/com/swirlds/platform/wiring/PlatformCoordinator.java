@@ -23,9 +23,8 @@ import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.state.signed.StateSignatureCollector;
 import com.swirlds.platform.state.snapshot.StateDumpRequest;
 import com.swirlds.platform.state.snapshot.StateSnapshotManager;
-import com.swirlds.platform.system.PlatformMonitor;
+import com.swirlds.platform.system.StatusStateMachine;
 import com.swirlds.platform.system.status.StatusActionSubmitter;
-import com.swirlds.platform.system.status.StatusStateMachine;
 import com.swirlds.platform.system.status.actions.PlatformStatusAction;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
@@ -84,7 +83,7 @@ public record PlatformCoordinator(@NonNull PlatformComponents components) implem
 
         // Phase 0: flush the status state machine.
         // When reconnecting, this will force us to adopt a status that will halt event creation and gossip.
-        components.platformMonitorWiring().flush();
+        components.statusStateMachineWiring().flush();
 
         // Phase 1: squelch
         // Break cycles in the system. Flush squelched components just in case there is a task being executed when
@@ -200,8 +199,8 @@ public record PlatformCoordinator(@NonNull PlatformComponents components) implem
     @NonNull
     public StatusActionSubmitter getStatusActionSubmitter() {
         return action -> components
-                .platformMonitorWiring()
-                .getInputWire(PlatformMonitor::submitStatusAction)
+                .statusStateMachineWiring()
+                .getInputWire(StatusStateMachine::submitStatusAction)
                 .put(action);
     }
 
@@ -275,8 +274,8 @@ public record PlatformCoordinator(@NonNull PlatformComponents components) implem
      */
     public void submitStatusAction(@NonNull final PlatformStatusAction action) {
         components
-                .platformMonitorWiring()
-                .getInputWire(PlatformMonitor::submitStatusAction)
+                .statusStateMachineWiring()
+                .getInputWire(StatusStateMachine::submitStatusAction)
                 .put(action);
     }
 

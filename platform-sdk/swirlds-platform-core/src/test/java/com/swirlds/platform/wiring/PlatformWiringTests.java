@@ -43,7 +43,7 @@ import com.swirlds.platform.state.signed.StateGarbageCollector;
 import com.swirlds.platform.state.signed.StateSignatureCollector;
 import com.swirlds.platform.state.signer.StateSigner;
 import com.swirlds.platform.state.snapshot.StateSnapshotManager;
-import com.swirlds.platform.system.PlatformMonitor;
+import com.swirlds.platform.system.StatusStateMachine;
 import java.util.stream.Stream;
 import org.hiero.consensus.crypto.EventHasher;
 import org.hiero.consensus.event.creator.impl.EventCreationManager;
@@ -100,7 +100,7 @@ class PlatformWiringTests {
                 .withEventCreationManager(mock(EventCreationManager.class))
                 .withConsensusEngine(mock(ConsensusEngine.class))
                 .withConsensusEventStream(mock(ConsensusEventStream.class))
-                .withPlatformMonitor(mock(PlatformMonitor.class))
+                .withPlatformMonitor(mock(StatusStateMachine.class))
                 .withTransactionPrehandler(mock(TransactionPrehandler.class))
                 .withInlinePcesWriter(mock(InlinePcesWriter.class))
                 .withSignedStateSentinel(mock(SignedStateSentinel.class))

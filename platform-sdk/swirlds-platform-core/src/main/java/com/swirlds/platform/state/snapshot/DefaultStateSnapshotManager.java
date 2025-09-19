@@ -16,6 +16,7 @@ import com.swirlds.platform.config.StateConfig;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.SignedState;
+import com.swirlds.platform.wiring.PlatformCoordinator;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
@@ -80,6 +81,7 @@ public class DefaultStateSnapshotManager implements StateSnapshotManager {
      */
     private final SignedStateFilePath signedStateFilePath;
 
+    private final PlatformCoordinator platformCoordinator = null;
     /**
      * Creates a new instance.
      *
