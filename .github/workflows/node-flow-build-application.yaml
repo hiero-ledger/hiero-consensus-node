@@ -110,7 +110,7 @@ jobs:
       gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
       gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
 
-  unit-tests:
+  mats-unit-tests:
     name: Unit Tests
     uses: ./.github/workflows/node-zxc-compile-application-code.yaml
     needs:
@@ -128,7 +128,7 @@ jobs:
       codacy-project-token: ${{ secrets.CODACY_PROJECT_TOKEN }}
       codecov-token: ${{ secrets.CODECOV_TOKEN }}
 
-  hapi-tests-misc:
+  mats-hapi-tests-misc:
     name: MATS - HAPI Tests (Misc)
     uses: ./.github/workflows/node-zxc-compile-application-code.yaml
     needs:
@@ -145,7 +145,7 @@ jobs:
       gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
       gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
 
-  hapi-tests-misc-records:
+  mats-hapi-tests-misc-records:
     name: MATS - HAPI Tests (Misc Records)
     uses: ./.github/workflows/node-zxc-compile-application-code.yaml
     needs:
@@ -164,7 +164,7 @@ jobs:
       gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
       gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
 
-  hapi-tests-crypto:
+  mats-hapi-tests-crypto:
     name: MATS - HAPI Tests (Crypto)
     uses: ./.github/workflows/node-zxc-compile-application-code.yaml
     needs:
@@ -182,7 +182,7 @@ jobs:
       gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
       gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
 
-  hapi-tests-iss:
+  mats-hapi-tests-iss:
     name: MATS - HAPI Tests (ISS)
     uses: ./.github/workflows/node-zxc-compile-application-code.yaml
     needs:
@@ -200,7 +200,7 @@ jobs:
       gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
       gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
 
-  hapi-tests-token:
+  mats-hapi-tests-token:
     name: MATS - HAPI Tests (Token)
     uses: ./.github/workflows/node-zxc-compile-application-code.yaml
     needs:
@@ -219,7 +219,7 @@ jobs:
       gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
       gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
 
-  hapi-tests-smart-contract:
+  mats-hapi-tests-smart-contract:
     name: MATS - HAPI Tests (Smart Contract)
     uses: ./.github/workflows/node-zxc-compile-application-code.yaml
     needs:
@@ -237,7 +237,7 @@ jobs:
       gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
       gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
 
-  hapi-tests-restart:
+  mats-hapi-tests-restart:
     name: MATS - HAPI Tests (Restart)
     uses: ./.github/workflows/node-zxc-compile-application-code.yaml
     needs:
@@ -255,7 +255,7 @@ jobs:
       gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
       gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
 
-  hapi-tests-nd-reconnect:
+  mats-hapi-tests-nd-reconnect:
     name: MATS - HAPI Tests (Node Death Reconnect)
     uses: ./.github/workflows/node-zxc-compile-application-code.yaml
     needs:
@@ -273,7 +273,7 @@ jobs:
       gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
       gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
 
-  otter-tests:
+  mats-otter-tests:
     name: MATS - Otter Tests
     uses: ./.github/workflows/node-zxc-compile-application-code.yaml
     needs:
@@ -291,7 +291,7 @@ jobs:
       gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
       gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
 
-  spotless-check:
+  mats-spotless-check:
     name: MATS - Spotless Check
     uses: ./.github/workflows/node-zxc-compile-application-code.yaml
     needs:
@@ -309,7 +309,7 @@ jobs:
       gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
       snyk-token: ${{ secrets.SNYK_TOKEN }}
 
-  snyk-scan:
+  mats-snyk-scan:
     name: MATS - Snyk Scan
     uses: ./.github/workflows/node-zxc-compile-application-code.yaml
     needs:
