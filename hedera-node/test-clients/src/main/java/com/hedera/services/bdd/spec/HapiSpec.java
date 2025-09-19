@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec;
 
-import static com.hedera.node.app.roster.schemas.V0540RosterSchema.ROSTER_STATES_KEY;
-import static com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema.NODES_KEY;
-import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_KEY;
-import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.STAKING_INFO_KEY;
-import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.TOKENS_KEY;
+import static com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema.NODES_STATE_ID;
+import static com.hedera.node.app.service.schedule.impl.schemas.V0570ScheduleSchema.SCHEDULED_COUNTS_STATE_ID;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_STATE_ID;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.STAKING_INFOS_STATE_ID;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.TOKENS_STATE_ID;
 import static com.hedera.services.bdd.junit.extensions.NetworkTargetingExtension.REPEATABLE_KEY_GENERATOR;
 import static com.hedera.services.bdd.junit.extensions.NetworkTargetingExtension.SHARED_NETWORK;
 import static com.hedera.services.bdd.junit.hedera.BlockNodeNetwork.BLOCK_NODE_LOCAL_PORT;
@@ -46,6 +46,7 @@ import static java.util.concurrent.CompletableFuture.allOf;
 import static java.util.concurrent.CompletableFuture.runAsync;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.stream.Collectors.joining;
+import static org.hiero.consensus.roster.RosterStateId.ROSTER_STATE_STATE_ID;
 
 import com.google.common.base.MoreObjects;
 import com.hedera.hapi.node.base.TimestampSeconds;
@@ -59,7 +60,6 @@ import com.hedera.hapi.node.state.token.Token;
 import com.hedera.node.app.fixtures.state.FakeState;
 import com.hedera.node.app.roster.RosterService;
 import com.hedera.node.app.service.schedule.ScheduleService;
-import com.hedera.node.app.service.schedule.impl.schemas.V0570ScheduleSchema;
 import com.hedera.node.app.service.token.TokenService;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.junit.extensions.NetworkTargetingExtension;
@@ -147,6 +147,7 @@ import org.junit.jupiter.api.function.Executable;
  * some operations do require an embedded or subprocess network.
  */
 public class HapiSpec implements Runnable, Executable, LifecycleTest {
+
     private static final int CONCURRENT_EMBEDDED_STATUS_WAIT_SLEEP_MS = 1;
     private static final String CI_CHECK_NAME_SYSTEM_PROPERTY = "ci.check.name";
     private static final String QUIET_MODE_SYSTEM_PROPERTY = "hapi.spec.quiet.mode";
@@ -628,7 +629,7 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
      */
     public @NonNull WritableKVState<com.hedera.hapi.node.base.AccountID, Account> embeddedAccountsOrThrow() {
         final var state = embeddedStateOrThrow();
-        return state.getWritableStates(TokenService.NAME).get(ACCOUNTS_KEY);
+        return state.getWritableStates(TokenService.NAME).get(ACCOUNTS_STATE_ID);
     }
 
     /**
@@ -639,7 +640,7 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
      */
     public @NonNull WritableKVState<com.hedera.hapi.node.base.TokenID, Token> embeddedTokensOrThrow() {
         final var state = embeddedStateOrThrow();
-        return state.getWritableStates(TokenService.NAME).get(TOKENS_KEY);
+        return state.getWritableStates(TokenService.NAME).get(TOKENS_STATE_ID);
     }
 
     /**
@@ -650,7 +651,7 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
      */
     public @NonNull WritableKVState<EntityNumber, StakingNodeInfo> embeddedStakingInfosOrThrow() {
         final var state = embeddedStateOrThrow();
-        return state.getWritableStates(TokenService.NAME).get(STAKING_INFO_KEY);
+        return state.getWritableStates(TokenService.NAME).get(STAKING_INFOS_STATE_ID);
     }
 
     /**
@@ -662,7 +663,7 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
      */
     public @NonNull WritableKVState<TimestampSeconds, ScheduledCounts> embeddedScheduleCountsOrThrow() {
         final var state = embeddedStateOrThrow();
-        return state.getWritableStates(ScheduleService.NAME).get(V0570ScheduleSchema.SCHEDULED_COUNTS_KEY);
+        return state.getWritableStates(ScheduleService.NAME).get(SCHEDULED_COUNTS_STATE_ID);
     }
 
     /**
@@ -674,7 +675,7 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
      */
     public @NonNull WritableSingletonState<RosterState> embeddedRosterStateOrThrow() {
         final var state = embeddedStateOrThrow();
-        return state.getWritableStates(RosterService.NAME).getSingleton(ROSTER_STATES_KEY);
+        return state.getWritableStates(RosterService.NAME).getSingleton(ROSTER_STATE_STATE_ID);
     }
 
     /**
@@ -686,7 +687,7 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
     public @NonNull WritableKVState<EntityNumber, Node> embeddedNodesOrThrow() {
         final var state = embeddedStateOrThrow();
         return state.getWritableStates(com.hedera.node.app.service.addressbook.AddressBookService.NAME)
-                .get(NODES_KEY);
+                .get(NODES_STATE_ID);
     }
 
     /**

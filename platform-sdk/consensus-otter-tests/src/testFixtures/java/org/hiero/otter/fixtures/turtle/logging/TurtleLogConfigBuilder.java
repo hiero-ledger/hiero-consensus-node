@@ -11,7 +11,6 @@ import static org.hiero.otter.fixtures.logging.internal.LogConfigHelper.createEx
 import static org.hiero.otter.fixtures.logging.internal.LogConfigHelper.createFileAppender;
 import static org.hiero.otter.fixtures.logging.internal.LogConfigHelper.createThresholdFilter;
 
-import com.hedera.hapi.platform.state.NodeId;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -32,6 +31,7 @@ import org.apache.logging.log4j.core.config.builder.api.FilterComponentBuilder;
 import org.apache.logging.log4j.core.config.builder.api.LayoutComponentBuilder;
 import org.apache.logging.log4j.core.config.builder.api.RootLoggerComponentBuilder;
 import org.apache.logging.log4j.core.config.builder.impl.BuiltConfiguration;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * Builds and installs a Log4j2 configuration running in a Turtle environment.

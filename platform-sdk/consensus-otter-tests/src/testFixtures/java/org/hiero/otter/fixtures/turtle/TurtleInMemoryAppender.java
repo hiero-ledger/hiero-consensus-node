@@ -1,14 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.turtle;
 
-import com.hedera.hapi.platform.state.NodeId;
-import com.hedera.pbj.runtime.ParseException;
-import com.hedera.pbj.runtime.io.buffer.Bytes;
+import static com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES;
+
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 import org.apache.logging.log4j.core.Appender;
 import org.apache.logging.log4j.core.LogEvent;
 import org.apache.logging.log4j.core.appender.AbstractAppender;
@@ -16,6 +18,7 @@ import org.apache.logging.log4j.core.config.Node;
 import org.apache.logging.log4j.core.config.plugins.Plugin;
 import org.apache.logging.log4j.core.config.plugins.PluginAttribute;
 import org.apache.logging.log4j.core.config.plugins.PluginFactory;
+import org.hiero.consensus.model.node.NodeId;
 import org.hiero.otter.fixtures.logging.StructuredLog;
 import org.hiero.otter.fixtures.logging.context.NodeLoggingContext;
 import org.hiero.otter.fixtures.logging.internal.AbstractInMemoryAppender;
@@ -32,6 +35,7 @@ import org.hiero.otter.fixtures.logging.internal.InMemorySubscriptionManager;
 @Plugin(name = "TurtleInMemoryAppender", category = Node.CATEGORY, elementType = Appender.ELEMENT_TYPE)
 public class TurtleInMemoryAppender extends AbstractInMemoryAppender {
 
+    private static final ObjectMapper objectMapper = new ObjectMapper();
     private final List<StructuredLog> logs = Collections.synchronizedList(new ArrayList<>());
 
     @Nullable
@@ -41,13 +45,9 @@ public class TurtleInMemoryAppender extends AbstractInMemoryAppender {
         }
         try {
             final long id = Long.parseLong(value);
-            return NodeId.newBuilder().id(id).build();
+            return NodeId.of(id);
         } catch (final NumberFormatException e) {
-            try {
-                return NodeId.JSON.parseStrict(Bytes.wrap(value));
-            } catch (final ParseException ex) {
-                return null;
-            }
+            return null;
         }
     }
 
@@ -64,7 +64,7 @@ public class TurtleInMemoryAppender extends AbstractInMemoryAppender {
      * {@inheritDoc}
      */
     @Override
-    public void append(final LogEvent event) {
+    public void append(@NonNull final LogEvent event) {
         final NodeId nodeId = parseNodeId(event.getContextData().getValue(NodeLoggingContext.NODE_ID_KEY));
         final StructuredLog structuredLog = createStructuredLog(event, nodeId);
         logs.add(structuredLog);

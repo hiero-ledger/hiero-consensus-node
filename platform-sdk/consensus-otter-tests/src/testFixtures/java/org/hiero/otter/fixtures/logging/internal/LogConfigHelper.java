@@ -17,7 +17,8 @@ import static com.swirlds.logging.legacy.LogMarker.TESTING_EXCEPTIONS_ACCEPTABLE
 import static com.swirlds.logging.legacy.LogMarker.THREADS;
 import static com.swirlds.logging.legacy.LogMarker.VIRTUAL_MERKLE_STATS;
 
-import com.hedera.hapi.platform.state.NodeId;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.swirlds.logging.legacy.LogMarker;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -32,9 +33,11 @@ import org.apache.logging.log4j.core.config.builder.api.FilterComponentBuilder;
 import org.apache.logging.log4j.core.config.builder.api.KeyValuePairComponentBuilder;
 import org.apache.logging.log4j.core.config.builder.api.LayoutComponentBuilder;
 import org.apache.logging.log4j.core.config.builder.impl.BuiltConfiguration;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
- * Utility class that provides commonly used filters, patterns, and other components for configuring the logging system in a consistent way.
+ * Utility class that provides commonly used filters, patterns, and other components for configuring the logging system
+ * in a consistent way.
  */
 public final class LogConfigHelper {
 
@@ -61,13 +64,15 @@ public final class LogConfigHelper {
     public static final String DEFAULT_PATTERN =
             "%d{yyyy-MM-dd HH:mm:ss.SSS} [%t] }%notEmpty{[%marker] }%-5level %logger{36} - %msg %n";
 
+    private static final ObjectMapper objectMapper = new ObjectMapper();
+
     private LogConfigHelper() {
         // utility
     }
 
     /**
-     * Creates a composite filter that only ACCEPTs log events tagged with {@link LogMarker#STATE_HASH}
-     * and DENYs everything else.
+     * Creates a composite filter that only ACCEPTs log events tagged with {@link LogMarker#STATE_HASH} and DENYs
+     * everything else.
      *
      * @param builder the Log4j2 {@link ConfigurationBuilder} used to assemble the configuration
      * @return the fully configured {@link ComponentBuilder} holding the filter chain
@@ -81,11 +86,11 @@ public final class LogConfigHelper {
     }
 
     /**
-     * Creates a filter that only allows log events originating from the given {@code nodeId} as
-     * indicated by the {@code nodeId} entry in the {@link ThreadContext} map.
+     * Creates a filter that only allows log events originating from the given {@code nodeId} as indicated by the
+     * {@code nodeId} entry in the {@link ThreadContext} map.
      *
      * @param builder the configuration builder
-     * @param nodeId  the node that should be allowed
+     * @param nodeId the node that should be allowed
      * @return a filter that ACCEPTs events for the specified node and DENYs all others
      */
     @NonNull
@@ -98,13 +103,22 @@ public final class LogConfigHelper {
                 .addComponent(keyValuePair);
     }
 
+    @NonNull
+    private static String getJsonNodeId(@NonNull final NodeId nodeId) {
+        try {
+            return objectMapper.writeValueAsString(nodeId);
+        } catch (final JsonProcessingException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
     /**
-     * Creates a filter that DENYs all log events coming from the specified {@code nodeId}. This is
-     * the counterpart to {@link #createNodeOnlyFilter(ConfigurationBuilder, NodeId)} and is mainly
-     * used for console output where we want to exclude per-node log lines when routing is enabled.
+     * Creates a filter that DENYs all log events coming from the specified {@code nodeId}. This is the counterpart to
+     * {@link #createNodeOnlyFilter(ConfigurationBuilder, NodeId)} and is mainly used for console output where we want
+     * to exclude per-node log lines when routing is enabled.
      *
      * @param builder the configuration builder
-     * @param nodeId  the node that should be excluded
+     * @param nodeId the node that should be excluded
      * @return a filter that DENYs the specified node and NEUTRAL for all others
      */
     @NonNull
@@ -118,8 +132,8 @@ public final class LogConfigHelper {
     }
 
     /**
-     * Creates the set of filters that WHITE-LISTs all {@link #ALLOWED_MARKERS}. Any log event not
-     * carrying one of those markers will be DENYed.
+     * Creates the set of filters that WHITE-LISTs all {@link #ALLOWED_MARKERS}. Any log event not carrying one of those
+     * markers will be DENYed.
      *
      * @param builder the configuration builder
      * @return a composite {@link ComponentBuilder} holding all marker filters
@@ -157,8 +171,8 @@ public final class LogConfigHelper {
     }
 
     /**
-     * Builds a simple {@code ThresholdFilter} that only allows {@code INFO} and higher level log
-     * events to pass through.
+     * Builds a simple {@code ThresholdFilter} that only allows {@code INFO} and higher level log events to pass
+     * through.
      *
      * @param builder the configuration builder
      * @return the created filter component
@@ -170,14 +184,13 @@ public final class LogConfigHelper {
     }
 
     /**
-     * Helper method that constructs a {@code File} appender with sane defaults and attaches the
-     * supplied filters.
+     * Helper method that constructs a {@code File} appender with sane defaults and attaches the supplied filters.
      *
-     * @param builder  the configuration builder
-     * @param name     appender name
-     * @param layout   the layout to use when writing log lines
+     * @param builder the configuration builder
+     * @param name appender name
+     * @param layout the layout to use when writing log lines
      * @param fileName fully-qualified path of the log file
-     * @param filters  optional filters; may be {@code null} or empty
+     * @param filters optional filters; may be {@code null} or empty
      * @return the created file appender component
      */
     @NonNull
@@ -196,8 +209,8 @@ public final class LogConfigHelper {
     }
 
     /**
-     * Aggregates all supplied {@code filters} under a single {@code <Filters>} element, as required
-     * by Log4j2 XML schema.
+     * Aggregates all supplied {@code filters} under a single {@code <Filters>} element, as required by Log4j2 XML
+     * schema.
      *
      * @param builder the configuration builder
      * @param filters the filters to combine; may be {@code null}
