@@ -89,6 +89,7 @@ module com.hedera.node.hapi {
     exports org.hiero.block.api.codec;
     exports org.hiero.block.api.protoc;
     exports com.hedera.hapi.platform.state.legacy;
+    exports org.hiero.hapi.support.fees;
 
     // for testing against Google protobuf
     opens com.hedera.hapi.block.stream.input.protoc;
