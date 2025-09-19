@@ -16,6 +16,7 @@ import java.util.Optional;
 import org.apache.tuweni.bytes.Bytes;
 import org.hyperledger.besu.datatypes.Hash;
 import org.hyperledger.besu.datatypes.Wei;
+import org.hyperledger.besu.evm.frame.MessageFrame;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -24,6 +25,9 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class QueryContextHevmBlocksTest {
+    @Mock
+    private MessageFrame frame;
+
     @Mock
     private QueryContext context;
 
@@ -41,12 +45,12 @@ class QueryContextHevmBlocksTest {
     @Test
     void blockHashDelegates() {
         given(blockRecordInfo.blockHashByBlockNumber(123L)).willReturn(ConversionUtils.tuweniToPbjBytes(Hash.EMPTY));
-        assertEquals(Hash.EMPTY, subject.blockHashOf(123L));
+        assertEquals(Hash.EMPTY, subject.blockHashOf(frame, 123L));
     }
 
     @Test
     void returnsUnavailableHashIfNecessary() {
-        assertSame(UNAVAILABLE_BLOCK_HASH, subject.blockHashOf(123L));
+        assertSame(UNAVAILABLE_BLOCK_HASH, subject.blockHashOf(frame, 123L));
     }
 
     @Test
