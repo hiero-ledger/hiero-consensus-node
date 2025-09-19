@@ -5,6 +5,7 @@ import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyTr
 import static com.swirlds.merkledb.MerkleDbDataSourceTest.assertLeaf;
 import static com.swirlds.merkledb.files.DataFileCommon.deleteDirectoryAndContents;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.checkDirectMemoryIsCleanedUpToLessThanBaseUsage;
+import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.createHashChunkStream;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.getDirectMemoryUsedBytes;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.getMetric;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.hash;
@@ -20,6 +21,7 @@ import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
 import com.swirlds.merkledb.test.fixtures.TestType;
 import com.swirlds.metrics.api.Metric;
 import com.swirlds.metrics.api.Metrics;
+import com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils;
 import java.io.IOException;
 import java.lang.reflect.Field;
 import java.nio.file.Files;
@@ -135,8 +137,7 @@ class MerkleDbDataSourceSnapshotMergeTest {
                     dataSource.saveRecords(
                             firstLeafPath,
                             lastLeafPathInclusive,
-                            IntStream.range(0, lastLeafPathInclusive + 1 /* exclusive */)
-                                    .mapToObj(MerkleDbDataSourceTest::createVirtualInternalRecord),
+                            createHashChunkStream(lastLeafPathInclusive, dataSource.getHashChunkHeight()),
                             IntStream.range(firstLeafPath, lastLeafPathInclusive + 1 /* exclusive */)
                                     .mapToObj(i -> testType.dataType().createVirtualLeafRecord(i)),
                             Stream.empty());
@@ -315,7 +316,7 @@ class MerkleDbDataSourceSnapshotMergeTest {
             dataSource.saveRecords(
                     COUNT,
                     lastLeafPath,
-                    IntStream.range(start, COUNT + end).mapToObj(MerkleDbDataSourceTest::createVirtualInternalRecord),
+                    createHashChunkStream(start, COUNT + end - 1, t -> t, dataSource.getHashChunkHeight()),
                     IntStream.range(COUNT + start, COUNT + end)
                             .mapToObj(i -> testType.dataType().createVirtualLeafRecord(i)),
                     Stream.empty());
@@ -340,7 +341,7 @@ class MerkleDbDataSourceSnapshotMergeTest {
                 + ((count * 2) - 1));
         // check all the node hashes
         for (int i = 0; i < count; i++) {
-            final var hash = dataSource.loadHash(i);
+            final var hash = VirtualMapTestUtils.loadHash(dataSource, i, dataSource.getHashChunkHeight());
             assertEquals(hash(i), hash, "The hash for [" + i + "] should not have changed since it was created");
         }
         // check all the leaf data

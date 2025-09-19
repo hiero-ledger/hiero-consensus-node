@@ -31,8 +31,8 @@ import com.swirlds.metrics.api.IntegerGauge;
 import com.swirlds.metrics.api.Metric.ValueType;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
-import com.swirlds.virtualmap.datasource.VirtualHashRecord;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
+import com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -115,21 +115,21 @@ class MerkleDbDataSourceTest {
             dataSource.saveRecords(
                     count - 1,
                     count * 2 - 2,
-                    IntStream.range(0, count * 2 - 1).mapToObj(MerkleDbDataSourceTest::createVirtualInternalRecord),
+                    createHashChunkStream(count * 2 - 1, dataSource.getHashChunkHeight()),
                     Stream.empty(),
                     Stream.empty());
 
             // check all the node hashes
-            for (int i = 0; i < count; i++) {
-                final var hash = dataSource.loadHash(i);
+            for (int i = 1; i < count; i++) {
+                final var hash = VirtualMapTestUtils.loadHash(dataSource, i, dataSource.getHashChunkHeight());
                 assertEquals(hash(i), hash, "The hash for [" + i + "] should not have changed since it was created");
             }
 
             final IllegalArgumentException e = assertThrows(
                     IllegalArgumentException.class,
-                    () -> dataSource.loadHash(-1),
-                    "loadInternalRecord should throw IAE on invalid path");
-            assertEquals("Path (-1) is not valid", e.getMessage(), "Detail message should capture the failure");
+                    () -> dataSource.loadHashChunk(-1),
+                    "loadHashChunk should throw IAE on invalid chunk ID");
+            assertEquals("Hash chunk ID (-1) is not valid", e.getMessage(), "Detail message should capture the failure");
 
             // close data source
             dataSource.close();
@@ -164,7 +164,7 @@ class MerkleDbDataSourceTest {
             dataSource.saveRecords(
                     testSize,
                     testSize * 2,
-                    IntStream.range(0, testSize).mapToObj(MerkleDbDataSourceTest::createVirtualInternalRecord),
+                    createHashChunkStream(testSize, dataSource.getHashChunkHeight()),
                     Stream.empty(),
                     Stream.empty());
             // create 4 lists with random hash updates some *10 hashes
@@ -177,7 +177,7 @@ class MerkleDbDataSourceTest {
                 dataSource.saveRecords(
                         testSize,
                         testSize * 2,
-                        list.primitiveStream().mapToObj(i -> new VirtualHashRecord(i, hash(i * 10))),
+                        createHashChunkStream(0, list.size(), i -> i * 10, dataSource.getHashChunkHeight()),
                         Stream.empty(),
                         Stream.empty());
             }
@@ -186,7 +186,7 @@ class MerkleDbDataSourceTest {
                 try {
                     assertEquals(
                             hash(i * 10),
-                            dataSource.loadHash(i),
+                            VirtualMapTestUtils.loadHash(dataSource, i, dataSource.getHashChunkHeight()),
                             "Internal hashes should not have changed since they were created");
                 } catch (final IOException e) {
                     throw new RuntimeException(e);
@@ -204,8 +204,7 @@ class MerkleDbDataSourceTest {
             dataSource.saveRecords(
                     count - 1,
                     count * 2 - 2,
-                    IntStream.range(count - 1, count * 2 - 1)
-                            .mapToObj(MerkleDbDataSourceTest::createVirtualInternalRecord),
+                    createHashChunkStream(count - 1, count * 2 - 1, i -> i, dataSource.getHashChunkHeight()),
                     IntStream.range(count - 1, count * 2 - 1)
                             .mapToObj(i -> testType.dataType().createVirtualLeafRecord(i)),
                     Stream.empty());
@@ -220,8 +219,8 @@ class MerkleDbDataSourceTest {
 
             final IllegalArgumentException e = assertThrows(
                     IllegalArgumentException.class,
-                    () -> dataSource.loadHash(-1),
-                    "Loading a negative path should fail");
+                    () -> dataSource.loadHashChunk(-1),
+                    "Loading a hash chunk with negative ID should fail");
             assertEquals("Path (-1) is not valid", e.getMessage(), "Detail message should capture the failure");
         });
     }
@@ -237,8 +236,7 @@ class MerkleDbDataSourceTest {
             dataSource.saveRecords(
                     incFirstLeafPath,
                     exclLastLeafPath,
-                    IntStream.range(incFirstLeafPath, exclLastLeafPath)
-                            .mapToObj(MerkleDbDataSourceTest::createVirtualInternalRecord),
+                    createHashChunkStream(incFirstLeafPath, exclLastLeafPath - 1, i -> i, dataSource.getHashChunkHeight()),
                     IntStream.range(incFirstLeafPath, exclLastLeafPath)
                             .mapToObj(i -> testType.dataType().createVirtualLeafRecord(i)),
                     Stream.empty());
@@ -294,8 +292,7 @@ class MerkleDbDataSourceTest {
             dataSource.saveRecords(
                     incFirstLeafPath,
                     exclLastLeafPath,
-                    IntStream.range(incFirstLeafPath, exclLastLeafPath)
-                            .mapToObj(MerkleDbDataSourceTest::createVirtualInternalRecord),
+                    createHashChunkStream(incFirstLeafPath, exclLastLeafPath - 1, i -> i, dataSource.getHashChunkHeight()),
                     IntStream.range(incFirstLeafPath, exclLastLeafPath)
                             .mapToObj(i -> testType.dataType().createVirtualLeafRecord(i)),
                     Stream.empty());
@@ -304,13 +301,15 @@ class MerkleDbDataSourceTest {
             assertLeaf(testType, dataSource, 500, 500);
             // move a leaf from 500 to 250, under new API there is no move as such, so we just write 500 leaf at 250
             // path
-            final VirtualHashRecord vir500 = new VirtualHashRecord(
-                    testType.dataType().createVirtualInternalRecord(250).path(), hash(500));
 
             VirtualLeafBytes vlr500 = testType.dataType().createVirtualLeafRecord(500);
             vlr500 = vlr500.withPath(250);
             dataSource.saveRecords(
-                    incFirstLeafPath, exclLastLeafPath, Stream.of(vir500), Stream.of(vlr500), Stream.empty());
+                    incFirstLeafPath,
+                    exclLastLeafPath,
+                    createHashChunkStream(250, 250, i -> 500, dataSource.getHashChunkHeight()),
+                    Stream.of(vlr500),
+                    Stream.empty());
             // check 250 now has 500's data
             assertLeaf(testType, dataSource, 700, 700);
             assertEquals(
@@ -330,8 +329,7 @@ class MerkleDbDataSourceTest {
             dataSource.saveRecords(
                     count - 1,
                     count * 2 - 2,
-                    IntStream.range(count - 1, count * 2 - 1)
-                            .mapToObj(MerkleDbDataSourceTest::createVirtualInternalRecord),
+                    createHashChunkStream(count - 1, count * 2 - 2, i -> i, dataSource.getHashChunkHeight()),
                     IntStream.range(count - 1, count * 2 - 1)
                             .mapToObj(i -> testType.dataType().createVirtualLeafRecord(i)),
                     Stream.empty());
@@ -348,7 +346,7 @@ class MerkleDbDataSourceTest {
                             .mapToObj(i -> testType.dataType().createVirtualLeafRecord(i)));
             // check the data source is empty
             for (int i = 0; i < count * 2 - 1; i++) {
-                assertNull(dataSource.loadHash(i));
+                assertNull(VirtualMapTestUtils.loadHash(dataSource, i, dataSource.getHashChunkHeight()));
                 assertNull(dataSource.loadLeafRecord(i));
                 final Bytes key = testType.dataType().createVirtualLongKey(i);
                 assertNull(dataSource.loadLeafRecord(key));
@@ -392,8 +390,7 @@ class MerkleDbDataSourceTest {
             dataSource.saveRecords(
                     count - 1,
                     count * 2 - 2,
-                    IntStream.range(count - 1, count * 2 - 1)
-                            .mapToObj(i -> testType.dataType().createVirtualInternalRecord(i)),
+                    createHashChunkStream(count - 1, count * 2 - 2, i -> i, dataSource.getHashChunkHeight()),
                     IntStream.range(count - 1, count * 2 - 1)
                             .mapToObj(i -> testType.dataType().createVirtualLeafRecord(i)),
                     Stream.empty());
@@ -456,7 +453,7 @@ class MerkleDbDataSourceTest {
                 dataSource.saveRecords(
                         count - 1,
                         count * 2 - 2,
-                        IntStream.range(0, count * 2 - 1).mapToObj(i -> createVirtualInternalRecord(i, i + 1)),
+                        createHashChunkStream(0, count * 2 - 2, i -> i + 1, dataSource.getHashChunkHeight()),
                         IntStream.range(count - 1, count * 2 - 1)
                                 .mapToObj(i -> testType.dataType().createVirtualLeafRecord(i)),
                         Stream.empty());
@@ -465,8 +462,7 @@ class MerkleDbDataSourceTest {
                     dataSource.saveRecords(
                             count - 1 + delta,
                             count * 2 - 2 + 2 * delta,
-                            IntStream.range(0, count * 2 - 1 + 2 * delta)
-                                    .mapToObj(i -> createVirtualInternalRecord(i, i + 1)),
+                            createHashChunkStream(0, count * 2 - 2 + 2 * delta, i -> i + 1, dataSource.getHashChunkHeight()),
                             IntStream.range(count - 1 + delta, count * 2 - 1 + 2 * delta)
                                     .mapToObj(i -> testType.dataType().createVirtualLeafRecord(i)),
                             Stream.empty());
@@ -586,7 +582,7 @@ class MerkleDbDataSourceTest {
             dataSource.saveRecords(
                     10,
                     20,
-                    IntStream.range(0, 21).mapToObj(i -> createVirtualInternalRecord(i, i + 1)),
+                    createHashChunkStream(0, 20, i -> i + 1, dataSource.getHashChunkHeight()),
                     IntStream.range(10, 21)
                             .mapToObj(i -> new VirtualLeafBytes(
                                     i,
@@ -609,7 +605,7 @@ class MerkleDbDataSourceTest {
             dataSource.saveRecords(
                     10,
                     20,
-                    IntStream.range(0, 21).mapToObj(i -> createVirtualInternalRecord(i, i + 2)),
+                    createHashChunkStream(0, 20, i -> i + 2, dataSource.getHashChunkHeight()),
                     IntStream.range(10, 21)
                             .mapToObj(i -> new VirtualLeafBytes(
                                     i,
@@ -620,8 +616,8 @@ class MerkleDbDataSourceTest {
                     true);
 
             // Check data after the first flush
-            for (int i = 0; i < 21; i++) {
-                final Hash hash = dataSource.loadHash(i);
+            for (int i = 1; i < 21; i++) {
+                final Hash hash = VirtualMapTestUtils.loadHash(dataSource, i, dataSource.getHashChunkHeight());
                 assertNotNull(hash);
                 assertEquals(hash(i + 2), hash, "Wrong hash at path " + i);
             }
@@ -643,14 +639,14 @@ class MerkleDbDataSourceTest {
             dataSource.saveRecords(
                     10,
                     20,
-                    IntStream.range(0, 21).mapToObj(i -> createVirtualInternalRecord(i, i + 3)),
+                    createHashChunkStream(0, 20, i -> i + 3, dataSource.getHashChunkHeight()),
                     Stream.empty(),
                     oldLeaves.subList(0, 6).stream(),
                     true);
 
             // Check data after the second flush
-            for (int i = 0; i < 21; i++) {
-                final Hash hash = dataSource.loadHash(i);
+            for (int i = 1; i < 21; i++) {
+                final Hash hash = VirtualMapTestUtils.loadHash(dataSource, i, dataSource.getHashChunkHeight());
                 assertNotNull(hash);
                 assertEquals(hash(i + 3), hash, "Wrong hash at path " + i);
             }
@@ -678,7 +674,7 @@ class MerkleDbDataSourceTest {
             dataSource.saveRecords(
                     8,
                     16,
-                    IntStream.range(0, 17).mapToObj(i -> createVirtualInternalRecord(i, 2 * i)),
+                    createHashChunkStream(0, 16, i -> 2 * i, dataSource.getHashChunkHeight()),
                     IntStream.range(8, 17).mapToObj(i -> testType.dataType().createVirtualLeafRecord(i, i, 3 * i)),
                     Stream.empty());
             // Flush 2: leaf path range is [9,18]. Note that the list of deleted leaves is empty, so one of the leaves
@@ -687,7 +683,7 @@ class MerkleDbDataSourceTest {
             dataSource.saveRecords(
                     9,
                     18,
-                    IntStream.range(0, 19).mapToObj(i -> createVirtualInternalRecord(i, 2 * i)),
+                    createHashChunkStream(0, 18, i -> 2 * i, dataSource.getHashChunkHeight()),
                     IntStream.range(9, 19).mapToObj(i -> testType.dataType().createVirtualLeafRecord(i, i, 3 * i)),
                     Stream.empty());
             // Create snapshots
@@ -804,13 +800,13 @@ class MerkleDbDataSourceTest {
         closeThread.start();
 
         updateStarted.countDown();
-        for (int i = 0; i < 10; i++) {
+        for (int i = 1; i < 10; i++) {
             final int k = i;
             try {
                 dataSource.saveRecords(
                         count - 1,
                         2 * count - 2,
-                        IntStream.range(0, count).mapToObj(j -> new VirtualHashRecord(k + j, hash(k + j + 1))),
+                        createHashChunkStream(k, k + count - 1, t -> t + 1, dataSource.getHashChunkHeight()),
                         IntStream.range(count - 1, count)
                                 .mapToObj(j -> new VirtualLeafBytes(
                                         k + j,
@@ -862,17 +858,9 @@ class MerkleDbDataSourceTest {
         MerkleDbTestUtils.assertAllDatabasesClosed();
     }
 
-    public static VirtualHashRecord createVirtualInternalRecord(final int i) {
-        return createVirtualInternalRecord(i, i);
-    }
-
-    public static VirtualHashRecord createVirtualInternalRecord(final long path, final int i) {
-        return new VirtualHashRecord(path, hash(i));
-    }
-
     public static void assertHash(final MerkleDbDataSource dataSource, final long path, final int i) {
         try {
-            assertEqualsAndPrint(hash(i), dataSource.loadHash(path));
+            assertEqualsAndPrint(hash(i), VirtualMapTestUtils.loadHash(dataSource, path, dataSource.getHashChunkHeight()));
         } catch (final Exception e) {
             e.printStackTrace(System.err);
             fail("Exception should not have been thrown here!");
@@ -881,7 +869,7 @@ class MerkleDbDataSourceTest {
 
     public static void assertNullHash(final MerkleDbDataSource dataSource, final long path) {
         try {
-            assertNull(dataSource.loadHash(path));
+            assertNull(VirtualMapTestUtils.loadHash(dataSource, path, dataSource.getHashChunkHeight()));
         } catch (final Exception e) {
             e.printStackTrace(System.err);
             fail("Exception should not have been thrown here!");
@@ -901,12 +889,14 @@ class MerkleDbDataSourceTest {
             final int hashIndex,
             final int valueIndex) {
         try {
+            final int hashChunkHeight = dataSource.getHashChunkHeight();
             final VirtualLeafBytes expectedRecord = testType.dataType().createVirtualLeafRecord(path, i, valueIndex);
             final Bytes key = testType.dataType().createVirtualLongKey(i);
             // things that should have changed
             assertEqualsAndPrint(expectedRecord, dataSource.loadLeafRecord(key));
             assertEqualsAndPrint(expectedRecord, dataSource.loadLeafRecord(path));
-            assertEquals(hash(hashIndex), dataSource.loadHash(path), "unexpected Hash value for path " + path);
+            assertEquals(hash(hashIndex), VirtualMapTestUtils.loadHash(dataSource, path, hashChunkHeight),
+                    "unexpected Hash value for path " + path);
         } catch (final Exception e) {
             e.printStackTrace(System.err);
             fail("Exception should not have been thrown here!");
@@ -943,14 +933,14 @@ class MerkleDbDataSourceTest {
                 dataSource.saveRecords(
                         1000,
                         2000,
-                        IntStream.range(1, 5).mapToObj(i -> {
+                        createHashChunkStream(1, 5, i -> {
                             System.out.println("SLOWLY loading record #"
                                     + i
                                     + " in "
                                     + Thread.currentThread().getName());
                             sleepUnchecked(50L);
-                            return createVirtualInternalRecord(i);
-                        }),
+                            return i;
+                        }, dataSource.getHashChunkHeight()),
                         Stream.empty(),
                         Stream.empty());
             } catch (final IOException impossible) {

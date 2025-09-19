@@ -3,6 +3,7 @@ package com.swirlds.merkledb;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
+import com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils;
 import java.util.ArrayList;
 import java.util.List;
 import org.hiero.base.crypto.Hash;
@@ -45,8 +46,8 @@ public class DataSourceValidator {
             // iterate over internal nodes and get them all
             System.out.printf("Validating %,d internal node hashes...%n", firstLeafPath);
             progressPercentage = 0;
-            for (long path = 0; path < firstLeafPath; path++) {
-                final Hash hash = dataSource.loadHash(path);
+            for (long path = 1; path < firstLeafPath; path++) {
+                final Hash hash = VirtualMapTestUtils.loadHash(dataSource, path, dataSource.getHashChunkHeight());
                 assertTrue(hash != null, "internal record's hash for path [" + path + "] was null");
                 printProgress(path, firstLeafPath);
             }
@@ -55,7 +56,7 @@ public class DataSourceValidator {
             System.out.printf("Validating %,d leaf hashes...%n", firstLeafPath);
             progressPercentage = 0;
             for (long path = firstLeafPath; path <= lastLeafPath; path++) {
-                Hash leafHash = dataSource.loadHash(path);
+                Hash leafHash = VirtualMapTestUtils.loadHash(dataSource, path, dataSource.getHashChunkHeight());
                 assertTrue(leafHash == null, "leaf record's hash for path [" + path + "] was not null");
                 printProgress(path - firstLeafPath, leafCount);
             }

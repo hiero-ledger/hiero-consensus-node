@@ -11,6 +11,7 @@ import com.hedera.pbj.runtime.io.WritableSequentialData;
 import com.swirlds.virtualmap.internal.Path;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Objects;
 import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.Hash;
@@ -73,7 +74,7 @@ public record VirtualHashChunk(long path, int height, @NonNull byte[] hashData) 
     }
 
     public VirtualHashChunk(final long path, final int height) {
-        this(path, height, new byte[VirtualHashChunk.getChunkSize(height)]);
+        this(path, height, new byte[VirtualHashChunk.getChunkSize(height) * Cryptography.DEFAULT_DIGEST_TYPE.digestLength()]);
     }
 
     public VirtualHashChunk copy() {
@@ -151,6 +152,10 @@ public record VirtualHashChunk(long path, int height, @NonNull byte[] hashData) 
         // Hash data is never null
         ProtoWriterTools.writeDelimited(out, FIELD_HASHCHUNK_HASHDATA, hashData.length, o -> o.writeBytes(hashData));
         assert out.position() == pos + getSizeInBytes();
+    }
+
+    public long getChunkId() {
+        return pathToChunkId(Path.getLeftChildPath(path), height);
     }
 
     /**
@@ -268,7 +273,7 @@ public record VirtualHashChunk(long path, int height, @NonNull byte[] hashData) 
     public static int getPathIndexInChunk(final long path, final long chunkPath, final int chunkHeight) {
         final long firstChunkPath = Path.getLeftChildPath(chunkPath);
         if (path < firstChunkPath) {
-            throw new IllegalArgumentException("Path is not in chunk: " + path);
+            throw new IllegalArgumentException("Path " + path + " is not in chunk: " + chunkPath);
         }
         final int chunkSize = getChunkSize(chunkHeight);
         int index = 0;
@@ -277,12 +282,12 @@ public record VirtualHashChunk(long path, int height, @NonNull byte[] hashData) 
         while (firstInLevel + pathsInLevel <= path) { // traverse to the right level
             index += pathsInLevel;
             if (index >= chunkSize) {
-                throw new IllegalArgumentException("Path is not in chunk: " + path);
+                throw new IllegalArgumentException("Path " + path + " is not in chunk: " + chunkPath);
             }
             firstInLevel = Path.getLeftChildPath(firstInLevel);
             pathsInLevel = pathsInLevel * 2;
             if (path < firstInLevel) {
-                throw new IllegalArgumentException("Path is not in chunk: " + path);
+                throw new IllegalArgumentException("Path " + path + " is not in chunk: " + chunkPath);
             }
         }
         index += Math.toIntExact(path - firstInLevel); // now get the index in the level

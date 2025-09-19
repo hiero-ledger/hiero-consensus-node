@@ -4,6 +4,7 @@ package com.swirlds.virtualmap.internal.reconnect;
 import static com.swirlds.logging.legacy.LogMarker.VIRTUAL_MERKLE_STATS;
 
 import com.swirlds.virtualmap.datasource.VirtualDataSource;
+import com.swirlds.virtualmap.datasource.VirtualHashChunk;
 import com.swirlds.virtualmap.datasource.VirtualHashRecord;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.internal.Path;
@@ -13,8 +14,12 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Hash;
@@ -55,15 +60,19 @@ public class ReconnectHashLeafFlusher {
     // protection from that
     private final AtomicBoolean flushInProgress = new AtomicBoolean(false);
 
+    private final int hashChunkHeight;
+
     private final int flushInterval;
 
     private final VirtualMapStatistics statistics;
 
     public ReconnectHashLeafFlusher(
             @NonNull final VirtualDataSource dataSource,
+            final int hashChunkHeight,
             final int flushInterval,
             @NonNull final VirtualMapStatistics statistics) {
         this.dataSource = Objects.requireNonNull(dataSource);
+        this.hashChunkHeight = hashChunkHeight;
         this.flushInterval = flushInterval;
         this.statistics = Objects.requireNonNull(statistics);
     }
@@ -96,7 +105,9 @@ public class ReconnectHashLeafFlusher {
     void updateHash(final long path, final Hash hash) {
         assert (updatedHashes != null) && (updatedLeaves != null) && (deletedLeaves != null)
                 : "updateHash called without start";
-        actionAndCheckFlush(() -> updatedHashes.add(new VirtualHashRecord(path, hash)));
+        if (path != 0) {
+            actionAndCheckFlush(() -> updatedHashes.add(new VirtualHashRecord(path, hash)));
+        }
     }
 
     void updateLeaf(final VirtualLeafBytes leaf) {
@@ -177,7 +188,7 @@ public class ReconnectHashLeafFlusher {
                 dataSource.saveRecords(
                         firstLeafPath,
                         lastLeafPath,
-                        hashesToFlush.stream(),
+                        chunksForHashes(hashesToFlush),
                         leavesToFlush.stream(),
                         leavesToDelete.stream(),
                         true);
@@ -190,5 +201,37 @@ public class ReconnectHashLeafFlusher {
         } finally {
             flushInProgress.set(false);
         }
+    }
+
+    // This may not be the most performant way to get the stream of hash chunks
+    private Stream<VirtualHashChunk> chunksForHashes(@NonNull final List<VirtualHashRecord> hashes) throws IOException {
+        final Map<Long, VirtualHashChunk> chunks = new ConcurrentHashMap<>();
+        final AtomicReference<IOException> e = new AtomicReference<>();
+        hashes.stream().parallel().forEach(hash -> {
+            final long path = hash.path();
+            final long chunkId = VirtualHashChunk.pathToChunkId(path, hashChunkHeight);
+            final VirtualHashChunk chunk = chunks.computeIfAbsent(chunkId, id -> {
+                VirtualHashChunk result;
+                try {
+                    result = dataSource.loadHashChunk(chunkId);
+                } catch (final IOException z) {
+                    e.compareAndSet(null, z);
+                    return null;
+                }
+                if (result == null) {
+                    final long chunkPath = VirtualHashChunk.chunkIdToChunkPath(chunkId, hashChunkHeight);
+                    result = new VirtualHashChunk(chunkPath, hashChunkHeight);
+                }
+                return result;
+            });
+            if (e.get() != null) {
+                return;
+            }
+            chunk.setHashAtPath(path, hash.hash());
+        });
+        if (e.get() != null) {
+            throw e.get();
+        }
+        return chunks.values().stream();
     }
 }

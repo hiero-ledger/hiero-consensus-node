@@ -196,9 +196,11 @@ public class VirtualLeafBytes<V> {
 
     public int getSizeInBytes() {
         int size = 0;
-        // Path is FIXED64
-        size += ProtoWriterTools.sizeOfTag(FIELD_LEAFRECORD_PATH);
-        size += Long.BYTES;
+        if (path != 0) {
+            // Path is FIXED64
+            size += ProtoWriterTools.sizeOfTag(FIELD_LEAFRECORD_PATH);
+            size += Long.BYTES;
+        }
         size += ProtoWriterTools.sizeOfDelimited(FIELD_LEAFRECORD_KEY, Math.toIntExact(keyBytes.length()));
         final int valueBytesLen;
         // Don't call valueBytes() as it may trigger value serialization to Bytes
@@ -223,8 +225,10 @@ public class VirtualLeafBytes<V> {
      */
     public void writeTo(final WritableSequentialData out) {
         final long pos = out.position();
-        ProtoWriterTools.writeTag(out, FIELD_LEAFRECORD_PATH);
-        out.writeLong(path);
+        if (path != 0) {
+            ProtoWriterTools.writeTag(out, FIELD_LEAFRECORD_PATH);
+            out.writeLong(path);
+        }
         ProtoWriterTools.writeDelimited(
                 out, FIELD_LEAFRECORD_KEY, Math.toIntExact(keyBytes.length()), keyBytes::writeTo);
         final Bytes localValueBytes = valueBytes();

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.merkledb;
 
+import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.createHashChunkStream;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -39,7 +40,7 @@ class DataSourceValidatorTest {
                     dataSource.saveRecords(
                             count - 1,
                             count * 2L - 2,
-                            IntStream.range(0, count - 1).mapToObj(MerkleDbDataSourceTest::createVirtualInternalRecord),
+                            createHashChunkStream(count - 2, dataSource.getHashChunkHeight()),
                             IntStream.range(count - 1, count * 2 - 1)
                                     .mapToObj(
                                             i -> TestType.long_fixed.dataType().createVirtualLeafRecord(i)),
@@ -60,7 +61,7 @@ class DataSourceValidatorTest {
                     dataSource.saveRecords(
                             count - 1,
                             count * 2L - 2,
-                            IntStream.range(0, count - 1).mapToObj(MerkleDbDataSourceTest::createVirtualInternalRecord),
+                            createHashChunkStream(count - 2, dataSource.getHashChunkHeight()),
                             // leaves are missing
                             Stream.empty(),
                             Stream.empty());

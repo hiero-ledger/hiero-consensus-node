@@ -5,7 +5,6 @@ import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyFa
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.*;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.createMetrics;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.getMetric;
-import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.hash;
 import static com.swirlds.merkledb.test.fixtures.TestType.long_fixed;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
@@ -16,7 +15,6 @@ import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
 import com.swirlds.merkledb.test.fixtures.TestType;
 import com.swirlds.metrics.api.Metric;
 import com.swirlds.metrics.api.Metrics;
-import com.swirlds.virtualmap.datasource.VirtualHashRecord;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -74,7 +72,7 @@ class MerkleDbDataSourceMetricsTest {
         dataSource.saveRecords(
                 COUNT,
                 COUNT * 2,
-                IntStream.range(0, COUNT).mapToObj(MerkleDbDataSourceMetricsTest::createVirtualInternalRecord),
+                createHashChunkStream(COUNT * 2, dataSource.getHashChunkHeight()),
                 Stream.empty(),
                 Stream.empty());
 
@@ -86,7 +84,7 @@ class MerkleDbDataSourceMetricsTest {
         dataSource.saveRecords(
                 COUNT * 2,
                 COUNT * 4,
-                IntStream.range(0, COUNT * 2).mapToObj(MerkleDbDataSourceMetricsTest::createVirtualInternalRecord),
+                createHashChunkStream(COUNT * 2, dataSource.getHashChunkHeight()),
                 Stream.empty(),
                 Stream.empty());
 
@@ -198,9 +196,5 @@ class MerkleDbDataSourceMetricsTest {
             final long hashesRamToDiskThreshold)
             throws IOException {
         return testType.dataType().createDataSource(testDirectory, name, size, hashesRamToDiskThreshold, false, false);
-    }
-
-    public static VirtualHashRecord createVirtualInternalRecord(final int i) {
-        return new VirtualHashRecord(i, hash(i));
     }
 }

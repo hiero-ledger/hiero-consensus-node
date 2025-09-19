@@ -6,8 +6,10 @@ import static com.swirlds.virtualmap.internal.Path.ROOT_PATH;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.virtualmap.datasource.VirtualDataSource;
+import com.swirlds.virtualmap.datasource.VirtualHashChunk;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.internal.cache.VirtualNodeCache;
+import com.swirlds.virtualmap.internal.hash.VirtualHasher;
 import com.swirlds.virtualmap.internal.merkle.VirtualMapMetadata;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
@@ -27,6 +29,7 @@ import org.hiero.base.io.streams.SerializableDataOutputStream;
 public final class RecordAccessor {
 
     private final VirtualMapMetadata state;
+    private final int hashChunkHeight;
     private final VirtualNodeCache cache;
     private final VirtualDataSource dataSource;
 
@@ -35,6 +38,8 @@ public final class RecordAccessor {
      *
      * @param state
      * 		The state. Cannot be null.
+     * @param hashChunkHeight
+     *      Hash chunk height
      * @param cache
      * 		The cache. Cannot be null.
      * @param dataSource
@@ -42,11 +47,33 @@ public final class RecordAccessor {
      */
     public RecordAccessor(
             @NonNull final VirtualMapMetadata state,
+            final int hashChunkHeight,
             @NonNull final VirtualNodeCache cache,
             @NonNull final VirtualDataSource dataSource) {
         this.state = Objects.requireNonNull(state);
+        this.hashChunkHeight = hashChunkHeight;
         this.cache = Objects.requireNonNull(cache);
         this.dataSource = dataSource;
+    }
+
+    public Hash findRootHash() {
+        VirtualHashChunk rootChunk = cache.lookupHashChunkById(0);
+        if (rootChunk == null) {
+            try {
+                rootChunk = dataSource.loadHashChunk(0);
+            } catch (final IOException e) {
+                throw new UncheckedIOException("Failed to read root hash chunk from data source", e);
+            }
+        }
+        assert rootChunk != null;
+        final long size = state.getSize();
+        if (size >= 1) {
+            final Hash left = rootChunk.getHashAtPath(1);
+            final Hash right = size >= 2 ? rootChunk.getHashAtPath(2) : VirtualHasher.NO_PATH2_HASH;
+            return VirtualHasher.hashInternal(left, right);
+        } else {
+            return null;
+        }
     }
 
     /**
@@ -62,16 +89,28 @@ public final class RecordAccessor {
      * 		an UncheckedIOException is thrown.
      */
     public Hash findHash(final long path) {
-        assert path >= 0;
+        assert path > 0;
+        if ((path <= 0) || (path > state.getLastLeafPath())) {
+            return null;
+        }
         final Hash hash = cache.lookupHashByPath(path);
         if (hash != null) {
             return hash;
         }
+        // Data source's leaf path range may be different from state's
+        if (path > dataSource.getLastLeafPath()) {
+            return null;
+        }
+        final long chunkId = VirtualHashChunk.pathToChunkId(path, hashChunkHeight);
         try {
-            return dataSource.loadHash(path);
+            final VirtualHashChunk hashChunk = dataSource.loadHashChunk(chunkId);
+            if (hashChunk != null) {
+                return hashChunk.getHashAtPath(path);
+            }
         } catch (final IOException e) {
             throw new UncheckedIOException("Failed to read node hash from data source by path", e);
         }
+        return null;
     }
 
     /**
@@ -88,6 +127,9 @@ public final class RecordAccessor {
      */
     public boolean findAndWriteHash(long path, SerializableDataOutputStream out) throws IOException {
         assert path >= 0;
+        if ((path < 0) || (path > state.getLastLeafPath())) {
+            return false;
+        }
         final Hash hash = cache.lookupHashByPath(path);
         if (hash != null) {
             hash.serialize(out);

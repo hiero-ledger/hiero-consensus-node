@@ -50,6 +50,7 @@ import com.swirlds.virtualmap.config.VirtualMapReconnectMode;
 import com.swirlds.virtualmap.constructable.constructors.VirtualMapConstructor;
 import com.swirlds.virtualmap.datasource.VirtualDataSource;
 import com.swirlds.virtualmap.datasource.VirtualDataSourceBuilder;
+import com.swirlds.virtualmap.datasource.VirtualHashChunk;
 import com.swirlds.virtualmap.datasource.VirtualHashRecord;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.internal.RecordAccessor;
@@ -443,16 +444,17 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
         requireNonNull(state.getLabel());
         requireNonNull(dataSourceBuilder);
 
-        if (cache == null) {
-            cache = new VirtualNodeCache(virtualMapConfig);
-        }
         if (dataSource == null) {
             dataSource = dataSourceBuilder.build(state.getLabel(), true);
         }
+        if (cache == null) {
+            cache = new VirtualNodeCache(virtualMapConfig, dataSource::loadHashChunk);
+        }
+        final int hashChunkHeight = virtualMapConfig.virtualHasherChunkHeight();
+        this.records = new RecordAccessor(this.state, hashChunkHeight, cache, dataSource);
 
         updateShouldBeFlushed();
 
-        this.records = new RecordAccessor(this.state, cache, dataSource);
         if (statistics == null) {
             // Only create statistics instance if we don't yet have statistics. During a reconnect operation.
             // it is necessary to use the statistics object from the previous instance of the state.
@@ -960,7 +962,7 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
             // Get the deleted leaves
             final Stream<VirtualLeafBytes> deletedLeaves = cacheToFlush.deletedLeaves();
             // Save the dirty hashes
-            final Stream<VirtualHashRecord> dirtyHashes =
+            final Stream<VirtualHashChunk> dirtyHashes =
                     cacheToFlush.dirtyHashesForFlush(stateToUse.getLastLeafPath());
             ds.saveRecords(
                     stateToUse.getFirstLeafPath(),
@@ -1102,11 +1104,14 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
         final VirtualHashListener hashListener = new VirtualHashListener() {
             @Override
             public void onNodeHashed(final long path, final Hash hash) {
-                cache.putHash(path, hash);
+                if (path > 0) {
+                    cache.putHash(path, hash);
+                }
             }
         };
         Hash virtualHash = hasher.hash(
                 records::findHash,
+                cache::preloadHashChunk,
                 cache.dirtyLeavesForHash(state.getFirstLeafPath(), state.getLastLeafPath())
                         .iterator(),
                 state.getFirstLeafPath(),
@@ -1115,7 +1120,7 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
                 virtualMapConfig);
 
         if (virtualHash == null) {
-            final Hash rootHash = (state.getSize() == 0) ? null : records.findHash(0);
+            final Hash rootHash = (state.getSize() == 0) ? null : records.findRootHash();
             virtualHash = (rootHash != null) ? rootHash : hasher.emptyRootHash();
         }
 
@@ -1156,7 +1161,8 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
         // record state.
         final VirtualDataSource dataSourceCopy = dataSourceBuilder.copy(dataSource, false, false);
         final VirtualNodeCache cacheSnapshot = cache.snapshot();
-        return new RecordAccessor(state, cacheSnapshot, dataSourceCopy);
+        final int hashChunkHeight = virtualMapConfig.virtualHasherChunkHeight();
+        return new RecordAccessor(state, hashChunkHeight, cacheSnapshot, dataSourceCopy);
     }
 
     /**
@@ -1255,7 +1261,8 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
             final VirtualNodeCache snapshotCache = originalMap.cache.snapshot();
             flush(snapshotCache, originalMap.state, this.dataSource);
 
-            return new RecordAccessor(reconnectState, snapshotCache, dataSource);
+            final int hashChunkHeight = virtualMapConfig.virtualHasherChunkHeight();
+            return new RecordAccessor(reconnectState, hashChunkHeight, snapshotCache, dataSource);
         });
 
         // Set up the VirtualHasher which we will use during reconnect.
@@ -1297,8 +1304,8 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
         assert originalMap != null;
         // During reconnect we want to look up state from the original records
         final VirtualMapMetadata originalState = originalMap.getState();
-        reconnectFlusher =
-                new ReconnectHashLeafFlusher(dataSource, virtualMapConfig.reconnectFlushInterval(), statistics);
+        reconnectFlusher = new ReconnectHashLeafFlusher(
+                dataSource, virtualMapConfig.virtualHasherChunkHeight(), virtualMapConfig.reconnectFlushInterval(), statistics);
         nodeRemover = new ReconnectNodeRemover(
                 originalMap.getRecords(),
                 originalState.getFirstLeafPath(),
@@ -1387,6 +1394,7 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
                 .setThreadName("hasher")
                 .setRunnable(() -> reconnectHashingFuture.complete(hasher.hash(
                         reconnectRecords::findHash,
+                        null,
                         reconnectIterator,
                         firstLeafPath,
                         lastLeafPath,
@@ -1664,11 +1672,11 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
         postInit();
     }
 
-    private void loadFromFileV4(Path inputFile, MerkleDataInputStream stream, VirtualMapMetadata virtualMapMetadata)
+    private void loadFromFileV4(Path inputFile, MerkleDataInputStream in, VirtualMapMetadata virtualMapMetadata)
             throws IOException {
-        dataSourceBuilder = stream.readSerializable();
+        dataSourceBuilder = in.readSerializable();
         dataSource = dataSourceBuilder.restore(virtualMapMetadata.getLabel(), inputFile.getParent());
-        cache = new VirtualNodeCache(virtualMapConfig, stream.readLong());
+        cache = new VirtualNodeCache(virtualMapConfig, dataSource::loadHashChunk, in.readLong());
         state = virtualMapMetadata;
     }
 
@@ -1683,15 +1691,10 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
         dataSourceBuilder = stream.readSerializable();
         dataSource = dataSourceBuilder.restore(label, inputFile.getParent());
         state = externalState;
-        if (virtualRootVersion < VirtualRootNode.ClassVersion.VERSION_3_NO_NODE_CACHE) {
+        if (virtualRootVersion < VirtualRootNode.ClassVersion.VERSION_4_BYTES) {
             throw new UnsupportedOperationException("Version " + virtualRootVersion + " is not supported");
         }
-        if (virtualRootVersion < VirtualRootNode.ClassVersion.VERSION_4_BYTES) {
-            // FUTURE WORK: clean up all serializers, once all states are of version 4+
-            stream.readSerializable(); // skip key serializer
-            stream.readSerializable(); // skip externalState serializer
-        }
-        cache = new VirtualNodeCache(virtualMapConfig, stream.readLong());
+        cache = new VirtualNodeCache(virtualMapConfig, dataSource::loadHashChunk, stream.readLong());
     }
 
     /*

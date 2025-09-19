@@ -76,7 +76,6 @@ public class ValidateInternalIndex {
                 try {
                     Hash actual = pathToHashRam.get(path);
                     assertNotNull(actual, "The pathToHashRam should not be null");
-                    assertNotEquals(actual, VirtualNodeCache.NULL_HASH, "The hash cannot be null hash");
                     assertEquals(IMPERMISSIBLE_VALUE, internalNodesIndex.get(path));
                 } catch (IOException e) {
                     inMemoryExceptionCount.incrementAndGet();

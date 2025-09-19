@@ -91,9 +91,6 @@ public class TestingAppStateInitializer {
                     new ClassConstructorPair(VirtualMap.class, () -> new VirtualMap(CONFIGURATION)));
             registry.registerConstructable(new ClassConstructorPair(
                     MerkleDbDataSourceBuilder.class, () -> new MerkleDbDataSourceBuilder(CONFIGURATION)));
-            registry.registerConstructable(new ClassConstructorPair(
-                    VirtualNodeCache.class,
-                    () -> new VirtualNodeCache(CONFIGURATION.getConfigData(VirtualMapConfig.class))));
             registerConstructablesForSchema(registry, new V0540PlatformStateSchema(), PlatformStateService.NAME);
             registerConstructablesForSchema(registry, new V0540RosterBaseSchema(), RosterStateId.NAME);
         } catch (ConstructableRegistryException e) {

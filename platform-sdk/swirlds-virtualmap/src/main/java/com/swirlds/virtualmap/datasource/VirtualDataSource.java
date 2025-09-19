@@ -64,8 +64,8 @@ public interface VirtualDataSource {
      *      the tree path for first leaf
      * @param lastLeafPath
      *      the tree path for last leaf
-     * @param pathHashRecordsToUpdate
-     * 		stream of dirty hash records to update
+     * @param hashChunksToUpdate
+     * 		stream of dirty hash chunks to update
      * @param leafRecordsToAddOrUpdate
      * 		stream of new and updated leaf node bytes
      * @param leafRecordsToDelete
@@ -76,14 +76,14 @@ public interface VirtualDataSource {
     default void saveRecords(
             final long firstLeafPath,
             final long lastLeafPath,
-            @NonNull final Stream<VirtualHashRecord> pathHashRecordsToUpdate,
+            @NonNull final Stream<VirtualHashChunk> hashChunksToUpdate,
             @NonNull final Stream<VirtualLeafBytes> leafRecordsToAddOrUpdate,
             @NonNull final Stream<VirtualLeafBytes> leafRecordsToDelete)
             throws IOException {
         saveRecords(
                 firstLeafPath,
                 lastLeafPath,
-                pathHashRecordsToUpdate,
+                hashChunksToUpdate,
                 leafRecordsToAddOrUpdate,
                 leafRecordsToDelete,
                 false);
@@ -96,8 +96,8 @@ public interface VirtualDataSource {
      * 		the new path of first leaf node
      * @param lastLeafPath
      * 		the new path of last leaf node
-     * @param pathHashRecordsToUpdate
-     * 		stream of dirty hash records to update
+     * @param hashChunksToUpdate
+     * 		stream of dirty hash chunks to update
      * @param leafRecordsToAddOrUpdate
      * 		stream of new and updated leaf node bytes
      * @param leafRecordsToDelete
@@ -110,7 +110,7 @@ public interface VirtualDataSource {
     void saveRecords(
             final long firstLeafPath,
             final long lastLeafPath,
-            @NonNull final Stream<VirtualHashRecord> pathHashRecordsToUpdate,
+            @NonNull final Stream<VirtualHashChunk> hashChunksToUpdate,
             @NonNull final Stream<VirtualLeafBytes> leafRecordsToAddOrUpdate,
             @NonNull final Stream<VirtualLeafBytes> leafRecordsToDelete,
             final boolean isReconnectContext)
@@ -147,17 +147,14 @@ public interface VirtualDataSource {
     long findKey(final Bytes keyBytes) throws IOException;
 
     /**
-     * Load a virtual node hash by path. If the path is outside [0, last leaf path] range, this
-     * method returns {@code null}.
+     * Load a virtual node hash chunk with the given ID.
      *
-     * @param path virtual node path
-     * @return The node's record if one was stored for the given path; {@code null} if not stored or
-     * 	  		deserialization is not requested
-     * @throws IOException
-     * 		If there was a problem loading the leaf's hash from data source
+     * @param chunkId The chunk ID
+     * @return The hash chunk, or {@code null} if no chunk was stored for the given ID
+     * @throws IOException If there was a problem loading the hash chunk from data source
      */
     @Nullable
-    Hash loadHash(final long path) throws IOException;
+    VirtualHashChunk loadHashChunk(final long chunkId) throws IOException;
 
     /**
      * Load a virtual node hash by path and, if found, write it to the specified output stream. This
@@ -174,10 +171,14 @@ public interface VirtualDataSource {
      * @throws IOException If an I/O error occurred
      */
     default boolean loadAndWriteHash(final long path, final SerializableDataOutputStream out) throws IOException {
-        final Hash hash = loadHash(path);
-        if (hash == null) {
+        if ((path < 0) || (path > getLastLeafPath())) {
             return false;
         }
+        final VirtualHashChunk chunk = loadHashChunk(path);
+        if (chunk == null) {
+            throw new IOException("Unable to load hash chunk for path: " + path);
+        }
+        final Hash hash = chunk.getHashAtPath(path);
         hash.serialize(out);
         return true;
     }

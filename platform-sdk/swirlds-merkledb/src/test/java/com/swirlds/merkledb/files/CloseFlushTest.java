@@ -14,6 +14,7 @@ import com.swirlds.metrics.api.Metrics;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.datasource.VirtualDataSource;
 import com.swirlds.virtualmap.datasource.VirtualDataSourceBuilder;
+import com.swirlds.virtualmap.datasource.VirtualHashChunk;
 import com.swirlds.virtualmap.datasource.VirtualHashRecord;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -143,7 +144,7 @@ public class CloseFlushTest {
                 public void saveRecords(
                         final long firstLeafPath,
                         final long lastLeafPath,
-                        @NonNull final Stream<VirtualHashRecord> pathHashRecordsToUpdate,
+                        @NonNull final Stream<VirtualHashChunk> hashChunksToUpdate,
                         @NonNull final Stream<VirtualLeafBytes> leafRecordsToAddOrUpdate,
                         @NonNull final Stream<VirtualLeafBytes> leafRecordsToDelete,
                         final boolean isReconnectContext) {
@@ -151,7 +152,7 @@ public class CloseFlushTest {
                         delegate.saveRecords(
                                 firstLeafPath,
                                 lastLeafPath,
-                                pathHashRecordsToUpdate,
+                                hashChunksToUpdate,
                                 leafRecordsToAddOrUpdate,
                                 leafRecordsToDelete,
                                 isReconnectContext);
@@ -176,8 +177,8 @@ public class CloseFlushTest {
                 }
 
                 @Override
-                public Hash loadHash(final long path) throws IOException {
-                    return delegate.loadHash(path);
+                public VirtualHashChunk loadHashChunk(final long chunkId) throws IOException {
+                    return delegate.loadHashChunk(chunkId);
                 }
 
                 @Override

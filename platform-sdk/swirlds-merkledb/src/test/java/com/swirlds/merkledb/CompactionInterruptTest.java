@@ -4,6 +4,7 @@ package com.swirlds.merkledb;
 import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyEquals;
 import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyTrue;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.CONFIGURATION;
+import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.createHashChunkStream;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.runTaskAndCleanThreadLocals;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -141,7 +142,7 @@ class CompactionInterruptTest {
         } finally {
             dataSource.close();
             exec.shutdown();
-            assertTrue(exec.awaitTermination(30, TimeUnit.SECONDS), "Should not timeout");
+            assertTrue(exec.awaitTermination(5, TimeUnit.SECONDS), "Should not timeout");
         }
         return true;
     }
@@ -209,7 +210,7 @@ class CompactionInterruptTest {
             dataSource.saveRecords(
                     COUNT,
                     lastLeafPath,
-                    IntStream.range(start, end).mapToObj(MerkleDbDataSourceTest::createVirtualInternalRecord),
+                    createHashChunkStream(start, end - 1, i -> i, dataSource.getHashChunkHeight()),
                     IntStream.range(COUNT + start, COUNT + end)
                             .mapToObj(i -> TestType.variable_variable.dataType().createVirtualLeafRecord(i)),
                     Stream.empty());
