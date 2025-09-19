@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.container;
 
 import edu.umd.cs.findbugs.annotations.NonNull;

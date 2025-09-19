@@ -192,7 +192,8 @@ public abstract class AbstractNetwork implements Network {
      * @param keysAndCerts the keys and certificates for the instrumented node
      * @return the newly created instrumented node
      */
-    protected abstract InstrumentedNode doCreateInstrumentedNode(@NonNull final NodeId nodeId, @NonNull final KeysAndCerts keysAndCerts);
+    protected abstract InstrumentedNode doCreateInstrumentedNode(
+            @NonNull final NodeId nodeId, @NonNull final KeysAndCerts keysAndCerts);
 
     private InstrumentedNode createInstrumentedNode() {
         throwIfInState(State.RUNNING, "Cannot add nodes while the network is running.");
@@ -200,7 +201,8 @@ public abstract class AbstractNetwork implements Network {
 
         try {
             final NodeId nodeId = getNextNodeId();
-            final KeysAndCerts keysAndCerts = CryptoStatic.generateKeysAndCerts(List.of(nodeId), null).get(nodeId);
+            final KeysAndCerts keysAndCerts =
+                    CryptoStatic.generateKeysAndCerts(List.of(nodeId), null).get(nodeId);
             return doCreateInstrumentedNode(nodeId, keysAndCerts);
         } catch (final ExecutionException | InterruptedException | KeyStoreException e) {
             throw new RuntimeException("Exception while generating KeysAndCerts", e);

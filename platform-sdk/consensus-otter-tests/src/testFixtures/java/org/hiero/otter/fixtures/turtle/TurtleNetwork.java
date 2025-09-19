@@ -111,8 +111,8 @@ public class TurtleNetwork extends AbstractNetwork implements TimeTickReceiver {
      */
     @Override
     @NonNull
-    protected InstrumentedNode doCreateInstrumentedNode(@NonNull final NodeId nodeId,
-            @NonNull final KeysAndCerts keysAndCerts) {
+    protected InstrumentedNode doCreateInstrumentedNode(
+            @NonNull final NodeId nodeId, @NonNull final KeysAndCerts keysAndCerts) {
         final Path outputDir = rootOutputDirectory.resolve("node-" + nodeId.id());
         return new InstrumentedTurtleNode(
                 randotron, timeManager.time(), nodeId, keysAndCerts, simulatedNetwork, logging, outputDir);

@@ -107,10 +107,11 @@ public class ContainerNetwork extends AbstractNetwork {
      */
     @Override
     @NonNull
-    protected InstrumentedNode doCreateInstrumentedNode(@NonNull final NodeId nodeId,
-            @NonNull final KeysAndCerts keysAndCerts) {
+    protected InstrumentedNode doCreateInstrumentedNode(
+            @NonNull final NodeId nodeId, @NonNull final KeysAndCerts keysAndCerts) {
         final Path outputDir = rootOutputDirectory.resolve("node-" + nodeId.id());
-        final InstrumentedContainerNode node = new InstrumentedContainerNode(nodeId, keysAndCerts, network, dockerImage, outputDir);
+        final InstrumentedContainerNode node =
+                new InstrumentedContainerNode(nodeId, keysAndCerts, network, dockerImage, outputDir);
         timeManager.addTimeTickReceiver(node);
         return node;
     }
