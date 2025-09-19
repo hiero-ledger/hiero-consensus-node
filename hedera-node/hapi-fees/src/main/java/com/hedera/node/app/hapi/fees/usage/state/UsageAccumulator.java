@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.hapi.fees.usage.state;
 
+import static com.hedera.hapi.node.base.schema.FeeComponentsSchema.TV;
 import static com.hedera.node.app.hapi.fees.usage.SingletonEstimatorUtils.ESTIMATOR_UTILS;
 import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.BASIC_ACCOUNT_AMT_SIZE;
 import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.BASIC_RECEIPT_SIZE;
@@ -68,6 +69,7 @@ public class UsageAccumulator {
     private long rbs;
     private long sbs;
     private long networkRbs;
+    private long tv;
 
     public static UsageAccumulator fromGrpc(final FeeData usage) {
         final var into = new UsageAccumulator();
@@ -88,6 +90,7 @@ public class UsageAccumulator {
         final var serviceUsage = usage.getServicedata();
         into.setRbs(serviceUsage.getRbh() * HRS_DIVISOR);
         into.setSbs(serviceUsage.getSbh() * HRS_DIVISOR);
+        into.setTv(into.getServiceTv());
 
         return into;
     }
@@ -96,7 +99,7 @@ public class UsageAccumulator {
         final int memoBytes = baseMeta.memoUtf8Bytes();
         final int numTransfers = baseMeta.numExplicitTransfers();
 
-        gas = sbs = sbpr = 0;
+        gas = sbs = sbpr = tv = 0;
 
         bpr = INT_SIZE;
         vpt = sigUsage.numSigs();
@@ -122,6 +125,7 @@ public class UsageAccumulator {
         rbs = 0;
         sbs = 0;
         networkRbs = 0;
+        tv = 0;
     }
 
     /* Resource accumulator methods */
@@ -155,6 +159,10 @@ public class UsageAccumulator {
 
     public void addNetworkRbs(final long amount) {
         networkRbs += amount;
+    }
+
+    public void addTv(final long amount) {
+        tv += amount;
     }
 
     /* Provider-scoped usage estimates (pure functions of the total resource usage) */
@@ -192,6 +200,10 @@ public class UsageAccumulator {
 
     public long getServiceSbh() {
         return ESTIMATOR_UTILS.nonDegenerateDiv(sbs, HRS_DIVISOR);
+    }
+
+    public long getServiceTv() {
+        return tv;
     }
 
     public long get(final ResourceProvider provider, final UsableResource resource) {
@@ -232,6 +244,8 @@ public class UsageAccumulator {
                         return getServiceSbh();
                     case CONSTANT:
                         return 1L;
+                    case TV:
+                        return getServiceTv();
                     default:
                         return 0L;
                 }
@@ -252,6 +266,7 @@ public class UsageAccumulator {
                 .add("serviceRbh", getServiceRbh())
                 .add("gas", getGas())
                 .add("rbs", getRbs())
+                .add("serviceTv", getServiceTv())
                 .toString();
     }
 
@@ -328,6 +343,10 @@ public class UsageAccumulator {
 
     private void setSbs(final long sbs) {
         this.sbs = sbs;
+    }
+
+    private void setTv(final long tv) {
+        this.tv = tv;
     }
 
     private void setNetworkRbs(final long networkRbs) {

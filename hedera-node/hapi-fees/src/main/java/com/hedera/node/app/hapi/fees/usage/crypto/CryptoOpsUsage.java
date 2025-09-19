@@ -49,27 +49,32 @@ public class CryptoOpsUsage {
             final SigUsage sigUsage,
             final CryptoTransferMeta xferMeta,
             final BaseTransactionMeta baseMeta,
-            final UsageAccumulator accumulator) {
+            final UsageAccumulator accumulator,
+            final long hookGasLimit) {
         accumulator.resetForTransaction(baseMeta, sigUsage);
+        if (hookGasLimit > 0) {
+            accumulator.addGas(hookGasLimit);
+            accumulator.addSbs(3600L);
+            accumulator.addVpt(Math.max(0, sigUsage.numSigs() - 1));
+        } else {
+            final int tokenMultiplier = xferMeta.getTokenMultiplier();
+            /* BPT calculations shouldn't include any custom fee payment usage */
+            int totalXfers = baseMeta.numExplicitTransfers();
+            int weightedTokensInvolved = tokenMultiplier * xferMeta.getNumTokensInvolved();
+            int weightedTokenXfers = tokenMultiplier * xferMeta.getNumFungibleTokenTransfers();
+            long incBpt = weightedTokensInvolved * LONG_BASIC_ENTITY_ID_SIZE;
+            incBpt += (weightedTokenXfers + totalXfers) * LONG_ACCOUNT_AMOUNT_BYTES;
+            incBpt += TOKEN_ENTITY_SIZES.bytesUsedForUniqueTokenTransfers(xferMeta.getNumNftOwnershipChanges());
+            accumulator.addBpt(incBpt);
 
-        final int tokenMultiplier = xferMeta.getTokenMultiplier();
-
-        /* BPT calculations shouldn't include any custom fee payment usage */
-        int totalXfers = baseMeta.numExplicitTransfers();
-        int weightedTokensInvolved = tokenMultiplier * xferMeta.getNumTokensInvolved();
-        int weightedTokenXfers = tokenMultiplier * xferMeta.getNumFungibleTokenTransfers();
-        long incBpt = weightedTokensInvolved * LONG_BASIC_ENTITY_ID_SIZE;
-        incBpt += (weightedTokenXfers + totalXfers) * LONG_ACCOUNT_AMOUNT_BYTES;
-        incBpt += TOKEN_ENTITY_SIZES.bytesUsedForUniqueTokenTransfers(xferMeta.getNumNftOwnershipChanges());
-        accumulator.addBpt(incBpt);
-
-        totalXfers += xferMeta.getCustomFeeHbarTransfers();
-        weightedTokenXfers += tokenMultiplier * xferMeta.getCustomFeeTokenTransfers();
-        weightedTokensInvolved += tokenMultiplier * xferMeta.getCustomFeeTokensInvolved();
-        long incRb = totalXfers * LONG_ACCOUNT_AMOUNT_BYTES;
-        incRb += TOKEN_ENTITY_SIZES.bytesUsedToRecordTokenTransfers(
-                weightedTokensInvolved, weightedTokenXfers, xferMeta.getNumNftOwnershipChanges());
-        accumulator.addRbs(incRb * USAGE_PROPERTIES.legacyReceiptStorageSecs());
+            totalXfers += xferMeta.getCustomFeeHbarTransfers();
+            weightedTokenXfers += tokenMultiplier * xferMeta.getCustomFeeTokenTransfers();
+            weightedTokensInvolved += tokenMultiplier * xferMeta.getCustomFeeTokensInvolved();
+            long incRb = totalXfers * LONG_ACCOUNT_AMOUNT_BYTES;
+            incRb += TOKEN_ENTITY_SIZES.bytesUsedToRecordTokenTransfers(
+                    weightedTokensInvolved, weightedTokenXfers, xferMeta.getNumNftOwnershipChanges());
+            accumulator.addRbs(incRb * USAGE_PROPERTIES.legacyReceiptStorageSecs());
+        }
     }
 
     public FeeData cryptoInfoUsage(final Query cryptoInfoReq, final ExtantCryptoContext ctx) {
@@ -159,6 +164,10 @@ public class CryptoOpsUsage {
         if (slotRbsDelta > 0) {
             accumulator.addRbs(slotRbsDelta);
         }
+        if (cryptoUpdateMeta.getNumHookCreations() > 0 || cryptoUpdateMeta.getNumHookDeletions() > 0) {
+            accumulator.addSbs(
+                    (cryptoUpdateMeta.getNumHookCreations() + cryptoUpdateMeta.getNumHookDeletions()) * 3600L);
+        }
     }
 
     public void cryptoCreateUsage(
@@ -183,6 +192,7 @@ public class CryptoOpsUsage {
         accumulator.addBpt(baseSize + 2 * LONG_SIZE + BOOL_SIZE);
         accumulator.addRbs((CRYPTO_ENTITY_SIZES.fixedBytesInAccountRepr() + baseSize) * lifeTime);
         accumulator.addNetworkRbs(BASIC_ENTITY_ID_SIZE * USAGE_PROPERTIES.legacyReceiptStorageSecs());
+        accumulator.addSbs(cryptoCreateMeta.getNumHooks() * 3600L);
     }
 
     public void cryptoApproveAllowanceUsage(

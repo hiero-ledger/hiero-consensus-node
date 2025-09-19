@@ -5,6 +5,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnUtils.suFrom;
 import static java.util.stream.Collectors.groupingBy;
 import static java.util.stream.Collectors.mapping;
 import static java.util.stream.Collectors.toList;
+import static org.hyperledger.besu.evm.internal.Words.clampedAdd;
 
 import com.google.protobuf.ByteString;
 import com.google.protobuf.UInt32Value;
@@ -17,6 +18,7 @@ import com.hedera.services.bdd.spec.fees.AdapterUtils;
 import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
 import com.hederahashgraph.api.proto.java.AccountAmount;
 import com.hederahashgraph.api.proto.java.AccountID;
+import com.hederahashgraph.api.proto.java.CryptoTransferTransactionBody;
 import com.hederahashgraph.api.proto.java.FeeData;
 import com.hederahashgraph.api.proto.java.NftTransfer;
 import com.hederahashgraph.api.proto.java.TokenID;
@@ -210,13 +212,69 @@ public abstract class HapiBaseTransfer<T extends HapiTxnOp<T>> extends HapiTxnOp
             numTokenTransfers += tokenTransfers.getTransfersCount();
             numNftOwnershipChanges += tokenTransfers.getNftTransfersCount();
         }
+
+        final var hookGasLimit = gatherHookGasLimit(op);
         final var xferUsageMeta =
                 new CryptoTransferMeta(multiplier, numTokensInvolved, numTokenTransfers, numNftOwnershipChanges);
 
         final var accumulator = new UsageAccumulator();
-        cryptoOpsUsage.cryptoTransferUsage(suFrom(svo), xferUsageMeta, baseMeta, accumulator);
+        cryptoOpsUsage.cryptoTransferUsage(suFrom(svo), xferUsageMeta, baseMeta, accumulator, hookGasLimit);
 
         final var feeData = AdapterUtils.feeDataFrom(accumulator);
         return feeData.toBuilder().setSubType(xferUsageMeta.getSubType()).build();
+    }
+
+    private static long gatherHookGasLimit(final CryptoTransferTransactionBody op) {
+        long totalGas = 0L;
+        if (op.hasTransfers()) {
+            for (final var aa : op.getTransfers().getAccountAmountsList()) {
+                totalGas = addAllowanceHookGas(totalGas, aa);
+            }
+        }
+        for (final var ttl : op.getTokenTransfersList()) {
+            for (final var aa : ttl.getTransfersList()) {
+                totalGas = addAllowanceHookGas(totalGas, aa);
+            }
+            for (final var nft : ttl.getNftTransfersList()) {
+                totalGas = addNftHookGas(totalGas, nft);
+            }
+        }
+        return totalGas;
+    }
+
+    private static long addAllowanceHookGas(long gasTillNow, final AccountAmount aa) {
+        if (aa.hasPreTxAllowanceHook()) {
+            gasTillNow = clampedAdd(
+                    gasTillNow, aa.getPreTxAllowanceHook().getEvmHookCall().getGasLimit());
+        }
+        if (aa.hasPrePostTxAllowanceHook()) {
+            gasTillNow = clampedAdd(
+                    gasTillNow, aa.getPrePostTxAllowanceHook().getEvmHookCall().getGasLimit());
+        }
+        return gasTillNow;
+    }
+
+    private static long addNftHookGas(long gasTillNow, final NftTransfer nft) {
+        if (nft.hasPreTxSenderAllowanceHook()) {
+            gasTillNow = clampedAdd(
+                    gasTillNow,
+                    nft.getPreTxSenderAllowanceHook().getEvmHookCall().getGasLimit());
+        }
+        if (nft.hasPrePostTxSenderAllowanceHook()) {
+            gasTillNow = clampedAdd(
+                    gasTillNow,
+                    nft.getPreTxSenderAllowanceHook().getEvmHookCall().getGasLimit());
+        }
+        if (nft.hasPreTxReceiverAllowanceHook()) {
+            gasTillNow = clampedAdd(
+                    gasTillNow,
+                    nft.getPreTxReceiverAllowanceHook().getEvmHookCall().getGasLimit());
+        }
+        if (nft.hasPrePostTxReceiverAllowanceHook()) {
+            gasTillNow = clampedAdd(
+                    gasTillNow,
+                    nft.getPrePostTxReceiverAllowanceHook().getEvmHookCall().getGasLimit());
+        }
+        return gasTillNow;
     }
 }

@@ -50,7 +50,8 @@ class OpsTransferUsageTest {
                 sigUsage,
                 new CryptoTransferMeta(tokenMultiplier, 3, 7, 0),
                 new BaseTransactionMeta(memo.getBytes().length, 3),
-                accum);
+                accum,
+                0);
 
         // then:
         assertEquals(expected, feeDataFrom(accum));

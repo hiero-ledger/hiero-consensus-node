@@ -121,7 +121,7 @@ public class HapiTokenReject extends HapiTxnOp<HapiTokenReject> {
         final var xferUsageMeta = getCryptoTransferMeta(multiplier, op);
 
         final var accumulator = new UsageAccumulator();
-        cryptoOpsUsage.cryptoTransferUsage(suFrom(svo), xferUsageMeta, baseMeta, accumulator);
+        cryptoOpsUsage.cryptoTransferUsage(suFrom(svo), xferUsageMeta, baseMeta, accumulator, 0);
 
         final var feeData = AdapterUtils.feeDataFrom(accumulator);
         return feeData.toBuilder().setSubType(xferUsageMeta.getSubType()).build();

@@ -96,7 +96,8 @@ public class FeeBuilder {
         final long ramStorageFee = componentCoefficients.getRbh() * componentMetrics.getRbh();
         final long storageFee = componentCoefficients.getSbh() * componentMetrics.getSbh();
         final long evmGasFee = componentCoefficients.getGas() * componentMetrics.getGas();
-        final long txValueFee = Math.round((float) (componentCoefficients.getTv() * componentMetrics.getTv()) / 1000);
+        final long txValueFee =
+                Math.floorDiv(Math.multiplyExact(componentCoefficients.getTv(), componentMetrics.getTv()), 1000L);
         final long bytesResponseFee = componentCoefficients.getBpr() * componentMetrics.getBpr();
         final long storageBytesResponseFee = componentCoefficients.getSbpr() * componentMetrics.getSbpr();
         final long componentUsage = componentCoefficients.getConstant() * componentMetrics.getConstant();
