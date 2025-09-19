@@ -245,7 +245,7 @@ jobs:
 
       - name: Install Solo
         run: |
-          npm install -g "@hashgraph/solo@${{ inputs.solo-version }}"
+          npm install -g "@hashgraph/solo@${{ inputs.solo-version || 'latest' }}"
 
           # verify the installation
           solo --version
