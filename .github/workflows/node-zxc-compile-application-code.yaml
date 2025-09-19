@@ -856,7 +856,7 @@ jobs:
             "${{ steps.snyk-code.outcome || 'skipped' }}"
             "${{ steps.spotless-check.outcome || 'skipped' }}"
           )
-          
+
           # We can break this down further to set additional failure modes
           general_statuses=(
             "${{ steps.gradle-build.outcome || 'skipped' }}"
@@ -876,9 +876,9 @@ jobs:
             "${{ steps.gradle-hapi-nd-reconnect.outcome || 'skipped' }}"
             "${{ steps.gradle-otter-tests.outcome || 'skipped' }}"
           )
-          
+
           failure_mode="none"
-          
+
           has_failure() {
             local arr=("$@")
             for status in "${arr[@]}"; do
@@ -886,15 +886,15 @@ jobs:
             done
             return 1
           }
-        
+
           # General check first
           if has_failure "${general_statuses[@]}"; then
             failure_mode="general"
           fi
-          
+
           # If no general failure, check CI/CD specific steps
           if has_failure "${ci_cd_statuses[@]}"; then
             failure_mode="workflow"
           fi
-          
+
           echo "failure-mode=${failure_mode}" >> "${GITHUB_OUTPUT}"
