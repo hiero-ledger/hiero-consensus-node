@@ -36,6 +36,12 @@ public class YahcliVerbs {
     private static final Pattern KEY_PRINT_PATTERN = Pattern.compile("The public key @ [^ ]+ is *:\\s*([a-fA-F0-9]+)");
     private static final Pattern FILE_HASH_PATTERN =
             Pattern.compile("The SHA-384 hash of the software-zip is:\n([a-f0-9]+)");
+    private static final Pattern PUBLIC_KEY_PATTERN = Pattern.compile("public key .+ is: ([a-fA-F0-9]+)");
+    private static final Pattern SCHEDULE_FREEZE_PATTERN =
+            Pattern.compile("freeze scheduled for (\\d{4}-\\d{2}-\\d{2}\\.\\d{2}:\\d{2}:\\d{2})");
+    private static final Pattern ABORT_FREEZE_PATTERN =
+            Pattern.compile("freeze aborted and/or staged upgrade discarded");
+    private static final Pattern SCHEDULE_ID_PATTERN = Pattern.compile(" with schedule ID (\\d+\\.\\d+\\.\\d+)");
 
     public static final AtomicReference<String> DEFAULT_CONFIG_LOC = new AtomicReference<>();
     public static final AtomicReference<String> DEFAULT_WORKING_DIR = new AtomicReference<>();
@@ -53,6 +59,52 @@ public class YahcliVerbs {
     public static YahcliCallOperation yahcliAccounts(@NonNull final String... args) {
         requireNonNull(args);
         return new YahcliCallOperation(prepend(args, "accounts"));
+    }
+
+    /**
+     * Returns an operation that invokes a yahcli {@code keys} subcommand with the given args,
+     * taking the config location and working directory from defaults if not overridden.
+     *
+     * @param args the arguments to pass to the keys subcommand
+     * @return the operation that will execute the keys subcommand
+     */
+    public static YahcliCallOperation yahcliKey(@NonNull final String... args) {
+        requireNonNull(args);
+        return new YahcliCallOperation(prepend(args, "keys"));
+    }
+
+    /**
+     * Returns an operation that invokes a yahcli {@code schedule} subcommand with the given args,
+     * taking the config location and working directory from defaults if not overridden.
+     *
+     * @param args the arguments to pass to the schedule subcommand
+     * @return the operation that will execute the schedule subcommand
+     */
+    public static YahcliCallOperation yahcliScheduleSign(@NonNull final String... args) {
+        requireNonNull(args);
+        return new YahcliCallOperation(prepend(args, "schedule"));
+    }
+
+    /**
+     * Returns an operation that invokes a yahcli {@code freeze} subcommand with the given args,
+     *
+     * @param args the arguments to pass to the freeze subcommand
+     * @return the operation that will execute the freeze subcommand
+     */
+    public static YahcliCallOperation yahcliFreezeOnly(@NonNull final String... args) {
+        requireNonNull(args);
+        return new YahcliCallOperation(prepend(args, "freeze"));
+    }
+
+    /**
+     * Returns an operation that invokes a yahcli {@code freeze-abort} subcommand with the given args,
+     *
+     * @param args the arguments to pass to the freeze-abort subcommand
+     * @return the operation that will execute the freeze-abort subcommand
+     */
+    public static YahcliCallOperation yahcliFreezeAbort(@NonNull final String... args) {
+        requireNonNull(args);
+        return new YahcliCallOperation(prepend(args, "freeze-abort"));
     }
 
     /**
@@ -326,6 +378,76 @@ public class YahcliVerbs {
                 cb.accept(m.group(1));
             } else {
                 Assertions.fail("Expected '" + output + "' to contain '" + KEY_PRINT_PATTERN.pattern() + "'");
+            }
+        };
+    }
+
+    /**
+     * Returns a callback that will look for a line containing public key information,
+     * and pass the extracted public key to the given callback.
+     *
+     * @param cb the callback to capture the extracted public key
+     * @return the output consumer that processes public key information from command output
+     */
+    public static Consumer<String> publicKeyCapturer(@NonNull final Consumer<String> cb) {
+        return output -> {
+            final var m = PUBLIC_KEY_PATTERN.matcher(output);
+            if (m.find()) {
+                cb.accept(m.group(1));
+            } else {
+                Assertions.fail("Expected '" + output + "' to contain '" + PUBLIC_KEY_PATTERN.pattern() + "'");
+            }
+        };
+    }
+
+    /**
+     * Returns a callback that will look for a line containing scheduled freeze information,
+     * and pass the extracted freeze date to the given callback.
+     *
+     * @param cb the callback to capture the extracted freeze date
+     * @return the output consumer that processes freeze scheduling information from command output
+     */
+    public static Consumer<String> scheduleFreezeCapturer(@NonNull final Consumer<String> cb) {
+        return output -> {
+            final var m = SCHEDULE_FREEZE_PATTERN.matcher(output);
+            if (m.find()) {
+                cb.accept(m.group(1));
+            } else {
+                Assertions.fail("Expected '" + output + "' to contain '" + SCHEDULE_FREEZE_PATTERN.pattern() + "'");
+            }
+        };
+    }
+
+    /**
+     * Returns a callback that will verify if a freeze abort message is present in the output,
+     * and notifies the given callback when found.
+     *
+     * @return the output consumer that processes freeze abort information from command output
+     */
+    public static Consumer<String> freezeAbortIsSuccessful() {
+        return output -> {
+            final var m = ABORT_FREEZE_PATTERN.matcher(output);
+            if (!m.find()) {
+                Assertions.fail("Expected '" + output + "' to contain '" + ABORT_FREEZE_PATTERN.pattern() + "'");
+            }
+        };
+    }
+
+    /**
+     * Returns a callback that extracts the schedule ID from command output.
+     * The callback looks for a pattern matching a schedule ID (format: N.N.N) in the output
+     * and passes the extracted ID to the provided consumer.
+     *
+     * @param cb the consumer that will receive the extracted schedule ID
+     * @return an output consumer that processes and extracts schedule IDs from command output
+     */
+    public static Consumer<String> scheduleIdCapturer(@NonNull final Consumer<String> cb) {
+        return output -> {
+            final var m = SCHEDULE_ID_PATTERN.matcher(output);
+            if (m.find()) {
+                cb.accept(m.group(1));
+            } else {
+                Assertions.fail("Expected '" + output + "' to contain '" + SCHEDULE_FREEZE_PATTERN.pattern() + "'");
             }
         };
     }
