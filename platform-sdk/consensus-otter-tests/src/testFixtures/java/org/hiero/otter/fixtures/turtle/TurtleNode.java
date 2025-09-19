@@ -15,7 +15,6 @@ import static org.hiero.otter.fixtures.result.SubscriberAction.CONTINUE;
 import static org.hiero.otter.fixtures.result.SubscriberAction.UNSUBSCRIBE;
 import static org.hiero.otter.fixtures.turtle.TurtleInMemoryAppender.toJSON;
 
-import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.filesystem.FileSystemManager;
@@ -81,8 +80,6 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
 
     private final Randotron randotron;
     private final Time time;
-    private final Roster roster;
-    private final KeysAndCerts keysAndCerts;
     private final SimulatedNetwork network;
     private final TurtleLogging logging;
     private final TurtleNodeConfiguration nodeConfiguration;
@@ -109,7 +106,6 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
      * @param randotron the random number generator
      * @param time the time provider
      * @param selfId the node ID of the node
-     * @param roster the initial roster
      * @param keysAndCerts the keys and certificates of the node
      * @param network the simulated network
      * @param logging the logging instance for the node
@@ -119,20 +115,17 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
             @NonNull final Randotron randotron,
             @NonNull final Time time,
             @NonNull final NodeId selfId,
-            @NonNull final Roster roster,
             @NonNull final KeysAndCerts keysAndCerts,
             @NonNull final SimulatedNetwork network,
             @NonNull final TurtleLogging logging,
             @NonNull final Path outputDirectory) {
-        super(selfId, roster);
+        super(selfId, keysAndCerts);
         logging.addNodeLogging(selfId, outputDirectory);
         try {
             ThreadContext.put(THREAD_CONTEXT_NODE_ID, toJSON(selfId));
 
             this.randotron = requireNonNull(randotron);
             this.time = requireNonNull(time);
-            this.roster = requireNonNull(roster);
-            this.keysAndCerts = requireNonNull(keysAndCerts);
             this.network = requireNonNull(network);
             this.logging = requireNonNull(logging);
             this.nodeConfiguration = new TurtleNodeConfiguration(() -> lifeCycle, outputDirectory);
@@ -144,6 +137,9 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
         }
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     protected void doStart(@NonNull final Duration timeout) {
         try {
@@ -154,8 +150,6 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
 
             // Start node from current state
             final Configuration currentConfiguration = nodeConfiguration.current();
-            final org.hiero.consensus.model.node.NodeId legacyNodeId =
-                    org.hiero.consensus.model.node.NodeId.of(selfId.id());
 
             setupGlobalMetrics(currentConfiguration);
 
@@ -166,10 +160,10 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
             }
 
             final PlatformStateFacade platformStateFacade = new PlatformStateFacade();
-            final Metrics metrics = getMetricsProvider().createPlatformMetrics(legacyNodeId);
+            final Metrics metrics = getMetricsProvider().createPlatformMetrics(selfId);
             final FileSystemManager fileSystemManager = FileSystemManager.create(currentConfiguration);
             final RecycleBin recycleBin = RecycleBin.create(
-                    metrics, currentConfiguration, getStaticThreadManager(), time, fileSystemManager, legacyNodeId);
+                    metrics, currentConfiguration, getStaticThreadManager(), time, fileSystemManager, selfId);
 
             platformContext = TestPlatformContextBuilder.create()
                     .withTime(time)
@@ -187,10 +181,10 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
             final HashedReservedSignedState reservedState = loadInitialState(
                     recycleBin,
                     version,
-                    () -> OtterAppState.createGenesisState(currentConfiguration, roster, metrics, version),
+                    () -> OtterAppState.createGenesisState(currentConfiguration, roster(), metrics, version),
                     OtterApp.APP_NAME,
                     OtterApp.SWIRLD_NAME,
-                    legacyNodeId,
+                    selfId,
                     platformStateFacade,
                     platformContext,
                     OtterAppState::new);
@@ -208,7 +202,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
                             version,
                             initialState,
                             OtterApp.INSTANCE,
-                            legacyNodeId,
+                            selfId,
                             eventStreamLoc,
                             rosterHistory,
                             platformStateFacade,
@@ -223,12 +217,12 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
             final PlatformComponentBuilder platformComponentBuilder = platformBuilder.buildComponentBuilder();
             final PlatformBuildingBlocks platformBuildingBlocks = platformComponentBuilder.getBuildingBlocks();
 
-            final SimulatedGossip gossip = network.getGossipInstance(legacyNodeId);
+            final SimulatedGossip gossip = network.getGossipInstance(selfId);
             gossip.provideIntakeEventCounter(platformBuildingBlocks.intakeEventCounter());
 
             platformComponentBuilder
                     .withMetricsDocumentationEnabled(false)
-                    .withGossip(network.getGossipInstance(legacyNodeId));
+                    .withGossip(network.getGossipInstance(selfId));
 
             platformComponent = platformBuildingBlocks.platformComponents();
 

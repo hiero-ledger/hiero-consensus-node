@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.container;
 
-import static org.hiero.otter.fixtures.container.ContainerNetwork.NODE_IDENTIFIER_FORMAT;
 import static org.hiero.otter.fixtures.container.utils.ContainerConstants.CONTAINER_APP_WORKING_DIR;
 import static org.hiero.otter.fixtures.container.utils.ContainerConstants.CONTAINER_CONTROL_PORT;
 import static org.hiero.otter.fixtures.container.utils.ContainerConstants.NODE_COMMUNICATION_PORT;
 import static org.hiero.otter.fixtures.container.utils.ContainerConstants.getContainerControlDebugPort;
 import static org.hiero.otter.fixtures.container.utils.ContainerConstants.getJavaToolOptions;
 import static org.hiero.otter.fixtures.container.utils.ContainerConstants.getNodeCommunicationDebugPort;
+import static org.hiero.otter.fixtures.internal.AbstractNetwork.NODE_IDENTIFIER_FORMAT;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.hiero.consensus.model.node.NodeId;
