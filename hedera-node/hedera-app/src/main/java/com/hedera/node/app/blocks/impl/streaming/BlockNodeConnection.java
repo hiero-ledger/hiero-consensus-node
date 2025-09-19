@@ -11,7 +11,6 @@ import com.hedera.node.config.data.BlockNodeConnectionConfig;
 import com.hedera.node.internal.network.BlockNodeConfig;
 import com.hedera.pbj.runtime.grpc.Pipeline;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.net.InetAddress;
 import java.time.Duration;
 import java.util.Objects;
 import java.util.concurrent.Flow;
@@ -55,10 +54,6 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
      * The configuration specific to the block node this connection is for.
      */
     private final BlockNodeConfig blockNodeConfig;
-    /**
-     * The resolved address of the block node connected via this connection object.
-     */
-    private final InetAddress nodeAddress;
     /**
      * The "parent" connection manager that manages the lifecycle of this connection.
      */
@@ -134,7 +129,6 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
      * @param grpcServiceClient the gRPC client to establish the bidirectional streaming to block node connections
      * @param blockStreamMetrics the block stream metrics for block node connections
      * @param executorService the scheduled executor service used to perform async connection reconnects
-     * @param nodeAddress the resolved address of the block node represented by this connection
      */
     public BlockNodeConnection(
             @NonNull final ConfigProvider configProvider,
@@ -143,11 +137,9 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
             @NonNull final BlockBufferService blockBufferService,
             @NonNull final BlockStreamPublishServiceClient grpcServiceClient,
             @NonNull final BlockStreamMetrics blockStreamMetrics,
-            @NonNull final ScheduledExecutorService executorService,
-            @NonNull final InetAddress nodeAddress) {
+            @NonNull final ScheduledExecutorService executorService) {
         requireNonNull(configProvider, "configProvider must not be null");
         this.blockNodeConfig = requireNonNull(nodeConfig, "nodeConfig must not be null");
-        this.nodeAddress = requireNonNull(nodeAddress, "nodeAddress must not be null");
         this.blockNodeConnectionManager =
                 requireNonNull(blockNodeConnectionManager, "blockNodeConnectionManager must not be null");
         this.blockBufferService = requireNonNull(blockBufferService, "blockBufferService must not be null");
@@ -674,13 +666,6 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
     @NonNull
     public ConnectionState getConnectionState() {
         return connectionState.get();
-    }
-
-    /**
-     * @return the resolved address of this block node connection
-     */
-    public @NonNull InetAddress nodeAddress() {
-        return nodeAddress;
     }
 
     @Override

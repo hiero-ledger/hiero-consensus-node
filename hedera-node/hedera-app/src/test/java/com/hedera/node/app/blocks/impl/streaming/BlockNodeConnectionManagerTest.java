@@ -5,7 +5,6 @@ import static java.util.Objects.requireNonNull;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchException;
 import static org.assertj.core.api.Assertions.fail;
-import static org.assertj.core.api.AssertionsForClassTypes.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
@@ -33,7 +32,6 @@ import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodHandles.Lookup;
 import java.lang.invoke.VarHandle;
 import java.lang.reflect.Method;
-import java.net.InetAddress;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
@@ -736,12 +734,9 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         doReturn(activeConnectionConfig).when(activeConnection).getNodeConfig();
         activeConnectionRef.set(activeConnection);
 
-        final InetAddress address = mock(InetAddress.class);
-        when(address.getAddress()).thenReturn(new byte[] {127, 0, 0, 1});
         final BlockNodeConnection newConnection = mock(BlockNodeConnection.class);
         final BlockNodeConfig newConnectionConfig = newBlockNodeConfig(8081, 2);
         doReturn(newConnectionConfig).when(newConnection).getNodeConfig();
-        doReturn(address).when(newConnection).nodeAddress();
 
         connectionManager.new BlockNodeConnectionTask(newConnection, Duration.ofSeconds(1), null, true).run();
 
@@ -750,7 +745,6 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         verify(activeConnection).getNodeConfig();
         verify(activeConnection).close(true);
         verify(newConnection, times(2)).getNodeConfig();
-        verify(newConnection).nodeAddress();
         verify(newConnection).createRequestPipeline();
         verify(newConnection).updateConnectionState(ConnectionState.ACTIVE);
         verify(bufferService).getLastBlockNumberProduced();
@@ -774,12 +768,9 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         activeConnectionRef.set(activeConnection);
         isActiveFlag().set(true);
 
-        final InetAddress address = mock(InetAddress.class);
-        when(address.getAddress()).thenReturn(new byte[] {127, 0, 0, 1});
         final BlockNodeConnection newConnection = mock(BlockNodeConnection.class);
         final BlockNodeConfig newConnectionConfig = newBlockNodeConfig(8081, 1);
         doReturn(newConnectionConfig).when(newConnection).getNodeConfig();
-        doReturn(address).when(newConnection).nodeAddress();
 
         connectionManager.new BlockNodeConnectionTask(newConnection, Duration.ofSeconds(1), 30L, false).run();
 
@@ -790,7 +781,6 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         verify(activeConnection).getNodeConfig();
         verify(activeConnection).close(true);
         verify(newConnection, times(2)).getNodeConfig();
-        verify(newConnection).nodeAddress();
         verify(newConnection).createRequestPipeline();
         verify(newConnection).updateConnectionState(ConnectionState.ACTIVE);
         verify(metrics).recordActiveConnectionIp(anyLong());
@@ -827,9 +817,6 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
         final BlockNodeConfig newConnectionConfig = newBlockNodeConfig(8081, 1);
         final BlockNodeConnection newConnection = mock(BlockNodeConnection.class);
-        final InetAddress address = mock(InetAddress.class);
-        when(address.getAddress()).thenReturn(new byte[] {127, 0, 0, 1});
-        doReturn(address).when(newConnection).nodeAddress();
         doReturn(newConnectionConfig).when(newConnection).getNodeConfig();
 
         connectionManager.new BlockNodeConnectionTask(newConnection, Duration.ofSeconds(1), null, false).run();
@@ -840,7 +827,6 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         verify(newConnection).createRequestPipeline();
         verify(newConnection).updateConnectionState(ConnectionState.ACTIVE);
         verify(newConnection).getNodeConfig();
-        verify(newConnection).nodeAddress();
         verify(bufferService).getLastBlockNumberProduced();
         verify(metrics).recordActiveConnectionIp(anyLong());
 
@@ -862,12 +848,9 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
                 .close(true);
         activeConnectionRef.set(activeConnection);
 
-        final InetAddress address = mock(InetAddress.class);
-        when(address.getAddress()).thenReturn(new byte[] {127, 0, 0, 1});
         final BlockNodeConnection newConnection = mock(BlockNodeConnection.class);
         final BlockNodeConfig newConnectionConfig = newBlockNodeConfig(8081, 1);
         doReturn(newConnectionConfig).when(newConnection).getNodeConfig();
-        doReturn(address).when(newConnection).nodeAddress();
 
         connectionManager.new BlockNodeConnectionTask(newConnection, Duration.ofSeconds(1), 30L, false).run();
 
@@ -878,7 +861,6 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         verify(activeConnection).getNodeConfig();
         verify(activeConnection).close(true);
         verify(newConnection, times(2)).getNodeConfig();
-        verify(newConnection).nodeAddress();
         verify(newConnection).createRequestPipeline();
         verify(newConnection).updateConnectionState(ConnectionState.ACTIVE);
         verify(metrics).recordActiveConnectionIp(anyLong());
@@ -1410,23 +1392,47 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     }
 
     @Test
-    void testCreateNewGrpcClient() {
-        // Given
-        final BlockNodeConfig nodeConfig = new BlockNodeConfig("::1", 50211, 1);
+    void testConnectionTask_MetricsIpFailsInvalidAddress() {
+        isActiveFlag().set(true);
+        final Map<BlockNodeConfig, BlockNodeConnection> connections = connections();
+        final List<BlockNodeConfig> availableNodes = availableNodes();
 
-        assertThatThrownBy(() -> invoke_createNewGrpcClient(nodeConfig))
-                .isInstanceOf(RuntimeException.class)
-                .hasCauseInstanceOf(java.lang.IllegalArgumentException.class);
+        final BlockNodeConfig newConnectionConfig = new BlockNodeConfig("::1", 50211, 1);
+        final BlockNodeConnection newConnection = mock(BlockNodeConnection.class);
+        doReturn(newConnectionConfig).when(newConnection).getNodeConfig();
+
+        connections.put(newConnectionConfig, newConnection);
+        availableNodes.add(newConnectionConfig);
+
+        connectionManager.new BlockNodeConnectionTask(newConnection, Duration.ZERO, null, false).run();
+
+        verify(bufferService).getLastBlockNumberProduced();
+        verify(metrics).recordActiveConnectionIp(-1L);
+
+        verifyNoMoreInteractions(bufferService);
+        verifyNoMoreInteractions(metrics);
     }
 
     @Test
-    void testCreateNewGrpcClientInvalidHost() {
-        // Given
-        final BlockNodeConfig nodeConfig = new BlockNodeConfig("invalid.hostname.for.test", 50211, 1);
+    void testConnectionTask_MetricsIpFailsInvalidHost() {
+        isActiveFlag().set(true);
+        final Map<BlockNodeConfig, BlockNodeConnection> connections = connections();
+        final List<BlockNodeConfig> availableNodes = availableNodes();
 
-        assertThatThrownBy(() -> invoke_createNewGrpcClient(nodeConfig))
-                .isInstanceOf(RuntimeException.class)
-                .hasCauseInstanceOf(java.lang.IllegalArgumentException.class);
+        final BlockNodeConfig newConnectionConfig = new BlockNodeConfig("invalid.hostname.for.test", 50211, 1);
+        final BlockNodeConnection newConnection = mock(BlockNodeConnection.class);
+        doReturn(newConnectionConfig).when(newConnection).getNodeConfig();
+
+        connections.put(newConnectionConfig, newConnection);
+        availableNodes.add(newConnectionConfig);
+
+        connectionManager.new BlockNodeConnectionTask(newConnection, Duration.ZERO, null, false).run();
+
+        verify(bufferService).getLastBlockNumberProduced();
+        verify(metrics).recordActiveConnectionIp(-1L);
+
+        verifyNoMoreInteractions(bufferService);
+        verifyNoMoreInteractions(metrics);
     }
 
     // Utilities

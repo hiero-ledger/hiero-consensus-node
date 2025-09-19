@@ -288,27 +288,15 @@ public class BlockNodeConnectionManager {
      * @param nodeConfig the configuration to use for a specific block node to connect to
      * @return a gRPC client
      */
-    private @NonNull BlockNodeClient createNewGrpcClient(@NonNull final BlockNodeConfig nodeConfig) {
+    private @NonNull BlockStreamPublishServiceClient createNewGrpcClient(@NonNull final BlockNodeConfig nodeConfig) {
         requireNonNull(nodeConfig);
 
         final Tls tls = Tls.builder().enabled(false).build();
         final PbjGrpcClientConfig grpcConfig =
                 new PbjGrpcClientConfig(Duration.ofSeconds(30), tls, Optional.of(""), "application/grpc");
 
-        final URI blockNodeUri = URI.create("http://" + nodeConfig.address() + ":" + nodeConfig.port());
-        final InetAddress blockAddress;
-
-        // Attempt to resolve the address of the block node
-        try {
-            final URL blockNodeUrl = blockNodeUri.toURL();
-            blockAddress = InetAddress.getByName(blockNodeUrl.getHost());
-        } catch (final IOException e) {
-            logger.error("Failed to resolve block node host ({}:{})", nodeConfig.address(), nodeConfig.port(), e);
-            throw new IllegalArgumentException("Failed to resolve block node host", e);
-        }
-
         final WebClient webClient = WebClient.builder()
-                .baseUri(blockNodeUri)
+                .baseUri("http://" + nodeConfig.address() + ":" + nodeConfig.port())
                 .tls(tls)
                 .protocolConfigs(List.of(GrpcClientProtocolConfig.builder()
                         .abortPollTimeExpired(false)
@@ -317,12 +305,8 @@ public class BlockNodeConnectionManager {
                 .connectTimeout(Duration.ofSeconds(10))
                 .build();
 
-        final BlockStreamPublishServiceClient client =
-                new BlockStreamPublishServiceClient(new PbjGrpcClient(webClient, grpcConfig), OPTIONS);
-        return new BlockNodeClient(blockAddress, client);
+        return new BlockStreamPublishServiceClient(new PbjGrpcClient(webClient, grpcConfig), OPTIONS);
     }
-
-    private record BlockNodeClient(InetAddress address, BlockStreamPublishServiceClient client) {}
 
     /**
      * Closes a connection and reschedules it with the specified delay.
@@ -440,18 +424,7 @@ public class BlockNodeConnectionManager {
         requireNonNull(initialDelay);
 
         final long delayMillis = Math.max(0, initialDelay.toMillis());
-        final BlockNodeConnection newConnection;
-
-        try {
-            newConnection = createConnection(blockNodeConfig);
-        } catch (final IllegalArgumentException e) {
-            logger.error(
-                    "Failed to create connection for block node @ {}:{} due to invalid configuration",
-                    blockNodeConfig.address(),
-                    blockNodeConfig.port(),
-                    e);
-            return;
-        }
+        final BlockNodeConnection newConnection = createConnection(blockNodeConfig);
 
         if (blockNumber == null) {
             logger.debug("[{}] Scheduling reconnection for node in {} ms", newConnection, delayMillis);
@@ -629,16 +602,15 @@ public class BlockNodeConnectionManager {
         requireNonNull(nodeConfig);
 
         // Create the connection object with a fresh gRPC client
-        final BlockNodeClient bnClient = createNewGrpcClient(nodeConfig);
+        final BlockStreamPublishServiceClient grpcClient = createNewGrpcClient(nodeConfig);
         final BlockNodeConnection connection = new BlockNodeConnection(
                 configProvider,
                 nodeConfig,
                 this,
                 blockBufferService,
-                bnClient.client,
+                grpcClient,
                 blockStreamMetrics,
-                sharedExecutorService,
-                bnClient.address);
+                sharedExecutorService);
 
         connections.put(nodeConfig, connection);
         return connection;
@@ -913,24 +885,42 @@ public class BlockNodeConnectionManager {
 
                     jumpTargetBlock.set(blockToJumpTo);
 
-                    final BlockNodeConfig nodeCfg = connection.getNodeConfig();
-                    final InetAddress nodeAddress = connection.nodeAddress();
-                    // TODO: Use metric labels to capture active node's IP
-                    // Once our metrics library supports labels, we will want to re-use the metric below to instead
-                    // emit a single value, like '1', and include a label called something like 'blockNodeIp' with the
-                    // value being the resolved block node's IP. Then the Grafana dashboard can be updated to use the
-                    // label value and show which block node the consensus node is connected to at any given time.
-                    // It may also be better to have a background task that runs every second or something that
-                    // continuously emits the metric instead of just when a connection is promoted to active.
-                    final long ipAsInteger = calculateIpAsInteger(nodeAddress);
-                    blockStreamMetrics.recordActiveConnectionIp(ipAsInteger);
+                    final BlockNodeConfig nodeConfig = connection.getNodeConfig();
+                    long ipAsInteger;
 
-                    logger.info(
-                            "Active block node connection updated to: {}:{} (resolvedIp: {}, resolvedIpAsInt={})",
-                            nodeCfg.address(),
-                            nodeCfg.port(),
-                            nodeAddress.getHostAddress(),
-                            ipAsInteger);
+                    // Attempt to resolve the address of the block node
+                    try {
+                        final URL blockNodeUrl = URI.create("http://" + nodeConfig.address() + ":" + nodeConfig.port())
+                                .toURL();
+                        final InetAddress blockAddress = InetAddress.getByName(blockNodeUrl.getHost());
+
+                        // TODO: Use metric labels to capture active node's IP
+                        // Once our metrics library supports labels, we will want to re-use the metric below to instead
+                        // emit a single value, like '1', and include a label called something like 'blockNodeIp' with
+                        // the
+                        // value being the resolved block node's IP. Then the Grafana dashboard can be updated to use
+                        // the
+                        // label value and show which block node the consensus node is connected to at any given time.
+                        // It may also be better to have a background task that runs every second or something that
+                        // continuously emits the metric instead of just when a connection is promoted to active.
+                        ipAsInteger = calculateIpAsInteger(blockAddress);
+
+                        logger.info(
+                                "Active block node connection updated to: {}:{} (resolvedIp: {}, resolvedIpAsInt={})",
+                                nodeConfig.address(),
+                                nodeConfig.port(),
+                                blockAddress.getHostAddress(),
+                                ipAsInteger);
+                    } catch (final IOException e) {
+                        logger.error(
+                                "Failed to resolve block node host ({}:{})",
+                                nodeConfig.address(),
+                                nodeConfig.port(),
+                                e);
+                        ipAsInteger = -1L;
+                    }
+
+                    blockStreamMetrics.recordActiveConnectionIp(ipAsInteger);
                 } else {
                     // Another connection task has preempted this task... reschedule and try again
                     reschedule();
