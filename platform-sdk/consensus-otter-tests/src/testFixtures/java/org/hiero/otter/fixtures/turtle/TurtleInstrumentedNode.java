@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.turtle;
 
-import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.test.fixtures.Randotron;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -25,12 +24,11 @@ public class TurtleInstrumentedNode extends TurtleNode implements InstrumentedNo
             @NonNull final Randotron randotron,
             @NonNull final Time time,
             @NonNull final NodeId nodeId,
-            @NonNull final Roster roster,
             @NonNull final KeysAndCerts privateKey,
             @NonNull final SimulatedNetwork network,
             @NonNull final TurtleLogging logging,
             @NonNull final Path rootOutputDirectory) {
-        super(randotron, time, nodeId, roster, privateKey, network, logging, rootOutputDirectory);
+        super(randotron, time, nodeId, privateKey, network, logging, rootOutputDirectory);
     }
 
     /**

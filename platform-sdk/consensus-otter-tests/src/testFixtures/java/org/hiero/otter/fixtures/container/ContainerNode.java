@@ -14,7 +14,6 @@ import static org.junit.jupiter.api.Assertions.fail;
 
 import com.google.protobuf.ByteString;
 import com.google.protobuf.ProtocolStringList;
-import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import io.grpc.ManagedChannel;
@@ -73,9 +72,6 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
 
     private static final Logger log = LogManager.getLogger();
 
-    private final Roster roster;
-    private final KeysAndCerts keysAndCerts;
-
     /** The image used to run the consensus node. */
     private final ContainerImage container;
 
@@ -107,7 +103,6 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
      * Constructor for the {@link ContainerNode} class.
      *
      * @param selfId the unique identifier for this node
-     * @param roster the roster of the network
      * @param keysAndCerts the keys for the node
      * @param network the network this node is part of
      * @param dockerImage the Docker image to use for this node
@@ -115,15 +110,12 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
      */
     public ContainerNode(
             @NonNull final NodeId selfId,
-            @NonNull final Roster roster,
             @NonNull final KeysAndCerts keysAndCerts,
             @NonNull final Network network,
             @NonNull final ImageFromDockerfile dockerImage,
             @NonNull final Path outputDirectory) {
-        super(selfId, roster);
+        super(selfId, keysAndCerts);
 
-        this.roster = requireNonNull(roster, "roster must not be null");
-        this.keysAndCerts = requireNonNull(keysAndCerts, "keysAndCerts must not be null");
         this.localOutputDirectory = requireNonNull(outputDirectory, "outputDirectory must not be null");
 
         this.resultsCollector = new NodeResultsCollector(selfId);
@@ -160,7 +152,7 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
         containerControlBlockingStub.init(initRequest);
 
         final StartRequest startRequest = StartRequest.newBuilder()
-                .setRoster(ProtobufConverter.fromPbj(roster))
+                .setRoster(ProtobufConverter.fromPbj(roster()))
                 .setKeysAndCerts(KeysAndCertsConverter.toProto(keysAndCerts))
                 .setVersion(ProtobufConverter.fromPbj(version))
                 .putAllOverriddenProperties(nodeConfiguration.overriddenProperties())

@@ -4,7 +4,6 @@ package org.hiero.otter.fixtures.turtle.gossip;
 import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.toMap;
 
-import com.hedera.hapi.node.state.roster.Roster;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -17,8 +16,6 @@ import java.util.PriorityQueue;
 import java.util.Random;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.model.roster.AddressBook;
-import org.hiero.consensus.roster.RosterUtils;
 import org.hiero.otter.fixtures.internal.network.ConnectionKey;
 import org.hiero.otter.fixtures.network.Topology.ConnectionData;
 
@@ -65,32 +62,23 @@ public class SimulatedNetwork {
      * Constructor.
      *
      * @param random the random number generator to use for simulating network delays
-     * @param roster the roster of the network
      */
-    public SimulatedNetwork(@NonNull final Random random, @NonNull final Roster roster) {
-        this(
-                random,
-                roster.rosterEntries().stream()
-                        .map(RosterUtils::getNodeId)
-                        .sorted()
-                        .toList());
+    public SimulatedNetwork(@NonNull final Random random) {
+        this.random = requireNonNull(random);
     }
 
     /**
-     * Constructor.
+     * Set the nodes that are part of this simulated network.
      *
-     * @param random the random number generator to use for simulating network delays
-     * @param addressBook the address book of the network
+     * @param nodeIds the ids of the nodes
      */
-    public SimulatedNetwork(@NonNull final Random random, @NonNull final AddressBook addressBook) {
-        this(random, addressBook.getNodeIdSet().stream().sorted().toList());
-    }
+    public void nodes(@NonNull final List<NodeId> nodeIds) {
+        newlySubmittedEvents.clear();
+        sortedNodeIds.clear();
+        eventsInTransit.clear();
+        gossipInstances.clear();
 
-    private SimulatedNetwork(@NonNull final Random random, @NonNull final List<NodeId> nodeIds) {
-
-        this.random = requireNonNull(random);
-
-        for (final NodeId nodeId : nodeIds) {
+        for (final NodeId nodeId : nodeIds.stream().sorted().toList()) {
             newlySubmittedEvents.put(nodeId, new ArrayList<>());
             sortedNodeIds.add(nodeId);
             eventsInTransit.put(nodeId, new PriorityQueue<>());
