@@ -110,8 +110,8 @@ jobs:
       gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
       gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
 
-  mats-unit-tests:
-    name: MATS - Unit Tests
+  unit-tests:
+    name: Unit Tests
     uses: ./.github/workflows/node-zxc-compile-application-code.yaml
     needs:
       - dependency-check
@@ -121,26 +121,211 @@ jobs:
       java-version: ${{ github.event.inputs.java-version || '21.0.6' }}
       java-distribution: ${{ github.event.inputs.java-distribution || 'temurin' }}
       enable-unit-tests: ${{ github.event_name == 'push' || github.event.inputs.enable-unit-tests == 'true' }}
+    secrets:
+      access-token: ${{ secrets.GITHUB_TOKEN }}
+      gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
+      gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
+      codacy-project-token: ${{ secrets.CODACY_PROJECT_TOKEN }}
+      codecov-token: ${{ secrets.CODECOV_TOKEN }}
+
+  hapi-tests-misc:
+    name: MATS - HAPI Tests (Misc)
+    uses: ./.github/workflows/node-zxc-compile-application-code.yaml
+    needs:
+      - dependency-check
+      - spotless
+    with:
+      custom-job-label: "MATS HAPI Tests (Misc)"
+      enable-unit-tests: false
       enable-hapi-tests-misc: ${{ github.event_name == 'push' || github.event.inputs.enable-hapi-tests == 'true' }}
-      enable-hapi-tests-misc-records: ${{ github.event_name == 'push' || github.event.inputs.enable-hapi-tests == 'true' }}
-      enable-hapi-tests-crypto: ${{ github.event_name == 'push' || github.event.inputs.enable-hapi-tests == 'true' }}
-      enable-hapi-tests-iss: ${{ github.event_name == 'push' || github.event.inputs.enable-hapi-tests == 'true' }}
-      enable-hapi-tests-token: ${{ github.event_name == 'push' || github.event.inputs.enable-hapi-tests == 'true' }}
-      enable-hapi-tests-smart-contract: ${{ github.event_name == 'push' || github.event.inputs.enable-hapi-tests == 'true' }}
-      enable-hapi-tests-restart: ${{ github.event_name == 'push' || github.event.inputs.enable-hapi-tests == 'true' }}
-      enable-hapi-tests-nd-reconnect: ${{ github.event_name == 'push' || github.event.inputs.enable-hapi-tests == 'true' }}
-      enable-otter-tests: ${{ github.event_name == 'push' || github.event.inputs.enable-otter-tests == 'true' }}
-      enable-spotless-check: ${{ github.event_name == 'push' || github.event.inputs.enable-spotless-check == 'true' }}
-      enable-snyk-scan: ${{ github.event_name == 'push' || github.event.inputs.enable-snyk-scan == 'true' }}
       enable-network-log-capture: true
       mats-suffix: MATS
     secrets:
       access-token: ${{ secrets.GITHUB_TOKEN }}
-      snyk-token: ${{ secrets.SNYK_TOKEN }}
-      codacy-project-token: ${{ secrets.CODACY_PROJECT_TOKEN }}
       gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
       gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
-      codecov-token: ${{ secrets.CODECOV_TOKEN }}
+
+  hapi-tests-misc-records:
+    name: MATS - HAPI Tests (Misc Records)
+    uses: ./.github/workflows/node-zxc-compile-application-code.yaml
+    needs:
+      - dependency-check
+      - spotless
+    with:
+      custom-job-label: "MATS HAPI Tests (Misc Records)"
+      java-version: ${{ github.event.inputs.java-version || '21.0.6' }}
+      java-distribution: ${{ github.event.inputs.java-distribution || 'temurin' }}
+      enable-unit-tests: false
+      enable-hapi-tests-misc-records: ${{ github.event_name == 'push' || github.event.inputs.enable-hapi-tests == 'true' }}
+      enable-network-log-capture: true
+      mats-suffix: MATS
+    secrets:
+      access-token: ${{ secrets.GITHUB_TOKEN }}
+      gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
+      gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
+
+  hapi-tests-crypto:
+    name: MATS - HAPI Tests (Crypto)
+    uses: ./.github/workflows/node-zxc-compile-application-code.yaml
+    needs:
+      - dependency-check
+      - spotless
+    with:
+      custom-job-label: "MATS HAPI Tests (Crypto)"
+      java-version: ${{ github.event.inputs.java-version || '21.0.6' }}
+      java-distribution: ${{ github.event.inputs.java-distribution || 'temurin' }}
+      enable-unit-tests: false
+      enable-hapi-tests-crypto: ${{ github.event_name == 'push' || github.event.inputs.enable-hapi-tests == 'true' }}
+      enable-network-log-capture: true
+    secrets:
+      access-token: ${{ secrets.GITHUB_TOKEN }}
+      gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
+      gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
+
+  hapi-tests-iss:
+    name: MATS - HAPI Tests (ISS)
+    uses: ./.github/workflows/node-zxc-compile-application-code.yaml
+    needs:
+      - dependency-check
+      - spotless
+    with:
+      custom-job-label: "MATS HAPI Tests (ISS)"
+      java-version: ${{ github.event.inputs.java-version || '21.0.6' }}
+      java-distribution: ${{ github.event.inputs.java-distribution || 'temurin' }}
+      enable-unit-tests: false
+      enable-hapi-tests-iss: ${{ github.event_name == 'push' || github.event.inputs.enable-hapi-tests == 'true' }}
+      enable-network-log-capture: true
+    secrets:
+      access-token: ${{ secrets.GITHUB_TOKEN }}
+      gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
+      gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
+
+  hapi-tests-token:
+    name: MATS - HAPI Tests (Token)
+    uses: ./.github/workflows/node-zxc-compile-application-code.yaml
+    needs:
+      - dependency-check
+      - spotless
+    with:
+      custom-job-label: "MATS HAPI Tests (Token)"
+      java-version: ${{ github.event.inputs.java-version || '21.0.6' }}
+      java-distribution: ${{ github.event.inputs.java-distribution || 'temurin' }}
+      enable-unit-tests: false
+      enable-hapi-tests-token: ${{ github.event_name == 'push' || github.event.inputs.enable-hapi-tests == 'true' }}
+      enable-network-log-capture: true
+      mats-suffix: MATS
+    secrets:
+      access-token: ${{ secrets.GITHUB_TOKEN }}
+      gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
+      gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
+
+  hapi-tests-smart-contract:
+    name: MATS - HAPI Tests (Smart Contract)
+    uses: ./.github/workflows/node-zxc-compile-application-code.yaml
+    needs:
+      - dependency-check
+      - spotless
+    with:
+      custom-job-label: "MATS HAPI Tests (Smart Contract)"
+      java-version: ${{ github.event.inputs.java-version || '21.0.6' }}
+      java-distribution: ${{ github.event.inputs.java-distribution || 'temurin' }}
+      enable-unit-tests: false
+      enable-hapi-tests-smart-contract: ${{ github.event_name == 'push' || github.event.inputs.enable-hapi-tests == 'true' }}
+      enable-network-log-capture: true
+    secrets:
+      access-token: ${{ secrets.GITHUB_TOKEN }}
+      gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
+      gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
+
+  hapi-tests-restart:
+    name: MATS - HAPI Tests (Restart)
+    uses: ./.github/workflows/node-zxc-compile-application-code.yaml
+    needs:
+      - dependency-check
+      - spotless
+    with:
+      custom-job-label: "MATS HAPI Tests (Restart)"
+      java-version: ${{ github.event.inputs.java-version || '21.0.6' }}
+      java-distribution: ${{ github.event.inputs.java-distribution || 'temurin' }}
+      enable-unit-tests: false
+      enable-hapi-tests-restart: ${{ github.event_name == 'push' || github.event.inputs.enable-hapi-tests == 'true' }}
+      enable-network-log-capture: true
+    secrets:
+      access-token: ${{ secrets.GITHUB_TOKEN }}
+      gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
+      gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
+
+  hapi-tests-nd-reconnect:
+    name: MATS - HAPI Tests (Node Death Reconnect)
+    uses: ./.github/workflows/node-zxc-compile-application-code.yaml
+    needs:
+      - dependency-check
+      - spotless
+    with:
+      custom-job-label: "MATS HAPI Tests (Node Death Reconnect)"
+      java-version: ${{ github.event.inputs.java-version || '21.0.6' }}
+      java-distribution: ${{ github.event.inputs.java-distribution || 'temurin' }}
+      enable-unit-tests: false
+      enable-hapi-tests-nd-reconnect: ${{ github.event_name == 'push' || github.event.inputs.enable-hapi-tests == 'true' }}
+      enable-network-log-capture: true
+    secrets:
+      access-token: ${{ secrets.GITHUB_TOKEN }}
+      gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
+      gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
+
+  otter-tests:
+    name: MATS - Otter Tests
+    uses: ./.github/workflows/node-zxc-compile-application-code.yaml
+    needs:
+      - dependency-check
+      - spotless
+    with:
+      custom-job-label: "MATS Otter Tests"
+      java-version: ${{ github.event.inputs.java-version || '21.0.6' }}
+      java-distribution: ${{ github.event.inputs.java-distribution || 'temurin' }}
+      enable-unit-tests: false
+      enable-otter-tests: ${{ github.event_name == 'push' || github.event.inputs.enable-otter-tests == 'true' }}
+      enable-network-log-capture: true
+    secrets:
+      access-token: ${{ secrets.GITHUB_TOKEN }}
+      gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
+      gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
+
+  spotless-check:
+    name: MATS - Spotless Check
+    uses: ./.github/workflows/node-zxc-compile-application-code.yaml
+    needs:
+      - dependency-check
+      - spotless
+    with:
+      custom-job-label: "MATS Spotless Check"
+      java-version: ${{ github.event.inputs.java-version || '21.0.6' }}
+      java-distribution: ${{ github.event.inputs.java-distribution || 'temurin' }}
+      enable-unit-tests: false
+      enable-spotless-check: ${{ github.event_name == 'push' || github.event.inputs.enable-spotless-check == 'true' }}
+    secrets:
+      access-token: ${{ secrets.GITHUB_TOKEN }}
+      gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
+      gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
+      snyk-token: ${{ secrets.SNYK_TOKEN }}
+
+  snyk-scan:
+    name: MATS - Snyk Scan
+    uses: ./.github/workflows/node-zxc-compile-application-code.yaml
+    needs:
+      - dependency-check
+      - spotless
+    with:
+      custom-job-label: "MATS Snyk Scan"
+      java-version: ${{ github.event.inputs.java-version || '21.0.6' }}
+      java-distribution: ${{ github.event.inputs.java-distribution || 'temurin' }}
+      enable-unit-tests: false
+      enable-snyk-scan: ${{ github.event_name == 'push' || github.event.inputs.enable-snyk-scan == 'true' }}
+    secrets:
+      access-token: ${{ secrets.GITHUB_TOKEN }}
+      gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
+      gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
+      snyk-token: ${{ secrets.SNYK_TOKEN }}
 
   mats-gradle-determinism:
     name: MATS - Gradle Determinism
