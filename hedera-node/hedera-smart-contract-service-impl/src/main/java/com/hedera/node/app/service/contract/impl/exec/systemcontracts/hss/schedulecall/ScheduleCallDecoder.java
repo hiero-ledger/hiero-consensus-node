@@ -18,7 +18,6 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hss.HssCal
 import com.hedera.node.app.service.contract.impl.utils.ConversionUtils;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.math.BigInteger;
 import java.util.Set;
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -68,9 +67,10 @@ public class ScheduleCallDecoder {
         } else {
             throw new IllegalStateException("Unexpected function selector");
         }
-        final BigInteger expirySecond = call.get(paramIndex++);
-        final BigInteger gasLimit = call.get(paramIndex++);
-        final BigInteger value = call.get(paramIndex++);
+
+        final long expirySecond = ConversionUtils.uintToLong(call.get(paramIndex++));
+        final long gasLimit = ConversionUtils.uintToLong(call.get(paramIndex++));
+        final long value = ConversionUtils.uintToLong(call.get(paramIndex++));
         final byte[] callData = call.get(paramIndex);
 
         // convert parameters
@@ -131,18 +131,17 @@ public class ScheduleCallDecoder {
     public ScheduleCreateTransactionBody scheduleCreateTransactionBodyFor(
             @NonNull final SchedulableTransactionBody scheduleTrx,
             @NonNull final Set<Key> keys,
-            @NonNull final BigInteger expirySecond,
+            final long expirySecond,
             @NonNull final AccountID sender,
             boolean waitForExpiry) {
         requireNonNull(scheduleTrx);
         requireNonNull(keys);
-        requireNonNull(expirySecond);
         requireNonNull(sender);
         return ScheduleCreateTransactionBody.newBuilder()
                 .scheduledTransactionBody(scheduleTrx)
                 // we need to set adminKey for make schedule not immutable and to be able to delete schedule
                 .adminKey(keys.stream().findFirst().orElse(null))
-                .expirationTime(Timestamp.newBuilder().seconds(expirySecond.longValueExact()))
+                .expirationTime(Timestamp.newBuilder().seconds(expirySecond))
                 .payerAccountID(sender)
                 .waitForExpiry(waitForExpiry)
                 .build();
@@ -167,19 +166,14 @@ public class ScheduleCallDecoder {
      */
     @VisibleForTesting
     public SchedulableTransactionBody scheduledTransactionBodyFor(
-            @NonNull final ContractID contractId,
-            @NonNull final BigInteger gasLimit,
-            @NonNull final BigInteger value,
-            @NonNull byte[] callData) {
+            @NonNull final ContractID contractId, final long gasLimit, final long value, @NonNull byte[] callData) {
         requireNonNull(contractId);
-        requireNonNull(gasLimit);
-        requireNonNull(value);
         requireNonNull(callData);
         return SchedulableTransactionBody.newBuilder()
                 .contractCall(ContractCallTransactionBody.newBuilder()
                         .contractID(contractId)
-                        .gas(gasLimit.longValueExact())
-                        .amount(value.longValueExact())
+                        .gas(gasLimit)
+                        .amount(value)
                         .functionParameters(Bytes.wrap(callData)))
                 .build();
     }
