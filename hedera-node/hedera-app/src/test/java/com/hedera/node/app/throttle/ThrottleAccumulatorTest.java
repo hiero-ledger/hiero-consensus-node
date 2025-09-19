@@ -27,7 +27,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
@@ -39,7 +38,6 @@ import com.hedera.hapi.node.base.AccountAmount;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.Key;
-import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.ScheduleID;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.SignatureMap;
@@ -75,7 +73,6 @@ import com.hedera.node.app.spi.fixtures.util.LogCaptor;
 import com.hedera.node.app.spi.fixtures.util.LogCaptureExtension;
 import com.hedera.node.app.spi.fixtures.util.LoggingSubject;
 import com.hedera.node.app.spi.fixtures.util.LoggingTarget;
-import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.throttle.ThrottleAccumulator.ThrottleType;
 import com.hedera.node.app.throttle.ThrottleAccumulator.Verbose;
 import com.hedera.node.app.workflows.TransactionInfo;
@@ -568,14 +565,6 @@ class ThrottleAccumulatorTest {
         final var defs = getThrottleDefs("bootstrap/throttles.json");
 
         given(transactionInfo.functionality()).willReturn(CONTRACT_CALL);
-        given(transactionInfo.txBody())
-                .willReturn(TransactionBody.newBuilder()
-                        .contractCall(ContractCallTransactionBody.newBuilder()
-                                .contractID(ContractID.newBuilder()
-                                        .contractNum(1234L)
-                                        .build())
-                                .build())
-                        .build());
 
         // when
         subject.rebuildFor(defs);
@@ -616,14 +605,6 @@ class ThrottleAccumulatorTest {
 
         final var defs = getThrottleDefs("bootstrap/throttles.json");
         given(transactionInfo.functionality()).willReturn(CONTRACT_CALL);
-        given(transactionInfo.txBody())
-                .willReturn(TransactionBody.newBuilder()
-                        .contractCall(ContractCallTransactionBody.newBuilder()
-                                .contractID(ContractID.newBuilder()
-                                        .contractNum(1234L)
-                                        .build())
-                                .build())
-                        .build());
         given(transactionInfo.payerID())
                 .willReturn(AccountID.newBuilder().accountNum(1L).build());
 
@@ -672,14 +653,7 @@ class ThrottleAccumulatorTest {
 
         given(transactionInfo.functionality()).willReturn(CRYPTO_TRANSFER);
         final var txn = TransactionBody.newBuilder()
-                .cryptoTransfer(CryptoTransferTransactionBody.newBuilder()
-                        .transfers(TransferList.newBuilder()
-                                .accountAmounts(AccountAmount.newBuilder()
-                                        .accountID(PAYER_ID)
-                                        .amount(100L)
-                                        .build())
-                                .build())
-                        .build())
+                .cryptoTransfer(CryptoTransferTransactionBody.DEFAULT)
                 .build();
         given(transactionInfo.txBody()).willReturn(txn);
         given(state.getReadableStates(any())).willReturn(readableStates);
@@ -723,14 +697,7 @@ class ThrottleAccumulatorTest {
 
         given(transactionInfo.functionality()).willReturn(CRYPTO_TRANSFER);
         final var txn = TransactionBody.newBuilder()
-                .cryptoTransfer(CryptoTransferTransactionBody.newBuilder()
-                        .transfers(TransferList.newBuilder()
-                                .accountAmounts(AccountAmount.newBuilder()
-                                        .accountID(PAYER_ID)
-                                        .amount(100L)
-                                        .build())
-                                .build())
-                        .build())
+                .cryptoTransfer(CryptoTransferTransactionBody.DEFAULT)
                 .build();
         given(transactionInfo.txBody()).willReturn(txn);
 
@@ -1029,10 +996,8 @@ class ThrottleAccumulatorTest {
         final var defs = getThrottleDefs("bootstrap/throttles.json");
 
         given(transactionInfo.functionality()).willReturn(ETHEREUM_TRANSACTION);
-        given(configuration.getConfigData(HederaConfig.class)).willReturn(hederaConfig);
-        final var ethTxnBody = EthereumTransactionBody.newBuilder()
-                .ethereumData(ETH_LAZY_CREATE)
-                .build();
+        final var ethTxnBody =
+                EthereumTransactionBody.newBuilder().ethereumData(Bytes.EMPTY).build();
         given(transactionInfo.txBody())
                 .willReturn(TransactionBody.newBuilder()
                         .ethereumTransaction(ethTxnBody)
@@ -1076,10 +1041,8 @@ class ThrottleAccumulatorTest {
         final var defs = getThrottleDefs("bootstrap/throttles.json");
 
         given(transactionInfo.functionality()).willReturn(ETHEREUM_TRANSACTION);
-        given(configuration.getConfigData(HederaConfig.class)).willReturn(hederaConfig);
-        final var ethTxnBody = EthereumTransactionBody.newBuilder()
-                .ethereumData(ETH_LAZY_CREATE)
-                .build();
+        final var ethTxnBody =
+                EthereumTransactionBody.newBuilder().ethereumData(Bytes.EMPTY).build();
         given(transactionInfo.txBody())
                 .willReturn(TransactionBody.newBuilder()
                         .ethereumTransaction(ethTxnBody)
@@ -1125,10 +1088,8 @@ class ThrottleAccumulatorTest {
         final var defs = getThrottleDefs("bootstrap/throttles.json");
 
         given(transactionInfo.functionality()).willReturn(ETHEREUM_TRANSACTION);
-        given(configuration.getConfigData(HederaConfig.class)).willReturn(hederaConfig);
-        final var ethTxnBody = EthereumTransactionBody.newBuilder()
-                .ethereumData(ETH_LAZY_CREATE)
-                .build();
+        final var ethTxnBody =
+                EthereumTransactionBody.newBuilder().ethereumData(Bytes.EMPTY).build();
         given(transactionInfo.txBody())
                 .willReturn(TransactionBody.newBuilder()
                         .ethereumTransaction(ethTxnBody)
@@ -1213,11 +1174,7 @@ class ThrottleAccumulatorTest {
         given(transactionInfo.functionality()).willReturn(CONTRACT_CALL);
         given(transactionInfo.txBody())
                 .willReturn(TransactionBody.newBuilder()
-                        .contractCall(ContractCallTransactionBody.newBuilder()
-                                .contractID(ContractID.newBuilder()
-                                        .contractNum(1234L)
-                                        .build())
-                                .build())
+                        .contractCall(ContractCallTransactionBody.DEFAULT)
                         .build());
 
         // when
@@ -1248,10 +1205,8 @@ class ThrottleAccumulatorTest {
                 .willReturn(AccountID.newBuilder().accountNum(1234L).build());
 
         given(transactionInfo.functionality()).willReturn(CONTRACT_CALL);
-        final var contractCallTxnBody = ContractCallTransactionBody.newBuilder()
-                .gas(2L)
-                .contractID(ContractID.newBuilder().contractNum(1234L).build())
-                .build();
+        final var contractCallTxnBody =
+                ContractCallTransactionBody.newBuilder().gas(2L).build();
         given(transactionInfo.txBody())
                 .willReturn(TransactionBody.newBuilder()
                         .contractCall(contractCallTxnBody)
@@ -1288,9 +1243,7 @@ class ThrottleAccumulatorTest {
         given(transactionInfo.functionality()).willReturn(CONTRACT_CREATE);
         given(transactionInfo.txBody())
                 .willReturn(TransactionBody.newBuilder()
-                        .contractCreateInstance(ContractCreateTransactionBody.newBuilder()
-                                .initcode(Bytes.wrap("bytecode"))
-                                .build())
+                        .contractCreateInstance(ContractCreateTransactionBody.DEFAULT)
                         .build());
 
         // when
@@ -1321,10 +1274,8 @@ class ThrottleAccumulatorTest {
                 .willReturn(AccountID.newBuilder().accountNum(1234L).build());
 
         given(transactionInfo.functionality()).willReturn(CONTRACT_CREATE);
-        final var contractCreateTxnBody = ContractCreateTransactionBody.newBuilder()
-                .gas(2L)
-                .initcode(Bytes.wrap("bytecode"))
-                .build();
+        final var contractCreateTxnBody =
+                ContractCreateTransactionBody.newBuilder().gas(2L).build();
         given(transactionInfo.txBody())
                 .willReturn(TransactionBody.newBuilder()
                         .contractCreateInstance(contractCreateTxnBody)
@@ -1365,9 +1316,7 @@ class ThrottleAccumulatorTest {
         given(transactionInfo.functionality()).willReturn(ETHEREUM_TRANSACTION);
         given(transactionInfo.txBody())
                 .willReturn(TransactionBody.newBuilder()
-                        .ethereumTransaction(EthereumTransactionBody.newBuilder()
-                                .ethereumData(ETH_LAZY_CREATE)
-                                .build())
+                        .ethereumTransaction(EthereumTransactionBody.DEFAULT)
                         .build());
 
         // when
@@ -1510,14 +1459,6 @@ class ThrottleAccumulatorTest {
                 .willReturn(AccountID.newBuilder().accountNum(1234L).build());
 
         given(transactionInfo.functionality()).willReturn(CONTRACT_CALL);
-        given(transactionInfo.txBody())
-                .willReturn(TransactionBody.newBuilder()
-                        .contractCall(ContractCallTransactionBody.newBuilder()
-                                .contractID(ContractID.newBuilder()
-                                        .contractNum(1234L)
-                                        .build())
-                                .build())
-                        .build());
 
         assertTrue(subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state, null));
         Assertions.assertSame(Collections.emptyList(), subject.activeThrottlesFor(CONTRACT_CALL));
@@ -1871,9 +1812,7 @@ class ThrottleAccumulatorTest {
                 null);
 
         // When & Then
-        final var exception = assertThrows(
-                HandleException.class, () -> subject.checkAndEnforceThrottle(txnInfo, TIME_INSTANT, state, null));
-        assertEquals(ResponseCodeEnum.INVALID_SCHEDULE_ID, exception.getStatus());
+        assertTrue(subject.checkAndEnforceThrottle(txnInfo, TIME_INSTANT, state, null));
     }
 
     @Test
@@ -1960,7 +1899,7 @@ class ThrottleAccumulatorTest {
     }
 
     private void givenMintWith(int numNfts) {
-        final var op = TokenMintTransactionBody.newBuilder().token(TOKEN_ID);
+        final var op = TokenMintTransactionBody.newBuilder();
         if (numNfts == 0) {
             op.amount(1_234_567L);
         } else {
