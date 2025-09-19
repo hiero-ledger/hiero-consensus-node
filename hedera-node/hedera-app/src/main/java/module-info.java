@@ -42,6 +42,7 @@ module com.hedera.node.app {
     requires com.hedera.node.app.service.addressbook;
     requires com.hedera.node.app.service.consensus;
     requires com.hedera.node.app.service.contract;
+    requires com.hedera.node.app.service.entity;
     requires com.hedera.node.app.service.file;
     requires com.hedera.node.app.service.network.admin;
     requires com.hedera.node.app.service.roster;
@@ -123,7 +124,6 @@ module com.hedera.node.app {
     exports com.hedera.node.app.grpc.impl.netty;
     exports com.hedera.node.app.tss.schemas;
     exports com.hedera.node.app.blocks.schemas;
-    exports com.hedera.node.app.ids.schemas;
     exports com.hedera.node.app.hints.schemas;
 
     provides com.swirlds.config.api.ConfigurationExtension with

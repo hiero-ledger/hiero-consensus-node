@@ -7,7 +7,6 @@ import static com.hedera.statevalidation.parameterresolver.InitUtils.initService
 import static com.hedera.statevalidation.parameterresolver.InitUtils.initServiceRegistry;
 import static com.swirlds.platform.state.snapshot.SignedStateFileReader.readStateFile;
 
-import com.hedera.node.app.HederaVirtualMapState;
 import com.hedera.node.app.service.roster.impl.RosterServiceImpl;
 import com.hedera.node.app.services.ServicesRegistryImpl;
 import com.hedera.statevalidation.validators.Constants;
@@ -28,6 +27,7 @@ import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.snapshot.DeserializedSignedState;
 import com.swirlds.platform.util.BootstrapUtils;
 import com.swirlds.state.State;
+import com.swirlds.state.merkle.HederaVirtualMapState;
 import com.swirlds.virtualmap.constructable.ConstructableUtils;
 import java.io.IOException;
 import java.nio.file.Path;

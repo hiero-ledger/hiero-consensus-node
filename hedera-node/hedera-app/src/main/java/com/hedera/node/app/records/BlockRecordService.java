@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.records;
 
-import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.node.app.records.impl.BlockRecordManagerImpl;
 import com.hedera.node.app.records.schemas.V0490BlockRecordSchema;
 import com.hedera.node.app.records.schemas.V0560BlockRecordSchema;
@@ -18,11 +17,6 @@ import javax.inject.Singleton;
 public final class BlockRecordService implements Service {
     /** The name of this service */
     public static final String NAME = "BlockRecordService";
-
-    /**
-     * The epoch timestamp, a placeholder for time of an event that has never happened.
-     */
-    public static final Timestamp EPOCH = new Timestamp(0, 0);
 
     @NonNull
     @Override

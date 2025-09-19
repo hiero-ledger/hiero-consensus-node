@@ -5,10 +5,12 @@ module com.hedera.node.app.service.addressbook.impl {
     requires transitive com.hedera.node.config;
     requires transitive com.hedera.node.hapi;
     requires transitive com.hedera.pbj.runtime;
+    requires transitive com.swirlds.platform.core;
     requires transitive com.swirlds.state.api;
     requires transitive dagger;
     requires transitive javax.inject;
     requires com.hedera.node.app.hapi.utils;
+    requires com.hedera.node.app.service.entity;
     requires com.hedera.node.app.service.token;
     requires com.swirlds.config.api;
     requires org.hiero.base.utility;

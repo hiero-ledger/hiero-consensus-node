@@ -39,6 +39,7 @@ import com.swirlds.merkle.map.MerkleMap;
 import com.swirlds.merkledb.MerkleDbDataSourceBuilder;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
+import com.swirlds.state.lifecycle.HapiUtils;
 import com.swirlds.state.lifecycle.StateMetadata;
 import com.swirlds.state.merkle.StateUtils;
 import com.swirlds.state.merkle.memory.InMemoryKey;
@@ -176,7 +177,7 @@ public class MerkleTestBase extends StateTestBase {
         AtomicBoolean bypassStateIdFor = new AtomicBoolean(false);
         stateUtilsMock = mockStatic(StateUtils.class, CALLS_REAL_METHODS);
         stateUtilsMock
-                .when(() -> StateUtils.stateIdFor(anyString(), anyString()))
+                .when(() -> HapiUtils.stateIdFor(anyString(), anyString()))
                 .thenAnswer(invocation -> {
                     if (bypassStateIdFor.get()) {
                         return invocation.callRealMethod();

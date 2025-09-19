@@ -28,7 +28,7 @@ import static com.hedera.services.bdd.suites.contract.Utils.getResourcePath;
 import static com.hedera.services.bdd.suites.contract.precompile.CreatePrecompileSuite.MEMO;
 
 import com.google.common.io.Files;
-import com.hedera.node.app.service.contract.impl.utils.ConversionUtils;
+import com.hedera.node.app.hapi.utils.contracts.ContractUtils;
 import com.hedera.node.app.service.contract.impl.utils.RedirectBytecodeUtils;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.spec.HapiSpecSetup;
@@ -128,7 +128,7 @@ public class ContractGetBytecodeSuite {
             final var actualBytecode = spec.registry().getBytes(key);
             ContractID contractId = TxnUtils.asContractId(contract, spec);
             final byte[] expectedBytecode = redirectBytecodeFunction
-                    .apply(Address.wrap(Bytes.wrap(ConversionUtils.asEvmAddress(contractId.getContractNum()))))
+                    .apply(Address.wrap(Bytes.wrap(ContractUtils.asEvmAddress(contractId.getContractNum()))))
                     .toArray();
             Assertions.assertArrayEquals(expectedBytecode, actualBytecode);
         });

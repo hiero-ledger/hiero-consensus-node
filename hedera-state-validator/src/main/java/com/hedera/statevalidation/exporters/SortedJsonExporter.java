@@ -15,7 +15,7 @@ import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.utility.Pair;
 import com.swirlds.platform.state.MerkleNodeState;
-import com.swirlds.state.merkle.StateUtils;
+import com.swirlds.state.lifecycle.HapiUtils;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.internal.merkle.VirtualMapMetadata;
@@ -69,7 +69,7 @@ public class SortedJsonExporter {
         keysByExpectedStateIds = new HashMap<>();
         nameByStateId = new HashMap<>();
         serviceNameStateKeyList.forEach(p -> {
-            int stateId = StateUtils.stateIdFor(p.left(), p.right());
+            int stateId = HapiUtils.stateIdFor(p.left(), p.right());
             final Comparator<Pair<Long, Bytes>> comparator;
             if (stateId < StateKey.KeyOneOfType.RECORDCACHE_I_TRANSACTIONRECEIPTQUEUE.protoOrdinal()) {
                 comparator = (key1, key2) -> {

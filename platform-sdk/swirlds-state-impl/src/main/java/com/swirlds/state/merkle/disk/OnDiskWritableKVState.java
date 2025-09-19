@@ -14,7 +14,7 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.platform.state.StateValue;
 import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.state.merkle.StateUtils;
+import com.swirlds.state.lifecycle.HapiUtils;
 import com.swirlds.state.spi.WritableKVState;
 import com.swirlds.state.spi.WritableKVStateBase;
 import com.swirlds.virtualmap.VirtualMap;
@@ -73,7 +73,7 @@ public final class OnDiskWritableKVState<K, V> extends WritableKVStateBase<K, V>
     protected Iterator<K> iterateFromDataSource() {
         // Log to transaction state log, what was iterated
         logMapIterate(computeLabel(serviceName, stateKey), virtualMap, keyCodec);
-        return new OnDiskIterator<>(virtualMap, keyCodec, StateUtils.stateIdFor(serviceName, stateKey));
+        return new OnDiskIterator<>(virtualMap, keyCodec, HapiUtils.stateIdFor(serviceName, stateKey));
     }
 
     /** {@inheritDoc} */

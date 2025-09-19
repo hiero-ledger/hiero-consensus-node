@@ -6,6 +6,7 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
 import com.hedera.hapi.node.state.blockrecords.RunningHashes;
+import com.hedera.node.app.hapi.utils.records.BlockRecordUtils;
 import com.hedera.node.app.records.BlockRecordService;
 import com.hedera.node.app.records.schemas.V0490BlockRecordSchema;
 import com.hedera.node.app.spi.records.BlockRecordInfo;
@@ -71,6 +72,6 @@ public final class BlockRecordInfoImpl implements BlockRecordInfo {
     @Nullable
     @Override
     public Bytes blockHashByBlockNumber(final long blockNo) {
-        return BlockRecordInfoUtils.blockHashByBlockNumber(blockInfo, blockNo);
+        return BlockRecordUtils.blockHashByBlockNumber(blockInfo, blockNo);
     }
 }

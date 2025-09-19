@@ -32,6 +32,7 @@ import com.hedera.hapi.node.transaction.ExchangeRate;
 import com.hedera.hapi.streams.ContractStateChange;
 import com.hedera.hapi.streams.ContractStateChanges;
 import com.hedera.hapi.streams.StorageChange;
+import com.hedera.node.app.hapi.utils.contracts.ContractUtils;
 import com.hedera.node.app.service.contract.impl.exec.CallOutcome;
 import com.hedera.node.app.service.contract.impl.exec.scope.HandleHederaNativeOperations;
 import com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations;
@@ -59,8 +60,6 @@ import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.datatypes.Hash;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 import org.hyperledger.besu.evm.log.Log;
-import org.hyperledger.besu.evm.log.LogTopic;
-import org.hyperledger.besu.evm.log.LogsBloomFilter;
 
 /**
  * Some utility methods for converting between PBJ and Besu types and the various kinds of addresses and ids.
@@ -152,7 +151,7 @@ public class ConversionUtils {
     public static com.esaulpaugh.headlong.abi.Address headlongAddressOf(@NonNull final AccountID accountID) {
         requireNonNull(accountID);
         final var integralAddress = accountID.hasAccountNum()
-                ? asEvmAddress(accountID.accountNumOrThrow())
+                ? ContractUtils.asEvmAddress(accountID.accountNumOrThrow())
                 : accountID
                         .aliasOrElse(com.hedera.pbj.runtime.io.buffer.Bytes.EMPTY)
                         .toByteArray();
@@ -168,7 +167,7 @@ public class ConversionUtils {
     public static com.esaulpaugh.headlong.abi.Address headlongAddressOf(@NonNull final ContractID contractId) {
         requireNonNull(contractId);
         final var integralAddress = contractId.hasContractNum()
-                ? asEvmAddress(contractId.contractNumOrThrow())
+                ? ContractUtils.asEvmAddress(contractId.contractNumOrThrow())
                 : contractId.evmAddressOrThrow().toByteArray();
         return asHeadlongAddress(integralAddress);
     }
@@ -181,7 +180,7 @@ public class ConversionUtils {
      */
     public static com.esaulpaugh.headlong.abi.Address headlongAddressOf(@NonNull final ScheduleID scheduleID) {
         requireNonNull(scheduleID);
-        final var integralAddress = asEvmAddress(scheduleID.scheduleNum());
+        final var integralAddress = ContractUtils.asEvmAddress(scheduleID.scheduleNum());
         return asHeadlongAddress(integralAddress);
     }
 
@@ -194,7 +193,7 @@ public class ConversionUtils {
     public static com.esaulpaugh.headlong.abi.Address headlongAddressOf(
             @NonNull final com.hederahashgraph.api.proto.java.ScheduleID scheduleID) {
         requireNonNull(scheduleID);
-        final var integralAddress = asEvmAddress(scheduleID.getScheduleNum());
+        final var integralAddress = ContractUtils.asEvmAddress(scheduleID.getScheduleNum());
         return asHeadlongAddress(integralAddress);
     }
 
@@ -206,7 +205,7 @@ public class ConversionUtils {
      */
     public static com.esaulpaugh.headlong.abi.Address headlongAddressOf(@NonNull final TokenID tokenId) {
         requireNonNull(tokenId);
-        return asHeadlongAddress(asEvmAddress(tokenId.tokenNum()));
+        return asHeadlongAddress(ContractUtils.asEvmAddress(tokenId.tokenNum()));
     }
 
     /**
@@ -390,7 +389,7 @@ public class ConversionUtils {
                 .contractID(entityIdFactory.newContractId(loggerNumber))
                 .data(tuweniToPbjBytes(log.getData()))
                 .topic(loggedTopics)
-                .bloom(bloomFor(log))
+                .bloom(ContractUtils.bloomFor(log))
                 .build();
     }
 
@@ -577,25 +576,6 @@ public class ConversionUtils {
     }
 
     /**
-     * Converts a shard, realm, number to a long zero address.
-     * @param number the number to convert
-     * @return the long zero address
-     */
-    public static Address asLongZeroAddress(final long number) {
-        return Address.wrap(Bytes.wrap(asEvmAddress(number)));
-    }
-
-    /**
-     * Converts a number to a long zero address.
-     *
-     * @param accountID the account id to convert
-     * @return the long zero address
-     */
-    public static Address asLongZeroAddress(@NonNull final AccountID accountID) {
-        return Address.wrap(Bytes.wrap(asEvmAddress(accountID.accountNumOrThrow())));
-    }
-
-    /**
      * Converts a Tuweni bytes to a PBJ bytes.
      *
      * @param bytes the Tuweni bytes
@@ -707,19 +687,6 @@ public class ConversionUtils {
     }
 
     /**
-     * Converts a PBJ bytes to Tuweni bytes.
-     *
-     * @param bytes the PBJ bytes
-     * @return the Tuweni bytes
-     */
-    public static @NonNull Bytes pbjToTuweniBytes(@NonNull final com.hedera.pbj.runtime.io.buffer.Bytes bytes) {
-        if (bytes.length() == 0) {
-            return Bytes.EMPTY;
-        }
-        return Bytes.wrap(clampedBytes(bytes, 0, Integer.MAX_VALUE));
-    }
-
-    /**
      * Returns whether the given alias is an EVM address.
      *
      * @param alias the alias
@@ -737,7 +704,8 @@ public class ConversionUtils {
      * @throws IllegalArgumentException if the bytes are not 20 bytes long
      */
     public static @NonNull Address pbjToBesuAddress(@NonNull final com.hedera.pbj.runtime.io.buffer.Bytes bytes) {
-        return Address.wrap(Bytes.wrap(clampedBytes(bytes, EVM_ADDRESS_LENGTH_AS_INT, EVM_ADDRESS_LENGTH_AS_INT)));
+        return Address.wrap(
+                Bytes.wrap(ContractUtils.clampedBytes(bytes, EVM_ADDRESS_LENGTH_AS_INT, EVM_ADDRESS_LENGTH_AS_INT)));
     }
 
     /**
@@ -748,7 +716,7 @@ public class ConversionUtils {
      * @throws IllegalArgumentException if the bytes are not 32 bytes long
      */
     public static @NonNull Hash pbjToBesuHash(@NonNull final com.hedera.pbj.runtime.io.buffer.Bytes bytes) {
-        return Hash.wrap(Bytes32.wrap(clampedBytes(bytes, 32, 32)));
+        return Hash.wrap(Bytes32.wrap(ContractUtils.clampedBytes(bytes, 32, 32)));
     }
 
     /**
@@ -759,57 +727,9 @@ public class ConversionUtils {
      * @throws IllegalArgumentException if the bytes are more than 32 bytes long
      */
     public static @NonNull UInt256 pbjToTuweniUInt256(@NonNull final com.hedera.pbj.runtime.io.buffer.Bytes bytes) {
-        return (bytes.length() == 0) ? UInt256.ZERO : UInt256.fromBytes(Bytes32.wrap(clampedBytes(bytes, 0, 32)));
-    }
-
-    /**
-     * Returns the PBJ bloom for a list of Besu {@link Log}s.
-     *
-     * @param logs the Besu {@link Log}s
-     * @return the PBJ bloom
-     */
-    public static com.hedera.pbj.runtime.io.buffer.Bytes bloomForAll(@NonNull final List<Log> logs) {
-        return com.hedera.pbj.runtime.io.buffer.Bytes.wrap(
-                LogsBloomFilter.builder().insertLogs(logs).build().toArray());
-    }
-
-    private static byte[] clampedBytes(
-            @NonNull final com.hedera.pbj.runtime.io.buffer.Bytes bytes, final int minLength, final int maxLength) {
-        final var length = Math.toIntExact(requireNonNull(bytes).length());
-        if (length < minLength) {
-            throw new IllegalArgumentException("Expected at least " + minLength + " bytes, got " + bytes);
-        }
-        if (length > maxLength) {
-            throw new IllegalArgumentException("Expected at most " + maxLength + " bytes, got " + bytes);
-        }
-        final byte[] data = new byte[length];
-        bytes.getBytes(0, data);
-        return data;
-    }
-
-    /**
-     * Given a long entity number, returns its 20-byte EVM address.
-     *
-     * @param num the entity number
-     * @return its 20-byte EVM address
-     */
-    public static byte[] asEvmAddress(final long num) {
-        return copyToLeftPaddedByteArray(num, new byte[20]);
-    }
-
-    /**
-     * Given a value and a destination byte array, copies the value to the destination array, left-padded.
-     *
-     * @param value the value
-     * @param dest the destination byte array
-     * @return the destination byte array
-     */
-    public static byte[] copyToLeftPaddedByteArray(long value, final byte[] dest) {
-        for (int i = 7, j = dest.length - 1; i >= 0; i--, j--) {
-            dest[j] = (byte) (value & 0xffL);
-            value >>= 8;
-        }
-        return dest;
+        return (bytes.length() == 0)
+                ? UInt256.ZERO
+                : UInt256.fromBytes(Bytes32.wrap(ContractUtils.clampedBytes(bytes, 0, 32)));
     }
 
     /**
@@ -861,21 +781,10 @@ public class ConversionUtils {
                 | (b8 & 0xFFL);
     }
 
-    /**
-     * Given a Besu {@link Log}, returns its bloom filter as a PBJ {@link com.hedera.pbj.runtime.io.buffer.Bytes}.
-     * @param log the Besu {@link Log}
-     * @return the PBJ {@link com.hedera.pbj.runtime.io.buffer.Bytes} bloom filter
-     */
-    public static com.hedera.pbj.runtime.io.buffer.Bytes bloomFor(@NonNull final Log log) {
-        requireNonNull(log);
-        return com.hedera.pbj.runtime.io.buffer.Bytes.wrap(
-                LogsBloomFilter.builder().insertLog(log).build().toArray());
-    }
-
     private static Address longZeroAddressIn(@NonNull final MessageFrame frame, @NonNull final Address address) {
         return isLongZero(address)
                 ? address
-                : asLongZeroAddress(
+                : ContractUtils.asLongZeroAddress(
                         proxyUpdaterFor(frame).getHederaContractId(address).contractNumOrThrow());
     }
 
@@ -911,7 +820,7 @@ public class ConversionUtils {
         final var evmAddress = extractEvmAddress(account.alias());
         return evmAddress != null
                 ? evmAddress.toByteArray()
-                : asEvmAddress(account.accountIdOrThrow().accountNumOrThrow());
+                : ContractUtils.asEvmAddress(account.accountIdOrThrow().accountNumOrThrow());
     }
 
     /**
@@ -976,7 +885,7 @@ public class ConversionUtils {
             return pbjToBesuAddress(contractId.evmAddressOrThrow());
         } else {
             // OrElse(0) is needed, as an UNSET contract OneOf has null number
-            return asLongZeroAddress(entityIdFactory.newAccountId(contractId.contractNumOrElse(0L)));
+            return ContractUtils.asLongZeroAddress(entityIdFactory.newAccountId(contractId.contractNumOrElse(0L)));
         }
     }
 
@@ -1083,44 +992,6 @@ public class ConversionUtils {
     }
 
     /**
-     * Pads the given bytes to 32 bytes by left-padding with zeros.
-     * @param bytes the bytes to pad
-     * @return the left-padded bytes, or the original bytes if they are already 32 bytes long
-     */
-    public static com.hedera.pbj.runtime.io.buffer.Bytes leftPad32(
-            @NonNull final com.hedera.pbj.runtime.io.buffer.Bytes bytes) {
-        requireNonNull(bytes);
-        final int n = (int) bytes.length();
-        if (n == 32) {
-            return bytes;
-        }
-        final var padded = new byte[32];
-        bytes.getBytes(0, padded, 32 - n, n);
-        return com.hedera.pbj.runtime.io.buffer.Bytes.wrap(padded);
-    }
-
-    /**
-     * Converts a concise EVM transaction log into a Besu {@link Log}.
-     *
-     * @param log the concise EVM transaction log to convert
-     * @param paddedTopics the 32-byte padded topics to use in the log
-     * @return the Besu {@link Log} representation of the log
-     */
-    public static Log asBesuLog(
-            @NonNull final EvmTransactionLog log,
-            @NonNull final List<com.hedera.pbj.runtime.io.buffer.Bytes> paddedTopics) {
-        requireNonNull(log);
-        requireNonNull(paddedTopics);
-        return new Log(
-                asLongZeroAddress(log.contractIdOrThrow().contractNumOrThrow()),
-                pbjToTuweniBytes(log.data()),
-                paddedTopics.stream()
-                        .map(ConversionUtils::pbjToTuweniBytes)
-                        .map(LogTopic::create)
-                        .toList());
-    }
-
-    /**
      * Takes the available context for an EVM transaction's storage usage and summarizes them, if applicable, in a
      * {@link TxStorageUsage}.
      * <p>
@@ -1194,7 +1065,7 @@ public class ConversionUtils {
             @NonNull final LambdaMappingEntry entry) {
         final com.hedera.pbj.runtime.io.buffer.Bytes hK;
         if (entry.hasKey()) {
-            hK = leftPad32(entry.keyOrThrow());
+            hK = ContractUtils.leftPad32(entry.keyOrThrow());
         } else {
             hK = keccak256DigestOf(entry.preimageOrThrow());
         }

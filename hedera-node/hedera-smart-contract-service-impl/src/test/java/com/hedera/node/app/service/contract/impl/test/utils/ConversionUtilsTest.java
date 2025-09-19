@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.test.utils;
 
+import static com.hedera.node.app.hapi.utils.contracts.ContractUtils.asEvmAddress;
+import static com.hedera.node.app.hapi.utils.contracts.ContractUtils.asLongZeroAddress;
 import static com.hedera.node.app.service.contract.impl.exec.scope.HandleHederaOperations.ZERO_ENTROPY;
 import static com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations.MISSING_ENTITY_NUMBER;
 import static com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations.NON_CANONICAL_REFERENCE_NUMBER;
@@ -22,10 +24,8 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.TOPIC;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.VALID_CONTRACT_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityIdFactory;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.accountNumberForEvmReference;
-import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asEvmAddress;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asExactLongValueOrZero;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asHeadlongAddress;
-import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asLongZeroAddress;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asNumberedContractId;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.contractIDToBesuAddress;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.contractIDToNum;
@@ -56,6 +56,7 @@ import com.hedera.hapi.node.contract.ContractLoginfo;
 import com.hedera.hapi.streams.ContractStateChange;
 import com.hedera.hapi.streams.ContractStateChanges;
 import com.hedera.hapi.streams.StorageChange;
+import com.hedera.node.app.hapi.utils.contracts.ContractUtils;
 import com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations;
 import com.hedera.node.app.service.contract.impl.utils.ConversionUtils;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
@@ -92,7 +93,7 @@ class ConversionUtilsTest {
         final var start = n == 0
                 ? com.hedera.pbj.runtime.io.buffer.Bytes.EMPTY
                 : com.hedera.pbj.runtime.io.buffer.Bytes.fromHex("00".repeat(n));
-        final var padded = ConversionUtils.leftPad32(start);
+        final var padded = ContractUtils.leftPad32(start);
         assertEquals(FULL_32, padded);
     }
 
@@ -115,10 +116,10 @@ class ConversionUtilsTest {
                 .mapToObj(i -> com.hedera.pbj.runtime.io.buffer.Bytes.fromHex("12".repeat(i)))
                 .toList();
         final List<com.hedera.pbj.runtime.io.buffer.Bytes> somePaddedTopics =
-                someStrippedTopics.stream().map(ConversionUtils::leftPad32).toList();
+                someStrippedTopics.stream().map(ContractUtils::leftPad32).toList();
         final var data = com.hedera.pbj.runtime.io.buffer.Bytes.wrap("DATA");
         final var conciseLog = new EvmTransactionLog(CALLED_CONTRACT_ID, data, someStrippedTopics);
-        final var besuLog = ConversionUtils.asBesuLog(conciseLog, somePaddedTopics);
+        final var besuLog = ContractUtils.asBesuLog(conciseLog, somePaddedTopics);
         final var recovered = ConversionUtils.asHederaLog(entityIdFactory, besuLog);
         assertEquals(conciseLog, recovered);
     }
@@ -156,7 +157,7 @@ class ConversionUtilsTest {
     void convertsNumberToLongZeroAddress() {
         final var number = 0x1234L;
         final var expected = Address.fromHexString("0x1234");
-        final var actual = ConversionUtils.asLongZeroAddress(number);
+        final var actual = ContractUtils.asLongZeroAddress(number);
         assertEquals(expected, actual);
     }
 

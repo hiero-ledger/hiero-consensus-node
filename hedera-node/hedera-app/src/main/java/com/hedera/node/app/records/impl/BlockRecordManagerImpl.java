@@ -3,8 +3,8 @@ package com.hedera.node.app.records.impl;
 
 import static com.hedera.hapi.util.HapiUtils.asInstant;
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
-import static com.hedera.node.app.records.BlockRecordService.EPOCH;
-import static com.hedera.node.app.records.impl.BlockRecordInfoUtils.HASH_SIZE;
+import static com.hedera.node.app.hapi.utils.records.BlockRecordUtils.EPOCH;
+import static com.hedera.node.app.hapi.utils.records.BlockRecordUtils.HASH_SIZE;
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCK_INFO_STATE_KEY;
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.RUNNING_HASHES_STATE_KEY;
 import static com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema.PLATFORM_STATE_KEY;
@@ -15,6 +15,7 @@ import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
 import com.hedera.hapi.node.state.blockrecords.RunningHashes;
 import com.hedera.hapi.platform.state.PlatformState;
+import com.hedera.node.app.hapi.utils.records.BlockRecordUtils;
 import com.hedera.node.app.records.BlockRecordManager;
 import com.hedera.node.app.records.BlockRecordService;
 import com.hedera.node.app.state.SingleTransactionRecord;
@@ -343,7 +344,7 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
     @Nullable
     @Override
     public Bytes blockHashByBlockNumber(final long blockNo) {
-        return BlockRecordInfoUtils.blockHashByBlockNumber(lastBlockInfo, blockNo);
+        return BlockRecordUtils.blockHashByBlockNumber(lastBlockInfo, blockNo);
     }
 
     /**

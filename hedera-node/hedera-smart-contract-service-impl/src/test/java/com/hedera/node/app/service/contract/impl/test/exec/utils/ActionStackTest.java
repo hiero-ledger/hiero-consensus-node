@@ -7,6 +7,7 @@ import static com.hedera.hapi.streams.ContractActionType.CALL;
 import static com.hedera.hapi.streams.ContractActionType.CREATE;
 import static com.hedera.hapi.streams.ContractActionType.PRECOMPILE;
 import static com.hedera.hapi.streams.ContractActionType.SYSTEM;
+import static com.hedera.node.app.hapi.utils.contracts.ContractUtils.pbjToTuweniBytes;
 import static com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalHaltReason.INVALID_SOLIDITY_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.CALLED_CONTRACT_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.CALLED_EOA_ID;
@@ -28,7 +29,6 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.STACK_D
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.VALUE;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.WEI_VALUE;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityIdFactory;
-import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.pbjToTuweniBytes;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.tuweniToPbjBytes;
 import static org.hyperledger.besu.evm.frame.ExceptionalHaltReason.ILLEGAL_STATE_CHANGE;
 import static org.hyperledger.besu.evm.frame.MessageFrame.State.CODE_SUCCESS;

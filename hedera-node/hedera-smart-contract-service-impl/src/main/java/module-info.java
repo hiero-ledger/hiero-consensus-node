@@ -21,7 +21,6 @@ module com.hedera.node.app.service.contract.impl {
     requires transitive dagger;
     requires transitive javax.inject;
     requires transitive org.apache.logging.log4j;
-    requires transitive org.hyperledger.besu.datatypes;
     requires transitive org.hyperledger.besu.evm;
     requires transitive tuweni.bytes;
     requires transitive tuweni.units;
@@ -32,6 +31,7 @@ module com.hedera.node.app.service.contract.impl {
     requires com.google.protobuf;
     requires org.apache.commons.lang3;
     requires org.bouncycastle.provider;
+    requires org.hyperledger.besu.datatypes;
     requires org.slf4j;
     requires static transitive com.github.spotbugs.annotations;
     requires static java.compiler;

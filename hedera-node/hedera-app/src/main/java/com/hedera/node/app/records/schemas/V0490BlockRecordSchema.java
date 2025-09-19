@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.records.schemas;
 
-import static com.hedera.node.app.records.BlockRecordService.EPOCH;
+import static com.hedera.node.app.hapi.utils.records.BlockRecordUtils.EPOCH;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;

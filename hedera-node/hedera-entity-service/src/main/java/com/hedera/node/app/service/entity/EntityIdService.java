@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.hedera.node.app.ids;
+package com.hedera.node.app.service.entity;
 
-import com.hedera.node.app.ids.schemas.V0490EntityIdSchema;
-import com.hedera.node.app.ids.schemas.V0590EntityIdSchema;
+import com.hedera.node.app.service.entity.schemas.V0490EntityIdSchema;
+import com.hedera.node.app.service.entity.schemas.V0590EntityIdSchema;
 import com.swirlds.state.lifecycle.SchemaRegistry;
 import com.swirlds.state.lifecycle.Service;
 import edu.umd.cs.findbugs.annotations.NonNull;

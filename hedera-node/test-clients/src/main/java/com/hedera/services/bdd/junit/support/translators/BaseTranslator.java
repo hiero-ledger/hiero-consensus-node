@@ -18,9 +18,9 @@ import static com.hedera.node.app.hapi.utils.EntityType.NODE;
 import static com.hedera.node.app.hapi.utils.EntityType.SCHEDULE;
 import static com.hedera.node.app.hapi.utils.EntityType.TOKEN;
 import static com.hedera.node.app.hapi.utils.EntityType.TOPIC;
-import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asBesuLog;
-import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.bloomFor;
-import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.bloomForAll;
+import static com.hedera.node.app.hapi.utils.contracts.ContractUtils.asBesuLog;
+import static com.hedera.node.app.hapi.utils.contracts.ContractUtils.bloomFor;
+import static com.hedera.node.app.hapi.utils.contracts.ContractUtils.bloomForAll;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.explicitAddressOf;
 import static com.hedera.node.app.service.schedule.impl.handlers.HandlerUtility.scheduledTxnIdFrom;
 import static com.hedera.services.bdd.junit.support.translators.impl.FileUpdateTranslator.EXCHANGE_RATES_FILE_NUM;
@@ -65,6 +65,7 @@ import com.hedera.hapi.streams.ContractStateChanges;
 import com.hedera.hapi.streams.StorageChange;
 import com.hedera.hapi.streams.TransactionSidecarRecord;
 import com.hedera.node.app.hapi.utils.EntityType;
+import com.hedera.node.app.hapi.utils.contracts.ContractUtils;
 import com.hedera.node.app.service.contract.impl.utils.ConversionUtils;
 import com.hedera.node.app.state.SingleTransactionRecord;
 import com.hedera.pbj.runtime.ParseException;
@@ -597,7 +598,7 @@ public class BaseTranslator {
                         final var builder = StorageChange.newBuilder().valueRead(read.readValue());
                         if (read.hasIndex()) {
                             final var writtenKey = writes.get(read.indexOrThrow());
-                            final var slotKey = new SlotKey(contractId, ConversionUtils.leftPad32(writtenKey));
+                            final var slotKey = new SlotKey(contractId, ContractUtils.leftPad32(writtenKey));
                             Bytes value = null;
                             for (final var nextEvmTraceData : followingEvmTraces) {
                                 final var nextTracedWriteUsage = nextEvmTraceData.contractSlotUsages().stream()
@@ -775,7 +776,7 @@ public class BaseTranslator {
                         final var besuLog = asBesuLog(
                                 log,
                                 log.topics().stream()
-                                        .map(ConversionUtils::leftPad32)
+                                        .map(ContractUtils::leftPad32)
                                         .toList());
                         besuLogs.add(besuLog);
                         verboseLogs.add(asContractLogInfo(log, besuLog));
@@ -813,7 +814,7 @@ public class BaseTranslator {
                 .contractID(log.contractIdOrThrow())
                 .bloom(bloomFor(besuLog))
                 .data(log.data())
-                .topic(log.topics().stream().map(ConversionUtils::leftPad32).toList())
+                .topic(log.topics().stream().map(ContractUtils::leftPad32).toList())
                 .build();
     }
 

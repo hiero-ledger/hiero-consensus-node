@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.test.exec.operations;
 
+import static com.hedera.node.app.hapi.utils.contracts.ContractUtils.asLongZeroAddress;
+import static com.hedera.node.app.hapi.utils.contracts.ContractUtils.pbjToTuweniBytes;
 import static com.hedera.node.app.service.contract.impl.exec.operations.CustomizedOpcodes.*;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.*;
-import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asLongZeroAddress;
-import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.pbjToTuweniBytes;
 import static org.apache.tuweni.bytes.Bytes32.leftPad;
 import static org.hyperledger.besu.evm.internal.Words.clampedToLong;
 import static org.junit.jupiter.api.Assertions.*;

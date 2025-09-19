@@ -4,6 +4,7 @@ package com.swirlds.state.merkle;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.hedera.hapi.block.stream.output.StateIdentifier;
+import com.swirlds.state.lifecycle.HapiUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Arrays;
 import java.util.stream.Stream;
@@ -17,7 +18,7 @@ class StateUtilsTest {
     @MethodSource("stateIdsByName")
     void stateIdsByNameAsExpected(@NonNull final String stateName, @NonNull final StateIdentifier stateId) {
         final var parts = stateName.split("\\.");
-        assertThat(StateUtils.stateIdFor(parts[0], parts[1])).isEqualTo(stateId.protoOrdinal());
+        assertThat(HapiUtils.stateIdFor(parts[0], parts[1])).isEqualTo(stateId.protoOrdinal());
     }
 
     public static Stream<Arguments> stateIdsByName() {

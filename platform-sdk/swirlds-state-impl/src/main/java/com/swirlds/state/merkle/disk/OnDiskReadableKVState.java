@@ -10,7 +10,7 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.platform.state.StateValue;
 import com.hedera.pbj.runtime.Codec;
-import com.swirlds.state.merkle.StateUtils;
+import com.swirlds.state.lifecycle.HapiUtils;
 import com.swirlds.state.spi.ReadableKVState;
 import com.swirlds.state.spi.ReadableKVStateBase;
 import com.swirlds.virtualmap.VirtualMap;
@@ -69,7 +69,7 @@ public final class OnDiskReadableKVState<K, V> extends ReadableKVStateBase<K, V>
     protected Iterator<K> iterateFromDataSource() {
         // Log to transaction state log, what was iterated
         logMapIterate(computeLabel(serviceName, stateKey), virtualMap, keyCodec);
-        return new OnDiskIterator<>(virtualMap, keyCodec, StateUtils.stateIdFor(serviceName, stateKey));
+        return new OnDiskIterator<>(virtualMap, keyCodec, HapiUtils.stateIdFor(serviceName, stateKey));
     }
 
     /**

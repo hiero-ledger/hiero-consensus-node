@@ -15,10 +15,12 @@ module com.hedera.node.app.hapi.utils {
     exports com.hedera.node.app.hapi.utils.sysfiles;
     exports com.hedera.node.app.hapi.utils.exports;
     exports com.hedera.node.app.hapi.utils.sysfiles.validation;
+    exports com.hedera.node.app.hapi.utils.records;
 
     requires transitive com.hedera.node.hapi;
     requires transitive com.hedera.pbj.runtime;
     requires transitive com.swirlds.common;
+    requires transitive com.swirlds.state.api;
     requires transitive org.hiero.base.utility;
     requires transitive com.esaulpaugh.headlong;
     requires transitive com.google.protobuf;
@@ -27,6 +29,7 @@ module com.hedera.node.app.hapi.utils {
     requires transitive javax.inject;
     requires transitive net.i2p.crypto.eddsa;
     requires transitive org.apache.commons.lang3;
+    requires transitive org.hyperledger.besu.datatypes;
     requires transitive org.hyperledger.besu.evm;
     requires transitive org.hyperledger.besu.nativelib.secp256k1;
     requires transitive tuweni.bytes;

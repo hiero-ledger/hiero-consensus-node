@@ -3,8 +3,8 @@ package com.hedera.services.bdd.spec.utilops.embedded;
 
 import static java.util.Objects.requireNonNull;
 
-import com.hedera.node.app.ids.EntityIdService;
 import com.hedera.node.app.ids.WritableEntityIdStore;
+import com.hedera.node.app.service.entity.EntityIdService;
 import com.hedera.node.app.spi.ids.WritableEntityCounters;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.utilops.UtilOp;

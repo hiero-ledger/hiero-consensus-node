@@ -21,6 +21,7 @@ open module com.hedera.node.app.test.fixtures {
     requires transitive org.hiero.base.utility;
     requires transitive org.hiero.consensus.model;
     requires com.hedera.node.app.hapi.utils;
+    requires com.hedera.node.app.service.entity;
     requires com.hedera.node.app.service.token;
     requires com.hedera.node.config.test.fixtures;
     requires com.swirlds.config.extensions.test.fixtures;

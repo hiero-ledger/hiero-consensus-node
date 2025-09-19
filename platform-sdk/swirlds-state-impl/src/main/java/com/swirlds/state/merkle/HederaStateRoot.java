@@ -1,10 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.hedera.node.app;
+package com.swirlds.state.merkle;
 
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.state.State;
-import com.swirlds.state.merkle.MerkleStateRoot;
 import edu.umd.cs.findbugs.annotations.NonNull;
 
 /**

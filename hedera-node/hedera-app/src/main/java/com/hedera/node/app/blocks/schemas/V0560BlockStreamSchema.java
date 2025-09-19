@@ -2,7 +2,7 @@
 package com.hedera.node.app.blocks.schemas;
 
 import static com.hedera.node.app.blocks.impl.BlockImplUtils.appendHash;
-import static com.hedera.node.app.records.impl.BlockRecordInfoUtils.blockHashByBlockNumber;
+import static com.hedera.node.app.hapi.utils.records.BlockRecordUtils.blockHashByBlockNumber;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.SemanticVersion;

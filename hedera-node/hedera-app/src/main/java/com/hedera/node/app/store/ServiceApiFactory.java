@@ -3,8 +3,8 @@ package com.hedera.node.app.store;
 
 import static java.util.Objects.requireNonNull;
 
-import com.hedera.node.app.ids.EntityIdService;
 import com.hedera.node.app.ids.WritableEntityIdStore;
+import com.hedera.node.app.service.entity.EntityIdService;
 import com.hedera.node.app.spi.api.ServiceApiProvider;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.state.State;

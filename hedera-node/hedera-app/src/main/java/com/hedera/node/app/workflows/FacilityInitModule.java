@@ -3,7 +3,7 @@ package com.hedera.node.app.workflows;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.blocks.schemas.V0560BlockStreamSchema.BLOCK_STREAM_INFO_KEY;
-import static com.hedera.node.app.records.BlockRecordService.EPOCH;
+import static com.hedera.node.app.hapi.utils.records.BlockRecordUtils.EPOCH;
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCK_INFO_STATE_KEY;
 import static com.hedera.node.app.service.token.impl.api.TokenServiceApiProvider.TOKEN_SERVICE_API_PROVIDER;
 import static com.hedera.node.app.util.FileUtilities.createFileID;
