@@ -362,10 +362,32 @@ jobs:
     runs-on: hiero-citr-linux-medium
     needs:
       - mats-unit-tests
+      - mats-hapi-tests-misc
+      - mats-hapi-tests-misc-records
+      - mats-hapi-tests-crypto
+      - mats-hapi-tests-iss
+      - mats-hapi-tests-token
+      - mats-hapi-tests-smart-contract
+      - mats-hapi-tests-restart
+      - mats-hapi-tests-nd-reconnect
+      - mats-otter-tests
+      - mats-spotless-check
+      - mats-snyk-scan
       - mats-gradle-determinism
       - mats-docker-determinism
     if: ${{ (github.event_name == 'push') &&
       needs.mats-unit-tests.result == 'success' &&
+      needs.mats-hapi-tests-misc.result == 'success' &&
+      needs.mats-hapi-tests-misc-records.result == 'success' &&
+      needs.mats-hapi-tests-crypto.result == 'success' &&
+      needs.mats-hapi-tests-iss.result == 'success' &&
+      needs.mats-hapi-tests-token.result == 'success' &&
+      needs.mats-hapi-tests-smart-contract.result == 'success' &&
+      needs.mats-hapi-tests-restart.result == 'success' &&
+      needs.mats-hapi-tests-nd-reconnect.result == 'success' &&
+      needs.mats-otter-tests.result == 'success' &&
+      needs.mats-spotless-check.result == 'success' &&
+      needs.mats-snyk-scan.result == 'success' &&
       needs.mats-gradle-determinism.result == 'success' &&
       needs.mats-docker-determinism.result == 'success' }}
     steps:
@@ -413,17 +435,17 @@ jobs:
       needs.dependency-check.result != 'success' ||
       needs.spotless.result != 'success' ||
       needs.mats-unit-tests.result != 'success' ||
-      needs.mats-hapi-tests-misc != 'success' ||
-      needs.mats-hapi-tests-misc-records != 'success' ||
-      needs.mats-hapi-tests-crypto != 'success' ||
-      needs.mats-hapi-tests-iss != 'success' ||
-      needs.mats-hapi-tests-token != 'success' ||
-      needs.mats-hapi-tests-smart-contract != 'success' ||
-      needs.mats-hapi-tests-restart != 'success' ||
-      needs.mats-hapi-tests-nd-reconnect != 'success' ||
-      needs.mats-otter-tests != 'success' ||
-      needs.mats-spotless-check != 'success' ||
-      needs.mats-snyk-scan != 'success' ||
+      needs.mats-hapi-tests-misc.result != 'success' ||
+      needs.mats-hapi-tests-misc-records.result != 'success' ||
+      needs.mats-hapi-tests-crypto.result != 'success' ||
+      needs.mats-hapi-tests-iss.result != 'success' ||
+      needs.mats-hapi-tests-token.result != 'success' ||
+      needs.mats-hapi-tests-smart-contract.result != 'success' ||
+      needs.mats-hapi-tests-restart.result != 'success' ||
+      needs.mats-hapi-tests-nd-reconnect.result != 'success' ||
+      needs.mats-otter-tests.result != 'success' ||
+      needs.mats-spotless-check.result != 'success' ||
+      needs.mats-snyk-scan.result != 'success' ||
       needs.mats-gradle-determinism.result != 'success' ||
       needs.mats-docker-determinism.result != 'success' ||
       needs.deploy-ci-trigger.result != 'success') &&
