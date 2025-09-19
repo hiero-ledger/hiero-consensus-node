@@ -19,6 +19,7 @@ import java.util.function.LongSupplier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.event.Event;
+import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.model.transaction.Transaction;
 
 public class QuiescenceController {
@@ -48,19 +49,16 @@ public class QuiescenceController {
     }
 
     public void fullySignedBlock(@NonNull final Block block) {
-        if(!config.enabled()){
+        if (!config.enabled()) {
             return;
         }
         final long transactionCount = block.items().stream()
                 .filter(BlockItem::hasSignedTransaction)
                 .map(BlockItem::signedTransaction)
                 .filter(Objects::nonNull)
-                .map(signedTransactionParser)
-                .map(SignedTransaction::bodyBytes)
-                .map(transactionBodyParser)
-                .filter(QuiescenceController::nonSignatureTransactions)
+                .filter(this::isRelevantTransaction)
                 .count();
-        final long updatedValue = pipelineTransactionCount.addAndGet(transactionCount);
+        final long updatedValue = pipelineTransactionCount.addAndGet(-transactionCount);
         if (updatedValue < 0) {
             logger.error("Quiescence transaction count overflow, turning off quiescence");
             disableQuiescence();
@@ -68,30 +66,38 @@ public class QuiescenceController {
     }
 
     public void onPreHandle(@NonNull final Event event) {
-        if(!config.enabled()){
+        if (!config.enabled()) {
             return;
         }
-        final Iterator<Transaction> iterator = event.transactionIterator();
-        long transactionCount = 0;
-        while (iterator.hasNext()) {
+        pipelineTransactionCount.addAndGet(countRelevantTransactions(event));
+    }
 
-            if (nonSignatureTransactions(
-                    transactionBodyParser.apply(iterator.next().getApplicationTransaction()))) {
-                transactionCount++;
+    public void staleEvent(@NonNull final Event event) {
+        if (!config.enabled()) {
+            return;
+        }
+        pipelineTransactionCount.addAndGet(-countRelevantTransactions(event));
+    }
+
+    private long countRelevantTransactions(@NonNull final Event event) {
+        long count = 0;
+        final Iterator<Transaction> iterator = event.transactionIterator();
+        while (iterator.hasNext()) {
+            if (isRelevantTransaction(iterator.next().getApplicationTransaction())) {
+                count++;
             }
         }
-        pipelineTransactionCount.addAndGet(transactionCount);
+        return count;
     }
 
-    public void staleEvent(){
-        //TODO
-    }
-    public void platformStatusUpdate(){
-    //TODO
+    public void platformStatusUpdate(@NonNull final PlatformStatus platformStatus) {
+        if (platformStatus == PlatformStatus.RECONNECT_COMPLETE) {
+            pipelineTransactionCount.set(0);
+        }
     }
 
     public QuiescenceStatus getQuiescenceStatus() {
-        if(!config.enabled()){
+        if (!config.enabled()) {
             return QuiescenceStatus.NOT_QUIESCENT;
         }
         if (pipelineTransactionCount.get() > 0) {
@@ -123,6 +129,13 @@ public class QuiescenceController {
         // setting to a very high value to effectively disable quiescence
         // if set to Long.MAX_VALUE, it may overflow and become negative
         pipelineTransactionCount.set(Long.MAX_VALUE / 2);
+    }
+
+    private boolean isRelevantTransaction(@NonNull final Bytes bytes) {
+        final TransactionBody body = transactionBodyParser.apply(signedTransactionParser.apply(bytes)
+                .bodyBytes());
+        return !body.hasStateSignatureTransaction() &&
+                !body.hasHintsPartialSignature();
     }
 
     private static boolean nonSignatureTransactions(@NonNull final TransactionBody body) {
