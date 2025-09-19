@@ -66,25 +66,26 @@ val miscTags =
     "!(INTEGRATION|CRYPTO|TOKEN|RESTART|UPGRADE|SMART_CONTRACT|ND_RECONNECT|LONG_RUNNING|ISS|BLOCK_NODE_SIMULATOR)"
 val matsSuffix = "MATS"
 
-val prCheckTags = buildMap {
-    put("hapiTestAdhoc", "ADHOC")
-    put("hapiTestCrypto", "CRYPTO")
-    put("hapiTestToken", "TOKEN")
-    put("hapiTestRestart", "RESTART|UPGRADE")
-    put("hapiTestSmartContract", "SMART_CONTRACT")
-    put("hapiTestNDReconnect", "ND_RECONNECT")
-    put("hapiTestTimeConsuming", "LONG_RUNNING")
-    put("hapiTestIss", "ISS")
-    put("hapiTestBlockNodeCommunication", "BLOCK_NODE_SIMULATOR")
-    put("hapiTestMisc", miscTags)
-    put("hapiTestMiscRecords", miscTags)
+val prCheckTags =
+    buildMap<String, String> {
+        put("hapiTestAdhoc", "ADHOC")
+        put("hapiTestCrypto", "CRYPTO")
+        put("hapiTestToken", "TOKEN")
+        put("hapiTestRestart", "RESTART|UPGRADE")
+        put("hapiTestSmartContract", "SMART_CONTRACT")
+        put("hapiTestNDReconnect", "ND_RECONNECT")
+        put("hapiTestTimeConsuming", "LONG_RUNNING")
+        put("hapiTestIss", "ISS")
+        put("hapiTestBlockNodeCommunication", "BLOCK_NODE_SIMULATOR")
+        put("hapiTestMisc", miscTags)
+        put("hapiTestMiscRecords", miscTags)
 
-    // Copy vals to the MATS variants
-    val originalEntries = toMap() // Create a snapshot of current entries
-    originalEntries.forEach { (taskName: String, tags: String) ->
-        put("$taskName$matsSuffix", "($tags)&$matsSuffix")
+        // Copy vals to the MATS variants
+        val originalEntries = toMap() // Create a snapshot of current entries
+        originalEntries.forEach { (taskName: String, tags: String) ->
+            put("$taskName$matsSuffix", "($tags)&$matsSuffix")
+        }
     }
-}
 val remoteCheckTags =
     prCheckTags
         .filterNot {
@@ -99,25 +100,26 @@ val remoteCheckTags =
                 )
         }
         .mapKeys { (key, _) -> key.replace("hapiTest", "remoteTest") }
-val prCheckStartPorts = buildMap {
-    put("hapiTestAdhoc", "25000")
-    put("hapiTestCrypto", "25200")
-    put("hapiTestToken", "25400")
-    put("hapiTestRestart", "25600")
-    put("hapiTestSmartContract", "25800")
-    put("hapiTestNDReconnect", "26000")
-    put("hapiTestTimeConsuming", "26200")
-    put("hapiTestIss", "26400")
-    put("hapiTestMisc", "26800")
-    put("hapiTestBlockNodeCommunication", "27000")
-    put("hapiTestMiscRecords", "27200")
+val prCheckStartPorts =
+    buildMap<String, String> {
+        put("hapiTestAdhoc", "25000")
+        put("hapiTestCrypto", "25200")
+        put("hapiTestToken", "25400")
+        put("hapiTestRestart", "25600")
+        put("hapiTestSmartContract", "25800")
+        put("hapiTestNDReconnect", "26000")
+        put("hapiTestTimeConsuming", "26200")
+        put("hapiTestIss", "26400")
+        put("hapiTestMisc", "26800")
+        put("hapiTestBlockNodeCommunication", "27000")
+        put("hapiTestMiscRecords", "27200")
 
-    // Create the MATS variants
-    val originalEntries = toMap() // Create a snapshot of current entries
-    originalEntries.forEach { (taskName: String, port: String) ->
-        put("$taskName$matsSuffix", port)
+        // Create the MATS variants
+        val originalEntries = toMap() // Create a snapshot of current entries
+        originalEntries.forEach { (taskName: String, port: String) ->
+            put("$taskName$matsSuffix", port)
+        }
     }
-}
 val prCheckPropOverrides =
     buildMap<String, String> {
         put(
@@ -153,18 +155,19 @@ val prCheckPrepareUpgradeOffsets =
 // Note: no MATS variants needed for history proofs
 val prCheckNumHistoryProofsToObserve = mapOf("hapiTestAdhoc" to "0", "hapiTestSmartContract" to "0")
 // Use to override the default network size for a specific test task
-val prCheckNetSizeOverrides = buildMap {
-    put("hapiTestAdhoc", "3")
-    put("hapiTestCrypto", "3")
-    put("hapiTestToken", "3")
-    put("hapiTestSmartContract", "4")
+val prCheckNetSizeOverrides =
+    buildMap<String, String> {
+        put("hapiTestAdhoc", "3")
+        put("hapiTestCrypto", "3")
+        put("hapiTestToken", "3")
+        put("hapiTestSmartContract", "4")
 
-    // Copy vals to the MATS variants
-    val originalEntries = toMap() // Create a snapshot of current entries
-    originalEntries.forEach { (taskName: String, size: String) ->
-        put("$taskName$matsSuffix", size)
+        // Copy vals to the MATS variants
+        val originalEntries = toMap() // Create a snapshot of current entries
+        originalEntries.forEach { (taskName: String, size: String) ->
+            put("$taskName$matsSuffix", size)
+        }
     }
-}
 
 tasks {
     prCheckTags.forEach { (taskName, _) ->
@@ -350,21 +353,21 @@ tasks.register<Test>("testRemote") {
     maxParallelForks = 1
 }
 
-val prEmbeddedCheckTags = buildMap {
-    val embeddedSuffix = "Embedded"
-    put("hapiEmbeddedMisc", "EMBEDDED")
-    put("hapiEmbeddedToken", "TOKEN")
-    put("hapiEmbeddedCrypto$embeddedSuffix", "CRYPTO")
-    put("hapiEmbeddedSmartContract$embeddedSuffix", "SMART_CONTRACT")
-    put("hapiEmbeddedMiscRecords$embeddedSuffix", "($miscTags)")
+val prEmbeddedCheckTags =
+    buildMap<String, String> {
+        put("hapiEmbeddedMisc", "EMBEDDED")
+        put("hapiEmbeddedToken", "TOKEN")
+        put("hapiEmbeddedCrypto", "CRYPTO")
+        put("hapiEmbeddedSmartContract", "SMART_CONTRACT")
+        put("hapiEmbeddedMiscRecords", "($miscTags)")
 
-    // fix me (do we need these?)
-    put("hapiTestAdhoc$embeddedSuffix", "ADHOC")
-    put("hapiTestNDReconnect$embeddedSuffix", "ND_RECONNECT")
-    put("hapiTestTimeConsuming$embeddedSuffix", "LONG_RUNNING")
-    put("hapiTestIss$embeddedSuffix", "ISS")
-    put("hapiTestBlockNodeCommunication$embeddedSuffix", "BLOCK_NODE_SIMULATOR")
-}
+        // fix me (do we need these?)
+        put("hapiEmbeddedAdhoc", "ADHOC")
+        put("hapiEmbeddedNDReconnect", "ND_RECONNECT")
+        put("hapiEmbeddedTimeConsuming", "LONG_RUNNING")
+        put("hapiEmbeddedIss", "ISS")
+        put("hapiEmbeddedBlockNodeCommunication", "BLOCK_NODE_SIMULATOR")
+    }
 
 tasks {
     prEmbeddedCheckTags.forEach { (taskName, _) ->
@@ -428,15 +431,16 @@ tasks.register<Test>("testEmbedded") {
     modularity.inferModulePath.set(false)
 }
 
-val prRepeatableCheckTags = buildMap {
-    put("hapiRepeatableMisc", "REPEATABLE")
+val prRepeatableCheckTags =
+    buildMap<String, String> {
+        put("hapiRepeatableMisc", "REPEATABLE")
 
-    // Copy vals to the MATS variants
-    val originalEntries = toMap() // Create a snapshot of current entries
-    originalEntries.forEach { (taskName: String, tags: String) ->
-        put("$taskName$matsSuffix", "($tags)&$matsSuffix")
+        // Copy vals to the MATS variants
+        val originalEntries = toMap() // Create a snapshot of current entries
+        originalEntries.forEach { (taskName: String, tags: String) ->
+            put("$taskName$matsSuffix", "($tags)&$matsSuffix")
+        }
     }
-}
 
 tasks {
     prRepeatableCheckTags.forEach { (taskName, _) ->
