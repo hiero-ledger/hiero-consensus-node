@@ -353,7 +353,6 @@ tasks.register<Test>("testRemote") {
 val prEmbeddedCheckTags = buildMap {
     val embeddedSuffix = "Embedded"
     put("hapiEmbeddedMisc", "EMBEDDED")
-    put("hapiEmbeddedMiscMATS", "EMBEDDED")
     put("hapiEmbeddedToken", "TOKEN")
     put("hapiEmbeddedCrypto$embeddedSuffix", "CRYPTO")
     put("hapiEmbeddedSmartContract$embeddedSuffix", "SMART_CONTRACT")
