@@ -41,6 +41,7 @@ import static org.mockito.Mockito.verify;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hedera.hapi.node.base.AccountAmount;
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.ScheduleID;
 import com.hedera.hapi.node.base.SemanticVersion;
@@ -1790,6 +1791,37 @@ class ThrottleAccumulatorTest {
     }
 
     @Test
+    void scheduleCreateWithMissingScheduledTransactionBodyThrowsException() throws Exception {
+        // Given
+        setupThrottleSubject();
+        final var scheduleCreate = ScheduleCreateTransactionBody.newBuilder()
+                .waitForExpiry(false)
+                .build(); // Missing scheduledTransactionBody
+
+        final var body = TransactionBody.newBuilder()
+                .transactionID(TransactionID.newBuilder().accountID(PAYER_ID).build())
+                .scheduleCreate(scheduleCreate)
+                .build();
+
+        final var signedTx = SignedTransaction.newBuilder()
+                .bodyBytes(TransactionBody.PROTOBUF.toBytes(body))
+                .build();
+
+        final var txnInfo = new TransactionInfo(
+                signedTx,
+                body,
+                TransactionID.newBuilder().accountID(PAYER_ID).build(),
+                PAYER_ID,
+                SignatureMap.DEFAULT,
+                Bytes.EMPTY,
+                SCHEDULE_CREATE,
+                null);
+
+        // When & Then
+        assertTrue(subject.checkAndEnforceThrottle(txnInfo, TIME_INSTANT, state, null));
+    }
+
+    @Test
     void updateMetrics() {
         // given
         subject = new ThrottleAccumulator(
@@ -1930,5 +1962,22 @@ class ThrottleAccumulatorTest {
         final var txn =
                 TransactionBody.newBuilder().cryptoTransfer(cryptoTransferBody).build();
         given(transactionInfo.txBody()).willReturn(txn);
+    }
+
+    private void setupThrottleSubject() throws Exception {
+        subject = new ThrottleAccumulator(
+                () -> CAPACITY_SPLIT,
+                configProvider::getConfiguration,
+                FRONTEND_THROTTLE,
+                throttleMetrics,
+                gasThrottle,
+                bytesThrottle,
+                opsDurationThrottle);
+        lenient().when(configProvider.getConfiguration()).thenReturn(configuration);
+        lenient().when(configuration.getConfigData(AccountsConfig.class)).thenReturn(accountsConfig);
+        lenient().when(accountsConfig.lastThrottleExempt()).thenReturn(100L);
+
+        final var defs = getThrottleDefs("bootstrap/throttles.json");
+        subject.rebuildFor(defs);
     }
 }
