@@ -21,6 +21,7 @@ import java.util.Optional;
  * Default implementation of {@link ReadableTokenStore}.
  */
 public class ReadableTokenStoreImpl implements ReadableTokenStore {
+
     /** The underlying data storage class that holds the token data. */
     private final ReadableKVState<TokenID, Token> tokenState;
 
@@ -35,7 +36,7 @@ public class ReadableTokenStoreImpl implements ReadableTokenStore {
             @NonNull final ReadableStates states, @NonNull final ReadableEntityCounters entityCounters) {
         requireNonNull(states);
         this.entityCounters = requireNonNull(entityCounters);
-        this.tokenState = states.get(V0490TokenSchema.TOKENS_KEY);
+        this.tokenState = states.get(V0490TokenSchema.TOKENS_STATE_ID);
     }
 
     // FUTURE: remove this method and the TokenMetadata object entirely

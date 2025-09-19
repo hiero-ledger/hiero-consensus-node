@@ -19,6 +19,7 @@ import edu.umd.cs.findbugs.annotations.Nullable;
  * {@link RunningHashes}).
  */
 public final class BlockRecordInfoImpl implements BlockRecordInfo {
+
     private final BlockInfo blockInfo;
     private final RunningHashes runningHashes;
 
@@ -29,11 +30,10 @@ public final class BlockRecordInfoImpl implements BlockRecordInfo {
      */
     public static BlockRecordInfoImpl from(@NonNull final State state) {
         final var states = state.getReadableStates(BlockRecordService.NAME);
-        final var blockInfoState =
-                requireNonNull(states.<BlockInfo>getSingleton(V0490BlockRecordSchema.BLOCK_INFO_STATE_KEY)
-                        .get());
+        final var blockInfoState = requireNonNull(states.<BlockInfo>getSingleton(V0490BlockRecordSchema.BLOCKS_STATE_ID)
+                .get());
         final var runningHashState =
-                requireNonNull(states.<RunningHashes>getSingleton(V0490BlockRecordSchema.RUNNING_HASHES_STATE_KEY)
+                requireNonNull(states.<RunningHashes>getSingleton(V0490BlockRecordSchema.RUNNING_HASHES_STATE_ID)
                         .get());
         return new BlockRecordInfoImpl(blockInfoState, runningHashState);
     }

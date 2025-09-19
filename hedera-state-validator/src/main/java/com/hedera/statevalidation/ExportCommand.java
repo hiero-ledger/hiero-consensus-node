@@ -91,11 +91,6 @@ public class ExportCommand implements Runnable {
 
     private static void extractStateName(String value, List<Pair<String, String>> serviceNameAndStateKeys) {
         String[] serviceNameStateKey = value.split("_I_");
-        if (serviceNameStateKey[0].equals("FileService") && serviceNameStateKey[1].startsWith("UPGRADE_DATA_")) {
-            // UPGRADE_DATA_<num>
-            int num = Integer.parseInt(serviceNameStateKey[1].replace("UPGRADE_DATA_", ""));
-            serviceNameStateKey[1] = "UPGRADE_DATA[FileID[shardNum=0, realmNum=0, fileNum=%s]]".formatted(num);
-        }
         if (serviceNameStateKey.length == 2) {
             serviceNameAndStateKeys.add(Pair.of(serviceNameStateKey[0], serviceNameStateKey[1]));
         }

@@ -29,7 +29,7 @@ public class WrappedWritableKVState<K, V> extends WritableKVStateBase<K, V> {
      * @param delegate The delegate. Must not be null.
      */
     public WrappedWritableKVState(@NonNull final WritableKVState<K, V> delegate) {
-        super(delegate.getServiceName(), delegate.getStateKey());
+        super(delegate.getStateId(), null);
         this.delegate = Objects.requireNonNull(delegate);
     }
 

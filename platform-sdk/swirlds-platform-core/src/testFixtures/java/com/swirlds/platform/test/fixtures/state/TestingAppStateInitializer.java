@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.fixtures.state;
 
+import static com.swirlds.state.lifecycle.StateMetadata.computeLabel;
 import static com.swirlds.state.merkle.StateUtils.registerWithSystem;
 import static java.util.Objects.requireNonNull;
 import static org.mockito.BDDMockito.given;
@@ -93,7 +94,7 @@ public class TestingAppStateInitializer {
                     VirtualNodeCache.class,
                     () -> new VirtualNodeCache(CONFIGURATION.getConfigData(VirtualMapConfig.class))));
             registerConstructablesForSchema(registry, new V0540PlatformStateSchema(), PlatformStateService.NAME);
-            registerConstructablesForSchema(registry, new V0540RosterBaseSchema(), RosterStateId.NAME);
+            registerConstructablesForSchema(registry, new V0540RosterBaseSchema(), RosterStateId.SERVICE_NAME);
         } catch (ConstructableRegistryException e) {
             throw new IllegalStateException(e);
         }
@@ -139,8 +140,9 @@ public class TestingAppStateInitializer {
                                 state,
                                 md,
                                 () -> new SingletonNode<>(
-                                        md.serviceName(),
-                                        md.stateDefinition().stateKey(),
+                                        computeLabel(
+                                                md.serviceName(),
+                                                md.stateDefinition().stateKey()),
                                         md.singletonClassId(),
                                         md.stateDefinition().valueCodec(),
                                         null));
@@ -169,22 +171,23 @@ public class TestingAppStateInitializer {
         }
         final var schema = new V0540RosterBaseSchema();
         schema.statesToCreate().stream()
-                .sorted(Comparator.comparing(StateDefinition::stateKey))
+                .sorted(Comparator.comparing(StateDefinition::stateId))
                 .forEach(def -> {
-                    final var md = new StateMetadata<>(RosterStateId.NAME, schema, def);
+                    final var md = new StateMetadata<>(RosterStateId.SERVICE_NAME, schema, def);
                     if (def.singleton()) {
                         initializeServiceState(
                                 state,
                                 md,
                                 () -> new SingletonNode<>(
-                                        md.serviceName(),
-                                        md.stateDefinition().stateKey(),
+                                        computeLabel(
+                                                md.serviceName(),
+                                                md.stateDefinition().stateKey()),
                                         md.singletonClassId(),
                                         md.stateDefinition().valueCodec(),
                                         null));
                     } else if (def.onDisk()) {
                         initializeServiceState(state, md, () -> {
-                            final var label = StateMetadata.computeLabel(RosterStateId.NAME, def.stateKey());
+                            final var label = StateMetadata.computeLabel(RosterStateId.SERVICE_NAME, def.stateKey());
                             final var dsBuilder = new MerkleDbDataSourceBuilder(CONFIGURATION, def.maxKeysHint(), 16);
                             final var virtualMap = new VirtualMap(label, dsBuilder, CONFIGURATION);
                             return virtualMap;
@@ -195,7 +198,7 @@ public class TestingAppStateInitializer {
                     }
                 });
         final var mockMigrationContext = mock(MigrationContext.class);
-        final var writableStates = state.getWritableStates(RosterStateId.NAME);
+        final var writableStates = state.getWritableStates(RosterStateId.SERVICE_NAME);
         given(mockMigrationContext.newStates()).willReturn(writableStates);
         schema.migrate(mockMigrationContext);
         ((CommittableWritableStates) writableStates).commit();
