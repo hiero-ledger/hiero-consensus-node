@@ -159,40 +159,39 @@ public class BlockStreamRecoveryWorkflow {
         for (int i = 0; i < n; i++) {
             final var stateChange = stateChanges.stateChanges().get(i);
 
-            final var stateName = stateNameOf(stateChange.stateId(), SHARD, REALM);
+            final var stateName = stateNameOf(stateChange.stateId());
             final var delimIndex = stateName.indexOf('.');
             if (delimIndex == -1) {
                 throw new RuntimeException("State name '" + stateName + "' is not in the correct format");
             }
             final var serviceName = stateName.substring(0, delimIndex);
             final var writableStates = state.getWritableStates(serviceName);
-            final var stateKey = stateName.substring(delimIndex + 1);
             switch (stateChange.changeOperation().kind()) {
                 case UNSET -> throw new IllegalStateException("Change operation is not set");
                 case STATE_ADD, STATE_REMOVE -> {
                     // No-op
                 }
                 case SINGLETON_UPDATE -> {
-                    final var singletonState = writableStates.getSingleton(stateKey);
+                    final var singletonState = writableStates.getSingleton(stateChange.stateId());
                     final var singleton = singletonPutFor(stateChange.singletonUpdateOrThrow());
                     singletonState.put(singleton);
                 }
                 case MAP_UPDATE -> {
-                    final var mapState = writableStates.get(stateKey);
+                    final var mapState = writableStates.get(stateChange.stateId());
                     final var key = mapKeyFor(stateChange.mapUpdateOrThrow().keyOrThrow());
                     final var value = mapValueFor(stateChange.mapUpdateOrThrow().valueOrThrow());
                     mapState.put(key, value);
                 }
                 case MAP_DELETE -> {
-                    final var mapState = writableStates.get(stateKey);
+                    final var mapState = writableStates.get(stateChange.stateId());
                     mapState.remove(mapKeyFor(stateChange.mapDeleteOrThrow().keyOrThrow()));
                 }
                 case QUEUE_PUSH -> {
-                    final var queueState = writableStates.getQueue(stateKey);
+                    final var queueState = writableStates.getQueue(stateChange.stateId());
                     queueState.add(queuePushFor(stateChange.queuePushOrThrow()));
                 }
                 case QUEUE_POP -> {
-                    final var queueState = writableStates.getQueue(stateKey);
+                    final var queueState = writableStates.getQueue(stateChange.stateId());
                     queueState.poll();
                 }
             }
