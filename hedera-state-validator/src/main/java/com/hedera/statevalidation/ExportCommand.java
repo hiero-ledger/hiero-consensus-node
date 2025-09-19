@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.statevalidation;
 
-import static picocli.CommandLine.*;
-
 import com.hedera.hapi.platform.state.SingletonType;
 import com.hedera.hapi.platform.state.StateKey;
 import com.hedera.statevalidation.exporters.JsonExporter;
@@ -15,23 +13,24 @@ import com.swirlds.virtualmap.VirtualMap;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
+import picocli.CommandLine;
 
-@Command(name = "export", description = "Exports the state")
+@CommandLine.Command(name = "export", description = "Exports the state")
 public class ExportCommand implements Runnable {
 
     public static final int MAX_OBJ_PER_FILE = Integer.parseInt(System.getProperty("maxObjPerFile", "1000000"));
     public static final boolean PRETTY_PRINT_ENABLED = Boolean.parseBoolean(System.getProperty("prettyPrint", "false"));
 
-    @ParentCommand
+    @CommandLine.ParentCommand
     private StateOperatorCommand parent;
 
-    @Parameters(index = "0", arity = "1", description = "Result directory")
+    @CommandLine.Parameters(index = "0", arity = "1", description = "Result directory")
     private String resultDirStr;
 
-    @Parameters(index = "1", arity = "0..1", description = "Service name")
+    @CommandLine.Parameters(index = "1", arity = "0..1", description = "Service name")
     private String serviceName;
 
-    @Parameters(index = "2", arity = "0..1", description = "State name")
+    @CommandLine.Parameters(index = "2", arity = "0..1", description = "State name")
     private String stateName;
 
     @Override

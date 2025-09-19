@@ -42,7 +42,6 @@ import org.junit.jupiter.api.extension.ParameterResolver;
 
 public class StateResolver implements ParameterResolver {
 
-    public static PlatformContext PLATFORM_CONTEXT;
     static DeserializedSignedState deserializedSignedState;
 
     @Override
@@ -68,18 +67,18 @@ public class StateResolver implements ParameterResolver {
 
     public static DeserializedSignedState initState() throws ConstructableRegistryException, IOException {
         initConfiguration();
-        PLATFORM_CONTEXT = createPlatformContext();
         final ServicesRegistryImpl serviceRegistry = initServiceRegistry();
         PlatformStateFacade platformStateFacade = PlatformStateFacade.DEFAULT_PLATFORM_STATE_FACADE;
         serviceRegistry.register(
                 new RosterService(roster -> true, (r, b) -> {}, StateResolver::getState, platformStateFacade));
+        final PlatformContext platformContext = createPlatformContext();
         deserializedSignedState = readStateFile(
                 Path.of(Constants.STATE_DIR, "SignedState.swh").toAbsolutePath(),
                 HederaVirtualMapState::new,
                 platformStateFacade,
-                PLATFORM_CONTEXT);
+                platformContext);
 
-        initServiceMigrator(getState(), PLATFORM_CONTEXT, serviceRegistry);
+        initServiceMigrator(getState(), platformContext, serviceRegistry);
 
         return deserializedSignedState;
     }
