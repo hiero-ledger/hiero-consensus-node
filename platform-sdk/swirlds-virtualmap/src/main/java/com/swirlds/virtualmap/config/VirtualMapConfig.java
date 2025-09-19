@@ -5,13 +5,8 @@ import static com.swirlds.virtualmap.config.VirtualMapReconnectMode.PUSH;
 
 import com.swirlds.config.api.ConfigData;
 import com.swirlds.config.api.ConfigProperty;
-import com.swirlds.config.api.Configuration;
-import com.swirlds.config.api.validation.ConfigViolation;
-import com.swirlds.config.api.validation.annotation.ConstraintMethod;
 import com.swirlds.config.api.validation.annotation.Max;
 import com.swirlds.config.api.validation.annotation.Min;
-import com.swirlds.config.extensions.validators.DefaultConfigViolation;
-import com.swirlds.virtualmap.VirtualMap;
 import java.time.Duration;
 
 /**
@@ -38,20 +33,6 @@ import java.time.Duration;
  * @param numCleanerThreads
  * 		The number of threads to devote to cache cleaning. If not set, defaults to the number of threads implied by
  *      {@code virtualMap.percentCleanerThreads} and {@link Runtime#availableProcessors()}.
- * @param maximumVirtualMapSize
- * 		The maximum number of entries allowed in the {@link VirtualMap} instance. If not set, defaults to
- * 		Integer.MAX_VALUE (2^31 - 1, or 2,147,483,647).
- * @param virtualMapWarningThreshold
- * 		The threshold for the initial warning message to be logged, about the {@link VirtualMap} instance running
- * 		close to the maximum allowable size.  For example, if set to 5,000,000, then when we are trying to add a new
- * 		element to a VirtualMap, and there are only 5,000,000 spots left before reaching the limit
- * 		({@code getMaximumVirtualMapSize()}), we would log a warning message that there are only 5,000,000 slots left.
- * @param virtualMapWarningInterval
- * 		The threshold for each subsequent warning message to be logged, after the initial one, about the
- *      {@link VirtualMap} instance running close to the maximum allowable size. For example, if set to 100,000,
- * 		then for each 100,000 elements beyond {@code getVirtualMapWarningThreshold()} that we are closer to 0, we will
- * 		output an additional warning message that we are nearing the limit ({@code getMaximumVirtualMapSize()}), we
- * 		would log a warning message that there are only N slots left.
  * @param flushInterval
  * 		The interval between flushing of copies. This value defines the value of N where every Nth copy is flushed. The
  * 		value must be positive and will typically be a fairly small number, such as 20. The first copy is not flushed,
@@ -77,20 +58,13 @@ import java.time.Duration;
  */
 @ConfigData("virtualMap")
 public record VirtualMapConfig(
-        @Min(0) @Max(100) @ConfigProperty(defaultValue = "50.0")
-                double percentHashThreads, // FUTURE WORK: We need to add min/max support for double values
+        @Min(0) @Max(100) @ConfigProperty(defaultValue = "50.0") double percentHashThreads,
         @Min(-1) @ConfigProperty(defaultValue = "-1") int numHashThreads,
         @Min(1) @Max(64) @ConfigProperty(defaultValue = "3") int virtualHasherChunkHeight,
         @ConfigProperty(defaultValue = PUSH) String reconnectMode,
         @Min(0) @ConfigProperty(defaultValue = "500000") int reconnectFlushInterval,
-        @Min(0) @Max(100) @ConfigProperty(defaultValue = "25.0")
-                double percentCleanerThreads, // FUTURE WORK: We need to add min/max support for double values
+        @Min(0) @Max(100) @ConfigProperty(defaultValue = "25.0") double percentCleanerThreads,
         @Min(-1) @ConfigProperty(defaultValue = "-1") int numCleanerThreads,
-        @Min(2) @Max(Integer.MAX_VALUE) @ConfigProperty(defaultValue = "2147483647") long maximumVirtualMapSize,
-        @ConstraintMethod("virtualMapWarningThresholdValidation") @Min(1) @ConfigProperty(defaultValue = "5000000")
-                long virtualMapWarningThreshold,
-        @ConstraintMethod("virtualMapWarningIntervalValidation") @Min(1) @ConfigProperty(defaultValue = "100000")
-                long virtualMapWarningInterval,
         @Min(1) @ConfigProperty(defaultValue = "20") int flushInterval,
         @ConfigProperty(defaultValue = "1000000000") long copyFlushCandidateThreshold,
         @ConfigProperty(defaultValue = "5000000000") long familyThrottleThreshold,
@@ -100,36 +74,6 @@ public record VirtualMapConfig(
         @ConfigProperty(defaultValue = "false") boolean validateMigrationEnabled) {
 
     private static final double UNIT_FRACTION_PERCENT = 100.0;
-
-    public ConfigViolation virtualMapWarningIntervalValidation(final Configuration configuration) {
-        final long virtualMapWarningThreshold =
-                configuration.getConfigData(VirtualMapConfig.class).virtualMapWarningThreshold();
-        final long virtualMapWarningInterval =
-                configuration.getConfigData(VirtualMapConfig.class).virtualMapWarningInterval();
-        if (virtualMapWarningInterval > virtualMapWarningThreshold) {
-            return new DefaultConfigViolation(
-                    "virtualMap.virtualMapWarningInterval",
-                    virtualMapWarningInterval + "",
-                    true,
-                    "virtualMapWarningInterval must be <= virtualMapWarningThreshold");
-        }
-        return null;
-    }
-
-    public ConfigViolation virtualMapWarningThresholdValidation(final Configuration configuration) {
-        final long virtualMapWarningThreshold =
-                configuration.getConfigData(VirtualMapConfig.class).virtualMapWarningThreshold();
-        final long maximumVirtualMapSize =
-                configuration.getConfigData(VirtualMapConfig.class).maximumVirtualMapSize();
-        if (virtualMapWarningThreshold > maximumVirtualMapSize) {
-            return new DefaultConfigViolation(
-                    "virtualMap.virtualMapWarningThreshold",
-                    virtualMapWarningThreshold + "",
-                    true,
-                    "virtualMapWarningThreshold must be <=  maximumVirtualMapSize");
-        }
-        return null;
-    }
 
     public int getNumHashThreads() {
         final int threads = (numHashThreads() == -1)
