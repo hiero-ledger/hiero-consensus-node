@@ -16,11 +16,12 @@ import java.util.Set;
  * like to test with.
  */
 public class TestSchema extends Schema {
+
     public static final SemanticVersion CURRENT_VERSION = new SemanticVersion(0, 47, 0, "SNAPSHOT", "");
     private final Runnable onMigrate;
     private final Runnable onRestart;
     private final Set<StateDefinition> statesToCreate;
-    private final Set<String> statesToRemove;
+    private final Set<Integer> statesToRemove;
 
     public TestSchema(int version) {
         this(SemanticVersion.newBuilder().major(version).build());
@@ -41,7 +42,7 @@ public class TestSchema extends Schema {
     public TestSchema(
             @NonNull final SemanticVersion version,
             @NonNull final Set<StateDefinition> statesToCreate,
-            @NonNull final Set<String> statesToRemove,
+            @NonNull final Set<Integer> statesToRemove,
             @Nullable Runnable onMigrate,
             @Nullable Runnable onRestart) {
         super(version);
@@ -67,7 +68,7 @@ public class TestSchema extends Schema {
 
     @NonNull
     @Override
-    public Set<String> statesToRemove() {
+    public Set<Integer> statesToRemove() {
         return statesToRemove;
     }
 
@@ -84,11 +85,12 @@ public class TestSchema extends Schema {
     }
 
     public static final class Builder {
+
         private SemanticVersion version = CURRENT_VERSION;
         private Runnable onMigrate;
         private Runnable onRestart;
         private final Set<StateDefinition> statesToCreate = new HashSet<>();
-        private final Set<String> statesToRemove = new HashSet<>();
+        private final Set<Integer> statesToRemove = new HashSet<>();
 
         public Builder version(SemanticVersion version) {
             this.version = version;
@@ -125,7 +127,7 @@ public class TestSchema extends Schema {
             return this;
         }
 
-        public Builder stateToRemove(String state) {
+        public Builder stateToRemove(int state) {
             this.statesToRemove.add(state);
             return this;
         }
