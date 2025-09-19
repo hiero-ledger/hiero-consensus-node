@@ -39,7 +39,16 @@ public class ValidateCommand implements Callable<Integer> {
             description =
                     "Tag to run: [stateAnalyzer, internal, leaf, hdhm, account, tokenRelations, rehash, files, compaction, entityIdUniqueness]")
     private String[] tags = {
-        "stateAnalyzer", "internal", "leaf", "hdhm", "account", "tokenRelations", "rehash", "files", "compaction", "entityIdUniqueness"
+        "stateAnalyzer",
+        "internal",
+        "leaf",
+        "hdhm",
+        "account",
+        "tokenRelations",
+        "rehash",
+        "files",
+        "compaction",
+        "entityIdUniqueness"
     };
 
     @Override

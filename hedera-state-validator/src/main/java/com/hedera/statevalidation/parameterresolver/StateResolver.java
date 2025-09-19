@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.statevalidation.parameterresolver;
 
+import static com.hedera.statevalidation.parameterresolver.InitUtils.CONFIGURATION;
 import static com.hedera.statevalidation.parameterresolver.InitUtils.getConfiguration;
 import static com.hedera.statevalidation.parameterresolver.InitUtils.initConfiguration;
 import static com.hedera.statevalidation.parameterresolver.InitUtils.initServiceMigrator;
@@ -46,6 +47,7 @@ import org.junit.jupiter.api.extension.ParameterResolver;
 
 public class StateResolver implements ParameterResolver {
 
+    public static PlatformContext PLATFORM_CONTEXT;
     private static final Logger log = LogManager.getLogger(StateResolver.class);
 
     private static final Pattern VERSION_PATTERN = Pattern.compile("^VERSION=(\\d+)\\.(\\d+)\\.(\\d+)(?:\\n.*)*$");
@@ -75,18 +77,18 @@ public class StateResolver implements ParameterResolver {
 
     public static DeserializedSignedState initState() throws IOException {
         initConfiguration();
+        PLATFORM_CONTEXT = createPlatformContext();
         final ServicesRegistryImpl serviceRegistry = initServiceRegistry();
         PlatformStateFacade platformStateFacade = PlatformStateFacade.DEFAULT_PLATFORM_STATE_FACADE;
         serviceRegistry.register(
                 new RosterService(roster -> true, (r, b) -> {}, StateResolver::getState, platformStateFacade));
-        final PlatformContext platformContext = createPlatformContext();
         deserializedSignedState = readStateFile(
                 Path.of(Constants.STATE_DIR, "SignedState.swh").toAbsolutePath(),
                 HederaVirtualMapState::new,
                 platformStateFacade,
-                platformContext);
+                PLATFORM_CONTEXT);
 
-        initServiceMigrator(getState(), platformContext.getConfiguration(), serviceRegistry);
+        initServiceMigrator(getState(), CONFIGURATION, serviceRegistry);
 
         return deserializedSignedState;
     }
