@@ -521,20 +521,6 @@ public class ThrottleAccumulator {
                         throw new HandleException(ResponseCodeEnum.INVALID_ETHEREUM_TRANSACTION);
                     }
                 }
-                case CONTRACT_CREATE -> {
-                    final var contractCreate = txnBody.contractCreateInstanceOrThrow();
-                    if (!contractCreate.hasFileID()
-                            && (!contractCreate.hasInitcode()
-                                    || contractCreate.initcode().length() == 0)) {
-                        throw new HandleException(ResponseCodeEnum.CONTRACT_BYTECODE_EMPTY);
-                    }
-                }
-                case CONTRACT_CALL -> {
-                    final var contractCall = txnBody.contractCallOrThrow();
-                    if (!contractCall.hasContractID()) {
-                        throw new HandleException(ResponseCodeEnum.INVALID_CONTRACT_ID);
-                    }
-                }
             }
         } catch (Exception e) {
             if (e instanceof HandleException) {
