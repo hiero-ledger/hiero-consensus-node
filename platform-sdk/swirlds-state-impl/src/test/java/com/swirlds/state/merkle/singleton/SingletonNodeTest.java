@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import com.hedera.hapi.node.state.primitives.ProtoString;
 import com.swirlds.state.lifecycle.StateMetadata;
 import com.swirlds.state.test.fixtures.merkle.MerkleTestBase;
+import com.swirlds.state.test.fixtures.merkle.singleton.SingletonNode;
 import org.hiero.base.crypto.DigestType;
 import org.hiero.base.crypto.Hash;
 import org.junit.jupiter.api.BeforeEach;

@@ -18,7 +18,7 @@ public class SignedStateUtils {
 
     public static SignedState randomSignedState(Random random) {
         TestPlatformStateFacade platformStateFacade = new TestPlatformStateFacade();
-        MerkleNodeState root = new TestMerkleStateRoot(); // FUTURE WORK: use TestHederaVirtualMapState
+        MerkleNodeState root = new TestVirtualMapState();
         TestingAppStateInitializer.DEFAULT.initPlatformState(root);
         randomPlatformState(random, root, platformStateFacade);
         boolean shouldSaveToDisk = random.nextBoolean();

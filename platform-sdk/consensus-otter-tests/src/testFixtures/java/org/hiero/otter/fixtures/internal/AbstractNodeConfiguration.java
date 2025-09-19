@@ -20,7 +20,6 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import org.hiero.otter.fixtures.NodeConfiguration;
 import org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle;
-import org.jetbrains.annotations.NotNull;
 
 /**
  * An abstract base class for node configurations that provides common functionality
@@ -106,7 +105,7 @@ public abstract class AbstractNodeConfiguration implements NodeConfiguration {
      */
     @Override
     @NonNull
-    public NodeConfiguration set(@NotNull final String key, @NotNull final List<NetworkEndpoint> endpoints) {
+    public NodeConfiguration set(@NonNull final String key, @NonNull final List<NetworkEndpoint> endpoints) {
         throwIfNodeIsRunning();
         final String value = endpoints.stream()
                 .map(AbstractNodeConfiguration::convertEndpoint)

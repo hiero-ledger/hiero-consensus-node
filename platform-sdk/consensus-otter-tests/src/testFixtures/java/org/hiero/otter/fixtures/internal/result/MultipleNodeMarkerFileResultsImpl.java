@@ -17,7 +17,6 @@ import org.hiero.otter.fixtures.result.MarkerFileSubscriber;
 import org.hiero.otter.fixtures.result.MultipleNodeMarkerFileResults;
 import org.hiero.otter.fixtures.result.SingleNodeMarkerFileResult;
 import org.hiero.otter.fixtures.result.SubscriberAction;
-import org.jetbrains.annotations.NotNull;
 
 /**
  * Default implementation of {@link MultipleNodeMarkerFileResults}
@@ -86,7 +85,7 @@ public class MultipleNodeMarkerFileResultsImpl implements MultipleNodeMarkerFile
      * {@inheritDoc}
      */
     @Override
-    public @NotNull MultipleNodeMarkerFileResults suppressingNodes(@NotNull final Collection<Node> nodes) {
+    public @NonNull MultipleNodeMarkerFileResults suppressingNodes(@NonNull final Collection<Node> nodes) {
         final Set<NodeId> nodeIdsToSuppress = nodes.stream().map(Node::selfId).collect(Collectors.toSet());
         final List<SingleNodeMarkerFileResult> filtered = results.stream()
                 .filter(result -> !nodeIdsToSuppress.contains(result.nodeId()))

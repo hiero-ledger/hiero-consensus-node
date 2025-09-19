@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.state.merkle;
+package com.swirlds.state.test.fixtures.merkle;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.state.StateChangeListener.StateType.MAP;
@@ -22,14 +22,7 @@ import com.swirlds.metrics.api.Metrics;
 import com.swirlds.state.State;
 import com.swirlds.state.StateChangeListener;
 import com.swirlds.state.lifecycle.StateMetadata;
-import com.swirlds.state.merkle.disk.BackedReadableKVState;
-import com.swirlds.state.merkle.disk.BackedWritableKVState;
-import com.swirlds.state.merkle.queue.BackedReadableQueueState;
-import com.swirlds.state.merkle.queue.BackedWritableQueueState;
-import com.swirlds.state.merkle.queue.QueueNode;
-import com.swirlds.state.merkle.singleton.BackedReadableSingletonState;
-import com.swirlds.state.merkle.singleton.BackedWritableSingletonState;
-import com.swirlds.state.merkle.singleton.SingletonNode;
+import com.swirlds.state.merkle.MerkleRootSnapshotMetrics;
 import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.state.spi.EmptyReadableStates;
 import com.swirlds.state.spi.KVChangeListener;
@@ -45,6 +38,14 @@ import com.swirlds.state.spi.WritableQueueStateBase;
 import com.swirlds.state.spi.WritableSingletonState;
 import com.swirlds.state.spi.WritableSingletonStateBase;
 import com.swirlds.state.spi.WritableStates;
+import com.swirlds.state.test.fixtures.merkle.disk.BackedReadableKVState;
+import com.swirlds.state.test.fixtures.merkle.disk.BackedWritableKVState;
+import com.swirlds.state.test.fixtures.merkle.queue.BackedReadableQueueState;
+import com.swirlds.state.test.fixtures.merkle.queue.BackedWritableQueueState;
+import com.swirlds.state.test.fixtures.merkle.queue.QueueNode;
+import com.swirlds.state.test.fixtures.merkle.singleton.BackedReadableSingletonState;
+import com.swirlds.state.test.fixtures.merkle.singleton.BackedWritableSingletonState;
+import com.swirlds.state.test.fixtures.merkle.singleton.SingletonNode;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
@@ -146,12 +147,6 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
     private final RuntimeObjectRecord registryRecord;
 
     /**
-     * Used to track the status of the Platform.
-     * It is set to {@code true} if Platform status is not {@code PlatformStatus.ACTIVE}
-     */
-    private boolean startupMode = true;
-
-    /**
      * Create a new instance. This constructor must be used for all creations of this class.
      *
      */
@@ -184,7 +179,6 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
         this.registryRecord = RuntimeObjectRegistry.createRecord(getClass());
         this.listeners.addAll(from.listeners);
         this.roundSupplier = from.roundSupplier;
-        this.startupMode = from.startupMode;
 
         // Copy over the metadata
         for (final var entry : from.services.entrySet()) {
@@ -202,16 +196,12 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
         }
     }
 
-    public void disableStartupMode() {
-        startupMode = false;
-    }
-
     /**
      * {@inheritDoc}
      */
     @Override
     public boolean isStartUpMode() {
-        return startupMode;
+        return false;
     }
 
     /**
@@ -393,6 +383,23 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
             node = getChild(nodeIndex);
         }
         nodeInitializer.accept(node);
+    }
+
+    public void initializeState(@NonNull final StateMetadata<?, ?> md) {
+        // Validate the inputs
+        throwIfImmutable();
+        requireNonNull(md);
+
+        // Put this metadata into the map
+        final var def = md.stateDefinition();
+        final var serviceName = md.serviceName();
+        final var stateMetadata = services.computeIfAbsent(serviceName, k -> new HashMap<>());
+        stateMetadata.put(def.stateId(), md);
+
+        // We also need to add/update the metadata of the service in the writableStatesMap so that
+        // it isn't stale or incomplete (e.g. in a genesis case)
+        readableStatesMap.put(serviceName, new MerkleReadableStates(stateMetadata));
+        writableStatesMap.put(serviceName, new MerkleWritableStates(serviceName, stateMetadata));
     }
 
     /**
@@ -757,10 +764,8 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
             for (final ReadableKVState kv : kvInstances.values()) {
                 ((WritableKVStateBase) kv).commit();
             }
-            if (startupMode) {
-                for (final ReadableSingletonState s : singletonInstances.values()) {
-                    ((WritableSingletonStateBase) s).commit();
-                }
+            for (final ReadableSingletonState s : singletonInstances.values()) {
+                ((WritableSingletonStateBase) s).commit();
             }
             for (final ReadableQueueState q : queueInstances.values()) {
                 ((WritableQueueStateBase) q).commit();
@@ -820,22 +825,6 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
                 }
             });
         }
-    }
-
-    /**
-     * Commit all singleton states for every registered service.
-     */
-    @SuppressWarnings("DuplicatedCode")
-    public void commitSingletons() {
-        services.forEach((serviceKey, serviceStates) -> serviceStates.entrySet().stream()
-                .filter(stateMetadata ->
-                        stateMetadata.getValue().stateDefinition().singleton())
-                .forEach(service -> {
-                    WritableStates writableStates = getWritableStates(serviceKey);
-                    WritableSingletonStateBase<?> writableSingleton =
-                            (WritableSingletonStateBase<?>) writableStates.getSingleton(service.getKey());
-                    writableSingleton.commit();
-                }));
     }
 
     /**
