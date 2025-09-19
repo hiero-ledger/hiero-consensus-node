@@ -19,6 +19,7 @@ import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -32,7 +33,7 @@ import org.hiero.otter.fixtures.container.network.NetworkBehavior;
 import org.hiero.otter.fixtures.internal.AbstractNetwork;
 import org.hiero.otter.fixtures.internal.RegularTimeManager;
 import org.hiero.otter.fixtures.internal.network.ConnectionKey;
-import org.hiero.otter.fixtures.internal.network.MeshTopologyImpl;
+import org.hiero.otter.fixtures.internal.network.GeoMeshTopologyImpl;
 import org.hiero.otter.fixtures.network.Topology;
 import org.hiero.otter.fixtures.network.Topology.ConnectionData;
 import org.testcontainers.containers.Network;
@@ -56,7 +57,7 @@ public class ContainerNetwork extends AbstractNetwork {
     private final Path rootOutputDirectory;
     private final ContainerTransactionGenerator transactionGenerator;
     private final ImageFromDockerfile dockerImage;
-    private final Topology topology = new MeshTopologyImpl(this::createContainerNodes);
+    private final Topology topology;
 
     private ToxiproxyContainer toxiproxyContainer;
     private NetworkBehavior networkBehavior;
@@ -77,6 +78,7 @@ public class ContainerNetwork extends AbstractNetwork {
         this.rootOutputDirectory = requireNonNull(rootOutputDirectory);
         this.dockerImage = new ImageFromDockerfile()
                 .withDockerfile(Path.of("..", "consensus-otter-docker-app", "build", "data", "Dockerfile"));
+        this.topology = new GeoMeshTopologyImpl(this::createContainerNodes, this::addInstrumentedNode, new Random());
         transactionGenerator.setNodesSupplier(topology::nodes);
     }
 

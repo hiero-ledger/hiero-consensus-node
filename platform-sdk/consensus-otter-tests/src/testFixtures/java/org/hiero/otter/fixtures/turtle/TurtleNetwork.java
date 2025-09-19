@@ -25,7 +25,7 @@ import org.hiero.otter.fixtures.TransactionGenerator;
 import org.hiero.otter.fixtures.internal.AbstractNetwork;
 import org.hiero.otter.fixtures.internal.AbstractTimeManager.TimeTickReceiver;
 import org.hiero.otter.fixtures.internal.network.ConnectionKey;
-import org.hiero.otter.fixtures.internal.network.MeshTopologyImpl;
+import org.hiero.otter.fixtures.internal.network.GeoMeshTopologyImpl;
 import org.hiero.otter.fixtures.network.Topology;
 import org.hiero.otter.fixtures.network.Topology.ConnectionData;
 import org.hiero.otter.fixtures.turtle.gossip.SimulatedNetwork;
@@ -43,7 +43,7 @@ public class TurtleNetwork extends AbstractNetwork implements TimeTickReceiver {
     private final TurtleLogging logging;
     private final Path rootOutputDirectory;
     private final TurtleTransactionGenerator transactionGenerator;
-    private final Topology topology = new MeshTopologyImpl(this::createTurtleNodes);
+    private final Topology topology;
 
     private ExecutorService executorService;
     private SimulatedNetwork simulatedNetwork;
@@ -68,6 +68,7 @@ public class TurtleNetwork extends AbstractNetwork implements TimeTickReceiver {
         this.logging = requireNonNull(logging);
         this.rootOutputDirectory = requireNonNull(rootOutputDirectory);
         this.transactionGenerator = requireNonNull(transactionGenerator);
+        this.topology = new GeoMeshTopologyImpl(this::createTurtleNodes, this::addInstrumentedNode, randotron);
     }
 
     /**

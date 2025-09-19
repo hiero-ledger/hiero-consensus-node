@@ -32,7 +32,7 @@ public class MeshTopologyImpl implements MeshTopology {
      *
      * @param nodeFactory a function that creates a list of nodes given the count
      */
-    public MeshTopologyImpl(final Function<Integer, List<? extends Node>> nodeFactory) {
+    public MeshTopologyImpl(@NonNull final Function<Integer, List<? extends Node>> nodeFactory) {
         this.nodeFactory = requireNonNull(nodeFactory);
     }
 
