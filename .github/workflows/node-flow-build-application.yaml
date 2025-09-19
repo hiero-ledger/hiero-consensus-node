@@ -111,7 +111,7 @@ jobs:
       gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
 
   mats-unit-tests:
-    name: Unit Tests
+    name: MATS - Unit Tests
     uses: ./.github/workflows/node-zxc-compile-application-code.yaml
     needs:
       - dependency-check
