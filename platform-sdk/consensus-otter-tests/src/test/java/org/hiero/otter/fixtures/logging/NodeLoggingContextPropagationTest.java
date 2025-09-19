@@ -5,7 +5,6 @@ import static com.swirlds.logging.legacy.LogMarker.DEMO_INFO;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.hedera.hapi.platform.state.NodeId;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -26,6 +25,7 @@ import java.util.concurrent.TimeUnit;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
+import org.hiero.consensus.model.node.NodeId;
 import org.hiero.otter.fixtures.logging.context.ContextAwareThreadFactory;
 import org.hiero.otter.fixtures.logging.context.NodeLoggingContext;
 import org.hiero.otter.fixtures.logging.internal.InMemorySubscriptionManager;
@@ -55,8 +55,8 @@ final class NodeLoggingContextPropagationTest {
     void propagatesNodeIdAcrossAsyncBoundaries(@TempDir @NonNull final Path tempDir) throws Exception {
         final TurtleLogging logging = new TurtleLogging(tempDir);
 
-        final NodeId nodeA = NodeId.newBuilder().id(1L).build();
-        final NodeId nodeB = NodeId.newBuilder().id(2L).build();
+        final NodeId nodeA = NodeId.of(1L);
+        final NodeId nodeB = NodeId.of(2L);
 
         logging.addNodeLogging(nodeA, tempDir.resolve("node-1"));
         logging.addNodeLogging(nodeB, tempDir.resolve("node-2"));
