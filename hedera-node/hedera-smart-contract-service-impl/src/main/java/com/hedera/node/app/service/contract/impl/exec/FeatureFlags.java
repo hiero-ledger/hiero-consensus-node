@@ -83,7 +83,7 @@ public interface FeatureFlags {
      *  If true, type 4 Ethereum transactions (EIP-7702 authorization lists) will be supported.
      * @return true if type 4 Ethereum transactions are supported.
      */
-    default boolean isAuthorizationListEnabled() {
+    default boolean isAuthorizationListEnabled(@NonNull Configuration config) {
         return false;
     }
 }
