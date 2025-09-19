@@ -132,6 +132,10 @@ class SetupStakeCommandTest extends YahcliTestBase {
             // Invalid values are accepted during parsing - validation happens in call()
             final var result = parseArgs(typicalGlobalOptions() + " activate-staking -p " + invalidAmount);
             assertCommandHierarchyOf(result, "yahcli", "activate-staking");
+
+            // Execute the command and verify it fails
+            final var exitCode = execute(typicalGlobalOptions() + " activate-staking -p " + invalidAmount);
+            assertThat(exitCode).isNotEqualTo(0);
         }
 
         @Test
@@ -139,6 +143,10 @@ class SetupStakeCommandTest extends YahcliTestBase {
             // Empty strings are accepted during parsing - validation happens in call()
             final var result = parseArgs(typicalGlobalOptions() + " activate-staking -p \"\"");
             assertCommandHierarchyOf(result, "yahcli", "activate-staking");
+
+            // Execute the command and verify it fails
+            final var exitCode = execute(typicalGlobalOptions() + " activate-staking -p \"\"");
+            assertThat(exitCode).isNotEqualTo(0);
         }
 
         @ParameterizedTest
@@ -148,6 +156,10 @@ class SetupStakeCommandTest extends YahcliTestBase {
             // Invalid values are accepted during parsing - validation happens in call()
             final var result = parseArgs(typicalGlobalOptions() + " activate-staking -r " + invalidAmount);
             assertCommandHierarchyOf(result, "yahcli", "activate-staking");
+
+            // Execute the command and verify it fails
+            final var exitCode = execute(typicalGlobalOptions() + " activate-staking -r " + invalidAmount);
+            assertThat(exitCode).isNotEqualTo(0);
         }
 
         @Test
@@ -155,6 +167,10 @@ class SetupStakeCommandTest extends YahcliTestBase {
             // Empty strings are accepted during parsing - validation happens in call()
             final var result = parseArgs(typicalGlobalOptions() + " activate-staking -r \"\"");
             assertCommandHierarchyOf(result, "yahcli", "activate-staking");
+
+            // Execute the command and verify it fails
+            final var exitCode = execute(typicalGlobalOptions() + " activate-staking -r \"\"");
+            assertThat(exitCode).isNotEqualTo(0);
         }
 
         @ParameterizedTest
@@ -164,6 +180,10 @@ class SetupStakeCommandTest extends YahcliTestBase {
             // Invalid values are accepted during parsing - validation happens in call()
             final var result = parseArgs(typicalGlobalOptions() + " activate-staking -b " + invalidAmount);
             assertCommandHierarchyOf(result, "yahcli", "activate-staking");
+
+            // Execute the command and verify it fails
+            final var exitCode = execute(typicalGlobalOptions() + " activate-staking -b " + invalidAmount);
+            assertThat(exitCode).isNotEqualTo(0);
         }
 
         @Test
@@ -171,6 +191,10 @@ class SetupStakeCommandTest extends YahcliTestBase {
             // Empty strings are accepted during parsing - validation happens in call()
             final var result = parseArgs(typicalGlobalOptions() + " activate-staking -b \"\"");
             assertCommandHierarchyOf(result, "yahcli", "activate-staking");
+
+            // Execute the command and verify it fails
+            final var exitCode = execute(typicalGlobalOptions() + " activate-staking -b \"\"");
+            assertThat(exitCode).isNotEqualTo(0);
         }
 
         @Test
@@ -246,6 +270,10 @@ class SetupStakeCommandTest extends YahcliTestBase {
             // These values are accepted during parsing but would fail during execution
             final var result = parseArgs(typicalGlobalOptions() + " activate-staking -p " + amount);
             assertCommandHierarchyOf(result, "yahcli", "activate-staking");
+
+            // Execute the command and verify it fails
+            final var exitCode = execute(typicalGlobalOptions() + " activate-staking -p " + amount);
+            assertThat(exitCode).isNotEqualTo(0);
         }
 
         @Test
