@@ -10,9 +10,7 @@ import com.swirlds.metrics.api.Metrics;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
 import com.swirlds.virtualmap.internal.RecordAccessor;
 import com.swirlds.virtualmap.internal.merkle.VirtualMapStatistics;
-import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
-import java.nio.file.Path;
 import java.util.concurrent.CountDownLatch;
 import java.util.function.Predicate;
 import org.hiero.base.crypto.Hash;
@@ -387,14 +385,6 @@ class DummyVirtualRoot extends PartialMerkleLeaf implements VirtualRoot, MerkleL
     public RecordAccessor detach() {
         this.detached = true;
         return null;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void snapshot(@NonNull final Path destination) {
-        this.detached = true;
     }
 
     /**

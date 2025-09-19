@@ -3,9 +3,6 @@ package com.swirlds.virtualmap.internal.pipeline;
 
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.virtualmap.internal.RecordAccessor;
-import edu.umd.cs.findbugs.annotations.NonNull;
-import java.io.IOException;
-import java.nio.file.Path;
 
 /**
  * The root of a merkle tree containing virtual nodes (i.e. nodes that can be flushed to disk).
@@ -91,17 +88,6 @@ public interface VirtualRoot extends MerkleNode {
      * @return a reference to the detached state
      */
     RecordAccessor detach();
-
-    /**
-     * Takes a snapshot of this virtual root into the specified location. The snapshot can be loaded
-     * back to memory using {@link com.swirlds.virtualmap.datasource.VirtualDataSourceBuilder#restore(String, Path)}
-     * method. It will contain the same data as this root, but some data may be moved from memory to
-     * disk or vice versa. After snapshot is taken, it does not consume any runtime resources, CPU or memory.
-     *
-     * @param destination the location where snapshot files will be located
-     * @throws IOException if an I/O error occurs
-     */
-    void snapshot(@NonNull final Path destination) throws IOException;
 
     /**
      * Gets whether this copy is detached.
