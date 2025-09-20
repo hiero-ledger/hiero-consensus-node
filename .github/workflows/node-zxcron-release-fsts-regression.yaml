@@ -16,7 +16,7 @@ permissions:
 jobs:
   cron:
     name: Cron / Launch Workflows
-    runs-on: hiero-network-node-linux-small-scheduler
+    runs-on: hiero-citr-linux-small
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
