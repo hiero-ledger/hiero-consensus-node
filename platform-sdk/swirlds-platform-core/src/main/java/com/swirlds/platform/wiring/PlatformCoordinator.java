@@ -28,7 +28,7 @@ import com.swirlds.platform.system.status.StatusStateMachine;
 import com.swirlds.platform.system.status.actions.PlatformStatusAction;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
-import org.hiero.consensus.event.creator.impl.EventCreationManager;
+import org.hiero.consensus.event.creator.EventCreatorModule;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.roster.RosterHistory;
@@ -128,7 +128,7 @@ public record PlatformCoordinator(@NonNull PlatformComponents components) implem
                 .inject(NoInput.getInstance());
         components
                 .eventCreationManagerWiring()
-                .getInputWire(EventCreationManager::clear)
+                .getInputWire(EventCreatorModule::clear)
                 .inject(NoInput.getInstance());
         components.branchDetectorWiring().getInputWire(BranchDetector::clear).inject(NoInput.getInstance());
         components.branchReporterWiring().getInputWire(BranchReporter::clear).inject(NoInput.getInstance());

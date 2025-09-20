@@ -23,11 +23,11 @@ import org.hiero.consensus.model.test.fixtures.hashgraph.EventWindowBuilder;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-class EventCreationManagerTests {
+class EventCreatorTests {
     private EventCreator creator;
     private List<PlatformEvent> eventsToCreate;
     private FakeTime time;
-    private EventCreationManager manager;
+    private DefaultEventCreator manager;
 
     @BeforeEach
     void setUp() {
@@ -43,7 +43,8 @@ class EventCreationManagerTests {
                 .getOrCreateConfig();
         final Metrics metrics = new NoOpMetrics();
 
-        manager = new DefaultEventCreationManager(configuration, metrics, time, () -> false, creator);
+        manager = new DefaultEventCreator();
+        manager.initialize(configuration, metrics, time, () -> false, creator);
 
         manager.updatePlatformStatus(PlatformStatus.ACTIVE);
     }

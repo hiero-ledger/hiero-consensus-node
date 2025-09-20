@@ -7,8 +7,8 @@ import com.swirlds.base.time.Time;
 import com.swirlds.common.utility.throttle.RateLimiter;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import org.hiero.consensus.event.creator.EventCreationConfig;
 import org.hiero.consensus.event.creator.impl.EventCreationStatus;
-import org.hiero.consensus.event.creator.impl.config.EventCreationConfig;
 
 /**
  * Throttles event creation rate over time.
