@@ -23,29 +23,30 @@ SCRIPT_PATH="$(dirname "$(readlink -f "$0")")"
     -s 'StateSigner:submit transaction:🖋️' \
     -s 'StateSigner:signature transactions:🖋️' \
     -s 'IssDetectorSplitter:IssNotification:💥' \
-    -s 'getStatusAction:PlatformStatusAction:💀' \
+    -s 'IssDetector:ISS notification monitoring:💀' \
+    -s 'ConsensusRoundsSplitter:monitor consensus round:🕐' \
     -s 'LatestCompleteStateNotifier:complete state notification:💢' \
     -s 'RunningEventHashOverride:hash override:💨' \
-    -s 'toStateWrittenToDiskAction:PlatformStatusAction:💾' \
-    -s 'StatusStateMachine:PlatformStatus:🚦' \
+    -s 'StateSnapshotManager:state saving monitoring:💾' \
+    -s 'PlatformMonitor:PlatformStatus:🚦' \
     -s 'HealthMonitor:health info:🏥' \
     -g 'Orphan Buffer:OrphanBuffer,OrphanBufferSplitter' \
     -g 'Event Intake:EventHasher,InternalEventValidator,EventDeduplicator,EventSignatureValidator,Orphan Buffer,InlinePcesWriter' \
-    -g 'Consensus Engine:ConsensusEngine,EventWindowManager,ConsensusRounds,PreConsensusEvents,PreConsensusEventsSplitter,ConsensusRoundsSplitter,RoundsToCesEvents' \
-    -g 'State Snapshot Manager:saveToDiskFilter,StateSnapshotManager,extractOldestMinimumBirthRoundOnDisk,toStateWrittenToDiskAction,toNotification' \
+    -g 'Consensus Engine:ConsensusEngine,EventWindowManager,ConsensusRounds,PreConsensusEvents,PreConsensusEventsSplitter,ConsensusRoundsSplitter,RoundsToCesEvents,staleEvents,staleEventsSplitter' \
+    -g 'State Snapshot Manager:saveToDiskFilter,StateSnapshotManager,extractOldestMinimumBirthRoundOnDisk,toNotification' \
     -g 'State File Management:State Snapshot Manager,📀,💾' \
     -g 'State Signature Collector:StateSignatureCollector,reservedStateSplitter,allStatesReserver,completeStateFilter,completeStatesReserver,LatestCompleteStateNotifier' \
     -g 'State Signature Collection:State Signature Collector,LatestCompleteStateNexus,💢' \
-    -g 'Event Creation:EventCreationManager' \
-    -g 'ISS Detector:IssDetector,IssDetectorSplitter,IssHandler,getStatusAction' \
+    -g 'Event Creation:EventCreationManager,🍎' \
+    -g 'ISS Detector:IssDetector,IssDetectorSplitter,IssHandler' \
     -g 'PCES Replay:pcesReplayer,✅' \
     -g 'Transaction Handler:TransactionHandler,notNullStateFilter,postHandler_stateWithHashComplexityReserver,postHandler_stateWithHashComplexityToStateReserver,SavedStateController' \
     -g 'State Hasher:StateHasher,postHasher_stateReserver' \
-    -g 'Consensus:Consensus Engine,ConsensusEventStream,🌀' \
-    -g 'State Verification:StateSigner,HashLogger,ISS Detector,🖋️,💥,💀' \
-    -g 'Transaction Handling:Transaction Handler,LatestImmutableStateNexus,TransactionPrehandler' \
+    -g 'Consensus:Consensus Engine,ConsensusEventStream,🌀,🕐' \
+    -g 'State Verification:StateSigner,HashLogger,ISS Detector,ExecutionSignatureSubmission,🖋️,💥,💀' \
+    -g 'Transaction Handling:Transaction Handler,LatestImmutableStateNexus,TransactionPrehandler,getSystemTransactions,🔮' \
     -g 'Branch Detection:BranchDetector,BranchReporter' \
-    -g 'Miscellaneous:Mystery Input,RunningEventHashOverride,HealthMonitor,SignedStateSentinel,StatusStateMachine,Heartbeat,❔,🏥,❤️,💨,🚦' \
+    -g 'Miscellaneous:Mystery Input,RunningEventHashOverride,HealthMonitor,SignedStateSentinel,PlatformMonitor,Heartbeat,ExecutionStatusHandler,❔,🏥,❤️,💨,🚦' \
     -c 'Orphan Buffer' \
     -c 'Consensus Engine' \
     -c 'State Signature Collector' \
