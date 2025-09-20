@@ -36,7 +36,7 @@ import com.swirlds.metrics.api.IntegerGauge;
 import com.swirlds.metrics.api.LongAccumulator;
 import com.swirlds.metrics.api.LongGauge;
 import com.swirlds.metrics.api.Metrics;
-import com.swirlds.metrics.api.snapshot.Snapshot;
+import com.swirlds.metrics.api.Snapshot;
 import com.swirlds.metrics.impl.DefaultCounter;
 import com.swirlds.metrics.impl.DefaultDoubleAccumulator;
 import com.swirlds.metrics.impl.DefaultDoubleGauge;
