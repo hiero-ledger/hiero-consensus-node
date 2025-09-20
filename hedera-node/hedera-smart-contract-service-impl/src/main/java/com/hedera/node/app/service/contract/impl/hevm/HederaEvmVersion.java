@@ -31,7 +31,11 @@ public enum HederaEvmVersion {
     /**
      * EVM version 0.65
      */
-    VERSION_065("v0.65"); /* ops duration */
+    VERSION_065("v0.65"), /* ops duration */
+    /**
+     * EVM version 0.70
+     */
+    VERSION_070("v0.70"); /* Pectra */
 
     /**
      * All supported EVM versions
@@ -43,7 +47,8 @@ public enum HederaEvmVersion {
             VERSION_046.key(), VERSION_046,
             VERSION_050.key(), VERSION_050,
             VERSION_051.key(), VERSION_051,
-            VERSION_065.key(), VERSION_065);
+            VERSION_065.key(), VERSION_065,
+            VERSION_070.key(), VERSION_070);
 
     HederaEvmVersion(String key) {
         this.key = key;
