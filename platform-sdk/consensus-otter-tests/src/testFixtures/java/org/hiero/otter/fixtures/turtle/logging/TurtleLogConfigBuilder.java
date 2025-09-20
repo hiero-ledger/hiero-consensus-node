@@ -9,13 +9,13 @@ import static org.hiero.otter.fixtures.logging.internal.LogConfigHelper.creatIgn
 import static org.hiero.otter.fixtures.logging.internal.LogConfigHelper.createAllowedMarkerFilters;
 import static org.hiero.otter.fixtures.logging.internal.LogConfigHelper.createExcludeNodeFilter;
 import static org.hiero.otter.fixtures.logging.internal.LogConfigHelper.createFileAppender;
-import static org.hiero.otter.fixtures.logging.internal.LogConfigHelper.createNodeOnlyFilter;
 import static org.hiero.otter.fixtures.logging.internal.LogConfigHelper.createThresholdFilter;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import org.apache.logging.log4j.Level;
@@ -47,7 +47,6 @@ import org.hiero.consensus.model.node.NodeId;
 public final class TurtleLogConfigBuilder {
 
     public static final String IN_MEMORY_APPENDER_NAME = "InMemory";
-    public static final String IN_MEMORY_MANAGER_NAME = IN_MEMORY_APPENDER_NAME + ".manager";
 
     private TurtleLogConfigBuilder() {
         // utility
@@ -66,36 +65,34 @@ public final class TurtleLogConfigBuilder {
         requireNonNull(nodeLogDirs, "nodeLogDirs must not be null");
 
         final ConfigurationBuilder<BuiltConfiguration> builder = ConfigurationBuilderFactory.newConfigurationBuilder();
+        builder.setConfigurationName("TurtleLogging");
+        builder.setStatusLevel(Level.ERROR);
 
         final LayoutComponentBuilder standardLayout =
                 builder.newLayout("PatternLayout").addAttribute("pattern", DEFAULT_PATTERN);
 
-        final FilterComponentBuilder thresholdInfoFilter = createThresholdFilter(builder);
-        final ComponentBuilder<?> allowedMarkerFilters = createAllowedMarkerFilters(builder);
-        final ComponentBuilder<?> hashStreamFilter = configureHashStreamFilter(builder);
-
-        final Map<String, String> createdFileAppenderNames = new HashMap<>();
-        final Map<String, String> createdHashAppenderNames = new HashMap<>();
+        final ComponentBuilder<?> perNodeRoutes =
+                builder.newComponent("Routes").addAttribute("pattern", "$${ctx:nodeId:-unknown}");
+        final ComponentBuilder<?> perNodeHashRoutes =
+                builder.newComponent("Routes").addAttribute("pattern", "$${ctx:nodeId:-unknown}");
         final List<FilterComponentBuilder> excludeNodeFilters = new ArrayList<>();
 
-        // Per node appenders
         for (final Map.Entry<NodeId, Path> entry : nodeLogDirs.entrySet()) {
             final String nodeId = Long.toString(entry.getKey().id());
 
             excludeNodeFilters.add(createExcludeNodeFilter(builder, entry.getKey()));
-            final FilterComponentBuilder nodeOnlyFilter = createNodeOnlyFilter(builder, entry.getKey());
 
             final AppenderComponentBuilder fileAppender = createFileAppender(
                     builder,
                     "FileLogger-" + nodeId,
                     standardLayout,
                     entry.getValue().resolve("output/swirlds.log").toString(),
-                    nodeOnlyFilter,
-                    thresholdInfoFilter,
-                    allowedMarkerFilters);
-
+                    createThresholdFilter(builder),
+                    createAllowedMarkerFilters(builder));
             builder.add(fileAppender);
-            createdFileAppenderNames.put(nodeId, fileAppender.getName());
+            perNodeRoutes.addComponent(builder.newComponent("Route")
+                    .addAttribute("key", nodeId)
+                    .addAttribute("ref", fileAppender.getName()));
 
             final AppenderComponentBuilder hashAppender = createFileAppender(
                     builder,
@@ -104,48 +101,86 @@ public final class TurtleLogConfigBuilder {
                     entry.getValue()
                             .resolve("output/swirlds-hashstream/swirlds-hashstream.log")
                             .toString(),
-                    nodeOnlyFilter,
-                    hashStreamFilter);
-
+                    configureHashStreamFilter(builder));
             builder.add(hashAppender);
-            createdHashAppenderNames.put(nodeId, hashAppender.getName());
+            perNodeHashRoutes.addComponent(builder.newComponent("Route")
+                    .addAttribute("key", nodeId)
+                    .addAttribute("ref", hashAppender.getName()));
         }
 
-        // Console logger
+        final AppenderComponentBuilder fallbackFileAppender = createFileAppender(
+                builder,
+                "FileLogger-unknown",
+                standardLayout,
+                ensureFilePath(baseDir.resolve("node-unknown/output/swirlds.log")),
+                createThresholdFilter(builder),
+                createAllowedMarkerFilters(builder));
+        builder.add(fallbackFileAppender);
+        perNodeRoutes.addComponent(builder.newComponent("Route")
+                .addAttribute("key", "unknown")
+                .addAttribute("ref", fallbackFileAppender.getName()));
+
+        final AppenderComponentBuilder fallbackHashAppender = createFileAppender(
+                builder,
+                "HashStreamLogger-unknown",
+                standardLayout,
+                ensureFilePath(baseDir.resolve("node-unknown/output/swirlds-hashstream/swirlds-hashstream.log")),
+                configureHashStreamFilter(builder));
+        builder.add(fallbackHashAppender);
+        perNodeHashRoutes.addComponent(builder.newComponent("Route")
+                .addAttribute("key", "unknown")
+                .addAttribute("ref", fallbackHashAppender.getName()));
+
+        final AppenderComponentBuilder routingAppender =
+                builder.newAppender("PerNodeRouting", "Routing").addComponent(perNodeRoutes);
+        builder.add(routingAppender);
+
+        final AppenderComponentBuilder routingHashAppender =
+                builder.newAppender("PerNodeHashRouting", "Routing").addComponent(perNodeHashRoutes);
+        builder.add(routingHashAppender);
+
         final ComponentBuilder<?> excludeNodeFilter =
                 combineFilters(builder, excludeNodeFilters.toArray(new FilterComponentBuilder[0]));
 
-        final ComponentBuilder<?> consoleFilters =
-                combineFilters(builder, thresholdInfoFilter, excludeNodeFilter, creatIgnoreMarkerFilters(builder));
+        final ComponentBuilder<?> consoleFilters = combineFilters(
+                builder, createThresholdFilter(builder), excludeNodeFilter, creatIgnoreMarkerFilters(builder));
 
         final AppenderComponentBuilder consoleAppender = builder.newAppender("Console", "Console")
                 .addAttribute("target", Target.SYSTEM_OUT)
                 .add(standardLayout)
                 .addComponent(consoleFilters);
-
         builder.add(consoleAppender);
 
-        // In-memory appender for tests
-        builder.add(builder.newAppender("InMemory", "TurtleInMemoryAppender"));
+        builder.add(builder.newAppender(IN_MEMORY_APPENDER_NAME, "TurtleInMemoryAppender"));
 
-        final RootLoggerComponentBuilder root =
-                builder.newRootLogger(Level.ALL).add(builder.newAppenderRef("InMemory"));
+        final RootLoggerComponentBuilder root = builder.newRootLogger(Level.ALL)
+                .add(builder.newAppenderRef(IN_MEMORY_APPENDER_NAME))
+                .add(builder.newAppenderRef("Console"))
+                .add(builder.newAppenderRef("PerNodeRouting"))
+                .add(builder.newAppenderRef("PerNodeHashRouting"));
 
-        root.add(builder.newAppenderRef("Console"));
-
-        // Attach file appenders
-        for (final String appender : createdFileAppenderNames.values()) {
-            root.add(builder.newAppenderRef(appender));
-        }
-        for (final String appender : createdHashAppenderNames.values()) {
-            root.add(builder.newAppenderRef(appender));
-        }
-
-        // Register the root logger with the configuration
         builder.add(root);
+
+        builder.add(builder.newLogger("org.hiero.otter", Level.INFO)
+                .add(builder.newAppenderRef("Console"))
+                .addAttribute("additivity", false));
 
         Configurator.reconfigure(builder.build());
 
         LogManager.getLogger(TurtleLogConfigBuilder.class).info("Unified logging configuration (re)initialized");
+    }
+
+    @NonNull
+    private static String ensureFilePath(@NonNull final Path path) {
+        requireNonNull(path, "path must not be null");
+        final Path parent = path.getParent();
+        if (parent != null) {
+            try {
+                Files.createDirectories(parent);
+            } catch (final IOException e) {
+                throw new IllegalStateException("Unable to create log directory " + parent, e);
+            }
+        }
+        return path.toString();
     }
 }
