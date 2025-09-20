@@ -12,7 +12,7 @@ import org.junit.jupiter.api.Test;
 class SpeedometerMetricConfigTest {
 
     private static final String DEFAULT_FORMAT = FloatFormats.FORMAT_11_3;
-    private static final float DEFAULT_HALF_LIFE = -1;
+    private static final float DEFAULT_HALF_LIFE = 0.0f;
 
     private static final String CATEGORY = "CaTeGoRy";
     private static final String NAME = "NaMe";
@@ -34,7 +34,6 @@ class SpeedometerMetricConfigTest {
         assertThat(config.getUnit()).isEmpty();
         assertThat(config.getFormat()).isEqualTo(DEFAULT_FORMAT);
         assertThat(config.getHalfLife()).isEqualTo(DEFAULT_HALF_LIFE);
-        assertThat(config.isUseDefaultHalfLife()).isTrue();
     }
 
     @Test
@@ -54,11 +53,9 @@ class SpeedometerMetricConfigTest {
 
     @Test
     void testSetters() {
-        // given
-        final SpeedometerMetric.Config config = new SpeedometerMetric.Config(CATEGORY, NAME);
-
         // when
-        final SpeedometerMetric.Config result = config.withDescription(DESCRIPTION)
+        final SpeedometerMetric.Config config = new SpeedometerMetric.Config(CATEGORY, NAME)
+                .withDescription(DESCRIPTION)
                 .withUnit(UNIT)
                 .withFormat(FORMAT)
                 .withHalfLife(Math.PI);
@@ -66,19 +63,10 @@ class SpeedometerMetricConfigTest {
         // then
         assertThat(config.getCategory()).isEqualTo(CATEGORY);
         assertThat(config.getName()).isEqualTo(NAME);
-        assertThat(config.getDescription()).isEqualTo(NAME);
-        assertThat(config.getUnit()).isEmpty();
-        assertThat(config.getFormat()).isEqualTo(DEFAULT_FORMAT);
-        assertThat(config.getHalfLife()).isEqualTo(DEFAULT_HALF_LIFE);
-        assertThat(config.isUseDefaultHalfLife()).isTrue();
-
-        assertThat(result.getCategory()).isEqualTo(CATEGORY);
-        assertThat(result.getName()).isEqualTo(NAME);
-        assertThat(result.getDescription()).isEqualTo(DESCRIPTION);
-        assertThat(result.getUnit()).isEqualTo(UNIT);
-        assertThat(result.getFormat()).isEqualTo(FORMAT);
-        assertThat(result.getHalfLife()).isEqualTo(Math.PI, within(EPSILON));
-        assertThat(result.isUseDefaultHalfLife()).isFalse();
+        assertThat(config.getDescription()).isEqualTo(DESCRIPTION);
+        assertThat(config.getUnit()).isEqualTo(UNIT);
+        assertThat(config.getFormat()).isEqualTo(FORMAT);
+        assertThat(config.getHalfLife()).isEqualTo(Math.PI, within(EPSILON));
     }
 
     @Test

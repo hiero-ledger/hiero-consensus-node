@@ -105,14 +105,20 @@ public abstract class AbstractMetric implements SnapshotableMetric {
      * {@inheritDoc}
      */
     @Override
-    public String toString() {
+    public final String toString() {
+        return selfToString().toString();
+    }
+
+    /**
+     * @return a {@link ToStringBuilder} for this metric
+     */
+    protected ToStringBuilder selfToString() {
         return new ToStringBuilder(this)
                 .append("category", category)
                 .append("name", name)
                 .append("description", description)
                 .append("unit", unit)
                 .append("format", format)
-                .append("dataType", getDataType())
-                .toString();
+                .append("dataType", getDataType());
     }
 }

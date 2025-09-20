@@ -83,10 +83,10 @@ class StatEntryConfigTest {
         final Consumer<Double> reset = mock(Consumer.class);
         final Supplier<Object> getter = mock(Supplier.class);
         final Supplier<Object> getAndReset = mock(Supplier.class);
-        final StatEntry.Config config = new StatEntry.Config(CATEGORY, NAME, Object.class, getter);
 
         // when
-        final StatEntry.Config result = config.withDescription(DESCRIPTION)
+        final StatEntry.Config<Object> config = new StatEntry.Config<>(CATEGORY, NAME, Object.class, getter)
+                .withDescription(DESCRIPTION)
                 .withUnit(UNIT)
                 .withFormat(FORMAT)
                 .withBuffered(buffered)
@@ -94,30 +94,17 @@ class StatEntryConfigTest {
                 .withReset(reset)
                 .withResetStatsStringSupplier(getAndReset);
 
-        // then
         assertThat(config.getCategory()).isEqualTo(CATEGORY);
         assertThat(config.getName()).isEqualTo(NAME);
-        assertThat(config.getDescription()).isEqualTo(NAME);
-        assertThat(config.getUnit()).isEmpty();
-        assertThat(config.getFormat()).isEqualTo(DEFAULT_FORMAT);
+        assertThat(config.getDescription()).isEqualTo(DESCRIPTION);
+        assertThat(config.getUnit()).isEqualTo(UNIT);
+        assertThat(config.getFormat()).isEqualTo(FORMAT);
         assertThat(config.getType()).isEqualTo(Object.class);
-        assertThat(config.getBuffered()).isNull();
-        assertThat(config.getInit()).isNull();
-        assertThat(config.getReset()).isNull();
+        assertThat(config.getBuffered()).isEqualTo(buffered);
+        assertThat(config.getInit()).isEqualTo(init);
+        assertThat(config.getReset()).isEqualTo(reset);
         assertThat(config.getStatsStringSupplier()).isEqualTo(getter);
-        assertThat(config.getResetStatsStringSupplier()).isEqualTo(getter);
-
-        assertThat(result.getCategory()).isEqualTo(CATEGORY);
-        assertThat(result.getName()).isEqualTo(NAME);
-        assertThat(result.getDescription()).isEqualTo(DESCRIPTION);
-        assertThat(result.getUnit()).isEqualTo(UNIT);
-        assertThat(result.getFormat()).isEqualTo(FORMAT);
-        assertThat(result.getType()).isEqualTo(Object.class);
-        assertThat(result.getBuffered()).isEqualTo(buffered);
-        assertThat(result.getInit()).isEqualTo(init);
-        assertThat(result.getReset()).isEqualTo(reset);
-        assertThat(result.getStatsStringSupplier()).isEqualTo(getter);
-        assertThat(result.getResetStatsStringSupplier()).isEqualTo(getAndReset);
+        assertThat(config.getResetStatsStringSupplier()).isEqualTo(getAndReset);
     }
 
     @SuppressWarnings("unchecked")
@@ -125,7 +112,7 @@ class StatEntryConfigTest {
     void testSettersWithIllegalParameters() {
         // given
         final Supplier<Object> getter = mock(Supplier.class);
-        final StatEntry.Config config = new StatEntry.Config(CATEGORY, NAME, Object.class, getter);
+        final StatEntry.Config<Object> config = new StatEntry.Config<>(CATEGORY, NAME, Object.class, getter);
         final String longDescription = DESCRIPTION.repeat(50);
 
         // then
@@ -148,7 +135,7 @@ class StatEntryConfigTest {
     void testToString() {
         // given
         final Supplier<Object> getter = mock(Supplier.class);
-        final StatEntry.Config config = new StatEntry.Config(CATEGORY, NAME, Object.class, getter)
+        final StatEntry.Config<Object> config = new StatEntry.Config<>(CATEGORY, NAME, Object.class, getter)
                 .withDescription(DESCRIPTION)
                 .withUnit(UNIT)
                 .withFormat(FORMAT);

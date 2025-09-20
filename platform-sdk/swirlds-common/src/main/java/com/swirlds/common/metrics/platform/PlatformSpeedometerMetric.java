@@ -2,7 +2,6 @@
 package com.swirlds.common.metrics.platform;
 
 import com.swirlds.base.time.Time;
-import com.swirlds.base.utility.ToStringBuilder;
 import com.swirlds.common.metrics.SpeedometerMetric;
 import com.swirlds.common.metrics.statistics.StatsBuffered;
 import com.swirlds.common.metrics.statistics.StatsSpeedometer;
@@ -30,7 +29,7 @@ public class PlatformSpeedometerMetric extends AbstractDistributionMetric implem
     @SuppressWarnings("removal")
     public PlatformSpeedometerMetric(final SpeedometerMetric.Config config, final Time time) {
         super(config, config.getHalfLife());
-        this.speedometer = new StatsSpeedometer(halfLife, time);
+        this.speedometer = new StatsSpeedometer(config.getHalfLife(), time);
     }
 
     /**
@@ -67,17 +66,5 @@ public class PlatformSpeedometerMetric extends AbstractDistributionMetric implem
     @Override
     public double get() {
         return speedometer.getCyclesPerSecond();
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public String toString() {
-        return new ToStringBuilder(this)
-                .appendSuper(super.toString())
-                .append("halfLife", halfLife)
-                .append("value", get())
-                .toString();
     }
 }

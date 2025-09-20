@@ -19,7 +19,7 @@ public class DefaultLongGauge extends AbstractMetric implements LongGauge {
 
     public DefaultLongGauge(@NonNull final Config config) {
         super(config);
-        this.value = new AtomicLong(config.getInitialValue());
+        value = new AtomicLong(config.getInitialValue());
     }
 
     /**
@@ -59,10 +59,7 @@ public class DefaultLongGauge extends AbstractMetric implements LongGauge {
      * {@inheritDoc}
      */
     @Override
-    public String toString() {
-        return new ToStringBuilder(this)
-                .appendSuper(super.toString())
-                .append("value", value.get())
-                .toString();
+    protected ToStringBuilder selfToString() {
+        return super.selfToString().append("value", get());
     }
 }

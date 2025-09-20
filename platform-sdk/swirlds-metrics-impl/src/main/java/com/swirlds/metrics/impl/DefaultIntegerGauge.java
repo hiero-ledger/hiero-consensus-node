@@ -19,7 +19,7 @@ public class DefaultIntegerGauge extends AbstractMetric implements IntegerGauge 
 
     public DefaultIntegerGauge(@NonNull final Config config) {
         super(config);
-        this.value = new AtomicInteger(config.getInitialValue());
+        value = new AtomicInteger(config.getInitialValue());
     }
 
     /**
@@ -59,10 +59,7 @@ public class DefaultIntegerGauge extends AbstractMetric implements IntegerGauge 
      * {@inheritDoc}
      */
     @Override
-    public String toString() {
-        return new ToStringBuilder(this)
-                .appendSuper(super.toString())
-                .append("value", value.get())
-                .toString();
+    protected ToStringBuilder selfToString() {
+        return super.selfToString().append("value", get());
     }
 }
