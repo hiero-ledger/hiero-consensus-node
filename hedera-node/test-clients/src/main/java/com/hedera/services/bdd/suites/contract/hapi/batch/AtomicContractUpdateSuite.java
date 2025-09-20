@@ -25,6 +25,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.CIVILIAN_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PROPS;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
+import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.THREE_MONTHS_IN_SECONDS;
@@ -345,6 +346,7 @@ public class AtomicContractUpdateSuite {
                         .logged()
                         .has(contractWith().memo(INITIAL_MEMO).adminKey(INITIAL_ADMIN_KEY)),
                 atomicBatch(contractUpdate(contract + suffix)
+                                .fee(ONE_HBAR)
                                 .payingWith(payer)
                                 .newKey(NEW_ADMIN_KEY)
                                 .signedBy(payer, INITIAL_ADMIN_KEY)
@@ -353,6 +355,7 @@ public class AtomicContractUpdateSuite {
                         .payingWith(BATCH_OPERATOR)
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
                 atomicBatch(contractUpdate(contract + suffix)
+                                .fee(ONE_HBAR)
                                 .payingWith(payer)
                                 .newKey(NEW_ADMIN_KEY)
                                 .signedBy(payer, NEW_ADMIN_KEY)
