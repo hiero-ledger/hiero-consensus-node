@@ -19,6 +19,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Hash;
@@ -361,7 +362,7 @@ public class TipsetEventCreator implements EventCreator {
      */
     private UnsignedEvent buildAndProcessEvent(@Nullable final PlatformEvent otherParent) {
         final EventDescriptorWrapper otherParentDescriptor = otherParent == null ? null : otherParent.getDescriptor();
-        final UnsignedEvent event = assembleEventObject(otherParentDescriptor);
+        final UnsignedEvent event = assembleEventObject(otherParent);
 
         tipsetTracker.addSelfEvent(event.getDescriptor(), event.getMetadata().getAllParents());
         final TipsetAdvancementWeight advancementWeight =
@@ -384,22 +385,13 @@ public class TipsetEventCreator implements EventCreator {
      * @return the event
      */
     @NonNull
-    private UnsignedEvent assembleEventObject(@Nullable final EventDescriptorWrapper otherParent) {
-        final Instant now = time.now();
-        final Instant timeCreated;
-        if (lastSelfEvent == null) {
-            timeCreated = now;
-        } else {
-            timeCreated = calculateNewEventCreationTime(
-                    now, lastSelfEvent.getTimeCreated(), lastSelfEvent.getTransactionCount());
-        }
-
+    private UnsignedEvent assembleEventObject(@Nullable final PlatformEvent otherParent) {
         final UnsignedEvent event = new UnsignedEvent(
                 selfId,
                 lastSelfEvent == null ? null : lastSelfEvent.getDescriptor(),
-                otherParent == null ? Collections.emptyList() : Collections.singletonList(otherParent),
+                otherParent == null ? Collections.emptyList() : Collections.singletonList(otherParent.getDescriptor()),
                 eventWindow.newEventBirthRound(),
-                timeCreated,
+                calculateNewEventCreationTime(lastSelfEvent, otherParent),
                 transactionSupplier.getTransactionsForEvent(),
                 random.nextLong(0, roster.rosterEntries().size() + 1));
         eventHasher.hashUnsignedEvent(event);
@@ -445,27 +437,30 @@ public class TipsetEventCreator implements EventCreator {
      * Calculate the creation time for a new event.
      * <p>
      * Regardless of whatever the host computer's clock says, the event creation time must always advance from self
-     * parent to child. Further, the time in between the self parent and the child must be large enough so that every
-     * transaction in the parent can be assigned a unique timestamp at nanosecond precision.
+     * parent to child.
      *
-     * @param now                        the current time
-     * @param selfParentCreationTime     the creation time of the self parent
-     * @param selfParentTransactionCount the number of transactions in the self parent
+     * @param selfParent  the self parent
+     * @param otherParent the other parent
      * @return the creation time for the new event
      */
     @NonNull
-    private static Instant calculateNewEventCreationTime(
-            @NonNull final Instant now,
-            @NonNull final Instant selfParentCreationTime,
-            final int selfParentTransactionCount) {
+    private Instant calculateNewEventCreationTime(
+            @Nullable final PlatformEvent selfParent, @Nullable final PlatformEvent otherParent) {
+        // Get the max received time of the parents
+        final Instant maxParentReceivedTime = Stream.of(selfParent, otherParent)
+                .filter(Objects::nonNull)
+                .map(PlatformEvent::getTimeReceived)
+                .max(Instant::compareTo)
+                // if it's a genesis event, just use the current time
+                .orElse(time.now());
 
-        final int minimumIncrement = Math.max(1, selfParentTransactionCount);
-        final Instant minimumNextEventTime = selfParentCreationTime.plusNanos(minimumIncrement);
-        if (now.isBefore(minimumNextEventTime)) {
-            return minimumNextEventTime;
-        } else {
-            return now;
+        // This is a fallback in case the system clock malfunctions for some reason.
+        // We must ensure the new event is after its self parent, otherwise it will be rejected by the network.
+        if (selfParent != null && !maxParentReceivedTime.isAfter(selfParent.getTimeCreated())) {
+            return selfParent.getTimeCreated().plus(Duration.ofNanos(1));
         }
+
+        return maxParentReceivedTime;
     }
 
     /**
