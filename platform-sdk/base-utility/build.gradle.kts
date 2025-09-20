@@ -13,4 +13,5 @@ testModuleInfo {
     requires("org.hiero.base.utility.test.fixtures")
     requires("org.junit.jupiter.api")
     requires("org.junit.jupiter.params")
+    requires("org.assertj.core")
 }
