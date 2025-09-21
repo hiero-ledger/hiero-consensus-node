@@ -20,6 +20,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.MAX_ENTITIES_IN_PRICE_R
 import static com.hedera.hapi.node.base.ResponseCodeEnum.PROXY_ACCOUNT_ID_FIELD_IS_DEPRECATED;
 import static com.hedera.node.app.hapi.fees.usage.SingletonUsageProperties.USAGE_PROPERTIES;
 import static com.hedera.node.app.hapi.fees.usage.crypto.CryptoOpsUsage.CREATE_SLOT_MULTIPLIER;
+import static com.hedera.node.app.hapi.fees.usage.crypto.CryptoOpsUsage.HOUR_TO_SECOND_MULTIPLIER;
 import static com.hedera.node.app.hapi.fees.usage.crypto.entities.CryptoEntitySizes.CRYPTO_ENTITY_SIZES;
 import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.BASIC_ENTITY_ID_SIZE;
 import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.BOOL_SIZE;
@@ -496,7 +497,7 @@ public class CryptoCreateHandler extends BaseCryptoHandler implements Transactio
         // Using SBS here because this part us not used in other calculations. It is a per hour cost
         // so we convert to per second by multiplying by 1/3600. This will be changed with simple fees.
         if (!op.hookCreationDetails().isEmpty()) {
-            fee.addStorageBytesSeconds(op.hookCreationDetails().size() * 3600L);
+            fee.addStorageBytesSeconds(op.hookCreationDetails().size() * HOUR_TO_SECOND_MULTIPLIER);
         }
         if (IMMUTABILITY_SENTINEL_KEY.equals(op.key())) {
             final var lazyCreationFee = feeContext.dispatchComputeFees(UPDATE_TXN_BODY_BUILDER, feeContext.payer());

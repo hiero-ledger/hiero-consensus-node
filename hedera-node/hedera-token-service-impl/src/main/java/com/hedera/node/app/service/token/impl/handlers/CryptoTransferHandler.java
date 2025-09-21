@@ -12,6 +12,7 @@ import static com.hedera.hapi.node.base.SubType.TOKEN_FUNGIBLE_COMMON_WITH_CUSTO
 import static com.hedera.hapi.node.base.SubType.TOKEN_NON_FUNGIBLE_UNIQUE;
 import static com.hedera.hapi.node.base.SubType.TOKEN_NON_FUNGIBLE_UNIQUE_WITH_CUSTOM_FEES;
 import static com.hedera.node.app.hapi.fees.usage.SingletonUsageProperties.USAGE_PROPERTIES;
+import static com.hedera.node.app.hapi.fees.usage.crypto.CryptoOpsUsage.HOUR_TO_SECOND_MULTIPLIER;
 import static com.hedera.node.app.hapi.fees.usage.crypto.CryptoOpsUsage.LONG_ACCOUNT_AMOUNT_BYTES;
 import static com.hedera.node.app.hapi.fees.usage.token.TokenOpsUsage.LONG_BASIC_ENTITY_ID_SIZE;
 import static com.hedera.node.app.hapi.fees.usage.token.entities.TokenEntitySizes.TOKEN_ENTITY_SIZES;
@@ -277,7 +278,7 @@ public class CryptoTransferHandler extends TransferExecutor implements Transacti
                     .feeCalculatorFactory()
                     .feeCalculator(subType)
                     .addVerificationsPerTransaction(Math.max(0, feeContext.numTxnSignatures() - 1))
-                    .addStorageBytesSeconds(3600L)
+                    .addStorageBytesSeconds(HOUR_TO_SECOND_MULTIPLIER)
                     .addGas(hookInfo.totalGasLimitOfHooks())
                     .calculate();
         }

@@ -19,6 +19,6 @@ public enum UsableResource {
     BPR,
     /** Node-specific bandwidth used to serve data from disk, in bytes. */
     SBPR,
-    /** Total value */
+    /** Transferred value. The fee for HBAR transferred by a transaction. */
     TV
 }
