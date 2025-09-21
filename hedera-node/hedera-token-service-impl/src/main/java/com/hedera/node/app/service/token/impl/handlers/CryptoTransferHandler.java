@@ -426,6 +426,6 @@ public class CryptoTransferHandler extends TransferExecutor implements Transacti
      * Summary of hook usage and total gas.
      */
     public record HookInfo(boolean usesHooks, long totalGasLimitOfHooks) {
-        static final HookInfo NO_HOOKS = new HookInfo(false, 0L);
+        public static final HookInfo NO_HOOKS = new HookInfo(false, 0L);
     }
 }
