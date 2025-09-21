@@ -869,7 +869,7 @@ enum SubType {
     SUBMIT_MESSAGE_WITH_CUSTOM_FEES = 7;
 
     /**
-     * The resource cost for the transaction type includes a CryptoTransfer with hook invocations
+     * The resource cost for the transaction type that includes a CryptoTransfer with hook invocations
      */
     CRYPTO_TRANSFER_WITH_HOOKS = 8;
 }
