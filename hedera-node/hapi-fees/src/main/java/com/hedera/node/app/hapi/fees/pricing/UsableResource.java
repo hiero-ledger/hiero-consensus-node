@@ -18,5 +18,5 @@ public enum UsableResource {
     /** Node-specific bandwidth used to serve data from memory, in bytes. */
     BPR,
     /** Node-specific bandwidth used to serve data from disk, in bytes. */
-    SBPR
+    SBPR,
 }

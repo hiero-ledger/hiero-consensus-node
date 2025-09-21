@@ -160,10 +160,6 @@ public class UsageAccumulator {
         networkRbs += amount;
     }
 
-    public void addTv(final long amount) {
-        tv += amount;
-    }
-
     /* Provider-scoped usage estimates (pure functions of the total resource usage) */
     /* -- NETWORK & NODE -- */
     public long getUniversalBpt() {
