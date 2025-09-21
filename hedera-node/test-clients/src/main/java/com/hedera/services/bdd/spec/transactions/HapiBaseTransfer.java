@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.transactions;
 
+import static com.hedera.node.app.hapi.utils.CommonUtils.clampedAdd;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.suFrom;
 import static java.util.stream.Collectors.groupingBy;
 import static java.util.stream.Collectors.mapping;
 import static java.util.stream.Collectors.toList;
-import static org.hyperledger.besu.evm.internal.Words.clampedAdd;
 
 import com.google.protobuf.ByteString;
 import com.google.protobuf.UInt32Value;
