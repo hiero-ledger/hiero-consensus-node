@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.hapi.fees.usage.state;
 
-import static com.hedera.hapi.node.base.schema.FeeComponentsSchema.TV;
 import static com.hedera.node.app.hapi.fees.usage.SingletonEstimatorUtils.ESTIMATOR_UTILS;
 import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.BASIC_ACCOUNT_AMT_SIZE;
 import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.BASIC_RECEIPT_SIZE;
@@ -244,8 +243,6 @@ public class UsageAccumulator {
                         return getServiceSbh();
                     case CONSTANT:
                         return 1L;
-                    case TV:
-                        return getServiceTv();
                     default:
                         return 0L;
                 }
