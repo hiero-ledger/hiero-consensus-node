@@ -50,9 +50,10 @@ public class CryptoOpsUsage {
             final CryptoTransferMeta xferMeta,
             final BaseTransactionMeta baseMeta,
             final UsageAccumulator accumulator,
-            final long hookGasLimit) {
+            final long hookGasLimit,
+            final boolean usesHooks) {
         accumulator.resetForTransaction(baseMeta, sigUsage);
-        if (hookGasLimit > 0) {
+        if (usesHooks) {
             accumulator.addGas(hookGasLimit);
             accumulator.addSbs(3600L);
             accumulator.addVpt(Math.max(0, sigUsage.numSigs() - 1));

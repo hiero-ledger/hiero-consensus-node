@@ -14,22 +14,19 @@ public class CryptoTransferMeta {
     private int customFeeHbarTransfers;
     private int customFeeTokenTransfers;
     private int numHookInvocations;
-    private long hookGasLimit;
+    private boolean usesHooks;
 
     public CryptoTransferMeta(
-            int tokenMultiplier, int numTokensInvolved, int numFungibleTokenTransfers, int numNftOwnershipChanges) {
+            int tokenMultiplier,
+            int numTokensInvolved,
+            int numFungibleTokenTransfers,
+            int numNftOwnershipChanges,
+            final boolean usesHooks) {
         this.tokenMultiplier = tokenMultiplier;
         this.numTokensInvolved = numTokensInvolved;
         this.numFungibleTokenTransfers = numFungibleTokenTransfers;
         this.numNftOwnershipChanges = numNftOwnershipChanges;
-    }
-
-    public long getHookGasLimit() {
-        return hookGasLimit;
-    }
-
-    public void setHookGasLimit(long hookGasLimit) {
-        this.hookGasLimit = hookGasLimit;
+        this.usesHooks = usesHooks;
     }
 
     public int getTokenMultiplier() {
@@ -85,7 +82,7 @@ public class CryptoTransferMeta {
     }
 
     public SubType getSubType() {
-        if (hookGasLimit > 0) {
+        if (usesHooks) {
             return SubType.CRYPTO_TRANSFER_WITH_HOOKS;
         }
         if (numNftOwnershipChanges != 0) {
