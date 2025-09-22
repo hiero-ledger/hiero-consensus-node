@@ -408,22 +408,6 @@ jobs:
           external_id: ${{ github.run_id }}
           external_url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
-      - name: Create Rootly Incident
-        uses: pandaswhocode/rootly-incident-action@4327542435bb4c8c48f15fba47efb87a28f8533f # v2.0.1
-        continue-on-error: true # continue on error so we can get the slack reporting
-        with:
-          api_key: ${{ secrets.ROOTLY_API_TOKEN }}
-          title: "${{ steps.rootly-summary.outputs.title }}"
-          kind: "normal"
-          create_public_incident: "false"
-          summary: "${{ steps.rootly-summary.outputs.summary }}"
-          severity: "Triage Event"
-          alert_ids: ${{ steps.create-rootly-alert.outputs.alert_id || '' }}
-          environments: "CITR"
-          incident_types: "Platform CI"
-          services: ${{ steps.set-rootly-service.outputs.service }}
-          teams: "Platform CI,Performance Engineering"
-
       - name: Build Slack Payload Message
         id: payload
         run: |

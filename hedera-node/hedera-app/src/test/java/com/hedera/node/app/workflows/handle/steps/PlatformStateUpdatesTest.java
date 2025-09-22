@@ -7,15 +7,17 @@ import static com.hedera.hapi.node.freeze.FreezeType.PREPARE_UPGRADE;
 import static com.hedera.hapi.node.freeze.FreezeType.TELEMETRY_UPGRADE;
 import static com.hedera.hapi.node.freeze.FreezeType.UNKNOWN_FREEZE_TYPE;
 import static com.hedera.node.app.fixtures.AppTestBase.DEFAULT_CONFIG;
-import static com.hedera.node.app.ids.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_KEY;
-import static com.hedera.node.app.ids.schemas.V0590EntityIdSchema.ENTITY_COUNTS_KEY;
-import static com.hedera.node.app.roster.schemas.V0540RosterSchema.ROSTER_KEY;
-import static com.hedera.node.app.roster.schemas.V0540RosterSchema.ROSTER_STATES_KEY;
-import static com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema.NODES_KEY;
-import static com.hedera.node.app.service.networkadmin.impl.schemas.V0490FreezeSchema.FREEZE_TIME_KEY;
-import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.STAKING_INFO_KEY;
+import static com.hedera.node.app.ids.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_ID;
+import static com.hedera.node.app.ids.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
+import static com.hedera.node.app.ids.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_LABEL;
+import static com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema.NODES_STATE_ID;
+import static com.hedera.node.app.service.networkadmin.impl.schemas.V0490FreezeSchema.FREEZE_TIME_STATE_ID;
+import static com.hedera.node.app.service.networkadmin.impl.schemas.V0490FreezeSchema.FREEZE_TIME_STATE_LABEL;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.STAKING_INFOS_STATE_ID;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
+import static org.hiero.consensus.roster.RosterStateId.ROSTERS_STATE_ID;
+import static org.hiero.consensus.roster.RosterStateId.ROSTER_STATE_STATE_ID;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mock.Strictness.LENIENT;
@@ -69,6 +71,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 public class PlatformStateUpdatesTest implements TransactionFactory {
+
     public static final RosterState ROSTER_STATE = RosterState.newBuilder()
             .roundRosterPairs(List.of(RoundRosterPair.DEFAULT))
             .build();
@@ -97,35 +100,38 @@ public class PlatformStateUpdatesTest implements TransactionFactory {
         entityCountsBackingStore = new AtomicReference<>(
                 EntityCounts.newBuilder().numNodes(3).numStakingInfos(3).build());
 
-        when(writableStates.getSingleton(ENTITY_COUNTS_KEY))
+        when(writableStates.getSingleton(ENTITY_COUNTS_STATE_ID))
                 .then(invocation -> new FunctionWritableSingletonState<>(
-                        EntityIdService.NAME,
-                        ENTITY_COUNTS_KEY,
+                        ENTITY_COUNTS_STATE_ID,
+                        ENTITY_COUNTS_STATE_LABEL,
                         entityCountsBackingStore::get,
                         entityCountsBackingStore::set));
 
-        when(writableStates.getSingleton(FREEZE_TIME_KEY))
+        when(writableStates.getSingleton(FREEZE_TIME_STATE_ID))
                 .then(invocation -> new FunctionWritableSingletonState<>(
-                        FreezeService.NAME, FREEZE_TIME_KEY, freezeTimeBackingStore::get, freezeTimeBackingStore::set));
+                        FREEZE_TIME_STATE_ID,
+                        FREEZE_TIME_STATE_LABEL,
+                        freezeTimeBackingStore::get,
+                        freezeTimeBackingStore::set));
 
         state = new FakeState()
-                .addService(FreezeService.NAME, Map.of(FREEZE_TIME_KEY, freezeTimeBackingStore))
+                .addService(FreezeService.NAME, Map.of(FREEZE_TIME_STATE_ID, freezeTimeBackingStore))
                 .addService(
                         RosterService.NAME,
                         Map.of(
-                                ROSTER_STATES_KEY, rosterStateBackingStore,
-                                ROSTER_KEY, rosters))
-                .addService(AddressBookService.NAME, Map.of(NODES_KEY, nodes))
+                                ROSTER_STATE_STATE_ID, rosterStateBackingStore,
+                                ROSTERS_STATE_ID, rosters))
+                .addService(AddressBookService.NAME, Map.of(NODES_STATE_ID, nodes))
                 .addService(
                         PlatformStateService.NAME,
-                        Map.of(V0540PlatformStateSchema.PLATFORM_STATE_KEY, platformStateBackingStore))
-                .addService(TokenService.NAME, Map.of(STAKING_INFO_KEY, stakingInfo))
+                        Map.of(V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID, platformStateBackingStore))
+                .addService(TokenService.NAME, Map.of(STAKING_INFOS_STATE_ID, stakingInfo))
                 .addService(
                         EntityIdService.NAME,
                         Map.of(
-                                ENTITY_ID_STATE_KEY,
+                                ENTITY_ID_STATE_ID,
                                 new AtomicReference<>(EntityNumber.newBuilder().build()),
-                                ENTITY_COUNTS_KEY,
+                                ENTITY_COUNTS_STATE_ID,
                                 entityCountsBackingStore));
 
         subject = new PlatformStateUpdates(rosterExportHelper);
@@ -342,11 +348,11 @@ public class PlatformStateUpdatesTest implements TransactionFactory {
 
         subject.handleTxBody(state, txBody.build(), configWith(true, false));
         final var candidateRosterHash = state.getWritableStates(RosterService.NAME)
-                .<RosterState>getSingleton("ROSTER_STATE")
+                .<RosterState>getSingleton(ROSTER_STATE_STATE_ID)
                 .get()
                 .candidateRosterHash();
         final var candidateRoster = state.getWritableStates(RosterService.NAME)
-                .<ProtoBytes, Roster>get("ROSTERS")
+                .<ProtoBytes, Roster>get(ROSTERS_STATE_ID)
                 .get(new ProtoBytes(candidateRosterHash));
         assertEquals(candidateRoster.rosterEntries().size(), 3);
         // Updates the stake value for node 0 as weight in the candidate roster

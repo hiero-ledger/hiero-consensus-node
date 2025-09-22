@@ -16,19 +16,20 @@ import java.util.*;
  */
 @SuppressWarnings("rawtypes")
 public class MapReadableStates implements ReadableStates {
-    private final Map<String, ?> states;
 
-    public MapReadableStates(@NonNull final Map<String, ?> states) {
+    private final Map<Integer, ?> states;
+
+    public MapReadableStates(@NonNull final Map<Integer, ?> states) {
         this.states = Objects.requireNonNull(states);
     }
 
     @SuppressWarnings("unchecked")
     @NonNull
     @Override
-    public <K, V> ReadableKVState<K, V> get(@NonNull final String stateKey) {
-        final var state = states.get(Objects.requireNonNull(stateKey));
+    public <K, V> ReadableKVState<K, V> get(final int stateId) {
+        final var state = states.get(stateId);
         if (state == null) {
-            throw new IllegalArgumentException("Unknown k/v state key " + stateKey);
+            throw new IllegalArgumentException("Unknown K/V state ID " + stateId);
         }
 
         return (ReadableKVState<K, V>) state;
@@ -37,10 +38,10 @@ public class MapReadableStates implements ReadableStates {
     @SuppressWarnings("unchecked")
     @NonNull
     @Override
-    public <T> ReadableSingletonState<T> getSingleton(@NonNull final String stateKey) {
-        final var state = states.get(Objects.requireNonNull(stateKey));
+    public <T> ReadableSingletonState<T> getSingleton(final int stateId) {
+        final var state = states.get(stateId);
         if (state == null) {
-            throw new IllegalArgumentException("Unknown singleton state key " + stateKey);
+            throw new IllegalArgumentException("Unknown singleton state ID " + stateId);
         }
 
         return (ReadableSingletonState<T>) state;
@@ -49,23 +50,23 @@ public class MapReadableStates implements ReadableStates {
     @SuppressWarnings("unchecked")
     @NonNull
     @Override
-    public <E> ReadableQueueState<E> getQueue(@NonNull final String stateKey) {
-        final var state = states.get(Objects.requireNonNull(stateKey));
+    public <E> ReadableQueueState<E> getQueue(final int stateId) {
+        final var state = states.get(stateId);
         if (state == null) {
-            throw new IllegalArgumentException("Unknown queue state key " + stateKey);
+            throw new IllegalArgumentException("Unknown queue state ID " + stateId);
         }
 
         return (ReadableQueueState<E>) state;
     }
 
     @Override
-    public boolean contains(@NonNull final String stateKey) {
-        return states.containsKey(stateKey);
+    public boolean contains(final int stateId) {
+        return states.containsKey(stateId);
     }
 
     @NonNull
     @Override
-    public Set<String> stateKeys() {
+    public Set<Integer> stateIds() {
         return Collections.unmodifiableSet(states.keySet());
     }
 
@@ -86,7 +87,8 @@ public class MapReadableStates implements ReadableStates {
 
     /** A convenience builder */
     public static final class Builder {
-        private final Map<String, Object> states = new HashMap<>();
+
+        private final Map<Integer, Object> states = new HashMap<>();
 
         Builder() {}
 
@@ -99,7 +101,7 @@ public class MapReadableStates implements ReadableStates {
          */
         @NonNull
         public Builder state(@NonNull final MapReadableKVState state) {
-            this.states.put(state.getStateKey(), state);
+            this.states.put(state.getStateId(), state);
             return this;
         }
 
@@ -112,7 +114,7 @@ public class MapReadableStates implements ReadableStates {
          */
         @NonNull
         public Builder state(@NonNull final ReadableSingletonState<?> state) {
-            this.states.put(state.getStateKey(), state);
+            this.states.put(state.getStateId(), state);
             return this;
         }
 
@@ -125,7 +127,7 @@ public class MapReadableStates implements ReadableStates {
          */
         @NonNull
         public Builder state(@NonNull final ReadableQueueState<?> state) {
-            this.states.put(state.getStateKey(), state);
+            this.states.put(state.getStateId(), state);
             return this;
         }
 
