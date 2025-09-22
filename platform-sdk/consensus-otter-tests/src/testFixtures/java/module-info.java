@@ -4,6 +4,7 @@ module org.hiero.otter.fixtures {
     requires transitive com.hedera.pbj.runtime;
     requires transitive com.swirlds.common.test.fixtures;
     requires transitive com.swirlds.common;
+    requires transitive com.swirlds.component.framework;
     requires transitive com.swirlds.config.api;
     requires transitive com.swirlds.logging;
     requires transitive com.swirlds.metrics.api;
@@ -23,10 +24,8 @@ module org.hiero.otter.fixtures {
     requires transitive org.junit.jupiter.api;
     requires transitive org.testcontainers;
     requires com.hedera.node.app.hapi.utils;
-    requires com.hedera.node.config;
     requires com.swirlds.base.test.fixtures;
     requires com.swirlds.base;
-    requires com.swirlds.component.framework;
     requires com.swirlds.config.extensions;
     requires com.swirlds.platform.core.test.fixtures;
     requires org.hiero.consensus.utility;
