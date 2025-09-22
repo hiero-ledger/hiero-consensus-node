@@ -25,7 +25,7 @@ import org.hiero.otter.fixtures.result.SynchronizationCompleteNotification;
 @SuppressWarnings({"UnusedReturnValue", "unused"})
 public class MultipleNodeReconnectResultsContinuousAssert
         extends AbstractMultipleNodeContinuousAssertion<
-        MultipleNodeReconnectResultsContinuousAssert, MultipleNodeReconnectResults> {
+                MultipleNodeReconnectResultsContinuousAssert, MultipleNodeReconnectResults> {
 
     /**
      * Creates a continuous assertion for the given {@link MultipleNodeReconnectResults}.
