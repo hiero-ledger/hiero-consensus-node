@@ -196,7 +196,7 @@ public class ThrottleAccumulator {
                 return true;
             }
         } catch (PreCheckException e) {
-            return  true;
+            return true;
         }
 
         return false;
@@ -420,7 +420,8 @@ public class ThrottleAccumulator {
             @NonNull final TransactionInfo txnInfo,
             @NonNull final Instant now,
             @NonNull final State state,
-            List<ThrottleUsage> throttleUsages) throws PreCheckException {
+            List<ThrottleUsage> throttleUsages)
+            throws PreCheckException {
         try {
             final var function = txnInfo.functionality();
             final var configuration = configSupplier.get();
