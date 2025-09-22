@@ -102,21 +102,20 @@ public class RedactingBlockStreamValidator implements BlockStreamValidator {
         logger.info("Processing {} blocks for transaction redaction", blocks.size());
 
         try {
-            verifyBlocks(blocks);
 
             // Step 1: Redact transactions in all blocks
-//            final List<Block> redactedBlocks = redactBlocks(blocks);
-//
-//            // Step 2: Write redacted blocks to disk
-//            final List<Path> writtenFiles = writeBlocksToDisk(redactedBlocks);
-//
-//            // Step 3: Read blocks back from disk to verify serialization/deserialization
-//            final List<Block> reloadedBlocks = readBlocksFromDisk(writtenFiles);
-//
-//            // Step 4: Verify that the redacted blocks maintain structural integrity
-//            verifyRedactedBlocks(reloadedBlocks, blocks.size(), true);
-//
-//            logger.info("Successfully processed and verified {} redacted blocks", reloadedBlocks.size());
+            final List<Block> redactedBlocks = redactBlocks(blocks);
+
+            // Step 2: Write redacted blocks to disk
+            final List<Path> writtenFiles = writeBlocksToDisk(redactedBlocks);
+
+            // Step 3: Read blocks back from disk to verify serialization/deserialization
+            final List<Block> reloadedBlocks = readBlocksFromDisk(writtenFiles);
+
+            // Step 4: Verify that the redacted blocks maintain structural integrity
+            verifyRedactedBlocks(reloadedBlocks, blocks.size(), true);
+
+            logger.info("Successfully processed and verified {} redacted blocks", reloadedBlocks.size());
 
         } catch (final IOException e) {
             logger.error("Failed to process blocks for redaction", e);
@@ -188,6 +187,7 @@ public class RedactingBlockStreamValidator implements BlockStreamValidator {
     private boolean hasSignedTransaction(@NonNull final BlockItem item) {
         // Check if this is a signed_transaction item (field 4 in the protobuf)
         final var itemKind = item.item().kind();
+        item.item().as();
         return itemKind == BlockItem.ItemOneOfType.SIGNED_TRANSACTION;
     }
 
@@ -347,7 +347,7 @@ public class RedactingBlockStreamValidator implements BlockStreamValidator {
      * @param blocks the blocks containing event data
      * @return list of reconstructed GossipEvent objects in consensus/topological order
      */
-    private List<PlatformEvent> reconstructEventsFromBlocks(@NonNull final List<Block> blocks, final boolean isRedacted)
+    private List<PlatformEvent> reconstructEventsFromBlocks(@NonNull final List<Block> blocks)
             throws IOException {
         final Map<Integer, PlatformEvent> eventIndexToEvent = new HashMap<>(); // Track event hashes by index
 
@@ -367,7 +367,7 @@ public class RedactingBlockStreamValidator implements BlockStreamValidator {
                         // If we have a previous event, complete it
                         if (currentEventHeader != null) {
                             final PlatformEvent platformEvent = createEventFromData(
-                                    currentEventHeader, currentTransactions, eventIndexToEvent, isRedacted);
+                                    currentEventHeader, currentTransactions, eventIndexToEvent);
                             allEvents.add(platformEvent);
 
                             // Calculate and store the event hash for future parent references
@@ -425,7 +425,7 @@ public class RedactingBlockStreamValidator implements BlockStreamValidator {
     private PlatformEvent createEventFromData(
             @NonNull final EventHeader eventHeader,
             @NonNull final List<Bytes> transactions,
-            @NonNull final Map<Integer, PlatformEvent> eventIndexToEvent, final boolean isRedacted) throws IOException {
+            @NonNull final Map<Integer, PlatformEvent> eventIndexToEvent) throws IOException {
 
         final EventCore eventCore = eventHeader.eventCore();
         if (eventCore == null) {
