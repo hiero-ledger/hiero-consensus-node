@@ -120,14 +120,18 @@ public class EventBuilder {
         currentTransactions.clear();
     }
 
-    private void signedTransaction(final Bytes transactionBytes) throws ParseException {
+    private void signedTransaction(final Bytes transactionBytes) {
         if (currentEventHeader == null) {
             fail("Unexpected transaction item without an active event header!");
         }
         if (isTransactionInEvent(transactionBytes)) {
             currentTransactions.add(transactionBytes);
         } else {
-            discardedTransactions.add(SignedTransaction.PROTOBUF.parse(transactionBytes));
+            try {
+                discardedTransactions.add(SignedTransaction.PROTOBUF.parse(transactionBytes));
+            } catch (final ParseException e) {
+                throw new RuntimeException("Unable to parse transaction bytes", e);
+            }
         }
     }
 
