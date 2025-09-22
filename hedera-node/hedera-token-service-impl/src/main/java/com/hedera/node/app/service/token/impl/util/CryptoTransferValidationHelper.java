@@ -34,6 +34,11 @@ public class CryptoTransferValidationHelper {
             final PreHandleContext meta,
             final ReadableAccountStore accountStore)
             throws PreCheckException {
+        final var hasSenderHook = nftTransfer.hasPreTxSenderAllowanceHook() || nftTransfer.hasPrePostTxSenderAllowanceHook();
+        if (hasSenderHook) {
+            // If there is a sender hook, we skip the sender checks, as the hook will handle them.
+            return;
+        }
 
         // Lookup the sender account and verify it.
         final var senderAccount = accountStore.getAliasedAccountById(senderId);
@@ -66,6 +71,7 @@ public class CryptoTransferValidationHelper {
             final ReadableAccountStore accountStore,
             final TransferExecutor.OptionalKeyCheck receiverKeyCheck)
             throws PreCheckException {
+        final var hasReceiverHook = nftTransfer.hasPreTxReceiverAllowanceHook() || nftTransfer.hasPrePostTxReceiverAllowanceHook();
 
         // Lookup the receiver account and verify it.
         final var receiverAccount = accountStore.getAliasedAccountById(receiverId);
@@ -85,7 +91,7 @@ public class CryptoTransferValidationHelper {
             // NOTE: should change to ACCOUNT_IS_IMMUTABLE after modularization
             throw new PreCheckException(INVALID_ACCOUNT_ID);
         } else if (receiverAccount.receiverSigRequired()) {
-            if (receiverKeyCheck == RECEIVER_KEY_IS_OPTIONAL) {
+            if (receiverKeyCheck == RECEIVER_KEY_IS_OPTIONAL || hasReceiverHook) {
                 meta.optionalKey(receiverKey);
             } else {
                 // If receiverSigRequired is set, and if there is no key on the receiver's account, then fail with

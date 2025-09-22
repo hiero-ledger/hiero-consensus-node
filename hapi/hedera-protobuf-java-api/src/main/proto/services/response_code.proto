@@ -1873,4 +1873,9 @@ enum ResponseCodeEnum {
      * The hook deletion requires the hook to have zero storage slots.
      */
     HOOK_DELETION_REQUIRES_ZERO_STORAGE_SLOTS = 519;
+
+    /**
+     * Cannot set both hook execution and approval on a transfer transaction.
+     */
+    CANNOT_SET_HOOKS_AND_APPROVAL = 520;
 }

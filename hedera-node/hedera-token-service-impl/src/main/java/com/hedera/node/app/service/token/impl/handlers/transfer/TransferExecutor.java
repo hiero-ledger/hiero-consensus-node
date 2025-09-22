@@ -24,6 +24,7 @@ import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.ReadableTokenStore;
 import com.hedera.node.app.service.token.impl.handlers.BaseTokenHandler;
+import com.hedera.node.app.service.token.impl.handlers.transfer.hooks.HookCallFactory;
 import com.hedera.node.app.service.token.impl.validators.CryptoTransferValidator;
 import com.hedera.node.app.service.token.records.CryptoTransferStreamBuilder;
 import com.hedera.node.app.spi.workflows.HandleContext;
@@ -45,14 +46,17 @@ import javax.inject.Singleton;
 @Singleton
 public class TransferExecutor extends BaseTokenHandler {
     private final CryptoTransferValidator validator;
+    private final HookCallFactory hookCallFactory;
 
     /**
      * Default constructor for injection.
      */
     @Inject
-    public TransferExecutor(final CryptoTransferValidator validator) {
+    public TransferExecutor(final CryptoTransferValidator validator,
+                            final HookCallFactory hookCallFactory) {
         // For Dagger injection
         this.validator = validator;
+        this.hookCallFactory = hookCallFactory;
     }
 
     /**
@@ -298,6 +302,10 @@ public class TransferExecutor extends BaseTokenHandler {
             txns = customFeeStep.assessCustomFees(transferContext);
         }
 
+        // Extract the HookCalls from the transaction bodies after custom fee assessment
+        final var hookCalls = hookCallFactory.extractHookCalls(txns);
+        dispatchHookCalls(hookCalls, transferContext);
+
         // The below steps should be doe for both custom fee assessed transaction in addition to
         // original transaction
         for (final var txn : txns) {
@@ -371,12 +379,13 @@ public class TransferExecutor extends BaseTokenHandler {
                     throw new PreCheckException(INVALID_ACCOUNT_ID);
                 }
 
+                final var usesHook = accountAmount.hasPreTxAllowanceHook() || accountAmount.hasPrePostTxAllowanceHook();
                 // We only need signing keys for accounts that are being debited OR those being credited
                 // but with receiverSigRequired set to true. If the account is being debited but "isApproval"
                 // is set on the transaction, then we defer to the token transfer logic to determine if all
                 // signing requirements were met ("isApproval" is a way for the client to say "I don't need a key
                 // because I'm approved which you will see when you handle this transaction").
-                if (isDebit && !accountAmount.isApproval()) {
+                if (isDebit && !(accountAmount.isApproval() || usesHook)) {
                     // If the account is a hollow account, then we require a signature for it.
                     // It is possible that the hollow account has signed this transaction, in which case
                     // we need to finalize the hollow account by setting its key.
@@ -390,7 +399,8 @@ public class TransferExecutor extends BaseTokenHandler {
                     // Add receiver key as an optional key to sign for airdrops.
                     // If the receiver has not signed, we don't fail the transaction. Instead, it becomes a
                     // pending airdrops
-                    if (receiverKeyCheck == RECEIVER_KEY_IS_OPTIONAL) {
+                    // if receiver has hook, key is optional
+                    if (receiverKeyCheck == RECEIVER_KEY_IS_OPTIONAL || usesHook) {
                         ctx.optionalKey(account.keyOrThrow());
                     } else {
                         ctx.requireKeyOrThrow(account.key(), INVALID_TRANSFER_ACCOUNT_ID);
@@ -428,6 +438,7 @@ public class TransferExecutor extends BaseTokenHandler {
 
             final var receiverId = nftTransfer.receiverAccountIDOrElse(AccountID.DEFAULT);
             validateAccountID(receiverId, null);
+
             checkReceiver(receiverId, senderId, nftTransfer, meta, tokenMeta, op, accountStore, receiverKeyCheck);
         }
     }
