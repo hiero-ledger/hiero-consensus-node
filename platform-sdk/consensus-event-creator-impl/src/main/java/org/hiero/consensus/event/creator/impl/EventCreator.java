@@ -36,7 +36,7 @@ public interface EventCreator {
     PlatformEvent maybeCreateEvent();
 
     /**
-     * @see org.hiero.consensus.event.creator.EventCreatorModule#setQuiescenceStatus(QuiescenceStatus) 
+     * @see org.hiero.consensus.event.creator.EventCreatorModule#setQuiescenceStatus(QuiescenceStatus)
      */
     void setQuiescenceStatus(@NonNull QuiescenceStatus quiescenceStatus);
 

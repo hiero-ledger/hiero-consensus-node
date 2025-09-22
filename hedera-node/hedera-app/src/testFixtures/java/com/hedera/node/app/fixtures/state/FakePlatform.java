@@ -110,9 +110,7 @@ public final class FakePlatform implements Platform {
     }
 
     @Override
-    public void setQuiescenceStatus(@NotNull final QuiescenceStatus quiescenceStatus) {
-
-    }
+    public void setQuiescenceStatus(@NotNull final QuiescenceStatus quiescenceStatus) {}
 
     @Override
     public Roster getRoster() {

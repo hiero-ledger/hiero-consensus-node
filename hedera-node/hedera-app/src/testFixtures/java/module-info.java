@@ -30,7 +30,7 @@ open module com.hedera.node.app.test.fixtures {
     requires org.hiero.consensus.utility;
     requires org.apache.logging.log4j;
     requires org.assertj.core;
+    requires org.jetbrains.annotations;
     requires org.junit.jupiter.api;
     requires static transitive com.github.spotbugs.annotations;
-    requires org.jetbrains.annotations;
 }
