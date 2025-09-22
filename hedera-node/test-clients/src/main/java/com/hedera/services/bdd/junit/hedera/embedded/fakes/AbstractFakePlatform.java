@@ -17,6 +17,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import org.hiero.base.crypto.Signature;
 import org.hiero.base.crypto.SignatureType;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.quiescence.QuiescenceStatus;
 
 public abstract class AbstractFakePlatform implements Platform {
     private static final Signature TOY_SIGNATURE = new Signature(SignatureType.RSA, new byte[384]);
@@ -62,6 +63,11 @@ public abstract class AbstractFakePlatform implements Platform {
     @Override
     public Signature sign(@NonNull final byte[] data) {
         return TOY_SIGNATURE;
+    }
+
+    @Override
+    public void setQuiescenceStatus(@NonNull final QuiescenceStatus quiescenceStatus) {
+
     }
 
     @NonNull
