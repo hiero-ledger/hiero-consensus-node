@@ -23,6 +23,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.crypto.PbjStreamHasher;
 import org.hiero.consensus.model.event.PlatformEvent;
@@ -30,7 +32,8 @@ import org.hiero.consensus.model.event.PlatformEvent;
 /**
  * A helper class for reconstructing events from the block stream.
  */
-public class EventBuilder {
+public class BlockStreamEventBuilder {
+    private static final Logger logger = LogManager.getLogger(BlockStreamEventBuilder.class);
 
     /** The blocks to read events from. */
     private final List<Block> blocks;
@@ -55,6 +58,7 @@ public class EventBuilder {
     /** The set of parent hashes that reference events in another block. Useful for verifying calculated hash integrity. */
     private final Set<Hash> crossBlockParentHashes = new HashSet<>();
 
+    private int eventNum = 0;
     private final List<TransactionBody> discardedTransactions = new ArrayList<>();
 
     /**
@@ -62,7 +66,7 @@ public class EventBuilder {
      *
      * @param blocks the blocks to read events from
      */
-    public EventBuilder(@NonNull final List<Block> blocks) {
+    public BlockStreamEventBuilder(@NonNull final List<Block> blocks) {
         this.blocks = requireNonNull(blocks);
     }
 
@@ -105,13 +109,7 @@ public class EventBuilder {
 
     private void eventHeader(final EventHeader eventHeader) {
         if (currentEventHeader != null) {
-            final PlatformEvent platformEvent =
-                    createEventFromData(currentEventHeader, currentTransactions, eventIndexToEvent);
-            events.add(platformEvent);
-            eventHashtoEvent.put(platformEvent.getHash(), platformEvent);
-
-            // Calculate and store the event hash for future parent references
-            eventIndexToEvent.put(eventIndexWithinBlock, platformEvent);
+            completeEvent();
             eventIndexWithinBlock++;
         }
 
@@ -155,13 +153,18 @@ public class EventBuilder {
 
     private void endOfBlock() {
         if (currentEventHeader != null) {
-            final PlatformEvent platformEvent =
-                    createEventFromData(currentEventHeader, currentTransactions, eventIndexToEvent);
-            eventIndexToEvent.put(eventIndexWithinBlock, platformEvent);
-            eventHashtoEvent.put(platformEvent.getHash(), platformEvent);
-            events.add(platformEvent);
-            currentEventHeader = null;
+            completeEvent();
         }
+    }
+
+    private void completeEvent() {
+        final PlatformEvent platformEvent =
+                createEventFromData(currentEventHeader, currentTransactions, eventIndexToEvent);
+        eventIndexToEvent.put(eventIndexWithinBlock, platformEvent);
+        eventHashtoEvent.put(platformEvent.getHash(), platformEvent);
+        events.add(platformEvent);
+        logger.info("Reconstructed event #{} with {} transactions", eventNum++, currentTransactions.size());
+        currentEventHeader = null;
     }
 
     /**

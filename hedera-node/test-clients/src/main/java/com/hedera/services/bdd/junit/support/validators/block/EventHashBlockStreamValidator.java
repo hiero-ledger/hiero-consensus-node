@@ -43,7 +43,7 @@ public class EventHashBlockStreamValidator implements BlockStreamValidator {
     public void validateBlocks(@NonNull final List<Block> blocks) {
         logger.info("Processing {} blocks for event chain verification", blocks.size());
 
-        final EventBuilder eventBuilder = new EventBuilder(blocks);
+        final BlockStreamEventBuilder eventBuilder = new BlockStreamEventBuilder(blocks);
 
         validateEventHashChain(eventBuilder.getEvents(), eventBuilder.getCrossBlockParentHashes());
 
