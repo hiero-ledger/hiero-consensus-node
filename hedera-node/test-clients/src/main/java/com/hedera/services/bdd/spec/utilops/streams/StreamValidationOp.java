@@ -32,6 +32,7 @@ import com.hedera.services.bdd.junit.support.validators.TransactionBodyValidator
 import com.hedera.services.bdd.junit.support.validators.block.BlockContentsValidator;
 import com.hedera.services.bdd.junit.support.validators.block.BlockNumberSequenceValidator;
 import com.hedera.services.bdd.junit.support.validators.block.EventHashBlockStreamValidator;
+import com.hedera.services.bdd.junit.support.validators.block.RedactingBlockStreamValidator;
 import com.hedera.services.bdd.junit.support.validators.block.StateChangesValidator;
 import com.hedera.services.bdd.junit.support.validators.block.TransactionRecordParityValidator;
 import com.hedera.services.bdd.spec.HapiSpec;
@@ -73,7 +74,8 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
             StateChangesValidator.FACTORY,
             BlockContentsValidator.FACTORY,
             BlockNumberSequenceValidator.FACTORY,
-            EventHashBlockStreamValidator.FACTORY);
+            EventHashBlockStreamValidator.FACTORY,
+            RedactingBlockStreamValidator.FACTORY);
 
     private final int historyProofsToWaitFor;
 
