@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.state.merkle.disk;
 
-import static com.swirlds.state.merkle.StateUtils.computeLabel;
 import static com.swirlds.state.merkle.StateUtils.getStateKeyForKv;
 import static com.swirlds.state.merkle.logging.StateLogger.logMapGet;
 import static com.swirlds.state.merkle.logging.StateLogger.logMapGetSize;
 import static com.swirlds.state.merkle.logging.StateLogger.logMapIterate;
 import static java.util.Objects.requireNonNull;
 
-import com.hedera.hapi.platform.state.StateValue;
 import com.hedera.pbj.runtime.Codec;
-import com.swirlds.state.merkle.StateUtils;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.state.merkle.StateValue;
+import com.swirlds.state.merkle.StateValue.StateValueCodec;
 import com.swirlds.state.spi.ReadableKVState;
 import com.swirlds.state.spi.ReadableKVStateBase;
 import com.swirlds.virtualmap.VirtualMap;
@@ -33,21 +33,26 @@ public final class OnDiskReadableKVState<K, V> extends ReadableKVStateBase<K, V>
     @NonNull
     private final Codec<K> keyCodec;
 
+    @NonNull
+    private final Codec<StateValue<V>> stateValueCodec;
+
     /**
      * Create a new instance
      *
-     * @param serviceName the service name
-     * @param stateKey    the state key
+     * @param stateId     the state ID
+     * @param label       the state label
      * @param keyCodec    the codec for the key
      * @param virtualMap  the backing merkle data structure to use
      */
     public OnDiskReadableKVState(
-            @NonNull final String serviceName,
-            @NonNull final String stateKey,
+            final int stateId,
+            @NonNull final String label,
             @NonNull final Codec<K> keyCodec,
+            @NonNull final Codec<V> valueCodec,
             @NonNull final VirtualMap virtualMap) {
-        super(serviceName, stateKey);
+        super(stateId, requireNonNull(label));
         this.keyCodec = requireNonNull(keyCodec);
+        this.stateValueCodec = new StateValueCodec<>(stateId, requireNonNull(valueCodec));
         this.virtualMap = requireNonNull(virtualMap);
     }
 
@@ -56,10 +61,11 @@ public final class OnDiskReadableKVState<K, V> extends ReadableKVStateBase<K, V>
      */
     @Override
     protected V readFromDataSource(@NonNull K key) {
-        final StateValue stateValue = virtualMap.get(getStateKeyForKv(serviceName, stateKey, key), StateValue.PROTOBUF);
-        final V value = stateValue != null ? stateValue.value().as() : null;
+        final Bytes stateKey = getStateKeyForKv(stateId, key, keyCodec);
+        final StateValue<V> stateValue = virtualMap.get(stateKey, stateValueCodec);
+        final V value = stateValue != null ? stateValue.value() : null;
         // Log to transaction state log, what was read
-        logMapGet(computeLabel(serviceName, stateKey), key, value);
+        logMapGet(label, key, value);
         return value;
     }
 
@@ -68,8 +74,8 @@ public final class OnDiskReadableKVState<K, V> extends ReadableKVStateBase<K, V>
     @Override
     protected Iterator<K> iterateFromDataSource() {
         // Log to transaction state log, what was iterated
-        logMapIterate(computeLabel(serviceName, stateKey), virtualMap, keyCodec);
-        return new OnDiskIterator<>(virtualMap, keyCodec, StateUtils.stateIdFor(serviceName, stateKey));
+        logMapIterate(label, virtualMap, keyCodec);
+        return new OnDiskIterator<>(virtualMap, keyCodec, stateId);
     }
 
     /**
@@ -80,12 +86,13 @@ public final class OnDiskReadableKVState<K, V> extends ReadableKVStateBase<K, V>
     public long size() {
         final var size = virtualMap.size();
         // Log to transaction state log, size of map
-        logMapGetSize(computeLabel(serviceName, stateKey), size);
+        logMapGetSize(label, size);
         return size;
     }
 
     @Override
     public void warm(@NonNull final K key) {
-        virtualMap.warm(getStateKeyForKv(serviceName, stateKey, key));
+        final Bytes stateKey = getStateKeyForKv(stateId, key, keyCodec);
+        virtualMap.warm(stateKey);
     }
 }

@@ -2,14 +2,15 @@
 package com.hedera.node.app.service.contract.impl.state;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOK_NOT_FOUND;
-import static com.hedera.node.app.service.contract.impl.schemas.V065ContractSchema.EVM_HOOK_STATES_KEY;
-import static com.hedera.node.app.service.contract.impl.schemas.V065ContractSchema.LAMBDA_STORAGE_KEY;
+import static com.hedera.node.app.service.contract.impl.schemas.V065ContractSchema.EVM_HOOK_STATES_STATE_ID;
+import static com.hedera.node.app.service.contract.impl.schemas.V065ContractSchema.LAMBDA_STORAGE_STATE_ID;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.HookId;
 import com.hedera.hapi.node.state.contract.SlotValue;
 import com.hedera.hapi.node.state.hooks.EvmHookState;
 import com.hedera.hapi.node.state.hooks.LambdaSlotKey;
+import com.hedera.node.app.service.contract.ReadableEvmHookStore;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.spi.ReadableKVState;
@@ -22,14 +23,14 @@ import java.util.List;
 /**
  * Read-only access to lambda states.
  */
-public class ReadableEvmHookStore {
+public class ReadableEvmHookStoreImpl implements ReadableEvmHookStore {
     private final ReadableKVState<LambdaSlotKey, SlotValue> storage;
     private final ReadableKVState<HookId, EvmHookState> hookStates;
 
-    public ReadableEvmHookStore(@NonNull final ReadableStates states) {
+    public ReadableEvmHookStoreImpl(@NonNull final ReadableStates states) {
         requireNonNull(states);
-        this.storage = states.get(LAMBDA_STORAGE_KEY);
-        this.hookStates = states.get(EVM_HOOK_STATES_KEY);
+        this.storage = states.get(LAMBDA_STORAGE_STATE_ID);
+        this.hookStates = states.get(EVM_HOOK_STATES_STATE_ID);
     }
 
     public record EvmHookView(@NonNull EvmHookState state, @NonNull List<Slot> selectedSlots) {
@@ -67,6 +68,7 @@ public class ReadableEvmHookStore {
      * @param hookId the hook ID
      * @return the EVM hook state, or null if not found
      */
+    @Override
     public @Nullable EvmHookState getEvmHook(@NonNull final HookId hookId) {
         requireNonNull(hookId);
         return hookStates.get(hookId);

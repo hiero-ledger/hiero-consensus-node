@@ -7,7 +7,6 @@ import static com.swirlds.state.StateChangeListener.StateType.SINGLETON;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.node.app.HederaStateRoot;
-import com.hedera.node.app.state.recordcache.RecordCacheService;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.crypto.MerkleCryptography;
@@ -53,8 +52,9 @@ import org.hiero.base.crypto.Hash;
  */
 @ConstructableIgnored
 public class FakeState implements MerkleNodeState {
+
     // Key is Service, value is Map of state name to HashMap or List or Object (depending on state type)
-    private final Map<String, Map<String, Object>> states = new ConcurrentHashMap<>();
+    private final Map<String, Map<Integer, Object>> states = new ConcurrentHashMap<>();
     private final Map<String, ReadableStates> readableStates = new ConcurrentHashMap<>();
     private final Map<String, WritableStates> writableStates = new ConcurrentHashMap<>();
     /**
@@ -67,7 +67,7 @@ public class FakeState implements MerkleNodeState {
      *
      * @return the states
      */
-    public Map<String, Map<String, Object>> getStates() {
+    public Map<String, Map<Integer, Object>> getStates() {
         return states;
     }
 
@@ -79,7 +79,7 @@ public class FakeState implements MerkleNodeState {
     /**
      * Adds to the service with the given name the {@link ReadableKVState} {@code states}
      */
-    public FakeState addService(@NonNull final String serviceName, @NonNull final Map<String, ?> dataSources) {
+    public FakeState addService(@NonNull final String serviceName, @NonNull final Map<Integer, ?> dataSources) {
         final var serviceStates = this.states.computeIfAbsent(serviceName, k -> new ConcurrentHashMap<>());
         dataSources.forEach((k, b) -> {
             if (!serviceStates.containsKey(k)) {
@@ -96,13 +96,12 @@ public class FakeState implements MerkleNodeState {
      * Removes the state with the given key for the service with the given name.
      *
      * @param serviceName the name of the service
-     * @param stateKey    the key of the state
+     * @param stateId     the ID of the state
      */
-    public void removeServiceState(@NonNull final String serviceName, @NonNull final String stateKey) {
+    public void removeServiceState(@NonNull final String serviceName, final int stateId) {
         requireNonNull(serviceName);
-        requireNonNull(stateKey);
         this.states.computeIfPresent(serviceName, (k, v) -> {
-            v.remove(stateKey);
+            v.remove(stateId);
             return v;
         });
         purgeStatesCaches(serviceName);
@@ -117,16 +116,18 @@ public class FakeState implements MerkleNodeState {
             if (serviceStates == null) {
                 return new EmptyReadableStates();
             }
-            final Map<String, Object> states = new ConcurrentHashMap<>();
+            final Map<Integer, Object> states = new ConcurrentHashMap<>();
             for (final var entry : serviceStates.entrySet()) {
-                final var stateName = entry.getKey();
+                final var stateId = entry.getKey();
                 final var state = entry.getValue();
                 if (state instanceof Queue queue) {
-                    states.put(stateName, new ListReadableQueueState(serviceName, stateName, queue));
+                    states.put(stateId, new ListReadableQueueState(stateId, serviceName + "." + stateId, queue));
                 } else if (state instanceof Map map) {
-                    states.put(stateName, new MapReadableKVState(serviceName, stateName, map));
+                    states.put(stateId, new MapReadableKVState(stateId, serviceName + "." + stateId, map));
                 } else if (state instanceof AtomicReference ref) {
-                    states.put(stateName, new FunctionReadableSingletonState(serviceName, stateName, ref::get));
+                    states.put(
+                            stateId,
+                            new FunctionReadableSingletonState(stateId, serviceName + "." + stateId, ref::get));
                 }
             }
             return new MapReadableStates(states);
@@ -142,22 +143,23 @@ public class FakeState implements MerkleNodeState {
             if (serviceStates == null) {
                 return new EmptyWritableStates();
             }
-            final Map<String, Object> data = new ConcurrentHashMap<>();
+            final Map<Integer, Object> data = new ConcurrentHashMap<>();
             for (final var entry : serviceStates.entrySet()) {
-                final var stateName = entry.getKey();
+                final var stateId = entry.getKey();
                 final var state = entry.getValue();
                 if (state instanceof Queue<?> queue) {
                     data.put(
-                            stateName,
+                            stateId,
                             withAnyRegisteredListeners(
-                                    serviceName, new ListWritableQueueState<>(serviceName, stateName, queue)));
+                                    serviceName,
+                                    new ListWritableQueueState<>(stateId, serviceName + "." + stateId, queue)));
                 } else if (state instanceof Map<?, ?> map) {
                     data.put(
-                            stateName,
+                            stateId,
                             withAnyRegisteredListeners(
-                                    serviceName, new MapWritableKVState<>(serviceName, stateName, map)));
+                                    serviceName, new MapWritableKVState<>(stateId, serviceName + "." + stateId, map)));
                 } else if (state instanceof AtomicReference<?> ref) {
-                    data.put(stateName, withAnyRegisteredListeners(serviceName, stateName, ref));
+                    data.put(stateId, withAnyRegisteredListeners(serviceName, stateId, ref));
                 }
             }
             return new MapWritableStates(data, () -> readableStates.remove(serviceName));
@@ -188,11 +190,12 @@ public class FakeState implements MerkleNodeState {
     }
 
     private <V> WritableSingletonStateBase<V> withAnyRegisteredListeners(
-            @NonNull final String serviceName, @NonNull final String stateKey, @NonNull final AtomicReference<V> ref) {
-        final var state = new FunctionWritableSingletonState<>(serviceName, stateKey, ref::get, ref::set);
+            @NonNull final String serviceName, final int stateId, @NonNull final AtomicReference<V> ref) {
+        final var state =
+                new FunctionWritableSingletonState<>(stateId, serviceName + "." + stateId, ref::get, ref::set);
         listeners.forEach(listener -> {
             if (listener.stateTypes().contains(SINGLETON)) {
-                registerSingletonListener(serviceName, state, listener);
+                registerSingletonListener(state, listener);
             }
         });
         return state;
@@ -202,7 +205,7 @@ public class FakeState implements MerkleNodeState {
             @NonNull final String serviceName, @NonNull final MapWritableKVState<K, V> state) {
         listeners.forEach(listener -> {
             if (listener.stateTypes().contains(MAP)) {
-                registerKVListener(serviceName, state, listener);
+                registerKVListener(state, listener);
             }
         });
         return state;
@@ -212,29 +215,21 @@ public class FakeState implements MerkleNodeState {
             @NonNull final String serviceName, @NonNull final ListWritableQueueState<T> state) {
         listeners.forEach(listener -> {
             if (listener.stateTypes().contains(QUEUE)) {
-                registerQueueListener(serviceName, state, listener);
+                registerQueueListener(state, listener);
             }
         });
         return state;
     }
 
     private <V> void registerSingletonListener(
-            @NonNull final String serviceName,
-            @NonNull final WritableSingletonStateBase<V> singletonState,
-            @NonNull final StateChangeListener listener) {
-        final var stateId = listener.stateIdFor(serviceName, singletonState.getStateKey());
+            @NonNull final WritableSingletonStateBase<V> singletonState, @NonNull final StateChangeListener listener) {
+        final var stateId = singletonState.getStateId();
         singletonState.registerListener(value -> listener.singletonUpdateChange(stateId, value));
     }
 
     private <V> void registerQueueListener(
-            @NonNull final String serviceName,
-            @NonNull final WritableQueueStateBase<V> queueState,
-            @NonNull final StateChangeListener listener) {
-        if (serviceName.equals(RecordCacheService.NAME)
-                && queueState.getStateKey().equals("TransactionRecordQueue")) {
-            return;
-        }
-        final var stateId = listener.stateIdFor(serviceName, queueState.getStateKey());
+            @NonNull final WritableQueueStateBase<V> queueState, @NonNull final StateChangeListener listener) {
+        final var stateId = queueState.getStateId();
         queueState.registerListener(new QueueChangeListener<>() {
             @Override
             public void queuePushChange(@NonNull final V value) {
@@ -248,9 +243,8 @@ public class FakeState implements MerkleNodeState {
         });
     }
 
-    private <K, V> void registerKVListener(
-            @NonNull final String serviceName, WritableKVStateBase<K, V> state, StateChangeListener listener) {
-        final var stateId = listener.stateIdFor(serviceName, state.getStateKey());
+    private <K, V> void registerKVListener(WritableKVStateBase<K, V> state, StateChangeListener listener) {
+        final var stateId = state.getStateId();
         state.registerListener(new KVChangeListener<>() {
             @Override
             public void mapUpdateChange(@NonNull final K key, @NonNull final V value) {

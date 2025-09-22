@@ -148,6 +148,11 @@ on:
         description: "The Codecov token used to report code coverage."
         required: false
 
+    outputs:
+      failure-mode:
+        description: "Indicates the failure mode of the job, if any."
+        value: ${{ jobs.compile.outputs.failure-mode }}
+
 defaults:
   run:
     shell: bash
@@ -170,33 +175,41 @@ jobs:
   compile:
     name: ${{ inputs.custom-job-label || 'Compiles' }}
     runs-on: hiero-network-node-linux-large
+    outputs:
+      failure-mode: ${{ steps.calculate-failure-mode.outputs.failure-mode }}
     steps:
       - name: Harden Runner
+        id: harden-runner
         uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
         with:
           egress-policy: audit
 
       - name: Checkout Code
+        id: checkout-code
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           ref: ${{ inputs.ref || '' }}
 
       - name: Expand Shallow Clone for and Spotless
+        id: expand-shallow-clone
         if: ${{ (inputs.enable-unit-tests || inputs.enable-spotless-check) && !cancelled() }}
         run: git fetch --unshallow --no-recurse-submodules
 
       - name: Setup Java
+        id: setup-java
         uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1
         with:
           distribution: ${{ inputs.java-distribution }}
           java-version: ${{ inputs.java-version }}
 
       - name: Setup Gradle
+        id: setup-gradle
         uses: gradle/actions/setup-gradle@ac638b010cf58a27ee6c972d7336334ccaf61c96 # v4.4.1
         with:
           cache-read-only: false
 
       - name: Setup NodeJS
+        id: setup-node
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: ${{ inputs.node-version }}
@@ -206,10 +219,12 @@ jobs:
         run: ${GRADLE_EXEC} assemble :yahcli:assemble
 
       - name: Spotless Check
+        id: spotless-check
         if: ${{ inputs.enable-spotless-check && !cancelled() }}
         run: ${GRADLE_EXEC} spotlessCheck
 
       - name: Gradle Dependency Scopes Check
+        id: check-dependency-scopes
         if: ${{ inputs.enable-dependency-check && steps.gradle-build.conclusion == 'success' && !cancelled() }}
         run: ${GRADLE_EXEC} checkAllModuleInfo validatePomFiles --continue --no-build-cache
 
@@ -752,7 +767,7 @@ jobs:
         run: snyk --version
 
       - name: Snyk Scan
-        id: snyk
+        id: snyk-scan
         env:
           SNYK_TOKEN: ${{ secrets.snyk-token }}
         if: >-
@@ -824,3 +839,62 @@ jobs:
           echo "::group::Snyk Code Contents"
             cat snyk-code.json || true
           echo "::endgroup::"
+
+      - name: Check Results
+        id: calculate-failure-mode
+        if: ${{ always() }}
+        run: |
+          ci_cd_statuses=(
+            "${{ steps.harden-runner.outcome || 'skipped' }}"
+            "${{ steps.checkout-code.outcome || 'skipped' }}"
+            "${{ steps.expand-shallow-clone.outcome || 'skipped' }}"
+            "${{ steps.setup-java.outcome || 'skipped' }}"
+            "${{ steps.setup-gradle.outcome || 'skipped' }}"
+            "${{ steps.setup-node.outcome || 'skipped' }}"
+            "${{ steps.check-dependency-scopes.outcome || 'skipped' }}"
+            "${{ steps.snyk-scan.outcome || 'skipped' }}"
+            "${{ steps.snyk-code.outcome || 'skipped' }}"
+            "${{ steps.spotless-check.outcome || 'skipped' }}"
+          )
+
+          # We can break this down further to set additional failure modes
+          general_statuses=(
+            "${{ steps.gradle-build.outcome || 'skipped' }}"
+            "${{ steps.gradle-test.outcome || 'skipped' }}"
+            "${{ steps.gradle-timing-sensitive.outcome || 'skipped' }}"
+            "${{ steps.gradle-time-consuming.outcome || 'skipped' }}"
+            "${{ steps.gradle-hammer-tests.outcome || 'skipped' }}"
+            "${{ steps.gradle-hapi-misc.outcome || 'skipped' }}"
+            "${{ steps.gradle-hapi-misc-records.outcome || 'skipped' }}"
+            "${{ steps.gradle-hapi-crypto.outcome || 'skipped' }}"
+            "${{ steps.gradle-hapi-token.outcome || 'skipped' }}"
+            "${{ steps.gradle-hapi-smart-contract.outcome || 'skipped' }}"
+            "${{ steps.gradle-hapi-time-consuming.outcome || 'skipped' }}"
+            "${{ steps.gradle-hapi-restart.outcome || 'skipped' }}"
+            "${{ steps.gradle-hapi-iss.outcome || 'skipped' }}"
+            "${{ steps.gradle-hapi-bn-communication.outcome || 'skipped' }}"
+            "${{ steps.gradle-hapi-nd-reconnect.outcome || 'skipped' }}"
+            "${{ steps.gradle-otter-tests.outcome || 'skipped' }}"
+          )
+
+          failure_mode="none"
+
+          has_failure() {
+            local arr=("$@")
+            for status in "${arr[@]}"; do
+              [[ "$status" == "failure" ]] && return 0
+            done
+            return 1
+          }
+
+          # General check first
+          if has_failure "${general_statuses[@]}"; then
+            failure_mode="general"
+          fi
+
+          # If no general failure, check CI/CD specific steps
+          if has_failure "${ci_cd_statuses[@]}"; then
+            failure_mode="workflow"
+          fi
+
+          echo "failure-mode=${failure_mode}" >> "${GITHUB_OUTPUT}"
