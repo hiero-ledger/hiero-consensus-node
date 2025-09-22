@@ -568,7 +568,7 @@ jobs:
           ROOTLY_SERVICE_NAME="CITR General"
           if [[ "${{ needs.fetch-xts-candidate.result }}" =~ ^(cancelled|failure)$ ]] \
             || [[ "${{ needs.tag-for-promotion.result }}" =~ ^(cancelled|failure)$ ]] \
-            || [[ "${{ needs.extended-test-suite.outputs.failure-mode }}" == "workflow"; then
+            || [[ "${{ needs.extended-test-suite.outputs.failure-mode }}" == "workflow" ]]; then
             ROOTLY_SERVICE_NAME="CI/CD Workflows"
           elif [[ "${{ needs.sdk-tck-regression-panel.result }}" =~ ^(cancelled|failure)$ ]]; then
             ROOTLY_SERVICE_NAME="CITR TCK"
