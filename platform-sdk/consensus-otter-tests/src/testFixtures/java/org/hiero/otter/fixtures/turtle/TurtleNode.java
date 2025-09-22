@@ -16,7 +16,6 @@ import static org.hiero.otter.fixtures.result.SubscriberAction.UNSUBSCRIBE;
 import static org.hiero.otter.fixtures.turtle.TurtleInMemoryAppender.toJSON;
 
 import com.hedera.hapi.node.state.roster.Roster;
-import com.hedera.hapi.platform.state.NodeId;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.filesystem.FileSystemManager;
@@ -26,7 +25,6 @@ import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.component.framework.model.DeterministicWiringModel;
 import com.swirlds.component.framework.model.WiringModelBuilder;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.merkledb.MerkleDb;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.builder.PlatformBuilder;
 import com.swirlds.platform.builder.PlatformBuildingBlocks;
@@ -36,7 +34,7 @@ import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.HashedReservedSignedState;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.system.Platform;
-import com.swirlds.platform.wiring.PlatformWiring;
+import com.swirlds.platform.wiring.PlatformComponents;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -46,6 +44,7 @@ import java.time.Instant;
 import java.util.Objects;
 import org.apache.logging.log4j.ThreadContext;
 import org.hiero.consensus.model.node.KeysAndCerts;
+import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.roster.RosterUtils;
@@ -102,7 +101,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
     private OtterExecutionLayer executionLayer;
 
     @Nullable
-    private PlatformWiring platformWiring;
+    private PlatformComponents platformComponent;
 
     /**
      * Constructor of {@link TurtleNode}.
@@ -167,7 +166,6 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
             }
 
             final PlatformStateFacade platformStateFacade = new PlatformStateFacade();
-            MerkleDb.resetDefaultInstancePath();
             final Metrics metrics = getMetricsProvider().createPlatformMetrics(legacyNodeId);
             final FileSystemManager fileSystemManager = FileSystemManager.create(currentConfiguration);
             final RecycleBin recycleBin = RecycleBin.create(
@@ -232,14 +230,16 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
                     .withMetricsDocumentationEnabled(false)
                     .withGossip(network.getGossipInstance(legacyNodeId));
 
-            platformWiring = platformBuildingBlocks.platformWiring();
+            platformComponent = platformBuildingBlocks.platformComponents();
 
-            platformWiring
-                    .getConsensusEngineOutputWire()
+            platformComponent
+                    .consensusEngineWiring()
+                    .consensusRoundsOutputWire()
                     .solderTo("nodeConsensusRoundsCollector", "consensusRounds", resultsCollector::addConsensusRounds);
 
-            platformWiring
-                    .getStatusStateMachineOutputWire()
+            platformComponent
+                    .statusStateMachineWiring()
+                    .getOutputWire()
                     .solderTo("nodePlatformStatusCollector", "platformStatus", this::handlePlatformStatusChange);
 
             InMemorySubscriptionManager.INSTANCE.subscribe(logEntry -> {
@@ -275,7 +275,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
                 }
                 platformStatus = null;
                 platform = null;
-                platformWiring = null;
+                platformComponent = null;
                 model = null;
             }
             lifeCycle = SHUTDOWN;

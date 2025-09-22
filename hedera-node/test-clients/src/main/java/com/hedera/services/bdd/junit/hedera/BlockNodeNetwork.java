@@ -7,7 +7,7 @@ import static com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNetwork.
 import com.hedera.node.internal.network.BlockNodeConfig;
 import com.hedera.node.internal.network.BlockNodeConnectionInfo;
 import com.hedera.services.bdd.junit.hedera.containers.BlockNodeContainer;
-import com.hedera.services.bdd.junit.hedera.simulator.BlockNodeSimulatorController;
+import com.hedera.services.bdd.junit.hedera.simulator.BlockNodeController;
 import com.hedera.services.bdd.junit.hedera.simulator.SimulatedBlockNodeServer;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -41,11 +41,11 @@ public class BlockNodeNetwork {
 
     public static final int BLOCK_NODE_LOCAL_PORT = 40840;
 
-    private BlockNodeSimulatorController blockNodeSimulatorController;
+    private final BlockNodeController blockNodeController;
 
     public BlockNodeNetwork() {
         // Initialize the Block Node Simulator Controller
-        this.blockNodeSimulatorController = new BlockNodeSimulatorController(this);
+        this.blockNodeController = new BlockNodeController(this);
     }
 
     public void start() {
@@ -75,13 +75,17 @@ public class BlockNodeNetwork {
     }
 
     public void terminate() {
+
+        List<CompletableFuture<Void>> shutdownFutures = new ArrayList<>();
         // Stop block node containers
         for (Entry<Long, BlockNodeContainer> entry : blockNodeContainerById.entrySet()) {
             BlockNodeContainer container = entry.getValue();
-            container.stop();
-            logger.info("Stopped block node container ID {}", entry.getKey());
+            CompletableFuture<Void> future = CompletableFuture.runAsync(() -> {
+                container.stop();
+                logger.info("Stopped block node container ID {}", entry.getKey());
+            });
+            shutdownFutures.add(future);
         }
-        blockNodeContainerById.clear();
 
         // Stop simulated block nodes with grace period
         Duration shutdownTimeout = Duration.ofSeconds(30);
@@ -90,7 +94,6 @@ public class BlockNodeNetwork {
                 simulatedBlockNodeById.size(),
                 shutdownTimeout);
 
-        List<CompletableFuture<Void>> shutdownFutures = new ArrayList<>();
         for (Entry<Long, SimulatedBlockNodeServer> entry : simulatedBlockNodeById.entrySet()) {
             final SimulatedBlockNodeServer server = entry.getValue();
             CompletableFuture<Void> future = CompletableFuture.runAsync(() -> {
@@ -108,34 +111,59 @@ public class BlockNodeNetwork {
             // Wait for all servers to stop or timeout
             CompletableFuture.allOf(shutdownFutures.toArray(new CompletableFuture[0]))
                     .get(shutdownTimeout.toMillis(), TimeUnit.MILLISECONDS);
-            logger.info("All simulated block nodes stopped successfully");
+            logger.info("All block nodes stopped successfully");
         } catch (Exception e) {
             logger.error("Timeout or error while stopping simulated block nodes", e);
         }
+
+        blockNodeContainerById.clear();
         simulatedBlockNodeById.clear();
     }
 
     private void startBlockNodesAsApplicable() {
         for (Map.Entry<Long, BlockNodeMode> entry : blockNodeModeById.entrySet()) {
-            if (entry.getValue() == BlockNodeMode.REAL) {
-                // TODO
-            } else if (entry.getValue() == BlockNodeMode.SIMULATOR) {
-                addSimulatorNode(entry.getKey(), null);
+            final long blockNodeId = entry.getKey();
+            final BlockNodeMode mode = entry.getValue();
+            if (mode == BlockNodeMode.REAL) {
+                startRealBlockNodeContainer(blockNodeId);
+            } else if (mode == BlockNodeMode.SIMULATOR) {
+                startSimulatorNode(entry.getKey(), null);
             }
         }
     }
 
-    public void addSimulatorNode(Long id, Supplier<Long> lastVerifiedBlockNumberSupplier) {
+    private void startRealBlockNodeContainer(final long id) {
         // Find an available port
-        int port = findAvailablePort();
+        final int port = findAvailablePort();
+        try {
+            final BlockNodeContainer container = new BlockNodeContainer(id, findAvailablePort());
+
+            container.start();
+            container.waitForHealthy(Duration.ofMinutes(2));
+
+            blockNodeContainerById.put(id, container);
+            // blockNodeController.setStatePersistence(id, true);
+
+            logger.info("Started real block node container {} @ {}", id, container);
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to start real block node container " + id + " on port " + port, e);
+        }
+    }
+
+    public void startSimulatorNode(Long id, Supplier<Long> lastVerifiedBlockNumberSupplier) {
+        // Find an available port
+        final int port = findAvailablePort();
         final SimulatedBlockNodeServer server = new SimulatedBlockNodeServer(port, lastVerifiedBlockNumberSupplier);
         try {
             server.start();
+
+            simulatedBlockNodeById.put(id, server);
+            // blockNodeController.setStatePersistence(id, true);
+
+            logger.info("Started shared simulated block node @ localhost:{}", port);
         } catch (Exception e) {
-            throw new RuntimeException("Failed to start simulated block node on port " + port, e);
+            throw new RuntimeException("Failed to start simulated block node " + id + " on port " + port, e);
         }
-        logger.info("Started shared simulated block node @ localhost:{}", port);
-        simulatedBlockNodeById.put(id, server);
     }
 
     public void configureBlockNodeConnectionInformation(HederaNode node) {
@@ -149,7 +177,9 @@ public class BlockNodeNetwork {
             long blockNodeId = blockNodeIds[blockNodeIndex];
             BlockNodeMode mode = blockNodeModeById.get(blockNodeId);
             if (mode == BlockNodeMode.REAL) {
-                throw new UnsupportedOperationException("Real block nodes are not supported yet");
+                final BlockNodeContainer blockNode = blockNodeContainerById.get(blockNodeId);
+                int priority = (int) blockNodePrioritiesBySubProcessNodeId.get(node.getNodeId())[blockNodeIndex];
+                blockNodes.add(new BlockNodeConfig(blockNode.getHost(), blockNode.getPort(), priority));
             } else if (mode == BlockNodeMode.SIMULATOR) {
                 final SimulatedBlockNodeServer sim = simulatedBlockNodeById.get(blockNodeId);
                 int priority = (int) blockNodePrioritiesBySubProcessNodeId.get(node.getNodeId())[blockNodeIndex];
@@ -195,7 +225,7 @@ public class BlockNodeNetwork {
         return blockNodeIdsBySubProcessNodeId;
     }
 
-    public BlockNodeSimulatorController getBlockNodeSimulatorController() {
-        return blockNodeSimulatorController;
+    public BlockNodeController getBlockNodeController() {
+        return blockNodeController;
     }
 }

@@ -29,11 +29,11 @@ public abstract class WritableSingletonStateBase<T> extends ReadableSingletonSta
     /**
      * Creates a new instance.
      *
-     * @param serviceName The name of the service that owns the state
-     * @param stateKey The state key for this instance
+     * @param stateId The state ID for this instance
+     * @param label The state label
      */
-    public WritableSingletonStateBase(@NonNull final String serviceName, @NonNull final String stateKey) {
-        super(serviceName, stateKey);
+    public WritableSingletonStateBase(final int stateId, final String label) {
+        super(stateId, label);
     }
 
     /**

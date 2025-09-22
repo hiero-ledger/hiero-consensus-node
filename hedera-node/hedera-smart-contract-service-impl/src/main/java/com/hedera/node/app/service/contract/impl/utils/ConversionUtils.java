@@ -3,14 +3,12 @@ package com.hedera.node.app.service.contract.impl.utils;
 
 import static com.esaulpaugh.headlong.abi.Address.toChecksumAddress;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
-import static com.hedera.node.app.hapi.utils.MiscCryptoUtils.keccak256DigestOf;
 import static com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations.MISSING_ENTITY_NUMBER;
 import static com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations.NON_CANONICAL_REFERENCE_NUMBER;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.ReturnTypes.ZERO_CONTRACT_ID;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.proxyUpdaterFor;
 import static com.hedera.node.app.service.contract.impl.utils.SynthTxnUtils.hasNonDegenerateAutoRenewAccountId;
 import static com.hedera.node.app.service.token.AliasUtils.extractEvmAddress;
-import static java.math.BigInteger.ZERO;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.base.utility.CommonUtils.unhex;
 
@@ -27,7 +25,6 @@ import com.hedera.hapi.node.base.ScheduleID;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.contract.ContractCreateTransactionBody;
 import com.hedera.hapi.node.contract.ContractLoginfo;
-import com.hedera.hapi.node.hooks.LambdaMappingEntry;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.transaction.ExchangeRate;
 import com.hedera.hapi.streams.ContractStateChange;
@@ -67,25 +64,17 @@ import org.hyperledger.besu.evm.log.LogsBloomFilter;
  * Some utility methods for converting between PBJ and Besu types and the various kinds of addresses and ids.
  */
 public class ConversionUtils {
-    /**
-     * The standard length as long of an address in Ethereum.
-     */
+    /** The standard length as long of an address in Ethereum.*/
     public static final long EVM_ADDRESS_LENGTH_AS_LONG = 20L;
-    /**
-     * The standard length of an address in Ethereum.
-     */
+    /** The standard length of an address in Ethereum.*/
     public static final int EVM_ADDRESS_LENGTH_AS_INT = 20;
-    /**
-     * The count of zero bytes in a long-zero address format.
-     */
+    /** The count of zero bytes in a long-zero address format.*/
     public static final int NUM_LONG_ZEROS = 12;
-    /**
-     * Fee schedule units per tinycent.
-     */
+    /** Fee schedule units per tinycent.*/
     public static final long FEE_SCHEDULE_UNITS_PER_TINYCENT = 1000;
 
-    public static final BigInteger MIN_LONG_VALUE = BigInteger.valueOf(Long.MIN_VALUE);
-    public static final BigInteger MAX_LONG_VALUE = BigInteger.valueOf(Long.MAX_VALUE);
+    private static final BigInteger MIN_LONG_VALUE = BigInteger.valueOf(Long.MIN_VALUE);
+    private static final BigInteger MAX_LONG_VALUE = BigInteger.valueOf(Long.MAX_VALUE);
 
     private ConversionUtils() {
         throw new UnsupportedOperationException("Utility Class");
@@ -95,7 +84,7 @@ public class ConversionUtils {
      * Given a list of {@link com.esaulpaugh.headlong.abi.Address}, returns their implied token ids.
      *
      * @param entityIdFactory the entity id factory
-     * @param tokenAddresses  the {@link com.esaulpaugh.headlong.abi.Address}es
+     * @param tokenAddresses the {@link com.esaulpaugh.headlong.abi.Address}es
      * @return the implied token ids
      */
     public static TokenID[] asTokenIds(
@@ -113,7 +102,7 @@ public class ConversionUtils {
      * Given a numeric {@link AccountID}, returns its equivalent contract id.
      *
      * @param entityIdFactory the entity id factory
-     * @param accountId       the numeric {@link AccountID}
+     * @param accountId the numeric {@link AccountID}
      * @return the equivalent account id
      */
     public static ContractID asNumericContractId(
@@ -136,24 +125,6 @@ public class ConversionUtils {
         final var explicit = explicitFromHeadlong(address);
         final var tokenNum = numberOfLongZero(explicit);
         return tokenNum == 0 ? TokenID.DEFAULT : entityIdFactory.newTokenId(tokenNum);
-    }
-
-    /**
-     * Given a {@link BigInteger} representing 'unit' value.
-     * Returns either:
-     * <br>
-     * - its long value
-     * <br>
-     * - ZERO if it is less than ZERO
-     * <br>
-     * - MAX_LONG_VALUE if it is more than MAX_LONG_VALUE
-     *
-     * @param value the {@link BigInteger}
-     * @return long value
-     */
-    public static long uintToLong(@NonNull final BigInteger value) {
-        requireNonNull(value);
-        return ZERO.max(MAX_LONG_VALUE.min(value)).longValueExact();
     }
 
     /**
@@ -254,7 +225,7 @@ public class ConversionUtils {
      * <p>If there is no such contract; or if the id refers to a contract with an EVM address within the
      * long-zero subspace; then returns the given contract id.
      *
-     * @param contractID   the contract id
+     * @param contractID the contract id
      * @param accountStore the account store
      * @return the priority form of the contract id
      */
@@ -298,7 +269,7 @@ public class ConversionUtils {
      * Given a list of Besu {@link Log}s, converts them to a list of PBJ {@link ContractLoginfo}.
      *
      * @param entityIdFactory the entity id factory
-     * @param logs            the Besu {@link Log}s
+     * @param logs the Besu {@link Log}s
      * @return the PBJ {@link ContractLoginfo}s
      */
     public static List<ContractLoginfo> pbjLogsFrom(
@@ -326,7 +297,6 @@ public class ConversionUtils {
 
     /**
      * Given a list of {@link StorageAccesses}, converts them to a PBJ {@link ContractStateChanges}.
-     *
      * @param storageAccesses the {@link StorageAccesses}
      * @return the PBJ {@link ContractStateChanges}
      */
@@ -354,8 +324,7 @@ public class ConversionUtils {
 
     /**
      * Given a list of {@link StorageAccesses}, converts them to a list of PBJ {@link ContractSlotUsage}s.
-     *
-     * @param storageAccesses     the {@link StorageAccesses}
+     * @param storageAccesses the {@link StorageAccesses}
      * @param traceExplicitWrites whether the writes should be traced explicitly
      * @return the list of slot usages
      */
@@ -405,9 +374,8 @@ public class ConversionUtils {
 
     /**
      * Given a Besu {@link Log}, converts it a PBJ {@link ContractLoginfo}.
-     *
      * @param entityIdFactory the entity id factory
-     * @param log             the Besu {@link Log}
+     * @param log the Besu {@link Log}
      * @return the PBJ {@link ContractLoginfo}
      */
     public static ContractLoginfo pbjLogFrom(@NonNull final EntityIdFactory entityIdFactory, @NonNull final Log log) {
@@ -427,7 +395,7 @@ public class ConversionUtils {
     /**
      * Returns the given Besu {@link Log}s as Hedera {@link EvmTransactionLog}s.
      *
-     * @param logs            the Besu {@link Log}s, using the long-zero address format for the logger's Hedera id number
+     * @param logs the Besu {@link Log}s, using the long-zero address format for the logger's Hedera id number
      * @param entityIdFactory the Hedera entity id factory
      * @return the Hedera {@link EvmTransactionLog}s
      */
@@ -443,9 +411,8 @@ public class ConversionUtils {
 
     /**
      * Returns the given Besu {@link Log} as a Hedera {@link EvmTransactionLog}.
-     *
      * @param entityIdFactory the Hedera entity id factory
-     * @param log             the Besu {@link Log}, using the long-zero address format for the logger's Hedera id number
+     * @param log the Besu {@link Log}, using the long-zero address format for the logger's Hedera id number
      * @return the Hedera {@link EvmTransactionLog}
      */
     public static EvmTransactionLog asHederaLog(
@@ -486,7 +453,7 @@ public class ConversionUtils {
     /**
      * Given a {@link MessageFrame}, returns the id number of the given address's Hedera id.
      *
-     * @param frame   the {@link MessageFrame}
+     * @param frame the {@link MessageFrame}
      * @param address the address to get the id number of
      * @return the id number of the given address's Hedera id
      */
@@ -512,7 +479,7 @@ public class ConversionUtils {
      * if the address does not correspond to a known Hedera entity; or {@link HederaNativeOperations#NON_CANONICAL_REFERENCE_NUMBER}
      * if the address references an account by its "non-priority" long-zero address.
      *
-     * @param address          the EVM address
+     * @param address the EVM address
      * @param nativeOperations the {@link HandleHederaNativeOperations} to use for resolving aliases
      * @return the number of the corresponding Hedera entity, if it exists and has this priority address
      */
@@ -540,7 +507,7 @@ public class ConversionUtils {
      * within the given {@link HandleHederaNativeOperations}; or {@link HederaNativeOperations#MISSING_ENTITY_NUMBER}
      * if the address is not long-zero and does not correspond to a known Hedera entity.
      *
-     * @param address          the EVM address
+     * @param address the EVM address
      * @param nativeOperations the {@link HandleHederaNativeOperations} to use for resolving aliases
      * @return the number of the corresponding Hedera entity, if it exists
      */
@@ -609,7 +576,6 @@ public class ConversionUtils {
 
     /**
      * Converts a shard, realm, number to a long zero address.
-     *
      * @param number the number to convert
      * @return the long zero address
      */
@@ -641,7 +607,7 @@ public class ConversionUtils {
      * Converts an EVM address to a PBJ {@link ContractID} with alias instead of id number.
      *
      * @param entityIdFactory the entity id factory
-     * @param address         the EVM address
+     * @param address the EVM address
      * @return the PBJ {@link ContractID}
      */
     public static ContractID asEvmContractId(
@@ -653,7 +619,7 @@ public class ConversionUtils {
      * Converts a long-zero address to a PBJ {@link ContractID} with id number instead of alias.
      *
      * @param entityIdFactory the entity id factory
-     * @param address         the EVM address
+     * @param address the EVM address
      * @return the PBJ {@link ContractID}
      */
     public static ContractID asNumberedContractId(
@@ -670,7 +636,7 @@ public class ConversionUtils {
      * - an EVM address to a PBJ {@link ContractID} with alias instead of id number.
      *
      * @param entityIdFactory the entity id factory
-     * @param address         the EVM address
+     * @param address the EVM address
      * @return the PBJ {@link ContractID}
      */
     public static ContractID asContractId(
@@ -686,7 +652,7 @@ public class ConversionUtils {
      * Converts a headlong address to a PBJ {@link ScheduleID}.
      *
      * @param entityIdFactory the entity id factory
-     * @param address         the schedule address
+     * @param address the schedule address
      * @return the PBJ {@link ScheduleID}
      */
     public static ScheduleID addressToScheduleID(
@@ -705,10 +671,9 @@ public class ConversionUtils {
 
     /**
      * Throws a {@link HandleException} if the given outcome did not succeed for a call.
-     *
-     * @param outcome          the outcome
+     * @param outcome the outcome
      * @param hederaOperations the Hedera operations
-     * @param streamBuilder    the stream builder
+     * @param streamBuilder the stream builder
      */
     public static void throwIfUnsuccessfulCall(
             @NonNull final CallOutcome outcome,
@@ -727,8 +692,7 @@ public class ConversionUtils {
 
     /**
      * Throws a {@link HandleException} if the given outcome did not succeed for a call.
-     *
-     * @param outcome          the outcome
+     * @param outcome the outcome
      * @param hederaOperations the Hedera operations
      */
     public static void throwIfUnsuccessfulCreate(
@@ -835,7 +799,7 @@ public class ConversionUtils {
      * Given a value and a destination byte array, copies the value to the destination array, left-padded.
      *
      * @param value the value
-     * @param dest  the destination byte array
+     * @param dest the destination byte array
      * @return the destination byte array
      */
     public static byte[] copyToLeftPaddedByteArray(long value, final byte[] dest) {
@@ -897,7 +861,6 @@ public class ConversionUtils {
 
     /**
      * Given a Besu {@link Log}, returns its bloom filter as a PBJ {@link com.hedera.pbj.runtime.io.buffer.Bytes}.
-     *
      * @param log the Besu {@link Log}
      * @return the PBJ {@link com.hedera.pbj.runtime.io.buffer.Bytes} bloom filter
      */
@@ -964,7 +927,7 @@ public class ConversionUtils {
      * Given an exchange rate and a tinycent amount, returns the equivalent tinybar amount.
      *
      * @param exchangeRate the exchange rate
-     * @param tinycents    the tinycent amount
+     * @param tinycents the tinycent amount
      * @return the equivalent tinybar amount
      */
     public static long fromTinycentsToTinybars(final ExchangeRate exchangeRate, final long tinycents) {
@@ -976,7 +939,7 @@ public class ConversionUtils {
      * Given an exchange rate and a tinybar amount, returns the equivalent tinycent amount.
      *
      * @param exchangeRate the exchange rate
-     * @param tinyBars     the tinybar amount
+     * @param tinyBars the tinybar amount
      * @return the equivalent tinycent amount
      */
     public static long fromTinybarsToTinycents(final ExchangeRate exchangeRate, final long tinyBars) {
@@ -989,8 +952,8 @@ public class ConversionUtils {
      * in the other unit.
      *
      * @param aAmount the amount in one unit
-     * @param bEquiv  the numerator of the conversion rate
-     * @param aEquiv  the denominator of the conversion rate
+     * @param bEquiv the numerator of the conversion rate
+     * @param aEquiv the denominator of the conversion rate
      * @return the equivalent amount in the other unit
      */
     public static @NonNull BigInteger fromAToB(@NonNull final BigInteger aAmount, final int bEquiv, final int aEquiv) {
@@ -1002,7 +965,7 @@ public class ConversionUtils {
      * Importantly, this method does NOT check for the existence of the contract in the ledger
      *
      * @param entityIdFactory the entity id factory
-     * @param contractId      the contract id
+     * @param contractId the contract id
      * @return the equivalent Besu address
      */
     public static @NonNull Address contractIDToBesuAddress(
@@ -1044,7 +1007,7 @@ public class ConversionUtils {
      * Given a {@link ContractCreateTransactionBody} and a sponsor {@link Account}, returns a creation body
      * fully customized with the sponsor's properties.
      *
-     * @param op      the creation body
+     * @param op the creation body
      * @param sponsor the sponsor
      * @return the fully customized creation body
      */
@@ -1075,7 +1038,7 @@ public class ConversionUtils {
      * Given a {@link ContractCreateTransactionBody} and a new account number, returns a creation body
      * that contains a self-managed admin key (contract key with the new account number).
      *
-     * @param op         the creation body
+     * @param op the creation body
      * @param contractID the contractID for the about to be newly created contract
      * @return the fully customized creation body
      */
@@ -1092,7 +1055,6 @@ public class ConversionUtils {
     /**
      * Returns a tuple of the {@code KeyValue} struct
      * <br><a href="https://github.com/hashgraph/hedera-smart-contracts/blob/main/contracts/hts-precompile/IHederaTokenService.sol#L92">Link</a>
-     *
      * @param key the key to get the tuple for
      * @return Tuple encoding of the KeyValue
      */
@@ -1119,27 +1081,9 @@ public class ConversionUtils {
     }
 
     /**
-     * Pads the given bytes to 32 bytes by left-padding with zeros.
-     *
-     * @param bytes the bytes to pad
-     * @return the left-padded bytes, or the original bytes if they are already 32 bytes long
-     */
-    public static com.hedera.pbj.runtime.io.buffer.Bytes leftPad32(
-            @NonNull final com.hedera.pbj.runtime.io.buffer.Bytes bytes) {
-        requireNonNull(bytes);
-        final int n = (int) bytes.length();
-        if (n == 32) {
-            return bytes;
-        }
-        final var padded = new byte[32];
-        bytes.getBytes(0, padded, 32 - n, n);
-        return com.hedera.pbj.runtime.io.buffer.Bytes.wrap(padded);
-    }
-
-    /**
      * Converts a concise EVM transaction log into a Besu {@link Log}.
      *
-     * @param log          the concise EVM transaction log to convert
+     * @param log the concise EVM transaction log to convert
      * @param paddedTopics the 32-byte padded topics to use in the log
      * @return the Besu {@link Log} representation of the log
      */
@@ -1169,9 +1113,8 @@ public class ConversionUtils {
      * </ol>
      * If no context is available, returns null. Otherwise returns a {@link TxStorageUsage} with at least the read
      * usage; and, if the updater is available and {@code checkForWrites} is true, also the write usage.
-     *
-     * @param updater        the proxy world updater to extract write accesses from
-     * @param accessTracker  the access tracker to extract reads from
+     * @param updater the proxy world updater to extract write accesses from
+     * @param accessTracker the access tracker to extract reads from
      * @param checkForWrites whether to check if the updater has writes to include
      * @return the storage usage for the transaction, or null if the frame has no access tracker
      */
@@ -1196,48 +1139,5 @@ public class ConversionUtils {
                 return new TxStorageUsage(accessTracker.getJustReads(), null);
             }
         }
-    }
-
-    /**
-     * Returns a minimal representation of the given bytes, stripping leading zeros.
-     *
-     * @param bytes the bytes to strip leading zeros from
-     * @return the minimal representation of the bytes, or an empty bytes if all bytes were stripped
-     */
-    public static com.hedera.pbj.runtime.io.buffer.Bytes minimalRepresentationOf(
-            @NonNull final com.hedera.pbj.runtime.io.buffer.Bytes bytes) {
-        int i = 0;
-        int n = (int) bytes.length();
-        while (i < n && bytes.getByte(i) == 0) {
-            i++;
-        }
-        if (i == n) {
-            return com.hedera.pbj.runtime.io.buffer.Bytes.EMPTY;
-        } else if (i == 0) {
-            return bytes;
-        } else {
-            return bytes.slice(i, n - i);
-        }
-    }
-
-    /**
-     * Returns the slot key for a mapping entry, given the left-padded mapping slot and the entry.
-     * <p>
-     * C.f. Solidity docs <a href="https://docs.soliditylang.org/en/latest/internals/layout_in_storage.html">here</a>.
-     *
-     * @param leftPaddedMappingSlot the left-padded mapping slot
-     * @param entry                 the mapping entry
-     * @return the slot key for the mapping entry
-     */
-    public static com.hedera.pbj.runtime.io.buffer.Bytes slotKeyOfMappingEntry(
-            @NonNull final com.hedera.pbj.runtime.io.buffer.Bytes leftPaddedMappingSlot,
-            @NonNull final LambdaMappingEntry entry) {
-        final com.hedera.pbj.runtime.io.buffer.Bytes hK;
-        if (entry.hasKey()) {
-            hK = leftPad32(entry.keyOrThrow());
-        } else {
-            hK = keccak256DigestOf(entry.preimageOrThrow());
-        }
-        return keccak256DigestOf(hK.append(leftPaddedMappingSlot));
     }
 }
