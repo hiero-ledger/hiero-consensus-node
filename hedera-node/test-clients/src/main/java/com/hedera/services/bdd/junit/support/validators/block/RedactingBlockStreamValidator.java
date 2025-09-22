@@ -5,8 +5,12 @@ import static org.assertj.core.api.Fail.fail;
 
 import com.hedera.hapi.block.stream.Block;
 import com.hedera.hapi.block.stream.BlockItem;
+import com.hedera.hapi.block.stream.FilteredItemHash;
 import com.hedera.hapi.block.stream.input.EventHeader;
 import com.hedera.hapi.block.stream.input.ParentEventReference;
+import com.hedera.hapi.node.base.TransactionID;
+import com.hedera.hapi.node.transaction.SignedTransaction;
+import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.platform.event.EventCore;
 import com.hedera.hapi.platform.event.EventDescriptor;
 import com.hedera.hapi.platform.event.GossipEvent;
@@ -124,7 +128,7 @@ public class RedactingBlockStreamValidator implements BlockStreamValidator {
     }
 
     /**
-     * Redacts all transactions in the given blocks by replacing transaction content with hashes.
+     * Redacts all user transactions in the given blocks by replacing transaction content with hashes.
      *
      * @param originalBlocks the original blocks containing transactions to redact
      * @return a new list of blocks with redacted transactions
@@ -187,7 +191,6 @@ public class RedactingBlockStreamValidator implements BlockStreamValidator {
     private boolean hasSignedTransaction(@NonNull final BlockItem item) {
         // Check if this is a signed_transaction item (field 4 in the protobuf)
         final var itemKind = item.item().kind();
-        item.item().as();
         return itemKind == BlockItem.ItemOneOfType.SIGNED_TRANSACTION;
     }
 
@@ -205,19 +208,31 @@ public class RedactingBlockStreamValidator implements BlockStreamValidator {
     }
 
     /**
-     * Redacts a single transaction item by replacing its content with a hash.
+     * Redacts a single transaction item by replacing its content with a hash in a filtered block item, iff it is a user
+     * transaction.
      *
      * @param originalItem the original block item containing a signed_transaction
-     * @return a new block item with the transaction content replaced by its hash
+     * @return a new filtered block item with the transaction content replaced by its hash, or the original block itemß
      */
     private BlockItem redactTransactionItem(@NonNull final BlockItem originalItem) {
         final Bytes originalTransactionBytes = getSignedTransaction(originalItem);
-
-        // Compute SHA-384 hash of the original transaction content
-        final Bytes transactionHash = computeHash(originalTransactionBytes);
-
-        // Create a new BlockItem with the hash as the signed_transaction content
-        return BlockItem.newBuilder().signedTransaction(transactionHash).build();
+        try {
+            final SignedTransaction signedTransaction = SignedTransaction.PROTOBUF.parse(originalTransactionBytes);
+            final TransactionBody body = TransactionBody.PROTOBUF.parse(signedTransaction.bodyBytes());
+            final TransactionID transactionID = body.transactionID();
+            assert transactionID != null;
+            // Redact user transactions, but leave other transactions alone.
+            if (transactionID.nonce() == 0) {
+                // Compute SHA-384 hash of the original transaction content
+                final Bytes transactionHash = computeHash(originalTransactionBytes);
+                return BlockItem.newBuilder()
+                        .filteredItemHash(FilteredItemHash.newBuilder().itemHash(transactionHash).build()).build();
+            } else {
+                return originalItem;
+            }
+        } catch (final ParseException e) {
+            throw new RuntimeException("Unable to parse transaction bytes", e);
+        }
     }
 
     /**
@@ -315,8 +330,7 @@ public class RedactingBlockStreamValidator implements BlockStreamValidator {
      * @param reloadedBlocks the blocks that were written to and read from disk
      * @param expectedBlockCount the expected number of blocks
      */
-    private void verifyRedactedBlocks(@NonNull final List<Block> reloadedBlocks, final int expectedBlockCount,
-            final boolean isRedacted)
+    private void verifyRedactedBlocks(@NonNull final List<Block> reloadedBlocks, final int expectedBlockCount)
             throws IOException {
         logger.debug("Verifying event hash integrity in {} reloaded redacted blocks", reloadedBlocks.size());
 
@@ -327,7 +341,8 @@ public class RedactingBlockStreamValidator implements BlockStreamValidator {
         }
 
         // Reconstruct events from all blocks and validate hash chain
-        final List<PlatformEvent> allEvents = reconstructEventsFromBlocks(reloadedBlocks, isRedacted);
+        final BlockStreamEventBuilder eventBuilder = new BlockStreamEventBuilder(reloadedBlocks);
+        final List<PlatformEvent> allEvents = eventBuilder.getEvents();
         validateEventHashChain(allEvents);
 
         logger.info(
