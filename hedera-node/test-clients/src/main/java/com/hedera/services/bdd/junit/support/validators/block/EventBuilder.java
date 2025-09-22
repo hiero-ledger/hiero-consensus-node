@@ -55,7 +55,7 @@ public class EventBuilder {
     /** The set of parent hashes that reference events in another block. Useful for verifying calculated hash integrity. */
     private final Set<Hash> crossBlockParentHashes = new HashSet<>();
 
-    private final List<SignedTransaction> discardedTransactions = new ArrayList<>();
+    private final List<TransactionBody> discardedTransactions = new ArrayList<>();
 
     /**
      * Constructor.
@@ -127,11 +127,7 @@ public class EventBuilder {
         if (isTransactionInEvent(transactionBytes)) {
             currentTransactions.add(transactionBytes);
         } else {
-            try {
-                discardedTransactions.add(SignedTransaction.PROTOBUF.parse(transactionBytes));
-            } catch (final ParseException e) {
-                throw new RuntimeException("Unable to parse transaction bytes", e);
-            }
+            discardedTransactions.add(getTransactionBody(transactionBytes));
         }
     }
 
@@ -143,11 +139,15 @@ public class EventBuilder {
      * @return true if the transaction should be included in the event, false otherwise
      */
     private boolean isTransactionInEvent(@NonNull final Bytes transactionBytes) {
+        final TransactionBody transactionBody = getTransactionBody(transactionBytes);
+        final TransactionID transactionId = transactionBody.transactionIDOrThrow();
+        return transactionId.nonce() == 0;
+    }
+
+    private TransactionBody getTransactionBody(@NonNull final Bytes transactionBytes) {
         try {
             final SignedTransaction signedTransaction = SignedTransaction.PROTOBUF.parse(transactionBytes);
-            final TransactionBody transactionBody = TransactionBody.PROTOBUF.parse(signedTransaction.bodyBytes());
-            final TransactionID transactionId = transactionBody.transactionIDOrThrow();
-            return transactionId.nonce() == 0;
+            return TransactionBody.PROTOBUF.parse(signedTransaction.bodyBytes());
         } catch (final ParseException e) {
             throw new RuntimeException("Unable to parse transaction bytes", e);
         }
