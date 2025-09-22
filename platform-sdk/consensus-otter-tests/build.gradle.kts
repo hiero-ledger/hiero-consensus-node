@@ -66,7 +66,7 @@ tasks.register<Test>("testTurtle") {
         "junit.jupiter.testclass.order.default",
         "org.junit.jupiter.api.ClassOrderer\$OrderAnnotation",
     )
-    // Tell our launcher to target a repeatable embedded network
+    // Tell our launcher to target a Turtle network
     systemProperty("otter.env", "turtle")
 
     // Limit heap and number of processors
@@ -88,8 +88,27 @@ tasks.register<Test>("testContainer") {
         "junit.jupiter.testclass.order.default",
         "org.junit.jupiter.api.ClassOrderer\$OrderAnnotation",
     )
-    // Tell our launcher to target a repeatable embedded network
+
+    // Tell our launcher to target a testcontainer-based network
     systemProperty("otter.env", "container")
+
+    // Limit heap and number of processors
+    maxHeapSize = "8g"
+    jvmArgs("-XX:ActiveProcessorCount=6")
+}
+
+// Configure the default testIntegration task with proper memory settings
+tasks.testIntegration {
+    useJUnitPlatform()
+    testClassesDirs = sourceSets.testIntegration.get().output.classesDirs
+    classpath = sourceSets.testIntegration.get().runtimeClasspath
+
+    // Disable all parallelism
+    systemProperty("junit.jupiter.execution.parallel.enabled", false)
+    systemProperty(
+        "junit.jupiter.testclass.order.default",
+        "org.junit.jupiter.api.ClassOrderer\$OrderAnnotation",
+    )
 
     // Limit heap and number of processors
     maxHeapSize = "8g"
