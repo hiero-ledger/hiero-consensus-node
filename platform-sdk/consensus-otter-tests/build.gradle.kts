@@ -16,6 +16,7 @@ plugins {
     id("org.hiero.gradle.feature.test")
     id("org.hiero.gradle.report.test-logger")
     id("org.hiero.gradle.feature.test-fixtures")
+    id("org.hiero.gradle.feature.test-integration")
     id("org.hiero.gradle.feature.protobuf")
 }
 
@@ -24,9 +25,7 @@ description = "Consensus Otter Test Framework"
 testModuleInfo {
     requires("com.swirlds.base.test.fixtures")
     requires("com.swirlds.common.test.fixtures")
-    requires("com.swirlds.logging")
     requires("com.swirlds.platform.core.test.fixtures")
-    requires("org.apache.logging.log4j")
     requires("org.hiero.otter.fixtures")
     requires("org.assertj.core")
     requires("org.junit.jupiter.params")
@@ -35,6 +34,16 @@ testModuleInfo {
     requires("com.swirlds.component.framework")
     requires("com.swirlds.metrics.api")
     requires("org.hiero.consensus.utility")
+    runtimeOnly("io.grpc.netty.shaded")
+}
+
+testIntegrationModuleInfo {
+    requires("com.swirlds.common.test.fixtures")
+    requires("com.swirlds.logging")
+    requires("org.apache.logging.log4j")
+    requires("org.hiero.otter.fixtures")
+    requires("org.assertj.core")
+    requires("com.github.spotbugs.annotations")
     runtimeOnly("io.grpc.netty.shaded")
 }
 
@@ -48,8 +57,8 @@ tasks.compileTestFixturesJava {
 // Runs tests against the Turtle environment
 tasks.register<Test>("testTurtle") {
     useJUnitPlatform()
-    testClassesDirs = sourceSets.test.get().output.classesDirs
-    classpath = sourceSets.test.get().runtimeClasspath
+    testClassesDirs = sourceSets.testIntegration.get().output.classesDirs
+    classpath = sourceSets.testIntegration.get().runtimeClasspath
 
     // Disable all parallelism
     systemProperty("junit.jupiter.execution.parallel.enabled", false)
@@ -70,8 +79,8 @@ tasks.register<Test>("testContainer") {
     dependsOn(":consensus-otter-docker-app:copyDockerizedApp")
 
     useJUnitPlatform()
-    testClassesDirs = sourceSets.test.get().output.classesDirs
-    classpath = sourceSets.test.get().runtimeClasspath
+    testClassesDirs = sourceSets.testIntegration.get().output.classesDirs
+    classpath = sourceSets.testIntegration.get().runtimeClasspath
 
     // Disable all parallelism
     systemProperty("junit.jupiter.execution.parallel.enabled", false)
