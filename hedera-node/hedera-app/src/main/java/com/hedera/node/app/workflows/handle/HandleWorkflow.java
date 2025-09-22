@@ -25,6 +25,7 @@ import com.hedera.hapi.block.stream.input.EventHeader;
 import com.hedera.hapi.block.stream.input.ParentEventReference;
 import com.hedera.hapi.block.stream.input.RoundHeader;
 import com.hedera.hapi.block.stream.output.StateChanges;
+import com.hedera.hapi.block.stream.output.TransactionResult;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
 import com.hedera.hapi.node.transaction.ExchangeRateSet;
@@ -537,9 +538,27 @@ public class HandleWorkflow {
                 systemAccountCleanupDone = systemTransactions.do066SystemAccountCleanup(consensusNow, state);
             }
         }
+
         final var userTxn =
                 parentTxnFactory.createUserTxn(state, creator, txn, consensusNow, stateSignatureTxnCallback);
         if (userTxn == null) {
+            if (streamMode != RECORDS) {
+                // TODO: see if this fixes the validation
+                // A null `userTxn` value indicates this is a system transaction. Materialize the transaction here and
+                // proceed to the next
+                var txnToWrite = BlockItem.newBuilder()
+                        .signedTransaction(txn.getApplicationTransaction())
+                        .build();
+                var responseToWrite = BlockItem.newBuilder()
+                        .transactionResult(TransactionResult.newBuilder()
+                                .consensusTimestamp(asTimestamp(consensusNow))
+                                .status(ResponseCodeEnum.SUCCESS)
+                                .build())
+                        .build();
+                blockStreamManager.writeItem(txnToWrite);
+                blockStreamManager.writeItem(responseToWrite);
+            }
+            // END TODO
             return false;
         } else if (streamMode != BLOCKS && startsNewRecordFile) {
             blockRecordManager.startUserTransaction(consensusNow, state);
