@@ -32,4 +32,5 @@ open module com.hedera.node.app.test.fixtures {
     requires org.assertj.core;
     requires org.junit.jupiter.api;
     requires static transitive com.github.spotbugs.annotations;
+    requires org.jetbrains.annotations;
 }

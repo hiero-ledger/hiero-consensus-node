@@ -27,8 +27,10 @@ import java.util.List;
 import java.util.Random;
 import org.hiero.base.crypto.Signature;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.quiescence.QuiescenceStatus;
 import org.hiero.consensus.model.roster.AddressBook;
 import org.hiero.consensus.roster.RosterRetriever;
+import org.jetbrains.annotations.NotNull;
 
 /**
  * A fake implementation of the {@link Platform} interface.
@@ -105,6 +107,11 @@ public final class FakePlatform implements Platform {
     @Override
     public Signature sign(byte[] bytes) {
         return null;
+    }
+
+    @Override
+    public void setQuiescenceStatus(@NotNull final QuiescenceStatus quiescenceStatus) {
+
     }
 
     @Override
