@@ -1,14 +1,12 @@
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.utils.test;
 
 import com.hedera.hapi.block.stream.Block;
 import com.hedera.hapi.block.stream.BlockItem;
-import com.hedera.hapi.block.stream.input.EventHeader;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.TransactionBody;
-import com.hedera.hapi.platform.event.EventCore;
-import com.hedera.hapi.platform.event.GossipEvent;
 import com.hedera.hapi.util.HapiUtils;
 import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.ParseException;
@@ -24,7 +22,6 @@ import com.swirlds.platform.event.preconsensus.PcesFileTracker;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -50,12 +47,11 @@ public class ReadBlocksAndPces {
             for (final BlockItem item : block.items()) {
                 final var itemKind = item.item().kind();
 
-
                 switch (itemKind) {
                     case EVENT_HEADER:
                         count++;
-                        //System.out.println(item.eventHeader().eventCore().timeCreated());
-                        if(event != null){
+                        // System.out.println(item.eventHeader().eventCore().timeCreated());
+                        if (event != null) {
                             events.add(event);
                         }
                         event = Pair.of(item.eventHeader().eventCore().timeCreated(), new ArrayList<>());
@@ -63,14 +59,15 @@ public class ReadBlocksAndPces {
                     case SIGNED_TRANSACTION:
                         final Bytes transactionBytes = item.signedTransaction();
                         final SignedTransaction signedTransaction = SignedTransaction.PROTOBUF.parse(transactionBytes);
-                        final TransactionBody transactionBody = TransactionBody.PROTOBUF.parse(signedTransaction.bodyBytes());
-                        if(transactionBody.hasStateSignatureTransaction()){
+                        final TransactionBody transactionBody =
+                                TransactionBody.PROTOBUF.parse(signedTransaction.bodyBytes());
+                        if (transactionBody.hasStateSignatureTransaction()) {
                             System.out.println("Found it");
                         }
                         final TransactionID transactionId = transactionBody.transactionIDOrThrow();
-                        if (transactionBody.hasStateSignatureTransaction() || transactionId.nonce() == 0){
+                        if (transactionBody.hasStateSignatureTransaction() || transactionId.nonce() == 0) {
                             event.right().add(transactionBody);
-                            //System.out.println(TransactionBody.JSON.toJSON(transactionBody));
+                            // System.out.println(TransactionBody.JSON.toJSON(transactionBody));
                         }
                         break;
                     default:
@@ -79,15 +76,15 @@ public class ReadBlocksAndPces {
                 }
             }
         }
-        Collections.sort(events, (e1,e2)->{
+        Collections.sort(events, (e1, e2) -> {
             return HapiUtils.TIMESTAMP_COMPARATOR.compare(e1.left(), e2.left());
         });
-//        for (Pair<Timestamp, List<TransactionBody>> pair : events) {
-//            System.out.println(pair.left());
-//            for (final TransactionBody tb : pair.right()) {
-//                System.out.println(TransactionBody.JSON.toJSON(tb));
-//            }
-//        }
+        //        for (Pair<Timestamp, List<TransactionBody>> pair : events) {
+        //            System.out.println(pair.left());
+        //            for (final TransactionBody tb : pair.right()) {
+        //                System.out.println(TransactionBody.JSON.toJSON(tb));
+        //            }
+        //        }
         System.out.println("Total events: " + count);
     }
 
@@ -114,7 +111,7 @@ public class ReadBlocksAndPces {
                 count++;
             }
         }
-        Collections.sort(events, (e1,e2)->{
+        Collections.sort(events, (e1, e2) -> {
             final Timestamp t1 = e1.getEventCore().timeCreated();
             final Timestamp t2 = e2.getEventCore().timeCreated();
             return HapiUtils.TIMESTAMP_COMPARATOR.compare(t1, t2);
@@ -125,19 +122,18 @@ public class ReadBlocksAndPces {
                     .map(uncheckedParse(SignedTransaction.PROTOBUF))
                     .map(SignedTransaction::bodyBytes)
                     .map(uncheckedParse(TransactionBody.PROTOBUF))
-                    .forEach(tb-> System.out.println(TransactionBody.JSON.toJSON(tb)));
+                    .forEach(tb -> System.out.println(TransactionBody.JSON.toJSON(tb)));
         }
         System.out.println("Total events: " + count);
     }
 
     private static <T> Function<Bytes, T> uncheckedParse(final Codec<T> codec) {
         return bytes -> {
-                try {
-                    return codec.parse(bytes);
-                } catch (final ParseException e) {
-                    throw new RuntimeException(e);
-                }
+            try {
+                return codec.parse(bytes);
+            } catch (final ParseException e) {
+                throw new RuntimeException(e);
+            }
         };
     }
-
 }

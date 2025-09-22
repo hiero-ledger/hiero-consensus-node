@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.junit.support.validators.block;
 
+import static java.util.Objects.requireNonNull;
+import static org.assertj.core.api.Fail.fail;
+
 import com.hedera.hapi.block.stream.Block;
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.input.EventHeader;
@@ -23,9 +26,6 @@ import java.util.Set;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.crypto.PbjStreamHasher;
 import org.hiero.consensus.model.event.PlatformEvent;
-
-import static java.util.Objects.requireNonNull;
-import static org.assertj.core.api.Fail.fail;
 
 /**
  * A helper class for reconstructing events from the block stream.
