@@ -36,13 +36,94 @@ class NetworkPartitionTest {
     }
 
     /**
-     * Test creating a partition with multiple nodes using {@link java.util.Collection} parameter.
+     * Test creating and removing a partition with multiple nodes on all environments.
      *
      * @param env the test environment for this test
      */
     @ParameterizedTest
     @MethodSource("environments")
-    void testCreatePartitionWithCollection(@NonNull final TestEnvironment env) {
+    void testCreateAndRemovePartition(@NonNull final TestEnvironment env) {
+        try {
+            final Network network = env.network();
+            final TimeManager timeManager = env.timeManager();
+
+            // Setup network with 4 nodes
+            network.setWeightGenerator(WeightGenerators.BALANCED);
+            final List<Node> nodes = network.addNodes(4);
+            final Node node0 = nodes.get(0);
+            final Node node1 = nodes.get(1);
+            final Node node2 = nodes.get(2);
+            final Node node3 = nodes.get(3);
+
+            network.start();
+
+            // Wait for nodes to stabilize
+            timeManager.waitFor(Duration.ofSeconds(5));
+
+            // Create a partition using varargs syntax
+            final Partition partition = network.createPartition(node0, node1);
+
+            // Verify the partition was created correctly
+            assertThat(partition).isNotNull();
+            assertThat(partition.nodes()).containsExactlyInAnyOrder(node0, node1);
+
+            // Verify we have exactly 2 partitions
+            assertThat(network.partitions()).hasSize(2);
+            assertThat(network.partitions()).contains(partition);
+
+            // Verify nodes not in our partition are in the complementary partition
+            final Partition complementaryPartition = network.getPartitionContaining(node3);
+            assertThat(complementaryPartition).isNotNull().isNotEqualTo(partition);
+            assertThat(complementaryPartition.nodes()).containsExactlyInAnyOrder(node2, node3);
+
+            // Verify each node knows it's in the partition
+            assertThat(partition.contains(node0)).isTrue();
+            assertThat(partition.contains(node1)).isTrue();
+            assertThat(partition.contains(node2)).isFalse();
+            assertThat(partition.contains(node3)).isFalse();
+            assertThat(complementaryPartition.contains(node0)).isFalse();
+            assertThat(complementaryPartition.contains(node1)).isFalse();
+            assertThat(complementaryPartition.contains(node2)).isTrue();
+            assertThat(complementaryPartition.contains(node3)).isTrue();
+
+            // Verify network knows about the partition
+            assertThat(network.getPartitionContaining(node0)).isEqualTo(partition);
+            assertThat(network.getPartitionContaining(node1)).isEqualTo(partition);
+            assertThat(network.getPartitionContaining(node2)).isEqualTo(complementaryPartition);
+            assertThat(network.getPartitionContaining(node3)).isEqualTo(complementaryPartition);
+
+            // Wait for nodes to become inactive
+            timeManager.waitForCondition(
+                    () -> network.allNodesInStatus(CHECKING),
+                    Duration.ofSeconds(15),
+                    "Not all nodes entered CHECKING status within the expected time after creating partition");
+
+            // Remove the partition
+            network.removePartition(partition);
+
+            // Verify all nodes are back in normal connectivity
+            assertThat(network.partitions()).isEmpty();
+            assertThat(network.getPartitionContaining(node0)).isNull();
+            assertThat(network.getPartitionContaining(node1)).isNull();
+            assertThat(network.getPartitionContaining(node2)).isNull();
+            assertThat(network.getPartitionContaining(node3)).isNull();
+
+            // The node should be active again
+            timeManager.waitForCondition(
+                    network::allNodesAreActive,
+                    Duration.ofSeconds(15),
+                    "Not all nodes entered ACTIVE status within the expected time after removing partition");
+        } finally {
+            env.destroy();
+        }
+    }
+
+    /**
+     * Test creating a partition with multiple nodes using {@link java.util.Collection} parameter.
+     */
+    @Test
+    void testCreatePartitionWithCollection() {
+        final TestEnvironment env = new TurtleTestEnvironment(RANDOM_SEED);
         try {
             final Network network = env.network();
             final TimeManager timeManager = env.timeManager();
@@ -99,126 +180,6 @@ class NetworkPartitionTest {
                     Duration.ofSeconds(15),
                     "Not all nodes entered CHECKING status within the expected time after creating partition");
 
-        } finally {
-            env.destroy();
-        }
-    }
-
-    /**
-     * Test creating a partition with multiple nodes using varargs parameter.
-     *
-     * @param env the test environment for this test
-     */
-    @ParameterizedTest
-    @MethodSource("environments")
-    void testCreatePartitionWithVarargs(@NonNull final TestEnvironment env) {
-        try {
-            final Network network = env.network();
-            final TimeManager timeManager = env.timeManager();
-
-            // Setup network with 4 nodes
-            network.setWeightGenerator(WeightGenerators.BALANCED);
-            final List<Node> nodes = network.addNodes(4);
-            final Node node0 = nodes.get(0);
-            final Node node1 = nodes.get(1);
-            final Node node2 = nodes.get(2);
-            final Node node3 = nodes.get(3);
-
-            network.start();
-
-            // Wait for nodes to stabilize
-            timeManager.waitFor(Duration.ofSeconds(5));
-
-            // Create a partition using varargs syntax
-            final Partition partition = network.createPartition(node0, node1);
-
-            // Verify the partition was created correctly
-            assertThat(partition).isNotNull();
-            assertThat(partition.nodes()).containsExactlyInAnyOrder(node0, node1);
-
-            // Verify we have exactly 2 partitions
-            assertThat(network.partitions()).hasSize(2);
-            assertThat(network.partitions()).contains(partition);
-
-            // Verify nodes not in our partition are in the complementary partition
-            final Partition complementaryPartition = network.getPartitionContaining(node3);
-            assertThat(complementaryPartition).isNotNull().isNotEqualTo(partition);
-            assertThat(complementaryPartition.nodes()).containsExactlyInAnyOrder(node2, node3);
-
-            // Verify each node knows it's in the partition
-            assertThat(partition.contains(node0)).isTrue();
-            assertThat(partition.contains(node1)).isTrue();
-            assertThat(partition.contains(node2)).isFalse();
-            assertThat(partition.contains(node3)).isFalse();
-            assertThat(complementaryPartition.contains(node0)).isFalse();
-            assertThat(complementaryPartition.contains(node1)).isFalse();
-            assertThat(complementaryPartition.contains(node2)).isTrue();
-            assertThat(complementaryPartition.contains(node3)).isTrue();
-
-            // Verify network knows about the partition
-            assertThat(network.getPartitionContaining(node0)).isEqualTo(partition);
-            assertThat(network.getPartitionContaining(node1)).isEqualTo(partition);
-            assertThat(network.getPartitionContaining(node2)).isEqualTo(complementaryPartition);
-            assertThat(network.getPartitionContaining(node3)).isEqualTo(complementaryPartition);
-
-            // Wait for nodes to become inactive
-            timeManager.waitForCondition(() -> network.allNodesInStatus(CHECKING), Duration.ofSeconds(15));
-        } finally {
-            env.destroy();
-        }
-    }
-
-    /**
-     * Test removing a partition restores connectivity.
-     *
-     * @param env the test environment for this test
-     */
-    @ParameterizedTest
-    @MethodSource("environments")
-    void testRemovePartition(@NonNull final TestEnvironment env) {
-        try {
-            final Network network = env.network();
-            final TimeManager timeManager = env.timeManager();
-
-            // Setup network with 4 nodes
-            network.setWeightGenerator(WeightGenerators.BALANCED);
-            final List<Node> nodes = network.addNodes(4);
-            final Node node0 = nodes.get(0);
-            final Node node1 = nodes.get(1);
-            final Node node2 = nodes.get(2);
-            final Node node3 = nodes.get(3);
-
-            network.start();
-
-            // Wait for nodes to stabilize
-            timeManager.waitFor(Duration.ofSeconds(5));
-
-            // Create a partition
-            final Partition partition = network.createPartition(node0, node1);
-
-            // Verify partition exists
-            assertThat(network.partitions()).hasSize(2);
-            assertThat(network.getPartitionContaining(node0)).isEqualTo(partition);
-            assertThat(network.getPartitionContaining(node1)).isEqualTo(partition);
-
-            // Wait for nodes to become inactive
-            timeManager.waitForCondition(() -> network.allNodesInStatus(CHECKING), Duration.ofSeconds(15));
-
-            // Remove the partition
-            network.removePartition(partition);
-
-            // Verify all nodes are back in normal connectivity
-            assertThat(network.partitions()).isEmpty();
-            assertThat(network.getPartitionContaining(node0)).isNull();
-            assertThat(network.getPartitionContaining(node1)).isNull();
-            assertThat(network.getPartitionContaining(node2)).isNull();
-            assertThat(network.getPartitionContaining(node3)).isNull();
-
-            // The node should be active again
-            timeManager.waitForCondition(
-                    network::allNodesAreActive,
-                    Duration.ofSeconds(15),
-                    "Not all nodes entered ACTIVE status within the expected time after removing partition");
         } finally {
             env.destroy();
         }
