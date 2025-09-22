@@ -8,9 +8,13 @@ import com.hedera.hapi.block.stream.Block;
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.input.EventHeader;
 import com.hedera.hapi.block.stream.input.ParentEventReference;
+import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.platform.event.EventCore;
 import com.hedera.hapi.platform.event.EventDescriptor;
 import com.hedera.hapi.platform.event.GossipEvent;
+import com.hedera.hapi.node.transaction.SignedTransaction;
+import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
@@ -34,6 +38,8 @@ public class EventBuilder {
     /** Track event hashes by index within a single block */
     private final Map<Integer, PlatformEvent> eventIndexToEvent = new HashMap<>();
 
+    private final Map<Hash, PlatformEvent> eventHashtoEvent = new HashMap<>();
+
     /** A list of transactions to include in the current event */
     private final List<Bytes> currentTransactions = new ArrayList<>();
 
@@ -48,6 +54,8 @@ public class EventBuilder {
 
     /** The set of parent hashes that reference events in another block. Useful for verifying calculated hash integrity. */
     private final Set<Hash> crossBlockParentHashes = new HashSet<>();
+
+    private final List<SignedTransaction> discardedTransactions = new ArrayList<>();
 
     /**
      * Constructor.
@@ -100,6 +108,7 @@ public class EventBuilder {
             final PlatformEvent platformEvent =
                     createEventFromData(currentEventHeader, currentTransactions, eventIndexToEvent);
             events.add(platformEvent);
+            eventHashtoEvent.put(platformEvent.getHash(), platformEvent);
 
             // Calculate and store the event hash for future parent references
             eventIndexToEvent.put(eventIndexWithinBlock, platformEvent);
@@ -111,11 +120,32 @@ public class EventBuilder {
         currentTransactions.clear();
     }
 
-    private void signedTransaction(final Bytes transactionBytes) {
-        if (currentEventHeader != null) {
+    private void signedTransaction(final Bytes transactionBytes) throws ParseException {
+        if (currentEventHeader == null) {
+            fail("Unexpected transaction item without an active event header!");
+        }
+        if (isTransactionInEvent(transactionBytes)) {
             currentTransactions.add(transactionBytes);
         } else {
-            fail("Unexpected transaction item without an active event header!");
+            discardedTransactions.add(SignedTransaction.PROTOBUF.parse(transactionBytes));
+        }
+    }
+
+    /**
+     * Events included in the event hash have a nonce of zero. Other transactions (e.g. synthetic transactions) have a
+     * non-zero nonce and must not be included in the event in order to calculate the correct event hash.
+     *
+     * @param transactionBytes the transaction bytes to check
+     * @return true if the transaction should be included in the event, false otherwise
+     */
+    private boolean isTransactionInEvent(@NonNull final Bytes transactionBytes) {
+        try {
+            final SignedTransaction signedTransaction = SignedTransaction.PROTOBUF.parse(transactionBytes);
+            final TransactionBody transactionBody = TransactionBody.PROTOBUF.parse(signedTransaction.bodyBytes());
+            final TransactionID transactionId = transactionBody.transactionIDOrThrow();
+            return transactionId.nonce() == 0;
+        } catch (final ParseException e) {
+            throw new RuntimeException("Unable to parse transaction bytes", e);
         }
     }
 
@@ -124,6 +154,7 @@ public class EventBuilder {
             final PlatformEvent platformEvent =
                     createEventFromData(currentEventHeader, currentTransactions, eventIndexToEvent);
             eventIndexToEvent.put(eventIndexWithinBlock, platformEvent);
+            eventHashtoEvent.put(platformEvent.getHash(), platformEvent);
             events.add(platformEvent);
             currentEventHeader = null;
         }
@@ -200,6 +231,9 @@ public class EventBuilder {
                     // Parent is already an EventDescriptor (outside current block)
                     final EventDescriptor parentDescriptor = parentRef.parent().as();
                     resolvedParents.add(parentDescriptor);
+                    if (!eventHashtoEvent.containsKey(new Hash(parentDescriptor.hash()))) {
+                        fail("Unable to find event matching parent hash %d", parentDescriptor.hash());
+                    }
                     crossBlockParentHashes.add(new Hash(parentDescriptor.hash()));
                     break;
 

@@ -13,6 +13,8 @@ import static com.swirlds.platform.eventhandling.TransactionHandlerPhase.UPDATIN
 import static com.swirlds.platform.eventhandling.TransactionHandlerPhase.WAITING_FOR_PREHANDLE;
 
 import com.hedera.hapi.node.base.SemanticVersion;
+import com.hedera.hapi.platform.event.EventDescriptor;
+import com.hedera.hapi.platform.event.GossipEvent;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.stream.RunningEventHashOverride;
@@ -39,6 +41,7 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.model.event.CesEvent;
+import org.hiero.consensus.model.event.ConsensusEvent;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
@@ -167,6 +170,19 @@ public class DefaultTransactionHandler implements TransactionHandler {
             // possible.
             logger.info(STARTUP.getMarker(), "Ignoring empty consensus round {}", consensusRound.getRoundNum());
             return null;
+        }
+
+        if (consensusRound.getRoundNum() < 40) {
+            for (final PlatformEvent event : consensusRound.getConsensusEvents()) {
+                logger.info(
+                        STARTUP.getMarker(),
+                        "Consensus Event {}: Num Transactions: {}\n Self Descriptor:{}\n Hash:{}\n{}",
+                        event.getConsensusOrder(),
+                        event.getTransactions().size(),
+                        EventDescriptor.JSON.toJSON(event.getDescriptor().eventDescriptor()),
+                        event.getHash(),
+                        GossipEvent.JSON.toJSON(event.getGossipEvent()));
+            }
         }
 
         // Once there is a saved state created in a freeze period, we will never apply any more rounds to the state.
