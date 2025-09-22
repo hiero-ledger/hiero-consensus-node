@@ -8,7 +8,7 @@ import static org.hiero.otter.fixtures.network.BandwidthLimit.UNLIMITED;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.util.Collections;
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -25,8 +25,8 @@ import org.hiero.otter.fixtures.network.LatencyRange;
  */
 public class GeoMeshTopologyImpl implements GeoMeshTopology {
 
-    private final Map<Node, Location> nodes = new HashMap<>();
-    private final Map<Connection, ConnectionData> connectionDataMap = new HashMap<>();
+    private final Map<Node, Location> nodes = new LinkedHashMap<>();
+    private final Map<Connection, ConnectionData> connectionDataMap = new LinkedHashMap<>();
 
     private final Function<Integer, List<? extends Node>> nodeFactory;
     private final Supplier<InstrumentedNode> instrumentedNodeFactory;

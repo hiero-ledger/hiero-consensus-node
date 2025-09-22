@@ -7,9 +7,9 @@ import static java.util.stream.Collectors.groupingBy;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.TreeMap;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.internal.network.GeoMeshTopologyImpl.Location;
 import org.hiero.otter.fixtures.network.GeoMeshTopology.GeographicLatencyConfiguration;
@@ -54,7 +54,7 @@ public class GeoDistributor {
         // Extract a structured map of continents to regions with their node counts
         final Map<String, Map<String, Long>> continents = nodes.values().stream()
                 .collect(groupingBy(
-                        Location::continent, TreeMap::new, groupingBy(Location::region, TreeMap::new, counting())));
+                        Location::continent, LinkedHashMap::new, groupingBy(Location::region, LinkedHashMap::new, counting())));
 
         Location bestOption = null;
         double bestScore = Double.POSITIVE_INFINITY;
