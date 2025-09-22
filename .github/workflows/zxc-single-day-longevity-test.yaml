@@ -939,7 +939,8 @@ jobs:
         run: |
           if [ "${{ inputs.perf_analysis }}" == "true" ]
           then
-
+          set +e
+          set +x
           #restore all workspaces
           cd "${{ github.workspace }}"
           gcloud --no-user-output-enabled storage cp --recursive  "${{ env.GS_ROOT_DIR }}/${{ inputs.ref }}_${{ inputs.test-asset }}_${{ github.run_number }}"/workspaces.tgz ./workspaces.tgz
@@ -947,7 +948,7 @@ jobs:
 
           #CN
           cd "${{ github.workspace }}"/target_consensus_node/hedera-node
-          sh "${{ github.workspace }}"/performance-analysis-automation/performance_analysis_scripts/collectSERfiles.sh "${{ env.namespace }}"
+          sh "${{ github.workspace }}"/performance-analysis-automation/performance_analysis_scripts/collectSERfiles.sh "${{ needs.longevity-tests-start.outputs.namespace }}"
           echo "Debug"
           pwd
           ls -l *.ser
@@ -971,7 +972,7 @@ jobs:
           
           #BN
           cd "${{ github.workspace }}"/target_block_node
-          sh "${{ github.workspace }}"/performance-analysis-automation/performance_analysis_scripts/collectSERfiles.sh "${{ env.namespace }}" block-node /opt/hiero/block-node
+          sh "${{ github.workspace }}"/performance-analysis-automation/performance_analysis_scripts/collectSERfiles.sh "${{ needs.longevity-tests-start.outputs.namespace }}" block-node /opt/hiero/block-node
           echo "Debug"
           pwd
           ls -l *.ser
