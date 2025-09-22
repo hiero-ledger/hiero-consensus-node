@@ -66,9 +66,7 @@ public abstract class AbstractFakePlatform implements Platform {
     }
 
     @Override
-    public void setQuiescenceStatus(@NonNull final QuiescenceStatus quiescenceStatus) {
-
-    }
+    public void setQuiescenceStatus(@NonNull final QuiescenceStatus quiescenceStatus) {}
 
     @NonNull
     @Override
