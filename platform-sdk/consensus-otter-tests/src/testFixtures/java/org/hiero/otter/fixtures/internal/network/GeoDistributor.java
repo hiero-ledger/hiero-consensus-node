@@ -54,7 +54,9 @@ public class GeoDistributor {
         // Extract a structured map of continents to regions with their node counts
         final Map<String, Map<String, Long>> continents = nodes.values().stream()
                 .collect(groupingBy(
-                        Location::continent, LinkedHashMap::new, groupingBy(Location::region, LinkedHashMap::new, counting())));
+                        Location::continent,
+                        LinkedHashMap::new,
+                        groupingBy(Location::region, LinkedHashMap::new, counting())));
 
         Location bestOption = null;
         double bestScore = Double.POSITIVE_INFINITY;
