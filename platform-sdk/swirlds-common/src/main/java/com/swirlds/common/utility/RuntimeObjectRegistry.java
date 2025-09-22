@@ -141,6 +141,25 @@ public final class RuntimeObjectRegistry {
         }
     }
 
+    public static Duration getRecordAgeGap(final Class<?> cls) {
+        final List<RuntimeObjectRecord> classRecords = RECORDS.get(cls);
+        if (classRecords == null || classRecords.size() < 2) {
+            return Duration.ZERO;
+        }
+        final Instant newestRecord;
+        final Instant oldestRecord;
+        try {
+            newestRecord = classRecords.getLast().getCreationTime();
+            oldestRecord = classRecords.getFirst().getCreationTime();
+        } catch (final IndexOutOfBoundsException e) {
+            return Duration.ZERO;
+        }
+        if(oldestRecord.isAfter(newestRecord)){
+            return Duration.ZERO;
+        }
+        return Duration.between(oldestRecord, newestRecord);
+    }
+
     /**
      * Get object classes tracked in this registry. The set of classes is immutable.
      *

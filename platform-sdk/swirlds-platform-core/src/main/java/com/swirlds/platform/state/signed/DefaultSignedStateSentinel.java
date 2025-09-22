@@ -55,6 +55,8 @@ public class DefaultSignedStateSentinel implements SignedStateSentinel {
             return;
         }
 
+        final Duration signedStateGap = RuntimeObjectRegistry.getRecordAgeGap(SignedState.class);
+
         if (CompareTo.isGreaterThan(objectRecord.getAge(time.now()), maxSignedStateAge)
                 && rateLimiter.requestAndTrigger()) {
             final SignedStateHistory history = objectRecord.getMetadata();
