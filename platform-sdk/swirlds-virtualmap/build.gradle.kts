@@ -31,6 +31,7 @@ jmhModuleInfo {
 
 testModuleInfo {
     requires("com.swirlds.common.test.fixtures")
+    requires("com.swirlds.config.extensions")
     requires("com.swirlds.config.extensions.test.fixtures")
     requires("com.swirlds.virtualmap.test.fixtures")
     requires("org.hiero.base.utility.test.fixtures")
