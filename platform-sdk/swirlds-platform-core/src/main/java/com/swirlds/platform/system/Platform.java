@@ -9,6 +9,7 @@ import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.hiero.base.crypto.Signature;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.quiescence.QuiescenceStatus;
 
 /**
  * An interface for Swirlds Platform.
@@ -68,6 +69,14 @@ public interface Platform {
      */
     @NonNull
     Signature sign(@NonNull byte[] data);
+
+    /**
+     * Set the quiescence status of this node. The platform will use the latest status that has been provided. If
+     * multiple threads call this method at the same time, there is no guarantee about which status will be used.
+     *
+     * @param quiescenceStatus the quiescence status
+     */
+    void setQuiescenceStatus(@NonNull QuiescenceStatus quiescenceStatus);
 
     /**
      * Start this platform.

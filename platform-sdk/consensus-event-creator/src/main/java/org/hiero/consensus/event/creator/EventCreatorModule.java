@@ -13,6 +13,7 @@ import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.quiescence.QuiescenceStatus;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.model.transaction.EventTransactionSupplier;
 import org.hiero.consensus.model.transaction.SignatureTransactionCheck;
@@ -89,6 +90,14 @@ public interface EventCreatorModule {
      * @param lag the lag in rounds behind the other nodes
      */
     void reportSyncRoundLag(@NonNull Double lag);
+
+    /**
+     * Set the quiescence status of this event creator. The event creator will always behave according to the most
+     * recent quiescence status that it has been given.
+     *
+     * @param quiescenceStatus the quiescence status
+     */
+    void setQuiescenceStatus(@NonNull QuiescenceStatus quiescenceStatus);
 
     /**
      * Clear the internal state of the event creation manager.
