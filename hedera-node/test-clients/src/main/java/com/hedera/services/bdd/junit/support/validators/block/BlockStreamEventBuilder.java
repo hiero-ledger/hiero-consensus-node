@@ -1,19 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.junit.support.validators.block;
 
-import static java.util.Objects.requireNonNull;
-import static org.assertj.core.api.Fail.fail;
-
 import com.hedera.hapi.block.stream.Block;
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.input.EventHeader;
 import com.hedera.hapi.block.stream.input.ParentEventReference;
 import com.hedera.hapi.node.base.TransactionID;
+import com.hedera.hapi.node.transaction.SignedTransaction;
+import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.platform.event.EventCore;
 import com.hedera.hapi.platform.event.EventDescriptor;
 import com.hedera.hapi.platform.event.GossipEvent;
-import com.hedera.hapi.node.transaction.SignedTransaction;
-import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -23,17 +20,17 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.crypto.PbjStreamHasher;
 import org.hiero.consensus.model.event.PlatformEvent;
+
+import static java.util.Objects.requireNonNull;
+import static org.assertj.core.api.Fail.fail;
 
 /**
  * A helper class for reconstructing events from the block stream.
  */
 public class BlockStreamEventBuilder {
-    private static final Logger logger = LogManager.getLogger(BlockStreamEventBuilder.class);
 
     /** The blocks to read events from. */
     private final List<Block> blocks;
@@ -57,9 +54,6 @@ public class BlockStreamEventBuilder {
 
     /** The set of parent hashes that reference events in another block. Useful for verifying calculated hash integrity. */
     private final Set<Hash> crossBlockParentHashes = new HashSet<>();
-
-    private int eventNum = 0;
-    private final List<TransactionBody> discardedTransactions = new ArrayList<>();
 
     /**
      * Constructor.
@@ -124,8 +118,12 @@ public class BlockStreamEventBuilder {
         }
         if (isTransactionInEvent(transactionBytes)) {
             currentTransactions.add(transactionBytes);
-        } else {
-            discardedTransactions.add(getTransactionBody(transactionBytes));
+        }
+    }
+
+    private void endOfBlock() {
+        if (currentEventHeader != null) {
+            completeEvent();
         }
     }
 
@@ -142,6 +140,12 @@ public class BlockStreamEventBuilder {
         return transactionId.nonce() == 0;
     }
 
+    /**
+     * Parses and returns the transaction body from PBJ bytes.
+     *
+     * @param transactionBytes the transaction bytes
+     * @return the parsed transaction body
+     */
     private TransactionBody getTransactionBody(@NonNull final Bytes transactionBytes) {
         try {
             final SignedTransaction signedTransaction = SignedTransaction.PROTOBUF.parse(transactionBytes);
@@ -151,19 +155,15 @@ public class BlockStreamEventBuilder {
         }
     }
 
-    private void endOfBlock() {
-        if (currentEventHeader != null) {
-            completeEvent();
-        }
-    }
-
+    /**
+     * Uses the information collected so far about an event to create an event.
+     */
     private void completeEvent() {
         final PlatformEvent platformEvent =
                 createEventFromData(currentEventHeader, currentTransactions, eventIndexToEvent);
         eventIndexToEvent.put(eventIndexWithinBlock, platformEvent);
         eventHashtoEvent.put(platformEvent.getHash(), platformEvent);
         events.add(platformEvent);
-        logger.info("Reconstructed event #{} with {} transactions", eventNum++, currentTransactions.size());
         currentEventHeader = null;
     }
 

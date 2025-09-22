@@ -8,16 +8,20 @@ import com.hedera.services.bdd.junit.support.BlockStreamValidator;
 import com.hedera.services.bdd.spec.HapiSpec;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Hash;
+import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
 
 /**
  * A BlockStreamValidator implementation that reassembles consensus events and verifies the hash integrity of the event
- * chain that forms the hashgraph.
+ * chain that forms the hashgraph. Specifically, it checks that events whose parents are in a previous block are found.
+ * Doing so proves that the hash of the parent event was properly calculated. This is the best check we can do, since
+ * parents within a block are referenced by an index and not the hash.
  */
 public class EventHashBlockStreamValidator implements BlockStreamValidator {
     private static final Logger logger = LogManager.getLogger(EventHashBlockStreamValidator.class);
@@ -66,12 +70,11 @@ public class EventHashBlockStreamValidator implements BlockStreamValidator {
             return;
         }
 
-        // Calculate and collect event hashes
-        final Set<Hash> uniqueEventHashes =
+        final Set<Hash> eventHashes =
                 events.stream().map(PlatformEvent::getHash).collect(Collectors.toSet());
 
         for (final Hash crossBlockParentHash : crossBlockParentHashes) {
-            if (!uniqueEventHashes.contains(crossBlockParentHash)) {
+            if (!eventHashes.contains(crossBlockParentHash)) {
                 fail("Cross block parent hash {} not found among event hashes!", crossBlockParentHash);
             }
         }
