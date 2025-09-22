@@ -43,9 +43,14 @@ The quiescence controller should take all of this input and determine the quiesc
 
 ## Quiescence status interface
 
+- push status from execution to consensus
+- could not find a way of avoiding 3 different states, so using an enum
+- bundling status with `getTransactions` was considered, but it had a flaw. the event creator would not call this method
+  if it didnt have viable parents, which would mean it would not learn about breaking quiescence. and if it did call it
+  without viable parents, it would not know what to do with the transactions it received when not being able to create
+  an event
+
 ## Restart/Reconnect behavior
-
-
 
 ## Metrics
 
