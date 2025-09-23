@@ -320,7 +320,6 @@ public interface V065Module {
     @ServicesV065
     static Operation provideSelfDestructOperation(
             @NonNull final GasCalculator gasCalculator, @ServicesV065 @NonNull final AddressChecks addressChecks) {
-        // Here we adopt EIP-6780 semantics, for SELFDESTRUCT, for the first time
         return new CustomSelfDestructOperation(gasCalculator, addressChecks, UseEIP6780Semantics.YES);
     }
 

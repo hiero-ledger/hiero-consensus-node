@@ -112,6 +112,7 @@ public class CustomGasCharging {
         requireNonNull(worldUpdater);
         requireNonNull(transaction);
 
+        // TODO: Revisit baselineGas with Pectra support epic
         final var intrinsicGas =
                 gasCalculator.transactionIntrinsicGasCost(transaction.evmPayload(), transaction.isCreate(), 0L);
         if (context.isNoopGasContext()) {
@@ -153,6 +154,7 @@ public class CustomGasCharging {
         requireNonNull(worldUpdater);
         requireNonNull(transaction);
 
+        // TODO: Revisit baselineGas with Pectra support epic
         final var intrinsicGas = gasCalculator.transactionIntrinsicGasCost(transaction.evmPayload(), false, 0L);
 
         if (transaction.isEthereumTransaction()) {

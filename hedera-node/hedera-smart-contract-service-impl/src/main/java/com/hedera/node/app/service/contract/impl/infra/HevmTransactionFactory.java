@@ -281,6 +281,7 @@ public class HevmTransactionFactory {
     }
 
     private void assertValidCall(@NonNull final ContractCallTransactionBody body) {
+        // TODO: Revisit baselineGas with Pectra support epic
         final var minGasLimit = Math.max(
                 ContractServiceImpl.INTRINSIC_GAS_LOWER_BOUND,
                 gasCalculator.transactionIntrinsicGasCost(EMPTY, false, 0L));
