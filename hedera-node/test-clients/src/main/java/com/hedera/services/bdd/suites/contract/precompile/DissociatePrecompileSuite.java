@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.precompile;
 
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.resultWith;
@@ -84,6 +85,7 @@ public class DissociatePrecompileSuite {
     private static final String CONTRACT_KEY_NESTED = "CONTRACT_KEY_NESTED";
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> dissociateTokensNegativeScenarios() {
         final AtomicReference<Address> tokenAddress1 = new AtomicReference<>();
         final AtomicReference<Address> tokenAddress2 = new AtomicReference<>();
@@ -478,6 +480,7 @@ public class DissociatePrecompileSuite {
     }
 
     @HapiTest
+    @Tag(MATS)
     public Stream<DynamicTest> multiplePrecompileDissociationWithSigsForFungibleWorks() {
         final AtomicReference<TokenID> knowableTokenTokenID = new AtomicReference<>();
         final AtomicReference<TokenID> vanillaTokenID = new AtomicReference<>();

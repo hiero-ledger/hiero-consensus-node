@@ -64,7 +64,6 @@ public class VirtualMapStateTest extends MerkleTestBase {
      */
     @BeforeEach
     void setUp() {
-        setupFruitMerkleMap();
         virtualMapState = new TestHederaVirtualMapState(CONFIGURATION, new NoOpMetrics());
         virtualMapState.init(
                 new FakeTime(),
@@ -89,7 +88,7 @@ public class VirtualMapStateTest extends MerkleTestBase {
         void addingSingletonService() {
             // Given a singleton
             setupSingletonCountry();
-            final String singletonStateKey = countryMetadata.stateDefinition().stateKey();
+            final int singletonStateId = countryMetadata.stateDefinition().stateId();
 
             // When added to the state
             virtualMapState.initializeState(countryMetadata);
@@ -99,10 +98,10 @@ public class VirtualMapStateTest extends MerkleTestBase {
             assertTrue(virtualMapState.getServices().containsKey(countryMetadata.serviceName()));
             assertDoesNotThrow(() -> virtualMapState
                     .getReadableStates(countryMetadata.serviceName())
-                    .getSingleton(singletonStateKey));
+                    .getSingleton(singletonStateId));
             assertDoesNotThrow(() -> virtualMapState
                     .getWritableStates(countryMetadata.serviceName())
-                    .getSingleton(singletonStateKey));
+                    .getSingleton(singletonStateId));
         }
 
         @Test
@@ -110,7 +109,7 @@ public class VirtualMapStateTest extends MerkleTestBase {
         void addingQueueService() {
             // Given a queue
             setupSteamQueue();
-            final String queueStateKey = steamMetadata.stateDefinition().stateKey();
+            final int queueStateId = steamMetadata.stateDefinition().stateId();
 
             // When added to the state
             virtualMapState.initializeState(steamMetadata);
@@ -120,10 +119,10 @@ public class VirtualMapStateTest extends MerkleTestBase {
             assertTrue(virtualMapState.getServices().containsKey(steamMetadata.serviceName()));
             assertDoesNotThrow(() -> virtualMapState
                     .getReadableStates(steamMetadata.serviceName())
-                    .getQueue(queueStateKey));
+                    .getQueue(queueStateId));
             assertDoesNotThrow(() -> virtualMapState
                     .getWritableStates(steamMetadata.serviceName())
-                    .getQueue(queueStateKey));
+                    .getQueue(queueStateId));
         }
 
         @Test
@@ -131,7 +130,7 @@ public class VirtualMapStateTest extends MerkleTestBase {
         void addingKvService() {
             // Given a virtual map
             setupFruitVirtualMap();
-            final String kvStateKey = fruitMetadata.stateDefinition().stateKey();
+            final int kvStateId = fruitMetadata.stateDefinition().stateId();
 
             // When added to the state
             virtualMapState.initializeState(fruitMetadata);
@@ -141,10 +140,10 @@ public class VirtualMapStateTest extends MerkleTestBase {
             assertTrue(virtualMapState.getServices().containsKey(fruitMetadata.serviceName()));
             assertDoesNotThrow(() -> virtualMapState
                     .getReadableStates(fruitMetadata.serviceName())
-                    .get(kvStateKey));
+                    .get(kvStateId));
             assertDoesNotThrow(() -> virtualMapState
                     .getWritableStates(fruitMetadata.serviceName())
-                    .get(kvStateKey));
+                    .get(kvStateId));
         }
 
         @Test
@@ -152,17 +151,23 @@ public class VirtualMapStateTest extends MerkleTestBase {
         void addingServiceTwiceWithDifferentMetadata() {
             // Given an empty merkle tree, when I add the same node twice but with different
             // metadata,
-            final var fruitMetadata2 = new StateMetadata<>(
+            setupFruitVirtualMap();
+            final var fruitVirtualMetadata2 = new StateMetadata<>(
                     StateTestBase.FIRST_SERVICE,
                     new TestSchema(1),
-                    StateDefinition.inMemory(FRUIT_STATE_KEY, ProtoBytes.PROTOBUF, ProtoBytes.PROTOBUF));
+                    StateDefinition.onDisk(
+                            FRUIT_STATE_ID, FRUIT_STATE_KEY, ProtoBytes.PROTOBUF, ProtoBytes.PROTOBUF, 999));
 
             virtualMapState.initializeState(fruitMetadata);
-            virtualMapState.initializeState(fruitMetadata2);
+            virtualMapState.initializeState(fruitVirtualMetadata2);
 
             // Then the original node is kept and the second node ignored
             assertThat(virtualMapState.getServices().size()).isEqualTo(1);
             assertTrue(virtualMapState.getServices().containsKey(fruitMetadata.serviceName()));
+            assertTrue(virtualMapState
+                    .getServices()
+                    .get(fruitMetadata.serviceName())
+                    .containsKey(FRUIT_STATE_ID));
         }
     }
 
@@ -173,15 +178,7 @@ public class VirtualMapStateTest extends MerkleTestBase {
         @DisplayName("You cannot remove with a null service name")
         void usingNullServiceNameToRemoveThrows() {
             //noinspection ConstantConditions
-            assertThatThrownBy(() -> virtualMapState.removeServiceState(null, StateTestBase.FRUIT_STATE_KEY))
-                    .isInstanceOf(NullPointerException.class);
-        }
-
-        @Test
-        @DisplayName("You cannot remove with a null state key")
-        void usingNullStateKeyToRemoveThrows() {
-            //noinspection ConstantConditions
-            assertThatThrownBy(() -> virtualMapState.removeServiceState(StateTestBase.FIRST_SERVICE, null))
+            assertThatThrownBy(() -> virtualMapState.removeServiceState(null, StateTestBase.FRUIT_STATE_ID))
                     .isInstanceOf(NullPointerException.class);
         }
 
@@ -189,6 +186,7 @@ public class VirtualMapStateTest extends MerkleTestBase {
         @DisplayName("Removing an unknown service name does nothing")
         void removeWithUnknownServiceName() {
             // Given a virtual map state with a random service
+            setupFruitVirtualMap();
             virtualMapState.initializeState(fruitMetadata);
             final var stateMetadataSize = virtualMapState
                     .getServices()
@@ -199,7 +197,7 @@ public class VirtualMapStateTest extends MerkleTestBase {
                     .size();
 
             // When you try to remove an unknown service
-            virtualMapState.removeServiceState(UNKNOWN_SERVICE, FRUIT_STATE_KEY);
+            virtualMapState.removeServiceState(UNKNOWN_SERVICE, FRUIT_STATE_ID);
 
             // It has no effect on anything
             assertThat(virtualMapState
@@ -217,6 +215,7 @@ public class VirtualMapStateTest extends MerkleTestBase {
         @DisplayName("Removing an unknown state key does nothing")
         void removeWithUnknownStateKey() {
             // Given a virtual map state with a random service
+            setupFruitVirtualMap();
             virtualMapState.initializeState(fruitMetadata);
             final var stateMetadataSize = virtualMapState
                     .getServices()
@@ -227,7 +226,7 @@ public class VirtualMapStateTest extends MerkleTestBase {
                     .size();
 
             // When you try to remove an unknown service
-            virtualMapState.removeServiceState(FIRST_SERVICE, UNKNOWN_STATE_KEY);
+            virtualMapState.removeServiceState(FIRST_SERVICE, UNKNOWN_STATE_ID);
 
             // It has no effect on anything
             assertThat(virtualMapState
@@ -245,10 +244,11 @@ public class VirtualMapStateTest extends MerkleTestBase {
         @DisplayName("Calling `remove` removes the right service")
         void remove() {
             // Given a virtual map state with a first service
+            setupFruitVirtualMap();
             virtualMapState.initializeState(fruitMetadata);
 
             // When you try to remove a first service
-            virtualMapState.removeServiceState(FIRST_SERVICE, FRUIT_STATE_KEY);
+            virtualMapState.removeServiceState(FIRST_SERVICE, FRUIT_STATE_ID);
 
             // First service would be removed
             assertThat(virtualMapState
@@ -271,23 +271,19 @@ public class VirtualMapStateTest extends MerkleTestBase {
             // calling below setup methods only for metadata init
             // FUTURE WORK: refactor after MerkleStateRootTest will be removed
             setupFruitVirtualMap();
-            setupAnimalMerkleMap();
             setupSingletonCountry();
             setupSteamQueue();
 
             // adding k/v and singleton states directly to the virtual map
             final var virtualMap = (VirtualMap) virtualMapState.getRoot();
-            addKvState(virtualMap, fruitVirtualMetadata, A_KEY, APPLE);
-            addKvState(virtualMap, fruitVirtualMetadata, B_KEY, BANANA);
-            addKvState(virtualMap, animalMetadata, C_KEY, CUTTLEFISH);
-            addKvState(virtualMap, animalMetadata, D_KEY, DOG);
-            addKvState(virtualMap, animalMetadata, F_KEY, FOX);
+            addKvState(virtualMap, fruitMetadata, A_KEY, APPLE);
+            addKvState(virtualMap, fruitMetadata, B_KEY, BANANA);
             addSingletonState(virtualMap, countryMetadata, GHANA);
 
             // adding queue state via State API, to init the QueueState
             virtualMapState.initializeState(steamMetadata);
             final var writableStates = virtualMapState.getWritableStates(FIRST_SERVICE);
-            writableStates.getQueue(STEAM_STATE_KEY).add(ART);
+            writableStates.getQueue(STEAM_STATE_ID).add(ART);
             ((CommittableWritableStates) writableStates).commit();
         }
 
@@ -304,7 +300,6 @@ public class VirtualMapStateTest extends MerkleTestBase {
         void unknownState() {
             // Given a State with the fruit and animal and country states
             virtualMapState.initializeState(fruitMetadata);
-            virtualMapState.initializeState(animalMetadata);
             virtualMapState.initializeState(countryMetadata);
             virtualMapState.initializeState(steamMetadata);
 
@@ -312,7 +307,7 @@ public class VirtualMapStateTest extends MerkleTestBase {
             final var states = virtualMapState.getReadableStates(FIRST_SERVICE);
 
             // Then query it for an unknown state and get an IAE
-            assertThatThrownBy(() -> states.get(UNKNOWN_STATE_KEY)).isInstanceOf(IllegalArgumentException.class);
+            assertThatThrownBy(() -> states.get(UNKNOWN_STATE_ID)).isInstanceOf(IllegalArgumentException.class);
         }
 
         @Test
@@ -326,7 +321,7 @@ public class VirtualMapStateTest extends MerkleTestBase {
                 final var states = virtualMapState.getReadableStates(FIRST_SERVICE);
 
                 // Then it isn't null
-                assertThat(states.get(FRUIT_STATE_KEY)).isNotNull();
+                assertThat(states.get(FRUIT_STATE_ID)).isNotNull();
             } finally {
                 fruitVirtualMap.release();
             }
@@ -337,22 +332,21 @@ public class VirtualMapStateTest extends MerkleTestBase {
         void contains() {
             // Given a State with the fruit and animal and country and steam states
             virtualMapState.initializeState(fruitMetadata);
-            virtualMapState.initializeState(animalMetadata);
             virtualMapState.initializeState(countryMetadata);
             virtualMapState.initializeState(steamMetadata);
 
             // When we get the ReadableStates and the state keys
             final var states = virtualMapState.getReadableStates(FIRST_SERVICE);
-            final var stateKeys = states.stateKeys();
+            final var stateIds = states.stateIds();
 
-            // Then we find "contains" is true for every state in stateKeys
-            assertThat(stateKeys).hasSize(4);
-            for (final var stateKey : stateKeys) {
-                assertThat(states.contains(stateKey)).isTrue();
+            // Then we find "contains" is true for every state in stateIds
+            assertThat(stateIds).hasSize(3);
+            for (final var stateId : stateIds) {
+                assertThat(states.contains(stateId)).isTrue();
             }
 
             // And we find other nonsense states are false for contains
-            assertThat(states.contains(UNKNOWN_STATE_KEY)).isFalse();
+            assertThat(states.contains(UNKNOWN_STATE_ID)).isFalse();
         }
 
         @Test
@@ -363,8 +357,8 @@ public class VirtualMapStateTest extends MerkleTestBase {
             final var states = virtualMapState.getReadableStates(FIRST_SERVICE);
 
             // When we call get twice
-            final var kvState1 = states.get(FRUIT_STATE_KEY);
-            final var kvState2 = states.get(FRUIT_STATE_KEY);
+            final var kvState1 = states.get(FRUIT_STATE_ID);
+            final var kvState2 = states.get(FRUIT_STATE_ID);
 
             // Then we must find both variables are the same instance
             assertThat(kvState1).isSameAs(kvState2);
@@ -375,7 +369,6 @@ public class VirtualMapStateTest extends MerkleTestBase {
         void knownServiceNameUsingReadableStates() {
             // Given a State with the fruit and animal and country states
             virtualMapState.initializeState(fruitMetadata);
-            virtualMapState.initializeState(animalMetadata);
             virtualMapState.initializeState(countryMetadata);
             virtualMapState.initializeState(steamMetadata);
 
@@ -385,30 +378,21 @@ public class VirtualMapStateTest extends MerkleTestBase {
             // Then query it, we find the data we expected to find
             assertThat(states).isNotNull();
             assertThat(states.isEmpty()).isFalse();
-            assertThat(states.size()).isEqualTo(4); // animal and fruit and country and steam
+            assertThat(states.size()).isEqualTo(3); // fruit and country and steam
 
-            final ReadableKVState<ProtoBytes, ProtoBytes> fruitState = states.get(FRUIT_STATE_KEY);
+            final ReadableKVState<ProtoBytes, ProtoBytes> fruitState = states.get(FRUIT_STATE_ID);
             assertFruitState(fruitState);
 
-            final ReadableKVState<ProtoBytes, ProtoBytes> animalState = states.get(ANIMAL_STATE_KEY);
-            assertAnimalState(animalState);
-
-            final ReadableSingletonState<ProtoBytes> countryState = states.getSingleton(COUNTRY_STATE_KEY);
+            final ReadableSingletonState<ProtoBytes> countryState = states.getSingleton(COUNTRY_STATE_ID);
             assertCountryState(countryState);
 
-            final ReadableQueueState<ProtoBytes> steamState = states.getQueue(STEAM_STATE_KEY);
+            final ReadableQueueState<ProtoBytes> steamState = states.getQueue(STEAM_STATE_ID);
             assertSteamState(steamState);
 
             // And the states we got back CANNOT be cast to WritableState
             assertThatThrownBy(
                             () -> { //noinspection rawtypes
                                 final var ignored = (WritableKVState) fruitState;
-                            })
-                    .isInstanceOf(ClassCastException.class);
-
-            assertThatThrownBy(
-                            () -> { //noinspection rawtypes
-                                final var ignored = (WritableKVState) animalState;
                             })
                     .isInstanceOf(ClassCastException.class);
 
@@ -432,19 +416,15 @@ public class VirtualMapStateTest extends MerkleTestBase {
             final var virtualMap = (VirtualMap) virtualMapState.getRoot();
             addKvState(fruitVirtualMap, fruitMetadata, A_KEY, APPLE);
             addKvState(fruitVirtualMap, fruitMetadata, B_KEY, BANANA);
-            addKvState(animalMerkleMap, animalMetadata, C_KEY, CUTTLEFISH);
-            addKvState(animalMerkleMap, animalMetadata, D_KEY, DOG);
-            addKvState(animalMerkleMap, animalMetadata, F_KEY, FOX);
             addSingletonState(virtualMap, countryMetadata, GHANA);
 
             // Given a State with the fruit and animal and country states
             virtualMapState.initializeState(fruitMetadata);
-            virtualMapState.initializeState(animalMetadata);
             virtualMapState.initializeState(countryMetadata);
             virtualMapState.initializeState(steamMetadata);
             // adding queue state via State API, to init the QueueState
             final var writableStates = virtualMapState.getWritableStates(FIRST_SERVICE);
-            writableStates.getQueue(STEAM_STATE_KEY).add(ART);
+            writableStates.getQueue(STEAM_STATE_ID).add(ART);
             ((CommittableWritableStates) writableStates).commit();
 
             // hash the state
@@ -454,10 +434,11 @@ public class VirtualMapStateTest extends MerkleTestBase {
             final String infoJson = virtualMapState.getInfoJson();
             assertThat(infoJson)
                     .isEqualTo("{" + "\"Queues (Queue States)\":"
-                            + "{\"First-Service.STEAM\":{\"head\":1,\"path\":14,\"tail\":3}},"
-                            + "\"VirtualMapMetadata\":{\"firstLeafPath\":8,\"lastLeafPath\":16},"
+                            + "{\"First-Service." + STEAM_STATE_KEY + "\":{\"head\":1,\"path\":8,\"tail\":3}},"
+                            + "\"VirtualMapMetadata\":{\"firstLeafPath\":5,\"lastLeafPath\":10},"
                             + "\"Singletons\":"
-                            + "{\"First-Service.COUNTRY\":{\"path\":10,\"mnemonic\":\"author-pyramid-maze-thing\"}}}");
+                            + "{\"First-Service." + COUNTRY_STATE_KEY
+                            + "\":{\"path\":9,\"mnemonic\":\"cushion-bright-early-flight\"}}}");
         }
 
         private static void assertFruitState(ReadableKVState<ProtoBytes, ProtoBytes> fruitState) {
@@ -471,24 +452,13 @@ public class VirtualMapStateTest extends MerkleTestBase {
             assertThat(fruitState.get(G_KEY)).isNull();
         }
 
-        private void assertAnimalState(ReadableKVState<ProtoBytes, ProtoBytes> animalState) {
-            assertThat(animalState).isNotNull();
-            assertThat(animalState.get(A_KEY)).isNull();
-            assertThat(animalState.get(B_KEY)).isNull();
-            assertThat(animalState.get(C_KEY)).isSameAs(CUTTLEFISH);
-            assertThat(animalState.get(D_KEY)).isSameAs(DOG);
-            assertThat(animalState.get(E_KEY)).isNull();
-            assertThat(animalState.get(F_KEY)).isSameAs(FOX);
-            assertThat(animalState.get(G_KEY)).isNull();
-        }
-
         private void assertCountryState(ReadableSingletonState<ProtoBytes> countryState) {
-            assertThat(countryState.getStateKey()).isEqualTo(COUNTRY_STATE_KEY);
+            assertThat(countryState.getStateId()).isEqualTo(COUNTRY_STATE_ID);
             assertThat(countryState.get()).isEqualTo(GHANA);
         }
 
         private void assertSteamState(ReadableQueueState<ProtoBytes> steamState) {
-            assertThat(steamState.getStateKey()).isEqualTo(STEAM_STATE_KEY);
+            assertThat(steamState.getStateId()).isEqualTo(STEAM_STATE_ID);
             assertThat(steamState.peek()).isEqualTo(ART);
         }
     }
@@ -502,23 +472,19 @@ public class VirtualMapStateTest extends MerkleTestBase {
             // calling below setup methods only for metadata init
             // FUTURE WORK: refactor after MerkleStateRootTest will be removed
             setupFruitVirtualMap();
-            setupAnimalMerkleMap();
             setupSingletonCountry();
             setupSteamQueue();
 
             // adding k/v and singleton states directly to the virtual map
             final var virtualMap = (VirtualMap) virtualMapState.getRoot();
-            addKvState(virtualMap, fruitVirtualMetadata, A_KEY, APPLE);
-            addKvState(virtualMap, fruitVirtualMetadata, B_KEY, BANANA);
-            addKvState(virtualMap, animalMetadata, C_KEY, CUTTLEFISH);
-            addKvState(virtualMap, animalMetadata, D_KEY, DOG);
-            addKvState(virtualMap, animalMetadata, F_KEY, FOX);
+            addKvState(virtualMap, fruitMetadata, A_KEY, APPLE);
+            addKvState(virtualMap, fruitMetadata, B_KEY, BANANA);
             addSingletonState(virtualMap, countryMetadata, GHANA);
 
             // adding queue state via State API, to init the QueueState
             virtualMapState.initializeState(steamMetadata);
             final var writableStates = virtualMapState.getWritableStates(FIRST_SERVICE);
-            writableStates.getQueue(STEAM_STATE_KEY).add(ART);
+            writableStates.getQueue(STEAM_STATE_ID).add(ART);
             ((CommittableWritableStates) writableStates).commit();
         }
 
@@ -535,7 +501,6 @@ public class VirtualMapStateTest extends MerkleTestBase {
         void unknownState() {
             // Given a State with the fruit and animal and country states
             virtualMapState.initializeState(fruitMetadata);
-            virtualMapState.initializeState(animalMetadata);
             virtualMapState.initializeState(countryMetadata);
             virtualMapState.initializeState(steamMetadata);
 
@@ -543,7 +508,7 @@ public class VirtualMapStateTest extends MerkleTestBase {
             final var states = virtualMapState.getWritableStates(FIRST_SERVICE);
 
             // Then query it for an unknown state and get an IAE
-            assertThatThrownBy(() -> states.get(UNKNOWN_STATE_KEY)).isInstanceOf(IllegalArgumentException.class);
+            assertThatThrownBy(() -> states.get(UNKNOWN_STATE_ID)).isInstanceOf(IllegalArgumentException.class);
         }
 
         @Test
@@ -557,7 +522,7 @@ public class VirtualMapStateTest extends MerkleTestBase {
                 final var states = virtualMapState.getWritableStates(FIRST_SERVICE);
 
                 // Then it isn't null
-                assertThat(states.get(FRUIT_STATE_KEY)).isNotNull();
+                assertThat(states.get(FRUIT_STATE_ID)).isNotNull();
             } finally {
                 fruitVirtualMap.release();
             }
@@ -568,22 +533,21 @@ public class VirtualMapStateTest extends MerkleTestBase {
         void contains() {
             // Given a State with the fruit and animal and country states
             virtualMapState.initializeState(fruitMetadata);
-            virtualMapState.initializeState(animalMetadata);
             virtualMapState.initializeState(countryMetadata);
             virtualMapState.initializeState(steamMetadata);
 
             // When we get the WritableStates and the state keys
             final var states = virtualMapState.getWritableStates(FIRST_SERVICE);
-            final var stateKeys = states.stateKeys();
+            final var stateIds = states.stateIds();
 
-            // Then we find "contains" is true for every state in stateKeys
-            assertThat(stateKeys).hasSize(4);
-            for (final var stateKey : stateKeys) {
-                assertThat(states.contains(stateKey)).isTrue();
+            // Then we find "contains" is true for every state in stateIds
+            assertThat(stateIds).hasSize(3);
+            for (final var stateId : stateIds) {
+                assertThat(states.contains(stateId)).isTrue();
             }
 
             // And we find other nonsense states are false for contains
-            assertThat(states.contains(UNKNOWN_STATE_KEY)).isFalse();
+            assertThat(states.contains(UNKNOWN_STATE_ID)).isFalse();
         }
 
         @Test
@@ -594,8 +558,8 @@ public class VirtualMapStateTest extends MerkleTestBase {
             final var states = virtualMapState.getWritableStates(FIRST_SERVICE);
 
             // When we call get twice
-            final var kvState1 = states.get(FRUIT_STATE_KEY);
-            final var kvState2 = states.get(FRUIT_STATE_KEY);
+            final var kvState1 = states.get(FRUIT_STATE_ID);
+            final var kvState2 = states.get(FRUIT_STATE_ID);
 
             // Then we must find both variables are the same instance
             assertThat(kvState1).isSameAs(kvState2);
@@ -606,7 +570,6 @@ public class VirtualMapStateTest extends MerkleTestBase {
         void knownServiceNameUsingWritableStates() {
             // Given a State with the fruit and animal and country states
             virtualMapState.initializeState(fruitMetadata);
-            virtualMapState.initializeState(animalMetadata);
             virtualMapState.initializeState(countryMetadata);
             virtualMapState.initializeState(steamMetadata);
 
@@ -616,18 +579,15 @@ public class VirtualMapStateTest extends MerkleTestBase {
             // We find the data we expected to find
             assertThat(states).isNotNull();
             assertThat(states.isEmpty()).isFalse();
-            assertThat(states.size()).isEqualTo(4);
+            assertThat(states.size()).isEqualTo(3);
 
-            final WritableKVState<ProtoBytes, ProtoBytes> fruitStates = states.get(FRUIT_STATE_KEY);
+            final WritableKVState<ProtoBytes, ProtoBytes> fruitStates = states.get(FRUIT_STATE_ID);
             assertThat(fruitStates).isNotNull();
 
-            final var animalStates = states.get(ANIMAL_STATE_KEY);
-            assertThat(animalStates).isNotNull();
-
-            final var countryState = states.getSingleton(COUNTRY_STATE_KEY);
+            final var countryState = states.getSingleton(COUNTRY_STATE_ID);
             assertThat(countryState).isNotNull();
 
-            final var steamState = states.getQueue(STEAM_STATE_KEY);
+            final var steamState = states.getQueue(STEAM_STATE_ID);
             assertThat(steamState).isNotNull();
 
             // And the states we got back are writable
@@ -652,9 +612,9 @@ public class VirtualMapStateTest extends MerkleTestBase {
         @Test
         @DisplayName("Cannot call putServiceStateIfAbsent on original after copy")
         void addServiceOnOriginalAfterCopyThrows() {
-            setupAnimalMerkleMap();
+            setupFruitVirtualMap();
             final var stateRootCopy = virtualMapState.copy();
-            assertThatThrownBy(() -> virtualMapState.initializeState(animalMetadata))
+            assertThatThrownBy(() -> virtualMapState.initializeState(fruitMetadata))
                     .isInstanceOf(MutabilityException.class);
             stateRootCopy.release();
         }
@@ -662,10 +622,10 @@ public class VirtualMapStateTest extends MerkleTestBase {
         @Test
         @DisplayName("Cannot call removeServiceState on original after copy")
         void removeServiceOnOriginalAfterCopyThrows() {
-            setupAnimalMerkleMap();
-            virtualMapState.initializeState(animalMetadata);
+            setupFruitVirtualMap();
+            virtualMapState.initializeState(fruitMetadata);
             final var stateRootCopy = virtualMapState.copy();
-            assertThatThrownBy(() -> virtualMapState.removeServiceState(FIRST_SERVICE, ANIMAL_STATE_KEY))
+            assertThatThrownBy(() -> virtualMapState.removeServiceState(FIRST_SERVICE, FRUIT_STATE_ID))
                     .isInstanceOf(MutabilityException.class);
             stateRootCopy.release();
         }
@@ -697,36 +657,28 @@ public class VirtualMapStateTest extends MerkleTestBase {
             given(kvListener.stateTypes()).willReturn(EnumSet.of(MAP));
             given(singletonListener.stateTypes()).willReturn(EnumSet.of(SINGLETON));
             given(queueListener.stateTypes()).willReturn(EnumSet.of(QUEUE));
-            given(kvListener.stateIdFor(FIRST_SERVICE, FRUIT_STATE_KEY)).willReturn(FRUIT_STATE_ID);
-            given(kvListener.stateIdFor(FIRST_SERVICE, ANIMAL_STATE_KEY)).willReturn(ANIMAL_STATE_ID);
-            given(singletonListener.stateIdFor(FIRST_SERVICE, COUNTRY_STATE_KEY))
-                    .willReturn(COUNTRY_STATE_ID);
-            given(queueListener.stateIdFor(FIRST_SERVICE, STEAM_STATE_KEY)).willReturn(STEAM_STATE_ID);
 
             // calling below setup methods only for metadata init
             // FUTURE WORK: refactor after MerkleStateRootTest will be removed
             setupFruitVirtualMap();
-            setupAnimalMerkleMap();
             setupSingletonCountry();
             setupSteamQueue();
 
             // adding k/v and singleton states directly to the virtual map
             final var virtualMap = (VirtualMap) virtualMapState.getRoot();
-            addKvState(fruitVirtualMap, fruitVirtualMetadata, C_KEY, CHERRY);
-            addKvState(animalMerkleMap, animalMetadata, C_KEY, CUTTLEFISH);
+            addKvState(fruitVirtualMap, fruitMetadata, C_KEY, CHERRY);
             addSingletonState(virtualMap, countryMetadata, FRANCE);
 
             // adding queue state via State API, to init the QueueState
             virtualMapState.initializeState(steamMetadata);
             final var writableStates = virtualMapState.getWritableStates(FIRST_SERVICE);
-            writableStates.getQueue(STEAM_STATE_KEY).add(ART);
+            writableStates.getQueue(STEAM_STATE_ID).add(ART);
             ((CommittableWritableStates) writableStates).commit();
         }
 
         @Test
         void appropriateListenersAreInvokedOnCommit() {
-            virtualMapState.initializeState(animalMetadata);
-            virtualMapState.initializeState(fruitVirtualMetadata);
+            virtualMapState.initializeState(fruitMetadata);
             virtualMapState.initializeState(countryMetadata);
             virtualMapState.initializeState(steamMetadata);
 
@@ -735,15 +687,12 @@ public class VirtualMapStateTest extends MerkleTestBase {
             virtualMapState.registerCommitListener(queueListener);
 
             final var states = virtualMapState.getWritableStates(FIRST_SERVICE);
-            final var animalState = states.get(ANIMAL_STATE_KEY);
-            final var fruitState = states.get(FRUIT_STATE_KEY);
-            final var countryState = states.getSingleton(COUNTRY_STATE_KEY);
-            final var steamState = states.getQueue(STEAM_STATE_KEY);
+            final var fruitState = states.get(FRUIT_STATE_ID);
+            final var countryState = states.getSingleton(COUNTRY_STATE_ID);
+            final var steamState = states.getQueue(STEAM_STATE_ID);
 
             fruitState.put(E_KEY, EGGPLANT);
             fruitState.remove(C_KEY);
-            animalState.put(A_KEY, AARDVARK);
-            animalState.remove(C_KEY);
             countryState.put(ESTONIA);
             steamState.poll();
             steamState.add(BIOLOGY);
@@ -752,8 +701,6 @@ public class VirtualMapStateTest extends MerkleTestBase {
 
             verify(kvListener).mapUpdateChange(FRUIT_STATE_ID, E_KEY, EGGPLANT);
             verify(kvListener).mapDeleteChange(FRUIT_STATE_ID, C_KEY);
-            verify(kvListener).mapUpdateChange(ANIMAL_STATE_ID, A_KEY, AARDVARK);
-            verify(kvListener).mapDeleteChange(ANIMAL_STATE_ID, C_KEY);
             verify(singletonListener).singletonUpdateChange(COUNTRY_STATE_ID, ESTONIA);
             verify(queueListener).queuePushChange(STEAM_STATE_ID, BIOLOGY);
             verify(queueListener).queuePopChange(STEAM_STATE_ID);
@@ -778,7 +725,6 @@ public class VirtualMapStateTest extends MerkleTestBase {
             // calling below setup methods only for metadata init
             // FUTURE WORK: refactor after MerkleStateRootTest will be removed
             setupFruitVirtualMap();
-            setupAnimalMerkleMap();
             setupSingletonCountry();
             setupSteamQueue();
 
@@ -786,19 +732,15 @@ public class VirtualMapStateTest extends MerkleTestBase {
             final var virtualMap = (VirtualMap) virtualMapState.getRoot();
             addKvState(fruitVirtualMap, fruitMetadata, A_KEY, APPLE);
             addKvState(fruitVirtualMap, fruitMetadata, B_KEY, BANANA);
-            addKvState(animalMerkleMap, animalMetadata, C_KEY, CUTTLEFISH);
-            addKvState(animalMerkleMap, animalMetadata, D_KEY, DOG);
-            addKvState(animalMerkleMap, animalMetadata, F_KEY, FOX);
             addSingletonState(virtualMap, countryMetadata, GHANA);
 
             // Given a State with the fruit and animal and country states
             virtualMapState.initializeState(fruitMetadata);
-            virtualMapState.initializeState(animalMetadata);
             virtualMapState.initializeState(countryMetadata);
             virtualMapState.initializeState(steamMetadata);
             // adding queue state via State API, to init the QueueState
             final var writableStates = virtualMapState.getWritableStates(FIRST_SERVICE);
-            writableStates.getQueue(STEAM_STATE_KEY).add(ART);
+            writableStates.getQueue(STEAM_STATE_ID).add(ART);
             ((CommittableWritableStates) writableStates).commit();
 
             final MerkleCryptography merkleCryptography = MerkleCryptographyFactory.create(ConfigurationBuilder.create()

@@ -48,7 +48,7 @@ public class Hip1195DisabledTest {
 
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
-        testLifecycle.overrideInClass(Map.of("hedera.hooksEnabled", "false"));
+        testLifecycle.overrideInClass(Map.of("hooks.hooksEnabled", "false"));
         testLifecycle.doAdhoc(HOOK_CONTRACT.getInfo());
     }
 
@@ -68,7 +68,7 @@ public class Hip1195DisabledTest {
                         .hasPrecheck(HOOKS_NOT_ENABLED),
                 contractCreate("notToBe")
                         .inlineInitCode(ByteString.EMPTY)
-                        .withHook(lambdaAccountAllowanceHook(123L, HOOK_CONTRACT.name()))
+                        .withHooks(lambdaAccountAllowanceHook(123L, HOOK_CONTRACT.name()))
                         .hasPrecheck(HOOKS_NOT_ENABLED));
     }
 
@@ -81,7 +81,7 @@ public class Hip1195DisabledTest {
                         .hasPrecheck(HOOKS_NOT_ENABLED),
                 cryptoUpdate(CIVILIAN).removingHook(123L).hasPrecheck(HOOKS_NOT_ENABLED),
                 contractUpdate(HOOK_CONTRACT.name())
-                        .withHook(lambdaAccountAllowanceHook(123L, HOOK_CONTRACT.name()))
+                        .withHooks(lambdaAccountAllowanceHook(123L, HOOK_CONTRACT.name()))
                         .hasPrecheck(HOOKS_NOT_ENABLED),
                 contractUpdate(HOOK_CONTRACT.name()).removingHook(123L).hasPrecheck(HOOKS_NOT_ENABLED));
     }

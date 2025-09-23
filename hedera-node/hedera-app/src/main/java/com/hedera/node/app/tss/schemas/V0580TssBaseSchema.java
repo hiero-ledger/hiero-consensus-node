@@ -4,6 +4,7 @@ package com.hedera.node.app.tss.schemas;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.tss.TssEncryptionKeys;
+import com.hedera.hapi.platform.state.StateKey;
 import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.lifecycle.StateDefinition;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -14,7 +15,11 @@ import java.util.Set;
  */
 @Deprecated(forRemoval = true, since = "0.59.0")
 public class V0580TssBaseSchema extends Schema {
+
     public static final String TSS_ENCRYPTION_KEYS_KEY = "TSS_ENCRYPTION_KEYS";
+    public static final int TSS_ENCRYPTION_KEYS_STATE_ID =
+            StateKey.KeyOneOfType.TSSBASESERVICE_I_TSS_ENCRYPTION_KEYS.protoOrdinal();
+
     /**
      * This will at most be equal to the number of nodes in the network.
      */
@@ -33,6 +38,10 @@ public class V0580TssBaseSchema extends Schema {
     @Override
     public @NonNull Set<StateDefinition> statesToCreate() {
         return Set.of(StateDefinition.onDisk(
-                TSS_ENCRYPTION_KEYS_KEY, EntityNumber.PROTOBUF, TssEncryptionKeys.PROTOBUF, MAX_TSS_ENCRYPTION_KEYS));
+                TSS_ENCRYPTION_KEYS_STATE_ID,
+                TSS_ENCRYPTION_KEYS_KEY,
+                EntityNumber.PROTOBUF,
+                TssEncryptionKeys.PROTOBUF,
+                MAX_TSS_ENCRYPTION_KEYS));
     }
 }

@@ -5,11 +5,11 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TRANSFER_LIST_SIZE_LIMIT_EXCEEDED;
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.protoToPbj;
 import static com.hedera.node.app.service.schedule.impl.ScheduleStoreUtility.calculateBytesHash;
-import static com.hedera.node.app.service.schedule.impl.schemas.V0490ScheduleSchema.SCHEDULES_BY_ID_KEY;
-import static com.hedera.node.app.service.schedule.impl.schemas.V0570ScheduleSchema.SCHEDULED_COUNTS_KEY;
-import static com.hedera.node.app.service.schedule.impl.schemas.V0570ScheduleSchema.SCHEDULED_ORDERS_KEY;
-import static com.hedera.node.app.service.schedule.impl.schemas.V0570ScheduleSchema.SCHEDULED_USAGES_KEY;
-import static com.hedera.node.app.service.schedule.impl.schemas.V0570ScheduleSchema.SCHEDULE_ID_BY_EQUALITY_KEY;
+import static com.hedera.node.app.service.schedule.impl.schemas.V0490ScheduleSchema.SCHEDULES_BY_ID_STATE_ID;
+import static com.hedera.node.app.service.schedule.impl.schemas.V0570ScheduleSchema.SCHEDULED_COUNTS_STATE_ID;
+import static com.hedera.node.app.service.schedule.impl.schemas.V0570ScheduleSchema.SCHEDULED_ORDERS_STATE_ID;
+import static com.hedera.node.app.service.schedule.impl.schemas.V0570ScheduleSchema.SCHEDULED_USAGES_STATE_ID;
+import static com.hedera.node.app.service.schedule.impl.schemas.V0570ScheduleSchema.SCHEDULE_ID_BY_EQUALITY_STATE_ID;
 import static com.hedera.services.bdd.junit.RepeatableReason.NEEDS_LAST_ASSIGNED_CONSENSUS_TIME;
 import static com.hedera.services.bdd.junit.RepeatableReason.NEEDS_STATE_ACCESS;
 import static com.hedera.services.bdd.junit.RepeatableReason.NEEDS_SYNCHRONOUS_HANDLE_WORKFLOW;
@@ -803,7 +803,7 @@ public class RepeatableHip423Tests {
     @RepeatableHapiTest({NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION, NEEDS_STATE_ACCESS})
     final Stream<DynamicTest> afterConsensusSecondIteratorIsExhaustedIsNotRecreated() {
         final var halfSecond = Duration.ofMillis(500);
-        final AtomicReference<Map<String, Map<String, Object>>> services = new AtomicReference<>();
+        final AtomicReference<Map<String, Map<Integer, Object>>> services = new AtomicReference<>();
         return hapiTest(
                 cryptoCreate("luckyYou").balance(0L),
                 scheduleCreate("one", cryptoTransfer(tinyBarsFromTo(DEFAULT_PAYER, "luckyYou", 1L)))
@@ -818,10 +818,10 @@ public class RepeatableHip423Tests {
                     // Create a sufficiently deep copy of the current states and remember it
                     final var backupStates = state.getStates().entrySet().stream()
                             .collect(toMap(Map.Entry::getKey, entry ->
-                                    (Map<String, Object>) new ConcurrentHashMap<>(entry.getValue())));
+                                    (Map<Integer, Object>) new ConcurrentHashMap<>(entry.getValue())));
                     services.set(backupStates);
                     // And temporarily remove the schedule-by-id state
-                    state.removeServiceState(ScheduleService.NAME, SCHEDULES_BY_ID_KEY);
+                    state.removeServiceState(ScheduleService.NAME, SCHEDULES_BY_ID_STATE_ID);
                     // Then ensure the same consensus second is used for the next transaction
                     embeddedHedera.setRoundDuration(halfSecond);
                 }),
@@ -830,7 +830,7 @@ public class RepeatableHip423Tests {
                     final var embeddedHedera = spec.repeatableEmbeddedHederaOrThrow();
                     final var state = embeddedHedera.state();
                     // Repeat this to purge the cached metadata for the schedule service
-                    state.removeServiceState(ScheduleService.NAME, SCHEDULES_BY_ID_KEY);
+                    state.removeServiceState(ScheduleService.NAME, SCHEDULES_BY_ID_STATE_ID);
                     state.getStates().putAll(services.get());
                     embeddedHedera.setRoundDuration(DEFAULT_ROUND_DURATION);
                 }),
@@ -1919,15 +1919,15 @@ public class RepeatableHip423Tests {
             final var readableStates = state.getReadableStates(ScheduleService.NAME);
             consumer.accept(
                     (MapReadableKVState<ScheduleID, Schedule>)
-                            readableStates.<ScheduleID, Schedule>get(SCHEDULES_BY_ID_KEY),
+                            readableStates.<ScheduleID, Schedule>get(SCHEDULES_BY_ID_STATE_ID),
                     (MapReadableKVState<TimestampSeconds, ScheduledCounts>)
-                            readableStates.<TimestampSeconds, ScheduledCounts>get(SCHEDULED_COUNTS_KEY),
+                            readableStates.<TimestampSeconds, ScheduledCounts>get(SCHEDULED_COUNTS_STATE_ID),
                     (MapReadableKVState<TimestampSeconds, ThrottleUsageSnapshots>)
-                            readableStates.<TimestampSeconds, ThrottleUsageSnapshots>get(SCHEDULED_USAGES_KEY),
+                            readableStates.<TimestampSeconds, ThrottleUsageSnapshots>get(SCHEDULED_USAGES_STATE_ID),
                     (MapReadableKVState<ScheduledOrder, ScheduleID>)
-                            readableStates.<ScheduledOrder, ScheduleID>get(SCHEDULED_ORDERS_KEY),
+                            readableStates.<ScheduledOrder, ScheduleID>get(SCHEDULED_ORDERS_STATE_ID),
                     (MapReadableKVState<ProtoBytes, ScheduleID>)
-                            readableStates.<ProtoBytes, ScheduleID>get(SCHEDULE_ID_BY_EQUALITY_KEY));
+                            readableStates.<ProtoBytes, ScheduleID>get(SCHEDULE_ID_BY_EQUALITY_STATE_ID));
         });
     }
 
@@ -1939,7 +1939,7 @@ public class RepeatableHip423Tests {
             final MapWritableKVState<TimestampSeconds, ScheduledCounts> counts =
                     (MapWritableKVState) spec.embeddedStateOrThrow()
                             .getWritableStates(ScheduleService.NAME)
-                            .get(SCHEDULED_COUNTS_KEY);
+                            .get(SCHEDULED_COUNTS_STATE_ID);
             final int numEarlier = (int) StreamSupport.stream(
                             spliteratorUnknownSize(
                                     counts.getBackingStore().keySet().iterator(), DISTINCT | NONNULL),
@@ -1967,7 +1967,7 @@ public class RepeatableHip423Tests {
         requireNonNull(schedule);
         final ReadableKVState<ScheduleID, Schedule> schedules = spec.embeddedStateOrThrow()
                 .getReadableStates(ScheduleService.NAME)
-                .get(SCHEDULES_BY_ID_KEY);
+                .get(SCHEDULES_BY_ID_STATE_ID);
         return requireNonNull(schedules.get(protoToPbj(spec.registry().getScheduleId(schedule), ScheduleID.class)))
                 .calculatedExpirationSecond();
     }

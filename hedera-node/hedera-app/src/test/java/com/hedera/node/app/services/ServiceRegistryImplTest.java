@@ -49,7 +49,7 @@ final class ServicesRegistryImplTest {
                 .name("registerCallsTheConstructableRegistryTest")
                 .schema(TestSchema.newBuilder()
                         .minorVersion(1)
-                        .stateToCreate(StateDefinition.singleton("Singleton", Timestamp.JSON))
+                        .stateToCreate(StateDefinition.singleton(1, "Singleton", Timestamp.JSON))
                         .build())
                 .build());
         //noinspection removal
