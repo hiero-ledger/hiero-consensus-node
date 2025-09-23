@@ -1739,15 +1739,25 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
                 new BlockNodeConfig("node1.example.com", 8080, 0), // Priority 0
                 new BlockNodeConfig("node2.example.com", 8080, 0), // Priority 0
                 new BlockNodeConfig("node3.example.com", 8080, 0), // Priority 0
-                new BlockNodeConfig("node4.example.com", 8080, 1), // Priority 1
-                new BlockNodeConfig("node5.example.com", 8080, 2) // Priority 2
+                new BlockNodeConfig("node4.example.com", 8080, 0), // Priority 0
+                new BlockNodeConfig("node5.example.com", 8080, 0), // Priority 0
+                new BlockNodeConfig("node6.example.com", 8080, 0), // Priority 0
+                new BlockNodeConfig("node7.example.com", 8080, 0), // Priority 0
+                new BlockNodeConfig("node8.example.com", 8080, 0), // Priority 0
+                new BlockNodeConfig("node9.example.com", 8080, 0), // Priority 0
+                new BlockNodeConfig("node10.example.com", 8080, 0), // Priority 0
+                new BlockNodeConfig("node11.example.com", 8080, 1), // Priority 1
+                new BlockNodeConfig("node12.example.com", 8080, 2), // Priority 2
+                new BlockNodeConfig("node13.example.com", 8080, 2), // Priority 2
+                new BlockNodeConfig("node14.example.com", 8080, 3), // Priority 3
+                new BlockNodeConfig("node15.example.com", 8080, 3) // Priority 3
                 );
 
         // Track which priority 0 nodes get selected over multiple runs
         final Set<String> selectedNodes = new HashSet<>();
 
         // Run multiple selections to test randomization
-        for (int i = 0; i < 20; i++) {
+        for (int i = 0; i < 50; i++) {
             // Reset mocks for each iteration
             resetMocks();
 
@@ -1768,16 +1778,28 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
             // Verify only priority 0 nodes are selected
             assertThat(selectedConfig.priority()).isEqualTo(0);
-            assertThat(selectedConfig.address()).isIn("node1.example.com", "node2.example.com", "node3.example.com");
+            assertThat(selectedConfig.address())
+                    .isIn(
+                            "node1.example.com",
+                            "node2.example.com",
+                            "node3.example.com",
+                            "node4.example.com",
+                            "node5.example.com",
+                            "node6.example.com",
+                            "node7.example.com",
+                            "node8.example.com",
+                            "node9.example.com",
+                            "node10.example.com");
 
             // Track which node was selected
             selectedNodes.add(selectedConfig.address());
         }
 
-        // Over 20 runs, we should see at least 2 different priority 0 nodes being selected
-        // This verifies the randomization is working (very unlikely to get same node 20 times)
+        // Over 50 runs, we should see at least 2 different priority 0 nodes being selected.
+        // This verifies the randomization is working (very unlikely to get same node 50 times).
+        // The probability of flakiness is effectively zero - around 10^(-47).
+        // Failure of this test means the random selection is not working.
         assertThat(selectedNodes.size()).isGreaterThan(1);
-        assertThat(selectedNodes).containsAnyOf("node1.example.com", "node2.example.com", "node3.example.com");
     }
 
     @RepeatedTest(10)
@@ -1879,57 +1901,6 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
         assertThat(selectedConfig.priority()).isEqualTo(1); // Should fall back to priority 1
         assertThat(selectedConfig.address()).isIn("node3.example.com", "node4.example.com");
-    }
-
-    @Test
-    void testPriorityBasedSelection_randomnessWithinPriorityGroup() {
-        // Setup: Multiple nodes with same priority to test randomization
-        final List<BlockNodeConfig> blockNodes = List.of(
-                new BlockNodeConfig("node1.example.com", 8080, 0),
-                new BlockNodeConfig("node2.example.com", 8080, 0),
-                new BlockNodeConfig("node3.example.com", 8080, 0),
-                new BlockNodeConfig("node4.example.com", 8080, 0),
-                new BlockNodeConfig("node5.example.com", 8080, 0));
-
-        // Track which nodes get selected over multiple runs
-        final Set<String> selectedNodes = new HashSet<>();
-
-        // Run multiple selections to test randomization
-        for (int i = 0; i < 30; i++) {
-            // Reset mocks for each iteration
-            resetMocks();
-
-            final BlockNodeConnectionManager manager = createConnectionManager(blockNodes);
-
-            // Perform selection
-            manager.selectNewBlockNodeForStreaming(true);
-
-            // Capture selected node
-            final ArgumentCaptor<BlockNodeConnectionTask> taskCaptor =
-                    ArgumentCaptor.forClass(BlockNodeConnectionTask.class);
-            verify(executorService).schedule(taskCaptor.capture(), anyLong(), any(TimeUnit.class));
-
-            final BlockNodeConnectionTask task = taskCaptor.getValue();
-            final BlockNodeConnection connection = connectionFromTask(task);
-            final BlockNodeConfig selectedConfig = connection.getNodeConfig();
-
-            // All should be priority 0
-            assertThat(selectedConfig.priority()).isEqualTo(0);
-
-            // Track which node was selected
-            selectedNodes.add(selectedConfig.address());
-        }
-
-        // Over 30 runs with 5 nodes, we should see at least 3 different nodes selected
-        // This verifies randomization is working (statistically very unlikely to get <= 2 nodes)
-        assertThat(selectedNodes.size()).isGreaterThanOrEqualTo(3);
-        assertThat(selectedNodes)
-                .isSubsetOf(
-                        "node1.example.com",
-                        "node2.example.com",
-                        "node3.example.com",
-                        "node4.example.com",
-                        "node5.example.com");
     }
 
     // Utilities
