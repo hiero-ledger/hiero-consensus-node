@@ -16,6 +16,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.function.Consumer;
 
 public class ViewAccountOp extends UtilOp {
+
     private final String account;
     private final Consumer<Account> observer;
 
@@ -28,7 +29,7 @@ public class ViewAccountOp extends UtilOp {
     protected boolean submitOp(@NonNull final HapiSpec spec) throws Throwable {
         final var state = spec.embeddedStateOrThrow();
         final var readableStates = state.getReadableStates(TokenService.NAME);
-        final ReadableKVState<AccountID, Account> accounts = readableStates.get(V0490TokenSchema.ACCOUNTS_KEY);
+        final ReadableKVState<AccountID, Account> accounts = readableStates.get(V0490TokenSchema.ACCOUNTS_STATE_ID);
         final var accountId = toPbj(TxnUtils.asId(account, spec));
         final var account = accounts.get(accountId);
         observer.accept(account);
