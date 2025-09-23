@@ -123,41 +123,41 @@ public final class RuntimeObjectRegistry {
     /**
      * Get the record associated with the oldest runtime object of the specified class tracked in this registry.
      *
-     * @param cls
-     * 		the object class
+     * @param cls the object class
      * @return the oldest record, or null if there are no records available for this class
      */
-    public static <T> RuntimeObjectRecord getOldestActiveObjectRecord(final Class<T> cls) {
-        final List<RuntimeObjectRecord> classRecords = RECORDS.get(cls);
-        if (classRecords == null) {
-            return null;
-        }
-        try {
-            // It doesn't make sense to check if the list is empty, as it may become empty at any moment, as
-            // the method isn't synchronized. Instead, just catch IOOBE
-            return classRecords.get(0);
-        } catch (final IndexOutOfBoundsException e) {
-            return null;
-        }
+    public static RuntimeObjectRecord getOldestActiveObjectRecord(final Class<?> cls) {
+        return getActiveObjectRecord(cls, true);
     }
 
-    public static Duration getRecordAgeGap(final Class<?> cls) {
+    /**
+     * Get the record associated with the newest runtime object of the specified class tracked in this registry.
+     *
+     * @param cls the object class
+     * @return the newest record, or null if there are no records available for this class
+     */
+    public static RuntimeObjectRecord getNewestActiveObjectRecord(final Class<?> cls) {
+        return getActiveObjectRecord(cls, false);
+    }
+
+    /**
+     * Get a record associated with the runtime object of the specified class tracked in this registry.
+     *
+     * @param cls    the object class
+     * @param oldest if true, get the oldest record; if false, get the newest record
+     * @return the record requested, or null if there are no records available for this class
+     */
+    private static RuntimeObjectRecord getActiveObjectRecord(final Class<?> cls, final boolean oldest) {
         final List<RuntimeObjectRecord> classRecords = RECORDS.get(cls);
-        if (classRecords == null || classRecords.size() < 2) {
-            return Duration.ZERO;
+        if (classRecords == null || classRecords.isEmpty()) {
+            return null;
         }
-        final Instant newestRecord;
-        final Instant oldestRecord;
         try {
-            newestRecord = classRecords.getLast().getCreationTime();
-            oldestRecord = classRecords.getFirst().getCreationTime();
+            // The list may become empty at any moment, as the method isn't synchronized, so we catch IOOBE
+            return oldest ? classRecords.getFirst() : classRecords.getLast();
         } catch (final IndexOutOfBoundsException e) {
-            return Duration.ZERO;
+            return null;
         }
-        if(oldestRecord.isAfter(newestRecord)){
-            return Duration.ZERO;
-        }
-        return Duration.between(oldestRecord, newestRecord);
     }
 
     /**
