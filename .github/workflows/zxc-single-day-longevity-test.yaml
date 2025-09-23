@@ -732,6 +732,12 @@ jobs:
         run: |
           mkdir "${{ github.workspace }}"/report
 
+      - name: Start BlockNode Cleaner
+        run: |
+          set +x
+          set +e
+          nohup sh "${{ github.workspace }}"/.github/workflows/support/citr/blockNodeClean.sh "${{ needs.longevity-tests-start.outputs.namespace }}" > ${{ github.workspace }}/report/blockNodeClean.log 2>&1 &
+
       - name: Wait for Longevity
         run: |
           echo "Matrix loop number ${{ matrix.value }}"
