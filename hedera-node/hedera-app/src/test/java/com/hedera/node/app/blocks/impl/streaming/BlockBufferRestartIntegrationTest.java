@@ -161,7 +161,7 @@ class BlockBufferRestartIntegrationTest extends BlockNodeCommunicationTestBase {
 
             // Process items to create requests (simulate streaming preparation)
             final BlockState blockState = blockBufferService.getBlockState(blockNum);
-            assert blockState != null;
+            assertThat(blockState).isNotNull();
             blockState.processPendingItems(BATCH_SIZE);
         }
 
@@ -253,7 +253,7 @@ class BlockBufferRestartIntegrationTest extends BlockNodeCommunicationTestBase {
             blockBufferService.closeBlock(blockNum);
 
             final BlockState blockState = blockBufferService.getBlockState(blockNum);
-            assert blockState != null;
+            assertThat(blockState).isNotNull();
             blockState.processPendingItems(BATCH_SIZE);
 
             // Make first half of blocks "old" by manipulating their timestamps
