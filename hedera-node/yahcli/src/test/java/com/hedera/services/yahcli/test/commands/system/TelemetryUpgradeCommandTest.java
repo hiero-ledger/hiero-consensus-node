@@ -75,20 +75,6 @@ class TelemetryUpgradeCommandTest extends YahcliTestBase {
         "🔥"
     };
 
-    @SuppressWarnings("unused")
-    static Stream<Arguments> validFileNumbers() {
-        return Stream.of(VALID_FILE_NUMBERS).map(Arguments::of);
-    }
-
-    @SuppressWarnings("unused")
-    static Stream<Arguments> validHashes() {
-        return Stream.of(VALID_HASHES).map(Arguments::of);
-    }
-
-    @SuppressWarnings("unused")
-    static Stream<Arguments> validStartTimes() {
-        return Stream.of(VALID_START_TIMES).map(Arguments::of);
-    }
 
     @SuppressWarnings("unused")
     static Stream<Arguments> invalidFileNumbers() {
@@ -169,33 +155,40 @@ class TelemetryUpgradeCommandTest extends YahcliTestBase {
         }
 
         @ParameterizedTest
-        @MethodSource("com.hedera.services.yahcli.test.commands.system.TelemetryUpgradeCommandTest#validFileNumbers")
+        @ValueSource(strings = {"159", "1", "100", "999999", "0.0.159", "0.0.1", "1.2.3", "999.999.999999"})
         void parsesValidUpgradeFileNumbers(final String fileNum) {
             final var result = parseArgs(typicalGlobalOptions() + " upgrade-telemetry -f " + fileNum + " -h "
                     + "a".repeat(96) + " -s 2024-01-01.12:00:00");
             final var cmdSpec = findSubcommand(result, "upgrade-telemetry");
             assertThat(cmdSpec).isPresent();
             assertThat(cmdSpec.get().parent().name()).isEqualTo("yahcli");
+            assertThat((String) cmdSpec.get().findOption("-f").getValue()).isEqualTo(fileNum);
+            assertThat((String) cmdSpec.get().findOption("-h").getValue()).isEqualTo("a".repeat(96));
+            assertThat((String) cmdSpec.get().findOption("-s").getValue()).isEqualTo("2024-01-01.12:00:00");
         }
 
         @ParameterizedTest
-        @MethodSource("com.hedera.services.yahcli.test.commands.system.TelemetryUpgradeCommandTest#validHashes")
+        @ValueSource(strings = {"a000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000", "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff", "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef", "abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890"})
         void parsesValidUpgradeFileHashes(final String hash) {
             final var result =
                     parseArgs(typicalGlobalOptions() + " upgrade-telemetry -h " + hash + " -s 2024-01-01.12:00:00");
             final var cmdSpec = findSubcommand(result, "upgrade-telemetry");
             assertThat(cmdSpec).isPresent();
             assertThat(cmdSpec.get().parent().name()).isEqualTo("yahcli");
+            assertThat((String) cmdSpec.get().findOption("-h").getValue()).isEqualTo(hash);
+            assertThat((String) cmdSpec.get().findOption("-s").getValue()).isEqualTo("2024-01-01.12:00:00");
         }
 
         @ParameterizedTest
-        @MethodSource("com.hedera.services.yahcli.test.commands.system.TelemetryUpgradeCommandTest#validStartTimes")
+        @ValueSource(strings = {"2024-01-01.12:00:00", "2023-12-31.23:59:59", "2024-02-29.00:00:01", "2024-06-15.14:30:45", "2025-12-25.09:15:30"})
         void parsesValidStartTimes(final String startTime) {
             final var result =
                     parseArgs(typicalGlobalOptions() + " upgrade-telemetry -h " + "a".repeat(96) + " -s " + startTime);
             final var cmdSpec = findSubcommand(result, "upgrade-telemetry");
             assertThat(cmdSpec).isPresent();
             assertThat(cmdSpec.get().parent().name()).isEqualTo("yahcli");
+            assertThat((String) cmdSpec.get().findOption("-h").getValue()).isEqualTo("a".repeat(96));
+            assertThat((String) cmdSpec.get().findOption("-s").getValue()).isEqualTo(startTime);
         }
 
         @ParameterizedTest
@@ -207,6 +200,9 @@ class TelemetryUpgradeCommandTest extends YahcliTestBase {
             final var cmdSpec = findSubcommand(result, "upgrade-telemetry");
             assertThat(cmdSpec).isPresent();
             assertThat(cmdSpec.get().parent().name()).isEqualTo("yahcli");
+            assertThat((String) cmdSpec.get().findOption("-f").getValue()).isEqualTo(fileNum);
+            assertThat((String) cmdSpec.get().findOption("-h").getValue()).isEqualTo(hash);
+            assertThat((String) cmdSpec.get().findOption("-s").getValue()).isEqualTo(startTime);
         }
 
         @Test
@@ -215,6 +211,9 @@ class TelemetryUpgradeCommandTest extends YahcliTestBase {
                     typicalGlobalOptions() + " upgrade-telemetry -h " + "a".repeat(96) + " -s 2024-01-01.12:00:00");
             final var cmdSpec = findSubcommand(result, "upgrade-telemetry");
             assertThat(cmdSpec).isPresent();
+            assertThat((String) cmdSpec.get().findOption("-f").getValue()).isEqualTo("159");
+            assertThat((String) cmdSpec.get().findOption("-h").getValue()).isEqualTo("a".repeat(96));
+            assertThat((String) cmdSpec.get().findOption("-s").getValue()).isEqualTo("2024-01-01.12:00:00");
         }
 
         @Test
@@ -225,6 +224,9 @@ class TelemetryUpgradeCommandTest extends YahcliTestBase {
             final var cmdSpec = findSubcommand(result, "upgrade-telemetry");
             assertThat(cmdSpec).isPresent();
             assertThat(cmdSpec.get().parent().name()).isEqualTo("yahcli");
+            assertThat((String) cmdSpec.get().findOption("--upgrade-file-num").getValue()).isEqualTo("200");
+            assertThat((String) cmdSpec.get().findOption("--upgrade-zip-hash").getValue()).isEqualTo("b".repeat(96));
+            assertThat((String) cmdSpec.get().findOption("--start-time").getValue()).isEqualTo("2024-06-15.14:30:00");
         }
 
         @Test
@@ -234,6 +236,9 @@ class TelemetryUpgradeCommandTest extends YahcliTestBase {
             final var cmdSpec = findSubcommand(result, "upgrade-telemetry");
             assertThat(cmdSpec).isPresent();
             assertThat(cmdSpec.get().parent().name()).isEqualTo("yahcli");
+            assertThat((String) cmdSpec.get().findOption("-f").getValue()).isEqualTo("300");
+            assertThat((String) cmdSpec.get().findOption("-h").getValue()).isEqualTo("c".repeat(96));
+            assertThat((String) cmdSpec.get().findOption("-s").getValue()).isEqualTo("2024-12-25.09:15:30");
         }
 
         @Test
@@ -243,6 +248,9 @@ class TelemetryUpgradeCommandTest extends YahcliTestBase {
             final var cmdSpec = findSubcommand(result, "upgrade-telemetry");
             assertThat(cmdSpec).isPresent();
             assertThat(cmdSpec.get().parent().name()).isEqualTo("yahcli");
+            assertThat((String) cmdSpec.get().findOption("-f").getValue()).isEqualTo("400");
+            assertThat((String) cmdSpec.get().findOption("--upgrade-zip-hash").getValue()).isEqualTo("d".repeat(96));
+            assertThat((String) cmdSpec.get().findOption("-s").getValue()).isEqualTo("2024-03-15.18:45:22");
         }
 
         @ParameterizedTest
@@ -292,6 +300,8 @@ class TelemetryUpgradeCommandTest extends YahcliTestBase {
                     + "a".repeat(96) + " -s 2024-01-01.12:00:00");
             final var cmdSpec = findSubcommand(result, "upgrade-telemetry");
             assertThat(cmdSpec).isPresent();
+            final var fileNumValue = (String) cmdSpec.get().findOption("-f").getValue();
+            assertThat(fileNumValue).isEqualTo(invalidFileNum);
         }
 
         @ParameterizedTest
@@ -304,6 +314,8 @@ class TelemetryUpgradeCommandTest extends YahcliTestBase {
                     typicalGlobalOptions() + " upgrade-telemetry -h " + invalidHash + " -s 2024-01-01.12:00:00");
             final var cmdSpec = findSubcommand(result, "upgrade-telemetry");
             assertThat(cmdSpec).isPresent();
+            final var hashValue = (String) cmdSpec.get().findOption("-h").getValue();
+            assertThat(hashValue).isEqualTo(invalidHash);
         }
 
         @ParameterizedTest
@@ -316,6 +328,8 @@ class TelemetryUpgradeCommandTest extends YahcliTestBase {
                     typicalGlobalOptions() + " upgrade-telemetry -h " + "a".repeat(96) + " -s " + invalidStartTime);
             final var cmdSpec = findSubcommand(result, "upgrade-telemetry");
             assertThat(cmdSpec).isPresent();
+            final var startTimeValue = (String) cmdSpec.get().findOption("-s").getValue();
+            assertThat(startTimeValue).isEqualTo(invalidStartTime);
         }
 
         @Test
@@ -335,6 +349,8 @@ class TelemetryUpgradeCommandTest extends YahcliTestBase {
                     parseArgs(typicalGlobalOptions() + " upgrade-telemetry -h " + maxHash + " -s 2024-01-01.12:00:00");
             final var cmdSpec = findSubcommand(result, "upgrade-telemetry");
             assertThat(cmdSpec).isPresent();
+            assertThat((String) cmdSpec.get().findOption("-h").getValue()).isEqualTo(maxHash);
+            assertThat((String) cmdSpec.get().findOption("-s").getValue()).isEqualTo("2024-01-01.12:00:00");
         }
 
         @Test
@@ -343,6 +359,8 @@ class TelemetryUpgradeCommandTest extends YahcliTestBase {
                     typicalGlobalOptions() + " upgrade-telemetry -h " + "a".repeat(96) + " -s 2024-02-29.12:00:00");
             final var cmdSpec = findSubcommand(result, "upgrade-telemetry");
             assertThat(cmdSpec).isPresent();
+            assertThat((String) cmdSpec.get().findOption("-h").getValue()).isEqualTo("a".repeat(96));
+            assertThat((String) cmdSpec.get().findOption("-s").getValue()).isEqualTo("2024-02-29.12:00:00");
         }
 
         @Test
@@ -351,6 +369,8 @@ class TelemetryUpgradeCommandTest extends YahcliTestBase {
                     typicalGlobalOptions() + " upgrade-telemetry -h " + "b".repeat(96) + " -s 2024-12-31.23:59:59");
             final var cmdSpec = findSubcommand(result, "upgrade-telemetry");
             assertThat(cmdSpec).isPresent();
+            assertThat((String) cmdSpec.get().findOption("-h").getValue()).isEqualTo("b".repeat(96));
+            assertThat((String) cmdSpec.get().findOption("-s").getValue()).isEqualTo("2024-12-31.23:59:59");
         }
 
         @Test
@@ -359,6 +379,8 @@ class TelemetryUpgradeCommandTest extends YahcliTestBase {
                     typicalGlobalOptions() + " upgrade-telemetry -h " + "c".repeat(96) + " -s 2024-01-01.00:00:00");
             final var cmdSpec = findSubcommand(result, "upgrade-telemetry");
             assertThat(cmdSpec).isPresent();
+            assertThat((String) cmdSpec.get().findOption("-h").getValue()).isEqualTo("c".repeat(96));
+            assertThat((String) cmdSpec.get().findOption("-s").getValue()).isEqualTo("2024-01-01.00:00:00");
         }
 
         @Test
@@ -367,6 +389,9 @@ class TelemetryUpgradeCommandTest extends YahcliTestBase {
                     + " -s 2024-06-15.12:30:45");
             final var cmdSpec = findSubcommand(result, "upgrade-telemetry");
             assertThat(cmdSpec).isPresent();
+            assertThat((String) cmdSpec.get().findOption("-f").getValue()).isEqualTo("999999999");
+            assertThat((String) cmdSpec.get().findOption("-h").getValue()).isEqualTo("d".repeat(96));
+            assertThat((String) cmdSpec.get().findOption("-s").getValue()).isEqualTo("2024-06-15.12:30:45");
         }
 
         @Test
@@ -375,6 +400,9 @@ class TelemetryUpgradeCommandTest extends YahcliTestBase {
                     + "e".repeat(96) + " -s 2024-06-15.12:30:45");
             final var cmdSpec = findSubcommand(result, "upgrade-telemetry");
             assertThat(cmdSpec).isPresent();
+            assertThat((String) cmdSpec.get().findOption("-f").getValue()).isEqualTo("999.999.999999");
+            assertThat((String) cmdSpec.get().findOption("-h").getValue()).isEqualTo("e".repeat(96));
+            assertThat((String) cmdSpec.get().findOption("-s").getValue()).isEqualTo("2024-06-15.12:30:45");
         }
 
         @Test
@@ -384,6 +412,8 @@ class TelemetryUpgradeCommandTest extends YahcliTestBase {
                     typicalGlobalOptions() + " upgrade-telemetry -h " + mixedCaseHash + " -s 2024-06-15.12:30:45");
             final var cmdSpec = findSubcommand(result, "upgrade-telemetry");
             assertThat(cmdSpec).isPresent();
+            assertThat((String) cmdSpec.get().findOption("-h").getValue()).isEqualTo(mixedCaseHash);
+            assertThat((String) cmdSpec.get().findOption("-s").getValue()).isEqualTo("2024-06-15.12:30:45");
         }
 
         @Test
