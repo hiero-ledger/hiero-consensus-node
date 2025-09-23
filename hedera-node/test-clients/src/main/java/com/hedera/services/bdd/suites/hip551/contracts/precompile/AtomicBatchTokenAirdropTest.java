@@ -16,8 +16,6 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenAirdrop;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.moving;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
-import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
-import static com.hedera.services.bdd.suites.HapiSuite.ONE_BILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
@@ -59,9 +57,6 @@ public class AtomicBatchTokenAirdropTest {
                 "atomicBatch.isEnabled", "true",
                 "atomicBatch.maxNumberOfTransactions", "50",
                 "contracts.throttle.throttleByGas", "false"));
-        // create default batch operator
-        testLifecycle.doAdhoc(
-                cryptoCreate(DEFAULT_BATCH_OPERATOR).balance(ONE_BILLION_HBARS).payingWith(DEFAULT_PAYER));
     }
 
     @Contract(contract = "Airdrop", creationGas = 5_000_000)
@@ -78,6 +73,7 @@ public class AtomicBatchTokenAirdropTest {
             @NonNull @Contract(contract = "EmptyOne", creationGas = 10_000_000L) final SpecContract sender,
             @NonNull @FungibleToken(initialSupply = 1_000_000L) final SpecFungibleToken token) {
         return hapiTest(
+                cryptoCreate(DEFAULT_BATCH_OPERATOR).balance(ONE_HBAR),
                 sender.authorizeContract(airdropContract),
                 sender.associateTokens(token),
                 airdropContract.associateTokens(token),
@@ -108,6 +104,7 @@ public class AtomicBatchTokenAirdropTest {
             @NonNull @Account(maxAutoAssociations = -1) final SpecAccount receiver,
             @NonNull @FungibleToken(initialSupply = 1_000_000L) final SpecFungibleToken token) {
         return hapiTest(
+                cryptoCreate(DEFAULT_BATCH_OPERATOR).balance(ONE_HBAR),
                 sender.authorizeContract(airdropContract),
                 sender.transferHBarsTo(airdropContract, 5_000_000_000L),
                 sender.associateTokens(token),
@@ -132,6 +129,7 @@ public class AtomicBatchTokenAirdropTest {
                     final SpecContract receiverContract,
             @NonNull @FungibleToken(initialSupply = 1000L) final SpecFungibleToken token) {
         return hapiTest(
+                cryptoCreate(DEFAULT_BATCH_OPERATOR).balance(ONE_HBAR),
                 sender.authorizeContract(airdropContract),
                 sender.transferHBarsTo(airdropContract, 5_000_000_000L),
                 receiverContract.call("associateTokenToThisContract", token).gas(1_000_000L),
@@ -152,6 +150,7 @@ public class AtomicBatchTokenAirdropTest {
     public Stream<DynamicTest> atomicHrcSetUnlimitedAutoAssociations() {
         final AtomicReference<AccountID> accountNum = new AtomicReference<>();
         return hapiTest(
+                cryptoCreate(DEFAULT_BATCH_OPERATOR).balance(ONE_HBAR),
                 cryptoCreate("account")
                         .balance(100 * ONE_HUNDRED_HBARS)
                         .maxAutomaticTokenAssociations(0)
@@ -177,7 +176,7 @@ public class AtomicBatchTokenAirdropTest {
                                                                 FUNCTION,
                                                                 "setUnlimitedAutomaticAssociations",
                                                                 "HRC904"),
-                                                        isLiteralResult(new Object[] {Long.valueOf(22)})))),
+                                                        isLiteralResult(new Object[] {22L})))),
                         getAccountInfo("account").hasMaxAutomaticAssociations(-1))));
     }
 
@@ -192,6 +191,7 @@ public class AtomicBatchTokenAirdropTest {
             @NonNull @Account(tinybarBalance = 10_000L * ONE_MILLION_HBARS) final SpecAccount sender,
             @NonNull @Account(maxAutoAssociations = 0) final SpecAccount receiver) {
         return hapiTest(
+                cryptoCreate(DEFAULT_BATCH_OPERATOR).balance(ONE_HBAR),
                 sender.associateTokens(token),
                 token.treasury().transferUnitsTo(sender, 10L, token),
                 receiver.getBalance().andAssert(balance -> balance.hasTokenBalance(token.name(), 0L)),
@@ -213,6 +213,7 @@ public class AtomicBatchTokenAirdropTest {
             @NonNull @Account(tinybarBalance = ONE_HBAR) final SpecAccount sender,
             @NonNull @Account(tinybarBalance = ONE_HBAR) final SpecAccount receiver) {
         return hapiTest(
+                cryptoCreate(DEFAULT_BATCH_OPERATOR).balance(ONE_HBAR),
                 sender.associateTokens(token),
                 token.treasury().transferUnitsTo(sender, 10L, token),
                 receiver.getBalance().andAssert(balance -> balance.hasTokenBalance(token.name(), 0L)),
@@ -235,6 +236,7 @@ public class AtomicBatchTokenAirdropTest {
             @NonNull @FungibleToken(initialSupply = 1000) SpecFungibleToken token,
             @NonNull @Account(tinybarBalance = ONE_HBAR) final SpecAccount sender) {
         return hapiTest(
+                cryptoCreate(DEFAULT_BATCH_OPERATOR).balance(ONE_HBAR),
                 sender.associateTokens(token),
                 token.treasury().transferUnitsTo(sender, 10L, token),
                 token.treasury().getBalance().andAssert(balance -> balance.hasTokenBalance(token.name(), 990L)),
@@ -258,6 +260,7 @@ public class AtomicBatchTokenAirdropTest {
             @NonNull @Account(tinybarBalance = ONE_HBAR) final SpecAccount sender,
             @NonNull @Account(tinybarBalance = ONE_HBAR) final SpecAccount receiver) {
         return hapiTest(
+                cryptoCreate(DEFAULT_BATCH_OPERATOR).balance(ONE_HBAR),
                 sender.authorizeContract(cancelAirdrop),
                 sender.associateTokens(token),
                 token.treasury().transferUnitsTo(sender, 1000, token),
@@ -290,6 +293,7 @@ public class AtomicBatchTokenAirdropTest {
             @NonNull @Account(tinybarBalance = ONE_HBAR) final SpecAccount receiver) {
 
         return hapiTest(
+                cryptoCreate(DEFAULT_BATCH_OPERATOR).balance(ONE_HBAR),
                 sender.authorizeContract(claimAirdrop),
                 receiver.authorizeContract(claimAirdrop),
                 sender.associateTokens(token),
@@ -321,7 +325,9 @@ public class AtomicBatchTokenAirdropTest {
             @NonNull @Contract(contract = "TokenReject", creationGas = 1_000_000L) final SpecContract tokenReject,
             @NonNull @FungibleToken(initialSupply = 1000) final SpecFungibleToken token,
             @NonNull @Account(tinybarBalance = ONE_HBAR) final SpecAccount sender) {
-        return hapiTest(sender.authorizeContract(tokenReject), withOpContext((spec, opLog) -> {
+        return hapiTest(
+                cryptoCreate(DEFAULT_BATCH_OPERATOR).balance(ONE_HBAR),
+                sender.authorizeContract(tokenReject), withOpContext((spec, opLog) -> {
             allRunFor(
                     spec,
                     sender.associateTokens(token),
