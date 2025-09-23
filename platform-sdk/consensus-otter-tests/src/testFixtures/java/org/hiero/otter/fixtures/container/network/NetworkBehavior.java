@@ -25,8 +25,8 @@ import org.hiero.consensus.roster.RosterUtils;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.container.network.Toxic.LatencyToxic;
 import org.hiero.otter.fixtures.internal.network.ConnectionKey;
-import org.hiero.otter.fixtures.network.BandwidthLimit;
 import org.hiero.otter.fixtures.network.Topology.ConnectionData;
+import org.hiero.otter.fixtures.network.utils.BandwidthLimit;
 
 /**
  * This class is a wrapper around the Toxiproxy client and provides methods to modify the network behavior.
