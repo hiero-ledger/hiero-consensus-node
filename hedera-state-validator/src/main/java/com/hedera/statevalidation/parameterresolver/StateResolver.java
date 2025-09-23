@@ -73,8 +73,6 @@ public class StateResolver implements ParameterResolver {
         PlatformStateFacade platformStateFacade = PlatformStateFacade.DEFAULT_PLATFORM_STATE_FACADE;
         serviceRegistry.register(
                 new RosterServiceImpl(roster -> true, (r, b) -> {}, StateResolver::getState, platformStateFacade));
-        final PlatformContext platformContext = createPlatformContext();
-                new RosterService(roster -> true, (r, b) -> {}, StateResolver::getState, platformStateFacade));
         deserializedSignedState = readStateFile(
                 Path.of(Constants.STATE_DIR, "SignedState.swh").toAbsolutePath(),
                 HederaVirtualMapState::new,

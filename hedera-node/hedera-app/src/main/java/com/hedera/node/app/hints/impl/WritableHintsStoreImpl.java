@@ -3,22 +3,14 @@ package com.hedera.node.app.hints.impl;
 
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
 import static com.hedera.node.app.hints.HintsService.partySizeForRoster;
-import static com.hedera.node.app.hints.schemas.V059HintsSchema.ACTIVE_HINT_CONSTRUCTION_KEY;
-import static com.hedera.node.app.hints.schemas.V059HintsSchema.HINTS_KEY_SETS_KEY;
-import static com.hedera.node.app.hints.schemas.V059HintsSchema.NEXT_HINT_CONSTRUCTION_KEY;
-import static com.hedera.node.app.hints.schemas.V059HintsSchema.PREPROCESSING_VOTES_KEY;
-import static com.hedera.node.app.hints.schemas.V060HintsSchema.CRS_PUBLICATIONS_KEY;
-import static com.hedera.node.app.hints.schemas.V060HintsSchema.CRS_STATE_KEY;
-import static com.hedera.node.app.service.roster.impl.ActiveRosters.Phase.BOOTSTRAP;
-import static com.hedera.node.app.service.roster.impl.ActiveRosters.Phase.HANDOFF;
 import static com.hedera.node.app.hints.schemas.V059HintsSchema.ACTIVE_HINTS_CONSTRUCTION_STATE_ID;
 import static com.hedera.node.app.hints.schemas.V059HintsSchema.HINTS_KEY_SETS_STATE_ID;
 import static com.hedera.node.app.hints.schemas.V059HintsSchema.NEXT_HINTS_CONSTRUCTION_STATE_ID;
 import static com.hedera.node.app.hints.schemas.V059HintsSchema.PREPROCESSING_VOTES_STATE_ID;
 import static com.hedera.node.app.hints.schemas.V060HintsSchema.CRS_PUBLICATIONS_STATE_ID;
 import static com.hedera.node.app.hints.schemas.V060HintsSchema.CRS_STATE_STATE_ID;
-import static com.hedera.node.app.roster.ActiveRosters.Phase.BOOTSTRAP;
-import static com.hedera.node.app.roster.ActiveRosters.Phase.HANDOFF;
+import static com.hedera.node.app.service.roster.impl.ActiveRosters.Phase.BOOTSTRAP;
+import static com.hedera.node.app.service.roster.impl.ActiveRosters.Phase.HANDOFF;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.state.hints.CRSState;

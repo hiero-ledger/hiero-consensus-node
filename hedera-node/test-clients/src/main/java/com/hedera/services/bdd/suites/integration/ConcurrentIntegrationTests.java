@@ -54,8 +54,6 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BATCH_SIZE_LIM
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.RECORD_NOT_FOUND;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_NOT_ASSOCIATED_TO_ACCOUNT;
-import static org.hiero.consensus.roster.WritableRosterStore.ROSTER_KEY;
-import static org.hiero.consensus.roster.WritableRosterStore.ROSTER_STATES_KEY;
 import static org.hiero.consensus.roster.RosterStateId.ROSTERS_STATE_ID;
 import static org.hiero.consensus.roster.RosterStateId.ROSTER_STATE_STATE_ID;
 import static org.junit.jupiter.api.Assertions.assertEquals;

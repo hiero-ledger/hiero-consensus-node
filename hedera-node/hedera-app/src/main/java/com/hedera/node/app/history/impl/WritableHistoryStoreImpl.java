@@ -2,22 +2,14 @@
 package com.hedera.node.app.history.impl;
 
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
-import static com.hedera.node.app.history.schemas.V059HistorySchema.ACTIVE_PROOF_CONSTRUCTION_KEY;
-import static com.hedera.node.app.history.schemas.V059HistorySchema.HISTORY_SIGNATURES_KEY;
-import static com.hedera.node.app.history.schemas.V059HistorySchema.LEDGER_ID_KEY;
-import static com.hedera.node.app.history.schemas.V059HistorySchema.NEXT_PROOF_CONSTRUCTION_KEY;
-import static com.hedera.node.app.history.schemas.V059HistorySchema.PROOF_KEY_SETS_KEY;
-import static com.hedera.node.app.history.schemas.V059HistorySchema.PROOF_VOTES_KEY;
-import static com.hedera.node.app.service.roster.impl.ActiveRosters.Phase.BOOTSTRAP;
-import static com.hedera.node.app.service.roster.impl.ActiveRosters.Phase.HANDOFF;
 import static com.hedera.node.app.history.schemas.V059HistorySchema.ACTIVE_PROOF_CONSTRUCTION_STATE_ID;
 import static com.hedera.node.app.history.schemas.V059HistorySchema.HISTORY_SIGNATURES_STATE_ID;
 import static com.hedera.node.app.history.schemas.V059HistorySchema.LEDGER_ID_STATE_ID;
 import static com.hedera.node.app.history.schemas.V059HistorySchema.NEXT_PROOF_CONSTRUCTION_STATE_ID;
 import static com.hedera.node.app.history.schemas.V059HistorySchema.PROOF_KEY_SETS_STATE_ID;
 import static com.hedera.node.app.history.schemas.V059HistorySchema.PROOF_VOTES_STATE_ID;
-import static com.hedera.node.app.roster.ActiveRosters.Phase.BOOTSTRAP;
-import static com.hedera.node.app.roster.ActiveRosters.Phase.HANDOFF;
+import static com.hedera.node.app.service.roster.impl.ActiveRosters.Phase.BOOTSTRAP;
+import static com.hedera.node.app.service.roster.impl.ActiveRosters.Phase.HANDOFF;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.consensus.roster.RosterUtils.isWeightRotation;
 
