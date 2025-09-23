@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.suites.contract.records;
 
 import static com.hedera.services.bdd.junit.ContextRequirement.SYSTEM_ACCOUNT_BALANCES;
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
@@ -73,6 +74,7 @@ public class ContractRecordsSanityCheckSuite {
     }
 
     @LeakyHapiTest(requirement = SYSTEM_ACCOUNT_BALANCES)
+    @Tag(MATS)
     final Stream<DynamicTest> contractCallWithSendRecordSanityChecks() {
         return hapiTest(flattened(
                 uploadInitCode(PAYABLE_CONTRACT),
@@ -159,6 +161,7 @@ public class ContractRecordsSanityCheckSuite {
     }
 
     @LeakyHapiTest(requirement = SYSTEM_ACCOUNT_BALANCES)
+    @Tag(MATS)
     final Stream<DynamicTest> contractUpdateRecordSanityChecks() {
         return hapiTest(flattened(
                 newKeyNamed("newKey").type(KeyFactory.KeyType.SIMPLE),

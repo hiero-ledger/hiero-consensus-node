@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.suites.contract.opcodes;
 
 import static com.hedera.services.bdd.junit.ContextRequirement.NO_CONCURRENT_CREATIONS;
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asEntityString;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
@@ -91,6 +92,7 @@ public class SelfDestructSuite {
         @HapiTest
         @DisplayName("can SELFDESTRUCT in constructor without destroying created child")
         @LeakyHapiTest(requirement = NO_CONCURRENT_CREATIONS)
+        @Tag(MATS)
         final Stream<DynamicTest> hscsEvm008SelfDestructInConstructorWorks() {
             final var contract = "FactorySelfDestructConstructor";
             final var nextAccount = "civilian";
@@ -189,6 +191,7 @@ public class SelfDestructSuite {
 
         @HapiTest
         @DisplayName("cannot SELFDESTRUCT to a beneficiary with receiverSigRequired that has not signed")
+        @Tag(MATS)
         final Stream<DynamicTest> selfDestructFailsWhenBeneficiaryHasReceiverSigRequiredAndHasNotSignedTheTxn50() {
             return selfDestructFailsWhenBeneficiaryHasReceiverSigRequiredAndHasNotSignedTheTxn(
                     HapiSuite.EVM_VERSION_050);
@@ -223,6 +226,7 @@ public class SelfDestructSuite {
         @HapiTest
         @DisplayName("can SELFDESTRUCT in constructor without destroying created child")
         @LeakyHapiTest(requirement = NO_CONCURRENT_CREATIONS)
+        @Tag(MATS)
         final Stream<DynamicTest> hscsEvm008SelfDestructInConstructorWorks() {
             final var contract = "FactorySelfDestructConstructor";
             final var nextAccount = "civilian";
@@ -333,6 +337,7 @@ public class SelfDestructSuite {
                 nonExistingAccountsOps));
     }
 
+    @Tag(MATS)
     final Stream<DynamicTest> deletedContractsCannotBeUpdated(@NonNull final String evmVersion) {
         final var contract = SELF_DESTRUCT_CALLABLE_CONTRACT;
         final var beneficiary = BENEFICIARY;

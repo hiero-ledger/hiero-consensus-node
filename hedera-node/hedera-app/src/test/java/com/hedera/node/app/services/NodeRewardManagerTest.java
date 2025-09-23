@@ -2,15 +2,21 @@
 package com.hedera.node.app.services;
 
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
-import static com.hedera.node.app.ids.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_KEY;
-import static com.hedera.node.app.ids.schemas.V0590EntityIdSchema.ENTITY_COUNTS_KEY;
+import static com.hedera.node.app.ids.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_ID;
+import static com.hedera.node.app.ids.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_LABEL;
+import static com.hedera.node.app.ids.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
+import static com.hedera.node.app.ids.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_LABEL;
 import static com.hedera.node.app.service.token.impl.handlers.BaseCryptoHandler.asAccount;
-import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_KEY;
-import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.STAKING_NETWORK_REWARDS_KEY;
-import static com.hedera.node.app.service.token.impl.schemas.V0610TokenSchema.NODE_REWARDS_KEY;
-import static com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema.PLATFORM_STATE_KEY;
-import static com.swirlds.platform.state.service.schemas.V0540RosterBaseSchema.ROSTER_KEY;
-import static com.swirlds.platform.state.service.schemas.V0540RosterBaseSchema.ROSTER_STATES_KEY;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_STATE_ID;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_STATE_LABEL;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.STAKING_NETWORK_REWARDS_STATE_ID;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.STAKING_NETWORK_REWARDS_STATE_LABEL;
+import static com.hedera.node.app.service.token.impl.schemas.V0610TokenSchema.NODE_REWARDS_STATE_ID;
+import static com.hedera.node.app.service.token.impl.schemas.V0610TokenSchema.NODE_REWARDS_STATE_LABEL;
+import static com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID;
+import static com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema.PLATFORM_STATE_STATE_LABEL;
+import static org.hiero.consensus.roster.RosterStateId.ROSTERS_STATE_ID;
+import static org.hiero.consensus.roster.RosterStateId.ROSTERS_STATE_LABEL;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.*;
@@ -61,7 +67,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.SortedMap;
 import java.util.concurrent.atomic.AtomicReference;
-import org.hiero.consensus.roster.WritableRosterStore;
+import org.hiero.consensus.roster.RosterStateId;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -163,7 +169,7 @@ class NodeRewardManagerTest {
 
         // Add nodeId 2 to the active roster after 9 rounds
         final WritableKVState<ProtoBytes, Roster> rosters = MapWritableKVState.<ProtoBytes, Roster>builder(
-                        RosterService.NAME, WritableRosterStore.ROSTER_KEY)
+                        ROSTERS_STATE_ID, ROSTERS_STATE_LABEL)
                 .build();
         rosters.put(
                 ProtoBytes.newBuilder().value(Bytes.wrap("ACTIVE")).build(),
@@ -173,7 +179,7 @@ class NodeRewardManagerTest {
                                 RosterEntry.newBuilder().nodeId(1L).build(),
                                 RosterEntry.newBuilder().nodeId(2L).build()))
                         .build());
-        lenient().when(readableStates.<ProtoBytes, Roster>get(ROSTER_KEY)).thenReturn(rosters);
+        lenient().when(readableStates.<ProtoBytes, Roster>get(ROSTERS_STATE_ID)).thenReturn(rosters);
 
         nodeRewardManager.updateJudgesOnEndRound(state);
 
@@ -237,7 +243,7 @@ class NodeRewardManagerTest {
             final PlatformState platformState,
             final NetworkStakingRewards networkStakingRewards) {
         nodeRewardsState = new FunctionWritableSingletonState<>(
-                TokenService.NAME, NODE_REWARDS_KEY, nodeRewardsRef::get, nodeRewardsRef::set);
+                NODE_REWARDS_STATE_ID, NODE_REWARDS_STATE_LABEL, nodeRewardsRef::get, nodeRewardsRef::set);
         nodeRewardsRef.set(nodeRewards);
         rosterStateRef.set(RosterState.newBuilder()
                 .roundRosterPairs(RoundRosterPair.newBuilder()
@@ -268,37 +274,40 @@ class NodeRewardManagerTest {
         lenient().when(state.getReadableStates(EntityIdService.NAME)).thenReturn(readableStates);
         lenient().when(state.getWritableStates(EntityIdService.NAME)).thenReturn(writableStates);
 
-        given(writableStates.<NodeRewards>getSingleton(NODE_REWARDS_KEY)).willReturn(nodeRewardsState);
-        given(readableStates.<NodeRewards>getSingleton(NODE_REWARDS_KEY)).willReturn(nodeRewardsState);
-        given(readableStates.<PlatformState>getSingleton(PLATFORM_STATE_KEY))
+        given(writableStates.<NodeRewards>getSingleton(NODE_REWARDS_STATE_ID)).willReturn(nodeRewardsState);
+        given(readableStates.<NodeRewards>getSingleton(NODE_REWARDS_STATE_ID)).willReturn(nodeRewardsState);
+        given(readableStates.<PlatformState>getSingleton(PLATFORM_STATE_STATE_ID))
                 .willReturn(new FunctionWritableSingletonState<>(
-                        PlatformStateService.NAME, PLATFORM_STATE_KEY, stateRef::get, stateRef::set));
-        given(readableStates.<RosterState>getSingleton(ROSTER_STATES_KEY))
+                        PLATFORM_STATE_STATE_ID, PLATFORM_STATE_STATE_LABEL, stateRef::get, stateRef::set));
+        given(readableStates.<RosterState>getSingleton(RosterStateId.ROSTER_STATE_STATE_ID))
                 .willReturn(new FunctionWritableSingletonState<>(
-                        RosterService.NAME, ROSTER_STATES_KEY, rosterStateRef::get, rosterStateRef::set));
-        given(readableStates.getSingleton(ENTITY_ID_STATE_KEY))
+                        RosterStateId.ROSTER_STATE_STATE_ID,
+                        RosterStateId.ROSTER_STATE_STATE_LABEL,
+                        rosterStateRef::get,
+                        rosterStateRef::set));
+        given(readableStates.getSingleton(ENTITY_ID_STATE_ID))
                 .willReturn(new FunctionReadableSingletonState<>(
-                        EntityIdService.NAME, ENTITY_ID_STATE_KEY, () -> EntityNumber.newBuilder()
+                        ENTITY_ID_STATE_ID, ENTITY_ID_STATE_LABEL, () -> EntityNumber.newBuilder()
                                 .build()));
-        given(readableStates.getSingleton(ENTITY_COUNTS_KEY))
+        given(readableStates.getSingleton(ENTITY_COUNTS_STATE_ID))
                 .willReturn(new FunctionReadableSingletonState<>(
-                        EntityIdService.NAME,
-                        ENTITY_COUNTS_KEY,
+                        ENTITY_COUNTS_STATE_ID,
+                        ENTITY_COUNTS_STATE_LABEL,
                         () -> EntityCounts.newBuilder().numNodes(1).build()));
         final var networkRewardState = new FunctionWritableSingletonState<>(
-                TokenService.NAME,
-                STAKING_NETWORK_REWARDS_KEY,
+                STAKING_NETWORK_REWARDS_STATE_ID,
+                STAKING_NETWORK_REWARDS_STATE_LABEL,
                 networkStakingRewardsRef::get,
                 networkStakingRewardsRef::set);
         final var readableNetworkRewardState = new FunctionReadableSingletonState<>(
-                TokenService.NAME, STAKING_NETWORK_REWARDS_KEY, networkStakingRewardsRef::get);
-        given(readableStates.<NetworkStakingRewards>getSingleton(STAKING_NETWORK_REWARDS_KEY))
+                STAKING_NETWORK_REWARDS_STATE_ID, STAKING_NETWORK_REWARDS_STATE_LABEL, networkStakingRewardsRef::get);
+        given(readableStates.<NetworkStakingRewards>getSingleton(STAKING_NETWORK_REWARDS_STATE_ID))
                 .willReturn(networkRewardState);
-        given(writableStates.<NetworkStakingRewards>getSingleton(STAKING_NETWORK_REWARDS_KEY))
+        given(writableStates.<NetworkStakingRewards>getSingleton(STAKING_NETWORK_REWARDS_STATE_ID))
                 .willReturn(networkRewardState);
         //        given(readableNetworkRewardState.get()).willReturn(networkStakingRewardsRef.get());
         final WritableKVState<ProtoBytes, Roster> rosters = MapWritableKVState.<ProtoBytes, Roster>builder(
-                        RosterService.NAME, WritableRosterStore.ROSTER_KEY)
+                        ROSTERS_STATE_ID, ROSTERS_STATE_LABEL)
                 .build();
         rosters.put(
                 ProtoBytes.newBuilder().value(Bytes.wrap("ACTIVE")).build(),
@@ -307,12 +316,13 @@ class NodeRewardManagerTest {
                                 RosterEntry.newBuilder().nodeId(0L).build(),
                                 RosterEntry.newBuilder().nodeId(1L).build()))
                         .build());
-        lenient().when(readableStates.<ProtoBytes, Roster>get(ROSTER_KEY)).thenReturn(rosters);
-        final var readableAccounts = MapWritableKVState.<AccountID, Account>builder(TokenService.NAME, ACCOUNTS_KEY)
+        lenient().when(readableStates.<ProtoBytes, Roster>get(ROSTERS_STATE_ID)).thenReturn(rosters);
+        final var readableAccounts = MapWritableKVState.<AccountID, Account>builder(
+                        ACCOUNTS_STATE_ID, ACCOUNTS_STATE_LABEL)
                 .value(asAccount(0, 0, 801), Account.DEFAULT)
                 .build();
-        given(readableStates.<AccountID, Account>get(ACCOUNTS_KEY)).willReturn(readableAccounts);
-        given(writableStates.<AccountID, Account>get(ACCOUNTS_KEY)).willReturn(readableAccounts);
+        given(readableStates.<AccountID, Account>get(ACCOUNTS_STATE_ID)).willReturn(readableAccounts);
+        given(writableStates.<AccountID, Account>get(ACCOUNTS_STATE_ID)).willReturn(readableAccounts);
     }
 
     private PlatformState platformStateWithFreezeTime(@Nullable final Instant freezeTime) {

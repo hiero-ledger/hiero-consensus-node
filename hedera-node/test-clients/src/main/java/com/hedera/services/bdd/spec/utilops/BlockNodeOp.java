@@ -1,37 +1,43 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.utilops;
 
-import com.hedera.services.bdd.junit.hedera.simulator.BlockNodeSimulatorController;
+import com.hedera.services.bdd.junit.hedera.BlockNodeMode;
+import com.hedera.services.bdd.junit.hedera.simulator.BlockNodeController;
 import com.hedera.services.bdd.spec.HapiSpec;
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.block.api.PublishStreamResponse;
 import org.hiero.block.api.PublishStreamResponse.EndOfStream;
 
 /**
- * A utility operation for interacting with the block node simulator.
+ * A utility operation for interacting with the block node in action. The block node type is dependent
+ * on the {@link BlockNodeMode} configured on a per test basis. Currently, it supports simulated block nodes and
+ * real block nodes running in Docker containers.
  */
-public class BlockNodeSimulatorOp extends UtilOp {
-    private static final Logger log = LogManager.getLogger(BlockNodeSimulatorOp.class);
+public class BlockNodeOp extends UtilOp {
+    private static final Logger log = LogManager.getLogger(BlockNodeOp.class);
 
-    private final int nodeIndex;
-    private final BlockNodeSimulatorAction action;
+    private final long nodeIndex;
+    private final BlockNodeAction action;
     private final EndOfStream.Code responseCode;
     private final long blockNumber;
     private final AtomicLong lastVerifiedBlockNumber;
     private final Consumer<Long> lastVerifiedBlockConsumer;
     private final boolean sendBlockAcknowledgementsEnabled;
+    private final boolean persistState;
 
-    private BlockNodeSimulatorOp(
-            final int nodeIndex,
-            final BlockNodeSimulatorAction action,
+    private BlockNodeOp(
+            final long nodeIndex,
+            final BlockNodeAction action,
             final EndOfStream.Code responseCode,
             final long blockNumber,
             final AtomicLong lastVerifiedBlockNumber,
             final Consumer<Long> lastVerifiedBlockConsumer,
-            final boolean sendBlockAcknowledgementsEnabled) {
+            final boolean sendBlockAcknowledgementsEnabled,
+            final boolean persistState) {
         this.nodeIndex = nodeIndex;
         this.action = action;
         this.responseCode = responseCode;
@@ -39,12 +45,28 @@ public class BlockNodeSimulatorOp extends UtilOp {
         this.lastVerifiedBlockNumber = lastVerifiedBlockNumber;
         this.lastVerifiedBlockConsumer = lastVerifiedBlockConsumer;
         this.sendBlockAcknowledgementsEnabled = sendBlockAcknowledgementsEnabled;
+        this.persistState = persistState;
     }
 
     @Override
     protected boolean submitOp(final HapiSpec spec) throws Throwable {
-        final BlockNodeSimulatorController controller =
-                HapiSpec.TARGET_BLOCK_NODE_NETWORK.get().getBlockNodeSimulatorController();
+        final BlockNodeMode mode =
+                HapiSpec.TARGET_BLOCK_NODE_NETWORK.get().getBlockNodeModeById().get(nodeIndex);
+        if (mode == BlockNodeMode.SIMULATOR) {
+            return submitSimulatorOp();
+        } else if (mode == BlockNodeMode.REAL) {
+            return submitContainerOp();
+        } else if (mode == BlockNodeMode.LOCAL_NODE) {
+            log.error("Block node operations are not supported in local node mode for node {}", nodeIndex);
+            return false;
+        } else {
+            throw new IllegalStateException("Node " + nodeIndex + " is not a block node");
+        }
+    }
+
+    private boolean submitSimulatorOp() {
+        final BlockNodeController controller =
+                HapiSpec.TARGET_BLOCK_NODE_NETWORK.get().getBlockNodeController();
         long verifiedBlock = 0;
 
         switch (action) {
@@ -90,12 +112,12 @@ public class BlockNodeSimulatorOp extends UtilOp {
                 verifiedBlock = controller.getLastVerifiedBlockNumber(nodeIndex);
                 log.info("Reset all responses on simulator {} to default behavior", nodeIndex);
                 break;
-            case SHUTDOWN_SIMULATOR:
-                controller.shutdownSimulator(nodeIndex);
+            case SHUTDOWN:
+                controller.shutdownSimulator(nodeIndex, persistState);
                 log.info("Shutdown simulator {}", nodeIndex);
                 break;
-            case START_SIMULATOR:
-                if (!controller.isSimulatorShutdown(nodeIndex)) {
+            case START:
+                if (!controller.isBlockNodeShutdown(nodeIndex)) {
                     log.error("Cannot start simulator {} because it has not been shut down", nodeIndex);
                     return false;
                 }
@@ -107,12 +129,12 @@ public class BlockNodeSimulatorOp extends UtilOp {
                     return false;
                 }
                 break;
-            case SHUTDOWN_ALL_SIMULATORS:
-                controller.shutdownAllSimulators();
+            case SHUTDOWN_ALL:
+                controller.shutdownAllSimulators(persistState);
                 log.info("Shutdown all simulators to simulate connection drops");
                 break;
-            case START_ALL_SIMULATORS:
-                if (!controller.areAnySimulatorsShutdown()) {
+            case START_ALL:
+                if (!controller.areAnyBlockNodesBeenShutdown()) {
                     log.error("Cannot start simulators because none have been shut down");
                     return false;
                 }
@@ -149,6 +171,8 @@ public class BlockNodeSimulatorOp extends UtilOp {
                         sendBlockAcknowledgementsEnabled);
                 controller.setSendBlockAcknowledgementsEnabled(nodeIndex, sendBlockAcknowledgementsEnabled);
                 break;
+            default:
+                throw new IllegalStateException("Action: " + action + " is not supported for block node simulators");
         }
 
         if (lastVerifiedBlockNumber != null) {
@@ -158,74 +182,109 @@ public class BlockNodeSimulatorOp extends UtilOp {
         if (lastVerifiedBlockConsumer != null) {
             lastVerifiedBlockConsumer.accept(verifiedBlock);
         }
+        return true;
+    }
 
+    private boolean submitContainerOp() {
+        final BlockNodeController controller =
+                HapiSpec.TARGET_BLOCK_NODE_NETWORK.get().getBlockNodeController();
+
+        switch (action) {
+            case START:
+                if (!controller.isBlockNodeShutdown(nodeIndex)) {
+                    log.error("Cannot start container {} because it has not been shut down", nodeIndex);
+                    return false;
+                }
+                controller.startContainer(nodeIndex);
+                break;
+            case SHUTDOWN:
+                controller.shutdownContainer(nodeIndex, persistState);
+                break;
+            default:
+                throw new IllegalStateException("Action: " + action + " is not supported for block node containers");
+        }
         return true;
     }
 
     /**
-     * Enum defining the possible actions to perform on a block node simulator.
+     * Enum defining the possible actions to perform on a block node.
      */
-    public enum BlockNodeSimulatorAction {
+    public enum BlockNodeAction {
+        /** Start block node */
+        START,
+        /** Start all block nodes */
+        START_ALL,
+        /** Shutdown block node */
+        SHUTDOWN,
+        /** Shutdown all block nodes */
+        SHUTDOWN_ALL,
+
+        /* Next actions are only applicable to simulated block nodes */
+
+        /** Send {@link PublishStreamResponse.EndOfStream} response */
         SEND_END_OF_STREAM_IMMEDIATELY,
+        /** Send {@link PublishStreamResponse.SkipBlock} response */
         SEND_SKIP_BLOCK_IMMEDIATELY,
+        /** Send {@link PublishStreamResponse.ResendBlock} response */
         SEND_RESEND_BLOCK_IMMEDIATELY,
+        /** Set {@link PublishStreamResponse.EndOfStream} response */
         SET_END_OF_STREAM_RESPONSE,
+        /** Reset all responses to default behavior */
         RESET_RESPONSES,
-        SHUTDOWN_SIMULATOR,
-        START_SIMULATOR,
-        SHUTDOWN_ALL_SIMULATORS,
-        START_ALL_SIMULATORS,
+        /** Assert that a specific block has been received */
         ASSERT_BLOCK_RECEIVED,
+        /** Get the last verified block number */
         GET_LAST_VERIFIED_BLOCK,
+        /** Whether or not to send block acknowledgements */
         UPDATE_SENDING_BLOCK_ACKS
     }
 
     /**
-     * Creates a builder for sending an immediate EndOfStream response to a block node simulator.
+     * Creates a builder for sending an immediate {@link PublishStreamResponse.EndOfStream} response to a block node simulator.
      *
      * @param nodeIndex the index of the block node simulator (0-based)
      * @param responseCode the response code to send
      * @return a builder for the operation
      */
     public static SendEndOfStreamBuilder sendEndOfStreamImmediately(
-            final int nodeIndex, final EndOfStream.Code responseCode) {
+            final long nodeIndex, final EndOfStream.Code responseCode) {
         return new SendEndOfStreamBuilder(nodeIndex, responseCode);
     }
 
     /**
-     * Creates a builder for sending an immediate SkipBlock response to a block node simulator.
+     * Creates a builder for sending an immediate {@link PublishStreamResponse.SkipBlock} response to a block node simulator.
      *
      * @param nodeIndex the index of the block node simulator (0-based)
      * @param blockNumber the block number to skip
      * @return a builder for the operation
      */
-    public static SendSkipBlockBuilder sendSkipBlockImmediately(final int nodeIndex, final long blockNumber) {
+    public static SendSkipBlockBuilder sendSkipBlockImmediately(final long nodeIndex, final long blockNumber) {
         return new SendSkipBlockBuilder(nodeIndex, blockNumber);
     }
 
     /**
-     * Creates a builder for sending an immediate ResendBlock response to a block node simulator.
+     * Creates a builder for sending an immediate {@link PublishStreamResponse.ResendBlock} response to a block node simulator.
      *
      * @param nodeIndex the index of the block node simulator (0-based)
      * @param blockNumber the block number to resend
      * @return a builder for the operation
      */
-    public static SendResendBlockBuilder sendResendBlockImmediately(final int nodeIndex, final long blockNumber) {
+    public static SendResendBlockBuilder sendResendBlockImmediately(final long nodeIndex, final long blockNumber) {
         return new SendResendBlockBuilder(nodeIndex, blockNumber);
     }
 
     /**
-     * Creates a builder for shutting down a specific block node simulator immediately.
+     * Creates a builder for shutting down a specific block node immediately.
      *
-     * @param nodeIndex the index of the block node simulator (0-based)
+     * @param nodeIndex the index of the block node (0-based)
      * @return a builder for the operation
      */
-    public static ShutdownBuilder shutdownImmediately(final int nodeIndex) {
+    public static ShutdownBuilder shutdownImmediately(final long nodeIndex) {
         return new ShutdownBuilder(nodeIndex);
     }
 
     /**
-     * Creates a builder for shutting down all block node simulators immediately.
+     * Creates a builder for shutting down all block nodes immediately.
      *
      * @return a builder for the operation
      */
@@ -234,17 +293,17 @@ public class BlockNodeSimulatorOp extends UtilOp {
     }
 
     /**
-     * Creates a builder for starting a specific block node simulator immediately.
+     * Creates a builder for starting a specific block node immediately.
      *
-     * @param nodeIndex the index of the block node simulator (0-based)
+     * @param nodeIndex the index of the block node (0-based)
      * @return a builder for the operation
      */
-    public static StartBuilder startImmediately(final int nodeIndex) {
+    public static StartBuilder startImmediately(final long nodeIndex) {
         return new StartBuilder(nodeIndex);
     }
 
     /**
-     * Creates a builder for starting all previously shutdown block node simulators.
+     * Creates a builder for starting all previously shutdown block nodes.
      *
      * @return a builder for the operation
      */
@@ -259,7 +318,7 @@ public class BlockNodeSimulatorOp extends UtilOp {
      * @param blockNumber the block number to check
      * @return a builder for the operation
      */
-    public static AssertBlockReceivedBuilder assertBlockReceived(final int nodeIndex, final long blockNumber) {
+    public static AssertBlockReceivedBuilder assertBlockReceived(final long nodeIndex, final long blockNumber) {
         return new AssertBlockReceivedBuilder(nodeIndex, blockNumber);
     }
 
@@ -269,7 +328,7 @@ public class BlockNodeSimulatorOp extends UtilOp {
      * @param nodeIndex the index of the block node simulator (0-based)
      * @return a builder for the operation
      */
-    public static GetLastVerifiedBlockBuilder getLastVerifiedBlock(final int nodeIndex) {
+    public static GetLastVerifiedBlockBuilder getLastVerifiedBlock(final long nodeIndex) {
         return new GetLastVerifiedBlockBuilder(nodeIndex);
     }
 
@@ -281,7 +340,7 @@ public class BlockNodeSimulatorOp extends UtilOp {
      * @return the builder
      */
     public static UpdateSendingBlockAcknowledgementsBuilder updateSendingBlockAcknowledgements(
-            final int nodeIndex, final boolean sendBlockAcknowledgementsEnabled) {
+            final long nodeIndex, final boolean sendBlockAcknowledgementsEnabled) {
         return new UpdateSendingBlockAcknowledgementsBuilder(nodeIndex, sendBlockAcknowledgementsEnabled);
     }
 
@@ -290,13 +349,13 @@ public class BlockNodeSimulatorOp extends UtilOp {
      * This builder also implements UtilOp so it can be used directly in HapiSpec without calling build().
      */
     public static class SendEndOfStreamBuilder extends UtilOp {
-        private final int nodeIndex;
+        private final long nodeIndex;
         private final EndOfStream.Code responseCode;
         private long blockNumber = 0;
         private AtomicLong lastVerifiedBlockNumber;
         private Consumer<Long> lastVerifiedBlockConsumer;
 
-        private SendEndOfStreamBuilder(final int nodeIndex, final EndOfStream.Code responseCode) {
+        private SendEndOfStreamBuilder(final long nodeIndex, final EndOfStream.Code responseCode) {
             this.nodeIndex = nodeIndex;
             this.responseCode = responseCode;
         }
@@ -339,14 +398,15 @@ public class BlockNodeSimulatorOp extends UtilOp {
          *
          * @return the operation
          */
-        public BlockNodeSimulatorOp build() {
-            return new BlockNodeSimulatorOp(
+        public BlockNodeOp build() {
+            return new BlockNodeOp(
                     nodeIndex,
-                    BlockNodeSimulatorAction.SEND_END_OF_STREAM_IMMEDIATELY,
+                    BlockNodeAction.SEND_END_OF_STREAM_IMMEDIATELY,
                     responseCode,
                     blockNumber,
                     lastVerifiedBlockNumber,
                     lastVerifiedBlockConsumer,
+                    true,
                     true);
         }
 
@@ -361,10 +421,10 @@ public class BlockNodeSimulatorOp extends UtilOp {
      * This builder also implements UtilOp so it can be used directly in HapiSpec without calling build().
      */
     public static class SendSkipBlockBuilder extends UtilOp {
-        private final int nodeIndex;
+        private final long nodeIndex;
         private final long blockNumber;
 
-        private SendSkipBlockBuilder(final int nodeIndex, final long blockNumber) {
+        private SendSkipBlockBuilder(final long nodeIndex, final long blockNumber) {
             this.nodeIndex = nodeIndex;
             this.blockNumber = blockNumber;
         }
@@ -374,15 +434,9 @@ public class BlockNodeSimulatorOp extends UtilOp {
          *
          * @return the operation
          */
-        public BlockNodeSimulatorOp build() {
-            return new BlockNodeSimulatorOp(
-                    nodeIndex,
-                    BlockNodeSimulatorAction.SEND_SKIP_BLOCK_IMMEDIATELY,
-                    null,
-                    blockNumber,
-                    null,
-                    null,
-                    true);
+        public BlockNodeOp build() {
+            return new BlockNodeOp(
+                    nodeIndex, BlockNodeAction.SEND_SKIP_BLOCK_IMMEDIATELY, null, blockNumber, null, null, true, true);
         }
 
         @Override
@@ -396,10 +450,10 @@ public class BlockNodeSimulatorOp extends UtilOp {
      * This builder also implements UtilOp so it can be used directly in HapiSpec without calling build().
      */
     public static class SendResendBlockBuilder extends UtilOp {
-        private final int nodeIndex;
+        private final long nodeIndex;
         private final long blockNumber;
 
-        private SendResendBlockBuilder(final int nodeIndex, final long blockNumber) {
+        private SendResendBlockBuilder(final long nodeIndex, final long blockNumber) {
             this.nodeIndex = nodeIndex;
             this.blockNumber = blockNumber;
         }
@@ -409,14 +463,15 @@ public class BlockNodeSimulatorOp extends UtilOp {
          *
          * @return the operation
          */
-        public BlockNodeSimulatorOp build() {
-            return new BlockNodeSimulatorOp(
+        public BlockNodeOp build() {
+            return new BlockNodeOp(
                     nodeIndex,
-                    BlockNodeSimulatorAction.SEND_RESEND_BLOCK_IMMEDIATELY,
+                    BlockNodeAction.SEND_RESEND_BLOCK_IMMEDIATELY,
                     null,
                     blockNumber,
                     null,
                     null,
+                    true,
                     true);
         }
 
@@ -427,10 +482,21 @@ public class BlockNodeSimulatorOp extends UtilOp {
     }
 
     public static class ShutdownBuilder extends UtilOp {
-        private final int nodeIndex;
+        private final long nodeIndex;
+        private boolean persistState = true;
 
-        private ShutdownBuilder(final int nodeIndex) {
+        private ShutdownBuilder(final long nodeIndex) {
             this.nodeIndex = nodeIndex;
+        }
+
+        /**
+         * Sets whether to persist the state of the block node before shutting down.
+         * Default is true.
+         * @param persistState whether to persist the state of the block node before shutting down
+         */
+        public ShutdownBuilder persistState(final boolean persistState) {
+            this.persistState = persistState;
+            return this;
         }
 
         /**
@@ -438,9 +504,8 @@ public class BlockNodeSimulatorOp extends UtilOp {
          *
          * @return the operation
          */
-        public BlockNodeSimulatorOp build() {
-            return new BlockNodeSimulatorOp(
-                    nodeIndex, BlockNodeSimulatorAction.SHUTDOWN_SIMULATOR, null, 0, null, null, true);
+        public BlockNodeOp build() {
+            return new BlockNodeOp(nodeIndex, BlockNodeAction.SHUTDOWN, null, 0, null, null, true, persistState);
         }
 
         @Override
@@ -450,14 +515,26 @@ public class BlockNodeSimulatorOp extends UtilOp {
     }
 
     public static class ShutdownAllBuilder extends UtilOp {
+        private boolean persistState = true;
+
+        /**
+         * Sets whether the state should be persistent after shutdown.
+         *
+         * @param persistState whether state should be persistent
+         * @return this builder
+         */
+        public ShutdownAllBuilder persistState(final boolean persistState) {
+            this.persistState = persistState;
+            return this;
+        }
+
         /**
          * Builds the operation.
          *
          * @return the operation
          */
-        public BlockNodeSimulatorOp build() {
-            return new BlockNodeSimulatorOp(
-                    0, BlockNodeSimulatorAction.SHUTDOWN_ALL_SIMULATORS, null, 0, null, null, true);
+        public BlockNodeOp build() {
+            return new BlockNodeOp(0, BlockNodeAction.SHUTDOWN_ALL, null, 0, null, null, true, persistState);
         }
 
         @Override
@@ -467,9 +544,9 @@ public class BlockNodeSimulatorOp extends UtilOp {
     }
 
     public static class StartBuilder extends UtilOp {
-        private final int nodeIndex;
+        private final long nodeIndex;
 
-        private StartBuilder(final int nodeIndex) {
+        private StartBuilder(final long nodeIndex) {
             this.nodeIndex = nodeIndex;
         }
 
@@ -478,9 +555,8 @@ public class BlockNodeSimulatorOp extends UtilOp {
          *
          * @return the operation
          */
-        public BlockNodeSimulatorOp build() {
-            return new BlockNodeSimulatorOp(
-                    nodeIndex, BlockNodeSimulatorAction.START_SIMULATOR, null, 0, null, null, true);
+        public BlockNodeOp build() {
+            return new BlockNodeOp(nodeIndex, BlockNodeAction.START, null, 0, null, null, true, true);
         }
 
         @Override
@@ -495,9 +571,8 @@ public class BlockNodeSimulatorOp extends UtilOp {
          *
          * @return the operation
          */
-        public BlockNodeSimulatorOp build() {
-            return new BlockNodeSimulatorOp(
-                    0, BlockNodeSimulatorAction.START_ALL_SIMULATORS, null, 0, null, null, true);
+        public BlockNodeOp build() {
+            return new BlockNodeOp(0, BlockNodeAction.START_ALL, null, 0, null, null, true, true);
         }
 
         @Override
@@ -507,10 +582,10 @@ public class BlockNodeSimulatorOp extends UtilOp {
     }
 
     public static class AssertBlockReceivedBuilder extends UtilOp {
-        private final int nodeIndex;
+        private final long nodeIndex;
         private final long blockNumber;
 
-        AssertBlockReceivedBuilder(final int nodeIndex, final long blockNumber) {
+        AssertBlockReceivedBuilder(final long nodeIndex, final long blockNumber) {
             this.nodeIndex = nodeIndex;
             this.blockNumber = blockNumber;
         }
@@ -520,9 +595,9 @@ public class BlockNodeSimulatorOp extends UtilOp {
          *
          * @return the operation
          */
-        public BlockNodeSimulatorOp build() {
-            return new BlockNodeSimulatorOp(
-                    nodeIndex, BlockNodeSimulatorAction.ASSERT_BLOCK_RECEIVED, null, blockNumber, null, null, true);
+        public BlockNodeOp build() {
+            return new BlockNodeOp(
+                    nodeIndex, BlockNodeAction.ASSERT_BLOCK_RECEIVED, null, blockNumber, null, null, true, true);
         }
 
         @Override
@@ -532,24 +607,25 @@ public class BlockNodeSimulatorOp extends UtilOp {
     }
 
     public static class UpdateSendingBlockAcknowledgementsBuilder extends UtilOp {
-        private final int nodeIndex;
+        private final long nodeIndex;
         private final boolean sendBlockAcknowledgementsEnabled;
 
         private UpdateSendingBlockAcknowledgementsBuilder(
-                final int nodeIndex, final boolean sendBlockAcknowledgementsEnabled) {
+                final long nodeIndex, final boolean sendBlockAcknowledgementsEnabled) {
             this.nodeIndex = nodeIndex;
             this.sendBlockAcknowledgementsEnabled = sendBlockAcknowledgementsEnabled;
         }
 
-        public BlockNodeSimulatorOp build() {
-            return new BlockNodeSimulatorOp(
+        public BlockNodeOp build() {
+            return new BlockNodeOp(
                     nodeIndex,
-                    BlockNodeSimulatorAction.UPDATE_SENDING_BLOCK_ACKS,
+                    BlockNodeAction.UPDATE_SENDING_BLOCK_ACKS,
                     null,
                     0,
                     null,
                     null,
-                    sendBlockAcknowledgementsEnabled);
+                    sendBlockAcknowledgementsEnabled,
+                    true);
         }
 
         @Override
@@ -559,11 +635,11 @@ public class BlockNodeSimulatorOp extends UtilOp {
     }
 
     public static class GetLastVerifiedBlockBuilder extends UtilOp {
-        private final int nodeIndex;
+        private final long nodeIndex;
         private AtomicLong lastVerifiedBlockNumber;
         private Consumer<Long> lastVerifiedBlockConsumer;
 
-        GetLastVerifiedBlockBuilder(final int nodeIndex) {
+        GetLastVerifiedBlockBuilder(final long nodeIndex) {
             this.nodeIndex = nodeIndex;
         }
 
@@ -595,14 +671,15 @@ public class BlockNodeSimulatorOp extends UtilOp {
          *
          * @return the operation
          */
-        public BlockNodeSimulatorOp build() {
-            return new BlockNodeSimulatorOp(
+        public BlockNodeOp build() {
+            return new BlockNodeOp(
                     nodeIndex,
-                    BlockNodeSimulatorAction.GET_LAST_VERIFIED_BLOCK,
+                    BlockNodeAction.GET_LAST_VERIFIED_BLOCK,
                     null,
                     0,
                     lastVerifiedBlockNumber,
                     lastVerifiedBlockConsumer,
+                    true,
                     true);
         }
 

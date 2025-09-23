@@ -40,7 +40,7 @@ public class WritableTokenRelationStore extends ReadableTokenRelationStoreImpl {
     public WritableTokenRelationStore(
             @NonNull final WritableStates states, @NonNull final WritableEntityCounters entityCounters) {
         super(states, entityCounters);
-        this.tokenRelState = requireNonNull(states).get(V0490TokenSchema.TOKEN_RELS_KEY);
+        this.tokenRelState = requireNonNull(states).get(V0490TokenSchema.TOKEN_RELS_STATE_ID);
         this.entityCounters = entityCounters;
     }
 

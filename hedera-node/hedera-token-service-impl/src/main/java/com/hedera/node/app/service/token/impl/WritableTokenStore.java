@@ -36,7 +36,7 @@ public class WritableTokenStore extends ReadableTokenStoreImpl {
     public WritableTokenStore(
             @NonNull final WritableStates states, @NonNull final WritableEntityCounters entityCounters) {
         super(states, entityCounters);
-        this.tokenState = states.get(V0490TokenSchema.TOKENS_KEY);
+        this.tokenState = states.get(V0490TokenSchema.TOKENS_STATE_ID);
         this.entityCounters = entityCounters;
     }
 
