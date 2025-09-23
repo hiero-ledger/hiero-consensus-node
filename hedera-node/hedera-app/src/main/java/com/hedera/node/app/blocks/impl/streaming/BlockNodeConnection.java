@@ -541,7 +541,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                     logWithContext(DEBUG, "Request pipeline closed without onComplete - connection is not active.");
                 }
             } catch (final Exception e) {
-                logWithContext(WARN, "Error while completing request pipeline.", e);
+                logWithContext(DEBUG, "Error while completing request pipeline.", e);
             }
             // Clear the pipeline reference to prevent further use
             // pipelineLock ensures no thread is mid-call to requestPipeline.onNext()
