@@ -80,6 +80,7 @@ import com.hedera.node.config.types.PermissionedAccountsRange;
 import com.hedera.node.internal.network.Network;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.config.StateCommonConfig;
+import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.config.TemporaryFileConfig;
 import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.config.api.Configuration;
@@ -88,6 +89,7 @@ import com.swirlds.config.extensions.sources.SimpleConfigSource;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.platform.config.AddressBookConfig;
 import com.swirlds.platform.config.StateConfig;
+import com.swirlds.platform.event.preconsensus.PcesConfig;
 import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.service.PlatformStateService;
@@ -127,6 +129,7 @@ public class InitUtils {
                 .withConfigDataType(BlockStreamConfig.class)
                 .withConfigDataType(AccountsConfig.class)
                 .withConfigDataType(TssConfig.class)
+                .withConfigDataType(PcesConfig.class)
                 .withSource(new SimpleConfigSource().withValue("merkleDb.usePbj", false))
                 .withSource(new SimpleConfigSource().withValue("merkleDb.minNumberOfFilesInCompaction", 2))
                 .withSource(new SimpleConfigSource().withValue("merkleDb.maxFileChannelsPerFileReader", FILE_CHANNELS))
@@ -230,7 +233,8 @@ public class InitUtils {
     /**
      * This method initializes the State API
      */
-    static void initServiceMigrator(State state, Configuration configuration, ServicesRegistry servicesRegistry) {
+    static void initServiceMigrator(State state, PlatformContext platformContext, ServicesRegistry servicesRegistry) {
+        final var configuration = platformContext.getConfiguration();
         final var serviceMigrator = new OrderedServiceMigrator();
         final var platformFacade = PlatformStateFacade.DEFAULT_PLATFORM_STATE_FACADE;
         final var version = platformFacade.creationSoftwareVersionOf(state);

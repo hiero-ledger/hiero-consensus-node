@@ -8,10 +8,12 @@ import static com.hedera.node.app.blocks.BlockStreamManager.ZERO_BLOCK_HASH;
 import static com.hedera.node.app.blocks.BlockStreamService.FAKE_RESTART_BLOCK_HASH;
 import static com.hedera.node.app.blocks.impl.BlockImplUtils.appendHash;
 import static com.hedera.node.app.blocks.impl.BlockImplUtils.combine;
-import static com.hedera.node.app.blocks.schemas.V0560BlockStreamSchema.BLOCK_STREAM_INFO_KEY;
+import static com.hedera.node.app.blocks.schemas.V0560BlockStreamSchema.BLOCK_STREAM_INFO_STATE_ID;
+import static com.hedera.node.app.blocks.schemas.V0560BlockStreamSchema.BLOCK_STREAM_INFO_STATE_LABEL;
 import static com.hedera.node.app.fixtures.AppTestBase.DEFAULT_CONFIG;
 import static com.hedera.node.app.hapi.utils.CommonUtils.noThrowSha384HashOf;
-import static com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema.PLATFORM_STATE_KEY;
+import static com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID;
+import static com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema.PLATFORM_STATE_STATE_LABEL;
 import static com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade.TEST_PLATFORM_STATE_FACADE;
 import static java.util.concurrent.CompletableFuture.completedFuture;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
@@ -91,6 +93,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class BlockStreamManagerImplTest {
+
     private static final SemanticVersion CREATION_VERSION = new SemanticVersion(1, 2, 3, "alpha.1", "2");
     private static final long ROUND_NO = 123L;
     private static final long N_MINUS_2_BLOCK_NO = 664L;
@@ -469,11 +472,11 @@ class BlockStreamManagerImplTest {
         given(round.getConsensusTimestamp()).willReturn(CONSENSUS_NOW);
         given(state.getReadableStates(BlockStreamService.NAME)).willReturn(readableStates);
         given(state.getReadableStates(PlatformStateService.NAME)).willReturn(readableStates);
-        given(readableStates.<BlockStreamInfo>getSingleton(BLOCK_STREAM_INFO_KEY))
+        given(readableStates.<BlockStreamInfo>getSingleton(BLOCK_STREAM_INFO_STATE_ID))
                 .willReturn(blockStreamInfoState);
-        given(readableStates.<PlatformState>getSingleton(PLATFORM_STATE_KEY))
+        given(readableStates.<PlatformState>getSingleton(PLATFORM_STATE_STATE_ID))
                 .willReturn(new FunctionWritableSingletonState<>(
-                        PlatformStateService.NAME, PLATFORM_STATE_KEY, stateRef::get, stateRef::set));
+                        PLATFORM_STATE_STATE_ID, PLATFORM_STATE_STATE_LABEL, stateRef::get, stateRef::set));
 
         // Initialize the last (N-1) block hash
         subject.initLastBlockHash(FAKE_RESTART_BLOCK_HASH);
@@ -510,7 +513,7 @@ class BlockStreamManagerImplTest {
                 aWriter);
         givenEndOfRoundSetup();
         given(state.getReadableStates(any())).willReturn(readableStates);
-        given(readableStates.getSingleton(PLATFORM_STATE_KEY)).willReturn(platformStateReadableSingletonState);
+        given(readableStates.getSingleton(PLATFORM_STATE_STATE_ID)).willReturn(platformStateReadableSingletonState);
         given(platformStateReadableSingletonState.get())
                 .willReturn(
                         PlatformState.newBuilder().latestFreezeRound(ROUND_NO).build());
@@ -765,7 +768,7 @@ class BlockStreamManagerImplTest {
         given(blockHashSigner.isReady()).willReturn(true);
         given(blockHashSigner.schemeId()).willReturn(1L);
         given(state.getReadableStates(any())).willReturn(readableStates);
-        given(readableStates.getSingleton(PLATFORM_STATE_KEY)).willReturn(platformStateReadableSingletonState);
+        given(readableStates.getSingleton(PLATFORM_STATE_STATE_ID)).willReturn(platformStateReadableSingletonState);
         given(platformStateReadableSingletonState.get())
                 .willReturn(
                         PlatformState.newBuilder().latestFreezeRound(ROUND_NO).build());
@@ -952,12 +955,12 @@ class BlockStreamManagerImplTest {
                 lifecycle,
                 metrics);
         given(state.getReadableStates(any())).willReturn(readableStates);
-        given(readableStates.getSingleton(PLATFORM_STATE_KEY)).willReturn(platformStateReadableSingletonState);
+        given(readableStates.getSingleton(PLATFORM_STATE_STATE_ID)).willReturn(platformStateReadableSingletonState);
         lenient().when(state.getReadableStates(FreezeServiceImpl.NAME)).thenReturn(readableStates);
         infoRef.set(blockStreamInfo);
         stateRef.set(platformState);
         blockStreamInfoState = new FunctionWritableSingletonState<>(
-                BlockStreamService.NAME, BLOCK_STREAM_INFO_KEY, infoRef::get, infoRef::set);
+                BLOCK_STREAM_INFO_STATE_ID, BLOCK_STREAM_INFO_STATE_LABEL, infoRef::get, infoRef::set);
     }
 
     private void givenEndOfRoundSetup() {
@@ -986,15 +989,15 @@ class BlockStreamManagerImplTest {
         lenient().when(state.getReadableStates(BlockStreamService.NAME)).thenReturn(readableStates);
         lenient().when(state.getReadableStates(PlatformStateService.NAME)).thenReturn(readableStates);
         lenient()
-                .when(writableStates.<BlockStreamInfo>getSingleton(BLOCK_STREAM_INFO_KEY))
+                .when(writableStates.<BlockStreamInfo>getSingleton(BLOCK_STREAM_INFO_STATE_ID))
                 .thenReturn(blockStreamInfoState);
         lenient()
-                .when(readableStates.<BlockStreamInfo>getSingleton(BLOCK_STREAM_INFO_KEY))
+                .when(readableStates.<BlockStreamInfo>getSingleton(BLOCK_STREAM_INFO_STATE_ID))
                 .thenReturn(blockStreamInfoState);
         lenient()
-                .when(readableStates.<PlatformState>getSingleton(PLATFORM_STATE_KEY))
+                .when(readableStates.<PlatformState>getSingleton(PLATFORM_STATE_STATE_ID))
                 .thenReturn(new FunctionWritableSingletonState<>(
-                        PlatformStateService.NAME, PLATFORM_STATE_KEY, stateRef::get, stateRef::set));
+                        PLATFORM_STATE_STATE_ID, PLATFORM_STATE_STATE_LABEL, stateRef::get, stateRef::set));
         lenient()
                 .doAnswer(invocationOnMock -> {
                     blockStreamInfoState.commit();
