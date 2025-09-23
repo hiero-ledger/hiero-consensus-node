@@ -6,6 +6,7 @@ import static java.util.Objects.requireNonNull;
 import static org.hiero.otter.fixtures.container.utils.ContainerConstants.CONTAINER_APP_WORKING_DIR;
 import static org.hiero.otter.fixtures.container.utils.ContainerConstants.CONTAINER_CONTROL_PORT;
 import static org.hiero.otter.fixtures.container.utils.ContainerConstants.NODE_COMMUNICATION_PORT;
+import static org.hiero.otter.fixtures.internal.AbstractNetwork.NODE_IDENTIFIER_FORMAT;
 import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.DESTROYED;
 import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.INIT;
 import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.RUNNING;
@@ -370,7 +371,7 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
     void destroy() {
         try {
             // copy logs from container to the local filesystem
-            final Path logPath = Path.of("build", "container", "node-" + selfId.id(), "output");
+            final Path logPath = Path.of("build", "container", NODE_IDENTIFIER_FORMAT.formatted(selfId.id()), "output");
             Files.createDirectories(logPath.resolve("swirlds-hashstream"));
 
             container.copyFileFromContainer(
@@ -409,7 +410,7 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
                 case MARKER_FILE_ADDED -> {
                     final ProtocolStringList markerFiles =
                             event.getMarkerFileAdded().getMarkerFileNameList();
-                    log.info("Received marker file event from {}: {}", selfId, markerFiles);
+                    log.info("Received marker file event from node {}: {}", selfId, markerFiles);
                     resultsCollector.addMarkerFiles(markerFiles);
                 }
                 default -> log.warn("Received unexpected event: {}", event);
@@ -420,7 +421,7 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
     private void handlePlatformChange(@NonNull final EventMessage value) {
         final PlatformStatusChange change = value.getPlatformStatusChange();
         final String statusName = change.getNewStatus();
-        log.info("Received platform status change from {}: {}", selfId, statusName);
+        log.info("Received platform status change from node {}: {}", selfId, statusName);
         try {
             final PlatformStatus newStatus = PlatformStatus.valueOf(statusName);
             platformStatus = newStatus;
