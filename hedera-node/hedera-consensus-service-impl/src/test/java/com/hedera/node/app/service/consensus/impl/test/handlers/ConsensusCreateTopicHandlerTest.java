@@ -3,7 +3,7 @@ package com.hedera.node.app.service.consensus.impl.test.handlers;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_AUTORENEW_ACCOUNT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.OK;
-import static com.hedera.node.app.service.consensus.impl.ConsensusServiceImpl.TOPICS_KEY;
+import static com.hedera.node.app.service.consensus.impl.schemas.V0490ConsensusSchema.TOPICS_STATE_ID;
 import static com.hedera.node.app.service.consensus.impl.test.handlers.ConsensusTestUtils.SIMPLE_KEY_A;
 import static com.hedera.node.app.service.consensus.impl.test.handlers.ConsensusTestUtils.SIMPLE_KEY_B;
 import static com.hedera.node.app.spi.fixtures.Assertions.assertThrowsPreCheck;
@@ -432,7 +432,7 @@ class ConsensusCreateTopicHandlerTest extends ConsensusTestBase {
         given(handleContext.body()).willReturn(txnBody);
         final var writableState = writableTopicStateWithOneKey();
 
-        given(writableStates.<TopicID, Topic>get(TOPICS_KEY)).willReturn(writableState);
+        given(writableStates.<TopicID, Topic>get(TOPICS_STATE_ID)).willReturn(writableState);
         given(entityCounters.getCounterFor(EntityType.TOPIC)).willReturn(1L);
         final var topicStore = new WritableTopicStore(writableStates, entityCounters);
         assertEquals(1, topicStore.sizeOfState());
@@ -462,7 +462,7 @@ class ConsensusCreateTopicHandlerTest extends ConsensusTestBase {
         final var writableState = writableTopicStateWithOneKey();
 
         given(handleContext.consensusNow()).willReturn(Instant.ofEpochSecond(1_234_567L));
-        given(writableStates.<TopicID, Topic>get(TOPICS_KEY)).willReturn(writableState);
+        given(writableStates.<TopicID, Topic>get(TOPICS_STATE_ID)).willReturn(writableState);
         given(entityCounters.getCounterFor(EntityType.TOPIC)).willReturn(1L);
         final var topicStore = new WritableTopicStore(writableStates, entityCounters);
         assertEquals(1, topicStore.sizeOfState());

@@ -16,6 +16,7 @@ import java.util.Iterator;
  * @param <E> The type of the elements in the queue
  */
 public class ReadonlyQueueStateWrapper<E> implements ReadableQueueState<E> {
+
     private final WritableQueueState<E> delegate;
 
     /**
@@ -27,16 +28,9 @@ public class ReadonlyQueueStateWrapper<E> implements ReadableQueueState<E> {
         this.delegate = requireNonNull(delegate, "delegate must not be null");
     }
 
-    @NonNull
     @Override
-    public String getServiceName() {
-        return delegate.getServiceName();
-    }
-
-    @NonNull
-    @Override
-    public String getStateKey() {
-        return delegate.getStateKey();
+    public int getStateId() {
+        return delegate.getStateId();
     }
 
     @Nullable

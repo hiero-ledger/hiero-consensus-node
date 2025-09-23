@@ -2,6 +2,7 @@
 package com.hedera.node.app.service.token.impl.schemas;
 
 import static com.hedera.node.app.service.token.impl.handlers.TokenClaimAirdropHandler.asAccountAmount;
+import static com.swirlds.state.lifecycle.StateMetadata.computeLabel;
 
 import com.hedera.hapi.node.base.AccountAmount;
 import com.hedera.hapi.node.base.AccountID;
@@ -9,6 +10,8 @@ import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.TransferList;
 import com.hedera.hapi.node.state.token.NodeRewards;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
+import com.hedera.hapi.platform.state.SingletonType;
+import com.hedera.node.app.service.token.TokenService;
 import com.hedera.node.app.spi.workflows.SystemContext;
 import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.lifecycle.Schema;
@@ -19,7 +22,10 @@ import java.util.List;
 import java.util.Set;
 
 public class V0610TokenSchema extends Schema {
+
     public static final String NODE_REWARDS_KEY = "NODE_REWARDS";
+    public static final int NODE_REWARDS_STATE_ID = SingletonType.TOKENSERVICE_I_NODE_REWARDS.protoOrdinal();
+    public static final String NODE_REWARDS_STATE_LABEL = computeLabel(TokenService.NAME, NODE_REWARDS_KEY);
 
     private static final SemanticVersion VERSION =
             SemanticVersion.newBuilder().major(0).minor(61).patch(0).build();
@@ -32,14 +38,14 @@ public class V0610TokenSchema extends Schema {
     @NonNull
     @Override
     public Set<StateDefinition> statesToCreate() {
-        return Set.of(StateDefinition.singleton(NODE_REWARDS_KEY, NodeRewards.PROTOBUF));
+        return Set.of(StateDefinition.singleton(NODE_REWARDS_STATE_ID, NODE_REWARDS_KEY, NodeRewards.PROTOBUF));
     }
 
     @Override
     public void migrate(@NonNull final MigrationContext ctx) {
         final var previousStates = ctx.previousStates();
-        if (ctx.isGenesis() || !previousStates.contains(NODE_REWARDS_KEY)) {
-            final var nodeRewardsState = ctx.newStates().getSingleton(NODE_REWARDS_KEY);
+        if (ctx.isGenesis() || !previousStates.contains(NODE_REWARDS_STATE_ID)) {
+            final var nodeRewardsState = ctx.newStates().getSingleton(NODE_REWARDS_STATE_ID);
             nodeRewardsState.put(NodeRewards.DEFAULT);
         }
     }

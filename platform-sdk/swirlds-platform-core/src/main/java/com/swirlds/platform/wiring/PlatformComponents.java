@@ -54,7 +54,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Queue;
 import org.hiero.consensus.crypto.EventHasher;
-import org.hiero.consensus.event.creator.impl.EventCreationManager;
+import org.hiero.consensus.event.creator.EventCreatorModule;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
@@ -87,7 +87,7 @@ public record PlatformComponents(
         ComponentWiring<EventSignatureValidator, PlatformEvent> eventSignatureValidatorWiring,
         ComponentWiring<OrphanBuffer, List<PlatformEvent>> orphanBufferWiring,
         ConsensusWiring consensusEngineWiring,
-        ComponentWiring<EventCreationManager, PlatformEvent> eventCreationManagerWiring,
+        ComponentWiring<EventCreatorModule, PlatformEvent> eventCreationManagerWiring,
         ComponentWiring<InlinePcesWriter, PlatformEvent> pcesInlineWriterWiring,
         ComponentWiring<TransactionPrehandler, Queue<ScopedSystemTransaction<StateSignatureTransaction>>>
                 applicationTransactionPrehandlerWiring,
@@ -143,7 +143,7 @@ public record PlatformComponents(
         } else {
             pcesInlineWriterWiring.bind(builder::buildInlinePcesWriter);
         }
-        eventCreationManagerWiring.bind(builder::buildEventCreationManager);
+        eventCreationManagerWiring.bind(builder::buildEventCreator);
         stateSignatureCollectorWiring.bind(stateSignatureCollector);
         eventWindowManagerWiring.bind(eventWindowManager);
         applicationTransactionPrehandlerWiring.bind(builder::buildTransactionPrehandler);
@@ -200,8 +200,8 @@ public record PlatformComponents(
                 new ComponentWiring<>(model, OrphanBuffer.class, config.orphanBuffer());
         final ConsensusWiring consensusEngineWiring = ConsensusWiring.create(model, config.consensusEngine());
 
-        final ComponentWiring<EventCreationManager, PlatformEvent> eventCreationManagerWiring =
-                new ComponentWiring<>(model, EventCreationManager.class, config.eventCreationManager());
+        final ComponentWiring<EventCreatorModule, PlatformEvent> eventCreationManagerWiring =
+                new ComponentWiring<>(model, EventCreatorModule.class, config.eventCreationManager());
 
         final ComponentWiring<TransactionPrehandler, Queue<ScopedSystemTransaction<StateSignatureTransaction>>>
                 applicationTransactionPrehandlerWiring = new ComponentWiring<>(

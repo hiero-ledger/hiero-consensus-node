@@ -30,6 +30,7 @@ import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
 class ExchangeRateManagerTest {
+
     private static final int hbarEquiv = 30_000;
     private static final int centEquiv = 120_000;
     private static final TimestampSeconds expirationTime =
@@ -54,7 +55,7 @@ class ExchangeRateManagerTest {
         subject = new ExchangeRateManager(configProvider);
         final var state = new FakeState();
         final var midnightRates = new AtomicReference<>(validRatesObj);
-        state.addService(FeeService.NAME, Map.of(V0490FeeSchema.MIDNIGHT_RATES_STATE_KEY, midnightRates));
+        state.addService(FeeService.NAME, Map.of(V0490FeeSchema.MIDNIGHT_RATES_STATE_ID, midnightRates));
         subject.init(state, validRateBytes);
     }
 
