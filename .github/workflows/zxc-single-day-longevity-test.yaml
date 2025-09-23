@@ -876,6 +876,12 @@ jobs:
       - name: Setup Google Cloud SDK
         uses: google-github-actions/setup-gcloud@6189d56e4096ee891640bb02ac264be376592d6a # v2.1.2
 
+      - name: Setup Java
+        uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1
+        with:
+          distribution: temurin
+          java-version: 21.0.6
+
       - name: Install Cobertura
         run: |
           gcloud --no-user-output-enabled storage cp gs://performance-engineering-reports/permanent/cobertura-assembly-2.1.2-SNAPSHOT.tgz "${HOME}"/cobertura-assembly-2.1.2-SNAPSHOT.tgz
