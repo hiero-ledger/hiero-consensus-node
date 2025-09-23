@@ -220,8 +220,8 @@ jobs:
           export TERM=vt100
           echo Setup procedure ...
           cat /etc/*elease
-          sudo apt-get update
-          sudo apt-get install -y net-tools iputils-ping node-typescript
+          sudo apt-get -qq update
+          sudo apt-get -qq install -y net-tools iputils-ping node-typescript
 
       - name: Create report dir
         shell: bash
@@ -498,7 +498,7 @@ jobs:
 
           for i in `sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods | grep 'block-node-' | awk '{print $1}'`
           do
-            sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" exec $i -- bash -c "apt-get update; apt-get install -y unzip"
+            sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" exec $i -- bash -c "apt-get -qq update; apt-get install -qq -y unzip"
           done
 
           for i in `sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods | grep 'block-node-' | awk '{print $1}'`
@@ -512,8 +512,14 @@ jobs:
                 export SERVER_PORT=40840;                      \
                 cd /opt/hiero/block-node; \
                 tar xf /tmp/blocknode.tar;"
-              sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" cp "${{ github.workspace }}"/performance-analysis-automation/node_control/startInstrumentedBN.sh $i:/tmp/startInstrumentedBN.sh
-              sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" exec $i -- bash -c "cd /opt/hiero/block-node/; sh /tmp/startInstrumentedBN.sh"
+
+              if [ "${{ inputs.perf_analysis }}" = "true" ]
+              then
+                sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" cp "${{ github.workspace }}"/performance-analysis-automation/node_control/startInstrumentedBN.sh $i:/tmp/startInstrumentedBN.sh
+                sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" exec $i -- bash -c "cd /opt/hiero/block-node/; sh /tmp/startInstrumentedBN.sh"
+              else
+                sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" exec $i -- bash -c "cd /opt/hiero/block-node/; bash ./block-node-app-*/bin/block-node-app > ./logs/block-node.log 2>&1 &"
+              fi
           done
           sleep 30
 
