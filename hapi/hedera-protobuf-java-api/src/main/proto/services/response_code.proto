@@ -1842,4 +1842,30 @@ enum ResponseCodeEnum {
      * The LambdaSStore tried to update too many storage slots in a single transaction.
      */
     TOO_MANY_LAMBDA_STORAGE_UPDATES = 513;
+
+    /**
+     * A lambda mapping slot, storage key, or storage value failed to use the
+     * minimal representation (i.e., no leading zeros).
+     */
+    HOOK_CREATION_BYTES_MUST_USE_MINIMAL_REPRESENTATION = 514;
+
+    /**
+     * A lambda mapping slot, storage key, or storage value exceeded 32 bytes.
+     */
+    HOOK_CREATION_BYTES_TOO_LONG = 515;
+
+    /**
+     * A hook creation spec was not found.
+     */
+    INVALID_HOOK_CREATION_SPEC = 516;
+
+    /**
+     * A hook extension point was empty.
+     */
+    HOOK_EXTENSION_EMPTY = 517;
+
+    /**
+     * A hook admin key was invalid.
+     */
+    INVALID_HOOK_ADMIN_KEY = 518;
 }

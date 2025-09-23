@@ -15,7 +15,7 @@ public class ReadableSingletonStateTest extends StateTestBase {
     protected AtomicReference<ProtoBytes> backingStore = new AtomicReference<>(AUSTRALIA);
 
     ReadableSingletonStateBase<ProtoBytes> createState() {
-        return new FunctionReadableSingletonState<>(COUNTRY_STATE_KEY, COUNTRY_SERVICE_NAME, backingStore::get);
+        return new FunctionReadableSingletonState<>(COUNTRY_STATE_ID, COUNTRY_STATE_LABEL, backingStore::get);
     }
 
     /**

@@ -15,17 +15,27 @@ tasks.withType<JavaCompile>().configureEach {
     options.compilerArgs.add("-Xlint:-exports,-deprecation,-removal")
 }
 
+dependencies {
+    protobuf(platform(project(":hiero-dependency-versions")))
+    protobuf("org.hiero.block:block-node-protobuf-sources")
+}
+
+tasks.generatePbjSource { dependsOn(tasks.extractProto) }
+
 sourceSets {
     val protoApiSrc = "../hedera-protobuf-java-api/src/main/proto"
+    val blockNodeApiSrc = layout.buildDirectory.dir("./extracted-protos/main/block-node/api")
     main {
         pbj {
             srcDir(layout.projectDirectory.dir(protoApiSrc))
+            srcDir(blockNodeApiSrc)
             exclude("mirror", "sdk")
         }
         // The below should be replaced with a 'requires com.hedera.protobuf.java.api'
         // in testFixtures scope - #14026
         proto {
             srcDir(layout.projectDirectory.dir(protoApiSrc))
+            srcDir(blockNodeApiSrc)
             exclude("mirror", "sdk")
         }
     }

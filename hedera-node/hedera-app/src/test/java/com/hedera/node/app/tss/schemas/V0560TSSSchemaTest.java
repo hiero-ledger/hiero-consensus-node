@@ -9,6 +9,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 public class V0560TSSSchemaTest {
+
     private V0560TssBaseSchema subject;
 
     @BeforeEach
@@ -21,8 +22,8 @@ public class V0560TSSSchemaTest {
         final var statesToCreate = subject.statesToCreate();
         assertThat(statesToCreate.size()).isEqualTo(2);
         final var iter =
-                statesToCreate.stream().map(StateDefinition::stateKey).sorted().iterator();
-        assertEquals(V0560TssBaseSchema.TSS_MESSAGE_MAP_KEY, iter.next());
-        assertEquals(V0560TssBaseSchema.TSS_VOTE_MAP_KEY, iter.next());
+                statesToCreate.stream().map(StateDefinition::stateId).sorted().iterator();
+        assertEquals(V0560TssBaseSchema.TSS_MESSAGES_STATE_ID, iter.next());
+        assertEquals(V0560TssBaseSchema.TSS_VOTES_STATE_ID, iter.next());
     }
 }

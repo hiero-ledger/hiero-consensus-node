@@ -14,13 +14,14 @@ import org.junit.jupiter.api.Test;
  * This test verifies behavior specific to a {@link WrappedWritableKVState}.
  */
 class WrappedWritableSingletonTest extends StateTestBase {
+
     private WritableSingletonState<ProtoBytes> delegate;
 
     protected AtomicReference<ProtoBytes> backingStore = new AtomicReference<>(AUSTRALIA);
 
     private WritableSingletonStateBase<ProtoBytes> createState() {
         delegate = new FunctionWritableSingletonState<>(
-                COUNTRY_STATE_KEY, COUNTRY_SERVICE_NAME, backingStore::get, backingStore::set);
+                COUNTRY_STATE_ID, COUNTRY_STATE_LABEL, backingStore::get, backingStore::set);
         return new WrappedWritableSingletonState<>(delegate);
     }
 

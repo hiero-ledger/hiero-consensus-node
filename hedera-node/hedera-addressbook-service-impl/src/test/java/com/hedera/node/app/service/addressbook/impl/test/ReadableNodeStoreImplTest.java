@@ -2,14 +2,15 @@
 package com.hedera.node.app.service.addressbook.impl.test;
 
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.asBytes;
-import static com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema.NODES_KEY;
+import static com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema.NODES_STATE_ID;
+import static com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema.NODES_STATE_LABEL;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 
@@ -17,7 +18,6 @@ import com.hedera.hapi.node.state.addressbook.Node;
 import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.node.app.hapi.utils.EntityType;
-import com.hedera.node.app.service.addressbook.AddressBookService;
 import com.hedera.node.app.service.addressbook.ReadableNodeStore;
 import com.hedera.node.app.service.addressbook.impl.ReadableNodeStoreImpl;
 import com.hedera.node.app.service.addressbook.impl.test.handlers.AddressBookTestBase;
@@ -29,6 +29,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 class ReadableNodeStoreImplTest extends AddressBookTestBase {
+
     private ReadableNodeStore subject;
 
     @BeforeEach
@@ -53,9 +54,9 @@ class ReadableNodeStoreImplTest extends AddressBookTestBase {
     @Test
     void missingNodeIsNull() {
         readableNodeState.reset();
-        final var state = MapReadableKVState.<EntityNumber, Node>builder(AddressBookService.NAME, NODES_KEY)
+        final var state = MapReadableKVState.<EntityNumber, Node>builder(NODES_STATE_ID, NODES_STATE_LABEL)
                 .build();
-        given(readableStates.<EntityNumber, Node>get(NODES_KEY)).willReturn(state);
+        given(readableStates.<EntityNumber, Node>get(NODES_STATE_ID)).willReturn(state);
         subject = new ReadableNodeStoreImpl(readableStates, readableEntityCounters);
 
         assertThat(subject.get(nodeId.number())).isNull();
@@ -87,7 +88,7 @@ class ReadableNodeStoreImplTest extends AddressBookTestBase {
                 .value(new EntityNumber(3), mock(Node.class))
                 .value(new EntityNumber(0), mock(Node.class));
         readableNodeState = stateBuilder.build();
-        given(readableStates.<EntityNumber, Node>get(NODES_KEY)).willReturn(readableNodeState);
+        given(readableStates.<EntityNumber, Node>get(NODES_STATE_ID)).willReturn(readableNodeState);
         subject = new ReadableNodeStoreImpl(readableStates, writableEntityCounters);
         writableEntityCounters.adjustEntityCount(EntityType.NODE, 3L);
         final var keys = subject.keys();
@@ -106,7 +107,7 @@ class ReadableNodeStoreImplTest extends AddressBookTestBase {
                         EntityNumber.newBuilder().number(4).build(),
                         Node.newBuilder().nodeId(4).weight(40).deleted(true).build())
                 .build();
-        given(readableStates.<EntityNumber, Node>get(anyString())).willReturn(nodesState);
+        given(readableStates.<EntityNumber, Node>get(anyInt())).willReturn(nodesState);
         writableEntityCounters.adjustEntityCount(EntityType.NODE, 3L);
 
         subject = new ReadableNodeStoreImpl(readableStates, writableEntityCounters);

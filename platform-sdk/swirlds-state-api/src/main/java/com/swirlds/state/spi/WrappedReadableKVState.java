@@ -24,7 +24,7 @@ public class WrappedReadableKVState<K, V> extends ReadableKVStateBase<K, V> {
      * @param delegate The delegate. Must not be null.
      */
     public WrappedReadableKVState(@NonNull final ReadableKVState<K, V> delegate) {
-        super(delegate.getServiceName(), delegate.getStateKey());
+        super(delegate.getStateId(), null);
         this.delegate = delegate;
     }
 
