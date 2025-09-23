@@ -97,6 +97,7 @@ import com.hedera.node.app.service.token.records.CryptoDeleteStreamBuilder;
 import com.hedera.node.app.service.token.records.CryptoTransferStreamBuilder;
 import com.hedera.node.app.service.token.records.CryptoUpdateStreamBuilder;
 import com.hedera.node.app.service.token.records.GenesisAccountStreamBuilder;
+import com.hedera.node.app.service.token.records.HookDispatchStreamBuilder;
 import com.hedera.node.app.service.token.records.NodeStakeUpdateStreamBuilder;
 import com.hedera.node.app.service.token.records.TokenAccountWipeStreamBuilder;
 import com.hedera.node.app.service.token.records.TokenAirdropStreamBuilder;
@@ -160,7 +161,8 @@ public class BlockStreamBuilder
                 CryptoUpdateStreamBuilder,
                 NodeCreateStreamBuilder,
                 TokenAirdropStreamBuilder,
-                ReplayableFeeStreamBuilder {
+                ReplayableFeeStreamBuilder,
+                HookDispatchStreamBuilder {
 
     private static final Logger log = LogManager.getLogger(BlockStreamBuilder.class);
 
@@ -286,6 +288,12 @@ public class BlockStreamBuilder
      * The automatic token associations resulting from the transaction.
      */
     private final List<TokenAssociation> automaticTokenAssociations = new LinkedList<>();
+
+    /**
+     * The next hook ID after the hook dispatch.
+     * This is useful to set the first hookId on the account if the head is deleted
+     */
+    private long nextHookId;
 
     // --- Fields used to build the TransactionOutput(s) ---
     /**
@@ -1288,6 +1296,16 @@ public class BlockStreamBuilder
     @NonNull
     public HandleContext.TransactionCategory category() {
         return category;
+    }
+
+    @Override
+    public void nextHookId(final long nextHookId) {
+        this.nextHookId = nextHookId;
+    }
+
+    @Override
+    public long getNextHookId() {
+        return nextHookId;
     }
 
     @Override

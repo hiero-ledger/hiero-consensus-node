@@ -712,7 +712,7 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
         if (mode == null) {
             throw new IllegalStateException("Node " + nodeId + " is not a block node");
         } else if (mode == BlockNodeMode.REAL) {
-            return blockNodeNetwork.getBlockNodeContainerById().get(nodeId).getGrpcPort();
+            return blockNodeNetwork.getBlockNodeContainerById().get(nodeId).getPort();
         } else if (mode == BlockNodeMode.SIMULATOR) {
             return blockNodeNetwork.getSimulatedBlockNodeById().get(nodeId).getPort();
         } else if (mode == BlockNodeMode.LOCAL_NODE) {

@@ -10,12 +10,16 @@ import com.swirlds.common.threading.framework.ThreadSeed;
 import com.swirlds.common.threading.framework.config.ThreadConfiguration;
 import com.swirlds.common.threading.manager.ThreadManager;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.ThreadContext;
 import org.hiero.base.Copyable;
 import org.hiero.base.concurrent.interrupt.InterruptableRunnable;
 import org.hiero.consensus.model.node.NodeId;
@@ -198,7 +202,9 @@ public abstract class AbstractThreadConfiguration<C extends AbstractThreadConfig
      */
     protected Thread buildThread(final boolean start) {
         final Runnable runnable = requireNonNull(getRunnable(), "runnable must not be null");
-        final Thread thread = threadManager.createThread(getThreadGroup(), runnable);
+        final ContextSnapshot snapshot = captureContextSnapshot();
+        final Runnable contextAwareRunnable = wrapRunnableWithSnapshot(runnable, snapshot);
+        final Thread thread = threadManager.createThread(getThreadGroup(), contextAwareRunnable);
         configureThread(thread);
 
         if (start) {
@@ -231,12 +237,14 @@ public abstract class AbstractThreadConfiguration<C extends AbstractThreadConfig
     protected ThreadSeed buildThreadSeed() {
         requireNonNull(getRunnable(), "runnable must not be null");
 
+        final ContextSnapshot snapshot = captureContextSnapshot();
+
         return () -> {
             final ThreadConfiguration originalConfiguration = captureThreadConfiguration(threadManager);
 
             try {
                 configureThread(Thread.currentThread());
-                Objects.requireNonNull(getRunnable(), "runnable must not be null")
+                wrapRunnableWithSnapshot(Objects.requireNonNull(getRunnable(), "runnable must not be null"), snapshot)
                         .run();
             } finally {
                 originalConfiguration.configureThread(Thread.currentThread());
@@ -630,4 +638,42 @@ public abstract class AbstractThreadConfiguration<C extends AbstractThreadConfig
         throwIfImmutable();
         useThreadNumbers = true;
     }
+
+    protected ContextSnapshot captureContextSnapshot() {
+        return new ContextSnapshot(
+                new HashMap<>(ThreadContext.getImmutableContext()),
+                new ArrayList<>(ThreadContext.getImmutableStack().asList()));
+    }
+
+    protected Runnable wrapRunnableWithSnapshot(
+            @NonNull final Runnable runnable, @NonNull final ContextSnapshot snapshot) {
+        return () -> {
+            final ContextSnapshot previous = captureContextSnapshot();
+            applyContextSnapshot(snapshot);
+            try {
+                runnable.run();
+            } finally {
+                applyContextSnapshot(previous);
+            }
+        };
+    }
+
+    private void applyContextSnapshot(@NonNull final ContextSnapshot snapshot) {
+        ThreadContext.clearMap();
+        if (!snapshot.map().isEmpty()) {
+            ThreadContext.putAll(snapshot.map());
+        }
+        ThreadContext.clearStack();
+        final List<String> stack = snapshot.stack();
+        for (int i = stack.size() - 1; i >= 0; i--) {
+            ThreadContext.push(stack.get(i));
+        }
+    }
+
+    /**
+     * Captured Log4j MDC state consisting of the context map and stack at the moment a task is wrapped.
+     * Each executor worker restores this snapshot before running a task and reinstates the previous
+     * values afterwards so diagnostic context survives thread hops.
+     */
+    protected record ContextSnapshot(@NonNull Map<String, String> map, @NonNull List<String> stack) {}
 }
