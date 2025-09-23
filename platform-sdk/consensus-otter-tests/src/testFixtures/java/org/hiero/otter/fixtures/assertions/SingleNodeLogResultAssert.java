@@ -106,6 +106,41 @@ public class SingleNodeLogResultAssert extends AbstractAssert<SingleNodeLogResul
     }
 
     /**
+     * Verifies that at least one log message contains the specified substring.
+     *
+     * @param expectedMessage the substring to search for in log messages
+     * @return this assertion object for method chaining
+     */
+    public SingleNodeLogResultAssert hasMessageContaining(@NonNull final String expectedMessage) {
+        isNotNull();
+        final List<StructuredLog> logs = actual.logs().stream()
+                .filter(log -> log.message().contains(expectedMessage))
+                .toList();
+        if (logs.isEmpty()) {
+            failWithMessage("Expected to find a message containing '%s', but did not", expectedMessage);
+        }
+        return this;
+    }
+
+    /**
+     * Verifies that no log messages contain the specified substring.
+     *
+     * @param expectedMessage the substring to search for in log messages
+     * @return this assertion object for method chaining
+     */
+    public SingleNodeLogResultAssert hasNoMessagesContaining(@NonNull final String expectedMessage) {
+        isNotNull();
+        final List<StructuredLog> logs = actual.logs().stream()
+                .filter(log -> log.message().contains(expectedMessage))
+                .toList();
+        if (!logs.isEmpty()) {
+            final String message = String.format("Expected to find no message containing '%s'", expectedMessage);
+            failWithMessage(message, logs);
+        }
+        return this;
+    }
+
+    /**
      * Fails the assertion with a custom message and the list of log entries that caused the failure.
      *
      * @param message the failure message

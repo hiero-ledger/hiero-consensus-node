@@ -9,11 +9,13 @@ import static com.swirlds.platform.state.iss.IssDetector.DO_NOT_IGNORE_ROUNDS;
 import com.swirlds.common.merkle.utility.SerializableLong;
 import com.swirlds.common.threading.manager.AdHocThreadManager;
 import com.swirlds.component.framework.component.ComponentWiring;
+import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.SwirldsPlatform;
 import com.swirlds.platform.components.appcomm.DefaultLatestCompleteStateNotifier;
 import com.swirlds.platform.components.appcomm.LatestCompleteStateNotifier;
 import com.swirlds.platform.components.consensus.ConsensusEngine;
 import com.swirlds.platform.components.consensus.DefaultConsensusEngine;
+import com.swirlds.platform.config.BuilderConfig;
 import com.swirlds.platform.config.StateConfig;
 import com.swirlds.platform.crypto.CryptoStatic;
 import com.swirlds.platform.event.branching.BranchDetector;
@@ -69,6 +71,9 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Objects;
 import java.util.ServiceLoader;
+import java.util.ServiceLoader.Provider;
+import java.util.function.Predicate;
+import org.hiero.base.annotations.DefaultImplementation;
 import org.hiero.consensus.crypto.DefaultEventHasher;
 import org.hiero.consensus.crypto.EventHasher;
 import org.hiero.consensus.crypto.PlatformSigner;
@@ -431,14 +436,21 @@ public class PlatformComponentBuilder {
      */
     @NonNull
     public EventCreatorModule buildEventCreator() {
+        final Configuration configuration = this.blocks.platformContext().getConfiguration();
         if (eventCreator == null) {
+            final String className =
+                    configuration.getConfigData(BuilderConfig.class).eventCreatorModule();
+            final Predicate<Provider<EventCreatorModule>> filter = className.isEmpty()
+                    ? provider -> provider.type().isAnnotationPresent(DefaultImplementation.class)
+                    : provider -> className.equals(provider.type().getName());
             eventCreator = ServiceLoader.load(EventCreatorModule.class).stream()
+                    .filter(filter)
                     .findFirst()
                     .orElseThrow(() -> new IllegalStateException("No EventCreatorModule implementation found!"))
                     .get();
         }
         eventCreator.initialize(
-                blocks.platformContext().getConfiguration(),
+                configuration,
                 blocks.platformContext().getMetrics(),
                 blocks.platformContext().getTime(),
                 blocks.secureRandomSupplier().get(),
