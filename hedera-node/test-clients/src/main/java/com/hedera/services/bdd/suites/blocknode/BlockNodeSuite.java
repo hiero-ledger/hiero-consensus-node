@@ -36,7 +36,7 @@ import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Tag;
 
 /**
- * This suite class tests the behaviour of consensus node to block node communication.
+ * This suite class tests the behavior of the consensus node to block node communication.
  */
 @Tag(BLOCK_NODE)
 @OrderedInIsolation
@@ -339,7 +339,7 @@ public class BlockNodeSuite {
                             "blockStream.writerMode", "FILE_AND_GRPC"
                         })
             })
-    @Order(7)
+    @Order(6)
     final Stream<DynamicTest> testBlockBufferBackPressure() {
         final AtomicReference<Instant> timeRef = new AtomicReference<>();
 
@@ -386,7 +386,7 @@ public class BlockNodeSuite {
                             "blockStream.writerMode", "FILE_AND_GRPC"
                         })
             })
-    @Order(8)
+    @Order(7)
     final Stream<DynamicTest> activeConnectionPeriodicallyRestarts() {
         final AtomicReference<Instant> connectionResetTime = new AtomicReference<>();
         final List<Integer> portNumbers = new ArrayList<>();
@@ -536,8 +536,8 @@ public class BlockNodeSuite {
                 }),
                 waitUntilNextBlocks(5).withBackgroundTraffic(true),
                 doingContextual(spec -> time.set(Instant.now())),
-                blockNodeSimulator(0).sendEndOfStreamImmediately(Code.TIMEOUT).withBlockNumber(9L),
-                blockNodeSimulator(0).sendEndOfStreamImmediately(Code.TIMEOUT).withBlockNumber(10L),
+                blockNode(0).sendEndOfStreamImmediately(Code.TIMEOUT).withBlockNumber(9L),
+                blockNode(0).sendEndOfStreamImmediately(Code.TIMEOUT).withBlockNumber(10L),
                 sourcingContextual(spec -> assertHgcaaLogContainsTimeframe(
                         byNodeId(0),
                         time::get,
