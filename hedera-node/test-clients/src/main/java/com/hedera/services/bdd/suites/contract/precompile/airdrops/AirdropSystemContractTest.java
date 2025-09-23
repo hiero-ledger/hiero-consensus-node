@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.precompile.airdrops;
 
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.burnToken;
@@ -168,6 +169,7 @@ public class AirdropSystemContractTest {
     @HapiTest
     @RepeatableHapiTest(RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
     @DisplayName("Airdrop token and NFT")
+    @Tag(MATS)
     public Stream<DynamicTest> airdropTokenAndNft(
             @NonNull @FungibleToken(initialSupply = 1_000_000L) final SpecFungibleToken token1,
             @NonNull @FungibleToken(initialSupply = 1_000_000L) final SpecFungibleToken token2,
@@ -479,6 +481,7 @@ public class AirdropSystemContractTest {
     @HapiTest
     @RepeatableHapiTest(RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
     @DisplayName("Distribute NFTs to multiple accounts")
+    @Tag(MATS)
     public Stream<DynamicTest> distributeNfts(
             @NonNull @NonFungibleToken(numPreMints = 3) final SpecNonFungibleToken nft,
             @NonNull @Account(maxAutoAssociations = -1) final SpecAccount receiver1,

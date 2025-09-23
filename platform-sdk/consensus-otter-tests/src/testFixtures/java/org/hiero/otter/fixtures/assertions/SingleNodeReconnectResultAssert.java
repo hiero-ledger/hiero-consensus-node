@@ -13,11 +13,11 @@ import org.hiero.otter.fixtures.result.SingleNodeReconnectResult;
  * Assertions for {@link SingleNodeReconnectResult}. This class provides methods to assert the results of reconnect
  * operations performed by a single node in the Otter framework.
  */
-public class SingleNodeReconnectResultsAssert
-        extends AbstractAssert<SingleNodeReconnectResultsAssert, SingleNodeReconnectResult> {
+public class SingleNodeReconnectResultAssert
+        extends AbstractAssert<SingleNodeReconnectResultAssert, SingleNodeReconnectResult> {
 
-    public SingleNodeReconnectResultsAssert(@Nullable final SingleNodeReconnectResult actual) {
-        super(actual, SingleNodeReconnectResultsAssert.class);
+    public SingleNodeReconnectResultAssert(@Nullable final SingleNodeReconnectResult actual) {
+        super(actual, SingleNodeReconnectResultAssert.class);
     }
 
     /**
@@ -27,8 +27,8 @@ public class SingleNodeReconnectResultsAssert
      * @return an assertion for the given {@link SingleNodeReconnectResult}
      */
     @NonNull
-    public static SingleNodeReconnectResultsAssert assertThat(@Nullable final SingleNodeReconnectResult actual) {
-        return new SingleNodeReconnectResultsAssert(actual);
+    public static SingleNodeReconnectResultAssert assertThat(@Nullable final SingleNodeReconnectResult actual) {
+        return new SingleNodeReconnectResultAssert(actual);
     }
 
     /**
@@ -37,7 +37,7 @@ public class SingleNodeReconnectResultsAssert
      * @return a continuous assertion for the given {@link SingleNodeReconnectResult}
      */
     @NonNull
-    public SingleNodeReconnectResultsAssert hasNoReconnects() {
+    public SingleNodeReconnectResultAssert hasNoReconnects() {
         isNotNull();
         if (actual.numSuccessfulReconnects() > 0 || actual.numFailedReconnects() > 0) {
             failWithMessage(
@@ -55,7 +55,7 @@ public class SingleNodeReconnectResultsAssert
      * @return a continuous assertion for the given {@link SingleNodeReconnectResult}
      */
     @NonNull
-    public SingleNodeReconnectResultsAssert hasNoFailedReconnects() {
+    public SingleNodeReconnectResultAssert hasNoFailedReconnects() {
         isNotNull();
         if (actual.numFailedReconnects() > 0) {
             failWithMessage(
@@ -70,7 +70,7 @@ public class SingleNodeReconnectResultsAssert
      * @return a continuous assertion for the given {@link SingleNodeReconnectResult}
      */
     @NonNull
-    public SingleNodeReconnectResultsAssert hasMaximumFailedReconnects(final int maximum) {
+    public SingleNodeReconnectResultAssert hasMaximumFailedReconnects(final int maximum) {
         isNotNull();
         if (actual.numFailedReconnects() >= maximum) {
             failWithMessage(
@@ -87,7 +87,7 @@ public class SingleNodeReconnectResultsAssert
      * @return a continuous assertion for the given {@link SingleNodeReconnectResult}
      */
     @NonNull
-    public SingleNodeReconnectResultsAssert hasExactSuccessfulReconnects(final int expected) {
+    public SingleNodeReconnectResultAssert hasExactSuccessfulReconnects(final int expected) {
         isNotNull();
         if (actual.numSuccessfulReconnects() != expected) {
             failWithMessage(
@@ -104,7 +104,7 @@ public class SingleNodeReconnectResultsAssert
      * @return a continuous assertion for the given {@link SingleNodeReconnectResult}
      */
     @NonNull
-    public SingleNodeReconnectResultsAssert hasMinimumSuccessfulReconnects(final int minimum) {
+    public SingleNodeReconnectResultAssert hasMinimumSuccessfulReconnects(final int minimum) {
         isNotNull();
         if (actual.numSuccessfulReconnects() < minimum) {
             failWithMessage(
@@ -121,7 +121,7 @@ public class SingleNodeReconnectResultsAssert
      * @return a continuous assertion for the given {@link SingleNodeReconnectResult}
      */
     @NonNull
-    public SingleNodeReconnectResultsAssert hasMaximumSuccessfulReconnects(final int maximum) {
+    public SingleNodeReconnectResultAssert hasMaximumSuccessfulReconnects(final int maximum) {
         isNotNull();
         if (actual.numSuccessfulReconnects() >= maximum) {
             failWithMessage(
@@ -140,7 +140,7 @@ public class SingleNodeReconnectResultsAssert
      * @return a continuous assertion for the given {@link SingleNodeReconnectResult}
      */
     @NonNull
-    public SingleNodeReconnectResultsAssert hasMaximumReconnectTime(@NonNull final Duration maximumReconnectTime) {
+    public SingleNodeReconnectResultAssert hasMaximumReconnectTime(@NonNull final Duration maximumReconnectTime) {
         isNotNull();
         final List<SynchronizationCompletePayload> payloads = actual.getSynchronizationCompletePayloads();
         payloads.forEach(payload -> {
@@ -163,7 +163,7 @@ public class SingleNodeReconnectResultsAssert
      * @return a continuous assertion for the given {@link SingleNodeReconnectResult}
      */
     @NonNull
-    public SingleNodeReconnectResultsAssert hasMaximumTreeInitializationTime(
+    public SingleNodeReconnectResultAssert hasMaximumTreeInitializationTime(
             @NonNull final Duration maximumTreeInitializationTime) {
         isNotNull();
         final List<SynchronizationCompletePayload> payloads = actual.getSynchronizationCompletePayloads();
