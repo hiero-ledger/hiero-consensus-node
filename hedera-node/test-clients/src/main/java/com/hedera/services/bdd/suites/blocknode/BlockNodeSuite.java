@@ -570,7 +570,7 @@ public class BlockNodeSuite {
                             "blockStream.writerMode", "FILE_AND_GRPC"
                         })
             })
-    @Order(8)
+    @Order(10)
     final Stream<DynamicTest> testCNReactionToPublishStreamResponses() {
         final AtomicReference<Instant> time = new AtomicReference<>();
         final List<Integer> portNumbers = new ArrayList<>();
