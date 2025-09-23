@@ -35,10 +35,11 @@ public class BlockStreamEventBuilder {
     /** The blocks to read events from. */
     private final List<Block> blocks;
 
-    /** Track event hashes by index within a single block */
+    /** Track event hashes by index within a single block  for parent lookups within a block */
     private final Map<Integer, PlatformEvent> eventIndexToEvent = new HashMap<>();
 
-    private final Map<Hash, PlatformEvent> eventHashtoEvent = new HashMap<>();
+    /** Track events by event hash for parent lookups across blocks */
+    private final Map<Hash, PlatformEvent> eventHashToEvent = new HashMap<>();
 
     /** A list of transactions to include in the current event */
     private final List<Bytes> currentTransactions = new ArrayList<>();
@@ -162,7 +163,7 @@ public class BlockStreamEventBuilder {
         final PlatformEvent platformEvent =
                 createEventFromData(currentEventHeader, currentTransactions, eventIndexToEvent);
         eventIndexToEvent.put(eventIndexWithinBlock, platformEvent);
-        eventHashtoEvent.put(platformEvent.getHash(), platformEvent);
+        eventHashToEvent.put(platformEvent.getHash(), platformEvent);
         events.add(platformEvent);
         currentEventHeader = null;
     }
@@ -239,7 +240,7 @@ public class BlockStreamEventBuilder {
                     final EventDescriptor parentDescriptor = parentRef.parent().as();
                     resolvedParents.add(parentDescriptor);
                     final Hash parentHash = new Hash(parentDescriptor.hash());
-                    if (!eventHashtoEvent.containsKey(parentHash)) {
+                    if (!eventHashToEvent.containsKey(parentHash)) {
                         fail("Unable to find event matching parent hash %s", parentHash);
                     }
                     crossBlockParentHashes.add(new Hash(parentDescriptor.hash()));
