@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.ethereum;
 
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asAccountString;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
@@ -120,6 +121,7 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
 
     @HapiTest
     @DisplayName("Jumbo transaction should pass")
+    @Tag(MATS)
     public Stream<DynamicTest> jumboTransactionShouldPass() {
         final var jumboPayload = new byte[10 * 1024];
         final var halfJumboPayload = new byte[5 * 1024];
@@ -197,6 +199,7 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
         @HapiTest
         @DisplayName("Jumbo Ethereum txn works when alias account is updated to threshold key")
         // JUMBO_P_13
+        @Tag(MATS)
         public Stream<DynamicTest> jumboTxnAliasWithThresholdKeyPattern() {
             final var cryptoKey = "cryptoKey";
             final var thresholdKey = "thresholdKey";
@@ -512,6 +515,7 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
 
         @DisplayName("Jumbo transaction gets bytes throttled at ingest")
         @LeakyHapiTest(overrides = {"jumboTransactions.maxBytesPerSec"})
+        @Tag(MATS)
         public Stream<DynamicTest> jumboTransactionGetsThrottledAtIngest() {
             final var payloadSize = 127 * 1024;
             final var bytesPerSec = 130 * 1024;
