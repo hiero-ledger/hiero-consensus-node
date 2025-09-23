@@ -128,30 +128,31 @@ public class TipsetEventCreatorTestUtils {
     }
 
     /**
-     * Validates that @code newEvent satisfies:
-     * - if it has a null self-parent, is only during genesis scenario
-     * - if it has a null other-parent, is only during genesis scenario
-     * - the event is contained in allEvents
-     * - NGen should be max of parents plus one
-     * - Parent's birthround or generation is never higher than event's.
-     * - There is a minimum gap of 1-nanosecond between Event's timeCreated and selfparent's ( timeCreated + transactionCount)
-     * - Except for genesis scenario, new event must have a positive advancement score.
-     * - Application Transactions of the event matches @code expectedTransactions
-     *
+     * Validates that @code newEvent satisfies: - if it has a null self-parent, is only during genesis scenario - if it
+     * has a null other-parent, is only during genesis scenario - the event is contained in allEvents - NGen should be
+     * max of parents plus one - Parent's birthround or generation is never higher than event's. - There is a minimum
+     * gap of 1-nanosecond between Event's timeCreated and selfparent's ( timeCreated + transactionCount) - Except for
+     * genesis scenario, new event must have a positive advancement score. - Application Transactions of the event
+     * matches @code expectedTransactions
+     * <p>
      * This method produces a side effect of advancing the last AdvancementWeight of the simulatedNode
      *
-     * @param allEvents the list of all events, where parents are going to be retrieved from and the event is going to be check against
-     * @param newEvent the event to validate
-     * @param expectedTransactions all the application transactions expected to be present in the event
-     * @param simulatedNode the node that produced the event. This object is changed after invoking this method.
-     * @param slowNode an specific mode of validation
+     * @param allEvents                the list of all events, where parents are going to be retrieved from and the
+     *                                 event is going to be check against
+     * @param newEvent                 the event to validate
+     * @param expectedTransactions     all the application transactions expected to be present in the event
+     * @param simulatedNode            the node that produced the event. This object is changed after invoking this
+     *                                 method.
+     * @param slowNode                 an specific mode of validation
+     * @param forgiveNotAdvancingScore
      */
     public static void validateNewEventAndMaybeAdvanceCreatorScore(
             @NonNull final Map<EventDescriptorWrapper, PlatformEvent> allEvents,
             @NonNull final PlatformEvent newEvent,
             @NonNull final List<Bytes> expectedTransactions,
             @NonNull final SimulatedNode simulatedNode,
-            final boolean slowNode) {
+            final boolean slowNode,
+            final boolean forgiveNotAdvancingScore) {
 
         final PlatformEvent selfParent = allEvents.get(newEvent.getSelfParent());
         final long selfParentGeneration =
@@ -196,11 +197,14 @@ public class TipsetEventCreatorTestUtils {
         // Validate tipset constraints.
         final EventDescriptorWrapper descriptor = newEvent.getDescriptor();
         if (selfParent != null) {
-            // Except for a genesis event, all other new events must have a positive advancement score.
-            assertTrue(simulatedNode
-                    .tipsetWeightCalculator()
-                    .addEventAndGetAdvancementWeight(descriptor)
-                    .isNonZero());
+            // Except for a genesis event and break quiescence events, all other new events must have a positive
+            // advancement score.
+            if (!forgiveNotAdvancingScore) {
+                assertTrue(simulatedNode
+                        .tipsetWeightCalculator()
+                        .addEventAndGetAdvancementWeight(descriptor)
+                        .isNonZero());
+            }
         } else {
             // the next call will modify the tipsetWeightCalculator
             simulatedNode.tipsetWeightCalculator().addEventAndGetAdvancementWeight(descriptor);
@@ -266,6 +270,7 @@ public class TipsetEventCreatorTestUtils {
 
     /**
      * Generates {@code number} of random transactions
+     *
      * @param random the random instance to use
      * @param number the number of transactions to generate. Must be positive.
      * @return a list of bytes for each transaction
