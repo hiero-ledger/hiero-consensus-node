@@ -60,7 +60,7 @@ public final class SmartContractFeeBuilder extends FeeBuilder {
         long rbsNetwork = getDefaultRbhNetworkSize() + BASIC_ENTITY_ID_SIZE * (RECEIPT_STORAGE_TIME_SEC);
 
         // Using SBS here because this part us not used in other calculations. It is a per hour cost
-        // so we convert to per second by multiplying by 1/3600. This will be changed with simple fees.
+        // so we convert to per second by multiplying by 3600. This will be changed with simple fees.
         final var hookCreations = txBody.getContractCreateInstance().getHookCreationDetailsCount();
         if (hookCreations > 0) {
             sbs = hookCreations * HOUR_TO_SECOND_MULTIPLIER;
@@ -166,7 +166,7 @@ public final class SmartContractFeeBuilder extends FeeBuilder {
         final var hookCreations = txBody.getContractUpdateInstance().getHookCreationDetailsCount();
         final var hookDeletions = txBody.getContractUpdateInstance().getHookIdsToDeleteCount();
         if (hookCreations > 0 || hookDeletions > 0) {
-            tv = (hookCreations + hookDeletions) * 1000L;
+            tv = (hookCreations + hookDeletions);
         }
         FeeComponents feeMatricesForTx = FeeComponents.newBuilder()
                 .setBpt(bpt)

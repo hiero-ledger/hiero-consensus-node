@@ -47,6 +47,7 @@ import org.apache.commons.lang3.builder.HashCodeBuilder;
  *       effects are visible. Units are {@code sbh} (“storage byte-hours”).
  *   <li>Computation needed to verify a Ed25519 cryptographic signature. Units are {@code vpt}
  *       (“verifications per transaction”).
+ *   <li>Transferred value, in tinybars. Units are {@code tv} (“tinybar value”).
  *   <li>Computation needed for incremental execution of a Solidity smart contract. Units are {@code
  *       gas}.
  * </ol>

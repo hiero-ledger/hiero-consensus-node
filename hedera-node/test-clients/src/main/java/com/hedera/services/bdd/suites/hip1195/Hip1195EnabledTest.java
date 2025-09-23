@@ -115,6 +115,17 @@ public class Hip1195EnabledTest {
     }
 
     @HapiTest
+    final Stream<DynamicTest> deleteHooks() {
+        final var OWNER = "acctHeadRun";
+        final long A = 1L;
+
+        return hapiTest(
+                newKeyNamed("k"),
+                cryptoCreate(OWNER).key("k").balance(1L).withHooks(lambdaAccountAllowanceHook(A, HOOK_CONTRACT.name())),
+                cryptoUpdate(OWNER).removingHooks(A));
+    }
+
+    @HapiTest
     final Stream<DynamicTest> deleteHooksAndLinkNewOnes() {
         final var OWNER = "acctHeadRun";
         final long A = 1L, B = 2L, C = 3L, D = 4L, E = 5L;
@@ -253,6 +264,17 @@ public class Hip1195EnabledTest {
                     assertEquals(3, c.numberHooksInUse());
                 }),
                 // $3 for hooks, $0.026 for update
-                validateChargedUsd("contractUpdateTxn", 3.026));
+                validateChargedUsd("contractUpdateTxn", 3.026),
+                contractUpdate(SIMPLE_UPDATE)
+                        .withHooks(lambdaAccountAllowanceHook(26L, HOOK_UPDATE_CONTRACT.name()))
+                        .payingWith("payer")
+                        .blankMemo()
+                        .via("contractUpdateWithSingleHookTxn"),
+                viewContract(SIMPLE_UPDATE, (Account c) -> {
+                    assertEquals(26L, c.firstHookId());
+                    assertEquals(4, c.numberHooksInUse());
+                }),
+                // $1 for hook, $0.026 for update
+                validateChargedUsd("contractUpdateWithSingleHookTxn", 1.026, 2));
     }
 }
