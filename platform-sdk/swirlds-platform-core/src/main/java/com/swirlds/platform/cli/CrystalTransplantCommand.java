@@ -2,15 +2,14 @@
 package com.swirlds.platform.cli;
 
 import static com.swirlds.common.merkle.utility.MerkleUtils.rehashTree;
+import static com.swirlds.platform.cli.utils.HederaUtils.SWIRLD_NAME;
 import static com.swirlds.platform.state.signed.StartupStateUtils.loadLatestState;
 import static com.swirlds.platform.util.BootstrapUtils.setupConstructableRegistry;
 import static com.swirlds.platform.util.BootstrapUtils.setupConstructableRegistryWithConfiguration;
 import static com.swirlds.virtualmap.constructable.ConstructableUtils.registerVirtualMapConstructables;
 import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
 
-import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
-import com.hedera.hapi.util.HapiUtils;
 import com.hedera.node.internal.network.Network;
 import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
 import com.swirlds.base.time.Time;
@@ -26,7 +25,7 @@ import com.swirlds.common.merkle.crypto.MerkleCryptographyFactory;
 import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
-import com.swirlds.config.extensions.sources.PropertyFileConfigSource;
+import com.swirlds.config.extensions.sources.LegacyFileConfigSource;
 import com.swirlds.platform.cli.utils.HederaUtils;
 import com.swirlds.platform.event.preconsensus.PcesConfig;
 import com.swirlds.platform.state.MerkleNodeState;
@@ -46,7 +45,6 @@ import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Scanner;
 import java.util.stream.Collectors;
 import org.hiero.base.constructable.ConstructableRegistryException;
@@ -162,8 +160,19 @@ public class CrystalTransplantCommand extends AbstractCommand {
                 sourceStatePath.toAbsolutePath(),
                 targetNodePath.toAbsolutePath(),
                 bumpVersion));
+        final Path configtxtFile = targetNodePath.resolve("config.txt");
+        if (!Files.exists(configtxtFile)) {
+            System.err.println("Could not find config file: " + configtxtFile);
+        }
+        final Path settingsTxtFile = targetNodePath.resolve(CONFIG_LOCATION).resolve("settings.txt");
+        if (!Files.exists(settingsTxtFile)) {
+            System.err.println("Could not find config file: " + settingsTxtFile);
+            System.exit(RETURN_CODE_ERROR);
+        }
+
         final Configuration configuration = ConfigurationBuilder.create()
-                .withSource(new PropertyFileConfigSource(targetNodePath.resolve("settings.txt")))
+                .withSource(new LegacyFileConfigSource(configtxtFile))
+                .withSource(new LegacyFileConfigSource(settingsTxtFile))
                 .autoDiscoverExtensions()
                 .build();
 
@@ -175,16 +184,9 @@ public class CrystalTransplantCommand extends AbstractCommand {
                 new SimpleRecycleBin(),
                 MerkleCryptographyFactory.create(configuration));
 
-        final SemanticVersion version = getSemanticVersion(configuration);
-
-        final StateCommonConfig stateConfig = configuration.getConfigData(StateCommonConfig.class);
         final PcesConfig pcesConfig = configuration.getConfigData(PcesConfig.class);
-        final StateInformation sourceStateInfo = loadSourceState(version);
 
-        this.targetStateDir = new SignedStateFilePath(
-                        new StateCommonConfig(targetNodePath.resolve(stateConfig.savedStateDirectory())))
-                .getSignedStateDirectory(
-                        HederaUtils.HEDERA_APP_NAME, selfId, HederaUtils.SWIRLD_NAME, sourceStateInfo.round);
+        final StateInformation sourceStateInfo = loadSourceState(configuration);
 
         if (networkOverrideFile != null) {
             validateOverrideNetworkJson();
@@ -200,7 +202,7 @@ public class CrystalTransplantCommand extends AbstractCommand {
 
         final Path sourcePcesDir = this.targetStateDir.resolve(pcesConfig.databaseDirectory());
         final Path targetPcesDir = targetNodePath
-                .resolve(stateConfig.savedStateDirectory())
+                .resolve(configuration.getConfigData(StateCommonConfig.class).savedStateDirectory())
                 .resolve(pcesConfig.databaseDirectory())
                 .resolve(Long.toString(selfId.id()));
         copyPCESFilesToCorrectDirectory(sourcePcesDir, targetPcesDir);
@@ -208,13 +210,6 @@ public class CrystalTransplantCommand extends AbstractCommand {
         performConfigBump();
 
         return RETURN_CODE_SUCCESS;
-    }
-
-    private SemanticVersion getSemanticVersion(final Configuration configuration) {
-        final String versionString = configuration.getValue(CONFIG_KEY, "1.0.0");
-        return Optional.ofNullable(versionString)
-                .map(HapiUtils::fromString)
-                .orElse(SemanticVersion.newBuilder().major(1).build());
     }
 
     private void validateOverrideNetworkJson() {
@@ -225,7 +220,7 @@ public class CrystalTransplantCommand extends AbstractCommand {
         this.overrideRoster = roster;
     }
 
-    private StateInformation loadSourceState(final SemanticVersion version) {
+    private StateInformation loadSourceState(final Configuration configuration) {
         setupConstructableRegistry();
         try {
             setupConstructableRegistryWithConfiguration(platformContext.getConfiguration());
@@ -244,9 +239,10 @@ public class CrystalTransplantCommand extends AbstractCommand {
             System.out.printf("No state files found on %s %n", sourceStatePath);
             System.exit(RETURN_CODE_ERROR);
         }
+
         try (final var state = loadLatestState(
                 new SimpleRecycleBin(),
-                version,
+                appMain.getSemanticVersion(),
                 savedStateFiles,
                 v -> {
                     try {
@@ -261,6 +257,16 @@ public class CrystalTransplantCommand extends AbstractCommand {
             final Hash newHash = rehashTree(
                     platformContext.getMerkleCryptography(),
                     state.get().getState().getRoot());
+
+            final StateCommonConfig stateConfig = configuration.getConfigData(StateCommonConfig.class);
+            this.targetStateDir = new SignedStateFilePath(
+                            new StateCommonConfig(targetNodePath.resolve(stateConfig.savedStateDirectory())))
+                    .getSignedStateDirectory(
+                            configuration.getValue("state.mainClassNameOverride"),
+                            selfId,
+                            SWIRLD_NAME,
+                            state.get().getRound());
+
             return new StateInformation(
                     state.get().getRound(), state.get().getRoster(), newHash, savedStateFiles.getFirst());
         }

@@ -23,14 +23,11 @@ public class HederaUtils {
      * requires data migration to change.
      */
     public static final String HEDERA_MAIN_CLASS = "com.hedera.node.app.ServicesMain";
-
-    public static final String HEDERA_APP_NAME = "com.hedera.services.ServicesMain";
     /**
      * The swirld name. Currently, there is only one swirld.
      */
     public static final String SWIRLD_NAME = "123";
     /**
-     * /**
      * Hedera main class has a particular way of building using a static method.
      * This is to avoid the circular dependency app-->platform-->app
      *
