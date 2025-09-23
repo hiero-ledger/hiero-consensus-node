@@ -661,6 +661,33 @@ class MerkleDbDataSourceTest {
         });
     }
 
+    // When a pre-0.67 MerkleDb snapshot is loaded, there are no values for initialCapacity and
+    // hashesRamToDiskThreshold in legacy table_metadata.pbj These values need to be initialized
+    // from MerkleDb config
+    @Test
+    void testRestoreSnapshotNoSomeValues() throws IOException {
+        final String dbName = "db";
+        final TestType testType = TestType.long_fixed;
+        final Path originalDbPath = testDirectory.resolve("testRestoreSnapshotNoSomeValues");
+        createAndApplyDataSource(originalDbPath, dbName, testType, 0, 0, dataSource -> {
+            // Create a snapshot. Initial capacity and hashes threshold are zeroes, this simulates
+            // old (pre-0.67) snapshots
+            final Path snapshotDbPath = testDirectory.resolve("testRestoreSnapshotNoSomeValues-snapshot");
+            dataSource.snapshot(snapshotDbPath);
+            dataSource.close();
+
+            final int initialCapacity = 1111;
+            final long hashesRamToDiskThreshold = 8192;
+
+            // Restore
+            final MerkleDbDataSource snapshot = testType.dataType()
+                    .createDataSource(snapshotDbPath, dbName, initialCapacity, hashesRamToDiskThreshold, false, false);
+            assertEquals(initialCapacity, snapshot.getInitialCapacity());
+            assertEquals(hashesRamToDiskThreshold, snapshot.getHashesRamToDiskThreshold());
+            snapshot.close();
+        });
+    }
+
     @SuppressWarnings({"unchecked", "rawtypes"})
     @Test
     void testRebuildHDHMIndex() throws Exception {

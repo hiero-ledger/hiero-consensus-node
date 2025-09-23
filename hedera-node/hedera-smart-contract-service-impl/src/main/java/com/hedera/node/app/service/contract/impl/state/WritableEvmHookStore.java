@@ -4,17 +4,16 @@ package com.hedera.node.app.service.contract.impl.state;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOK_ID_IN_USE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOK_NOT_FOUND;
 import static com.hedera.hapi.node.state.hooks.EvmHookType.LAMBDA;
-import static com.hedera.hapi.node.state.hooks.EvmHookType.PURE;
 import static com.hedera.node.app.hapi.utils.EntityType.HOOK;
 import static com.hedera.node.app.hapi.utils.EntityType.LAMBDA_STORAGE;
+import static com.hedera.node.app.hapi.utils.contracts.HookUtils.leftPad32;
+import static com.hedera.node.app.hapi.utils.contracts.HookUtils.slotKeyOfMappingEntry;
 import static com.hedera.node.app.service.contract.impl.schemas.V065ContractSchema.EVM_HOOK_STATES_STATE_ID;
 import static com.hedera.node.app.service.contract.impl.schemas.V065ContractSchema.LAMBDA_STORAGE_STATE_ID;
 import static com.hedera.node.app.service.contract.impl.state.StorageAccess.StorageAccessType.INSERTION;
 import static com.hedera.node.app.service.contract.impl.state.StorageAccess.StorageAccessType.REMOVAL;
 import static com.hedera.node.app.service.contract.impl.state.StorageAccess.StorageAccessType.UPDATE;
 import static com.hedera.node.app.service.contract.impl.state.StorageAccess.StorageAccessType.ZERO_INTO_EMPTY_SLOT;
-import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.leftPad32;
-import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.slotKeyOfMappingEntry;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static java.util.Objects.requireNonNull;
 
@@ -40,8 +39,7 @@ import org.apache.logging.log4j.Logger;
 /**
  * Read/write access to the EVM hook states.
  */
-public class WritableEvmHookStore extends ReadableEvmHookStore {
-
+public class WritableEvmHookStore extends ReadableEvmHookStoreImpl {
     private static final Logger log = LogManager.getLogger(WritableEvmHookStore.class);
 
     /**
@@ -69,8 +67,8 @@ public class WritableEvmHookStore extends ReadableEvmHookStore {
      *
      * @param hookId the lambda ID
      * @param updates the slot updates
-     * @throws HandleException if the lambda ID is not found
      * @return the net change in number of storage slots used
+     * @throws HandleException if the lambda ID is not found
      */
     public int updateStorage(@NonNull final HookId hookId, @NonNull final List<LambdaStorageUpdate> updates)
             throws HandleException {
@@ -132,18 +130,63 @@ public class WritableEvmHookStore extends ReadableEvmHookStore {
     }
 
     /**
-     * Marks the given hook as deleted.
+     * Marks the given hook as deleted. We mark the hook as deleted, but do not remove it from state,
+     * if there are several storage slots.
+     *
      * @param hookId the lambda ID
      * @throws HandleException if the lambda ID is not found
      */
-    public void markDeleted(@NonNull final HookId hookId) {
+    public void removeOrMarkDeleted(@NonNull final HookId hookId) {
         final var state = hookStates.get(hookId);
         validateTrue(state != null, HOOK_NOT_FOUND);
-        hookStates.put(hookId, state.copyBuilder().deleted(true).build());
+        if (state.numStorageSlots() > 0) {
+            log.info(
+                    "Marking hook {} as deleted, but not removing it because it has {} storage slots",
+                    hookId,
+                    state.numStorageSlots());
+            hookStates.put(hookId, state.copyBuilder().deleted(true).build());
+        } else {
+            unlinkNeighbors(state);
+            hookStates.remove(hookId);
+            entityCounters.decrementEntityTypeCounter(HOOK);
+        }
+    }
+
+    private void unlinkNeighbors(@NonNull final EvmHookState state) {
+        final var hookId = state.hookId();
+        final var prevId = state.previousHookId();
+        final var nextId = state.nextHookId();
+
+        if (prevId != null) {
+            final var prev = HookId.newBuilder()
+                    .hookId(prevId)
+                    .entityId(hookId.entityId())
+                    .build();
+            final var prevState = hookStates.get(prev);
+            if (prevState != null) {
+                hookStates.put(prev, prevState.copyBuilder().nextHookId(nextId).build());
+            } else {
+                log.warn("Inconsistent state: previous hook {} not found when unlinking {}", prev, hookId);
+            }
+        }
+        if (nextId != null) {
+            final var next = HookId.newBuilder()
+                    .hookId(nextId)
+                    .entityId(hookId.entityId())
+                    .build();
+            final var nextState = hookStates.get(next);
+            if (nextState != null) {
+                hookStates.put(
+                        next, nextState.copyBuilder().previousHookId(prevId).build());
+            } else {
+                log.warn("Inconsistent state: next hook {} not found when unlinking {}", next, hookId);
+            }
+        }
     }
 
     /**
      * Tries to create a new EVM hook for the given entity.
+     *
      * @param creation the hook creation spec
      * @throws HandleException if the creation fails
      */
@@ -153,13 +196,10 @@ public class WritableEvmHookStore extends ReadableEvmHookStore {
         validateTrue(hookStates.get(hookId) == null, HOOK_ID_IN_USE);
         final var type =
                 switch (details.hook().kind()) {
-                    case PURE_EVM_HOOK -> PURE;
                     case LAMBDA_EVM_HOOK -> LAMBDA;
                     default -> throw new IllegalStateException("Not an EVM hook - " + creation);
                 };
-        final var evmHookSpec = type == PURE
-                ? details.pureEvmHookOrThrow().specOrThrow()
-                : details.lambdaEvmHookOrThrow().specOrThrow();
+        final var evmHookSpec = details.lambdaEvmHookOrThrow().specOrThrow();
         final var state = EvmHookState.newBuilder()
                 .hookId(hookId)
                 .type(type)
@@ -176,10 +216,7 @@ public class WritableEvmHookStore extends ReadableEvmHookStore {
         if (type == LAMBDA) {
             final var initialUpdates = details.lambdaEvmHookOrThrow().storageUpdates();
             if (!initialUpdates.isEmpty()) {
-                final int delta = updateStorage(hookId, initialUpdates);
-                if (delta != 0) {
-                    entityCounters.adjustEntityCount(LAMBDA_STORAGE, delta);
-                }
+                updateStorage(hookId, initialUpdates);
             }
         }
         entityCounters.incrementEntityTypeCount(HOOK);

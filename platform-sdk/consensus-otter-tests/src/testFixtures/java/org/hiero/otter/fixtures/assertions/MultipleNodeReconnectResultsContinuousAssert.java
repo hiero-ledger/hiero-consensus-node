@@ -17,19 +17,23 @@ import org.hiero.otter.fixtures.result.SynchronizationCompleteNotification;
 
 /**
  * Continuous assertions for {@link MultipleNodeReconnectResults}.
+ *
+ * <p>Please note: If two continuous assertions fail roughly at the same time, it is non-deterministic which one
+ * will report the failure first. This is even true when running a test in the Turtle environment.
+ * If deterministic behavior is required, please use regular assertions instead of continuous assertions.
  */
 @SuppressWarnings({"UnusedReturnValue", "unused"})
-public class MultipleNodeReconnectResultContinuousAssert
+public class MultipleNodeReconnectResultsContinuousAssert
         extends AbstractMultipleNodeContinuousAssertion<
-                MultipleNodeReconnectResultContinuousAssert, MultipleNodeReconnectResults> {
+                MultipleNodeReconnectResultsContinuousAssert, MultipleNodeReconnectResults> {
 
     /**
      * Creates a continuous assertion for the given {@link MultipleNodeReconnectResults}.
      *
      * @param actual the actual {@link MultipleNodeReconnectResults} to assert
      */
-    public MultipleNodeReconnectResultContinuousAssert(@Nullable final MultipleNodeReconnectResults actual) {
-        super(actual, MultipleNodeReconnectResultContinuousAssert.class);
+    public MultipleNodeReconnectResultsContinuousAssert(@Nullable final MultipleNodeReconnectResults actual) {
+        super(actual, MultipleNodeReconnectResultsContinuousAssert.class);
     }
 
     /**
@@ -39,9 +43,9 @@ public class MultipleNodeReconnectResultContinuousAssert
      * @return a continuous assertion for the given {@link MultipleNodeReconnectResults}
      */
     @NonNull
-    public static MultipleNodeReconnectResultContinuousAssert assertContinuouslyThat(
+    public static MultipleNodeReconnectResultsContinuousAssert assertContinuouslyThat(
             @Nullable final MultipleNodeReconnectResults actual) {
-        return new MultipleNodeReconnectResultContinuousAssert(actual);
+        return new MultipleNodeReconnectResultsContinuousAssert(actual);
     }
 
     /**
@@ -50,7 +54,7 @@ public class MultipleNodeReconnectResultContinuousAssert
      * @return this assertion object for method chaining
      */
     @NonNull
-    public MultipleNodeReconnectResultContinuousAssert hasNoFailedReconnects() {
+    public MultipleNodeReconnectResultsContinuousAssert hasNoFailedReconnects() {
         return checkContinuously((notification) -> {
             switch (notification) {
                 case final ReconnectFailureNotification failureNotification ->
@@ -73,7 +77,7 @@ public class MultipleNodeReconnectResultContinuousAssert
      * @return this assertion object for method chaining
      */
     @NonNull
-    public MultipleNodeReconnectResultContinuousAssert doNotAttemptToReconnect() {
+    public MultipleNodeReconnectResultsContinuousAssert doNotAttemptToReconnect() {
         return checkContinuously((notification) -> {
             switch (notification) {
                 case final ReconnectStartNotification startNotification ->
@@ -97,7 +101,7 @@ public class MultipleNodeReconnectResultContinuousAssert
      * @return this assertion object for method chaining
      */
     @NonNull
-    public MultipleNodeReconnectResultContinuousAssert haveMaximumReconnectTime(
+    public MultipleNodeReconnectResultsContinuousAssert haveMaximumReconnectTime(
             @NonNull final Duration maximumReconnectTime) {
         isNotNull();
         return checkContinuously((notification) -> {
@@ -125,7 +129,7 @@ public class MultipleNodeReconnectResultContinuousAssert
      * @return this assertion object for method chaining
      */
     @NonNull
-    public MultipleNodeReconnectResultContinuousAssert haveMaximumTreeInitializationTime(
+    public MultipleNodeReconnectResultsContinuousAssert haveMaximumTreeInitializationTime(
             @NonNull final Duration maximumTreeInitializationTime) {
         isNotNull();
         return checkContinuously(notification -> {
@@ -146,7 +150,7 @@ public class MultipleNodeReconnectResultContinuousAssert
         });
     }
 
-    private MultipleNodeReconnectResultContinuousAssert checkContinuously(
+    private MultipleNodeReconnectResultsContinuousAssert checkContinuously(
             final Consumer<ReconnectNotification<?>> check) {
         isNotNull();
 

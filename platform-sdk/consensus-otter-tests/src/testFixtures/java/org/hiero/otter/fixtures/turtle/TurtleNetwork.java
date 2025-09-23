@@ -23,6 +23,9 @@ import org.hiero.otter.fixtures.TransactionGenerator;
 import org.hiero.otter.fixtures.internal.AbstractNetwork;
 import org.hiero.otter.fixtures.internal.AbstractTimeManager.TimeTickReceiver;
 import org.hiero.otter.fixtures.internal.network.ConnectionKey;
+import org.hiero.otter.fixtures.logging.context.ContextAwareThreadFactory;
+import org.hiero.otter.fixtures.logging.context.NodeLoggingContext;
+import org.hiero.otter.fixtures.logging.context.NodeLoggingContext.LoggingContextScope;
 import org.hiero.otter.fixtures.network.Topology.ConnectionData;
 import org.hiero.otter.fixtures.turtle.gossip.SimulatedNetwork;
 import org.hiero.otter.fixtures.turtle.logging.TurtleLogging;
@@ -124,8 +127,8 @@ public class TurtleNetwork extends AbstractNetwork implements TimeTickReceiver {
     @Override
     protected void preStartHook(@NonNull final Roster roster) {
         final int size = nodes().size();
-        executorService =
-                Executors.newFixedThreadPool(Math.min(size, Runtime.getRuntime().availableProcessors()));
+        executorService = NodeLoggingContext.wrap(Executors.newFixedThreadPool(
+                Math.min(size, Runtime.getRuntime().availableProcessors()), new ContextAwareThreadFactory()));
     }
 
     /**
@@ -143,7 +146,14 @@ public class TurtleNetwork extends AbstractNetwork implements TimeTickReceiver {
         // Iteration order over nodes does not need to be deterministic -- nodes are not permitted to communicate with
         // each other during the tick phase, and they run on separate threads to boot.
         CompletableFuture.allOf(nodes().stream()
-                        .map(node -> CompletableFuture.runAsync(() -> ((TurtleNode) node).tick(now), executorService))
+                        .map(node -> {
+                            final TurtleNode turtleNode = (TurtleNode) node;
+                            try (final LoggingContextScope ignored = NodeLoggingContext.install(
+                                    Long.toString(turtleNode.selfId().id()))) {
+                                return CompletableFuture.runAsync(
+                                        NodeLoggingContext.wrap(() -> turtleNode.tick(now)), executorService);
+                            }
+                        })
                         .toArray(CompletableFuture[]::new))
                 .join();
     }

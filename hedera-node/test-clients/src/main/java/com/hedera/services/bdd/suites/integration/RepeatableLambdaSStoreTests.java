@@ -4,9 +4,9 @@ package com.hedera.services.bdd.suites.integration;
 import static com.hedera.hapi.node.base.HookEntityId.EntityIdOneOfType.ACCOUNT_ID;
 import static com.hedera.hapi.node.hooks.HookExtensionPoint.ACCOUNT_ALLOWANCE_HOOK;
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.toPbj;
+import static com.hedera.node.app.hapi.utils.contracts.HookUtils.leftPad32;
+import static com.hedera.node.app.hapi.utils.contracts.HookUtils.slotKeyOfMappingEntry;
 import static com.hedera.node.app.service.contract.impl.schemas.V065ContractSchema.EVM_HOOK_STATES_STATE_ID;
-import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.leftPad32;
-import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.slotKeyOfMappingEntry;
 import static com.hedera.services.bdd.junit.RepeatableReason.NEEDS_STATE_ACCESS;
 import static com.hedera.services.bdd.junit.TestTags.INTEGRATION;
 import static com.hedera.services.bdd.junit.hedera.embedded.EmbeddedMode.REPEATABLE;
@@ -18,8 +18,6 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcingContextual;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_DELETED;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.HOOK_DELETED;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.HOOK_IS_NOT_A_LAMBDA;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.HOOK_NOT_FOUND;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_HOOK_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.LAMBDA_STORAGE_UPDATE_BYTES_MUST_USE_MINIMAL_REPRESENTATION;
@@ -36,11 +34,10 @@ import com.hedera.hapi.node.hooks.HookCreation;
 import com.hedera.hapi.node.hooks.HookCreationDetails;
 import com.hedera.hapi.node.hooks.LambdaEvmHook;
 import com.hedera.hapi.node.hooks.LambdaMappingEntry;
-import com.hedera.hapi.node.hooks.PureEvmHook;
 import com.hedera.hapi.node.state.hooks.EvmHookState;
 import com.hedera.hapi.node.state.hooks.LambdaSlotKey;
 import com.hedera.node.app.service.contract.ContractService;
-import com.hedera.node.app.service.contract.impl.state.ReadableEvmHookStore;
+import com.hedera.node.app.service.contract.impl.state.ReadableEvmHookStoreImpl;
 import com.hedera.node.app.service.contract.impl.state.WritableEvmHookStore;
 import com.hedera.pbj.runtime.OneOf;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -112,7 +109,7 @@ public class RepeatableLambdaSStoreTests {
 
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
-        testLifecycle.overrideInClass(Map.of("hedera.hooksEnabled", "true"));
+        testLifecycle.overrideInClass(Map.of("hooks.hooksEnabled", "true"));
         // Manually insert a hook on the owner account for LambdaSStore testing only
         testLifecycle.doAdhoc(
                 HOOK_CONTRACT.getInfo(),
@@ -139,16 +136,6 @@ public class RepeatableLambdaSStoreTests {
                 .hasKnownStatus(HOOK_NOT_FOUND));
     }
 
-    @Order(3)
-    @RepeatableHapiTest(NEEDS_STATE_ACCESS)
-    Stream<DynamicTest> cannotManageStorageOfPureEvmHook() {
-        return hapiTest(
-                sourcingContextual(RepeatableLambdaSStoreTests::pureHookCreation),
-                accountLambdaSStore(HOOK_OWNER.name(), PURE_HOOK_ID)
-                        .putSlot(Bytes.EMPTY, Bytes.EMPTY)
-                        .hasKnownStatus(HOOK_IS_NOT_A_LAMBDA));
-    }
-
     @Order(4)
     @RepeatableHapiTest(NEEDS_STATE_ACCESS)
     Stream<DynamicTest> cannotManageStorageOfDeletedEvmHook() {
@@ -156,7 +143,7 @@ public class RepeatableLambdaSStoreTests {
                 sourcingContextual(RepeatableLambdaSStoreTests::deletedHookCreation),
                 accountLambdaSStore(HOOK_OWNER.name(), DELETED_HOOK_ID)
                         .putSlot(Bytes.EMPTY, Bytes.EMPTY)
-                        .hasKnownStatus(HOOK_DELETED));
+                        .hasKnownStatus(HOOK_NOT_FOUND));
     }
 
     @Order(5)
@@ -275,7 +262,7 @@ public class RepeatableLambdaSStoreTests {
             final long hookId, final List<Pair<Bytes, Bytes>> slots) {
         return doingContextual(spec -> {
             final var store =
-                    new ReadableEvmHookStore(spec.embeddedStateOrThrow().getReadableStates(ContractService.NAME));
+                    new ReadableEvmHookStoreImpl(spec.embeddedStateOrThrow().getReadableStates(ContractService.NAME));
             final var registry = spec.registry();
             final var hookEntityId =
                     new HookEntityId(new OneOf<>(ACCOUNT_ID, toPbj(registry.getAccountID(HOOK_OWNER.name()))));
@@ -333,15 +320,6 @@ public class RepeatableLambdaSStoreTests {
                         "Wrong # of lambda storage slots")));
     }
 
-    private static SpecOperation pureHookCreation(@NonNull final HapiSpec spec) {
-        return hookCreation(
-                spec,
-                (contractId, details) -> details.hookId(PURE_HOOK_ID)
-                        .pureEvmHook(PureEvmHook.newBuilder()
-                                .spec(EvmHookSpec.newBuilder().contractId(contractId))),
-                false);
-    }
-
     private static SpecOperation lambdaHookCreation(@NonNull final HapiSpec spec) {
         return hookCreation(
                 spec,
@@ -389,7 +367,7 @@ public class RepeatableLambdaSStoreTests {
             final var store = new WritableEvmHookStore(states, counters);
             store.createEvmHook(creation);
             if (deleteAfterwards) {
-                store.markDeleted(
+                store.removeOrMarkDeleted(
                         new HookId(hookEntityId, creation.detailsOrThrow().hookId()));
             }
         });
