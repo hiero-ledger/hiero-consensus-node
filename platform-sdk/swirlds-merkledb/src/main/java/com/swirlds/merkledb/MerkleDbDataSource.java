@@ -283,7 +283,7 @@ public final class MerkleDbDataSource implements VirtualDataSource {
                             + "] because initial capacity is not set");
                 }
             }
-            if (this.hashesRamToDiskThreshold < 0) {
+            if (this.hashesRamToDiskThreshold <= 0) {
                 if (hashesRamToDiskThreshold >= 0) {
                     this.hashesRamToDiskThreshold = hashesRamToDiskThreshold;
                 } else {

@@ -65,6 +65,7 @@ import com.hedera.hapi.streams.ContractStateChanges;
 import com.hedera.hapi.streams.StorageChange;
 import com.hedera.hapi.streams.TransactionSidecarRecord;
 import com.hedera.node.app.hapi.utils.EntityType;
+import com.hedera.node.app.hapi.utils.contracts.HookUtils;
 import com.hedera.node.app.service.contract.impl.utils.ConversionUtils;
 import com.hedera.node.app.state.SingleTransactionRecord;
 import com.hedera.pbj.runtime.ParseException;
@@ -597,7 +598,7 @@ public class BaseTranslator {
                         final var builder = StorageChange.newBuilder().valueRead(read.readValue());
                         if (read.hasIndex()) {
                             final var writtenKey = writes.get(read.indexOrThrow());
-                            final var slotKey = new SlotKey(contractId, ConversionUtils.leftPad32(writtenKey));
+                            final var slotKey = new SlotKey(contractId, HookUtils.leftPad32(writtenKey));
                             Bytes value = null;
                             for (final var nextEvmTraceData : followingEvmTraces) {
                                 final var nextTracedWriteUsage = nextEvmTraceData.contractSlotUsages().stream()
@@ -624,7 +625,7 @@ public class BaseTranslator {
                                     throw new IllegalStateException("No written value found for write to " + slotKey
                                             + " in " + remainingStateChanges);
                                 }
-                                value = ConversionUtils.minimalRepresentationOf(valueFromState);
+                                value = HookUtils.minimalRepresentationOf(valueFromState);
                             }
                             builder.slot(writtenKey).valueWritten(value);
                         } else {
@@ -729,7 +730,7 @@ public class BaseTranslator {
                     slotKey = stateChange.mapDeleteOrThrow().keyOrThrow().slotKeyKeyOrThrow();
                 }
                 if (slotKey != null && contractId.equals(slotKey.contractIDOrThrow())) {
-                    writtenKeys.add(ConversionUtils.minimalRepresentationOf(slotKey.key()));
+                    writtenKeys.add(HookUtils.minimalRepresentationOf(slotKey.key()));
                 }
             }
             return writtenKeys;
@@ -774,9 +775,7 @@ public class BaseTranslator {
                     .forEach(traceData -> traceData.logs().forEach(log -> {
                         final var besuLog = asBesuLog(
                                 log,
-                                log.topics().stream()
-                                        .map(ConversionUtils::leftPad32)
-                                        .toList());
+                                log.topics().stream().map(HookUtils::leftPad32).toList());
                         besuLogs.add(besuLog);
                         verboseLogs.add(asContractLogInfo(log, besuLog));
                     }));
@@ -813,7 +812,7 @@ public class BaseTranslator {
                 .contractID(log.contractIdOrThrow())
                 .bloom(bloomFor(besuLog))
                 .data(log.data())
-                .topic(log.topics().stream().map(ConversionUtils::leftPad32).toList())
+                .topic(log.topics().stream().map(HookUtils::leftPad32).toList())
                 .build();
     }
 

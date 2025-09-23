@@ -5,9 +5,12 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
+import com.hedera.hapi.node.state.roster.RosterEntry;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.security.cert.X509Certificate;
 import java.time.Duration;
+import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.otter.fixtures.AsyncNodeActions;
@@ -38,7 +41,10 @@ public abstract class AbstractNode implements Node {
     private static final Duration DEFAULT_TIMEOUT = Duration.ofMinutes(1);
 
     protected final NodeId selfId;
-    protected final long weight;
+    protected final KeysAndCerts keysAndCerts;
+
+    private Roster roster;
+    private long weight;
 
     /**
      * The current state of the node's life cycle. Volatile because it is set by the test thread and read by the
@@ -60,15 +66,43 @@ public abstract class AbstractNode implements Node {
      * Constructor for the AbstractNode class.
      *
      * @param selfId the unique identifier for this node
-     * @param roster the roster for the network this node is part of
+     * @param keysAndCerts the cryptographic keys and certificates for this node
      */
-    protected AbstractNode(@NonNull final NodeId selfId, final Roster roster) {
-        this.selfId = requireNonNull(selfId, "selfId must not be null");
+    protected AbstractNode(@NonNull final NodeId selfId, @NonNull final KeysAndCerts keysAndCerts) {
+        this.selfId = requireNonNull(selfId);
+        this.keysAndCerts = requireNonNull(keysAndCerts);
+    }
+
+    /**
+     * Gets the roster associated with this node.
+     *
+     * @return the roster
+     */
+    protected Roster roster() {
+        return roster;
+    }
+
+    /**
+     * Sets the roster for this node.
+     *
+     * @param roster the roster to set
+     */
+    protected void roster(@NonNull final Roster roster) {
+        this.roster = requireNonNull(roster);
         this.weight = roster.rosterEntries().stream()
                 .filter(r -> r.nodeId() == selfId.id())
                 .findFirst()
-                .orElseThrow(() -> new IllegalArgumentException("Node ID not found in roster"))
-                .weight();
+                .map(RosterEntry::weight)
+                .orElse(0L);
+    }
+
+    /**
+     * Gets the gossip CA certificate for this node.
+     *
+     * @return the gossip CA certificate
+     */
+    protected X509Certificate gossipCaCertificate() {
+        return keysAndCerts.sigCert();
     }
 
     /**
