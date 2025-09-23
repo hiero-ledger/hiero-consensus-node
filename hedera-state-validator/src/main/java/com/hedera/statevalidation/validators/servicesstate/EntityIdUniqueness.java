@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.statevalidation.validators.servicesstate;
 
-import static com.hedera.node.app.ids.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_KEY;
-import static com.hedera.node.app.ids.schemas.V0590EntityIdSchema.ENTITY_COUNTS_KEY;
-import static com.hedera.node.app.service.consensus.impl.ConsensusServiceImpl.TOPICS_KEY;
-import static com.hedera.node.app.service.contract.impl.schemas.V0490ContractSchema.BYTECODE_KEY;
-import static com.hedera.node.app.service.file.impl.schemas.V0490FileSchema.BLOBS_KEY;
-import static com.hedera.node.app.service.schedule.impl.schemas.V0490ScheduleSchema.SCHEDULES_BY_ID_KEY;
-import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_KEY;
-import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.TOKENS_KEY;
+import static com.hedera.node.app.ids.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_ID;
+import static com.hedera.node.app.ids.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
+import static com.hedera.node.app.service.consensus.impl.schemas.V0490ConsensusSchema.TOPICS_STATE_ID;
+import static com.hedera.node.app.service.contract.impl.schemas.V0490ContractSchema.BYTECODE_STATE_ID;
+import static com.hedera.node.app.service.file.impl.schemas.V0490FileSchema.FILES_STATE_ID;
+import static com.hedera.node.app.service.schedule.impl.schemas.V0490ScheduleSchema.SCHEDULES_BY_ID_STATE_ID;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_STATE_ID;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.TOKENS_STATE_ID;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.hedera.hapi.node.base.AccountID;
@@ -71,23 +71,23 @@ public class EntityIdUniqueness {
         final MerkleNodeState servicesState =
                 deserializedState.reservedSignedState().get().getState();
         final ReadableSingletonState<EntityNumber> entityIdSingleton =
-                servicesState.getReadableStates(EntityIdService.NAME).getSingleton(ENTITY_ID_STATE_KEY);
+                servicesState.getReadableStates(EntityIdService.NAME).getSingleton(ENTITY_ID_STATE_ID);
 
         final long lastEntityIdNumber = entityIdSingleton.get().number();
         final AtomicInteger issuesFound = new AtomicInteger(0);
 
         final ReadableKVState<TokenID, Token> tokensState =
-                servicesState.getReadableStates(TokenService.NAME).get(TOKENS_KEY);
+                servicesState.getReadableStates(TokenService.NAME).get(TOKENS_STATE_ID);
         final ReadableKVState<AccountID, Account> accountState =
-                servicesState.getReadableStates(TokenService.NAME).get(ACCOUNTS_KEY);
+                servicesState.getReadableStates(TokenService.NAME).get(ACCOUNTS_STATE_ID);
         final ReadableKVState<ContractID, Bytecode> smartContractState =
-                servicesState.getReadableStates(ContractService.NAME).get(BYTECODE_KEY);
+                servicesState.getReadableStates(ContractService.NAME).get(BYTECODE_STATE_ID);
         final ReadableKVState<TopicID, Topic> topicState =
-                servicesState.getReadableStates(ConsensusService.NAME).get(TOPICS_KEY);
+                servicesState.getReadableStates(ConsensusService.NAME).get(TOPICS_STATE_ID);
         final ReadableKVState<FileID, File> fileState =
-                servicesState.getReadableStates(FileService.NAME).get(BLOBS_KEY);
+                servicesState.getReadableStates(FileService.NAME).get(FILES_STATE_ID);
         final ReadableKVState<ScheduleID, Schedule> scheduleState =
-                servicesState.getReadableStates(ScheduleService.NAME).get(SCHEDULES_BY_ID_KEY);
+                servicesState.getReadableStates(ScheduleService.NAME).get(SCHEDULES_BY_ID_STATE_ID);
 
         ParallelProcessingUtil.processRange(0, lastEntityIdNumber, number -> {
                     int counter = 0;
@@ -165,7 +165,7 @@ public class EntityIdUniqueness {
         final VirtualMap vm = (VirtualMap) servicesState.getRoot();
 
         final ReadableSingletonState<EntityCounts> entityIdSingleton =
-                servicesState.getReadableStates(EntityIdService.NAME).getSingleton(ENTITY_COUNTS_KEY);
+                servicesState.getReadableStates(EntityIdService.NAME).getSingleton(ENTITY_COUNTS_STATE_ID);
 
         final EntityCounts entityCounts = entityIdSingleton.get();
         final VirtualMapMetadata metadata = vm.getMetadata();

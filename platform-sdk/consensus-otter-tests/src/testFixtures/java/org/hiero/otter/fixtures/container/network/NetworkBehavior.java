@@ -6,7 +6,6 @@ import static org.hiero.otter.fixtures.network.Topology.DISCONNECTED;
 import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
-import com.hedera.hapi.platform.state.NodeId;
 import com.swirlds.platform.gossip.config.NetworkEndpoint;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.UncheckedIOException;
@@ -21,6 +20,8 @@ import java.util.Objects;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.assertj.core.data.Percentage;
+import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.roster.RosterUtils;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.container.network.Toxic.LatencyToxic;
 import org.hiero.otter.fixtures.internal.network.ConnectionKey;
@@ -58,12 +59,10 @@ public class NetworkBehavior {
 
         final String listenAddress = toxiproxyIpAddress + ":0";
 
-        final List<NodeId> nodeIds = roster.rosterEntries().stream()
-                .map(RosterEntry::nodeId)
-                .map(NodeId::new)
-                .toList();
+        final List<NodeId> nodeIds =
+                roster.rosterEntries().stream().map(RosterUtils::getNodeId).toList();
         for (final RosterEntry receiverEntry : roster.rosterEntries()) {
-            final NodeId receiver = new NodeId(receiverEntry.nodeId());
+            final NodeId receiver = NodeId.of(receiverEntry.nodeId());
             final ServiceEndpoint endpoint = receiverEntry.gossipEndpoint().getFirst();
             final String receiverAddress = "%s:%d".formatted(endpoint.domainName(), endpoint.port());
             for (final NodeId sender : nodeIds) {

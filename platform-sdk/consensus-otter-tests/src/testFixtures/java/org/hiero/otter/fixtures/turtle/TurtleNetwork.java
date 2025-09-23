@@ -4,7 +4,6 @@ package org.hiero.otter.fixtures.turtle;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.state.roster.Roster;
-import com.hedera.hapi.platform.state.NodeId;
 import com.swirlds.common.test.fixtures.Randotron;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -19,6 +18,7 @@ import java.util.concurrent.Executors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.node.KeysAndCerts;
+import org.hiero.consensus.model.node.NodeId;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.TimeManager;
 import org.hiero.otter.fixtures.TransactionGenerator;
@@ -26,6 +26,9 @@ import org.hiero.otter.fixtures.internal.AbstractNetwork;
 import org.hiero.otter.fixtures.internal.AbstractTimeManager.TimeTickReceiver;
 import org.hiero.otter.fixtures.internal.network.ConnectionKey;
 import org.hiero.otter.fixtures.internal.network.GeoMeshTopologyImpl;
+import org.hiero.otter.fixtures.logging.context.ContextAwareThreadFactory;
+import org.hiero.otter.fixtures.logging.context.NodeLoggingContext;
+import org.hiero.otter.fixtures.logging.context.NodeLoggingContext.LoggingContextScope;
 import org.hiero.otter.fixtures.network.Topology;
 import org.hiero.otter.fixtures.network.Topology.ConnectionData;
 import org.hiero.otter.fixtures.turtle.gossip.SimulatedNetwork;
@@ -105,8 +108,8 @@ public class TurtleNetwork extends AbstractNetwork implements TimeTickReceiver {
             throw new UnsupportedOperationException("Adding nodes incrementally is not supported yet.");
         }
 
-        executorService = Executors.newFixedThreadPool(
-                Math.min(count, Runtime.getRuntime().availableProcessors()));
+        executorService = NodeLoggingContext.wrap(Executors.newFixedThreadPool(
+                Math.min(count, Runtime.getRuntime().availableProcessors()), new ContextAwareThreadFactory()));
 
         final RandomRosterBuilder rosterBuilder = RandomRosterBuilder.create(randotron)
                 .withSize(count)
@@ -117,7 +120,7 @@ public class TurtleNetwork extends AbstractNetwork implements TimeTickReceiver {
         simulatedNetwork = new SimulatedNetwork(randotron, roster);
 
         return roster.rosterEntries().stream()
-                .map(entry -> NodeId.newBuilder().id(entry.nodeId()).build())
+                .map(entry -> NodeId.of(entry.nodeId()))
                 .sorted(Comparator.comparing(NodeId::id))
                 .map(nodeId -> createTurtleNode(nodeId, roster, rosterBuilder.getPrivateKeys(nodeId)))
                 .toList();
@@ -154,7 +157,14 @@ public class TurtleNetwork extends AbstractNetwork implements TimeTickReceiver {
         // Iteration order over nodes does not need to be deterministic -- nodes are not permitted to communicate with
         // each other during the tick phase, and they run on separate threads to boot.
         CompletableFuture.allOf(topology.nodes().stream()
-                        .map(node -> CompletableFuture.runAsync(() -> ((TurtleNode) node).tick(now), executorService))
+                        .map(node -> {
+                            final TurtleNode turtleNode = (TurtleNode) node;
+                            try (final LoggingContextScope ignored = NodeLoggingContext.install(
+                                    Long.toString(turtleNode.selfId().id()))) {
+                                return CompletableFuture.runAsync(
+                                        NodeLoggingContext.wrap(() -> turtleNode.tick(now)), executorService);
+                            }
+                        })
                         .toArray(CompletableFuture[]::new))
                 .join();
     }

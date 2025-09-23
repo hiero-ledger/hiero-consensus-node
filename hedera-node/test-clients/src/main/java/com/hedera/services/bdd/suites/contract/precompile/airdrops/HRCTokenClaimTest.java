@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.precompile.airdrops;
 
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.dsl.contracts.TokenRedirectContract.HRC904;
@@ -52,6 +53,7 @@ public class HRCTokenClaimTest {
 
     @HapiTest
     @DisplayName("Can claim airdrop of fungible token")
+    @Tag(MATS)
     public Stream<DynamicTest> canClaimAirdropOfFungibleToken() {
         return hapiTest(
                 receiver.getBalance().andAssert(balance -> balance.hasTokenBalance(token.name(), 0L)),
@@ -65,6 +67,7 @@ public class HRCTokenClaimTest {
 
     @HapiTest
     @DisplayName("Can claim airdrop of nft token")
+    @Tag(MATS)
     public Stream<DynamicTest> canClaimAirdropOfNftToken() {
         return hapiTest(
                 receiver.getBalance().andAssert(balance -> balance.hasTokenBalance(nft.name(), 0L)),

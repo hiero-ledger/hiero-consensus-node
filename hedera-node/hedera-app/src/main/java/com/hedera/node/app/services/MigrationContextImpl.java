@@ -41,13 +41,12 @@ public record MigrationContextImpl(
     }
 
     @Override
-    public void copyAndReleaseOnDiskState(@NonNull final String stateKey) {
-        requireNonNull(stateKey);
+    public void copyAndReleaseOnDiskState(final int stateId) {
         if (newStates instanceof MerkleWritableStates merkleWritableStates) {
-            merkleWritableStates.copyAndReleaseVirtualMap(stateKey);
+            merkleWritableStates.copyAndReleaseVirtualMap(stateId);
         } else if (newStates instanceof FilteredWritableStates filteredWritableStates
                 && filteredWritableStates.getDelegate() instanceof MerkleWritableStates merkleWritableStates) {
-            merkleWritableStates.copyAndReleaseVirtualMap(stateKey);
+            merkleWritableStates.copyAndReleaseVirtualMap(stateId);
         } else {
             throw new UnsupportedOperationException("On-disk state is inaccessible");
         }

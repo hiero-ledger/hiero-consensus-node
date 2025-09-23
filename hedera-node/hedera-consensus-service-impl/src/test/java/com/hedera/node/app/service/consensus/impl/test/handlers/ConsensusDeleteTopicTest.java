@@ -3,7 +3,7 @@ package com.hedera.node.app.service.consensus.impl.test.handlers;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TOPIC_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.UNAUTHORIZED;
-import static com.hedera.node.app.service.consensus.impl.ConsensusServiceImpl.TOPICS_KEY;
+import static com.hedera.node.app.service.consensus.impl.schemas.V0490ConsensusSchema.TOPICS_STATE_ID;
 import static com.hedera.node.app.service.consensus.impl.test.handlers.ConsensusTestUtils.SIMPLE_KEY_A;
 import static com.hedera.node.app.service.consensus.impl.test.handlers.ConsensusTestUtils.SIMPLE_KEY_B;
 import static com.hedera.node.app.spi.fixtures.Assertions.assertThrowsPreCheck;
@@ -35,9 +35,7 @@ import com.hedera.node.app.spi.ids.WritableEntityCounters;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
-import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.config.api.Configuration;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -47,8 +45,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class ConsensusDeleteTopicTest extends ConsensusTestBase {
-
-    private static final Configuration CONFIGURATION = HederaTestConfigBuilder.createConfig();
 
     @Mock
     private PureChecksContext pureChecksContext;
@@ -69,7 +65,7 @@ class ConsensusDeleteTopicTest extends ConsensusTestBase {
         subject = new ConsensusDeleteTopicHandler();
 
         writableTopicState = writableTopicStateWithOneKey();
-        given(writableStates.<TopicID, Topic>get(TOPICS_KEY)).willReturn(writableTopicState);
+        given(writableStates.<TopicID, Topic>get(TOPICS_STATE_ID)).willReturn(writableTopicState);
         writableStore = new WritableTopicStore(writableStates, entityCounters);
     }
 
@@ -150,7 +146,7 @@ class ConsensusDeleteTopicTest extends ConsensusTestBase {
         final var txn = newDeleteTxn();
 
         readableTopicState = emptyReadableTopicState();
-        given(readableStates.<TopicID, Topic>get(TOPICS_KEY)).willReturn(readableTopicState);
+        given(readableStates.<TopicID, Topic>get(TOPICS_STATE_ID)).willReturn(readableTopicState);
         final var readableStore = new ReadableTopicStoreImpl(readableStates, readableEntityCounters);
 
         final var context = new FakePreHandleContext(accountStore, txn);
@@ -166,7 +162,7 @@ class ConsensusDeleteTopicTest extends ConsensusTestBase {
         final var txn = newDeleteTxn();
 
         readableTopicState = emptyReadableTopicState();
-        given(readableStates.<TopicID, Topic>get(TOPICS_KEY)).willReturn(readableTopicState);
+        given(readableStates.<TopicID, Topic>get(TOPICS_STATE_ID)).willReturn(readableTopicState);
         final var readableStore = new ReadableTopicStoreImpl(readableStates, readableEntityCounters);
 
         final var context = new FakePreHandleContext(accountStore, txn);
@@ -197,7 +193,7 @@ class ConsensusDeleteTopicTest extends ConsensusTestBase {
                 null);
 
         writableTopicState = writableTopicStateWithOneKey();
-        given(writableStates.<TopicID, Topic>get(TOPICS_KEY)).willReturn(writableTopicState);
+        given(writableStates.<TopicID, Topic>get(TOPICS_STATE_ID)).willReturn(writableTopicState);
         writableStore = new WritableTopicStore(writableStates, entityCounters);
         given(storeFactory.writableStore(WritableTopicStore.class)).willReturn(writableStore);
 
