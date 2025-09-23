@@ -36,10 +36,6 @@ public interface Toxic {
         DOWNSTREAM
     }
 
-    /*
-    (@NonNull String name, @NonNull ToxicType type, @NonNull ToxicStream stream, double toxicity, @NonNull Map<String, String> attributes)
-     */
-
     /**
      * The name of the toxic.
      *

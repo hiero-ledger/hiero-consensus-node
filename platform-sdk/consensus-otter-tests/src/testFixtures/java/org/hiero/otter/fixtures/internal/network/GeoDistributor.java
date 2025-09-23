@@ -6,10 +6,11 @@ import static java.util.stream.Collectors.counting;
 import static java.util.stream.Collectors.groupingBy;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.HashMap;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.stream.Collectors;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.internal.network.GeoMeshTopologyImpl.Location;
 import org.hiero.otter.fixtures.network.GeoMeshTopology.GeographicLatencyConfiguration;
@@ -52,76 +53,88 @@ public class GeoDistributor {
         requireNonNull(configuration);
 
         // Extract a structured map of continents to regions with their node counts
-        final Map<String, Map<String, Long>> continents = nodes.values().stream()
-                .collect(groupingBy(
-                        Location::continent, TreeMap::new, groupingBy(Location::region, TreeMap::new, counting())));
+        final List<Continent> continents = extractContinents(nodes);
 
         Location bestOption = null;
-        double bestScore = Double.POSITIVE_INFINITY;
+        double lowestError = Double.POSITIVE_INFINITY;
 
         // Option 1: Add the node to an existing region
-        for (final Map.Entry<String, Map<String, Long>> entry : continents.entrySet()) {
-            final String continent = entry.getKey();
-            final Map<String, Long> regions = entry.getValue();
-            for (final String region : regions.keySet()) {
-                regions.put(region, regions.get(region) + 1);
-                final double currentScore = scoreConfiguration(configuration, continents);
-                if (currentScore < bestScore) {
-                    bestScore = currentScore;
-                    bestOption = new Location(continent, region);
+        for (final Continent continent : continents) {
+            for (final Region region : continent.regions) {
+                region.nodeCount++;
+                final double currentError = scoreConfiguration(configuration, continents);
+                if (currentError < lowestError) {
+                    lowestError = currentError;
+                    bestOption = new Location(continent.name, region.name);
                 }
-                regions.put(region, regions.get(region) - 1);
+                region.nodeCount--;
             }
         }
 
         // Option 2: Add the node to a new region in an existing continent
-        for (final String continent : continents.keySet()) {
-            final int regionCount = continents.get(continent).size();
-            final String newRegion = "Region-" + (regionCount + 1);
-            continents.get(continent).put(newRegion, 1L);
-            final double currentScore = scoreConfiguration(configuration, continents);
-            if (currentScore < bestScore) {
-                bestScore = currentScore;
-                bestOption = new Location(continent, newRegion);
+        for (final Continent continent : continents) {
+            final int regionCount = continent.regions.size();
+            final Region newRegion = new Region("Region-" + (regionCount + 1));
+            continent.regions.add(newRegion);
+            final double currentError = scoreConfiguration(configuration, continents);
+            if (currentError < lowestError) {
+                lowestError = currentError;
+                bestOption = new Location(continent.name, newRegion.name);
             }
-            continents.get(continent).remove(newRegion);
+            continent.regions.remove(newRegion);
         }
 
         // Option 3: Add the node to a new continent and new region
         final int continentCount = continents.size();
         if (continentCount < CONTINENTS.size()) {
-            final String newContinent = CONTINENTS.get(continentCount);
-            final String newRegion = "Region-1";
-            continents.put(newContinent, new HashMap<>(Map.of(newRegion, 1L)));
-            final double currentScore = scoreConfiguration(configuration, continents);
-            if (currentScore < bestScore) {
-                bestOption = new Location(newContinent, newRegion);
+            final Region newRegion = new Region("Region-1");
+            final Continent newContinent = new Continent(CONTINENTS.get(continentCount), newRegion);
+            continents.add(newContinent);
+            final double currentError = scoreConfiguration(configuration, continents);
+            if (currentError < lowestError) {
+                bestOption = new Location(newContinent.name, newRegion.name);
             }
-            continents.remove(newContinent);
         }
 
         return bestOption;
     }
 
+    private static List<Continent> extractContinents(final Map<Node, Location> nodes) {
+        final Map<String, Map<String, Long>> groups = nodes.values().stream()
+                .collect(groupingBy(
+                        Location::continent, TreeMap::new, groupingBy(Location::region, TreeMap::new, counting())));
+        return groups.entrySet().stream()
+                .map(entry -> {
+                    final List<Region> regions = entry.getValue().entrySet().stream()
+                            .map(regionEntry -> new Region(regionEntry.getKey(), regionEntry.getValue()))
+                            .collect(Collectors.toCollection(ArrayList::new));
+                    return new Continent(entry.getKey(), regions);
+                })
+                .collect(Collectors.toCollection(ArrayList::new));
+    }
+
     private static double scoreConfiguration(
-            @NonNull final GeographicLatencyConfiguration configuration,
-            @NonNull final Map<String, Map<String, Long>> continents) {
-        final long totalNodes = continents.values().stream()
-                .flatMap(regions -> regions.values().stream())
-                .mapToLong(Long::longValue)
+            @NonNull final GeographicLatencyConfiguration configuration, @NonNull final List<Continent> continents) {
+        final long totalNodes = continents.stream()
+                .flatMap(continent -> continent.regions.stream())
+                .mapToLong(region -> region.nodeCount)
                 .sum();
         if (totalNodes < 2) {
             return 0.0;
         }
         long sameRegionPairs = 0;
         long sameContinentPairs = 0;
-        for (final Map<String, Long> regions : continents.values()) {
-            for (final long count : regions.values()) {
-                sameRegionPairs += count * (count - 1) / 2;
-            }
-            final long continentCount =
-                    regions.values().stream().mapToLong(Long::longValue).sum();
-            sameContinentPairs += continentCount * (continentCount - 1) / 2 - sameRegionPairs;
+        for (final Continent continent : continents) {
+            final long localTotalNodes = continent.regions.stream()
+                    .mapToLong(region -> region.nodeCount)
+                    .sum();
+            final long localTotalPairs = localTotalNodes * (localTotalNodes - 1) / 2;
+            final long localSameRegionPairs = continent.regions.stream()
+                    .mapToLong(region -> region.nodeCount * (region.nodeCount - 1) / 2)
+                    .sum();
+            final long localSameContinentPairs = localTotalPairs - localSameRegionPairs;
+            sameRegionPairs += localSameRegionPairs;
+            sameContinentPairs += localSameContinentPairs;
         }
         final long totalPairs = totalNodes * (totalNodes - 1) / 2;
         final double sameRegionPercent = (double) sameRegionPairs / totalPairs;
@@ -132,5 +145,26 @@ public class GeoDistributor {
         return Math.pow(sameRegionPercent - targetSameRegionPercent, 2)
                 + Math.pow(sameContinentPercent - targetSameContinentPercent, 2)
                 + Math.pow((1.0 - sameRegionPercent - sameContinentPercent) - targetDifferentContinentPercent, 2);
+    }
+
+    private static class Region {
+        private final String name;
+        private long nodeCount;
+
+        private Region(@NonNull final String name) {
+            this(name, 1);
+        }
+
+        private Region(@NonNull final String name, final long nodeCount) {
+            this.name = name;
+            this.nodeCount = nodeCount;
+        }
+    }
+
+    private record Continent(@NonNull String name, @NonNull List<Region> regions) {
+        private Continent(@NonNull final String name, @NonNull final Region region) {
+            this(name, new ArrayList<>());
+            regions.add(region);
+        }
     }
 }

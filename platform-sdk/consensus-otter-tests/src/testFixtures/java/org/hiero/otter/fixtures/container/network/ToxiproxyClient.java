@@ -130,7 +130,6 @@ public class ToxiproxyClient {
                     .header(CONTENT_TYPE, APPLICATION_JSON)
                     .POST(HttpRequest.BodyPublishers.ofString(MAPPER.writeValueAsString(toxic)))
                     .build();
-            System.out.println("Updating toxic with request " + MAPPER.writeValueAsString(toxic));
             final HttpResponse<String> response = httpClient.send(request, BodyHandlers.ofString());
             validateToxicFromResponse(response);
         } catch (final IOException | InterruptedException e) {

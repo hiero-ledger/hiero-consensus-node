@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.network;
 
-import static java.util.Objects.requireNonNull;
 import static org.assertj.core.data.Percentage.withPercentage;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -85,6 +84,5 @@ public record LatencyRange(@NonNull Duration min, @NonNull Duration max, @NonNul
         if (jitterPercent.value < 0) {
             throw new IllegalArgumentException("Jitter percentage must be non-negative");
         }
-        requireNonNull(jitterPercent);
     }
 }

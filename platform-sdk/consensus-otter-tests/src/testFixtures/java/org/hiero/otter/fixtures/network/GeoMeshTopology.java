@@ -132,10 +132,10 @@ public interface GeoMeshTopology extends MeshTopology {
          */
         public GeographicLatencyConfiguration {
             if (sameRegionPercent.value < 0.0) {
-                throw new IllegalArgumentException("Same-region percentage must be more than 0.0");
+                throw new IllegalArgumentException("Same-region percentage must not be negative");
             }
             if (sameContinentPercent.value < 0.0) {
-                throw new IllegalArgumentException("Same-continent percentage must be more than 0.0");
+                throw new IllegalArgumentException("Same-continent percentage must not be negative");
             }
             if (sameRegionPercent.value + sameContinentPercent.value > 100.0) {
                 throw new IllegalArgumentException("Total percentage cannot exceed 100.0");
