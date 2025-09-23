@@ -148,3 +148,23 @@ Notes:
 - If you export a single state in the `unsorted` mode, keep in mind that the object count per file—though consistent across multiple runs—is likely to be uneven.
 - Order of entries is consistent across runs and ordered by path, unless `-Dsorted=true` is specified.
 - In case of `-Dsorted=true`, the data is sorted by the **byte representation of the key**, which doesn't always map to natural ordering. For example, varint encoding does not preserve numerical ordering under lexicographical byte comparison, particularly when values cross boundaries that affect the number of bytes or the leading byte values. However, it will produce a stable ordering across different versions of the state, which is critically important for differential testing.
+
+## Updating State with a Block Stream
+
+The `apply-blocks` command uses a set of block files to advance a given state from the current state to the target state.
+
+### Usage:
+
+```bash
+
+java -jar ./validator-0.65.0.jar "<path to original state>" apply-blocks "<path to a directory with block stream files>" \
+ -i=<self-id> [-o="<path to output directory>"] [-h="<hash of the target state>"] [-t="<target round>"]
+```
+
+Notes:
+
+- The command checks if the block stream contains the next round relative to the initial round to ensure continuity. It fails if the next round is not found.
+- If a target round is specified, the command will not apply rounds beyond it, even if additional block files exist.
+  The command also verifies that the corresponding blocks are present. It will fail if a block is missing or if the final round in the stream does not match the target round.
+- The command can validate the hash of the resulting state against a provided hash (see the `-h `parameter).
+- If the `-o` parameter is specified, the command uses the provided path as the output directory for the resulting snapshot. If not specified, the default output directory is `./out`.

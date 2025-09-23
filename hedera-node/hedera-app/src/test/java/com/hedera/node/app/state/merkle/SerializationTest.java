@@ -94,17 +94,20 @@ class SerializationTest extends MerkleTestBase {
             @Override
             @SuppressWarnings("rawtypes")
             public Set<StateDefinition> statesToCreate() {
-                final var fruitDef = StateDefinition.inMemory(FRUIT_STATE_KEY, ProtoBytes.PROTOBUF, STRING_CODEC);
-                final var animalDef = StateDefinition.onDisk(ANIMAL_STATE_KEY, ProtoBytes.PROTOBUF, STRING_CODEC, 100);
-                final var countryDef = StateDefinition.singleton(COUNTRY_STATE_KEY, STRING_CODEC);
-                final var steamDef = StateDefinition.queue(STEAM_STATE_KEY, STRING_CODEC);
-                return Set.of(fruitDef, animalDef, countryDef, steamDef);
+                final var fruitDef = StateDefinition.onDisk(
+                        FRUIT_STATE_ID, FRUIT_STATE_KEY, ProtoBytes.PROTOBUF, ProtoBytes.PROTOBUF, 100);
+                final var countryDef =
+                        StateDefinition.singleton(COUNTRY_STATE_ID, COUNTRY_STATE_KEY, ProtoBytes.PROTOBUF);
+                final var steamDef = StateDefinition.queue(STEAM_STATE_ID, STEAM_STATE_KEY, ProtoBytes.PROTOBUF);
+                return Set.of(fruitDef, countryDef, steamDef);
             }
 
             @Override
             public void migrate(@NonNull final MigrationContext ctx) {
                 final var newStates = ctx.newStates();
-                final WritableKVState<ProtoBytes, ProtoBytes> fruit = newStates.get(FRUIT_STATE_KEY);
+                final OnDiskWritableKVState<ProtoBytes, ProtoBytes> fruit =
+                        (OnDiskWritableKVState<ProtoBytes, ProtoBytes>)
+                                (OnDiskWritableKVState) newStates.get(FRUIT_STATE_ID);
                 fruit.put(A_KEY, APPLE);
                 fruit.put(B_KEY, BANANA);
                 fruit.put(C_KEY, CHERRY);
@@ -113,22 +116,10 @@ class SerializationTest extends MerkleTestBase {
                 fruit.put(F_KEY, FIG);
                 fruit.put(G_KEY, GRAPE);
 
-                final OnDiskWritableKVState<ProtoBytes, ProtoBytes> animals =
-                        (OnDiskWritableKVState<ProtoBytes, ProtoBytes>)
-                                (OnDiskWritableKVState) newStates.get(ANIMAL_STATE_KEY);
-                animals.put(A_KEY, AARDVARK);
-                animals.put(B_KEY, BEAR);
-                animals.put(C_KEY, CUTTLEFISH);
-                animals.put(D_KEY, DOG);
-                animals.put(E_KEY, EMU);
-                animals.put(F_KEY, FOX);
-                animals.put(G_KEY, GOOSE);
-                animals.commit();
-
-                final WritableSingletonState<ProtoBytes> country = newStates.getSingleton(COUNTRY_STATE_KEY);
+                final WritableSingletonState<ProtoBytes> country = newStates.getSingleton(COUNTRY_STATE_ID);
                 country.put(CHAD);
 
-                final WritableQueueState<ProtoBytes> steam = newStates.getQueue(STEAM_STATE_KEY);
+                final WritableQueueState<ProtoBytes> steam = newStates.getQueue(STEAM_STATE_ID);
                 steam.add(ART);
                 steam.add(BIOLOGY);
                 steam.add(CHEMISTRY);
@@ -177,7 +168,7 @@ class SerializationTest extends MerkleTestBase {
         final byte[] serializedBytes;
         if (forceFlush) {
             // Force flush the VMs to disk to test serialization and deserialization
-            forceFlush(originalTree.getReadableStates(FIRST_SERVICE).get(ANIMAL_STATE_KEY));
+            forceFlush(originalTree.getReadableStates(FIRST_SERVICE).get(FRUIT_STATE_ID));
             copy.copy().release(); // make a fast copy because we can only write to disk an immutable copy
             CRYPTO.digestTreeSync(copy.getRoot());
             serializedBytes = writeTree(copy.getRoot(), dir);
@@ -248,13 +239,13 @@ class SerializationTest extends MerkleTestBase {
 
         MerkleNodeState copy = originalTree.copy(); // make a copy to make VM flushable
 
-        forceFlush(originalTree.getReadableStates(FIRST_SERVICE).get(ANIMAL_STATE_KEY));
+        forceFlush(originalTree.getReadableStates(FIRST_SERVICE).get(FRUIT_STATE_ID));
         copy.copy().release(); // make a fast copy because we can only write to disk an immutable copy
         CRYPTO.digestTreeSync(copy.getRoot());
         final byte[] serializedBytes = writeTree(copy.getRoot(), dir);
 
         TestHederaVirtualMapState loadedTree = loadedMerkleTree(schemaV1, serializedBytes);
-        ((OnDiskReadableKVState) originalTree.getReadableStates(FIRST_SERVICE).get(ANIMAL_STATE_KEY)).reset();
+        ((OnDiskReadableKVState) originalTree.getReadableStates(FIRST_SERVICE).get(FRUIT_STATE_ID)).reset();
         populateVmCache(loadedTree);
 
         loadedTree.copy().release(); // make a copy to store it to disk
@@ -267,7 +258,7 @@ class SerializationTest extends MerkleTestBase {
         // let's load it again and see if it works
         TestHederaVirtualMapState loadedTreeWithCache = loadedMerkleTree(schemaV1, serializedBytesWithCache);
         ((OnDiskReadableKVState)
-                        loadedTreeWithCache.getReadableStates(FIRST_SERVICE).get(ANIMAL_STATE_KEY))
+                        loadedTreeWithCache.getReadableStates(FIRST_SERVICE).get(FRUIT_STATE_ID))
                 .reset();
 
         assertTree(loadedTreeWithCache);
@@ -329,19 +320,19 @@ class SerializationTest extends MerkleTestBase {
 
     private static void populateVmCache(State loadedTree) {
         final var states = loadedTree.getWritableStates(FIRST_SERVICE);
-        final WritableKVState<ProtoBytes, ProtoBytes> animalState = states.get(ANIMAL_STATE_KEY);
-        assertThat(animalState.get(A_KEY)).isEqualTo(AARDVARK);
-        assertThat(animalState.get(B_KEY)).isEqualTo(BEAR);
-        assertThat(animalState.get(C_KEY)).isEqualTo(CUTTLEFISH);
-        assertThat(animalState.get(D_KEY)).isEqualTo(DOG);
-        assertThat(animalState.get(E_KEY)).isEqualTo(EMU);
-        assertThat(animalState.get(F_KEY)).isEqualTo(FOX);
-        assertThat(animalState.get(G_KEY)).isEqualTo(GOOSE);
+        final WritableKVState<ProtoBytes, ProtoBytes> fruitState = states.get(FRUIT_STATE_ID);
+        assertThat(fruitState.get(A_KEY)).isEqualTo(APPLE);
+        assertThat(fruitState.get(B_KEY)).isEqualTo(BANANA);
+        assertThat(fruitState.get(C_KEY)).isEqualTo(CHERRY);
+        assertThat(fruitState.get(D_KEY)).isEqualTo(DATE);
+        assertThat(fruitState.get(E_KEY)).isEqualTo(EGGPLANT);
+        assertThat(fruitState.get(F_KEY)).isEqualTo(FIG);
+        assertThat(fruitState.get(G_KEY)).isEqualTo(GRAPE);
     }
 
     private static void assertTree(State loadedTree) {
         final var states = loadedTree.getReadableStates(FIRST_SERVICE);
-        final ReadableKVState<ProtoBytes, ProtoBytes> fruitState = states.get(FRUIT_STATE_KEY);
+        final ReadableKVState<ProtoBytes, ProtoBytes> fruitState = states.get(FRUIT_STATE_ID);
         assertThat(fruitState.get(A_KEY)).isEqualTo(APPLE);
         assertThat(fruitState.get(B_KEY)).isEqualTo(BANANA);
         assertThat(fruitState.get(C_KEY)).isEqualTo(CHERRY);
@@ -350,19 +341,10 @@ class SerializationTest extends MerkleTestBase {
         assertThat(fruitState.get(F_KEY)).isEqualTo(FIG);
         assertThat(fruitState.get(G_KEY)).isEqualTo(GRAPE);
 
-        final ReadableKVState<ProtoBytes, ProtoBytes> animalState = states.get(ANIMAL_STATE_KEY);
-        assertThat(animalState.get(A_KEY)).isEqualTo(AARDVARK);
-        assertThat(animalState.get(B_KEY)).isEqualTo(BEAR);
-        assertThat(animalState.get(C_KEY)).isEqualTo(CUTTLEFISH);
-        assertThat(animalState.get(D_KEY)).isEqualTo(DOG);
-        assertThat(animalState.get(E_KEY)).isEqualTo(EMU);
-        assertThat(animalState.get(F_KEY)).isEqualTo(FOX);
-        assertThat(animalState.get(G_KEY)).isEqualTo(GOOSE);
-
-        final ReadableSingletonState<ProtoBytes> countryState = states.getSingleton(COUNTRY_STATE_KEY);
+        final ReadableSingletonState<ProtoBytes> countryState = states.getSingleton(COUNTRY_STATE_ID);
         assertThat(countryState.get()).isEqualTo(CHAD);
 
-        final ReadableQueueState<ProtoBytes> steamState = states.getQueue(STEAM_STATE_KEY);
+        final ReadableQueueState<ProtoBytes> steamState = states.getQueue(STEAM_STATE_ID);
         assertThat(steamState.iterator())
                 .toIterable()
                 .containsExactly(ART, BIOLOGY, CHEMISTRY, DISCIPLINE, ECOLOGY, FIELDS, GEOMETRY);

@@ -5,7 +5,6 @@ import static com.swirlds.platform.event.preconsensus.PcesFileManager.NO_LOWER_B
 import static com.swirlds.platform.event.preconsensus.PcesUtilities.getDatabaseDirectory;
 import static java.util.Objects.requireNonNull;
 
-import com.hedera.hapi.platform.state.NodeId;
 import com.swirlds.common.io.utility.NoOpRecycleBin;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.event.preconsensus.PcesFile;
@@ -17,6 +16,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Path;
 import java.util.Iterator;
+import org.hiero.consensus.model.node.NodeId;
 import org.hiero.otter.fixtures.result.SingleNodePcesResult;
 
 /**

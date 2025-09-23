@@ -4,12 +4,12 @@ package org.hiero.otter.fixtures.turtle.gossip;
 import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.toMap;
 
-import com.hedera.hapi.node.state.roster.Roster;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -17,8 +17,6 @@ import java.util.PriorityQueue;
 import java.util.Random;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.model.roster.AddressBook;
-import org.hiero.consensus.roster.RosterUtils;
 import org.hiero.otter.fixtures.internal.network.ConnectionKey;
 import org.hiero.otter.fixtures.network.Topology.ConnectionData;
 
@@ -40,12 +38,7 @@ public class SimulatedNetwork {
      * Events that have been submitted within the most recent tick. It is safe for multiple nodes to add to their list
      * of submitted events in parallel.
      */
-    private final Map<NodeId, List<PlatformEvent>> newlySubmittedEvents = new HashMap<>();
-
-    /**
-     * A sorted list of node IDs for when deterministic iteration order is required.
-     */
-    final List<NodeId> sortedNodeIds = new ArrayList<>();
+    private final Map<NodeId, List<PlatformEvent>> newlySubmittedEvents = new LinkedHashMap<>();
 
     /**
      * Events that are currently in transit between nodes in the network.
@@ -65,37 +58,22 @@ public class SimulatedNetwork {
      * Constructor.
      *
      * @param random the random number generator to use for simulating network delays
-     * @param roster the roster of the network
      */
-    public SimulatedNetwork(@NonNull final Random random, @NonNull final Roster roster) {
-        this(
-                random,
-                roster.rosterEntries().stream()
-                        .map(RosterUtils::getNodeId)
-                        .sorted()
-                        .toList());
+    public SimulatedNetwork(@NonNull final Random random) {
+        this.random = requireNonNull(random);
     }
 
     /**
-     * Constructor.
+     * Adds a node that is part of this simulated network.
      *
-     * @param random the random number generator to use for simulating network delays
-     * @param addressBook the address book of the network
+     * <p>Nodes have to be added in a deterministic order to ensure that the simulation is deterministic.
+     *
+     * @param nodeId the id of the node
      */
-    public SimulatedNetwork(@NonNull final Random random, @NonNull final AddressBook addressBook) {
-        this(random, addressBook.getNodeIdSet().stream().sorted().toList());
-    }
-
-    private SimulatedNetwork(@NonNull final Random random, @NonNull final List<NodeId> nodeIds) {
-
-        this.random = requireNonNull(random);
-
-        for (final NodeId nodeId : nodeIds) {
-            newlySubmittedEvents.put(nodeId, new ArrayList<>());
-            sortedNodeIds.add(nodeId);
-            eventsInTransit.put(nodeId, new PriorityQueue<>());
-            gossipInstances.put(nodeId, new SimulatedGossip(this, nodeId));
-        }
+    public void addNode(@NonNull final NodeId nodeId) {
+        newlySubmittedEvents.put(nodeId, new ArrayList<>());
+        eventsInTransit.put(nodeId, new PriorityQueue<>());
+        gossipInstances.put(nodeId, new SimulatedGossip(this, nodeId));
     }
 
     /**
@@ -185,10 +163,11 @@ public class SimulatedNetwork {
         // Transmission order of the loops in this method must be deterministic, else nodes may receive events
         // in nondeterministic orders with nondeterministic timing.
 
-        for (final NodeId sender : sortedNodeIds) {
-            final List<PlatformEvent> events = newlySubmittedEvents.get(sender);
+        for (final Map.Entry<NodeId, List<PlatformEvent>> entry : newlySubmittedEvents.entrySet()) {
+            final NodeId sender = entry.getKey();
+            final List<PlatformEvent> events = entry.getValue();
             for (final PlatformEvent event : events) {
-                for (final NodeId receiver : sortedNodeIds) {
+                for (final NodeId receiver : newlySubmittedEvents.keySet()) {
                     if (sender.equals(receiver)) {
                         // Don't gossip to ourselves
                         continue;

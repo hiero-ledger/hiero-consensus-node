@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.hip551.contracts.precompile;
 
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.dsl.entities.SpecContract.VARIANT_16C;
@@ -117,6 +118,7 @@ public class AtomicBatchPrecompileSCTest {
      */
     @HapiTest
     @DisplayName("atomic use updateMetadataForNFTs to correctly update metadata for 1 NFT")
+    @Tag(MATS)
     public Stream<DynamicTest> atomicUsingUpdateMetadataForNFTsWorksForSingleNFT(
             @NonFungibleToken(
                             numPreMints = 10,
@@ -169,6 +171,7 @@ public class AtomicBatchPrecompileSCTest {
      * UnknownFunctionSelectorTest
      */
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> atomicCallScheduleServiceWithUnknownSelector(
             @Account(tinybarBalance = ONE_HUNDRED_HBARS) final SpecAccount account,
             @Account() final SpecAccount receiver,

@@ -10,6 +10,14 @@ import static com.hedera.node.app.history.schemas.V059HistorySchema.PROOF_KEY_SE
 import static com.hedera.node.app.history.schemas.V059HistorySchema.PROOF_VOTES_KEY;
 import static com.hedera.node.app.service.roster.impl.ActiveRosters.Phase.BOOTSTRAP;
 import static com.hedera.node.app.service.roster.impl.ActiveRosters.Phase.HANDOFF;
+import static com.hedera.node.app.history.schemas.V059HistorySchema.ACTIVE_PROOF_CONSTRUCTION_STATE_ID;
+import static com.hedera.node.app.history.schemas.V059HistorySchema.HISTORY_SIGNATURES_STATE_ID;
+import static com.hedera.node.app.history.schemas.V059HistorySchema.LEDGER_ID_STATE_ID;
+import static com.hedera.node.app.history.schemas.V059HistorySchema.NEXT_PROOF_CONSTRUCTION_STATE_ID;
+import static com.hedera.node.app.history.schemas.V059HistorySchema.PROOF_KEY_SETS_STATE_ID;
+import static com.hedera.node.app.history.schemas.V059HistorySchema.PROOF_VOTES_STATE_ID;
+import static com.hedera.node.app.roster.ActiveRosters.Phase.BOOTSTRAP;
+import static com.hedera.node.app.roster.ActiveRosters.Phase.HANDOFF;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.consensus.roster.RosterUtils.isWeightRotation;
 
@@ -43,6 +51,7 @@ import org.apache.logging.log4j.Logger;
  * Default implementation of {@link WritableHistoryStore}.
  */
 public class WritableHistoryStoreImpl extends ReadableHistoryStoreImpl implements WritableHistoryStore {
+
     private static final Logger logger = LogManager.getLogger(WritableHistoryStoreImpl.class);
 
     private final WritableSingletonState<ProtoBytes> ledgerId;
@@ -54,12 +63,12 @@ public class WritableHistoryStoreImpl extends ReadableHistoryStoreImpl implement
 
     public WritableHistoryStoreImpl(@NonNull final WritableStates states) {
         super(states);
-        this.ledgerId = states.getSingleton(LEDGER_ID_KEY);
-        this.nextConstruction = states.getSingleton(NEXT_PROOF_CONSTRUCTION_KEY);
-        this.activeConstruction = states.getSingleton(ACTIVE_PROOF_CONSTRUCTION_KEY);
-        this.proofKeySets = states.get(PROOF_KEY_SETS_KEY);
-        this.signatures = states.get(HISTORY_SIGNATURES_KEY);
-        this.votes = states.get(PROOF_VOTES_KEY);
+        this.ledgerId = states.getSingleton(LEDGER_ID_STATE_ID);
+        this.nextConstruction = states.getSingleton(NEXT_PROOF_CONSTRUCTION_STATE_ID);
+        this.activeConstruction = states.getSingleton(ACTIVE_PROOF_CONSTRUCTION_STATE_ID);
+        this.proofKeySets = states.get(PROOF_KEY_SETS_STATE_ID);
+        this.signatures = states.get(HISTORY_SIGNATURES_STATE_ID);
+        this.votes = states.get(PROOF_VOTES_STATE_ID);
     }
 
     @Override

@@ -10,6 +10,13 @@ import static com.hedera.node.app.history.schemas.V059HistorySchema.PROOF_VOTES_
 import static com.hedera.node.app.service.roster.impl.ActiveRosters.Phase.BOOTSTRAP;
 import static com.hedera.node.app.service.roster.impl.ActiveRosters.Phase.HANDOFF;
 import static com.hedera.node.app.service.roster.impl.ActiveRosters.Phase.TRANSITION;
+import static com.hedera.node.app.history.schemas.V059HistorySchema.ACTIVE_PROOF_CONSTRUCTION_STATE_ID;
+import static com.hedera.node.app.history.schemas.V059HistorySchema.NEXT_PROOF_CONSTRUCTION_STATE_ID;
+import static com.hedera.node.app.history.schemas.V059HistorySchema.PROOF_KEY_SETS_STATE_ID;
+import static com.hedera.node.app.history.schemas.V059HistorySchema.PROOF_VOTES_STATE_ID;
+import static com.hedera.node.app.roster.ActiveRosters.Phase.BOOTSTRAP;
+import static com.hedera.node.app.roster.ActiveRosters.Phase.HANDOFF;
+import static com.hedera.node.app.roster.ActiveRosters.Phase.TRANSITION;
 import static com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade.TEST_PLATFORM_STATE_FACADE;
 import static java.util.Objects.requireNonNull;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -70,6 +77,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class WritableHistoryStoreImplTest {
+
     private static final HistoryProofVote DEFAULT_VOTE =
             HistoryProofVote.newBuilder().proof(HistoryProof.DEFAULT).build();
     private static final Metrics NO_OP_METRICS = new NoOpMetrics();
@@ -192,7 +200,7 @@ class WritableHistoryStoreImplTest {
         assertEquals(A_ROSTER_HASH, construction.sourceRosterHash());
         assertEquals(A_ROSTER_HASH, construction.targetRosterHash());
 
-        assertSame(construction, getSingleton(ACTIVE_PROOF_CONSTRUCTION_KEY));
+        assertSame(construction, getSingleton(ACTIVE_PROOF_CONSTRUCTION_STATE_ID));
     }
 
     @Test
@@ -226,10 +234,10 @@ class WritableHistoryStoreImplTest {
         assertEquals(B_ROSTER_HASH, construction.sourceRosterHash());
         assertEquals(C_ROSTER_HASH, construction.targetRosterHash());
 
-        assertSame(construction, getSingleton(NEXT_PROOF_CONSTRUCTION_KEY));
+        assertSame(construction, getSingleton(NEXT_PROOF_CONSTRUCTION_STATE_ID));
 
         final var updatedKeySet = state.getWritableStates(HistoryService.NAME)
-                .<NodeId, ProofKeySet>get(V059HistorySchema.PROOF_KEY_SETS_KEY)
+                .<NodeId, ProofKeySet>get(V059HistorySchema.PROOF_KEY_SETS_STATE_ID)
                 .get(new NodeId(rotatingKeyNodeId));
         requireNonNull(updatedKeySet);
         assertEquals(nextKey, updatedKeySet.key());
@@ -237,7 +245,7 @@ class WritableHistoryStoreImplTest {
         assertEquals(Bytes.EMPTY, updatedKeySet.nextKey());
 
         final var newKeySet = state.getWritableStates(HistoryService.NAME)
-                .<NodeId, ProofKeySet>get(V059HistorySchema.PROOF_KEY_SETS_KEY)
+                .<NodeId, ProofKeySet>get(V059HistorySchema.PROOF_KEY_SETS_STATE_ID)
                 .get(new NodeId(newKeyNodeId));
         requireNonNull(newKeySet);
         assertEquals(newKey, newKeySet.key());
@@ -256,22 +264,22 @@ class WritableHistoryStoreImplTest {
         subject.setAssemblyTime(123L, CONSENSUS_NOW);
         assertEquals(
                 asTimestamp(CONSENSUS_NOW),
-                this.<HistoryProofConstruction>getSingleton(ACTIVE_PROOF_CONSTRUCTION_KEY)
+                this.<HistoryProofConstruction>getSingleton(ACTIVE_PROOF_CONSTRUCTION_STATE_ID)
                         .assemblyStartTimeOrThrow());
-        assertFalse(this.<HistoryProofConstruction>getSingleton(NEXT_PROOF_CONSTRUCTION_KEY)
+        assertFalse(this.<HistoryProofConstruction>getSingleton(NEXT_PROOF_CONSTRUCTION_STATE_ID)
                 .hasAssemblyStartTime());
 
         subject.setAssemblyTime(123L, CONSENSUS_NOW);
         assertEquals(
                 asTimestamp(CONSENSUS_NOW),
-                this.<HistoryProofConstruction>getSingleton(ACTIVE_PROOF_CONSTRUCTION_KEY)
+                this.<HistoryProofConstruction>getSingleton(ACTIVE_PROOF_CONSTRUCTION_STATE_ID)
                         .assemblyStartTimeOrThrow());
 
         final var then = CONSENSUS_NOW.plusSeconds(1L);
         subject.setAssemblyTime(456L, then);
         assertEquals(
                 asTimestamp(then),
-                this.<HistoryProofConstruction>getSingleton(NEXT_PROOF_CONSTRUCTION_KEY)
+                this.<HistoryProofConstruction>getSingleton(NEXT_PROOF_CONSTRUCTION_STATE_ID)
                         .assemblyStartTimeOrThrow());
     }
 
@@ -285,7 +293,7 @@ class WritableHistoryStoreImplTest {
         final var proof = new HistoryProof(bookHash, List.of(ProofKey.DEFAULT), History.DEFAULT, Bytes.EMPTY);
         subject.completeProof(456L, proof);
 
-        final var construction = this.<HistoryProofConstruction>getSingleton(NEXT_PROOF_CONSTRUCTION_KEY);
+        final var construction = this.<HistoryProofConstruction>getSingleton(NEXT_PROOF_CONSTRUCTION_STATE_ID);
         assertEquals(bookHash, construction.targetProofOrThrow().sourceAddressBookHash());
     }
 
@@ -304,7 +312,7 @@ class WritableHistoryStoreImplTest {
         A_ROSTER.rosterEntries().forEach(entry -> subject.addProofVote(entry.nodeId(), 123L, DEFAULT_VOTE));
         addSomeProofKeySetsFor(A_ROSTER);
         commit(states -> {
-            states.<ConstructionNodeId, HistoryProofVote>get(PROOF_VOTES_KEY)
+            states.<ConstructionNodeId, HistoryProofVote>get(PROOF_VOTES_STATE_ID)
                     .put(new ConstructionNodeId(123L, 0L), DEFAULT_VOTE);
         });
         final var publication =
@@ -320,17 +328,17 @@ class WritableHistoryStoreImplTest {
 
         subject.handoff(A_ROSTER, C_ROSTER, C_ROSTER_HASH);
 
-        assertSame(nextConstruction, this.<HistoryProofConstruction>getSingleton(ACTIVE_PROOF_CONSTRUCTION_KEY));
+        assertSame(nextConstruction, this.<HistoryProofConstruction>getSingleton(ACTIVE_PROOF_CONSTRUCTION_STATE_ID));
 
         assertEquals(
                 0L,
                 state.getWritableStates(HistoryService.NAME)
-                        .get(PROOF_VOTES_KEY)
+                        .get(PROOF_VOTES_STATE_ID)
                         .size());
         assertEquals(
                 0L,
                 state.getWritableStates(HistoryService.NAME)
-                        .get(PROOF_KEY_SETS_KEY)
+                        .get(PROOF_KEY_SETS_STATE_ID)
                         .size());
     }
 
@@ -344,7 +352,7 @@ class WritableHistoryStoreImplTest {
 
     private void addSomeProofKeySetsFor(@NonNull final Roster roster) {
         commit(states -> {
-            final var keySets = states.<NodeId, ProofKeySet>get(V059HistorySchema.PROOF_KEY_SETS_KEY);
+            final var keySets = states.<NodeId, ProofKeySet>get(PROOF_KEY_SETS_STATE_ID);
             roster.rosterEntries().forEach(entry -> {
                 final var keySet = ProofKeySet.newBuilder()
                         .key(Bytes.wrap("KEY" + entry.nodeId()))
@@ -356,16 +364,17 @@ class WritableHistoryStoreImplTest {
     }
 
     @SuppressWarnings("unchecked")
-    private <T> @NonNull T getSingleton(@NonNull final String key) {
-        return requireNonNull((T)
-                state.getWritableStates(HistoryService.NAME).getSingleton(key).get());
+    private <T> @NonNull T getSingleton(final int stateId) {
+        return requireNonNull((T) state.getWritableStates(HistoryService.NAME)
+                .getSingleton(stateId)
+                .get());
     }
 
     private void setConstructions(
             @NonNull final HistoryProofConstruction active, @NonNull final HistoryProofConstruction next) {
         commit(states -> {
-            states.getSingleton(ACTIVE_PROOF_CONSTRUCTION_KEY).put(active);
-            states.getSingleton(NEXT_PROOF_CONSTRUCTION_KEY).put(next);
+            states.getSingleton(ACTIVE_PROOF_CONSTRUCTION_STATE_ID).put(active);
+            states.getSingleton(NEXT_PROOF_CONSTRUCTION_STATE_ID).put(next);
         });
     }
 

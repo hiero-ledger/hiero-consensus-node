@@ -35,6 +35,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 public class FakeSchemaRegistry implements SchemaRegistry {
+
     private static final Logger logger = LogManager.getLogger(FakeSchemaRegistry.class);
 
     private final SchemaApplications schemaApplications = new SchemaApplications();
@@ -91,7 +92,7 @@ public class FakeSchemaRegistry implements SchemaRegistry {
                     schemaApplications.computeApplications(previousVersion, latestVersion, schema, appConfig);
             logger.info("Applying {} schema {} ({})", serviceName, schema.getVersion(), applications);
             final var readableStates = state.getReadableStates(serviceName);
-            final var previousStates = new FilteredReadableStates(readableStates, readableStates.stateKeys());
+            final var previousStates = new FilteredReadableStates(readableStates, readableStates.stateIds());
             final WritableStates writableStates;
             final WritableStates newStates;
             if (applications.contains(STATE_DEFINITIONS)) {
@@ -136,23 +137,23 @@ public class FakeSchemaRegistry implements SchemaRegistry {
             @NonNull final Schema schema,
             @NonNull final Configuration configuration,
             @NonNull final FakeState state) {
-        final Map<String, Object> stateDataSources = new HashMap<>();
+        final Map<Integer, Object> stateDataSources = new HashMap<>();
         schema.statesToCreate(configuration).forEach(def -> {
-            final var stateKey = def.stateKey();
-            logger.info("  Ensuring {} has state {}", serviceName, stateKey);
+            final var stateId = def.stateId();
+            logger.info("  Ensuring {} has state {}", serviceName, stateId);
             if (def.singleton()) {
-                stateDataSources.put(def.stateKey(), new AtomicReference<>());
+                stateDataSources.put(def.stateId(), new AtomicReference<>());
             } else if (def.queue()) {
-                stateDataSources.put(def.stateKey(), new ConcurrentLinkedDeque<>());
+                stateDataSources.put(def.stateId(), new ConcurrentLinkedDeque<>());
             } else {
-                stateDataSources.put(def.stateKey(), new ConcurrentHashMap<>());
+                stateDataSources.put(def.stateId(), new ConcurrentHashMap<>());
             }
         });
         state.addService(serviceName, stateDataSources);
 
         final var statesToRemove = schema.statesToRemove();
         final var writableStates = state.getWritableStates(serviceName);
-        final var remainingStates = new HashSet<>(writableStates.stateKeys());
+        final var remainingStates = new HashSet<>(writableStates.stateIds());
         remainingStates.removeAll(statesToRemove);
         final var newStates = new FilteredWritableStates(writableStates, remainingStates);
         return new RedefinedWritableStates(writableStates, newStates);
@@ -168,7 +169,7 @@ public class FakeSchemaRegistry implements SchemaRegistry {
             @NonNull final StartupNetworks startupNetworks) {
         return new MigrationContext() {
             @Override
-            public void copyAndReleaseOnDiskState(String stateKey) {
+            public void copyAndReleaseOnDiskState(final int stateId) {
                 // No-op
             }
 
