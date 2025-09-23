@@ -517,6 +517,23 @@ jobs:
           fi
           echo "slack-user-id=${SLACK_USER_ID}" >> "${GITHUB_OUTPUT}"
 
+      - name: Calculate MATS Unit Test Result
+        id: mats-unit-test-result
+        if: ${{ needs.mats-unit-tests.result != 'success' ||
+          needs.mats-hapi-tests-misc.result != 'success' ||
+          needs.mats-hapi-tests-misc-records.result != 'success' ||
+          needs.mats-hapi-tests-crypto.result != 'success' ||
+          needs.mats-hapi-tests-iss.result != 'success' ||
+          needs.mats-hapi-tests-token.result != 'success' ||
+          needs.mats-hapi-tests-smart-contract.result != 'success' ||
+          needs.mats-hapi-tests-restart.result != 'success' ||
+          needs.mats-hapi-tests-nd-reconnect.result != 'success' ||
+          needs.mats-otter-tests.result != 'success' ||
+          needs.mats-spotless-check.result != 'success' ||
+          needs.mats-snyk-scan.result != 'success' }}
+        run: |
+          echo "status=failure" >> "${GITHUB_OUTPUT}"
+
       - name: Set Rootly Parameters
         id: set-rootly-parameters
         run: |
@@ -539,7 +556,7 @@ jobs:
             echo "- Code Compiles: ${{ needs.code.result }}"
             echo "- Dependency (Module Info): ${{ needs.dependency-check.result }}"
             echo "- Spotless: ${{ needs.spotless.result }}"
-            echo "- MATS - Unit Tests: ${{ needs.mats-unit-tests.result }}"
+            echo "- MATS - Unit Tests: ${{ steps.mats-unit-test-result.outputs.status || 'success' }}"
             echo "- MATS - Gradle Determinism: ${{ needs.mats-gradle-determinism.result }}"
             echo "- MATS - Docker Determinism: ${{ needs.mats-docker-determinism.result }}"
             echo "- Deploy CI Triggers: ${{ needs.deploy-ci-trigger.result }}"
@@ -616,7 +633,7 @@ jobs:
                       },
                       {
                         "type": "mrkdwn",
-                        "text": "*MATS - Unit Tests*: ${{ needs.mats-unit-tests.result }}"
+                        "text": "*MATS - Unit Tests*: ${{ steps.mats-unit-test-result.outputs.status || 'success' }}"
                       },
                       {
                         "type": "mrkdwn",
