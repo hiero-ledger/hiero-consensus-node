@@ -14,6 +14,7 @@ import com.hedera.node.app.records.impl.producers.formats.BlockRecordWriterFacto
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.data.BlockStreamConfig;
+import com.hedera.node.config.data.S3Config;
 import com.hedera.node.config.data.S3IssConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -80,15 +81,16 @@ public class RecordBlockCacheTest {
         final var config = HederaTestConfigBuilder.create()
                 .withConfigDataType(BlockStreamConfig.class)
                 .withValue("blockStream.blockPeriod", Duration.of(2, ChronoUnit.SECONDS))
-                .withConfigDataType(S3IssConfig.class)
-                .withValue("s3IssConfig.enabled", "true")
-                .withValue("s3IssConfig.regionName", "us-central1")
-                .withValue("s3IssConfig.bucketName", BUCKET_NAME)
-                .withValue("s3IssConfig.endpointUrl", endpoint)
-                .withValue("s3IssConfig.accessKey", MINIO_ROOT_USER)
-                .withValue("s3IssConfig.secretKey", MINIO_ROOT_PASSWORD)
+                .withValue("s3Config.enabled", "true")
+                .withValue("s3Config.regionName", "us-central1")
+                .withValue("s3Config.bucketName", BUCKET_NAME)
+                .withValue("s3Config.endpointUrl", endpoint)
+                .withValue("s3Config.accessKey", MINIO_ROOT_USER)
+                .withValue("s3Config.secretKey", MINIO_ROOT_PASSWORD)
                 .withValue("s3IssConfig.basePath", "blocks")
-                .withValue("s3IssConfig.storageClass", "STANDARD")
+                .withValue("s3Config.storageClass", "STANDARD")
+                .withConfigDataType(S3Config.class)
+                .withConfigDataType(S3IssConfig.class)
                 .getOrCreateConfig();
         given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1L));
 
@@ -110,7 +112,8 @@ public class RecordBlockCacheTest {
                         .roundHeader(RoundHeader.newBuilder().roundNumber(53).build())
                         .build());
         recordBlockCache.setIssRoundNumber(53);
-        recordBlockCache.uploadIssContextToS3();
+        final S3Uploader s3Uploader = new S3Uploader(config.getConfigData(S3Config.class));
+        recordBlockCache.uploadIssContextToS3(s3Uploader);
 
         final Set<String> allObjects = getAllObjects();
         allObjects.forEach(System.out::println);

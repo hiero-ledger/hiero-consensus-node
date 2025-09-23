@@ -47,6 +47,7 @@ import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.ThrottleDefinitions;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
+import com.hedera.hapi.platform.state.MinimumJudgeInfo;
 import com.hedera.hapi.platform.state.PlatformState;
 import com.hedera.hapi.util.HapiUtils;
 import com.hedera.hapi.util.UnknownHederaFunctionality;
@@ -59,6 +60,7 @@ import com.hedera.node.app.blocks.impl.BlockStreamManagerImpl;
 import com.hedera.node.app.blocks.impl.BoundaryStateChangeListener;
 import com.hedera.node.app.blocks.impl.ImmediateStateChangeListener;
 import com.hedera.node.app.blocks.impl.streaming.NoBlockNodesAvailableException;
+import com.hedera.node.app.cache.S3Uploader;
 import com.hedera.node.app.config.BootstrapConfigProviderImpl;
 import com.hedera.node.app.config.ConfigProviderImpl;
 import com.hedera.node.app.fees.FeeService;
@@ -110,6 +112,7 @@ import com.hedera.node.config.data.BlockNodeConnectionConfig;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.NetworkAdminConfig;
+import com.hedera.node.config.data.S3Config;
 import com.hedera.node.config.data.S3IssConfig;
 import com.hedera.node.config.data.TssConfig;
 import com.hedera.node.config.data.VersionConfig;
@@ -126,6 +129,7 @@ import com.swirlds.platform.listeners.ReconnectCompleteNotification;
 import com.swirlds.platform.listeners.StateWriteToDiskCompleteListener;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.state.MerkleNodeState;
+import com.swirlds.platform.state.SavedStateUtils;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.service.PlatformStateService;
 import com.swirlds.platform.state.service.ReadablePlatformStateStore;
@@ -646,18 +650,68 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
                 blockStreamManager().awaitFatalShutdown(SHUTDOWN_TIMEOUT);
 
                 // Upload the Record and Block files containing the ISS round
-                if (configProvider
-                        .getConfiguration()
-                        .getConfigData(S3IssConfig.class)
-                        .enabled()) {
+                final S3Config s3Config = configProvider.getConfiguration().getConfigData(S3Config.class);
+                if (s3Config.enabled()) {
+                    final var s3Uploader = createS3Uploader(s3Config);
+                    if (s3Uploader == null) {
+                        return;
+                    }
                     logger.info("CATASTROPHIC_FAILURE - Uploading ISS context to S3");
-                    daggerApp.recordBlockCache().uploadIssContextToS3();
+                    daggerApp.recordBlockCache().uploadIssContextToS3(s3Uploader);
+                    uploadIssPcesFiles(s3Uploader);
                 }
             }
             case REPLAYING_EVENTS, STARTING_UP, OBSERVING, RECONNECT_COMPLETE, CHECKING, FREEZING, BEHIND -> {
                 // Nothing to do here, just enumerate for completeness
             }
         }
+    }
+
+    /**
+     * Uploads Pces files to the S3 bucket.
+     */
+    private void uploadIssPcesFiles(final S3Uploader s3Uploader) {
+        try {
+            final var state = daggerApp.workingStateAccessor().getState();
+            final var consensusSnapshot = requireNonNull(state.getReadableStates(PlatformStateService.NAME)
+                            .<PlatformState>getSingleton(PLATFORM_STATE_KEY)
+                            .get())
+                    .consensusSnapshotOrThrow();
+            final var minimumRound = consensusSnapshot.minimumJudgeInfoList().stream()
+                    .map(MinimumJudgeInfo::minimumJudgeBirthRound)
+                    .min(Long::compareTo)
+                    .orElse(-1L);
+
+            final var pcesFiles = SavedStateUtils.pcesFilesFromDisk(
+                    configProvider.getConfiguration(), platform.getSelfId(), minimumRound, consensusSnapshot.round());
+            final String key = "%s/node/%s/pces/%010d.zip"
+                    .formatted(
+                            configProvider
+                                    .getConfiguration()
+                                    .getConfigData(S3IssConfig.class)
+                                    .basePath(),
+                            platform.getSelfId(),
+                            consensusSnapshot.round());
+            s3Uploader.uploadFilesAsZippedFolder(key, pcesFiles);
+
+        } catch (Exception e) {
+            logger.error("Failed to upload ISS pces files to S3", e);
+        }
+    }
+
+    /**
+     * Initializes the S3 client for uploading ISS Blocks and Pces files to the S3 bucket.
+     */
+    public S3Uploader createS3Uploader(S3Config s3IssConfig) {
+        if (!s3IssConfig.endpointUrl().isEmpty()) {
+            try {
+                return new S3Uploader(s3IssConfig);
+            } catch (IllegalStateException e) {
+                logger.error(
+                        "Failed to initialize S3 client for uploading contextual ISS Blocks: {}", e.getMessage(), e);
+            }
+        }
+        return null;
     }
 
     /*==================================================================================================================

@@ -52,7 +52,7 @@ public class SingleNodePcesResultImpl implements SingleNodePcesResult {
             @NonNull final Path pcesDirectory) {
         this.nodeId = requireNonNull(nodeId);
         try {
-            this.pcesFileTracker = PcesFileReader.readFilesFromDisk(
+            this.pcesFileTracker = PcesFileReader.readAndResolveEventFilesFromDisk(
                     configuration, new NoOpRecycleBin(), pcesDirectory, NO_LOWER_BOUND, true);
         } catch (final IOException e) {
             throw new UncheckedIOException("Error initializing SingleNodePcesResultImpl", e);

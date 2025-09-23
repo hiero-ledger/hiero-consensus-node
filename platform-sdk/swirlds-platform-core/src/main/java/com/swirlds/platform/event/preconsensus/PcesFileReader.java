@@ -32,6 +32,12 @@ public class PcesFileReader {
 
     /**
      * Scan the file system for event files and add them to the collection of tracked files.
+     *<br>
+     * It's possible (if not probable) that the node was shut down prior to the last file being closed and having its span compaction completed.
+     * This method performs that compaction if necessary.
+     *<br>
+     *In case permitGaps is false, if there is a discontinuity in the stream after the location where we will begin streaming, delete all files that
+     * come after the discontinuity.
      *
      * @param configuration the platform configuration
      * @param recycleBin the recycle bin to use for deleted files
@@ -41,7 +47,7 @@ public class PcesFileReader {
      * @return the files read from disk
      * @throws IOException if there is an error reading the files
      */
-    public static PcesFileTracker readFilesFromDisk(
+    public static PcesFileTracker readAndResolveEventFilesFromDisk(
             @NonNull final Configuration configuration,
             @NonNull final RecycleBin recycleBin,
             @NonNull final Path databaseDirectory,
@@ -51,11 +57,31 @@ public class PcesFileReader {
 
         Objects.requireNonNull(configuration);
         Objects.requireNonNull(recycleBin);
-        Objects.requireNonNull(databaseDirectory);
-
         final PcesConfig pcesConfig = configuration.getConfigData(PcesConfig.class);
         final boolean doInitialSpanCompaction = pcesConfig.compactLastFileOnStartup();
 
+        final PcesFileTracker files = readFilesFromDisk(databaseDirectory, permitGaps);
+
+        if (files.getFileCount() != 0 && doInitialSpanCompaction) {
+            compactSpanOfLastFile(files);
+        }
+
+        resolveDiscontinuities(databaseDirectory, files, recycleBin, startingRound);
+
+        return files;
+    }
+
+    /**
+     * Scan the file system for event files and add them to the collection of tracked files.
+     *
+     * @param databaseDirectory the directory to scan for files
+     * @param permitGaps if gaps are permitted in sequence number
+     * @return the files read from disk
+     * @throws IOException if there is an error reading the files
+     */
+    public static PcesFileTracker readFilesFromDisk(final @NonNull Path databaseDirectory, final boolean permitGaps)
+            throws IOException {
+        Objects.requireNonNull(databaseDirectory);
         final PcesFileTracker files = new PcesFileTracker();
         try (final Stream<Path> fileStream = Files.walk(databaseDirectory)) {
             fileStream
@@ -65,13 +91,6 @@ public class PcesFileReader {
                     .sorted()
                     .forEachOrdered(buildFileHandler(files, permitGaps));
         }
-
-        if (files.getFileCount() != 0 && doInitialSpanCompaction) {
-            compactSpanOfLastFile(files);
-        }
-
-        resolveDiscontinuities(databaseDirectory, files, recycleBin, startingRound);
-
         return files;
     }
 
