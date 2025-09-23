@@ -1,19 +1,21 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.state.merkle.disk;
 
-import static com.swirlds.state.merkle.StateUtils.computeLabel;
-import static com.swirlds.state.merkle.StateUtils.getQueueStateValue;
+import static com.swirlds.state.merkle.StateUtils.getStateKeyForQueue;
 import static com.swirlds.state.merkle.StateUtils.getStateKeyForSingleton;
-import static com.swirlds.state.merkle.logging.StateLogger.logQueueIterate;
+import static com.swirlds.state.merkle.StateUtils.getStateValueForQueue;
+import static com.swirlds.state.merkle.StateUtils.getStateValueForQueueState;
 import static java.util.Objects.requireNonNull;
 
-import com.hedera.hapi.platform.state.QueueState;
-import com.hedera.hapi.platform.state.StateValue;
 import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.merkle.StateUtils;
+import com.swirlds.state.merkle.StateValue;
+import com.swirlds.state.merkle.StateValue.StateValueCodec;
+import com.swirlds.state.merkle.disk.QueueState.QueueStateCodec;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.ConcurrentModificationException;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
@@ -43,21 +45,26 @@ import java.util.NoSuchElementException;
  * operations like adding, removing, or reading queue elements while ensuring persistence and
  * consistency across multiple layers of the queue implementation.
  *
- * @param <E> the type of elements stored in the on-disk queue
+ * @param <V> the type of elements stored in the on-disk queue
  */
-public final class OnDiskQueueHelper<E> {
+public final class OnDiskQueueHelper<V> {
 
     /**
-     * The name of the service that owns this queue's state.
+     * The unique state ID for this queue.
      */
-    @NonNull
-    private final String serviceName;
+    private final int stateId;
 
     /**
-     * The unique key for identifying the state of this queue.
+     * StateValue codec to store the queue state singleton.
      */
     @NonNull
-    private final String stateKey;
+    private final Codec<StateValue<QueueState>> queueStateValueCodec;
+
+    /**
+     * StateValue codec to store queue elements.
+     */
+    @NonNull
+    private final Codec<StateValue<V>> stateValueCodec;
 
     /**
      * The core storage mechanism for the queue data within the on-disk queue.
@@ -66,21 +73,17 @@ public final class OnDiskQueueHelper<E> {
     private final VirtualMap virtualMap;
 
     /**
-     * An empty iterator used as a placeholder when no elements are available.
-     */
-    private final QueueIterator EMPTY_ITERATOR = new QueueIterator(0, 0);
-
-    /**
      * Creates an instance of the on-disk queue helper.
      *
-     * @param serviceName The name of the service that owns the queue's state.
-     * @param stateKey The unique key for identifying the queue's state.
+     * @param stateId The unique ID for this queue state
+     * @param valueCodec The queue value codec
      * @param virtualMap The storage mechanism for the queue's data.
      */
     public OnDiskQueueHelper(
-            @NonNull final String serviceName, @NonNull final String stateKey, @NonNull final VirtualMap virtualMap) {
-        this.serviceName = requireNonNull(serviceName);
-        this.stateKey = requireNonNull(stateKey);
+            final int stateId, @NonNull final Codec<V> valueCodec, @NonNull final VirtualMap virtualMap) {
+        this.stateId = stateId;
+        this.queueStateValueCodec = new StateValueCodec<>(StateUtils.STATE_VALUE_QUEUE_STATE, QueueStateCodec.INSTANCE);
+        this.stateValueCodec = new StateValueCodec<>(stateId, requireNonNull(valueCodec));
         this.virtualMap = requireNonNull(virtualMap);
     }
 
@@ -90,17 +93,8 @@ public final class OnDiskQueueHelper<E> {
      * @return An iterator for the elements of the queue.
      */
     @NonNull
-    public Iterator<E> iterateOnDataSource() {
-        final QueueState state = getState();
-        if (state == null) {
-            return EMPTY_ITERATOR;
-        } else {
-            final QueueIterator it = new QueueIterator(state.head(), state.tail());
-            // Log to transaction state log, what was iterated
-            logQueueIterate(computeLabel(serviceName, stateKey), state.tail() - state.head(), it);
-            it.reset();
-            return it;
-        }
+    public Iterator<V> iterateOnDataSource(final long head, final long tail) {
+        return new QueueIterator(head, tail);
     }
 
     /**
@@ -111,14 +105,27 @@ public final class OnDiskQueueHelper<E> {
      * @throws IllegalStateException If the element is not found in the store.
      */
     @NonNull
-    public E getFromStore(final long index) {
-        final StateValue stateValue =
-                virtualMap.get(StateUtils.getStateKeyForQueue(serviceName, stateKey, index), StateValue.PROTOBUF);
-        final E value = stateValue != null ? stateValue.value().as() : null;
+    public V getFromStore(final long index) {
+        final Bytes stateKey = StateUtils.getStateKeyForQueue(stateId, index);
+        final StateValue<V> stateValue = virtualMap.get(stateKey, stateValueCodec);
+        final V value = stateValue != null ? stateValue.value() : null;
         if (value == null) {
             throw new IllegalStateException("Can't find queue element at index " + index + " in the store");
         }
         return value;
+    }
+
+    public void addToStore(final long tail, final V value) {
+        final Bytes stateKey = getStateKeyForQueue(stateId, tail);
+        final StateValue<V> stateValue = getStateValueForQueue(stateId, value);
+        virtualMap.put(stateKey, stateValue, stateValueCodec);
+    }
+
+    @Nullable
+    public V removeFromStore(final long head) {
+        final Bytes stateKey = getStateKeyForQueue(stateId, head);
+        final StateValue<V> stateValue = virtualMap.remove(stateKey, stateValueCodec);
+        return stateValue != null ? stateValue.value() : null;
     }
 
     /**
@@ -127,9 +134,9 @@ public final class OnDiskQueueHelper<E> {
      * @return The current state of the queue.
      */
     public QueueState getState() {
-        final StateValue stateValue =
-                virtualMap.get(getStateKeyForSingleton(serviceName, stateKey), StateValue.PROTOBUF);
-        return stateValue != null ? stateValue.value().as() : null;
+        final Bytes queueStateKey = getStateKeyForSingleton(stateId);
+        final StateValue<QueueState> queueStateValue = virtualMap.get(queueStateKey, queueStateValueCodec);
+        return queueStateValue != null ? queueStateValue.value() : null;
     }
 
     /**
@@ -138,10 +145,9 @@ public final class OnDiskQueueHelper<E> {
      * @param state The new state to set for the queue.
      */
     public void updateState(@NonNull final QueueState state) {
-        final Bytes keyBytes = getStateKeyForSingleton(serviceName, stateKey);
-
-        final StateValue queueStateValue = getQueueStateValue(state);
-        virtualMap.put(keyBytes, queueStateValue, StateValue.PROTOBUF);
+        final Bytes keyBytes = getStateKeyForSingleton(stateId);
+        final StateValue<QueueState> queueStateValue = getStateValueForQueueState(state);
+        virtualMap.put(keyBytes, queueStateValue, queueStateValueCodec);
     }
 
     /**
@@ -157,7 +163,7 @@ public final class OnDiskQueueHelper<E> {
     /**
      * Utility class for iterating over queue elements within a specific range.
      */
-    private class QueueIterator implements Iterator<E> {
+    private class QueueIterator implements Iterator<V> {
 
         /**
          * The starting position of the iteration (inclusive).
@@ -204,7 +210,7 @@ public final class OnDiskQueueHelper<E> {
          * @throws ConcurrentModificationException If the queue was modified during iteration.
          */
         @Override
-        public E next() {
+        public V next() {
             if (current == limit) {
                 throw new NoSuchElementException();
             }

@@ -1,40 +1,34 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.statevalidation.validators.state;
 
-import static com.hedera.statevalidation.validators.ParallelProcessingUtil.submitSingleTask;
-import static com.swirlds.common.threading.manager.AdHocThreadManager.getStaticThreadManager;
-import static java.util.Objects.requireNonNull;
-import static java.util.concurrent.TimeUnit.SECONDS;
+import static com.hedera.statevalidation.validators.ParallelProcessingUtil.VALIDATOR_FORK_JOIN_POOL;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.statevalidation.parameterresolver.HashInfo;
 import com.hedera.statevalidation.parameterresolver.HashInfoResolver;
-import com.hedera.statevalidation.parameterresolver.InitUtils;
 import com.hedera.statevalidation.parameterresolver.ReportResolver;
 import com.hedera.statevalidation.parameterresolver.StateResolver;
 import com.hedera.statevalidation.reporting.Report;
 import com.hedera.statevalidation.reporting.SlackReportGenerator;
-import com.swirlds.common.merkle.synchronization.utility.MerkleSynchronizationException;
-import com.swirlds.common.threading.framework.config.ThreadConfiguration;
+import com.swirlds.common.merkle.hash.FutureMerkleHash;
+import com.swirlds.logging.legacy.LogMarker;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.snapshot.DeserializedSignedState;
 import com.swirlds.virtualmap.VirtualMap;
-import com.swirlds.virtualmap.config.VirtualMapConfig;
-import com.swirlds.virtualmap.datasource.VirtualDataSource;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
+import com.swirlds.virtualmap.internal.Path;
 import com.swirlds.virtualmap.internal.RecordAccessor;
-import com.swirlds.virtualmap.internal.hash.VirtualHasher;
-import com.swirlds.virtualmap.internal.reconnect.ConcurrentBlockingIterator;
-import edu.umd.cs.findbugs.annotations.NonNull;
-import java.io.IOException;
-import java.io.UncheckedIOException;
+import com.swirlds.virtualmap.internal.merkle.VirtualMapMetadata;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
 import java.util.List;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeoutException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.concurrent.AbstractTask;
+import org.hiero.base.crypto.Cryptography;
+import org.hiero.base.crypto.CryptographyException;
 import org.hiero.base.crypto.Hash;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -53,20 +47,21 @@ public class Rehash {
     public static final int HASH_DEPTH = 5;
 
     @Test
-    void reHash(DeserializedSignedState deserializedSignedState, Report report) {
-        final Hash originalHash = deserializedSignedState.originalHash();
-
+    void reHash(DeserializedSignedState deserializedSignedState) throws Exception {
         final VirtualMap vm = (VirtualMap)
                 deserializedSignedState.reservedSignedState().get().getState().getRoot();
-        final Hash calculatedHash = rehashVm(vm);
-        // Add data to the report, adding it before the assertion so that the report is written even if the test fails
-        var stateReport = report.getStateReport();
-        stateReport.setRootHash(originalHash.toString());
-        stateReport.setCalculatedHash(calculatedHash.toString());
-        report.setRoundNumber(
-                deserializedSignedState.reservedSignedState().get().getRound());
+        records = vm.getRecords();
 
-        assertEquals(originalHash, calculatedHash);
+        final VirtualMapMetadata metadata = vm.getMetadata();
+        firstLeafPath = metadata.getFirstLeafPath();
+        lastLeafPath = metadata.getLastLeafPath();
+        logger.info("Doing full rehash for the path range: {} - {}  in the VirtualMap", firstLeafPath, lastLeafPath);
+
+        final long start = System.currentTimeMillis();
+        result = new FutureMerkleHash();
+        new TraverseTask(0, null).send();
+        assertEquals(deserializedSignedState.originalHash(), result.get());
+        logger.info("It took {} seconds to rehash the VirtualMap", (System.currentTimeMillis() - start) / 1000);
     }
 
     /**
@@ -100,94 +95,122 @@ public class Rehash {
         return "root hash not found";
     }
 
-    @SuppressWarnings("rawtypes")
-    public Hash rehashVm(@NonNull final VirtualMap virtualMap) {
-        final int MAX_FULL_REHASHING_TIMEOUT = 3600; // 1 hour
-        final int MAX_REHASHING_BUFFER_SIZE = 10_000_000; // copied from VirtualMap class
-        final VirtualMapConfig virtualMapConfig = InitUtils.getConfiguration().getConfigData(VirtualMapConfig.class);
-        final VirtualDataSource dataSource = virtualMap.getDataSource();
-        final RecordAccessor records = virtualMap.getRecords();
-        requireNonNull(records, "Records must be initialized before rehashing");
+    /**
+     * This thread-local gets a message digest that can be used for hashing on a per-thread basis.
+     */
+    private static final ThreadLocal<MessageDigest> MESSAGE_DIGEST_THREAD_LOCAL = ThreadLocal.withInitial(() -> {
+        try {
+            return MessageDigest.getInstance(Cryptography.DEFAULT_DIGEST_TYPE.algorithmName());
+        } catch (final NoSuchAlgorithmException e) {
+            throw new CryptographyException(e, LogMarker.EXCEPTION);
+        }
+    });
 
-        final ConcurrentBlockingIterator<VirtualLeafBytes> rehashIterator =
-                new ConcurrentBlockingIterator<>(MAX_REHASHING_BUFFER_SIZE);
-        final CompletableFuture<Void> leafFeedFuture = new CompletableFuture<>();
-        // getting a range that is relevant for the virtual map
-        final long firstLeafPath = virtualMap.getMetadata().getFirstLeafPath();
-        final long lastLeafPath = virtualMap.getMetadata().getLastLeafPath();
-        if (firstLeafPath < 0 || lastLeafPath < 0) {
-            throw new IllegalStateException("Paths range is invalid");
+    private static final ThreadLocal<byte[]> BYTE_ARRAY_THREAD_LOCAL = ThreadLocal.withInitial(() -> new byte[256]);
+
+    private static final ThreadLocal<BufferedData> BUFFERED_DATA_THREAD_LOCAL =
+            ThreadLocal.withInitial(() -> BufferedData.wrap(BYTE_ARRAY_THREAD_LOCAL.get()));
+
+    private static final Hash NO_PATH2_HASH = new Hash();
+
+    private RecordAccessor records;
+    private long firstLeafPath;
+    private long lastLeafPath;
+    private FutureMerkleHash result;
+
+    private class TraverseTask extends AbstractTask {
+        final long path;
+        final ComputeInternalHashTask parent;
+
+        TraverseTask(final long path, final ComputeInternalHashTask parent) {
+            super(VALIDATOR_FORK_JOIN_POOL, 0);
+            this.path = path;
+            this.parent = parent;
         }
 
-        logger.info("Doing full rehash for the path range: {} - {}  in the VirtualMap", firstLeafPath, lastLeafPath);
-        final VirtualHasher hasher = new VirtualHasher();
+        @Override
+        protected boolean onExecute() {
+            if (path < firstLeafPath) {
+                // Internal node. Create traverse tasks recursively.
+                ComputeInternalHashTask hashTash = new ComputeInternalHashTask(path, parent);
+                new TraverseTask(Path.getChildPath(path, 0), hashTash).send();
+                new TraverseTask(Path.getChildPath(path, 1), hashTash).send();
+            } else {
+                // Leaf node. Read and hash bytes.
+                final VirtualLeafBytes<?> leafBytes = records.findLeafRecord(path);
+                assert leafBytes != null;
 
-        // This background thread will be responsible for feeding the iterator with data.
-        new ThreadConfiguration(getStaticThreadManager())
-                .setComponent("virtualmap")
-                .setThreadName("leafFeeder")
-                .setRunnable(() -> {
-                    final long onePercent = (lastLeafPath - firstLeafPath) / 100 + 1;
-                    try {
-                        for (long i = firstLeafPath; i <= lastLeafPath; i++) {
-                            try {
-                                final VirtualLeafBytes leafBytes = dataSource.loadLeafRecord(i);
-                                assert leafBytes != null : "Leaf bytes should not be null";
-                                try {
-                                    rehashIterator.supply(leafBytes);
-                                } catch (final MerkleSynchronizationException e) {
-                                    throw e;
-                                } catch (final InterruptedException e) {
-                                    Thread.currentThread().interrupt();
-                                    throw new MerkleSynchronizationException(
-                                            "Interrupted while waiting to supply a new leaf to the hashing iterator buffer",
-                                            e);
-                                } catch (final Exception e) {
-                                    throw new MerkleSynchronizationException(
-                                            "Failed to handle a leaf during full rehashing", e);
-                                }
-                            } catch (IOException e) {
-                                throw new UncheckedIOException(e);
-                            }
-                            // we don't care about tracking progress on small maps.
-                            if (onePercent > 10 && i % onePercent == 0) {
-                                logger.debug(
-                                        "Full rehash progress for the VirtualMap: {}%",
-                                        (i - firstLeafPath) / onePercent + 1);
-                            }
-                        }
-                    } finally {
-                        rehashIterator.close();
-                    }
-                    leafFeedFuture.complete(null);
-                })
-                .setExceptionHandler((thread, exception) -> {
-                    // Shut down the iterator.
-                    rehashIterator.close();
-                    final var message = "VirtualMap failed to feed all leaves the hasher";
-                    logger.error(message, exception);
-                    leafFeedFuture.completeExceptionally(new MerkleSynchronizationException(message, exception));
-                })
-                .build()
-                .start();
-        try {
-            final long start = System.currentTimeMillis();
-            final var hashingTask = submitSingleTask(() -> hasher.hash(
-                    records::findHash, rehashIterator, firstLeafPath, lastLeafPath, null, virtualMapConfig));
-            leafFeedFuture.get(MAX_FULL_REHASHING_TIMEOUT, SECONDS);
-            final long secondsSpent = (System.currentTimeMillis() - start) / 1000;
-            logger.info("It took {} seconds to feed all leaves to the hasher for the VirtualMap", secondsSpent);
-            return hashingTask.join();
-        } catch (ExecutionException e) {
-            final var message = "VirtualMap failed to get hash during full rehashing";
-            throw new MerkleSynchronizationException(message, e);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            final var message = "VirtualMap interrupted while full rehashing";
-            throw new MerkleSynchronizationException(message, e);
-        } catch (TimeoutException e) {
-            final var message = "VirtualMap wasn't able to finish full rehashing in time";
-            throw new MerkleSynchronizationException(message, e);
+                final int leafSizeInBytes = leafBytes.getSizeInBytesForHashing();
+                byte[] arr = BYTE_ARRAY_THREAD_LOCAL.get();
+                BufferedData out = BUFFERED_DATA_THREAD_LOCAL.get();
+                if (out.length() < leafSizeInBytes) {
+                    arr = new byte[leafSizeInBytes];
+                    BYTE_ARRAY_THREAD_LOCAL.set(arr);
+                    out = BufferedData.wrap(arr);
+                    BUFFERED_DATA_THREAD_LOCAL.set(out);
+                }
+                leafBytes.writeToForHashing(out);
+                final MessageDigest md = MESSAGE_DIGEST_THREAD_LOCAL.get();
+                md.update(arr, 0, Math.toIntExact(out.position()));
+                Hash hash = new Hash(md.digest(), Cryptography.DEFAULT_DIGEST_TYPE);
+                parent.setHash((leafBytes.path() & 1) == 1, hash);
+
+                if (lastLeafPath == 1) {
+                    parent.setHash(false, NO_PATH2_HASH);
+                }
+            }
+            return true;
+        }
+
+        @Override
+        protected void onException(final Throwable t) {
+            result.cancelWithException(t);
+        }
+    }
+
+    private class ComputeInternalHashTask extends AbstractTask {
+
+        private final long path;
+        private final ComputeInternalHashTask parent;
+        private Hash leftHash;
+        private Hash rightHash;
+
+        ComputeInternalHashTask(final long path, final ComputeInternalHashTask parent) {
+            super(VALIDATOR_FORK_JOIN_POOL, 2);
+            this.path = path;
+            this.parent = parent;
+        }
+
+        void setHash(boolean left, Hash hash) {
+            if (left) {
+                leftHash = hash;
+            } else {
+                rightHash = hash;
+            }
+            send();
+        }
+
+        @Override
+        protected boolean onExecute() {
+            final MessageDigest md = MESSAGE_DIGEST_THREAD_LOCAL.get();
+            md.update((byte) 0x02);
+            leftHash.getBytes().writeTo(md);
+            if (rightHash != NO_PATH2_HASH) {
+                rightHash.getBytes().writeTo(md);
+            }
+            Hash hash = new Hash(md.digest(), Cryptography.DEFAULT_DIGEST_TYPE);
+
+            if (parent != null) {
+                parent.setHash((path & 1) == 1, hash);
+            } else {
+                result.set(hash);
+            }
+            return true;
+        }
+
+        @Override
+        protected void onException(final Throwable t) {
+            result.cancelWithException(t);
         }
     }
 }
