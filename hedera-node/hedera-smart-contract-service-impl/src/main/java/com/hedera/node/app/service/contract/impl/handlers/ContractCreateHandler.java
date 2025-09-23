@@ -5,16 +5,21 @@ import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CREATE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_GAS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_AUTORENEW_ACCOUNT;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.throwIfUnsuccessfulCreate;
+import static com.hedera.node.app.service.token.HookDispatchUtils.dispatchHookCreations;
+import static com.hedera.node.app.service.token.HookDispatchUtils.validateHookDuplicates;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.node.app.hapi.utils.fee.SigValueObj;
 import com.hedera.node.app.hapi.utils.fee.SmartContractFeeBuilder;
 import com.hedera.node.app.service.contract.impl.ContractServiceComponent;
 import com.hedera.node.app.service.contract.impl.exec.TransactionComponent;
 import com.hedera.node.app.service.contract.impl.records.ContractCreateStreamBuilder;
+import com.hedera.node.app.service.token.ReadableAccountStore;
+import com.hedera.node.app.service.token.api.TokenServiceApi;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
@@ -54,7 +59,6 @@ public class ContractCreateHandler extends AbstractContractTransactionHandler {
     public void handle(@NonNull final HandleContext context) throws HandleException {
         // Create the transaction-scoped component
         final var component = getTransactionComponent(context, CONTRACT_CREATE);
-
         // Run its in-scope transaction and get the outcome
         final var outcome = component.contextTransactionProcessor().call();
 
@@ -63,6 +67,8 @@ public class ContractCreateHandler extends AbstractContractTransactionHandler {
         outcome.addCreateDetailsTo(streamBuilder, context);
 
         throwIfUnsuccessfulCreate(outcome, component.hederaOperations());
+
+        createHooksIfAny(context, requireNonNull(outcome.recipientIdIfCreated()));
     }
 
     @Override
@@ -74,6 +80,7 @@ public class ContractCreateHandler extends AbstractContractTransactionHandler {
 
             final var intrinsicGas = gasCalculator.transactionIntrinsicGasCost(Bytes.wrap(new byte[0]), true);
             validateTruePreCheck(op.gas() >= intrinsicGas, INSUFFICIENT_GAS);
+            validateHookDuplicates(op.hookCreationDetails());
         } catch (@NonNull final Exception e) {
             bumpExceptionMetrics(CONTRACT_CREATE, e);
             throw e;
@@ -111,5 +118,26 @@ public class ContractCreateHandler extends AbstractContractTransactionHandler {
             @NonNull final com.hederahashgraph.api.proto.java.TransactionBody txBody,
             @NonNull final SigValueObj sigValObj) {
         return usageEstimator.getContractCreateTxFeeMatrices(txBody, sigValObj);
+    }
+
+    /**
+     * If there are any hooks to create, creates them and updates the created contract to point to the first hook.
+     * @param context the handle context
+     * @param owner the created contract ID
+     */
+    private void createHooksIfAny(final @NonNull HandleContext context, final ContractID owner) {
+        final var op = context.body().contractCreateInstanceOrThrow();
+        if (!op.hookCreationDetails().isEmpty()) {
+            final var accountStore = context.storeFactory().readableStore(ReadableAccountStore.class);
+            final var created = requireNonNull(accountStore.getContractById(owner));
+
+            dispatchHookCreations(context, op.hookCreationDetails(), 0L, created.accountId());
+
+            final var updated = created.copyBuilder()
+                    .firstHookId(op.hookCreationDetails().getFirst().hookId())
+                    .numberHooksInUse(op.hookCreationDetails().size())
+                    .build();
+            context.storeFactory().serviceApi(TokenServiceApi.class).updateContract(updated);
+        }
     }
 }

@@ -21,7 +21,8 @@ public record ContractHandlers(
         @NonNull ContractSystemUndeleteHandler contractSystemUndeleteHandler,
         @NonNull ContractUpdateHandler contractUpdateHandler,
         @NonNull EthereumTransactionHandler ethereumTransactionHandler,
-        @NonNull LambdaSStoreHandler lambdaSStoreHandler) {
+        @NonNull LambdaSStoreHandler lambdaSStoreHandler,
+        @NonNull HookDispatchHandler hookDispatchHandler) {
     public ContractHandlers {
         requireNonNull(contractCallHandler);
         requireNonNull(contractCallLocalHandler);
@@ -36,5 +37,6 @@ public record ContractHandlers(
         requireNonNull(contractUpdateHandler);
         requireNonNull(ethereumTransactionHandler);
         requireNonNull(lambdaSStoreHandler);
+        requireNonNull(hookDispatchHandler);
     }
 }
