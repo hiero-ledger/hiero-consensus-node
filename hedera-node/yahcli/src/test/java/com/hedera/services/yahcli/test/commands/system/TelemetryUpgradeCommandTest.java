@@ -75,7 +75,6 @@ class TelemetryUpgradeCommandTest extends YahcliTestBase {
         "🔥"
     };
 
-
     @SuppressWarnings("unused")
     static Stream<Arguments> invalidFileNumbers() {
         return Stream.of(INVALID_FILE_NUMBERS).map(Arguments::of);
@@ -168,7 +167,13 @@ class TelemetryUpgradeCommandTest extends YahcliTestBase {
         }
 
         @ParameterizedTest
-        @ValueSource(strings = {"a000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000", "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff", "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef", "abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890"})
+        @ValueSource(
+                strings = {
+                    "a000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+                    "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+                    "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+                    "abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890"
+                })
         void parsesValidUpgradeFileHashes(final String hash) {
             final var result =
                     parseArgs(typicalGlobalOptions() + " upgrade-telemetry -h " + hash + " -s 2024-01-01.12:00:00");
@@ -180,7 +185,14 @@ class TelemetryUpgradeCommandTest extends YahcliTestBase {
         }
 
         @ParameterizedTest
-        @ValueSource(strings = {"2024-01-01.12:00:00", "2023-12-31.23:59:59", "2024-02-29.00:00:01", "2024-06-15.14:30:45", "2025-12-25.09:15:30"})
+        @ValueSource(
+                strings = {
+                    "2024-01-01.12:00:00",
+                    "2023-12-31.23:59:59",
+                    "2024-02-29.00:00:01",
+                    "2024-06-15.14:30:45",
+                    "2025-12-25.09:15:30"
+                })
         void parsesValidStartTimes(final String startTime) {
             final var result =
                     parseArgs(typicalGlobalOptions() + " upgrade-telemetry -h " + "a".repeat(96) + " -s " + startTime);
@@ -224,9 +236,12 @@ class TelemetryUpgradeCommandTest extends YahcliTestBase {
             final var cmdSpec = findSubcommand(result, "upgrade-telemetry");
             assertThat(cmdSpec).isPresent();
             assertThat(cmdSpec.get().parent().name()).isEqualTo("yahcli");
-            assertThat((String) cmdSpec.get().findOption("--upgrade-file-num").getValue()).isEqualTo("200");
-            assertThat((String) cmdSpec.get().findOption("--upgrade-zip-hash").getValue()).isEqualTo("b".repeat(96));
-            assertThat((String) cmdSpec.get().findOption("--start-time").getValue()).isEqualTo("2024-06-15.14:30:00");
+            assertThat((String) cmdSpec.get().findOption("--upgrade-file-num").getValue())
+                    .isEqualTo("200");
+            assertThat((String) cmdSpec.get().findOption("--upgrade-zip-hash").getValue())
+                    .isEqualTo("b".repeat(96));
+            assertThat((String) cmdSpec.get().findOption("--start-time").getValue())
+                    .isEqualTo("2024-06-15.14:30:00");
         }
 
         @Test
@@ -249,7 +264,8 @@ class TelemetryUpgradeCommandTest extends YahcliTestBase {
             assertThat(cmdSpec).isPresent();
             assertThat(cmdSpec.get().parent().name()).isEqualTo("yahcli");
             assertThat((String) cmdSpec.get().findOption("-f").getValue()).isEqualTo("400");
-            assertThat((String) cmdSpec.get().findOption("--upgrade-zip-hash").getValue()).isEqualTo("d".repeat(96));
+            assertThat((String) cmdSpec.get().findOption("--upgrade-zip-hash").getValue())
+                    .isEqualTo("d".repeat(96));
             assertThat((String) cmdSpec.get().findOption("-s").getValue()).isEqualTo("2024-03-15.18:45:22");
         }
 
