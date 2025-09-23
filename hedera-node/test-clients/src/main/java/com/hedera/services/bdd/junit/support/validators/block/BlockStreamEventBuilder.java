@@ -28,12 +28,10 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import org.hiero.base.crypto.DigestType;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.HashingOutputStream;
-import org.hiero.consensus.crypto.PbjStreamHasher;
 import org.hiero.consensus.model.event.PlatformEvent;
 
 /**
@@ -231,8 +229,8 @@ public class BlockStreamEventBuilder {
             }
         }
 
-        final Hash eventHash = new RedactedEventHasher().hashEvent(eventHeader.eventCore(), resolvedParents,
-                wrappedTransactions);
+        final Hash eventHash =
+                new RedactedEventHasher().hashEvent(eventHeader.eventCore(), resolvedParents, wrappedTransactions);
 
         // Create GossipEvent with parents and transactions.
         final GossipEvent gossipEvent = GossipEvent.newBuilder()

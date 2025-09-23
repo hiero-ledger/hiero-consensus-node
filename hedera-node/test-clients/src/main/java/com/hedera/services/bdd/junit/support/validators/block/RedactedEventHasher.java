@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.junit.support.validators.block;
 
 import com.hedera.hapi.platform.event.EventCore;
@@ -26,7 +27,5 @@ public class RedactedEventHasher {
     public Hash hashEvent(
             @NonNull final EventCore eventCore,
             @NonNull final List<EventDescriptor> parents,
-            @NonNull final List<TransactionWrapper> transactions) {
-
-    }
+            @NonNull final List<TransactionWrapper> transactions) {}
 }
