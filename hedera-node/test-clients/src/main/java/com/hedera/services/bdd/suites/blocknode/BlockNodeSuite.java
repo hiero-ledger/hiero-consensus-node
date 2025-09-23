@@ -534,7 +534,7 @@ public class BlockNodeSuite {
                         String.format(
                                 "[localhost:%s/ACTIVE] BlockAcknowledgement received for block",
                                 portNumbers.getFirst()))),
-                blockNodeSimulator(0).sendEndOfStreamImmediately(Code.BEHIND).withBlockNumber(Long.MAX_VALUE),
+                blockNode(0).sendEndOfStreamImmediately(Code.BEHIND).withBlockNumber(Long.MAX_VALUE),
                 sourcingContextual(spec -> assertHgcaaLogContainsTimeframe(
                         byNodeId(0),
                         time::get,
@@ -546,7 +546,7 @@ public class BlockNodeSuite {
                         String.format(
                                 "[localhost:%s/ACTIVE] Block node reported it is behind. Will restart stream at block 0.",
                                 portNumbers.getFirst()))),
-                blockNodeSimulator(0).sendSkipBlockImmediately(Long.MAX_VALUE),
+                blockNode(0).sendSkipBlockImmediately(Long.MAX_VALUE),
                 sourcingContextual(spec -> assertHgcaaLogContainsTimeframe(
                         byNodeId(0),
                         time::get,
@@ -555,7 +555,7 @@ public class BlockNodeSuite {
                         String.format(
                                 "[localhost:%s/ACTIVE] Received SkipBlock response for block 9223372036854775807, but we are not streaming that block so it will be ignored",
                                 portNumbers.getFirst()))),
-                blockNodeSimulator(0).sendResendBlockImmediately(Long.MAX_VALUE),
+                blockNode(0).sendResendBlockImmediately(Long.MAX_VALUE),
                 sourcingContextual(spec -> assertHgcaaLogContainsTimeframe(
                         byNodeId(0),
                         time::get,
