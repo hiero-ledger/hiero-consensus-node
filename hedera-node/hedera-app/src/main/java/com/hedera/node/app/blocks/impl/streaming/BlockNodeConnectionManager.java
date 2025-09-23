@@ -445,6 +445,8 @@ public class BlockNodeConnectionManager {
             logger.debug("[{}] Successfully scheduled reconnection task", newConnection);
         } catch (final Exception e) {
             logger.error("[{}] Failed to schedule connection task for block node", newConnection, e);
+            connections.remove(newConnection.getNodeConfig());
+            newConnection.close(true);
         }
     }
 

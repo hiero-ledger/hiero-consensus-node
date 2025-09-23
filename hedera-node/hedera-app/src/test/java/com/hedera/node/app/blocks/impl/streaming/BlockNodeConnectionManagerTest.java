@@ -228,8 +228,10 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
                 .anyMatch(msg -> msg.contains("Failed to schedule connection task for block node"));
 
         verify(executorService).schedule(any(BlockNodeConnectionTask.class), eq(2_000L), eq(TimeUnit.MILLISECONDS));
+        verify(metrics).recordConnectionClosed();
+
         verifyNoInteractions(bufferService);
-        verifyNoInteractions(metrics);
+        verifyNoMoreInteractions(metrics);
         verifyNoMoreInteractions(executorService);
         verifyNoMoreInteractions(connection);
     }
