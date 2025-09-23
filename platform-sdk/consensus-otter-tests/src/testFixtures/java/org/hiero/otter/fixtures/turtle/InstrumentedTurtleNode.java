@@ -46,7 +46,7 @@ public class InstrumentedTurtleNode extends TurtleNode implements InstrumentedNo
      * {@inheritDoc}
      */
     @Override
-    public void setBranchingProbability(final double probability) {
-        log.warn("Setting branching probability is not implemented yet.");
+    public void ping(@NonNull final String message) {
+        log.warn("Pinging is not implemented yet.");
     }
 }

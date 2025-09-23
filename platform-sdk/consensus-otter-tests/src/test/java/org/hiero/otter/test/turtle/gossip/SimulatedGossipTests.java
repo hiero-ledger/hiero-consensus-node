@@ -77,7 +77,7 @@ class SimulatedGossipTests {
                 .toList();
 
         final SimulatedNetwork network = new SimulatedNetwork(randotron);
-        network.nodes(nodeIds);
+        nodeIds.forEach(network::addNode);
 
         // We can safely choose large numbers because time is simulated
         final Duration averageDelay = Duration.ofMillis(randotron.nextInt(1, 1_000_000));

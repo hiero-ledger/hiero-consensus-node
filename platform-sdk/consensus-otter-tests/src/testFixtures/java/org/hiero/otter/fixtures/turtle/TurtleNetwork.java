@@ -8,7 +8,6 @@ import com.swirlds.common.test.fixtures.Randotron;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.Path;
 import java.time.Instant;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
@@ -19,7 +18,6 @@ import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.otter.fixtures.InstrumentedNode;
 import org.hiero.otter.fixtures.Network;
-import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.TimeManager;
 import org.hiero.otter.fixtures.TransactionGenerator;
 import org.hiero.otter.fixtures.internal.AbstractNetwork;
@@ -101,7 +99,8 @@ public class TurtleNetwork extends AbstractNetwork implements TimeTickReceiver {
     @Override
     @NonNull
     protected TurtleNode doCreateNode(@NonNull final NodeId nodeId, @NonNull final KeysAndCerts keysAndCerts) {
-        final Path outputDir = rootOutputDirectory.resolve("node-" + nodeId.id());
+        simulatedNetwork.addNode(nodeId);
+        final Path outputDir = rootOutputDirectory.resolve(NODE_IDENTIFIER_FORMAT.formatted(nodeId.id()));
         return new TurtleNode(
                 randotron, timeManager.time(), nodeId, keysAndCerts, simulatedNetwork, logging, outputDir);
     }
@@ -113,7 +112,8 @@ public class TurtleNetwork extends AbstractNetwork implements TimeTickReceiver {
     @NonNull
     protected InstrumentedNode doCreateInstrumentedNode(
             @NonNull final NodeId nodeId, @NonNull final KeysAndCerts keysAndCerts) {
-        final Path outputDir = rootOutputDirectory.resolve("node-" + nodeId.id());
+        simulatedNetwork.addNode(nodeId);
+        final Path outputDir = rootOutputDirectory.resolve(NODE_IDENTIFIER_FORMAT.formatted(nodeId.id()));
         return new InstrumentedTurtleNode(
                 randotron, timeManager.time(), nodeId, keysAndCerts, simulatedNetwork, logging, outputDir);
     }
@@ -126,8 +126,6 @@ public class TurtleNetwork extends AbstractNetwork implements TimeTickReceiver {
         final int size = nodes().size();
         executorService =
                 Executors.newFixedThreadPool(Math.min(size, Runtime.getRuntime().availableProcessors()));
-        final List<NodeId> nodeIds = nodes().stream().map(Node::selfId).toList();
-        simulatedNetwork.nodes(nodeIds);
     }
 
     /**

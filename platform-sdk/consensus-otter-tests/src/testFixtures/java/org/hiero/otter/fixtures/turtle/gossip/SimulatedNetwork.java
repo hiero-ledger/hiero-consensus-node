@@ -9,6 +9,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -37,12 +38,7 @@ public class SimulatedNetwork {
      * Events that have been submitted within the most recent tick. It is safe for multiple nodes to add to their list
      * of submitted events in parallel.
      */
-    private final Map<NodeId, List<PlatformEvent>> newlySubmittedEvents = new HashMap<>();
-
-    /**
-     * A sorted list of node IDs for when deterministic iteration order is required.
-     */
-    final List<NodeId> sortedNodeIds = new ArrayList<>();
+    private final Map<NodeId, List<PlatformEvent>> newlySubmittedEvents = new LinkedHashMap<>();
 
     /**
      * Events that are currently in transit between nodes in the network.
@@ -68,22 +64,16 @@ public class SimulatedNetwork {
     }
 
     /**
-     * Set the nodes that are part of this simulated network.
+     * Adds a node that is part of this simulated network.
      *
-     * @param nodeIds the ids of the nodes
+     * <p>Nodes have to be added in a deterministic order to ensure that the simulation is deterministic.
+     *
+     * @param nodeId the id of the node
      */
-    public void nodes(@NonNull final List<NodeId> nodeIds) {
-        newlySubmittedEvents.clear();
-        sortedNodeIds.clear();
-        eventsInTransit.clear();
-        gossipInstances.clear();
-
-        for (final NodeId nodeId : nodeIds.stream().sorted().toList()) {
-            newlySubmittedEvents.put(nodeId, new ArrayList<>());
-            sortedNodeIds.add(nodeId);
-            eventsInTransit.put(nodeId, new PriorityQueue<>());
-            gossipInstances.put(nodeId, new SimulatedGossip(this, nodeId));
-        }
+    public void addNode(@NonNull final NodeId nodeId) {
+        newlySubmittedEvents.put(nodeId, new ArrayList<>());
+        eventsInTransit.put(nodeId, new PriorityQueue<>());
+        gossipInstances.put(nodeId, new SimulatedGossip(this, nodeId));
     }
 
     /**
@@ -173,10 +163,11 @@ public class SimulatedNetwork {
         // Transmission order of the loops in this method must be deterministic, else nodes may receive events
         // in nondeterministic orders with nondeterministic timing.
 
-        for (final NodeId sender : sortedNodeIds) {
-            final List<PlatformEvent> events = newlySubmittedEvents.get(sender);
+        for (final Map.Entry<NodeId, List<PlatformEvent>> entry : newlySubmittedEvents.entrySet()) {
+            final NodeId sender = entry.getKey();
+            final List<PlatformEvent> events = entry.getValue();
             for (final PlatformEvent event : events) {
-                for (final NodeId receiver : sortedNodeIds) {
+                for (final NodeId receiver : newlySubmittedEvents.keySet()) {
                     if (sender.equals(receiver)) {
                         // Don't gossip to ourselves
                         continue;

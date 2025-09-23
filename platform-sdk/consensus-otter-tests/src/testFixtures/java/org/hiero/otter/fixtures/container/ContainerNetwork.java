@@ -96,7 +96,7 @@ public class ContainerNetwork extends AbstractNetwork {
     @Override
     @NonNull
     protected ContainerNode doCreateNode(@NonNull final NodeId nodeId, @NonNull final KeysAndCerts keysAndCerts) {
-        final Path outputDir = rootOutputDirectory.resolve("node-" + nodeId.id());
+        final Path outputDir = rootOutputDirectory.resolve(NODE_IDENTIFIER_FORMAT.formatted(nodeId.id()));
         final ContainerNode node = new ContainerNode(nodeId, keysAndCerts, network, dockerImage, outputDir);
         timeManager.addTimeTickReceiver(node);
         return node;
@@ -109,7 +109,7 @@ public class ContainerNetwork extends AbstractNetwork {
     @NonNull
     protected InstrumentedNode doCreateInstrumentedNode(
             @NonNull final NodeId nodeId, @NonNull final KeysAndCerts keysAndCerts) {
-        final Path outputDir = rootOutputDirectory.resolve("node-" + nodeId.id());
+        final Path outputDir = rootOutputDirectory.resolve(NODE_IDENTIFIER_FORMAT.formatted(nodeId.id()));
         final InstrumentedContainerNode node =
                 new InstrumentedContainerNode(nodeId, keysAndCerts, network, dockerImage, outputDir);
         timeManager.addTimeTickReceiver(node);
