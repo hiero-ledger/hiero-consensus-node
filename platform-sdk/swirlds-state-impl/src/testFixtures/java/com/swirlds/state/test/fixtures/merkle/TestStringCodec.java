@@ -21,8 +21,6 @@ import java.util.Objects;
 @SuppressWarnings("Singleton")
 public class TestStringCodec implements Codec<String> {
 
-    public static final TestStringCodec SINGLETON = new TestStringCodec();
-
     private static final String DEFAULT_VALUE = "";
 
     private TestStringCodec() {}

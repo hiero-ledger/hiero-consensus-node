@@ -43,6 +43,7 @@ import com.hedera.node.app.service.contract.impl.handlers.ContractSystemDeleteHa
 import com.hedera.node.app.service.contract.impl.handlers.ContractSystemUndeleteHandler;
 import com.hedera.node.app.service.contract.impl.handlers.ContractUpdateHandler;
 import com.hedera.node.app.service.contract.impl.handlers.EthereumTransactionHandler;
+import com.hedera.node.app.service.contract.impl.handlers.HookDispatchHandler;
 import com.hedera.node.app.service.contract.impl.handlers.LambdaSStoreHandler;
 import dagger.Binds;
 import dagger.Module;
@@ -88,7 +89,8 @@ public interface ContractServiceModule {
             @NonNull final ContractSystemUndeleteHandler contractSystemUndeleteHandler,
             @NonNull final ContractUpdateHandler contractUpdateHandler,
             @NonNull final EthereumTransactionHandler ethereumTransactionHandler,
-            @NonNull final LambdaSStoreHandler lambdaSStoreHandler) {
+            @NonNull final LambdaSStoreHandler lambdaSStoreHandler,
+            @NonNull final HookDispatchHandler hookDispatchHandler) {
         return new ContractHandlers(
                 contractCallHandler,
                 contractCallLocalHandler,
@@ -102,7 +104,8 @@ public interface ContractServiceModule {
                 contractSystemUndeleteHandler,
                 contractUpdateHandler,
                 ethereumTransactionHandler,
-                lambdaSStoreHandler);
+                lambdaSStoreHandler,
+                hookDispatchHandler);
     }
 
     /**

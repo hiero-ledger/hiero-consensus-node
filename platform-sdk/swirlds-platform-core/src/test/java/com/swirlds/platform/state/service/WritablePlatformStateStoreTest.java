@@ -3,7 +3,8 @@ package com.swirlds.platform.state.service;
 
 import static com.swirlds.platform.state.service.PbjConverter.toPbjPlatformState;
 import static com.swirlds.platform.state.service.PbjConverterTest.randomPlatformState;
-import static com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema.PLATFORM_STATE_KEY;
+import static com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID;
+import static com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema.PLATFORM_STATE_STATE_LABEL;
 import static org.hiero.base.crypto.test.fixtures.CryptoRandomUtils.randomHash;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.nextInt;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -11,12 +12,14 @@ import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.state.PlatformState;
-import com.hedera.hapi.platform.state.StateValue;
+import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.test.fixtures.Randotron;
 import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
 import com.swirlds.platform.test.fixtures.virtualmap.VirtualMapUtils;
 import com.swirlds.state.merkle.StateUtils;
+import com.swirlds.state.merkle.StateValue;
+import com.swirlds.state.merkle.StateValue.StateValueCodec;
 import com.swirlds.state.merkle.disk.OnDiskWritableSingletonState;
 import com.swirlds.state.spi.WritableStates;
 import com.swirlds.virtualmap.VirtualMap;
@@ -48,15 +51,17 @@ class WritablePlatformStateStoreTest {
                 "vm-" + WritablePlatformStateStoreTest.class.getSimpleName() + java.util.UUID.randomUUID();
         virtualMap = VirtualMapUtils.createVirtualMap(virtualMapLabel, 1);
 
-        final Bytes key = StateUtils.getStateKeyForSingleton(PlatformStateService.NAME, PLATFORM_STATE_KEY);
-        final StateValue value = StateUtils.getStateValue(
-                PlatformStateService.NAME, PLATFORM_STATE_KEY, toPbjPlatformState(randomPlatformState(randotron)));
+        final Bytes key = StateUtils.getStateKeyForSingleton(PLATFORM_STATE_STATE_ID);
+        final StateValue<PlatformState> value = StateUtils.getStateValueForSingleton(
+                PLATFORM_STATE_STATE_ID, toPbjPlatformState(randomPlatformState(randotron)));
 
-        virtualMap.put(key, value, StateValue.PROTOBUF);
+        final Codec<PlatformState> codec = PlatformState.PROTOBUF;
+        final Codec<StateValue<PlatformState>> stateValueCodec = new StateValueCodec<>(PLATFORM_STATE_STATE_ID, codec);
+        virtualMap.put(key, value, stateValueCodec);
 
-        when(writableStates.<PlatformState>getSingleton(PLATFORM_STATE_KEY))
-                .thenReturn(
-                        new OnDiskWritableSingletonState<>(PlatformStateService.NAME, PLATFORM_STATE_KEY, virtualMap));
+        when(writableStates.<PlatformState>getSingleton(PLATFORM_STATE_STATE_ID))
+                .thenReturn(new OnDiskWritableSingletonState<>(
+                        PLATFORM_STATE_STATE_ID, PLATFORM_STATE_STATE_LABEL, codec, virtualMap));
         store = new WritablePlatformStateStore(writableStates);
     }
 

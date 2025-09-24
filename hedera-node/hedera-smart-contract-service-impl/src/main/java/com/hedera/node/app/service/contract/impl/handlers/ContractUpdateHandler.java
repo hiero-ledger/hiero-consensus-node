@@ -12,6 +12,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.MODIFYING_IMMUTABLE_CON
 import static com.hedera.hapi.node.base.ResponseCodeEnum.REQUESTED_NUM_AUTOMATIC_ASSOCIATIONS_EXCEEDS_ASSOCIATION_LIMIT;
 import static com.hedera.hapi.util.HapiUtils.EMPTY_KEY_LIST;
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
+import static com.hedera.node.app.service.token.HookDispatchUtils.validateHookDuplicates;
 import static com.hedera.node.app.service.token.api.AccountSummariesApi.SENTINEL_ACCOUNT_ID;
 import static com.hedera.node.app.spi.fees.Fees.CONSTANT_FEE_DATA;
 import static com.hedera.node.app.spi.validation.ExpiryMeta.NA;
@@ -31,6 +32,7 @@ import com.hedera.node.app.hapi.utils.fee.SigValueObj;
 import com.hedera.node.app.hapi.utils.fee.SmartContractFeeBuilder;
 import com.hedera.node.app.hapi.utils.keys.KeyUtils;
 import com.hedera.node.app.service.contract.impl.records.ContractUpdateStreamBuilder;
+import com.hedera.node.app.service.token.HookDispatchUtils;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.api.TokenServiceApi;
 import com.hedera.node.app.spi.fees.FeeContext;
@@ -106,6 +108,7 @@ public class ContractUpdateHandler implements TransactionHandler {
         if (op.hasAdminKey() && processAdminKey(op)) {
             throw new PreCheckException(INVALID_ADMIN_KEY);
         }
+        validateHookDuplicates(op.hookCreationDetails(), op.hookIdsToDelete());
     }
 
     private boolean isAdminSigRequired(final ContractUpdateTransactionBody op) {
@@ -131,12 +134,50 @@ public class ContractUpdateHandler implements TransactionHandler {
         final var accountStore = context.storeFactory().readableStore(ReadableAccountStore.class);
         final var toBeUpdated = accountStore.getContractById(target);
         validateSemantics(toBeUpdated, context, op, accountStore);
-        final var changed = update(requireNonNull(toBeUpdated), context, op);
-        context.storeFactory().serviceApi(TokenServiceApi.class).updateContract(changed);
+
+        var changed = update(requireNonNull(toBeUpdated), context, op);
+        updateHooks(context, op, changed, toBeUpdated);
+        context.storeFactory().serviceApi(TokenServiceApi.class).updateContract(changed.build());
         context.savepointStack()
                 .getBaseBuilder(ContractUpdateStreamBuilder.class)
                 .contractID(entityIdFactory.newContractId(
                         toBeUpdated.accountIdOrThrow().accountNumOrThrow()));
+    }
+    /**
+     * Updates the hooks of the given account based on the provided operation.
+     * This includes handling hook deletions and creations.
+     *
+     * @param context the handle context
+     * @param op the contract update transaction body
+     * @param builder the account builder to update
+     * @param originalAccount the original account before updates
+     */
+    public void updateHooks(
+            final HandleContext context,
+            final ContractUpdateTransactionBody op,
+            final Account.Builder builder,
+            final Account originalAccount) {
+
+        long currentHead = originalAccount.firstHookId();
+        long headAfterDeletes = currentHead;
+        // Dispatch all the hooks to delete
+        if (!op.hookIdsToDelete().isEmpty()) {
+            HookDispatchUtils.dispatchHookDeletions(
+                    context, op.hookIdsToDelete(), headAfterDeletes, originalAccount.accountId());
+        }
+        if (!op.hookCreationDetails().isEmpty()) {
+            HookDispatchUtils.dispatchHookCreations(
+                    context, op.hookCreationDetails(), headAfterDeletes, originalAccount.accountId());
+            builder.firstHookId(op.hookCreationDetails().getFirst().hookId());
+        } else if (!op.hookIdsToDelete().isEmpty()) {
+            builder.firstHookId(headAfterDeletes);
+        }
+        if (!op.hookCreationDetails().isEmpty() || !op.hookIdsToDelete().isEmpty()) {
+            final var current = originalAccount.numberHooksInUse();
+            builder.numberHooksInUse(current
+                    - op.hookIdsToDelete().size()
+                    + op.hookCreationDetails().size());
+        }
     }
 
     private void validateSemantics(
@@ -239,7 +280,7 @@ public class ContractUpdateHandler implements TransactionHandler {
      * @param op the body of contract update transaction
      * @return the updated account of the contract
      */
-    public Account update(
+    public Account.Builder update(
             @NonNull final Account contract,
             @NonNull final HandleContext context,
             @NonNull final ContractUpdateTransactionBody op) {
@@ -294,7 +335,7 @@ public class ContractUpdateHandler implements TransactionHandler {
         if (op.hasMaxAutomaticTokenAssociations()) {
             builder.maxAutoAssociations(op.maxAutomaticTokenAssociationsOrThrow());
         }
-        return builder.build();
+        return builder;
     }
 
     @NonNull

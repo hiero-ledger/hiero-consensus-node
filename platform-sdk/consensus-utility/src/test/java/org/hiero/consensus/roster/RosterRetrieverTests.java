@@ -1,7 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.roster;
 
+import static com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID;
 import static com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade.TEST_PLATFORM_STATE_FACADE;
+import static org.hiero.consensus.roster.RosterStateId.ROSTERS_STATE_ID;
+import static org.hiero.consensus.roster.RosterStateId.ROSTER_STATE_STATE_ID;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doReturn;
@@ -74,12 +77,12 @@ public class RosterRetrieverTests {
     public void setup() {
         // Mock all the happy cases at once.  Use lenient() so that Mockito allows unused stubbing.
         lenient().doReturn(platfromReadableStates).when(state).getReadableStates("PlatformStateService");
-        lenient().doReturn(readablePlatformState).when(platfromReadableStates).getSingleton("PLATFORM_STATE");
+        lenient().doReturn(readablePlatformState).when(platfromReadableStates).getSingleton(PLATFORM_STATE_STATE_ID);
         lenient().doReturn(platformState).when(readablePlatformState).get();
         lenient().doReturn(consensusSnapshot).when(platformState).consensusSnapshot();
         lenient().doReturn(666L).when(consensusSnapshot).round();
         lenient().doReturn(rosterReadableStates).when(state).getReadableStates("RosterService");
-        lenient().doReturn(readableRosterState).when(rosterReadableStates).getSingleton("ROSTER_STATE");
+        lenient().doReturn(readableRosterState).when(rosterReadableStates).getSingleton(ROSTER_STATE_STATE_ID);
         lenient().doReturn(rosterState).when(readableRosterState).get();
         lenient()
                 .doReturn(List.of(
@@ -97,7 +100,7 @@ public class RosterRetrieverTests {
                                 .build()))
                 .when(rosterState)
                 .roundRosterPairs();
-        lenient().doReturn(rosterMap).when(rosterReadableStates).get("ROSTERS");
+        lenient().doReturn(rosterMap).when(rosterReadableStates).get(ROSTERS_STATE_ID);
         lenient()
                 .doReturn(ROSTER_555)
                 .when(rosterMap)

@@ -4,6 +4,7 @@ package com.swirlds.state.merkle.singleton;
 import static org.junit.jupiter.api.Assertions.*;
 
 import com.hedera.hapi.node.state.primitives.ProtoString;
+import com.swirlds.state.lifecycle.StateMetadata;
 import com.swirlds.state.test.fixtures.merkle.MerkleTestBase;
 import org.hiero.base.crypto.DigestType;
 import org.hiero.base.crypto.Hash;
@@ -20,8 +21,7 @@ class SingletonNodeTest extends MerkleTestBase {
     void setUp() {
         expectedValue = randomString(7);
         node = new SingletonNode<>(
-                FIRST_SERVICE,
-                STEAM_STATE_KEY,
+                StateMetadata.computeLabel(FIRST_SERVICE, STEAM_STATE_KEY),
                 SingletonNode.CLASS_ID,
                 ProtoString.PROTOBUF,
                 ProtoString.newBuilder().value(expectedValue).build());
