@@ -16,6 +16,7 @@ plugins {
     id("org.hiero.gradle.feature.test")
     id("org.hiero.gradle.report.test-logger")
     id("org.hiero.gradle.feature.test-fixtures")
+    id("org.hiero.gradle.feature.test-integration")
     id("org.hiero.gradle.feature.protobuf")
 }
 
@@ -24,9 +25,7 @@ description = "Consensus Otter Test Framework"
 testModuleInfo {
     requires("com.swirlds.base.test.fixtures")
     requires("com.swirlds.common.test.fixtures")
-    requires("com.swirlds.logging")
     requires("com.swirlds.platform.core.test.fixtures")
-    requires("org.apache.logging.log4j")
     requires("org.hiero.otter.fixtures")
     requires("org.assertj.core")
     requires("org.junit.jupiter.params")
@@ -35,6 +34,16 @@ testModuleInfo {
     requires("com.swirlds.component.framework")
     requires("com.swirlds.metrics.api")
     requires("org.hiero.consensus.utility")
+    runtimeOnly("io.grpc.netty.shaded")
+}
+
+testIntegrationModuleInfo {
+    requires("com.swirlds.common.test.fixtures")
+    requires("com.swirlds.logging")
+    requires("org.apache.logging.log4j")
+    requires("org.hiero.otter.fixtures")
+    requires("org.assertj.core")
+    requires("com.github.spotbugs.annotations")
     runtimeOnly("io.grpc.netty.shaded")
 }
 
@@ -48,8 +57,8 @@ tasks.compileTestFixturesJava {
 // Runs tests against the Turtle environment
 tasks.register<Test>("testTurtle") {
     useJUnitPlatform()
-    testClassesDirs = sourceSets.test.get().output.classesDirs
-    classpath = sourceSets.test.get().runtimeClasspath
+    testClassesDirs = sourceSets.testIntegration.get().output.classesDirs
+    classpath = sourceSets.testIntegration.get().runtimeClasspath
 
     // Disable all parallelism
     systemProperty("junit.jupiter.execution.parallel.enabled", false)
@@ -57,7 +66,7 @@ tasks.register<Test>("testTurtle") {
         "junit.jupiter.testclass.order.default",
         "org.junit.jupiter.api.ClassOrderer\$OrderAnnotation",
     )
-    // Tell our launcher to target a repeatable embedded network
+    // Tell our launcher to target a Turtle network
     systemProperty("otter.env", "turtle")
 
     // Limit heap and number of processors
@@ -70,8 +79,8 @@ tasks.register<Test>("testContainer") {
     dependsOn(":consensus-otter-docker-app:copyDockerizedApp")
 
     useJUnitPlatform()
-    testClassesDirs = sourceSets.test.get().output.classesDirs
-    classpath = sourceSets.test.get().runtimeClasspath
+    testClassesDirs = sourceSets.testIntegration.get().output.classesDirs
+    classpath = sourceSets.testIntegration.get().runtimeClasspath
 
     // Disable all parallelism
     systemProperty("junit.jupiter.execution.parallel.enabled", false)
@@ -79,8 +88,27 @@ tasks.register<Test>("testContainer") {
         "junit.jupiter.testclass.order.default",
         "org.junit.jupiter.api.ClassOrderer\$OrderAnnotation",
     )
-    // Tell our launcher to target a repeatable embedded network
+
+    // Tell our launcher to target a testcontainer-based network
     systemProperty("otter.env", "container")
+
+    // Limit heap and number of processors
+    maxHeapSize = "8g"
+    jvmArgs("-XX:ActiveProcessorCount=6")
+}
+
+// Configure the default testIntegration task with proper memory settings
+tasks.testIntegration {
+    useJUnitPlatform()
+    testClassesDirs = sourceSets.testIntegration.get().output.classesDirs
+    classpath = sourceSets.testIntegration.get().runtimeClasspath
+
+    // Disable all parallelism
+    systemProperty("junit.jupiter.execution.parallel.enabled", false)
+    systemProperty(
+        "junit.jupiter.testclass.order.default",
+        "org.junit.jupiter.api.ClassOrderer\$OrderAnnotation",
+    )
 
     // Limit heap and number of processors
     maxHeapSize = "8g"

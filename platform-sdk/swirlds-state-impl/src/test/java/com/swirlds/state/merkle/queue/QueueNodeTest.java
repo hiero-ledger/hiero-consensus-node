@@ -4,19 +4,21 @@ package com.swirlds.state.merkle.queue;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 
+import com.hedera.hapi.node.state.primitives.ProtoBytes;
+import com.swirlds.state.lifecycle.StateMetadata;
 import com.swirlds.state.test.fixtures.merkle.MerkleTestBase;
 import org.junit.jupiter.api.Test;
 
 @Deprecated
 class QueueNodeTest extends MerkleTestBase {
+
     @Test
     void usesQueueNodeIdFromMetadataIfAvailable() {
         final var node = new QueueNode<>(
-                FIRST_SERVICE,
-                FRUIT_STATE_KEY,
+                StateMetadata.computeLabel(FIRST_SERVICE, FRUIT_STATE_KEY),
                 queueNodeClassId(FRUIT_STATE_KEY),
                 singletonClassId(FRUIT_STATE_KEY),
-                STRING_CODEC);
+                ProtoBytes.PROTOBUF);
         assertNotEquals(0x990FF87AD2691DCL, node.getClassId());
     }
 

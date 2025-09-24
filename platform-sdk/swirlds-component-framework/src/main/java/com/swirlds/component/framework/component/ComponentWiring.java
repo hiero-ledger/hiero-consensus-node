@@ -810,4 +810,13 @@ public class ComponentWiring<COMPONENT_TYPE, OUTPUT_TYPE> {
     public String getSchedulerName() {
         return scheduler.getName();
     }
+    /**
+     * Get the type of the scheduler that is running this component.
+     *
+     * @return the type of the scheduler
+     */
+    @NonNull
+    public TaskSchedulerType getSchedulerType() {
+        return scheduler.getType();
+    }
 }

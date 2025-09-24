@@ -3,6 +3,7 @@ package com.hedera.node.app.service.file.impl.test.handlers;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.FILE_DELETED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_FILE_ID;
+import static com.hedera.node.app.service.file.impl.schemas.V0490FileSchema.FILES_STATE_ID;
 import static java.util.Objects.requireNonNull;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -222,8 +223,7 @@ class FileUpdateTest extends FileTestBase {
         final var txBody = TransactionBody.newBuilder().fileUpdate(op).build();
 
         writableFileState = writableFileStateWithOneKey();
-        given(writableStates.<FileID, File>get(FILES)).willReturn(writableFileState);
-        final var configuration = HederaTestConfigBuilder.createConfig();
+        given(writableStates.<FileID, File>get(FILES_STATE_ID)).willReturn(writableFileState);
         writableStore = new WritableFileStore(writableStates, writableEntityCounters);
         given(storeFactory.writableStore(WritableFileStore.class)).willReturn(writableStore);
 
