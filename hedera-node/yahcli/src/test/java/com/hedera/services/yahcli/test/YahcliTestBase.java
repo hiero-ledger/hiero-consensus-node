@@ -6,10 +6,15 @@ import static org.assertj.core.api.Assertions.fail;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.hedera.services.yahcli.Yahcli;
+import com.hedera.services.yahcli.test.util.DualPrintStream;
 import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Optional;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.AfterEach;
@@ -35,8 +40,8 @@ public class YahcliTestBase {
         errContent.reset();
 
         // Modify the output streams to capture System.out and System.err
-        System.setOut(new PrintStream(outContent));
-        System.setErr(new PrintStream(errContent));
+        System.setOut(new DualPrintStream(outContent, originalOut));
+        System.setErr(new DualPrintStream(errContent, originalErr));
 
         // Instantiate the `Yahcli` and `CommandLine` instances
         yahcli = new Yahcli();
@@ -58,7 +63,21 @@ public class YahcliTestBase {
     }
 
     protected CommandLine.ParseResult parseArgs(final String args) {
-        return commandLine.parseArgs(args.split(" "));
+        List<String> result = new ArrayList<>();
+        // Match and preserve quoted strings while splitting by whitespace outside of quotes
+        Pattern pattern = Pattern.compile("\"([^\"\\\\]|\\\\.)*\"|'([^'\\\\]|\\\\.)*'|\\S+");
+        Matcher matcher = pattern.matcher(args);
+
+        while (matcher.find()) {
+            String match = matcher.group();
+            // Remove surrounding quotes if present
+            if ((match.startsWith("\"") && match.endsWith("\"")) || (match.startsWith("'") && match.endsWith("'"))) {
+                match = match.substring(1, match.length() - 1);
+            }
+            result.add(match);
+        }
+
+        return commandLine.parseArgs(result.toArray(new String[0]));
     }
 
     protected void stopOnUnmatched(boolean stop) {
