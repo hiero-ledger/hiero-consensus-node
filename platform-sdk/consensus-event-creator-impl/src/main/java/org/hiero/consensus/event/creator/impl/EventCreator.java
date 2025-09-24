@@ -38,7 +38,7 @@ public interface EventCreator {
     /**
      * @see org.hiero.consensus.event.creator.EventCreatorModule#quiescenceCommand(QuiescenceCommand)
      */
-    void setQuiescenceStatus(@NonNull QuiescenceCommand quiescenceCommand);
+    void quiescenceCommand(@NonNull QuiescenceCommand quiescenceCommand);
 
     /**
      * Reset the event creator to its initial state.

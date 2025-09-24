@@ -202,7 +202,7 @@ public class DefaultEventCreator implements EventCreatorModule {
      */
     @Override
     public void quiescenceCommand(@NonNull final QuiescenceCommand quiescenceCommand) {
-        creator.setQuiescenceStatus(quiescenceCommand);
+        creator.quiescenceCommand(quiescenceCommand);
     }
 
     /**

@@ -180,7 +180,7 @@ public class TipsetEventCreator implements EventCreator {
     }
 
     @Override
-    public void setQuiescenceStatus(@NonNull final QuiescenceCommand quiescenceCommand) {
+    public void quiescenceCommand(@NonNull final QuiescenceCommand quiescenceCommand) {
         throw new UnsupportedOperationException("Quiescence is not yet implemented");
     }
 
