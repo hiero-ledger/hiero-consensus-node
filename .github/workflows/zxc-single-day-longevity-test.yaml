@@ -563,7 +563,7 @@ jobs:
           blockStream.blockNodeConnectionFileDir=data/config
           grpc.nodeOperatorPortEnabled=true
           blockStream.writerMode=FILE_AND_GRPC
-          blockStream.blockItemBatchSize=50000
+          blockStream.blockItemBatchSize=2048
           EOF
 
           for i in `sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods | grep network-node | awk '{print $1}'`
