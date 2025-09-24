@@ -2,8 +2,11 @@ package com.hedera.node.app.quiescence;
 
 import com.hedera.hapi.block.stream.Block;
 import com.hedera.hapi.block.stream.BlockItem;
+import com.hedera.hapi.block.stream.output.StateChanges;
+import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.hapi.util.HapiUtils;
 import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -12,7 +15,9 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
@@ -80,6 +85,17 @@ public class QuiescenceController {
             logger.error("Quiescence transaction count overflow, turning off quiescence");
             disableQuiescence();
         }
+        final Optional<Timestamp> maxConsensusTime = block.items().stream()
+                .filter(BlockItem::hasStateChanges)
+                .map(BlockItem::stateChanges)
+                .filter(Objects::nonNull)
+                .map(StateChanges::consensusTimestamp)
+                .max(HapiUtils.TIMESTAMP_COMPARATOR);
+        if(maxConsensusTime.isEmpty()){
+            return;
+        }
+        final Instant maxConsensusInstant = HapiUtils.asInstant(maxConsensusTime.get());
+        nextTct.accumulateAndGet(maxConsensusInstant, QuiescenceController::biggerInstant);
     }
 
     /**
@@ -149,6 +165,10 @@ public class QuiescenceController {
             return QuiescenceStatus.BREAKING_QUIESCENCE;
         }
         return QuiescenceStatus.QUIESCENT;
+    }
+
+    private static Instant biggerInstant(@NonNull final Instant a, @NonNull final Instant b) {
+        return a.isAfter(b) ? a : b;
     }
 
     private long countRelevantTransactions(@NonNull final Event event) {
