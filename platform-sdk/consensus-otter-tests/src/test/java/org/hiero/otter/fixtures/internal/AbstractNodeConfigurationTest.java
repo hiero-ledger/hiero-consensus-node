@@ -1,7 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.internal;
 
+import static com.swirlds.component.framework.schedulers.builders.TaskSchedulerType.SEQUENTIAL;
+import static java.util.Optional.ofNullable;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.fail;
 
 import com.swirlds.component.framework.schedulers.builders.TaskSchedulerConfiguration;
 import com.swirlds.component.framework.schedulers.builders.TaskSchedulerType;
@@ -12,6 +15,7 @@ import com.swirlds.config.extensions.sources.SimpleConfigSource;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.platform.gossip.config.NetworkEndpoint;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.time.Duration;
@@ -158,8 +162,56 @@ public class AbstractNodeConfigurationTest {
         final TestConfigData configData = config.getConfigData(TestConfigData.class);
 
         // Use custom assertion to verify the configuration
-        TaskSchedulerConfigurationAssert.assertThat(configData.mySchedulerConfiguration())
-                .isEqualTo(schedulerConfig);
+        assertTaskSchedulerConfiguration(configData.mySchedulerConfiguration(), schedulerConfig);
+    }
+
+    /**
+     * Verifies that the actual configuration matches the expected configuration,
+     * accounting for default values if a property is {@code null}.
+     *
+     * @param actual the actual TaskSchedulerConfiguration instance to be verified
+     * @param expected the expected TaskSchedulerConfiguration instance
+     */
+    private static void assertTaskSchedulerConfiguration(
+            @NonNull final TaskSchedulerConfiguration actual, @NonNull final TaskSchedulerConfiguration expected) {
+        // Type defaults to SEQUENTIAL if null
+        final TaskSchedulerType actualType = ofNullable(actual.type()).orElse(SEQUENTIAL);
+        final TaskSchedulerType expectedType = ofNullable(expected.type()).orElse(SEQUENTIAL);
+
+        if (!actualType.equals(expectedType)) {
+            fail("Expected type to be <%s> but was <%s>", expectedType, actualType);
+        }
+
+        // Capacity defaults to 0 if null
+        final long actualCapacity = ofNullable(actual.unhandledTaskCapacity()).orElse(0L);
+        final long expectedCapacity =
+                ofNullable(expected.unhandledTaskCapacity()).orElse(0L);
+
+        if (actualCapacity != expectedCapacity) {
+            fail("Expected unhandledTaskCapacity to be <%s> but was <%s>", expectedCapacity, actualCapacity);
+        }
+
+        // Boolean defaults to false if null
+        assertBooleanField(
+                actual.unhandledTaskMetricEnabled(),
+                expected.unhandledTaskMetricEnabled(),
+                "unhandledTaskMetricEnabled");
+
+        assertBooleanField(
+                actual.busyFractionMetricEnabled(), expected.busyFractionMetricEnabled(), "busyFractionMetricEnabled");
+
+        assertBooleanField(actual.flushingEnabled(), expected.flushingEnabled(), "flushingEnabled");
+
+        assertBooleanField(actual.squelchingEnabled(), expected.squelchingEnabled(), "squelchingEnabled");
+    }
+
+    private static void assertBooleanField(
+            @Nullable final Boolean actual, @Nullable final Boolean expected, @NonNull final String fieldName) {
+        final boolean actualValue = ofNullable(actual).orElse(false);
+        final boolean expectedValue = ofNullable(expected).orElse(false);
+        if (actualValue != expectedValue) {
+            fail("Expected %s to be <%s> but was <%s>", fieldName, expectedValue, actualValue);
+        }
     }
 
     private static Stream<Arguments> taskSchedulerConfigurationProvider() {

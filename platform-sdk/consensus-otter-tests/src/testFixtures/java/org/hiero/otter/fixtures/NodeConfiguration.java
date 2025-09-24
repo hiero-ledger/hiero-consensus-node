@@ -92,7 +92,7 @@ public interface NodeConfiguration {
     NodeConfiguration set(@NonNull String key, @NonNull Duration value);
 
     /**
-     * Updates a single property of the configuration to a {@code List<String} value. Can only be
+     * Updates a single property of the configuration to a {@code List<String>} value. Can only be
      * invoked when the node is not running.
      *
      * @param key the key of the property
