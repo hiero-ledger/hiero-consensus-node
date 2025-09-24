@@ -56,6 +56,7 @@ module com.hedera.node.hapi {
     exports com.hedera.hapi.node.state.blockstream;
     exports com.hedera.hapi.node.state.schedule;
     exports com.hedera.hapi.node.state.primitives;
+    exports com.hedera.hapi.node.state.primitives.codec;
     exports com.hedera.hapi.node.state.throttles;
     exports com.hedera.hapi.node.state.congestion;
     exports com.hedera.hapi.platform.event;
@@ -64,6 +65,8 @@ module com.hedera.node.hapi {
     exports com.hederahashgraph.api.proto.java;
     exports com.hederahashgraph.service.proto.java;
     exports com.hedera.hapi.util;
+    exports com.hedera.hapi.block.internal;
+    exports com.hedera.hapi.block.internal.protoc;
     exports com.hedera.hapi.block.stream;
     exports com.hedera.hapi.block.stream.input;
     exports com.hedera.hapi.block.stream.output;

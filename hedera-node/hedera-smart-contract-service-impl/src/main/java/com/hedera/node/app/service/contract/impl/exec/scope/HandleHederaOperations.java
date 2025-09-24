@@ -41,6 +41,7 @@ import com.hedera.node.app.service.token.api.ContractChangeSummary;
 import com.hedera.node.app.service.token.api.TokenServiceApi;
 import com.hedera.node.app.spi.fees.FeeCharging;
 import com.hedera.node.app.spi.fees.Fees;
+import com.hedera.node.app.spi.ids.EntityIdFactory;
 import com.hedera.node.app.spi.throttle.ThrottleAdviser;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
@@ -52,7 +53,6 @@ import com.hedera.node.config.data.HederaConfig;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.UncheckedParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.state.lifecycle.EntityIdFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.ArrayList;
@@ -73,7 +73,7 @@ public class HandleHederaOperations implements HederaOperations {
     private static final CryptoCreateTransactionBody.Builder CREATE_TXN_BODY_BUILDER =
             CryptoCreateTransactionBody.newBuilder()
                     .initialBalance(0)
-                    .maxAutomaticTokenAssociations(0)
+                    .maxAutomaticTokenAssociations(-1)
                     .autoRenewPeriod(Duration.newBuilder().seconds(THREE_MONTHS_IN_SECONDS))
                     .key(IMMUTABILITY_SENTINEL_KEY);
 

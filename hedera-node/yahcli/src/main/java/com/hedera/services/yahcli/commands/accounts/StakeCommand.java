@@ -2,7 +2,6 @@
 package com.hedera.services.yahcli.commands.accounts;
 
 import static com.hedera.services.bdd.spec.HapiPropertySource.asEntityString;
-import static com.hedera.services.yahcli.output.CommonMessages.COMMON_MESSAGES;
 import static com.hedera.services.yahcli.util.ParseUtils.normalizePossibleIdLiteral;
 
 import com.hedera.services.bdd.spec.HapiSpec;
@@ -51,9 +50,10 @@ public class StakeCommand implements Callable<Integer> {
         final String target;
         final StakeSuite.TargetType type;
         final var normalizedElectedAccountNum = normalizePossibleIdLiteral(config, electedAccountNum);
-        if (normalizedElectedAccountNum != null) {
+        final var normalizedElectedNodeId = normalizePossibleIdLiteral(config, electedNodeId);
+        if (normalizedElectedNodeId != null) {
             type = StakeSuite.TargetType.NODE;
-            target = normalizedElectedAccountNum;
+            target = normalizedElectedNodeId;
         } else if (normalizedElectedAccountNum != null) {
             type = StakeSuite.TargetType.ACCOUNT;
             target = normalizedElectedAccountNum;
@@ -79,7 +79,6 @@ public class StakeCommand implements Callable<Integer> {
             final var msgSb = new StringBuilder("SUCCESS - account ")
                     .append(Utils.extractAccount(normalizedStakedAccountNum))
                     .append(" updated");
-            final var normalizedElectedNodeId = normalizePossibleIdLiteral(config, electedNodeId);
             if (type != StakeSuite.TargetType.NONE) {
                 msgSb.append(", now staked to ")
                         .append(type.name())
@@ -92,10 +91,11 @@ public class StakeCommand implements Callable<Integer> {
             if (declineReward != null) {
                 msgSb.append(" with declineReward=").append(declineReward);
             }
-            COMMON_MESSAGES.info(msgSb.toString());
+            config.output().info(msgSb.toString());
         } else {
-            COMMON_MESSAGES.warn("FAILED to change staking election for account "
-                    + Utils.extractAccount(normalizedStakedAccountNum));
+            config.output()
+                    .warn("FAILED to change staking election for account "
+                            + Utils.extractAccount(normalizedStakedAccountNum));
             return 1;
         }
 

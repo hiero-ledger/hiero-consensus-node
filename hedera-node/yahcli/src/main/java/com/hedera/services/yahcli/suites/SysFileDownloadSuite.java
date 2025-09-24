@@ -2,7 +2,6 @@
 package com.hedera.services.yahcli.suites;
 
 import static com.hedera.services.bdd.spec.HapiPropertySource.asEntityString;
-import static com.hedera.services.yahcli.output.CommonMessages.COMMON_MESSAGES;
 
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.HapiSpecOperation;
@@ -55,15 +54,15 @@ public class SysFileDownloadSuite extends HapiSuite {
         if (Utils.isSpecialFile(fileNum)) {
             final String fqLoc = Utils.specialFileLoc(destDir, fileNum);
             return QueryVerbs.getFileContents(fid)
-                    .alertingPre(COMMON_MESSAGES::downloadBeginning)
-                    .alertingPost(COMMON_MESSAGES::downloadEnding)
+                    .alertingPre(configManager.output()::downloadBeginning)
+                    .alertingPost(configManager.output()::downloadEnding)
                     .saveTo(fqLoc);
         }
         final SysFileSerde<String> serde = StandardSerdes.SYS_FILE_SERDES.get(fileNum);
         final String fqLoc = destDir + File.separator + serde.preferredFileName();
         return QueryVerbs.getFileContents(fid)
-                .alertingPre(COMMON_MESSAGES::downloadBeginning)
-                .alertingPost(COMMON_MESSAGES::downloadEnding)
+                .alertingPre(configManager.output()::downloadBeginning)
+                .alertingPost(configManager.output()::downloadEnding)
                 .saveReadableTo(serde::fromRawFile, fqLoc);
     }
 

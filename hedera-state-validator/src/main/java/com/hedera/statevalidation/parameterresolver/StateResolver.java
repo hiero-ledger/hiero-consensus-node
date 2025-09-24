@@ -31,14 +31,10 @@ import com.swirlds.state.State;
 import com.swirlds.virtualmap.constructable.ConstructableUtils;
 import java.io.IOException;
 import java.nio.file.Path;
-import java.util.regex.Pattern;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.hiero.base.concurrent.ExecutorFactory;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.base.crypto.config.CryptoConfig;
-import org.hiero.consensus.config.TransactionConfig;
 import org.junit.jupiter.api.extension.ExtensionContext;
 import org.junit.jupiter.api.extension.ParameterContext;
 import org.junit.jupiter.api.extension.ParameterResolutionException;
@@ -46,10 +42,7 @@ import org.junit.jupiter.api.extension.ParameterResolver;
 
 public class StateResolver implements ParameterResolver {
 
-    private static final Logger log = LogManager.getLogger(StateResolver.class);
-
-    private static final Pattern VERSION_PATTERN = Pattern.compile("^VERSION=(\\d+)\\.(\\d+)\\.(\\d+)(?:\\n.*)*$");
-
+    public static PlatformContext PLATFORM_CONTEXT;
     static DeserializedSignedState deserializedSignedState;
 
     @Override
@@ -65,7 +58,7 @@ public class StateResolver implements ParameterResolver {
         if (deserializedSignedState == null) {
             try {
                 initState();
-            } catch (IOException e) {
+            } catch (ConstructableRegistryException | IOException e) {
                 throw new RuntimeException(e);
             }
         }
@@ -73,20 +66,20 @@ public class StateResolver implements ParameterResolver {
         return deserializedSignedState;
     }
 
-    public static DeserializedSignedState initState() throws IOException {
+    public static DeserializedSignedState initState() throws ConstructableRegistryException, IOException {
         initConfiguration();
+        PLATFORM_CONTEXT = createPlatformContext();
         final ServicesRegistryImpl serviceRegistry = initServiceRegistry();
         PlatformStateFacade platformStateFacade = PlatformStateFacade.DEFAULT_PLATFORM_STATE_FACADE;
         serviceRegistry.register(
                 new RosterService(roster -> true, (r, b) -> {}, StateResolver::getState, platformStateFacade));
-        final PlatformContext platformContext = createPlatformContext();
         deserializedSignedState = readStateFile(
                 Path.of(Constants.STATE_DIR, "SignedState.swh").toAbsolutePath(),
                 HederaVirtualMapState::new,
                 platformStateFacade,
-                platformContext);
+                PLATFORM_CONTEXT);
 
-        initServiceMigrator(getState(), platformContext.getConfiguration(), serviceRegistry);
+        initServiceMigrator(getState(), PLATFORM_CONTEXT, serviceRegistry);
 
         return deserializedSignedState;
     }
@@ -95,25 +88,20 @@ public class StateResolver implements ParameterResolver {
         return deserializedSignedState.reservedSignedState().get().getState();
     }
 
-    private static PlatformContext createPlatformContext() {
-        try {
-            ConstructableRegistry.getInstance().registerConstructables("com.hedera.services");
-            ConstructableRegistry.getInstance().registerConstructables("com.hedera.node.app");
-            ConstructableRegistry.getInstance().registerConstructables("com.hedera.hapi");
-            ConstructableRegistry.getInstance().registerConstructables("com.swirlds");
-            ConstructableRegistry.getInstance().registerConstructables("org.hiero.base");
+    private static PlatformContext createPlatformContext() throws ConstructableRegistryException {
+        ConstructableRegistry.getInstance().registerConstructables("com.hedera.services");
+        ConstructableRegistry.getInstance().registerConstructables("com.hedera.node.app");
+        ConstructableRegistry.getInstance().registerConstructables("com.hedera.hapi");
+        ConstructableRegistry.getInstance().registerConstructables("com.swirlds");
+        ConstructableRegistry.getInstance().registerConstructables("org.hiero.base");
 
-            ConstructableUtils.registerVirtualMapConstructables(getConfiguration());
-            BootstrapUtils.setupConstructableRegistryWithConfiguration(getConfiguration());
+        ConstructableUtils.registerVirtualMapConstructables(getConfiguration());
+        BootstrapUtils.setupConstructableRegistryWithConfiguration(getConfiguration());
 
-        } catch (ConstructableRegistryException e) {
-            throw new RuntimeException(e);
-        }
         return new PlatformContext() {
 
             private final Configuration platformConfig = ConfigurationBuilder.create()
                     .withConfigDataType(MetricsConfig.class)
-                    .withConfigDataType(TransactionConfig.class)
                     .withConfigDataType(CryptoConfig.class)
                     .withConfigDataType(BasicConfig.class)
                     .build();

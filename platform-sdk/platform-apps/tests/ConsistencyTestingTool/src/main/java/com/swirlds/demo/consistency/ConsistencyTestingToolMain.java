@@ -5,12 +5,10 @@ import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer.registerMerkleStateRootClassIds;
 
 import com.hedera.hapi.node.base.SemanticVersion;
-import com.hedera.hapi.platform.event.StateSignatureTransaction;
-import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.state.service.PlatformStateFacade;
+import com.swirlds.platform.system.DefaultSwirldMain;
 import com.swirlds.platform.system.Platform;
-import com.swirlds.platform.system.SwirldMain;
 import com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -29,7 +27,7 @@ import org.hiero.consensus.model.node.NodeId;
 /**
  * A testing app for guaranteeing proper handling of transactions after a restart
  */
-public class ConsistencyTestingToolMain implements SwirldMain<ConsistencyTestingToolState> {
+public class ConsistencyTestingToolMain extends DefaultSwirldMain<ConsistencyTestingToolState> {
 
     private static final Logger logger = LogManager.getLogger(ConsistencyTestingToolMain.class);
 
@@ -81,7 +79,6 @@ public class ConsistencyTestingToolMain implements SwirldMain<ConsistencyTesting
         Objects.requireNonNull(nodeId);
 
         this.platform = Objects.requireNonNull(platform);
-
         logger.info(STARTUP.getMarker(), "init called in Main for node {}.", nodeId);
     }
 
@@ -91,7 +88,7 @@ public class ConsistencyTestingToolMain implements SwirldMain<ConsistencyTesting
     @Override
     public void run() {
         logger.info(STARTUP.getMarker(), "run called in Main.");
-        new TransactionGenerator(new SecureRandom(), platform, TRANSACTIONS_PER_SECOND).start();
+        new TransactionGenerator(new SecureRandom(), platform, getTransactionPool(), TRANSACTIONS_PER_SECOND).start();
     }
 
     /**
@@ -143,10 +140,5 @@ public class ConsistencyTestingToolMain implements SwirldMain<ConsistencyTesting
     @Override
     public List<Class<? extends Record>> getConfigDataTypes() {
         return List.of(ConsistencyTestingToolConfig.class);
-    }
-
-    @Override
-    public Bytes encodeSystemTransaction(final @NonNull StateSignatureTransaction transaction) {
-        return StateSignatureTransaction.PROTOBUF.toBytes(transaction);
     }
 }

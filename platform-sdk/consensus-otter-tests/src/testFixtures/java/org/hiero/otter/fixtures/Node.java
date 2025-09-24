@@ -2,10 +2,10 @@
 package org.hiero.otter.fixtures;
 
 import com.hedera.hapi.node.base.SemanticVersion;
-import com.hedera.hapi.platform.state.NodeId;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
+import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
 import org.hiero.otter.fixtures.result.SingleNodeLogResult;
@@ -26,6 +26,14 @@ public interface Node {
      * The default software version of the node when no specific version is set for the node.
      */
     SemanticVersion DEFAULT_VERSION = SemanticVersion.newBuilder().major(1).build();
+
+    /**
+     * Start the node.
+     *
+     * <p>The method will wait for a environment-specific timeout before throwing an exception if the node cannot be
+     * started. The default can be overridden by calling {@link #withTimeout(Duration)}.
+     */
+    void start();
 
     /**
      * Kill the node without prior cleanup.
@@ -73,14 +81,6 @@ public interface Node {
      * @see #startSyntheticBottleneck()
      */
     void stopSyntheticBottleneck();
-
-    /**
-     * Start the node.
-     *
-     * <p>The method will wait for a environment-specific timeout before throwing an exception if the node cannot be
-     * started. The default can be overridden by calling {@link #withTimeout(Duration)}.
-     */
-    void start();
 
     /**
      * Allows to override the default timeout for node operations.
@@ -182,7 +182,7 @@ public interface Node {
      *
      * @param version the software version to set for the node
      */
-    void setVersion(@NonNull SemanticVersion version);
+    void version(@NonNull SemanticVersion version);
 
     /**
      * This method updates the version to trigger a "config only upgrade" on the next restart. This method can only be

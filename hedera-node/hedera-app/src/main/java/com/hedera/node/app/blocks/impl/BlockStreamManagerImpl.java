@@ -12,7 +12,7 @@ import static com.hedera.node.app.blocks.impl.BlockImplUtils.combine;
 import static com.hedera.node.app.blocks.impl.streaming.FileBlockItemWriter.blockDirFor;
 import static com.hedera.node.app.blocks.impl.streaming.FileBlockItemWriter.cleanUpPendingBlock;
 import static com.hedera.node.app.blocks.impl.streaming.FileBlockItemWriter.loadContiguousPendingBlocks;
-import static com.hedera.node.app.blocks.schemas.V0560BlockStreamSchema.BLOCK_STREAM_INFO_KEY;
+import static com.hedera.node.app.blocks.schemas.V0560BlockStreamSchema.BLOCK_STREAM_INFO_STATE_ID;
 import static com.hedera.node.app.hapi.utils.CommonUtils.sha384DigestOrThrow;
 import static com.hedera.node.app.records.BlockRecordService.EPOCH;
 import static com.hedera.node.app.records.impl.BlockRecordInfoUtils.HASH_SIZE;
@@ -41,6 +41,7 @@ import com.hedera.node.app.hapi.utils.CommonUtils;
 import com.hedera.node.app.info.DiskStartupNetworks;
 import com.hedera.node.app.info.DiskStartupNetworks.InfoType;
 import com.hedera.node.app.records.impl.BlockRecordInfoUtils;
+import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.store.ReadableStoreFactory;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockRecordStreamConfig;
@@ -60,7 +61,6 @@ import com.swirlds.platform.state.service.ReadablePlatformStateStore;
 import com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema;
 import com.swirlds.platform.system.state.notifications.StateHashedNotification;
 import com.swirlds.state.State;
-import com.swirlds.state.lifecycle.info.NetworkInfo;
 import com.swirlds.state.spi.CommittableWritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -96,6 +96,7 @@ import org.hiero.consensus.model.hashgraph.Round;
 
 @Singleton
 public class BlockStreamManagerImpl implements BlockStreamManager {
+
     private static final Logger log = LogManager.getLogger(BlockStreamManagerImpl.class);
     public static final Bytes NULL_HASH = Bytes.wrap(new byte[HASH_SIZE]);
 
@@ -302,7 +303,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             blockNumber = blockStreamInfo.blockNumber() + 1;
             if (hintsEnabled && !hasCheckedForPendingBlocks) {
                 final var hasBeenFrozen = requireNonNull(state.getReadableStates(PlatformStateService.NAME)
-                                .<PlatformState>getSingleton(V0540PlatformStateSchema.PLATFORM_STATE_KEY)
+                                .<PlatformState>getSingleton(V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID)
                                 .get())
                         .hasLastFrozenTime();
                 if (hasBeenFrozen) {
@@ -327,20 +328,33 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
      * Recovers the contents and proof context of any pending blocks from disk.
      */
     private void recoverPendingBlocks() {
-        final var path = blockDirFor(configProvider.getConfiguration(), networkInfo.selfNodeInfo());
+        final var blockDirPath = blockDirFor(configProvider.getConfiguration());
         log.info(
                 "Attempting to recover any pending blocks contiguous to #{} still on disk @ {}",
                 blockNumber,
-                path.toAbsolutePath());
+                blockDirPath.toAbsolutePath());
         try {
-            final var onDiskPendingBlocks = loadContiguousPendingBlocks(path, blockNumber);
-            onDiskPendingBlocks.forEach(block -> {
+            final var onDiskPendingBlocks = loadContiguousPendingBlocks(blockDirPath, blockNumber);
+            if (onDiskPendingBlocks.isEmpty()) {
+                log.info("No contiguous pending blocks found for block #{}", blockNumber);
+                final var pendingWriter = writerSupplier.get();
+                pendingWriter.jumpToBlockAfterFreeze(blockNumber);
+                return;
+            }
+
+            for (int i = 0; i < onDiskPendingBlocks.size(); i++) {
+                var block = onDiskPendingBlocks.get(i);
                 try {
                     final var pendingWriter = writerSupplier.get();
+                    if (i == 0) { // jump to the first pending block
+                        pendingWriter.jumpToBlockAfterFreeze(
+                                onDiskPendingBlocks.getFirst().number());
+                    }
+
                     pendingWriter.openBlock(block.number());
                     block.items()
-                            .forEach(item -> pendingWriter.writeItem(
-                                    BlockItem.PROTOBUF.toBytes(item).toByteArray()));
+                            .forEach(
+                                    item -> pendingWriter.writePbjItemAndBytes(item, BlockItem.PROTOBUF.toBytes(item)));
                     final var blockHash = block.blockHash();
                     pendingBlocks.add(new PendingBlock(
                             block.number(),
@@ -353,7 +367,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                 } catch (Exception e) {
                     log.warn("Failed to recover pending block #{}", block.number(), e);
                 }
-            });
+            }
         } catch (Exception e) {
             log.warn("Failed to load pending blocks", e);
         }
@@ -437,7 +451,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
 
             // Put this block hash context in state via the block stream info
             final var writableState = state.getWritableStates(BlockStreamService.NAME);
-            final var blockStreamInfoState = writableState.<BlockStreamInfo>getSingleton(BLOCK_STREAM_INFO_KEY);
+            final var blockStreamInfoState = writableState.<BlockStreamInfo>getSingleton(BLOCK_STREAM_INFO_STATE_ID);
             blockStreamInfoState.put(new BlockStreamInfo(
                     blockNumber,
                     blockTimestamp(),
@@ -660,8 +674,8 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     }
 
     private @NonNull BlockStreamInfo blockStreamInfoFrom(@NonNull final State state) {
-        final var blockStreamInfoState =
-                state.getReadableStates(BlockStreamService.NAME).<BlockStreamInfo>getSingleton(BLOCK_STREAM_INFO_KEY);
+        final var blockStreamInfoState = state.getReadableStates(BlockStreamService.NAME)
+                .<BlockStreamInfo>getSingleton(BLOCK_STREAM_INFO_STATE_ID);
         return requireNonNull(blockStreamInfoState.get());
     }
 

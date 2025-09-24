@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.handle.steps;
 
-import static com.hedera.node.app.service.file.impl.schemas.V0490FileSchema.BLOBS_KEY;
+import static com.hedera.node.app.service.file.impl.schemas.V0490FileSchema.FILES_STATE_ID;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.eq;
@@ -24,6 +24,7 @@ import com.hedera.node.app.fixtures.state.FakeState;
 import com.hedera.node.app.service.file.FileService;
 import com.hedera.node.app.spi.fixtures.TransactionFactory;
 import com.hedera.node.app.spi.fixtures.ids.FakeEntityIdFactoryImpl;
+import com.hedera.node.app.spi.ids.EntityIdFactory;
 import com.hedera.node.app.throttle.ThrottleServiceManager;
 import com.hedera.node.app.util.FileUtilities;
 import com.hedera.node.config.VersionedConfigImpl;
@@ -35,7 +36,6 @@ import com.hedera.node.config.data.LedgerConfig;
 import com.hedera.node.config.types.LongPair;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
-import com.swirlds.state.lifecycle.EntityIdFactory;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
@@ -76,7 +76,7 @@ class SystemFileUpdatesTest implements TransactionFactory {
     @BeforeEach
     void setUp() {
         files = new HashMap<>();
-        state = new FakeState().addService(FileService.NAME, Map.of(BLOBS_KEY, files));
+        state = new FakeState().addService(FileService.NAME, Map.of(FILES_STATE_ID, files));
 
         final var config = new TestConfigBuilder(false)
                 .withConverter(Bytes.class, new BytesConverter())

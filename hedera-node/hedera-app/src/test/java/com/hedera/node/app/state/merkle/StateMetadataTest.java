@@ -23,9 +23,9 @@ class StateMetadataTest extends MerkleTestBase {
 
     @BeforeEach
     void setUp() {
-        setupSpaceMerkleMap();
+        setupFruitVirtualMap();
         schema = new TestSchema(1);
-        def = spaceMetadata.stateDefinition();
+        def = fruitMetadata.stateDefinition();
     }
 
     @Test

@@ -1,13 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
-name: "ZXF: [CITR] Single Day Longevity NLG Test Controller (SDLnT)"
+name: "ZXF: [CITR] Single Day Longevity Test Controller"
 on:
   workflow_dispatch:
-    inputs:
-      ref:
-        required: true
-        default: "main"
-        description: "Version of hiero-consensus-node: branch, tag, commit"
-        type: string
 
 defaults:
   run:
@@ -35,13 +29,13 @@ jobs:
       - name: Checkout Consensus Node
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
-          ref: ${{ inputs.ref }}
+          ref: ${{ github.ref }}
 
       - name: Verify Tag
         id: verify-tag
         env:
           PROMOTED_GREP_PATTERN: "build-(.{5})" # Pattern to match build tags (e.g., build-12345)
-          CHECK_TAG: "${{ inputs.ref }}"
+          CHECK_TAG: "${{ github.ref }}"
         run: |
           # Ensure the tag that we received is a build tag
           # if the tag is a build tag then we can parse out the build number (the last 5 characters)
@@ -61,15 +55,15 @@ jobs:
             echo "Ref: ${CHECK_TAG}" >> "${GITHUB_STEP_SUMMARY}"
           fi
 
-  run-single-day-longevity-nlg-test:
-    name: Performance Test
+  run-single-day-longevity-test:
+    name: Longevity Test
     needs:
       - verify-tag
-    uses: ./.github/workflows/zxc-single-day-longevity-nlg-test.yaml
+    uses: ./.github/workflows/zxc-single-day-longevity-test.yaml
     if: ${{ needs.verify-tag.result == 'success' }}
     with:
       test-asset: "SDLT2"
-      ref: "${{ inputs.ref }}"
+      ref: "${{ github.ref }}"
       solo-version: "${{ vars.CITR_SOLO_VERSION }}"
       nlg-accounts: "100000000"
       nlg-time: "960"
@@ -77,13 +71,14 @@ jobs:
       add-settings: ""
     secrets:
       slack-report-webhook: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
-  tag-sdlt-passing:
-    name: Tag SDLT Passing
+      rootly-api-token: ${{ secrets.ROOTLY_API_TOKEN }}
+
+  tag-sdlt-result:
+    name: Tag SDLT Result
     runs-on: hiero-citr-linux-medium
     needs:
-      - run-single-day-longevity-nlg-test
+      - run-single-day-longevity-test
       - verify-tag
-    if: ${{ needs.run-single-day-longevity-nlg-test.outputs.result  == 'success' }}
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
@@ -95,7 +90,7 @@ jobs:
         with:
           token: ${{ secrets.GH_ACCESS_TOKEN }}
           fetch-depth: "0"
-          ref: ${{ inputs.ref }}
+          ref: ${{ github.ref }}
 
       - name: Import GPG Key
         id: gpg_importer
@@ -107,14 +102,27 @@ jobs:
           gpg_private_key: ${{ secrets.SVCS_GPG_KEY_CONTENTS }}
           passphrase: ${{ secrets.SVCS_GPG_KEY_PASSPHRASE }}
 
-      - name: Tag SDLT Passing
+      - name: Tag SDLT Result
         run: |
-          TAG_NAME="sdlt-pass-${{ needs.verify-tag.outputs.build-number }}"
-          git tag --annotate "${TAG_NAME}" --message "Single Day Performance Test passed for build-${{ needs.verify-tag.outputs.build-number }}"
+          RESULT="${{ needs.run-single-day-longevity-test.outputs.result }}"
+          BUILD_NUM="${{ needs.verify-tag.outputs.build-number }}"
+
+          if [ "$RESULT" == "success" ]; then
+            TAG_NAME="sdlt-pass-${BUILD_NUM}"
+            MSG="Single Day Longevity Test passed for build-${BUILD_NUM}"
+          elif [ "$RESULT" == "failure" ]; then
+            TAG_NAME="sdlt-fail-${BUILD_NUM}"
+            MSG="Single Day Longevity Test FAILED for build-${BUILD_NUM}"
+          else
+            echo "No tag will be applied. Test result was: $RESULT" >> "${GITHUB_STEP_SUMMARY}"
+            exit 0
+          fi
+
+          git tag --annotate "${TAG_NAME}" --message "${MSG}"
           git push --set-upstream origin --tags
 
-          echo "### SDLT Pass - Tag Information" >> "${GITHUB_STEP_SUMMARY}"
-          echo "SDLT Passing Tag: ${TAG_NAME}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "### SDLT Result - Tag Information" >> "${GITHUB_STEP_SUMMARY}"
+          echo "SDLT Tag: ${TAG_NAME}" >> "${GITHUB_STEP_SUMMARY}"
 
   get-commit-info:
     name: Get Commit Information
@@ -125,6 +133,7 @@ jobs:
       commit-author: ${{ steps.find-commit-author-slack.outputs.commit-author }}
       commit-email: ${{ steps.find-commit-author-slack.outputs.commit-email }}
       slack-user-id: ${{ steps.find-commit-author-slack.outputs.slack-user-id }}
+      commit: ${{ steps.find-commit-author-slack.outputs.commit }}
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
@@ -134,14 +143,15 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
-          fetch-depth: "0"
           token: ${{ secrets.GH_ACCESS_TOKEN }}
+          fetch-depth: "0"
+          ref: ${{ github.ref }}
 
       - name: Find Commit Author in Slack
         id: find-commit-author-slack
         continue-on-error: true
         env:
-          BUILD_TAG: ${{ inputs.ref }}
+          BUILD_TAG: ${{ github.ref }}
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_CITR_BOT_TOKEN }}
         run: |
           # Extract the commit and user information from the build tag
@@ -159,6 +169,7 @@ jobs:
             echo "Found slack user for email: ${EMAIL}"
             SLACK_USER_ID="<@${SLACK_USER_ID}>"
           fi
+          echo "commit=${COMMIT}" >> "${GITHUB_OUTPUT}"
           echo "slack-user-id=${SLACK_USER_ID}" >> "${GITHUB_OUTPUT}"
           echo "commit-author=${AUTHOR}" >> "${GITHUB_OUTPUT}"
           echo "commit-email=${EMAIL}" >> "${GITHUB_OUTPUT}"
@@ -168,12 +179,12 @@ jobs:
     runs-on: hiero-citr-linux-medium
     needs:
       - verify-tag
-      - tag-sdlt-passing
-      - run-single-day-longevity-nlg-test
+      - tag-sdlt-result
+      - run-single-day-longevity-test
       - get-commit-info
     if: ${{ (needs.verify-tag.result == 'success' &&
-      needs.tag-sdlt-passing.result == 'success' &&
-      needs.run-single-day-longevity-nlg-test.outputs.result == 'success' &&
+      needs.tag-sdlt-result.result == 'success' &&
+      needs.run-single-day-longevity-test.outputs.result == 'success' &&
       needs.get-commit-info.result == 'success') &&
       !cancelled() }}
     steps:
@@ -198,7 +209,7 @@ jobs:
                       "type": "header",
                       "text": {
                         "type": "plain_text",
-                        "text": ":tada: SDLT - Single Day Longevity Test (${{ inputs.ref }}) Passed",
+                        "text": ":tada: SDLT - Single Day Longevity Test (${{ github.ref }}) Passed",
                         "emoji": true
                       }
                     },
@@ -222,11 +233,11 @@ jobs:
                         },
                         {
                           "type": "plain_text",
-                          "text": "Run Single Day Performance Test"
+                          "text": "Run Single Day Longevity Test"
                         },
                         {
                           "type": "plain_text",
-                          "text": "${{ needs.run-single-day-longevity-nlg-test.outputs.result  }}"
+                          "text": "${{ needs.run-single-day-longevity-test.outputs.result  }}"
                         },
                         {
                           "type": "plain_text",
@@ -234,7 +245,7 @@ jobs:
                         },
                         {
                           "type": "plain_text",
-                          "text": "${{ needs.tag-sdlt-passing.result }}"
+                          "text": "${{ needs.tag-sdlt-result.result }}"
                         }
                       ]
                     },
@@ -254,7 +265,7 @@ jobs:
                         },
                         {
                           "type": "mrkdwn",
-                          "text": "<${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ inputs.ref }}>"
+                          "text": "<${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ github.ref }}>"
                         },
                         {
                           "type": "mrkdwn",
@@ -292,13 +303,15 @@ jobs:
     runs-on: hiero-citr-linux-medium
     needs:
       - verify-tag
-      - run-single-day-longevity-nlg-test
-      - tag-sdlt-passing
+      - run-single-day-longevity-test
+      - tag-sdlt-result
       - get-commit-info
+      - report-success
     if: ${{ (needs.verify-tag.result != 'success' ||
-      needs.tag-sdlt-passing.result != 'success' ||
-      needs.run-single-day-longevity-nlg-test.outputs.result != 'success' ||
-      needs.get-commit-info.result != 'success') &&
+      needs.tag-sdlt-result.result != 'success' ||
+      needs.run-single-day-longevity-test.outputs.result != 'success' ||
+      needs.get-commit-info.result != 'success' ||
+      needs.report-success.result != 'success') &&
       !cancelled() && always() }}
 
     steps:
@@ -311,7 +324,7 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           fetch-depth: "0"
-          ref: ${{ inputs.ref }}
+          ref: ${{ github.ref }}
           token: ${{ secrets.GH_ACCESS_TOKEN }}
 
       - name: Collect run logs in a log file
@@ -338,6 +351,63 @@ jobs:
         with:
           path: run.log
 
+      - name: Set Service Name
+        id: set-service
+        run: |
+          ROOTLY_SERVICE="CITR SDLT"
+          if [[ "${{ needs.verify-tag.result }}" =~ ^(cancelled|failure)$ ]] \
+            || [[ "${{ needs.tag-sdlt-result.result }}" =~ ^(cancelled|failure)$ ]] \
+            || [[ "${{ needs.get-commit-info.result }}" =~ ^(cancelled|failure)$ ]] \
+            || [[ "${{ needs.report-success.result }}" =~ ^(cancelled|failure)$ ]]; then
+            ROOTLY_SERVICE="CI/CD Workflows"
+          fi
+          echo "service=${ROOTLY_SERVICE}" >> "${GITHUB_OUTPUT}"
+
+      - name: Build Rootly Summary
+        id: rootly-summary
+        run: |
+          title="The SDLT Job Failed"
+          echo "title=${title}" >> "${GITHUB_OUTPUT}"
+          {
+            echo 'summary<<EOF'
+            echo "------------------------------------"
+            echo "Status of each job:"
+            echo "- Verify Tag: ${{ needs.verify-tag.result }}"
+            echo "- Run Single Day Longevity Test: ${{ needs.run-single-day-longevity-test.outputs.result }}"
+            echo "- Tag SDLT Result: ${{ needs.tag-sdlt-result.result }}"
+            echo "- Get Commit Info: ${{ needs.get-commit-info.result }}"
+            echo "- Report Success: ${{ needs.report-success.result }}"
+            echo "------------------------------------"
+            echo "Commit information:"
+            echo "- Commit: <${{ github.server_url }}/${{ github.repository }}/commit/${{ needs.get-commit-info.outputs.commit }}>"
+            echo "- Workflow: <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}>"
+            echo EOF
+          } >> "${GITHUB_OUTPUT}"
+
+      - name: Log Rootly Summary
+        run: |
+          echo "## Rootly Summary:"
+          echo "### Title: ${{ steps.rootly-summary.outputs.title }}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "${{ steps.rootly-summary.outputs.summary }}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "### Service" >> "${GITHUB_STEP_SUMMARY}"
+          echo "${{ steps.set-service.outputs.service }}" >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Create Rootly Alert
+        id: create-rootly-alert
+        uses: pandaswhocode/rootly-alert-action@fdae1529e5aed62040016accf719a0ceb7dae57f # v1.0.0
+        continue-on-error: true # continue on error so we can get the incident reporting
+        with:
+          api_key: ${{ secrets.ROOTLY_API_TOKEN }}
+          summary: ${{ steps.rootly-summary.outputs.title }}
+          details: ${{ steps.rootly-summary.outputs.summary }}
+          notification_target_type: "Service"
+          notification_target: ${{ steps.set-service.outputs.service }}
+          set_as_noise: "true"
+          alert_urgency: "High"
+          environments: "CITR"
+          external_id: ${{ github.run_id }}
+          external_url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
       - name: Build Slack Payload Message
         id: payload
         run: |
@@ -351,7 +421,7 @@ jobs:
                     "type": "header",
                     "text": {
                       "type": "plain_text",
-                      "text": ":grey_exclamation: SDLT - Single Day Longevity Test (${{ inputs.ref }}) Failed",
+                      "text": ":grey_exclamation: SDLT - Single Day Longevity Test (${{ github.ref }}) Failed",
                       "emoji": true
                     }
                   },
@@ -375,11 +445,11 @@ jobs:
                       },
                       {
                         "type": "plain_text",
-                        "text": "Run Single Day Performance Test"
+                        "text": "Run Single Day Longevity Test"
                       },
                       {
                         "type": "plain_text",
-                        "text": "${{ needs.run-single-day-longevity-nlg-test.outputs.result }}"
+                        "text": "${{ needs.run-single-day-longevity-test.outputs.result }}"
                       },
                       {
                         "type": "plain_text",
@@ -387,7 +457,7 @@ jobs:
                       },
                       {
                         "type": "plain_text",
-                        "text": "${{ needs.tag-sdlt-passing.result }}"
+                        "text": "${{ needs.tag-sdlt-result.result }}"
                       },
                       {
                         "type": "plain_text",
@@ -415,7 +485,7 @@ jobs:
                       },
                       {
                         "type": "mrkdwn",
-                        "text": "<${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ inputs.ref }}>"
+                        "text": "<${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ github.ref }}>"
                       },
                       {
                         "type": "mrkdwn",

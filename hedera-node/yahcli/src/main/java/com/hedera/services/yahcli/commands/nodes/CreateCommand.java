@@ -6,7 +6,6 @@ import static com.hedera.services.bdd.spec.HapiPropertySource.asCsServiceEndpoin
 import static com.hedera.services.bdd.spec.HapiPropertySource.asTypedServiceEndpoint;
 import static com.hedera.services.yahcli.commands.nodes.NodesCommand.validatedX509Cert;
 import static com.hedera.services.yahcli.config.ConfigUtils.keyFileFor;
-import static com.hedera.services.yahcli.output.CommonMessages.COMMON_MESSAGES;
 import static com.hedera.services.yahcli.util.ParseUtils.normalizePossibleIdLiteral;
 
 import com.hedera.services.bdd.spec.HapiSpec;
@@ -104,8 +103,9 @@ public class CreateCommand implements Callable<Integer> {
         final var feeAccountKeyFile = keyFileFor(config.keysLoc(), "account" + accountId);
         final var maybeFeeAccountKeyPath = feeAccountKeyFile.map(File::getPath).orElse(null);
         if (maybeFeeAccountKeyPath == null) {
-            COMMON_MESSAGES.warn("No key on disk for account " + accountId
-                    + ", payer and admin key signatures must meet its signing requirements");
+            config.output()
+                    .warn("No key on disk for account " + accountId
+                            + ", payer and admin key signatures must meet its signing requirements");
         }
 
         final var gossipCert = validatedX509Cert(
@@ -128,9 +128,9 @@ public class CreateCommand implements Callable<Integer> {
         delegate.runSuiteSync();
 
         if (delegate.getFinalSpecs().getFirst().getStatus() == HapiSpec.SpecStatus.PASSED) {
-            COMMON_MESSAGES.info("SUCCESS - created node" + delegate.createdIdOrThrow());
+            config.output().info("SUCCESS - created node" + delegate.createdIdOrThrow());
         } else {
-            COMMON_MESSAGES.warn("FAILED to create node");
+            config.output().warn("FAILED to create node");
             return 1;
         }
 

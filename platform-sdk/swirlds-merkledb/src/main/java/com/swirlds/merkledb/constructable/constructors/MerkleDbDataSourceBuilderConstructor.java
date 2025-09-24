@@ -6,5 +6,6 @@ import com.swirlds.merkledb.MerkleDbDataSourceBuilder;
 
 @FunctionalInterface
 public interface MerkleDbDataSourceBuilderConstructor {
-    MerkleDbDataSourceBuilder create(Configuration configuration);
+
+    MerkleDbDataSourceBuilder create(final Configuration configuration);
 }

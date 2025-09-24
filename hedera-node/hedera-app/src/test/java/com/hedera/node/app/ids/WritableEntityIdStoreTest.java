@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.ids;
 
-import static com.hedera.node.app.ids.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_KEY;
-import static com.hedera.node.app.ids.schemas.V0590EntityIdSchema.ENTITY_COUNTS_KEY;
+import static com.hedera.node.app.ids.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_ID;
+import static com.hedera.node.app.ids.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_LABEL;
+import static com.hedera.node.app.ids.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
+import static com.hedera.node.app.ids.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_LABEL;
 import static org.junit.jupiter.api.Assertions.*;
 
 import com.hedera.hapi.node.state.common.EntityNumber;
@@ -17,20 +19,21 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 class WritableEntityIdStoreTest {
+
     private final AtomicReference<EntityNumber> nextEntityNumber = new AtomicReference<>();
     private final AtomicReference<EntityCounts> entityCounts = new AtomicReference<>();
     private final WritableSingletonState<EntityNumber> entityIdState = new FunctionWritableSingletonState<>(
-            EntityIdService.NAME, ENTITY_ID_STATE_KEY, nextEntityNumber::get, nextEntityNumber::set);
+            ENTITY_ID_STATE_ID, ENTITY_ID_STATE_LABEL, nextEntityNumber::get, nextEntityNumber::set);
     private final WritableSingletonState<EntityCounts> entityCountsState = new FunctionWritableSingletonState<>(
-            EntityIdService.NAME, ENTITY_COUNTS_KEY, entityCounts::get, entityCounts::set);
+            ENTITY_COUNTS_STATE_ID, ENTITY_COUNTS_STATE_LABEL, entityCounts::get, entityCounts::set);
     private WritableEntityIdStore subject;
 
     @BeforeEach
     void setup() {
         nextEntityNumber.set(EntityNumber.DEFAULT);
         entityCounts.set(EntityCounts.newBuilder().numAccounts(10L).build());
-        final var writableStates =
-                new MapWritableStates(Map.of(ENTITY_ID_STATE_KEY, entityIdState, ENTITY_COUNTS_KEY, entityCountsState));
+        final var writableStates = new MapWritableStates(
+                Map.of(ENTITY_ID_STATE_ID, entityIdState, ENTITY_COUNTS_STATE_ID, entityCountsState));
         subject = new WritableEntityIdStore(writableStates);
     }
 

@@ -19,7 +19,7 @@ import com.hedera.node.app.service.contract.impl.exec.operations.CustomCallOpera
 import com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils;
 import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
 import com.hedera.node.app.service.contract.impl.test.TestHelpers;
-import com.swirlds.state.lifecycle.EntityIdFactory;
+import com.hedera.node.app.spi.ids.EntityIdFactory;
 import org.apache.tuweni.bytes.Bytes;
 import org.apache.tuweni.bytes.Bytes32;
 import org.hyperledger.besu.datatypes.Address;

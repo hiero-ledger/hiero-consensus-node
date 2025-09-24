@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl;
 
-import static com.hedera.node.app.service.token.impl.schemas.V0610TokenSchema.NODE_REWARDS_KEY;
+import static com.hedera.node.app.service.token.impl.schemas.V0610TokenSchema.NODE_REWARDS_STATE_ID;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.state.token.NodeRewards;
@@ -28,7 +28,7 @@ public class WritableNodeRewardsStoreImpl extends ReadableNodeRewardsStoreImpl {
      */
     public WritableNodeRewardsStoreImpl(@NonNull final WritableStates states) {
         super(states);
-        this.nodeRewardsState = requireNonNull(states).getSingleton(NODE_REWARDS_KEY);
+        this.nodeRewardsState = requireNonNull(states).getSingleton(NODE_REWARDS_STATE_ID);
     }
 
     /**

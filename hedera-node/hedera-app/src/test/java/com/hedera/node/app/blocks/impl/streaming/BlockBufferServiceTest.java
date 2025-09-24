@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.blocks.impl.streaming;
 
+import static com.hedera.node.app.blocks.impl.streaming.BlockTestUtils.generateBlockItems;
+import static com.hedera.node.app.blocks.impl.streaming.BlockTestUtils.generateRandomBlocks;
+import static com.hedera.node.app.blocks.impl.streaming.BlockTestUtils.writeBlockToDisk;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.assertAll;
@@ -22,26 +25,41 @@ import com.hedera.node.app.blocks.impl.streaming.BlockBufferService.PruneResult;
 import com.hedera.node.app.metrics.BlockStreamMetrics;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfigImpl;
+import com.hedera.node.config.VersionedConfiguration;
 import com.hedera.node.config.data.BlockBufferConfig;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.node.config.types.BlockStreamWriterMode;
+import com.hedera.node.config.types.StreamMode;
 import com.swirlds.config.api.Configuration;
+import java.io.File;
+import java.io.IOException;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodHandles.Lookup;
 import java.lang.invoke.VarHandle;
 import java.lang.reflect.Method;
+import java.nio.file.FileVisitResult;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.SimpleFileVisitor;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.time.Duration;
+import java.time.Instant;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+import org.hiero.block.api.PublishStreamRequest;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
@@ -53,13 +71,16 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
 
+    private static final String testDir = "testDir";
+    private static final File testDirFile = new File(testDir);
+
     private static final VarHandle execSvcHandle;
     private static final VarHandle blockBufferHandle;
-    private static final VarHandle isStreamingEnabledHandle;
     private static final VarHandle backPressureFutureRefHandle;
     private static final VarHandle highestAckedBlockNumberHandle;
     private static final VarHandle lastPruningResultHandle;
     private static final MethodHandle checkBufferHandle;
+    private static final MethodHandle persistBufferHandle;
 
     static {
         try {
@@ -68,8 +89,6 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
                     .findVarHandle(BlockBufferService.class, "blockBuffer", ConcurrentMap.class);
             execSvcHandle = MethodHandles.privateLookupIn(BlockBufferService.class, lookup)
                     .findVarHandle(BlockBufferService.class, "execSvc", ScheduledExecutorService.class);
-            isStreamingEnabledHandle = MethodHandles.privateLookupIn(BlockBufferService.class, lookup)
-                    .findVarHandle(BlockBufferService.class, "isStreamingEnabled", AtomicBoolean.class);
             backPressureFutureRefHandle = MethodHandles.privateLookupIn(BlockBufferService.class, lookup)
                     .findVarHandle(BlockBufferService.class, "backpressureCompletableFutureRef", AtomicReference.class);
             highestAckedBlockNumberHandle = MethodHandles.privateLookupIn(BlockBufferService.class, lookup)
@@ -80,6 +99,10 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
             final Method checkBufferMethod = BlockBufferService.class.getDeclaredMethod("checkBuffer");
             checkBufferMethod.setAccessible(true);
             checkBufferHandle = lookup.unreflect(checkBufferMethod);
+
+            final Method persisBufferMethod = BlockBufferService.class.getDeclaredMethod("persistBuffer");
+            persisBufferMethod.setAccessible(true);
+            persistBufferHandle = lookup.unreflect(persisBufferMethod);
         } catch (final Exception e) {
             throw new RuntimeException(e);
         }
@@ -92,6 +115,15 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
     private ConfigProvider configProvider;
 
     @Mock
+    private VersionedConfiguration versionedConfiguration;
+
+    @Mock
+    private BlockStreamConfig blockStreamConfig;
+
+    @Mock
+    private BlockBufferConfig blockBufferConfig;
+
+    @Mock
     private BlockNodeConnectionManager connectionManager;
 
     @Mock
@@ -100,17 +132,21 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
     private BlockBufferService blockBufferService;
 
     @BeforeEach
-    void beforeEach() {
+    void beforeEach() throws IOException {
+        cleanupDirectory();
+
         final Configuration config = HederaTestConfigBuilder.create()
                 .withConfigDataType(BlockStreamConfig.class)
+                .withConfigDataType(BlockBufferConfig.class)
                 .withValue("blockStream.writerMode", "GRPC")
+                .withValue("blockStream.buffer.isBufferPersistenceEnabled", false)
                 .getOrCreateConfig();
 
         lenient().when(configProvider.getConfiguration()).thenReturn(new VersionedConfigImpl(config, 1));
     }
 
     @AfterEach
-    void afterEach() throws InterruptedException {
+    void afterEach() throws InterruptedException, IOException {
         final CompletableFuture<Boolean> f =
                 backpressureCompletableFutureRef(blockBufferService).getAndSet(null);
         if (f != null) {
@@ -121,6 +157,8 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         final ScheduledExecutorService execSvc = (ScheduledExecutorService) execSvcHandle.get(blockBufferService);
         execSvc.shutdownNow();
         assertThat(execSvc.awaitTermination(3, TimeUnit.SECONDS)).isTrue();
+
+        cleanupDirectory();
     }
 
     @Test
@@ -229,7 +267,7 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
                 .withConfigDataType(BlockStreamConfig.class)
                 .withValue("blockStream.writerMode", "GRPC")
                 .withValue("blockStream.blockItemBatchSize", 5)
-                .withValue("blockStream.blockBufferPruneInterval", Duration.ZERO) // disable auto pruning
+                .withValue("blockStream.buffer.isBufferPersistenceEnabled", false)
                 .getOrCreateConfig();
         given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(mockConfig, 1));
 
@@ -327,19 +365,6 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
     }
 
     @Test
-    void testOpenBlock_blockAfterAcked() {
-        blockBufferService = new BlockBufferService(configProvider, blockStreamMetrics);
-        blockBufferService.setBlockNodeConnectionManager(connectionManager);
-        final AtomicLong highestAckedBlockNumber = highestAckedBlockNumber(blockBufferService);
-        highestAckedBlockNumber.set(10);
-
-        assertThatThrownBy(() -> blockBufferService.openBlock(8))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessage(
-                        "Attempted to open block 8, but a later block (lastAcked=10) has already been acknowledged");
-    }
-
-    @Test
     void testOpenBlock_existingBlock_proofNotSent() {
         blockBufferService = new BlockBufferService(configProvider, blockStreamMetrics);
         blockBufferService.setBlockNodeConnectionManager(connectionManager);
@@ -384,10 +409,11 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
                 .withConfigDataType(BlockStreamConfig.class)
                 .withConfigDataType(BlockBufferConfig.class)
                 .withValue("blockStream.writerMode", "GRPC")
+                .withValue("blockStream.streamMode", "BLOCKS")
                 .withValue("blockStream.blockPeriod", Duration.ofSeconds(1))
                 .withValue("blockStream.blockItemBatchSize", 3)
                 .withValue("blockStream.buffer.blockTtl", blockTtl)
-                .withValue("blockStream.buffer.pruneInterval", Duration.ZERO) // disable auto pruning
+                .withValue("blockStream.buffer.isBufferPersistenceEnabled", false)
                 .getOrCreateConfig();
         when(configProvider.getConfiguration()).thenReturn(new VersionedConfigImpl(config, 1));
 
@@ -508,7 +534,7 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
                 .withValue("blockStream.writerMode", "GRPC")
                 .withValue("blockStream.blockItemBatchSize", 3)
                 .withValue("blockStream.buffer.blockTtl", blockTtl)
-                .withValue("blockStream.buffer.pruneInterval", Duration.ZERO) // disable auto pruning
+                .withValue("blockStream.buffer.isBufferPersistenceEnabled", false)
                 .getOrCreateConfig();
         when(configProvider.getConfiguration()).thenReturn(new VersionedConfigImpl(config, 1));
 
@@ -570,19 +596,22 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
     void testBufferBackpressure() throws Throwable {
         // ensure block TTL is greater than prune interval for this test to work as expected
         final Duration blockTtl = Duration.ofSeconds(2);
-        final Duration pruneInterval = Duration.ofSeconds(1);
+        final Duration workerInterval = Duration.ofSeconds(1);
         final Configuration config = HederaTestConfigBuilder.create()
                 .withConfigDataType(BlockStreamConfig.class)
                 .withConfigDataType(BlockBufferConfig.class)
                 .withValue("blockStream.blockItemBatchSize", 3)
                 .withValue("blockStream.buffer.blockTtl", blockTtl)
-                .withValue("blockStream.buffer.pruneInterval", pruneInterval)
+                .withValue("blockStream.buffer.workerInterval", workerInterval)
                 .withValue("blockStream.writerMode", BlockStreamWriterMode.FILE_AND_GRPC)
+                .withValue("blockStream.buffer.isBufferPersistenceEnabled", false)
+                .withValue("blockStream.streamMode", StreamMode.BLOCKS)
                 .getOrCreateConfig();
         when(configProvider.getConfiguration()).thenReturn(new VersionedConfigImpl(config, 1));
 
         blockBufferService = new BlockBufferService(configProvider, blockStreamMetrics);
         blockBufferService.setBlockNodeConnectionManager(connectionManager);
+        blockBufferService.start();
 
         final CountDownLatch startLatch = new CountDownLatch(1);
         final CountDownLatch doneLatch = new CountDownLatch(1);
@@ -656,7 +685,9 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         // Configure streamToBlockNodes to return false
         final var mockConfig = HederaTestConfigBuilder.create()
                 .withConfigDataType(BlockStreamConfig.class)
+                .withConfigDataType(BlockBufferConfig.class)
                 .withValue("blockStream.writerMode", BlockStreamWriterMode.FILE)
+                .withValue("blockStream.buffer.isBufferPersistenceEnabled", false)
                 .getOrCreateConfig();
         given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(mockConfig, 1));
 
@@ -675,7 +706,9 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         // Configure streamToBlockNodes to return false
         final var mockConfig = HederaTestConfigBuilder.create()
                 .withConfigDataType(BlockStreamConfig.class)
+                .withConfigDataType(BlockBufferConfig.class)
                 .withValue("blockStream.writerMode", BlockStreamWriterMode.FILE)
+                .withValue("blockStream.buffer.isBufferPersistenceEnabled", false)
                 .getOrCreateConfig();
         given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(mockConfig, 1));
 
@@ -691,12 +724,54 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
     }
 
     @Test
-    void testOpenBlock_streamingDisabled() {
-        blockBufferService = new BlockBufferService(configProvider, blockStreamMetrics);
-        final AtomicBoolean isStreamingEnabled = isStreamingEnabled(blockBufferService);
-        final ConcurrentMap<Long, BlockState> buffer = blockBuffer(blockBufferService);
+    void testBlockBufferNoBackpressureWhenStreamModeNotBlocksAndStreaming() throws Throwable {
+        final Configuration config = HederaTestConfigBuilder.create()
+                .withConfigDataType(BlockStreamConfig.class)
+                .withConfigDataType(BlockBufferConfig.class)
+                .withValue("blockStream.writerMode", "FILE_AND_GRPC")
+                .withValue("blockStream.streamMode", "BOTH")
+                .withValue("blockStream.blockPeriod", Duration.ofSeconds(1))
+                .withValue("blockStream.buffer.blockTtl", Duration.ofSeconds(10))
+                .withValue("blockStream.buffer.pruneInterval", Duration.ZERO)
+                .withValue("blockStream.buffer.actionStageThreshold", 50.0)
+                .withValue("blockStream.buffer.actionGracePeriod", Duration.ofSeconds(2))
+                .withValue("blockStream.buffer.recoveryThreshold", 100.0)
+                .getOrCreateConfig();
+        when(configProvider.getConfiguration()).thenReturn(new VersionedConfigImpl(config, 1));
 
-        isStreamingEnabled.set(false);
+        blockBufferService = new BlockBufferService(configProvider, blockStreamMetrics);
+        blockBufferService.setBlockNodeConnectionManager(connectionManager);
+
+        // The buffer will become fully saturated after 10 blocks
+        for (int i = 1; i <= 10; ++i) {
+            blockBufferService.openBlock(i);
+            blockBufferService.closeBlock(i);
+        }
+
+        checkBufferHandle.invoke(blockBufferService);
+
+        final PruneResult initialPruningResult = lastPruningResult(blockBufferService);
+        assertThat(initialPruningResult.isSaturated).isEqualTo(true);
+        assertThat(initialPruningResult.numBlocksPruned).isZero();
+        assertThat(initialPruningResult.numBlocksPendingAck).isEqualTo(10);
+
+        // back pressure should NOT be enabled
+        final AtomicReference<CompletableFuture<Boolean>> backPressureFutureRef =
+                backpressureCompletableFutureRef(blockBufferService);
+
+        assertThat(backPressureFutureRef).hasNullValue();
+    }
+
+    @Test
+    void testOpenBlock_streamingDisabled() {
+        when(configProvider.getConfiguration()).thenReturn(versionedConfiguration);
+        when(blockStreamConfig.writerMode()).thenReturn(BlockStreamWriterMode.FILE);
+        when(blockStreamConfig.streamMode()).thenReturn(StreamMode.BOTH);
+        when(blockBufferConfig.bufferDirectory()).thenReturn(testDir);
+        when(versionedConfiguration.getConfigData(BlockStreamConfig.class)).thenReturn(blockStreamConfig);
+        when(versionedConfiguration.getConfigData(BlockBufferConfig.class)).thenReturn(blockBufferConfig);
+        blockBufferService = new BlockBufferService(configProvider, blockStreamMetrics);
+        final ConcurrentMap<Long, BlockState> buffer = blockBuffer(blockBufferService);
 
         blockBufferService.openBlock(10L);
 
@@ -708,11 +783,14 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
 
     @Test
     void testAddItem_streamingDisabled() {
+        when(configProvider.getConfiguration()).thenReturn(versionedConfiguration);
+        when(versionedConfiguration.getConfigData(BlockStreamConfig.class)).thenReturn(blockStreamConfig);
+        when(blockStreamConfig.writerMode()).thenReturn(BlockStreamWriterMode.FILE);
+        when(blockStreamConfig.streamMode()).thenReturn(StreamMode.BOTH);
+        when(blockBufferConfig.bufferDirectory()).thenReturn(testDir);
+        when(versionedConfiguration.getConfigData(BlockBufferConfig.class)).thenReturn(blockBufferConfig);
         blockBufferService = new BlockBufferService(configProvider, blockStreamMetrics);
-        final AtomicBoolean isStreamingEnabled = isStreamingEnabled(blockBufferService);
         final ConcurrentMap<Long, BlockState> buffer = blockBuffer(blockBufferService);
-
-        isStreamingEnabled.set(false);
 
         final BlockItem item = BlockItem.newBuilder()
                 .blockHeader(BlockHeader.newBuilder().number(10L).build())
@@ -728,10 +806,13 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
 
     @Test
     void testCloseBlock_streamingDisabled() {
+        when(configProvider.getConfiguration()).thenReturn(versionedConfiguration);
+        when(versionedConfiguration.getConfigData(BlockStreamConfig.class)).thenReturn(blockStreamConfig);
+        when(blockStreamConfig.writerMode()).thenReturn(BlockStreamWriterMode.FILE);
+        when(blockStreamConfig.streamMode()).thenReturn(StreamMode.BOTH);
+        when(blockBufferConfig.bufferDirectory()).thenReturn(testDir);
+        when(versionedConfiguration.getConfigData(BlockBufferConfig.class)).thenReturn(blockBufferConfig);
         blockBufferService = new BlockBufferService(configProvider, blockStreamMetrics);
-        final AtomicBoolean isStreamingEnabled = isStreamingEnabled(blockBufferService);
-
-        isStreamingEnabled.set(false);
 
         blockBufferService.closeBlock(10L);
 
@@ -741,10 +822,13 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
 
     @Test
     void testSetLatestAcknowledgedBlock_streamingDisabled() {
+        when(configProvider.getConfiguration()).thenReturn(versionedConfiguration);
+        when(versionedConfiguration.getConfigData(BlockStreamConfig.class)).thenReturn(blockStreamConfig);
+        when(blockStreamConfig.writerMode()).thenReturn(BlockStreamWriterMode.FILE);
+        when(blockStreamConfig.streamMode()).thenReturn(StreamMode.BOTH);
+        when(blockBufferConfig.bufferDirectory()).thenReturn(testDir);
+        when(versionedConfiguration.getConfigData(BlockBufferConfig.class)).thenReturn(blockBufferConfig);
         blockBufferService = new BlockBufferService(configProvider, blockStreamMetrics);
-        final AtomicBoolean isStreamingEnabled = isStreamingEnabled(blockBufferService);
-
-        isStreamingEnabled.set(false);
 
         blockBufferService.setLatestAcknowledgedBlock(10L);
 
@@ -754,12 +838,16 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
 
     @Test
     void testEnsureNewBlocksPermitted_streamingDisabled() throws InterruptedException {
+        when(configProvider.getConfiguration()).thenReturn(versionedConfiguration);
+        when(versionedConfiguration.getConfigData(BlockStreamConfig.class)).thenReturn(blockStreamConfig);
+        when(blockStreamConfig.writerMode()).thenReturn(BlockStreamWriterMode.FILE);
+        when(blockStreamConfig.streamMode()).thenReturn(StreamMode.BOTH);
+        when(blockBufferConfig.bufferDirectory()).thenReturn(testDir);
+        when(versionedConfiguration.getConfigData(BlockBufferConfig.class)).thenReturn(blockBufferConfig);
         blockBufferService = new BlockBufferService(configProvider, blockStreamMetrics);
-        final AtomicBoolean isStreamingEnabled = isStreamingEnabled(blockBufferService);
         final AtomicReference<CompletableFuture<Boolean>> backPressureFutureRef =
                 backpressureCompletableFutureRef(blockBufferService);
 
-        isStreamingEnabled.set(false);
         backPressureFutureRef.set(new CompletableFuture<>());
 
         final CountDownLatch doneLatch = new CountDownLatch(1);
@@ -1051,10 +1139,12 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
                 .withConfigDataType(BlockStreamConfig.class)
                 .withConfigDataType(BlockBufferConfig.class)
                 .withValue("blockStream.writerMode", "GRPC")
+                .withValue("blockStream.streamMode", "BLOCKS")
                 .withValue("blockStream.blockPeriod", Duration.ofSeconds(1))
                 .withValue("blockStream.buffer.blockTtl", Duration.ofSeconds(10))
-                .withValue("blockStream.buffer.pruneInterval", Duration.ZERO)
+                .withValue("blockStream.buffer.isPruningEnabled", false)
                 .withValue("blockStream.buffer.recoveryThreshold", 70.0)
+                .withValue("blockStream.buffer.isBufferPersistenceEnabled", false)
                 .getOrCreateConfig();
         when(configProvider.getConfiguration()).thenReturn(new VersionedConfigImpl(config, 1));
 
@@ -1107,6 +1197,221 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         assertThat(backPressureFutureRef3.get()).isCompletedWithValue(true);
     }
 
+    @Test
+    void testStartupLoadBufferFromDisk() throws Exception {
+        final int batchSize = 50;
+        final Configuration config = HederaTestConfigBuilder.create()
+                .withConfigDataType(BlockStreamConfig.class)
+                .withConfigDataType(BlockBufferConfig.class)
+                .withValue("blockStream.writerMode", "GRPC")
+                .withValue("blockStream.blockItemBatchSize", batchSize)
+                .withValue("blockStream.blockPeriod", Duration.ofSeconds(1))
+                .withValue("blockStream.buffer.blockTtl", Duration.ofSeconds(10))
+                .withValue("blockStream.buffer.actionStageThreshold", 50.0)
+                .withValue("blockStream.buffer.actionGracePeriod", Duration.ofSeconds(2))
+                .withValue("blockStream.buffer.recoveryThreshold", 100.0)
+                .withValue("blockStream.buffer.isBufferPersistenceEnabled", true)
+                .withValue("blockStream.buffer.bufferDirectory", testDir)
+                .getOrCreateConfig();
+        when(configProvider.getConfiguration()).thenReturn(new VersionedConfigImpl(config, 1));
+
+        final File blockDir = new File(testDirFile, Long.toString(Instant.now().toEpochMilli()));
+        Files.createDirectories(blockDir.toPath());
+        final List<BlockState> blocks = generateRandomBlocks(10, batchSize);
+        for (final BlockState block : blocks) {
+            writeBlockToDisk(block, true, new File(blockDir, "block-" + block.blockNumber() + ".bin"));
+        }
+
+        blockBufferService = new BlockBufferService(configProvider, blockStreamMetrics);
+        blockBufferService.setBlockNodeConnectionManager(connectionManager);
+        blockBufferService.start();
+
+        final ConcurrentMap<Long, BlockState> buffer = blockBuffer(blockBufferService);
+        assertThat(buffer).hasSize(10);
+
+        for (final BlockState expectedBlock : blocks) {
+            final BlockState actualBlock = buffer.get(expectedBlock.blockNumber());
+            assertThat(actualBlock).isNotNull();
+            assertThat(actualBlock.numRequestsCreated()).isEqualTo(expectedBlock.numRequestsCreated());
+            assertThat(actualBlock.closedTimestamp()).isEqualTo(expectedBlock.closedTimestamp());
+            assertThat(actualBlock.isBlockProofSent()).isEqualTo(expectedBlock.isBlockProofSent());
+
+            for (int i = 0; i < expectedBlock.numRequestsCreated(); ++i) {
+                final PublishStreamRequest expectedRequest = expectedBlock.getRequest(i);
+                final PublishStreamRequest actualRequest = actualBlock.getRequest(i);
+                assertThat(actualRequest).isEqualTo(expectedRequest);
+            }
+        }
+    }
+
+    @Test
+    void testStartupWithNoBlocksOnDisk() {
+        final int batchSize = 50;
+        final Configuration config = HederaTestConfigBuilder.create()
+                .withConfigDataType(BlockStreamConfig.class)
+                .withConfigDataType(BlockBufferConfig.class)
+                .withValue("blockStream.writerMode", "GRPC")
+                .withValue("blockStream.blockItemBatchSize", batchSize)
+                .withValue("blockStream.blockPeriod", Duration.ofSeconds(1))
+                .withValue("blockStream.buffer.blockTtl", Duration.ofSeconds(10))
+                .withValue("blockStream.buffer.actionStageThreshold", 50.0)
+                .withValue("blockStream.buffer.actionGracePeriod", Duration.ofSeconds(2))
+                .withValue("blockStream.buffer.recoveryThreshold", 100.0)
+                .withValue("blockStream.buffer.isBufferPersistenceEnabled", true)
+                .withValue("blockStream.buffer.bufferDirectory", testDir)
+                .getOrCreateConfig();
+        when(configProvider.getConfiguration()).thenReturn(new VersionedConfigImpl(config, 1));
+
+        blockBufferService = new BlockBufferService(configProvider, blockStreamMetrics);
+        blockBufferService.setBlockNodeConnectionManager(connectionManager);
+
+        final ConcurrentMap<Long, BlockState> buffer = blockBuffer(blockBufferService);
+        assertThat(buffer).isEmpty();
+    }
+
+    @Test
+    void testPersistBuffer() throws Throwable {
+        final int batchSize = 7;
+        final Configuration config = HederaTestConfigBuilder.create()
+                .withConfigDataType(BlockStreamConfig.class)
+                .withConfigDataType(BlockBufferConfig.class)
+                .withValue("blockStream.writerMode", "GRPC")
+                .withValue("blockStream.streamMode", "BLOCKS")
+                .withValue("blockStream.blockPeriod", Duration.ofSeconds(1))
+                .withValue("blockStream.buffer.blockTtl", Duration.ofSeconds(10))
+                .withValue("blockStream.buffer.actionStageThreshold", 50.0)
+                .withValue("blockStream.buffer.actionGracePeriod", Duration.ofSeconds(2))
+                .withValue("blockStream.buffer.recoveryThreshold", 100.0)
+                .withValue("blockStream.buffer.isBufferPersistenceEnabled", true)
+                .withValue("blockStream.buffer.bufferDirectory", testDir)
+                .withValue("blockStream.blockItemBatchSize", batchSize)
+                .getOrCreateConfig();
+        when(configProvider.getConfiguration()).thenReturn(new VersionedConfigImpl(config, 1));
+
+        Files.createDirectories(testDirFile.toPath());
+
+        blockBufferService = new BlockBufferService(configProvider, blockStreamMetrics);
+        blockBufferService.setBlockNodeConnectionManager(connectionManager);
+
+        // Setup block 1
+        final long BLOCK_1 = 1L;
+        blockBufferService.openBlock(BLOCK_1);
+        final List<BlockItem> block1Items = generateBlockItems(10, BLOCK_1, Set.of(1L));
+        block1Items.forEach(item -> blockBufferService.addItem(BLOCK_1, item));
+        blockBufferService.closeBlock(BLOCK_1);
+        blockBufferService.getBlockState(BLOCK_1).processPendingItems(batchSize);
+
+        // Setup block 2
+        final long BLOCK_2 = 2L;
+        blockBufferService.openBlock(BLOCK_2);
+        final List<BlockItem> block2Items = generateBlockItems(35, BLOCK_2, Set.of());
+        block2Items.forEach(item -> blockBufferService.addItem(BLOCK_2, item));
+        blockBufferService.closeBlock(BLOCK_2);
+        blockBufferService.getBlockState(BLOCK_2).processPendingItems(batchSize);
+
+        // Setup block 3
+        final long BLOCK_3 = 3L;
+        blockBufferService.openBlock(BLOCK_3);
+        final List<BlockItem> block3Items = generateBlockItems(38, BLOCK_3, Set.of(2L, 3L, 4L));
+        block3Items.forEach(item -> blockBufferService.addItem(BLOCK_3, item));
+        blockBufferService.closeBlock(BLOCK_3);
+        blockBufferService.getBlockState(BLOCK_3).processPendingItems(batchSize);
+
+        // Setup block 4, don't close it
+        final long BLOCK_4 = 4L;
+        blockBufferService.openBlock(BLOCK_4);
+        final List<BlockItem> block4Items = generateBlockItems(19, BLOCK_4, Set.of(5L, 6L));
+        block4Items.forEach(item -> blockBufferService.addItem(BLOCK_4, item));
+        blockBufferService.getBlockState(BLOCK_4).processPendingItems(batchSize);
+
+        // request the buffer be persisted
+        blockBufferService.persistBuffer();
+
+        // attempt to persist the buffer... this should work for only block 1, 2, and 3 since block 4 is not closed
+        persistBufferHandle.invoke(blockBufferService);
+
+        // verify blocks 1-3 on disk
+        try (final Stream<Path> stream = Files.list(testDirFile.toPath())) {
+            final List<Path> subDirs = stream.toList();
+            assertThat(subDirs).hasSize(1);
+            final Path subDir = subDirs.getFirst();
+
+            try (final Stream<Path> subStream = Files.list(subDir)) {
+                final List<Path> files = subStream.toList();
+                assertThat(files).hasSize(3);
+                final Set<String> expectedFileNames =
+                        new HashSet<>(Set.of("block-1.bin", "block-2.bin", "block-3.bin"));
+                final Set<String> actualFileNames =
+                        files.stream().map(Path::toFile).map(File::getName).collect(Collectors.toSet());
+                assertThat(actualFileNames).isEqualTo(expectedFileNames);
+            }
+        }
+
+        // close block 4
+        blockBufferService.getBlockState(BLOCK_4).closeBlock();
+
+        // add another block with new rounds
+        final long BLOCK_5 = 5L;
+        blockBufferService.openBlock(BLOCK_5);
+        final List<BlockItem> block5Items = generateBlockItems(12, BLOCK_5, Set.of(7L));
+        block5Items.forEach(item -> blockBufferService.addItem(BLOCK_5, item));
+        blockBufferService.closeBlock(BLOCK_5);
+        blockBufferService.getBlockState(BLOCK_5).processPendingItems(batchSize);
+
+        // attempt to persist the buffer again, this time blocks 1-5 should be persisted since they are all closed
+        persistBufferHandle.invoke(blockBufferService);
+        try (final Stream<Path> stream = Files.list(testDirFile.toPath())) {
+            final List<Path> subDirs = stream.toList();
+            assertThat(subDirs).hasSize(1);
+            final Path subDir = subDirs.getFirst();
+
+            try (final Stream<Path> subStream = Files.list(subDir)) {
+                final List<Path> files = subStream.toList();
+                assertThat(files).hasSize(5);
+                final Set<String> expectedFileNames = new HashSet<>(
+                        Set.of("block-1.bin", "block-2.bin", "block-3.bin", "block-4.bin", "block-5.bin"));
+                final Set<String> actualFileNames =
+                        files.stream().map(Path::toFile).map(File::getName).collect(Collectors.toSet());
+                assertThat(actualFileNames).isEqualTo(expectedFileNames);
+            }
+        }
+    }
+
+    @Test
+    void testPersistBuffer_notEnabled() throws Throwable {
+        final Configuration config = HederaTestConfigBuilder.create()
+                .withConfigDataType(BlockStreamConfig.class)
+                .withConfigDataType(BlockBufferConfig.class)
+                .withValue("blockStream.writerMode", "GRPC")
+                .withValue("blockStream.streamMode", "BLOCKS")
+                .withValue("blockStream.blockPeriod", Duration.ofSeconds(1))
+                .withValue("blockStream.buffer.isBufferPersistenceEnabled", false)
+                .getOrCreateConfig();
+        when(configProvider.getConfiguration()).thenReturn(new VersionedConfigImpl(config, 1));
+
+        Files.createDirectories(testDirFile.toPath());
+
+        blockBufferService = new BlockBufferService(configProvider, blockStreamMetrics);
+        blockBufferService.setBlockNodeConnectionManager(connectionManager);
+
+        // create a block
+        final long BLOCK_1 = 1L;
+        blockBufferService.openBlock(BLOCK_1);
+        final List<BlockItem> block1Items = generateBlockItems(60, BLOCK_1, Set.of(10L, 11L));
+        block1Items.forEach(item -> blockBufferService.addItem(BLOCK_1, item));
+        blockBufferService.closeBlock(BLOCK_1);
+        blockBufferService.getBlockState(BLOCK_1).processPendingItems(25);
+
+        blockBufferService.persistBuffer();
+
+        persistBufferHandle.invoke(blockBufferService);
+
+        // verify nothing on disk
+        try (final Stream<Path> stream = Files.list(testDirFile.toPath())) {
+            assertThat(stream.count()).isZero();
+        }
+    }
+
     // Utilities
 
     void setupState(final int numBlockUnacked, final boolean reconnectExpected) throws Throwable {
@@ -1114,12 +1419,13 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
                 .withConfigDataType(BlockStreamConfig.class)
                 .withConfigDataType(BlockBufferConfig.class)
                 .withValue("blockStream.writerMode", "GRPC")
+                .withValue("blockStream.streamMode", "BLOCKS")
                 .withValue("blockStream.blockPeriod", Duration.ofSeconds(1))
                 .withValue("blockStream.buffer.blockTtl", Duration.ofSeconds(10))
-                .withValue("blockStream.buffer.pruneInterval", Duration.ZERO)
                 .withValue("blockStream.buffer.actionStageThreshold", 50.0)
                 .withValue("blockStream.buffer.actionGracePeriod", Duration.ofSeconds(2))
                 .withValue("blockStream.buffer.recoveryThreshold", 100.0)
+                .withValue("blockStream.buffer.isBufferPersistenceEnabled", false)
                 .getOrCreateConfig();
         when(configProvider.getConfiguration()).thenReturn(new VersionedConfigImpl(config, 1));
 
@@ -1165,10 +1471,6 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         return (AtomicLong) highestAckedBlockNumberHandle.get(bufferService);
     }
 
-    private AtomicBoolean isStreamingEnabled(final BlockBufferService bufferService) {
-        return (AtomicBoolean) isStreamingEnabledHandle.get(bufferService);
-    }
-
     private AtomicReference<CompletableFuture<Boolean>> backpressureCompletableFutureRef(
             final BlockBufferService bufferService) {
         return (AtomicReference<CompletableFuture<Boolean>>) backPressureFutureRefHandle.get(bufferService);
@@ -1176,5 +1478,25 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
 
     private ConcurrentMap<Long, BlockState> blockBuffer(final BlockBufferService bufferService) {
         return (ConcurrentMap<Long, BlockState>) blockBufferHandle.get(bufferService);
+    }
+
+    private static void cleanupDirectory() throws IOException {
+        if (!Files.exists(testDirFile.toPath())) {
+            return;
+        }
+
+        Files.walkFileTree(testDirFile.toPath(), new SimpleFileVisitor<>() {
+            @Override
+            public FileVisitResult visitFile(final Path file, final BasicFileAttributes attrs) throws IOException {
+                Files.delete(file);
+                return FileVisitResult.CONTINUE;
+            }
+
+            @Override
+            public FileVisitResult postVisitDirectory(final Path dir, final IOException exc) throws IOException {
+                Files.delete(dir);
+                return FileVisitResult.CONTINUE;
+            }
+        });
     }
 }

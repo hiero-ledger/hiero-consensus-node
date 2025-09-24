@@ -209,7 +209,7 @@ public record ApiPermissionConfig(
         @ConfigProperty(defaultValue = "0-*") PermissionedAccountsRange approveAllowances,
         @ConfigProperty(defaultValue = "0-*") PermissionedAccountsRange deleteAllowances,
         @ConfigProperty(defaultValue = "0-*") PermissionedAccountsRange utilPrng,
-        @ConfigProperty(defaultValue = "0-0") PermissionedAccountsRange atomicBatch,
+        @ConfigProperty(defaultValue = "0-*") PermissionedAccountsRange atomicBatch,
         @ConfigProperty(defaultValue = "0-*") PermissionedAccountsRange createFile,
         @ConfigProperty(defaultValue = "0-*") PermissionedAccountsRange updateFile,
         @ConfigProperty(defaultValue = "0-*") PermissionedAccountsRange deleteFile,
@@ -280,7 +280,7 @@ public record ApiPermissionConfig(
         @ConfigProperty(defaultValue = "0-0") PermissionedAccountsRange historyProofVote,
         @ConfigProperty(defaultValue = "0-0") PermissionedAccountsRange crsPublication,
         @ConfigProperty(defaultValue = "0-*") PermissionedAccountsRange lambdaSStore,
-        @ConfigProperty(defaultValue = "0-0") PermissionedAccountsRange hookDispatch) {
+        @ConfigProperty(defaultValue = "0-*") PermissionedAccountsRange hookDispatch) {
 
     private static final EnumMap<HederaFunctionality, Function<ApiPermissionConfig, PermissionedAccountsRange>>
             permissionKeys = new EnumMap<>(HederaFunctionality.class);
