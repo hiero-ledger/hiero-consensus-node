@@ -112,6 +112,7 @@ import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.NetworkAdminConfig;
 import com.hedera.node.config.data.TssConfig;
 import com.hedera.node.config.data.VersionConfig;
+import com.hedera.node.config.types.BlockStreamWriterMode;
 import com.hedera.node.config.types.StreamMode;
 import com.hedera.node.internal.network.Network;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -1461,7 +1462,10 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
         try {
             daggerApp.blockNodeConnectionManager().start();
         } catch (final NoBlockNodesAvailableException e) {
-            if (blockNodeConnectionConfig.shutdownNodeOnNoBlockNodes()) {
+            if (blockNodeConnectionConfig.shutdownNodeOnNoBlockNodes()
+                    && blockStreamConfig.writerMode().equals(BlockStreamWriterMode.GRPC)
+                    && blockStreamConfig.streamMode().equals(BLOCKS)) {
+
                 logger.fatal("No block nodes available to connect to; shutting down");
                 shutdown();
                 System.exit(1);

@@ -288,27 +288,15 @@ public class BlockNodeConnectionManager {
      * @param nodeConfig the configuration to use for a specific block node to connect to
      * @return a gRPC client
      */
-    private @NonNull BlockNodeClient createNewGrpcClient(@NonNull final BlockNodeConfig nodeConfig) {
+    private @NonNull BlockStreamPublishServiceClient createNewGrpcClient(@NonNull final BlockNodeConfig nodeConfig) {
         requireNonNull(nodeConfig);
 
         final Tls tls = Tls.builder().enabled(false).build();
         final PbjGrpcClientConfig grpcConfig =
                 new PbjGrpcClientConfig(Duration.ofSeconds(30), tls, Optional.of(""), "application/grpc");
 
-        final URI blockNodeUri = URI.create("http://" + nodeConfig.address() + ":" + nodeConfig.port());
-        final InetAddress blockAddress;
-
-        // Attempt to resolve the address of the block node
-        try {
-            final URL blockNodeUrl = blockNodeUri.toURL();
-            blockAddress = InetAddress.getByName(blockNodeUrl.getHost());
-        } catch (final IOException e) {
-            logger.error("Failed to resolve block node host ({}:{})", nodeConfig.address(), nodeConfig.port(), e);
-            throw new IllegalArgumentException("Failed to resolve block node host", e);
-        }
-
         final WebClient webClient = WebClient.builder()
-                .baseUri(blockNodeUri)
+                .baseUri("http://" + nodeConfig.address() + ":" + nodeConfig.port())
                 .tls(tls)
                 .protocolConfigs(List.of(GrpcClientProtocolConfig.builder()
                         .abortPollTimeExpired(false)
@@ -317,12 +305,8 @@ public class BlockNodeConnectionManager {
                 .connectTimeout(Duration.ofSeconds(10))
                 .build();
 
-        final BlockStreamPublishServiceClient client =
-                new BlockStreamPublishServiceClient(new PbjGrpcClient(webClient, grpcConfig), OPTIONS);
-        return new BlockNodeClient(blockAddress, client);
+        return new BlockStreamPublishServiceClient(new PbjGrpcClient(webClient, grpcConfig), OPTIONS);
     }
-
-    private record BlockNodeClient(InetAddress address, BlockStreamPublishServiceClient client) {}
 
     /**
      * Closes a connection and reschedules it with the specified delay.
@@ -361,7 +345,7 @@ public class BlockNodeConnectionManager {
         logger.debug("[{}] Immediately scheduling connection at block {}", connection, blockNumber);
 
         // Schedule restart at the specific block
-        scheduleConnectionAttempt(connection, Duration.ZERO, blockNumber, false);
+        scheduleConnectionAttempt(connection.getNodeConfig(), Duration.ZERO, blockNumber, false);
     }
 
     /**
@@ -376,10 +360,10 @@ public class BlockNodeConnectionManager {
         if (isOnlyOneBlockNodeConfigured()) {
             // If there is only one block node configured, we will not try to select a new node
             // Schedule a retry for the failed connection with no delay
-            scheduleConnectionAttempt(connection, Duration.ZERO, null, false);
+            scheduleConnectionAttempt(connection.getNodeConfig(), Duration.ZERO, null, false);
         } else {
             // Schedule retry for the failed connection after a delay
-            scheduleConnectionAttempt(connection, delay, null, false);
+            scheduleConnectionAttempt(connection.getNodeConfig(), delay, null, false);
             // Immediately try to find and connect to the next available node
             selectNewBlockNodeForStreaming(false);
         }
@@ -417,38 +401,40 @@ public class BlockNodeConnectionManager {
      * Schedules a connection attempt (or retry) for the given Block Node connection
      * after the specified delay. Handles adding/removing the connection from the retry map.
      *
-     * @param connection the connection to schedule a retry for
+     * @param blockNodeConfig the connection to schedule a retry for
      * @param initialDelay the delay before the first attempt in this sequence executes
      * @param blockNumber the block number to use once reconnected
      */
     public void scheduleConnectionAttempt(
-            @NonNull final BlockNodeConnection connection,
+            @NonNull final BlockNodeConfig blockNodeConfig,
             @NonNull final Duration initialDelay,
             @Nullable final Long blockNumber) {
-        scheduleConnectionAttempt(connection, initialDelay, blockNumber, false);
+        scheduleConnectionAttempt(blockNodeConfig, initialDelay, blockNumber, false);
     }
 
     private void scheduleConnectionAttempt(
-            @NonNull final BlockNodeConnection connection,
+            @NonNull final BlockNodeConfig blockNodeConfig,
             @NonNull final Duration initialDelay,
             @Nullable final Long blockNumber,
             final boolean force) {
         if (!isStreamingEnabled.get()) {
             return;
         }
-
-        requireNonNull(connection);
+        requireNonNull(blockNodeConfig);
         requireNonNull(initialDelay);
+
         final long delayMillis = Math.max(0, initialDelay.toMillis());
+        final BlockNodeConnection newConnection = createConnection(blockNodeConfig);
 
         if (blockNumber == null) {
-            logger.debug("[{}] Scheduling reconnection for node in {} ms", connection, delayMillis);
+            logger.debug("[{}] Scheduling reconnection for node in {} ms", newConnection, delayMillis);
         } else {
             logger.debug(
-                    "[{}] Scheduling reconnection for node at block {} in {} ms", connection, blockNumber, delayMillis);
+                    "[{}] Scheduling reconnection for node at block {} in {} ms",
+                    newConnection,
+                    blockNumber,
+                    delayMillis);
         }
-
-        final BlockNodeConnection newConnection = createConnection(connection.getNodeConfig());
 
         // Schedule the first attempt using the connectionExecutor
         try {
@@ -456,11 +442,11 @@ public class BlockNodeConnectionManager {
                     new BlockNodeConnectionTask(newConnection, initialDelay, blockNumber, force),
                     delayMillis,
                     TimeUnit.MILLISECONDS);
-            logger.debug("[{}] Successfully scheduled reconnection task", connection);
+            logger.debug("[{}] Successfully scheduled reconnection task", newConnection);
         } catch (final Exception e) {
-            logger.error("[{}] Failed to schedule connection task for block node", connection, e);
-            // Consider closing the connection object if scheduling fails
-            connection.close(true);
+            logger.error("[{}] Failed to schedule connection task for block node", newConnection, e);
+            connections.remove(newConnection.getNodeConfig());
+            newConnection.close(true);
         }
     }
 
@@ -563,11 +549,9 @@ public class BlockNodeConnectionManager {
         }
 
         logger.debug("Selected block node {}:{} for connection attempt", selectedNode.address(), selectedNode.port());
-        // If we selected a node, schedule the connection attempt.
-        final BlockNodeConnection connection = createConnection(selectedNode);
 
         // Immediately schedule the FIRST connection attempt.
-        scheduleConnectionAttempt(connection, Duration.ZERO, null, force);
+        scheduleConnectionAttempt(selectedNode, Duration.ZERO, null, force);
 
         return true;
     }
@@ -634,17 +618,16 @@ public class BlockNodeConnectionManager {
     private BlockNodeConnection createConnection(@NonNull final BlockNodeConfig nodeConfig) {
         requireNonNull(nodeConfig);
 
-        // Create the connection object with fresh gRPC client
-        final BlockNodeClient bnClient = createNewGrpcClient(nodeConfig);
+        // Create the connection object with a fresh gRPC client
+        final BlockStreamPublishServiceClient grpcClient = createNewGrpcClient(nodeConfig);
         final BlockNodeConnection connection = new BlockNodeConnection(
                 configProvider,
                 nodeConfig,
                 this,
                 blockBufferService,
-                bnClient.client,
+                grpcClient,
                 blockStreamMetrics,
-                sharedExecutorService,
-                bnClient.address);
+                sharedExecutorService);
 
         connections.put(nodeConfig, connection);
         return connection;
@@ -918,25 +901,7 @@ public class BlockNodeConnectionManager {
                             blockNumber != null ? blockNumber : blockBufferService.getLastBlockNumberProduced();
 
                     jumpTargetBlock.set(blockToJumpTo);
-
-                    final BlockNodeConfig nodeCfg = connection.getNodeConfig();
-                    final InetAddress nodeAddress = connection.nodeAddress();
-                    // TODO: Use metric labels to capture active node's IP
-                    // Once our metrics library supports labels, we will want to re-use the metric below to instead
-                    // emit a single value, like '1', and include a label called something like 'blockNodeIp' with the
-                    // value being the resolved block node's IP. Then the Grafana dashboard can be updated to use the
-                    // label value and show which block node the consensus node is connected to at any given time.
-                    // It may also be better to have a background task that runs every second or something that
-                    // continuously emits the metric instead of just when a connection is promoted to active.
-                    final long ipAsInteger = calculateIpAsInteger(nodeAddress);
-                    blockStreamMetrics.recordActiveConnectionIp(ipAsInteger);
-
-                    logger.info(
-                            "Active block node connection updated to: {}:{} (resolvedIp: {}, resolvedIpAsInt={})",
-                            nodeCfg.address(),
-                            nodeCfg.port(),
-                            nodeAddress.getHostAddress(),
-                            ipAsInteger);
+                    recordActiveConnectionIp(connection.getNodeConfig());
                 } else {
                     // Another connection task has preempted this task... reschedule and try again
                     reschedule();
@@ -1084,5 +1049,39 @@ public class BlockNodeConnectionManager {
         final long octet3 = 256L * (bytes[2] & 0xFF);
         final long octet4 = 1L * (bytes[3] & 0xFF);
         return octet1 + octet2 + octet3 + octet4;
+    }
+
+    private void recordActiveConnectionIp(final BlockNodeConfig nodeConfig) {
+        long ipAsInteger;
+
+        // Attempt to resolve the address of the block node
+        try {
+            final URL blockNodeUrl = URI.create("http://" + nodeConfig.address() + ":" + nodeConfig.port())
+                    .toURL();
+            final InetAddress blockAddress = InetAddress.getByName(blockNodeUrl.getHost());
+
+            // TODO: Use metric labels to capture active node's IP
+            // Once our metrics library supports labels, we will want to re-use the metric below to instead
+            // emit a single value, like '1', and include a label called something like 'blockNodeIp' with
+            // the
+            // value being the resolved block node's IP. Then the Grafana dashboard can be updated to use
+            // the
+            // label value and show which block node the consensus node is connected to at any given time.
+            // It may also be better to have a background task that runs every second or something that
+            // continuously emits the metric instead of just when a connection is promoted to active.
+            ipAsInteger = calculateIpAsInteger(blockAddress);
+
+            logger.info(
+                    "Active block node connection updated to: {}:{} (resolvedIp: {}, resolvedIpAsInt={})",
+                    nodeConfig.address(),
+                    nodeConfig.port(),
+                    blockAddress.getHostAddress(),
+                    ipAsInteger);
+        } catch (final IOException e) {
+            logger.error("Failed to resolve block node host ({}:{})", nodeConfig.address(), nodeConfig.port(), e);
+            ipAsInteger = -1L;
+        }
+
+        blockStreamMetrics.recordActiveConnectionIp(ipAsInteger);
     }
 }
