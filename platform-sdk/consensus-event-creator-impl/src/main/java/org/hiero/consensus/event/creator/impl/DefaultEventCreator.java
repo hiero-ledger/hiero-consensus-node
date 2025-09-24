@@ -35,7 +35,7 @@ import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.model.quiescence.QuiescenceStatus;
+import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.model.transaction.EventTransactionSupplier;
 import org.hiero.consensus.model.transaction.SignatureTransactionCheck;
@@ -201,8 +201,8 @@ public class DefaultEventCreator implements EventCreatorModule {
      * {@inheritDoc}
      */
     @Override
-    public void setQuiescenceStatus(@NonNull final QuiescenceStatus quiescenceStatus) {
-        creator.setQuiescenceStatus(quiescenceStatus);
+    public void quiescenceCommand(@NonNull final QuiescenceCommand quiescenceCommand) {
+        creator.setQuiescenceStatus(quiescenceCommand);
     }
 
     /**

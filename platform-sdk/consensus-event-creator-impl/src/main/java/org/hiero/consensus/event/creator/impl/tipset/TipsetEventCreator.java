@@ -31,7 +31,7 @@ import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.event.UnsignedEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.model.quiescence.QuiescenceStatus;
+import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.consensus.model.transaction.EventTransactionSupplier;
 import org.hiero.consensus.roster.RosterUtils;
 
@@ -180,7 +180,7 @@ public class TipsetEventCreator implements EventCreator {
     }
 
     @Override
-    public void setQuiescenceStatus(@NonNull final QuiescenceStatus quiescenceStatus) {
+    public void setQuiescenceStatus(@NonNull final QuiescenceCommand quiescenceCommand) {
         throw new UnsupportedOperationException("Quiescence is not yet implemented");
     }
 

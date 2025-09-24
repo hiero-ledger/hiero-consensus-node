@@ -27,7 +27,7 @@ import java.util.List;
 import java.util.Random;
 import org.hiero.base.crypto.Signature;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.model.quiescence.QuiescenceStatus;
+import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.consensus.model.roster.AddressBook;
 import org.hiero.consensus.roster.RosterRetriever;
 
@@ -109,7 +109,7 @@ public final class FakePlatform implements Platform {
     }
 
     @Override
-    public void setQuiescenceStatus(@NonNull final QuiescenceStatus quiescenceStatus) {}
+    public void quiescenceCommand(@NonNull final QuiescenceCommand quiescenceCommand) {}
 
     @Override
     public Roster getRoster() {

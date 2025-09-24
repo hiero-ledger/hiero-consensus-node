@@ -31,7 +31,7 @@ import java.util.Objects;
 import org.hiero.consensus.event.creator.EventCreatorModule;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
-import org.hiero.consensus.model.quiescence.QuiescenceStatus;
+import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.consensus.roster.RosterHistory;
 
 /**
@@ -359,12 +359,12 @@ public record PlatformCoordinator(@NonNull PlatformComponents components) implem
     }
 
     /**
-     * @see EventCreatorModule#setQuiescenceStatus(QuiescenceStatus)
+     * @see EventCreatorModule#quiescenceCommand(QuiescenceCommand)
      */
-    public void setQuiescenceStatus(@NonNull final QuiescenceStatus quiescenceStatus) {
+    public void setQuiescenceStatus(@NonNull final QuiescenceCommand quiescenceCommand) {
         components
                 .eventCreationManagerWiring()
-                .getInputWire(EventCreatorModule::setQuiescenceStatus)
-                .inject(quiescenceStatus);
+                .getInputWire(EventCreatorModule::quiescenceCommand)
+                .inject(quiescenceCommand);
     }
 }

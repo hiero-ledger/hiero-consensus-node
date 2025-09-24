@@ -5,7 +5,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
-import org.hiero.consensus.model.quiescence.QuiescenceStatus;
+import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 
 /**
  * An object that creates new events.
@@ -36,9 +36,9 @@ public interface EventCreator {
     PlatformEvent maybeCreateEvent();
 
     /**
-     * @see org.hiero.consensus.event.creator.EventCreatorModule#setQuiescenceStatus(QuiescenceStatus)
+     * @see org.hiero.consensus.event.creator.EventCreatorModule#quiescenceCommand(QuiescenceCommand)
      */
-    void setQuiescenceStatus(@NonNull QuiescenceStatus quiescenceStatus);
+    void setQuiescenceStatus(@NonNull QuiescenceCommand quiescenceCommand);
 
     /**
      * Reset the event creator to its initial state.
