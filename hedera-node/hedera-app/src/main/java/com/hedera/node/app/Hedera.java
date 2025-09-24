@@ -1461,7 +1461,7 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
 
         try {
             daggerApp.blockNodeConnectionManager().start();
-        } catch (final NoBlockNodesAvailableException | IllegalStateException e) {
+        } catch (final NoBlockNodesAvailableException e) {
             if (blockNodeConnectionConfig.shutdownNodeOnNoBlockNodes()
                     && blockStreamConfig.writerMode().equals(BlockStreamWriterMode.GRPC)
                     && blockStreamConfig.streamMode().equals(BLOCKS)) {
