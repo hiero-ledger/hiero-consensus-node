@@ -7,7 +7,6 @@ import static com.hedera.node.app.throttle.ThrottleAccumulator.ThrottleType.NOOP
 import com.hedera.hapi.platform.state.PlatformState;
 import com.hedera.node.app.annotations.NodeSelfId;
 import com.hedera.node.app.metrics.StoreMetricsServiceImpl;
-import com.hedera.node.app.spi.ids.EntityIdFactory;
 import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.metrics.StoreMetricsService;
 import com.hedera.node.app.throttle.ThrottleAccumulator;
@@ -77,9 +76,8 @@ public interface StandaloneModule {
     @Provides
     @Singleton
     @NodeSelfId
-    static long provideNodeSelfId(EntityIdFactory entityIdFactory) {
-        // This is only used to check the shard and realm of account ids
-        return entityIdFactory.newDefaultAccountId().accountNum();
+    static long provideNodeSelfId() {
+        return 0;
     }
 
     @Provides
