@@ -555,4 +555,56 @@ public class BlockNodeSuite {
                                 portNumbers.getLast()))),
                 waitUntilNextBlocks(5).withBackgroundTraffic(true));
     }
+
+    @HapiTest
+    @HapiBlockNode(
+            networkSize = 1,
+            blockNodeConfigs = {@BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.SIMULATOR)},
+            subProcessNodeConfigs = {
+                @SubProcessNodeConfig(
+                        nodeId = 0,
+                        blockNodeIds = {0},
+                        blockNodePriorities = {0},
+                        applicationPropertiesOverrides = {
+                            "blockStream.streamMode",
+                            "BOTH",
+                            "blockStream.writerMode",
+                            "FILE_AND_GRPC"
+                        })
+            })
+    @Order(10)
+    final Stream<DynamicTest> node0StreamingExponentialBackoff() {
+        final AtomicReference<Instant> time = new AtomicReference<>();
+        final List<Integer> portNumbers = new ArrayList<>();
+        return hapiTest(
+                doingContextual(spec -> {
+                    portNumbers.add(spec.getBlockNodePortById(0));
+                }),
+                waitUntilNextBlocks(1).withBackgroundTraffic(true),
+                doingContextual(spec -> time.set(Instant.now())),
+                blockNode(0).sendEndOfStreamImmediately(Code.BEHIND).withBlockNumber(3L),
+                waitUntilNextBlocks(1).withBackgroundTraffic(true),
+                blockNode(0).sendEndOfStreamImmediately(Code.BEHIND).withBlockNumber(4L),
+                waitUntilNextBlocks(1).withBackgroundTraffic(true),
+                blockNode(0).sendEndOfStreamImmediately(Code.BEHIND).withBlockNumber(5L),
+                waitUntilNextBlocks(1).withBackgroundTraffic(true),
+                blockNode(0).sendEndOfStreamImmediately(Code.BEHIND).withBlockNumber(6L),
+                sourcingContextual(spec -> assertHgcaaLogContainsTimeframe(
+                        byNodeId(0),
+                        time::get,
+                        Duration.ofMinutes(2),
+                        Duration.of(45, SECONDS),
+                        String.format(
+                                "[localhost:%s/ACTIVE] Block node has exceeded the allowed number of EndOfStream responses",
+                                portNumbers.getFirst()),
+                        String.format(
+                                "Selected block node localhost:%s for connection attempt", portNumbers.getFirst()),
+                        String.format(
+                                "[localhost:%s/PENDING] Connection state transitioned from UNINITIALIZED to PENDING",
+                                portNumbers.getFirst()),
+                        String.format(
+                                "[localhost:%s/ACTIVE] Connection state transitioned from PENDING to ACTIVE",
+                                portNumbers.getFirst()))),
+                waitUntilNextBlocks(5).withBackgroundTraffic(true));
+    }
 }

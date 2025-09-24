@@ -82,7 +82,7 @@ public class BlockNodeConnectionManager {
      */
     private static final long RETRY_BACKOFF_MULTIPLIER = 2;
     /**
-     * The maximum delay used for reties.
+     * The maximum delay used for retries.
      */
     private static final Duration MAX_RETRY_DELAY = Duration.ofSeconds(10);
     /**
@@ -152,13 +152,11 @@ public class BlockNodeConnectionManager {
      * Flag that indicates if streaming to block nodes is enabled. This flag is set once upon startup and cannot change.
      */
     private final AtomicBoolean isStreamingEnabled = new AtomicBoolean(false);
-
     /**
      * Tracks health and connection history for each block node across multiple connection instances.
      * This data persists beyond individual BlockNodeConnection lifecycles.
      */
     private final Map<BlockNodeConfig, BlockNodeStats> nodeStats;
-
     /**
      * Configuration property: the maximum number of EndOfStream responses permitted before taking corrective action.
      */
@@ -168,9 +166,14 @@ public class BlockNodeConnectionManager {
      */
     private final Duration endOfStreamTimeFrame;
     /**
-     * Configuration property: delay before retrying after EndOfStream rate limit is exceeded.
+     * Configuration property: delay before retrying after the EndOfStream rate limit is exceeded.
      */
     private final Duration endOfStreamScheduleDelay;
+    /**
+     * Tracks retry attempts and last retry time for each block node to maintain
+     * proper exponential backoff across connection attempts.
+     */
+    private final Map<BlockNodeConfig, Integer> retryAttempts = new ConcurrentHashMap<>();
 
     /**
      * Creates a new BlockNodeConnectionManager with the given configuration from disk.
@@ -417,36 +420,43 @@ public class BlockNodeConnectionManager {
         if (!isStreamingEnabled.get()) {
             return;
         }
-
         requireNonNull(connection);
         requireNonNull(initialDelay);
-        final long delayMillis = Math.max(0, initialDelay.toMillis());
+
+        // Get or create the retry attempt for this node
+        final int retryAttempt = retryAttempts.computeIfAbsent(connection.getNodeConfig(), k -> 0);
+
+        final long delayMs =
+                (retryAttempt == 0) ? Math.max(0, initialDelay.toMillis()) : calculateJitteredDelayMs(retryAttempt);
 
         if (blockNumber == null) {
-            logger.debug("[{}] Scheduling reconnection for node in {} ms", connection, delayMillis);
+            logger.debug(
+                    "[{}] Scheduling reconnection for node in {} ms (attempt={})", connection, delayMs, retryAttempt);
         } else {
             logger.debug(
-                    "[{}] Scheduling reconnection for node at block {} in {} ms", connection, blockNumber, delayMillis);
+                    "[{}] Scheduling reconnection for node at block {} in {} ms (attempt={})",
+                    connection,
+                    blockNumber,
+                    delayMs,
+                    retryAttempt);
         }
 
         final BlockNodeConnection newConnection = createConnection(connection.getNodeConfig());
-
-        // Schedule the first attempt using the connectionExecutor
         try {
             sharedExecutorService.schedule(
-                    new BlockNodeConnectionTask(newConnection, initialDelay, blockNumber, force),
-                    delayMillis,
+                    new BlockNodeConnectionTask(newConnection, blockNumber, force, retryAttempt),
+                    delayMs,
                     TimeUnit.MILLISECONDS);
+            retryAttempts.put(connection.getNodeConfig(), retryAttempt + 1); // Increment retry attempt count
             logger.debug("[{}] Successfully scheduled reconnection task", connection);
         } catch (final Exception e) {
             logger.error("[{}] Failed to schedule connection task for block node", connection, e);
-            // Consider closing the connection object if scheduling fails
             connection.close(true);
         }
     }
 
     /**
-     * Gracefully shuts down the connection manager, closing active connection.
+     * Gracefully shuts down the connection manager, closing the active connection.
      */
     public void shutdown() {
         if (!isStreamingEnabled.get()) {
@@ -801,20 +811,19 @@ public class BlockNodeConnectionManager {
      */
     class BlockNodeConnectionTask implements Runnable {
         private final BlockNodeConnection connection;
-        private Duration currentBackoffDelay; // Represents the delay *before* the next attempt
-        private final Long blockNumber; // If becoming ACTIVE, the blockNumber to jump to
+        private final Long blockNumber;
         private final boolean force;
+        private final int retryAttempt;
 
         BlockNodeConnectionTask(
                 @NonNull final BlockNodeConnection connection,
-                @NonNull final Duration initialDelay,
                 @Nullable final Long blockNumber,
-                final boolean force) {
+                final boolean force,
+                final int retryAttempt) {
             this.connection = requireNonNull(connection);
-            // Ensure initial delay is non-negative for backoff calculation
-            this.currentBackoffDelay = initialDelay.isNegative() ? Duration.ZERO : initialDelay;
             this.blockNumber = blockNumber;
             this.force = force;
+            this.retryAttempt = retryAttempt;
         }
 
         /**
@@ -905,38 +914,19 @@ public class BlockNodeConnectionManager {
         }
 
         /**
-         * Reschedules the connect attempt.
+         * Reschedules the connection attempt.
          */
         private void reschedule() {
-            // Calculate next delay based on the *previous* backoff delay for this task instance
-            Duration nextDelay = currentBackoffDelay.isZero()
-                    ? INITIAL_RETRY_DELAY // Start with initial delay if previous was 0
-                    : currentBackoffDelay.multipliedBy(RETRY_BACKOFF_MULTIPLIER);
+            final long jitteredDelayMs = calculateJitteredDelayMs(retryAttempt);
 
-            if (nextDelay.compareTo(MAX_RETRY_DELAY) > 0) {
-                nextDelay = MAX_RETRY_DELAY;
-            }
-
-            // Apply jitter
-            long jitteredDelayMs;
-            final ThreadLocalRandom random = ThreadLocalRandom.current();
-
-            if (nextDelay.toMillis() > 0) {
-                jitteredDelayMs = nextDelay.toMillis() / 2 + random.nextLong(nextDelay.toMillis() / 2 + 1);
-            } else {
-                // Should not happen if INITIAL_RETRY_DELAY > 0, but handle defensively
-                jitteredDelayMs =
-                        INITIAL_RETRY_DELAY.toMillis() / 2 + random.nextLong(INITIAL_RETRY_DELAY.toMillis() / 2 + 1);
-                jitteredDelayMs = Math.max(1, jitteredDelayMs); // Ensure positive delay
-            }
-
-            // Update backoff delay *for the next run* of this task instance
-            this.currentBackoffDelay = Duration.ofMillis(jitteredDelayMs);
-
-            // Reschedule this task using the calculated jittered delay
             try {
                 sharedExecutorService.schedule(this, jitteredDelayMs, TimeUnit.MILLISECONDS);
-                logger.debug("[{}] Rescheduled connection attempt (delayMillis={})", connection, jitteredDelayMs);
+                retryAttempts.put(connection.getNodeConfig(), retryAttempt + 1); // Increment retry attempt count
+                logger.debug(
+                        "[{}] Rescheduled connection attempt (attempt={}, delayMillis={})",
+                        connection,
+                        retryAttempt,
+                        jitteredDelayMs);
             } catch (final Exception e) {
                 logger.error("[{}] Failed to reschedule connection attempt; removing from retry map", connection, e);
                 // If rescheduling fails, close the connection and remove it from the connection map. A periodic task
@@ -945,6 +935,19 @@ public class BlockNodeConnectionManager {
                 connection.close(true);
             }
         }
+    }
+
+    private static long calculateJitteredDelayMs(final int retryAttempt) {
+        // Calculate delay using exponential backoff starting from INITIAL_RETRY_DELAY
+        Duration nextDelay = INITIAL_RETRY_DELAY.multipliedBy((long) Math.pow(RETRY_BACKOFF_MULTIPLIER, retryAttempt));
+
+        if (nextDelay.compareTo(MAX_RETRY_DELAY) > 0) {
+            nextDelay = MAX_RETRY_DELAY;
+        }
+
+        // Apply jitter to delay
+        final ThreadLocalRandom random = ThreadLocalRandom.current();
+        return nextDelay.toMillis() / 2 + random.nextLong(nextDelay.toMillis() / 2 + 1);
     }
 
     /**
