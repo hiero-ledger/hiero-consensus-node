@@ -8,7 +8,6 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.List;
-import org.hiero.consensus.model.node.NodeId;
 
 /**
  * This class contains the current configuration of the node at the time it was requested via
@@ -93,8 +92,8 @@ public interface NodeConfiguration {
     NodeConfiguration set(@NonNull String key, @NonNull Duration value);
 
     /**
-     * Updates a single property of the configuration to an integer value. Can only be invoked when
-     * the node is not running.
+     * Updates a single property of the configuration to a {@code List<String} value. Can only be
+     * invoked when the node is not running.
      *
      * @param key the key of the property
      * @param values the {@code String} values to set
@@ -102,17 +101,6 @@ public interface NodeConfiguration {
      */
     @NonNull
     NodeConfiguration setStrings(@NonNull String key, List<String> values);
-
-    /**
-     * Updates a single property of the configuration to an integer value. Can only be invoked when
-     * the node is not running.
-     *
-     * @param key the key of the property
-     * @param values the {@code String} values to set
-     * @return this {@code NodeConfiguration} instance for method chaining
-     */
-    @NonNull
-    NodeConfiguration setNodeIds(@NonNull String key, List<NodeId> values);
 
     /**
      * Updates a single property of the configuration to a file path. Can only be invoked when the
@@ -137,7 +125,7 @@ public interface NodeConfiguration {
     NodeConfiguration setNetworkEndpoints(@NonNull String key, @NonNull List<NetworkEndpoint> endpoints);
 
     /**
-     * Updates a single property of the configuration to a {@code TaskSchedulerConfiguration}. Can
+     * Updates a single property of the configuration to a {@link TaskSchedulerConfiguration}. Can
      * only be invoked when the node is not running.
      *
      * @param key the key of the property

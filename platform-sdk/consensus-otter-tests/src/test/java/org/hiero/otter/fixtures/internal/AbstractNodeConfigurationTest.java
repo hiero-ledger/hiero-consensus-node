@@ -128,18 +128,6 @@ public class AbstractNodeConfigurationTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"1,2,3", "100", "0"})
-    void testNodeIdListProperty(final String value) {
-        final List<NodeId> list = Stream.of(value.split(","))
-                .map(s -> NodeId.of(Long.parseLong(s)))
-                .toList();
-        subject.setNodeIds("myNodeIdList", list);
-        final Configuration config = subject.current();
-        final TestConfigData configData = config.getConfigData(TestConfigData.class);
-        assertThat(configData.myNodeIdList()).isEqualTo(list);
-    }
-
-    @ParameterizedTest
     @MethodSource("networkEndpointListProvider")
     void testNetworkEndpointListProperty(final List<NetworkEndpoint> endpoints) {
         subject.setNetworkEndpoints("myEndpointList", endpoints);

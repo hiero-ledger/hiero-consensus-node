@@ -20,7 +20,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
-import org.hiero.consensus.model.node.NodeId;
 import org.hiero.otter.fixtures.NodeConfiguration;
 import org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle;
 import org.jetbrains.annotations.NotNull;
@@ -134,19 +133,6 @@ public abstract class AbstractNodeConfiguration implements NodeConfiguration {
     public NodeConfiguration setStrings(@NonNull final String key, final List<String> values) {
         throwIfNodeIsRunning();
         overriddenProperties.put(key, String.join(",", values));
-        return this;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    @NonNull
-    public NodeConfiguration setNodeIds(@NonNull final String key, final List<NodeId> nodeIds) {
-        throwIfNodeIsRunning();
-        final String value =
-                nodeIds.stream().map(nodeId -> Long.toString(nodeId.id())).collect(Collectors.joining(","));
-        overriddenProperties.put(key, value);
         return this;
     }
 
