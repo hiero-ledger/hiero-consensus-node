@@ -3,16 +3,20 @@ package com.hedera.node.app.hints.schemas;
 
 import static com.hedera.hapi.node.state.hints.CRSStage.COMPLETED;
 import static com.hedera.hapi.node.state.hints.CRSStage.GATHERING_CONTRIBUTIONS;
-import static com.hedera.node.app.hints.schemas.V059HintsSchema.ACTIVE_HINT_CONSTRUCTION_KEY;
-import static com.hedera.node.app.hints.schemas.V059HintsSchema.NEXT_HINT_CONSTRUCTION_KEY;
+import static com.hedera.node.app.hints.schemas.V059HintsSchema.ACTIVE_HINTS_CONSTRUCTION_STATE_ID;
+import static com.hedera.node.app.hints.schemas.V059HintsSchema.NEXT_HINTS_CONSTRUCTION_STATE_ID;
+import static com.swirlds.state.lifecycle.StateMetadata.computeLabel;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.hints.CRSState;
 import com.hedera.hapi.node.state.hints.HintsConstruction;
 import com.hedera.hapi.platform.state.NodeId;
+import com.hedera.hapi.platform.state.SingletonType;
+import com.hedera.hapi.platform.state.StateKey;
 import com.hedera.hapi.services.auxiliary.hints.CrsPublicationTransactionBody;
 import com.hedera.node.app.hints.HintsLibrary;
+import com.hedera.node.app.hints.HintsService;
 import com.hedera.node.app.hints.impl.HintsContext;
 import com.hedera.node.config.data.TssConfig;
 import com.swirlds.state.lifecycle.MigrationContext;
@@ -24,10 +28,19 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 public class V060HintsSchema extends Schema {
+
     private static final SemanticVersion VERSION =
             SemanticVersion.newBuilder().minor(60).build();
+
     public static final String CRS_STATE_KEY = "CRS_STATE";
+    public static final int CRS_STATE_STATE_ID = SingletonType.HINTSSERVICE_I_CRS_STATE.protoOrdinal();
+    public static final String CRS_STATE_STATE_LABEL = computeLabel(HintsService.NAME, CRS_STATE_KEY);
+
     public static final String CRS_PUBLICATIONS_KEY = "CRS_PUBLICATIONS";
+    public static final int CRS_PUBLICATIONS_STATE_ID =
+            StateKey.KeyOneOfType.HINTSSERVICE_I_CRS_PUBLICATIONS.protoOrdinal();
+    public static final String CRS_PUBLICATIONS_STATE_LABEL = computeLabel(HintsService.NAME, CRS_PUBLICATIONS_KEY);
+
     private static final Logger log = LogManager.getLogger(V060HintsSchema.class);
 
     private static final long MAX_CRS_PUBLICATIONS = 1L << 10;
@@ -44,8 +57,9 @@ public class V060HintsSchema extends Schema {
     @Override
     public @NonNull Set<StateDefinition> statesToCreate() {
         return Set.of(
-                StateDefinition.singleton(CRS_STATE_KEY, CRSState.PROTOBUF),
+                StateDefinition.singleton(CRS_STATE_STATE_ID, CRS_STATE_KEY, CRSState.PROTOBUF),
                 StateDefinition.onDisk(
+                        CRS_PUBLICATIONS_STATE_ID,
                         CRS_PUBLICATIONS_KEY,
                         NodeId.PROTOBUF,
                         CrsPublicationTransactionBody.PROTOBUF,
@@ -62,15 +76,15 @@ public class V060HintsSchema extends Schema {
     public void restart(@NonNull final MigrationContext ctx) {
         final var states = ctx.newStates();
         // Ensure non-null singletons no matter if hinTS is enabled
-        final var activeConstructionState = states.<HintsConstruction>getSingleton(ACTIVE_HINT_CONSTRUCTION_KEY);
+        final var activeConstructionState = states.<HintsConstruction>getSingleton(ACTIVE_HINTS_CONSTRUCTION_STATE_ID);
         if (activeConstructionState.get() == null) {
             activeConstructionState.put(HintsConstruction.DEFAULT);
         }
-        final var nextConstructionState = states.<HintsConstruction>getSingleton(NEXT_HINT_CONSTRUCTION_KEY);
+        final var nextConstructionState = states.<HintsConstruction>getSingleton(NEXT_HINTS_CONSTRUCTION_STATE_ID);
         if (nextConstructionState.get() == null) {
             nextConstructionState.put(HintsConstruction.DEFAULT);
         }
-        final var crsStateSingleton = states.<CRSState>getSingleton(CRS_STATE_KEY);
+        final var crsStateSingleton = states.<CRSState>getSingleton(CRS_STATE_STATE_ID);
         if (crsStateSingleton.get() == null) {
             crsStateSingleton.put(CRSState.DEFAULT);
         }
@@ -90,7 +104,7 @@ public class V060HintsSchema extends Schema {
             } else if (crsState.stage() == COMPLETED) {
                 signingContext.setCrs(crsState.crs());
             }
-            final var activeConstruction = states.<HintsConstruction>getSingleton(ACTIVE_HINT_CONSTRUCTION_KEY)
+            final var activeConstruction = states.<HintsConstruction>getSingleton(ACTIVE_HINTS_CONSTRUCTION_STATE_ID)
                     .get();
             if (requireNonNull(activeConstruction).hasHintsScheme()) {
                 signingContext.setConstruction(activeConstruction);

@@ -16,6 +16,7 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 class FilteredReadableStatesTest {
+
     @Nested
     @DisplayName("FilteredReadableStates over an empty delegate ReadableStates")
     class EmptyDelegate extends StateTestBase {
@@ -42,33 +43,26 @@ class FilteredReadableStatesTest {
         @Test
         @DisplayName("Contains")
         void contains() {
-            assertThat(states.contains(FRUIT_STATE_KEY)).isFalse();
+            assertThat(states.contains(FRUIT_STATE_ID)).isFalse();
         }
 
         @Test
-        @DisplayName("Throws NPE if the key is null")
-        void nullKey() {
-            //noinspection DataFlowIssue
-            assertThatThrownBy(() -> states.get(null)).isInstanceOf(NullPointerException.class);
+        @DisplayName("Throws IAE for an unknown K/V state ID")
+        void unknownKVStateId() {
+            assertThatThrownBy(() -> states.get(UNKNOWN_STATE_ID)).isInstanceOf(IllegalArgumentException.class);
         }
 
         @Test
-        @DisplayName("Throws IAE for any non-null key")
-        void nonNullKey() {
-            assertThatThrownBy(() -> states.get(UNKNOWN_STATE_KEY)).isInstanceOf(IllegalArgumentException.class);
-        }
-
-        @Test
-        @DisplayName("Throws IAE for any non-null Singleton key")
-        void nonNullSingletonKey() {
-            assertThatThrownBy(() -> states.getSingleton(UNKNOWN_STATE_KEY))
+        @DisplayName("Throws IAE for an unknown singleton state ID")
+        void unknownSingletonStateId() {
+            assertThatThrownBy(() -> states.getSingleton(UNKNOWN_STATE_ID))
                     .isInstanceOf(IllegalArgumentException.class);
         }
 
         @Test
-        @DisplayName("Throws IAE for any non-null Queue key")
-        void nonNullQueueKey() {
-            assertThatThrownBy(() -> states.getQueue(UNKNOWN_STATE_KEY)).isInstanceOf(IllegalArgumentException.class);
+        @DisplayName("Throws IAE for an unknown queue state ID")
+        void unknownQueueStateId() {
+            assertThatThrownBy(() -> states.getQueue(UNKNOWN_STATE_ID)).isInstanceOf(IllegalArgumentException.class);
         }
     }
 
@@ -97,33 +91,26 @@ class FilteredReadableStatesTest {
         @Test
         @DisplayName("Contains")
         void contains() {
-            assertThat(states.contains(FRUIT_STATE_KEY)).isFalse();
+            assertThat(states.contains(FRUIT_STATE_ID)).isFalse();
         }
 
         @Test
-        @DisplayName("Throws NPE if the key is null")
-        void nullKey() {
-            //noinspection DataFlowIssue
-            assertThatThrownBy(() -> states.get(null)).isInstanceOf(NullPointerException.class);
+        @DisplayName("Throws IAE for an unknown K/V state ID")
+        void unknownKVStateId() {
+            assertThatThrownBy(() -> states.get(UNKNOWN_STATE_ID)).isInstanceOf(IllegalArgumentException.class);
         }
 
         @Test
-        @DisplayName("Throws IAE for any non-null key")
-        void nonNullKey() {
-            assertThatThrownBy(() -> states.get(UNKNOWN_STATE_KEY)).isInstanceOf(IllegalArgumentException.class);
-        }
-
-        @Test
-        @DisplayName("Throws IAE for any non-null Singleton key")
-        void nonNullSingletonKey() {
-            assertThatThrownBy(() -> states.getSingleton(UNKNOWN_STATE_KEY))
+        @DisplayName("Throws IAE for an unknown singleton state ID")
+        void unknownSingletonStateId() {
+            assertThatThrownBy(() -> states.getSingleton(UNKNOWN_STATE_ID))
                     .isInstanceOf(IllegalArgumentException.class);
         }
 
         @Test
-        @DisplayName("Throws IAE for any non-null Queue key")
-        void nonNullQueueKey() {
-            assertThatThrownBy(() -> states.getQueue(UNKNOWN_STATE_KEY)).isInstanceOf(IllegalArgumentException.class);
+        @DisplayName("Throws IAE for an unknown queue state ID")
+        void unknownQueueStateId() {
+            assertThatThrownBy(() -> states.getQueue(UNKNOWN_STATE_ID)).isInstanceOf(IllegalArgumentException.class);
         }
 
         @NonNull
@@ -131,9 +118,7 @@ class FilteredReadableStatesTest {
             return MapReadableStates.builder()
                     .state(readableFruitState())
                     .state(readableCountryState())
-                    .state(readableAnimalState())
                     .state(readableSTEAMState())
-                    .state(readableSpaceState())
                     .build();
         }
     }
@@ -148,17 +133,15 @@ class FilteredReadableStatesTest {
             final var delegate = MapReadableStates.builder()
                     .state(readableFruitState())
                     .state(readableCountryState()) // <-- singleton state
-                    .state(readableAnimalState())
-                    .state(readableSpaceState()) // <-- singleton state
                     .state(readableSTEAMState()) // <-- queue state
                     .build();
-            states = new FilteredReadableStates(delegate, Set.of(ANIMAL_STATE_KEY, COUNTRY_STATE_KEY));
+            states = new FilteredReadableStates(delegate, Set.of(COUNTRY_STATE_ID));
         }
 
         @Test
-        @DisplayName("Exactly 2 states were included")
+        @DisplayName("Exactly 1 state was included")
         void size() {
-            assertThat(states.size()).isEqualTo(2);
+            assertThat(states.size()).isEqualTo(1);
         }
 
         @Test
@@ -170,26 +153,22 @@ class FilteredReadableStatesTest {
         @Test
         @DisplayName("Contains")
         void contains() {
-            assertThat(states.contains(FRUIT_STATE_KEY)).isFalse();
-            assertThat(states.contains(COUNTRY_STATE_KEY)).isTrue();
-            assertThat(states.contains(ANIMAL_STATE_KEY)).isTrue();
-            assertThat(states.contains(STEAM_STATE_KEY)).isFalse();
-            assertThat(states.contains(SPACE_STATE_KEY)).isFalse();
+            assertThat(states.contains(FRUIT_STATE_ID)).isFalse();
+            assertThat(states.contains(COUNTRY_STATE_ID)).isTrue();
+            assertThat(states.contains(STEAM_STATE_ID)).isFalse();
         }
 
         @Test
-        @DisplayName("Can read the 2 states")
+        @DisplayName("Can read the states")
         void acceptedStates() {
-            assertThat(states.get(ANIMAL_STATE_KEY)).isNotNull();
-            assertThat(states.getSingleton(COUNTRY_STATE_KEY)).isNotNull();
+            assertThat(states.getSingleton(COUNTRY_STATE_ID)).isNotNull();
         }
 
         @Test
         @DisplayName("Throws IAE for other than the two specified states")
         void filteredStates() {
-            assertThatThrownBy(() -> states.get(FRUIT_STATE_KEY)).isInstanceOf(IllegalArgumentException.class);
-            assertThatThrownBy(() -> states.get(STEAM_STATE_KEY)).isInstanceOf(IllegalArgumentException.class);
-            assertThatThrownBy(() -> states.getSingleton(SPACE_STATE_KEY)).isInstanceOf(IllegalArgumentException.class);
+            assertThatThrownBy(() -> states.get(FRUIT_STATE_ID)).isInstanceOf(IllegalArgumentException.class);
+            assertThatThrownBy(() -> states.get(STEAM_STATE_ID)).isInstanceOf(IllegalArgumentException.class);
         }
     }
 
@@ -204,13 +183,11 @@ class FilteredReadableStatesTest {
                     .state(readableFruitState())
                     .state(readableCountryState())
                     .build();
-            states = new FilteredReadableStates(
-                    delegate, Set.of(FRUIT_STATE_KEY, ANIMAL_STATE_KEY, COUNTRY_STATE_KEY, SPACE_STATE_KEY));
+            states = new FilteredReadableStates(delegate, Set.of(FRUIT_STATE_ID, COUNTRY_STATE_ID));
         }
 
         @Test
-        @DisplayName(
-                "Exactly 2 states were included because only two of four filtered states were in" + " the delegate")
+        @DisplayName("Exactly 2 states were included because only two of four filtered states were in the delegate")
         void size() {
             assertThat(states.size()).isEqualTo(2);
         }
@@ -224,24 +201,23 @@ class FilteredReadableStatesTest {
         @Test
         @DisplayName("Contains")
         void contains() {
-            assertThat(states.contains(FRUIT_STATE_KEY)).isTrue();
-            assertThat(states.contains(COUNTRY_STATE_KEY)).isTrue();
-            assertThat(states.contains(ANIMAL_STATE_KEY)).isFalse();
-            assertThat(states.contains(SPACE_STATE_KEY)).isFalse();
+            assertThat(states.contains(FRUIT_STATE_ID)).isTrue();
+            assertThat(states.contains(COUNTRY_STATE_ID)).isTrue();
+            assertThat(states.contains(UNKNOWN_STATE_ID)).isFalse();
         }
 
         @Test
         @DisplayName("Can read FRUIT and COUNTRY because they are in the acceptable set and in the" + " delegate")
         void acceptedStates() {
-            assertThat(states.get(FRUIT_STATE_KEY)).isNotNull();
-            assertThat(states.getSingleton(COUNTRY_STATE_KEY)).isNotNull();
+            assertThat(states.get(FRUIT_STATE_ID)).isNotNull();
+            assertThat(states.getSingleton(COUNTRY_STATE_ID)).isNotNull();
         }
 
         @Test
         @DisplayName("Cannot read STEM because it is not in the delegate")
         void missingState() {
-            assertThatThrownBy(() -> states.get(ANIMAL_STATE_KEY)).isInstanceOf(IllegalArgumentException.class);
-            assertThatThrownBy(() -> states.getSingleton(SPACE_STATE_KEY)).isInstanceOf(IllegalArgumentException.class);
+            assertThatThrownBy(() -> states.get(STEAM_STATE_ID)).isInstanceOf(IllegalArgumentException.class);
+            assertThatThrownBy(() -> states.getSingleton(STEAM_STATE_ID)).isInstanceOf(IllegalArgumentException.class);
         }
     }
 
@@ -254,8 +230,7 @@ class FilteredReadableStatesTest {
         void setUp() {
             delegate = MapReadableStates.builder()
                     .state(readableFruitState())
-                    .state(readableAnimalState())
-                    .state(readableSpaceState())
+                    .state(readableCountryState())
                     .build();
         }
 
@@ -264,47 +239,47 @@ class FilteredReadableStatesTest {
         void filteredStateKeys() {
             // Given a delegate with multiple k/v states and a set of state keys that are
             // a subset of keys in the delegate AND contain some keys not in the delegate
-            final var stateKeys = Set.of(SPACE_STATE_KEY, STEAM_STATE_KEY);
-            final var filtered = new FilteredReadableStates(delegate, stateKeys);
+            final var stateIds = Set.of(COUNTRY_STATE_ID, STEAM_STATE_ID);
+            final var filtered = new FilteredReadableStates(delegate, stateIds);
 
             // When we look at the contents of the filtered `stateKeys`
-            final var filteredStateKeys = filtered.stateKeys();
+            final var filteredStateIds = filtered.stateIds();
 
             // Then we find only those states that are both in the state keys passed to
             // the FilteredReadableStates, and in the delegate.
-            assertThat(filteredStateKeys).containsExactlyInAnyOrder(SPACE_STATE_KEY);
+            assertThat(filteredStateIds).containsExactlyInAnyOrder(COUNTRY_STATE_ID);
         }
 
         @Test
-        @DisplayName("A modifiable `stateKeys` set provided to a constructor can be changed without"
+        @DisplayName("A modifiable `stateIds` set provided to a constructor can be changed without"
                 + " impacting the FilteredReadableStates")
-        void modifiableStateKeys() {
-            // Given a delegate with multiple k/v states and a modifiable set of state keys,
-            final var modifiableStateKeys = new HashSet<String>();
-            modifiableStateKeys.add(SPACE_STATE_KEY);
+        void modifiableStateIds() {
+            // Given a delegate with multiple k/v states and a modifiable set of state IDs,
+            final var modifiableStateIds = new HashSet<Integer>();
+            modifiableStateIds.add(COUNTRY_STATE_ID);
 
-            // When a FilteredReadableStates is created, and the Set of all state keys for
-            // the filtered set is read and the modifiable state keys map is modified
-            final var filtered = new FilteredReadableStates(delegate, modifiableStateKeys);
-            final var filteredStateKeys = filtered.stateKeys();
-            modifiableStateKeys.add(ANIMAL_STATE_KEY);
-            modifiableStateKeys.remove(SPACE_STATE_KEY);
+            // When a FilteredReadableStates is created, and the Set of all state IDs for
+            // the filtered set is read and the modifiable state IDs map is modified
+            final var filtered = new FilteredReadableStates(delegate, modifiableStateIds);
+            final var filteredStateIds = filtered.stateIds();
+            modifiableStateIds.add(STEAM_STATE_ID);
+            modifiableStateIds.remove(COUNTRY_STATE_ID);
 
-            // Then these changes are NOT found in the filtered state keys
-            assertThat(filteredStateKeys).containsExactlyInAnyOrder(SPACE_STATE_KEY);
+            // Then these changes are NOT found in the filtered state IDs
+            assertThat(filteredStateIds).containsExactlyInAnyOrder(COUNTRY_STATE_ID);
         }
 
         @Test
         @DisplayName("The set of filtered state keys is unmodifiable")
-        void filteredStateKeysAreUnmodifiable() {
+        void filteredStateIDsAreUnmodifiable() {
             // Given a FilteredReadableStates
-            final var stateKeys = Set.of(SPACE_STATE_KEY, ANIMAL_STATE_KEY);
-            final var filtered = new FilteredReadableStates(delegate, stateKeys);
+            final var stateIds = Set.of(COUNTRY_STATE_ID);
+            final var filtered = new FilteredReadableStates(delegate, stateIds);
 
-            // When the filtered state keys is read and a modification attempted,
+            // When the filtered state IDs is read and a modification attempted,
             // then an exception is thrown
-            final var filteredStateKeys = filtered.stateKeys();
-            assertThatThrownBy(() -> filteredStateKeys.add(FRUIT_STATE_KEY))
+            final var filteredStateIds = filtered.stateIds();
+            assertThatThrownBy(() -> filteredStateIds.add(FRUIT_STATE_ID))
                     .isInstanceOf(UnsupportedOperationException.class);
         }
     }
