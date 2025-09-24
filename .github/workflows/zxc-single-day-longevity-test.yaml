@@ -516,9 +516,9 @@ jobs:
               if [ "${{ inputs.perf_analysis }}" = "true" ]
               then
                 sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" cp "${{ github.workspace }}"/performance-analysis-automation/node_control/startInstrumentedBN.sh $i:/tmp/startInstrumentedBN.sh
-                sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" exec $i -- bash -c "cd /opt/hiero/block-node/; sh /tmp/startInstrumentedBN.sh"
+                sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" exec $i -- bash -c "cd /opt/hiero/block-node/; export SERVER_MAX_MESSAGE_SIZE_BYTES=\"16_777_215\"; sh /tmp/startInstrumentedBN.sh"
               else
-                sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" exec $i -- bash -c "cd /opt/hiero/block-node/; export JAVA_OPTS=\"-Xms16G -Xmx28G\"; bash ./block-node-app-*/bin/block-node-app > ./logs/block-node.log 2>&1 &"
+                sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" exec $i -- bash -c "cd /opt/hiero/block-node/; export JAVA_OPTS=\"-Xms16G -Xmx28G\"; export SERVER_MAX_MESSAGE_SIZE_BYTES=\"16_777_215\"; bash ./block-node-app-*/bin/block-node-app > ./logs/block-node.log 2>&1 &"
               fi
           done
           sleep 30
@@ -541,7 +541,7 @@ jobs:
           for ip in `cat block_ips.txt`
           do
             echo "{\"nodes\": [" > block-nodes_$counter.json
-            echo "{ \"address\": \"$ip\", \"port\": 40840, \"priority\": 1 }" >> block-nodes_$counter.json
+            echo "{ \"address\": \"$ip\", \"port\": 40840, \"priority\": 1, \"RequestBatchSize\": 1024}" >> block-nodes_$counter.json
             echo "]}" >> block-nodes_$counter.json
             counter=`expr $counter + 1`
           done
