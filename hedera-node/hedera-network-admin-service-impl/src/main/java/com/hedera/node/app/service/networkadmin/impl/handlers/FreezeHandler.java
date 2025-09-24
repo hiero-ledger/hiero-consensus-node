@@ -86,14 +86,12 @@ public class FreezeHandler implements TransactionHandler {
 
         final FreezeTransactionBody freezeTxn = context.body().freezeOrThrow();
         final FreezeType freezeType = freezeTxn.freezeType();
-        log.fatal("matt: prehandling freeze of type {}", freezeType);
         if (Arrays.asList(FREEZE_UPGRADE, TELEMETRY_UPGRADE, PREPARE_UPGRADE).contains(freezeType)) {
             // from proto specs, it looks like updateFileId not required for FREEZE_UPGRADE and TELEMETRY_UPGRADE
             // but specs aren't very clear previous code in FreezeTransitionLogic checks for it in all 3 cases,
             // so we will do the same
             final ReadableUpgradeFileStore upgradeStore = context.createStore(ReadableUpgradeFileStore.class);
             final var filesConfig = context.configuration().getConfigData(FilesConfig.class);
-            log.fatal("matt: freeze type as expected. verifying updated file");
             verifyUpdateFile(freezeTxn, upgradeStore, filesConfig.softwareUpdateRange());
         }
         // no need to add any keys to the context because this transaction does not require any signatures
