@@ -22,7 +22,7 @@ public class OtterStateInitializer {
                 .forEach(def -> {
                     // the metadata associates the state definition with the service
                     final var stateMetadata = new StateMetadata<>(ConsistencyService.NAME, schema, def);
-                    state.putServiceStateIfAbsent(stateMetadata, () -> new SingletonNode<>(
+                    state.put(stateMetadata, () -> new SingletonNode<>(
                             stateMetadata.serviceName(),
                             stateMetadata.stateDefinition().stateKey(),
                             stateMetadata.singletonClassId(),

@@ -3,6 +3,7 @@ package org.hiero.otter.fixtures.app;
 
 import static org.hiero.base.utility.ByteUtils.byteArrayToLong;
 import static org.hiero.base.utility.NonCryptographicHashing.hash64;
+import static org.hiero.otter.fixtures.app.OtterStateId.CONSISTENCY_SINGLETON_STATE_ID;
 import static org.hiero.otter.fixtures.app.V1ConsistencyStateSchema.CONSISTENCY_SINGLETON_KEY;
 
 import com.swirlds.state.spi.WritableSingletonState;
@@ -37,8 +38,8 @@ public class ConsistencyService {
      * @param round the round to handle
      */
     public void recordRoundContents(@NonNull final WritableStates writableStates, @NonNull final Round round) {
-        final WritableSingletonState<ConsistencyState> writableSingletonState =
-                writableStates.getSingleton(CONSISTENCY_SINGLETON_KEY);
+        final WritableSingletonState<ConsistencyState> writableSingletonState = writableStates.getSingleton(
+                CONSISTENCY_SINGLETON_STATE_ID.id());
         final ConsistencyState consistencyState = writableSingletonState.get();
         stateRunningHash = consistencyState.runningHash();
 
