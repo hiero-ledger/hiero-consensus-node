@@ -19,6 +19,7 @@ import java.util.List;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicLong;
 import org.hiero.consensus.model.event.Event;
+import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
@@ -82,7 +83,15 @@ class QuiescenceControllerTest {
 
     @Test
     void platformStatusUpdate(){
-        
+        controller.onPreHandle(createEvent(TXN_TRANSFER));
+        assertEquals(NOT_QUIESCENT, controller.getQuiescenceStatus(),
+                "Since a transaction was received through pre-handle, the status should be not quiescent");
+        controller.platformStatusUpdate(PlatformStatus.CHECKING);
+        assertEquals(NOT_QUIESCENT, controller.getQuiescenceStatus(),
+                "The checking status should not affect the quiescence status");
+        controller.platformStatusUpdate(PlatformStatus.RECONNECT_COMPLETE);
+        assertEquals(QUIESCENT, controller.getQuiescenceStatus(),
+                "The reconnect complete status should reset the controller");
     }
 
     private Block createBlock(final TransactionBody... txns) {
