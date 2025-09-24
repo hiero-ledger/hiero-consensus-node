@@ -11,4 +11,4 @@ import org.hiero.consensus.event.creator.EventCreatorModule;
  * @param eventCreatorModule the implementation class name for the {@link EventCreatorModule}
  */
 @ConfigData("platform.builder")
-public record BuilderConfig(@ConfigProperty(defaultValue = "") String eventCreatorModule) {}
+public record ModuleConfig(@ConfigProperty(defaultValue = "") String eventCreatorModule) {}

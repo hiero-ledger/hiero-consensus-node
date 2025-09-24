@@ -3,7 +3,7 @@ package org.hiero.otter.fixtures.turtle;
 
 import com.swirlds.base.time.Time;
 import com.swirlds.common.test.fixtures.Randotron;
-import com.swirlds.platform.config.BuilderConfig_;
+import com.swirlds.platform.config.ModuleConfig_;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.Path;
 import org.apache.logging.log4j.LogManager;
@@ -42,7 +42,7 @@ public class InstrumentedTurtleNode extends TurtleNode implements InstrumentedNo
             @NonNull final TurtleLogging logging,
             @NonNull final Path outputDirectory) {
         super(randotron, time, selfId, keysAndCerts, network, logging, outputDirectory);
-        configuration().set(BuilderConfig_.EVENT_CREATOR_MODULE, InstrumentedEventCreator.class.getName());
+        configuration().set(ModuleConfig_.EVENT_CREATOR_MODULE, InstrumentedEventCreator.class.getName());
     }
 
     /**

@@ -15,7 +15,7 @@ import com.swirlds.platform.components.appcomm.DefaultLatestCompleteStateNotifie
 import com.swirlds.platform.components.appcomm.LatestCompleteStateNotifier;
 import com.swirlds.platform.components.consensus.ConsensusEngine;
 import com.swirlds.platform.components.consensus.DefaultConsensusEngine;
-import com.swirlds.platform.config.BuilderConfig;
+import com.swirlds.platform.config.ModuleConfig;
 import com.swirlds.platform.config.StateConfig;
 import com.swirlds.platform.crypto.CryptoStatic;
 import com.swirlds.platform.event.branching.BranchDetector;
@@ -439,7 +439,7 @@ public class PlatformComponentBuilder {
         final Configuration configuration = this.blocks.platformContext().getConfiguration();
         if (eventCreator == null) {
             final String className =
-                    configuration.getConfigData(BuilderConfig.class).eventCreatorModule();
+                    configuration.getConfigData(ModuleConfig.class).eventCreatorModule();
             final Predicate<Provider<EventCreatorModule>> filter = className.isEmpty()
                     ? provider -> provider.type().isAnnotationPresent(DefaultImplementation.class)
                     : provider -> className.equals(provider.type().getName());

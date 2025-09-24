@@ -29,8 +29,10 @@ public class InstrumentedEventCreator implements EventCreatorModule {
 
     private static final Logger log = LogManager.getLogger();
 
+    /** Regular implementation that can be used to trigger standard behavior. */
     private final DefaultEventCreator delegate;
 
+    /** The event bus to listen to commands and post events for other components. */
     private EventBus eventBus;
 
     /**
@@ -42,6 +44,9 @@ public class InstrumentedEventCreator implements EventCreatorModule {
         log.info("InstrumentedEventCreator created");
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void initialize(
             @NonNull final Configuration configuration,
@@ -67,37 +72,58 @@ public class InstrumentedEventCreator implements EventCreatorModule {
         this.eventBus = EventBus.getInstance(selfId);
     }
 
-    @Nullable
+    /**
+     * {@inheritDoc}
+     */
     @Override
+    @Nullable
     public PlatformEvent maybeCreateEvent() {
         return delegate.maybeCreateEvent();
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void registerEvent(@NonNull final PlatformEvent event) {
         delegate.registerEvent(event);
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void setEventWindow(@NonNull final EventWindow eventWindow) {
         delegate.setEventWindow(eventWindow);
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void updatePlatformStatus(@NonNull final PlatformStatus platformStatus) {
         delegate.updatePlatformStatus(platformStatus);
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void reportUnhealthyDuration(@NonNull final Duration duration) {
         delegate.reportUnhealthyDuration(duration);
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void reportSyncRoundLag(@NonNull final Double lag) {
         delegate.reportSyncRoundLag(lag);
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void clear() {
         delegate.clear();
