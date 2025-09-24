@@ -19,13 +19,13 @@ import org.hiero.otter.fixtures.network.utils.GeographicLatencyConfiguration;
  * Utility class for distributing nodes geographically based on a target latency configuration.
  *
  * <p>The algorithm uses a brute-force approach to evaluate potential placements for a new node,
- * scoring each configuration based on how well it matches the desired distribution of nodes across
- * regions and continents. The placement that minimizes the difference from the target distribution is
- * selected. The difference is calculated using a simple squared error metric.
+ * scoring each configuration based on how well it matches the desired distribution of nodes across regions and
+ * continents. The placement that minimizes the difference from the target distribution is selected. The difference is
+ * calculated using a simple squared error metric.
  *
  * <p>As we use a greedy approach, the algorithm may not always find the optimal solution. However,
- * it allows us to add nodes incrementally and should provide a reasonable approximation for typical
- * use cases with a moderate number of nodes.
+ * it allows us to add nodes incrementally and should provide a reasonable approximation for typical use cases with a
+ * moderate number of nodes.
  */
 public class GeoDistributor {
 
@@ -43,6 +43,10 @@ public class GeoDistributor {
 
     /**
      * Calculates the optimal geographic location for adding a new node to the network.
+     *
+     * <p>The algorithm evaluates all placement options for the new node and scores each. To calculate the score of each
+     * location, the node is temporarily added to the location, scored, and then removed. The best score out of all
+     * available options is returned.
      *
      * @param configuration the target geographic latency configuration
      * @param nodes the current mapping of nodes to their geographic locations
