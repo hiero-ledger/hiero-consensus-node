@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.evm.batch;
 
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.atomicBatch;
@@ -68,6 +69,7 @@ public class AtomicEvm50ValidationSuite {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> verifiesExistenceOfV050Opcodes() {
         final var contract = Module05OpcodesExist_CONTRACT;
         return hapiTest(

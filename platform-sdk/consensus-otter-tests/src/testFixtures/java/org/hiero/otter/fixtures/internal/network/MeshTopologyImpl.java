@@ -9,6 +9,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import org.assertj.core.data.Percentage;
 import org.hiero.otter.fixtures.InstrumentedNode;
 import org.hiero.otter.fixtures.Node;
@@ -25,15 +26,21 @@ public class MeshTopologyImpl implements MeshTopology {
             new ConnectionData(true, AVERAGE_NETWORK_DELAY, Percentage.withPercentage(5), BandwidthLimit.UNLIMITED);
 
     private final Function<Integer, List<? extends Node>> nodeFactory;
+    private final Supplier<InstrumentedNode> instrumentedNodeFactory;
     private final List<Node> nodes = new ArrayList<>();
 
     /**
      * Constructor for the {@link MeshTopologyImpl} class.
      *
      * @param nodeFactory a function that creates a list of nodes given the count
+     * @param instrumentedNodeFactory a supplier that creates an instrumented node
+     * @throws NullPointerException if {@code nodeFactory} or {@code instrumentedNodeFactory} is {@code null}
      */
-    public MeshTopologyImpl(final Function<Integer, List<? extends Node>> nodeFactory) {
+    public MeshTopologyImpl(
+            @NonNull final Function<Integer, List<? extends Node>> nodeFactory,
+            @NonNull final Supplier<InstrumentedNode> instrumentedNodeFactory) {
         this.nodeFactory = requireNonNull(nodeFactory);
+        this.instrumentedNodeFactory = requireNonNull(instrumentedNodeFactory);
     }
 
     /**
@@ -53,7 +60,9 @@ public class MeshTopologyImpl implements MeshTopology {
     @Override
     @NonNull
     public InstrumentedNode addInstrumentedNode() {
-        throw new UnsupportedOperationException("Instrumented nodes are not supported yet");
+        final InstrumentedNode instrumentedNode = instrumentedNodeFactory.get();
+        nodes.add(instrumentedNode);
+        return instrumentedNode;
     }
 
     /**
