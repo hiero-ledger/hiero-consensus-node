@@ -238,6 +238,6 @@ cheetah:
   deployment:
     # if true, a single instance of cheetah will be deployed for all stream files (i.e. record-streams, events-streams, block-streams etc.)
     # WARNING: Other steams files uploader sidecar configuration will be ignored
-    single: true
+    single: false
     nameOverride: "cheetah-stream-uploader"
     resources: { }
