@@ -14,8 +14,8 @@ import com.hedera.pbj.runtime.OneOf;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.hedera.statevalidation.StateIds;
 import com.swirlds.platform.state.MerkleNodeState;
-import com.swirlds.state.merkle.StateUtils;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.internal.merkle.VirtualMapMetadata;
@@ -71,7 +71,7 @@ public class JsonExporter {
             expectedStateId = -1;
         } else {
             requireNonNull(serviceName);
-            expectedStateId = StateUtils.stateIdFor(serviceName, stateKeyName);
+            expectedStateId = StateIds.stateIdFor(serviceName, stateKeyName);
         }
         executorService = Executors.newVirtualThreadPerTaskExecutor();
     }
@@ -139,8 +139,15 @@ public class JsonExporter {
                     } else { // kv
                         write(
                                 writer,
-                                "{\"p\":%d,\"k\":%s, \"v\":%s}\n"
-                                        .formatted(path, keyToJson(stateKey.key()), valueToJson(stateValue.value())));
+                                "{\"p\":%d, \"k\":\"%s\", \"v\":\"%s\"}\n"
+                                        .formatted(
+                                                path,
+                                                keyToJson(stateKey.key())
+                                                        .replace("\\", "\\\\")
+                                                        .replace("\"", "\\\""),
+                                                valueToJson(stateValue.value())
+                                                        .replace("\\", "\\\\")
+                                                        .replace("\"", "\\\"")));
                     }
                     emptyFile = false;
                     long currentObjCount = objectsProcessed.incrementAndGet();

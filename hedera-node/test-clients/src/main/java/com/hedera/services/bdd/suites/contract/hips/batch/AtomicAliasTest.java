@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.hips.batch;
 
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.anyResult;
@@ -114,6 +115,7 @@ class AtomicAliasTest {
 
         @HapiTest
         @DisplayName("returns false for a non extant account")
+        @Tag(MATS)
         public Stream<DynamicTest> isValidAliasNonExtantAccount() {
             return hapiTest(hrc632Contract
                     .call(IS_VALID_ALIAS_CALL, nonExtantAccount)
@@ -151,6 +153,7 @@ class AtomicAliasTest {
 
         @HapiTest
         @DisplayName("succeeds for account with valid alias")
+        @Tag(MATS)
         public Stream<DynamicTest> evmAddressAliasGivenGoodAccount() {
             return hapiTest(withLongZeroAddress(ALIAS, aliasAddress -> hrc632Contract
                     .call(GET_EVM_ADDRESS_ALIAS_CALL, aliasAddress)
@@ -196,6 +199,7 @@ class AtomicAliasTest {
 
         @HapiTest
         @DisplayName("reverts when given non extant evm address")
+        @Tag(MATS)
         public Stream<DynamicTest> hederaAccountNumAliasGivenNonExtantAlias() {
             return hapiTest(hrc632Contract
                     .call(GET_HEDERA_ACCOUNT_NUM_ALIAS_CALL, nonExtantAlias)
