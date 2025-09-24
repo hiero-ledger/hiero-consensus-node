@@ -41,7 +41,7 @@
     "inputs": [
       {
         "internalType": "address",
-        "name": "sender",
+        "name": "payer",
         "type": "address"
       },
       {
@@ -50,7 +50,7 @@
         "type": "uint256"
       }
     ],
-    "name": "executeCallOnSenderSignatureExample",
+    "name": "executeCallOnPayerSignatureExample",
     "outputs": [
       {
         "internalType": "int64",
@@ -190,7 +190,7 @@
     "inputs": [
       {
         "internalType": "address",
-        "name": "sender",
+        "name": "payer",
         "type": "address"
       },
       {
@@ -199,7 +199,7 @@
         "type": "uint256"
       }
     ],
-    "name": "scheduleCallWithSenderExample",
+    "name": "scheduleCallWithPayerExample",
     "outputs": [
       {
         "internalType": "int64",

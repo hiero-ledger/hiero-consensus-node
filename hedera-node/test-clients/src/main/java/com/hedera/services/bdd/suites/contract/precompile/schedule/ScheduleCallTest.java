@@ -58,7 +58,7 @@ public class ScheduleCallTest {
     static SpecContract contract;
 
     @Account(tinybarBalance = HapiSuite.ONE_HUNDRED_HBARS)
-    static SpecAccount sender;
+    static SpecAccount payer;
 
     @BeforeAll
     public static void setup(final TestLifecycle lifecycle) {
@@ -138,13 +138,13 @@ public class ScheduleCallTest {
     @LeakyRepeatableHapiTest(
             value = RepeatableReason.NEEDS_SYNCHRONOUS_HANDLE_WORKFLOW,
             fees = "scheduled-contract-fees.json")
-    @DisplayName("call scheduleCallWithSender(address,address,uint256,uint256,uint64,bytes) success")
-    public Stream<DynamicTest> scheduleCallWithSenderTest() {
+    @DisplayName("call scheduleCallWithPayer(address,address,uint256,uint256,uint64,bytes) success")
+    public Stream<DynamicTest> scheduleCallWithPayerTest() {
         return hapiTest(UtilVerbs.withOpContext(scheduledCallWithSignTest(
                 false,
-                sender.name(),
-                "scheduleCallWithSenderExample",
-                sender,
+                payer.name(),
+                "scheduleCallWithPayerExample",
+                payer,
                 BigInteger.valueOf(EXPIRY_SHIFT.incrementAndGet()))));
     }
 
@@ -157,13 +157,13 @@ public class ScheduleCallTest {
     @LeakyRepeatableHapiTest(
             value = RepeatableReason.NEEDS_SYNCHRONOUS_HANDLE_WORKFLOW,
             fees = "scheduled-contract-fees.json")
-    @DisplayName("call executeCallOnSenderSignature(address,address,uint256,uint256,uint64,bytes) success")
-    public Stream<DynamicTest> executeCallOnSenderSignatureTest() {
+    @DisplayName("call executeCallOnPayerSignature(address,address,uint256,uint256,uint64,bytes) success")
+    public Stream<DynamicTest> executeCallOnPayerSignatureTest() {
         return hapiTest(UtilVerbs.withOpContext(scheduledCallWithSignTest(
                 true,
-                sender.name(),
-                "executeCallOnSenderSignatureExample",
-                sender,
+                payer.name(),
+                "executeCallOnPayerSignatureExample",
+                payer,
                 BigInteger.valueOf(EXPIRY_SHIFT.incrementAndGet()))));
     }
 

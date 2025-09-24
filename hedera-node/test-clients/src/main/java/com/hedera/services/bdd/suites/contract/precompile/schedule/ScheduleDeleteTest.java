@@ -43,7 +43,7 @@ public class ScheduleDeleteTest {
     static SpecContract contract;
 
     @Account(tinybarBalance = HapiSuite.ONE_HUNDRED_HBARS)
-    static SpecAccount sender;
+    static SpecAccount payer;
     // COUNTER is used to create scheduled with different expirySecond, to prevent identical schedule creation
     private static final AtomicInteger COUNTER = new AtomicInteger();
 
@@ -75,13 +75,13 @@ public class ScheduleDeleteTest {
     // that is why we are reuploading 'scheduled-contract-fees.json' in tests
     @LeakyHapiTest(fees = "scheduled-contract-fees.json")
     @DisplayName(
-            "call deleteSchedule/proxy deleteSchedule for scheduleCallWithSender(address,address,uint256,uint256,uint64,bytes) success")
-    public Stream<DynamicTest> scheduleCallWithSenderDeleteTest() {
+            "call deleteSchedule/proxy deleteSchedule for scheduleCallWithPayer(address,address,uint256,uint256,uint64,bytes) success")
+    public Stream<DynamicTest> scheduleCallWithPayerDeleteTest() {
         return Stream.of("deleteScheduleExample", "deleteScheduleProxyExample")
                 .flatMap(deleteFunc -> deleteScheduleTest(
-                        "scheduleCallWithSenderExample",
+                        "scheduleCallWithPayerExample",
                         deleteFunc,
-                        sender,
+                        payer,
                         BigInteger.valueOf(50 + COUNTER.getAndIncrement())));
     }
 
@@ -90,13 +90,13 @@ public class ScheduleDeleteTest {
     // that is why we are reuploading 'scheduled-contract-fees.json' in tests
     @LeakyHapiTest(fees = "scheduled-contract-fees.json")
     @DisplayName(
-            "call deleteSchedule/proxy deleteSchedule for executeCallOnSenderSignature(address,address,uint256,uint256,uint64,bytes) success")
-    public Stream<DynamicTest> executeCallOnSenderSignatureDeleteTest() {
+            "call deleteSchedule/proxy deleteSchedule for executeCallOnPayerSignature(address,address,uint256,uint256,uint64,bytes) success")
+    public Stream<DynamicTest> executeCallOnPayerSignatureDeleteTest() {
         return Stream.of("deleteScheduleExample", "deleteScheduleProxyExample")
                 .flatMap(deleteFunc -> deleteScheduleTest(
-                        "executeCallOnSenderSignatureExample",
+                        "executeCallOnPayerSignatureExample",
                         deleteFunc,
-                        sender,
+                        payer,
                         BigInteger.valueOf(50 + COUNTER.getAndIncrement())));
     }
 

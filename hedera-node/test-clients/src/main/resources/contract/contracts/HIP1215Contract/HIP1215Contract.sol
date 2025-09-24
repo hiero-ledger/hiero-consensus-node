@@ -21,25 +21,25 @@ contract HIP1215Contract is HederaScheduleService_HIP1215 {
         }
     }
 
-    function scheduleCallWithSenderExample(address sender, uint256 expiryShift)
+    function scheduleCallWithPayerExample(address payer, uint256 expiryShift)
     external returns (int64 responseCode, address scheduleAddress) {
         uint256 expirySecond = block.timestamp + expiryShift;
         // callData bytes for calling 'hasScheduleCapacity' on 'expirySecond' + 10 minutes time
         bytes memory hasScheduleCapacityBytes = abi.encodeWithSelector(IHederaScheduleService_HIP1215.hasScheduleCapacity.selector, expirySecond + 600, HAS_SCHEDULE_CAPACITY_GAS_LIMIT);
         // schedule call
-        (responseCode, scheduleAddress) = scheduleCallWithSender(HSS, sender, expirySecond, SCHEDULE_GAS_LIMIT, 0, hasScheduleCapacityBytes);
+        (responseCode, scheduleAddress) = scheduleCallWithPayer(HSS, payer, expirySecond, SCHEDULE_GAS_LIMIT, 0, hasScheduleCapacityBytes);
         if (responseCode != HederaResponseCodes.SUCCESS) {
             revert("Failed to schedule");
         }
     }
 
-    function executeCallOnSenderSignatureExample(address sender, uint256 expiryShift)
+    function executeCallOnPayerSignatureExample(address payer, uint256 expiryShift)
     external returns (int64 responseCode, address scheduleAddress) {
         uint256 expirySecond = block.timestamp + expiryShift;
         // callData bytes for calling 'hasScheduleCapacity' on 'expirySecond' + 10 minutes time
         bytes memory hasScheduleCapacityBytes = abi.encodeWithSelector(IHederaScheduleService_HIP1215.hasScheduleCapacity.selector, expirySecond + 600, HAS_SCHEDULE_CAPACITY_GAS_LIMIT);
         // schedule call
-        (responseCode, scheduleAddress) = executeCallOnSenderSignature(HSS, sender, expirySecond, SCHEDULE_GAS_LIMIT, 0, hasScheduleCapacityBytes);
+        (responseCode, scheduleAddress) = executeCallOnPayerSignature(HSS, payer, expirySecond, SCHEDULE_GAS_LIMIT, 0, hasScheduleCapacityBytes);
         if (responseCode != HederaResponseCodes.SUCCESS) {
             revert("Failed to schedule");
         }
