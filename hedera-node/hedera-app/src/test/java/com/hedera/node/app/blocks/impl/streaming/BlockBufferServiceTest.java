@@ -798,8 +798,8 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         // Get the executor service via reflection
         final ScheduledExecutorService execSvc = (ScheduledExecutorService) execSvcHandle.get(blockBufferService);
 
-        // Verify that no tasks were scheduled (the executor should be empty)
         assertThat(execSvc).isNull();
+        verifyNoInteractions(blockStreamMetrics);
     }
 
     @Test
