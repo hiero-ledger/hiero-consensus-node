@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.suites.contract.hips.batch;
 
 import static com.hedera.node.app.hapi.utils.EthSigsUtils.recoverAddressFromPrivateKey;
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.defaultHapiSpec;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
@@ -255,6 +256,7 @@ public class AtomicIsAuthorizedTest {
         }
 
         @HapiTest
+        @Tag(MATS)
         final Stream<DynamicTest> isAuthorizedRawEDHappyPath() {
             final AtomicReference<Address> accountNum = new AtomicReference<>();
 
@@ -684,6 +686,7 @@ public class AtomicIsAuthorizedTest {
         }
 
         @HapiTest
+        @Tag(MATS)
         final Stream<DynamicTest> isAuthorizedRawED25519CheckGasRequirements() {
 
             // Intrinsic gas is 21_000, hard-coded verification charge is 1_500_000, but there's also the contract
