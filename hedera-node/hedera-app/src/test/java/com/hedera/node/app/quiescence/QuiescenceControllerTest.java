@@ -1,13 +1,13 @@
 package com.hedera.node.app.quiescence;
 
-import static com.hedera.node.app.quiescence.QuiescenceStatus.*;
+import static com.hedera.node.app.quiescence.QuiescenceStatus.NOT_QUIESCENT;
+import static com.hedera.node.app.quiescence.QuiescenceStatus.QUIESCENT;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.hedera.hapi.block.stream.Block;
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.hapi.node.transaction.SignedTransaction;
-import com.hedera.hapi.node.transaction.SignedTransaction.Builder;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.hapi.services.auxiliary.hints.HintsPartialSignatureTransactionBody;
@@ -21,13 +21,11 @@ import java.util.concurrent.atomic.AtomicLong;
 import org.hiero.consensus.model.event.Event;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
-import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.mockito.Mockito;
 
 class QuiescenceControllerTest {
-    private static final QuiescenceConfig CONFIG_ENABLED = new QuiescenceConfig(true, Duration.ofSeconds(3));
+    private static final QuiescenceConfig CONFIG = new QuiescenceConfig(true, Duration.ofSeconds(3));
     private static final TransactionBody TXN_TRANSFER = TransactionBody.newBuilder()
             .cryptoTransfer(CryptoTransferTransactionBody.DEFAULT).build();
     private static final TransactionBody TXN_STATE_SIG = TransactionBody.newBuilder()
@@ -43,7 +41,7 @@ class QuiescenceControllerTest {
     void setUp() {
         pendingTransactions.set(0);
         time = new FakeTime();
-        controller = new QuiescenceController(CONFIG_ENABLED, time, pendingTransactions::get);
+        controller = new QuiescenceController(CONFIG, time, pendingTransactions::get);
     }
 
     @Test
@@ -79,6 +77,16 @@ class QuiescenceControllerTest {
         controller.staleEvent(createEvent(TXN_TRANSFER));
         assertEquals(QUIESCENT, controller.getQuiescenceStatus(),
                 "A stale event should remove the transaction from the pipeline, so the status should be quiescent again");
+    }
+
+    @Test
+    void tct(){
+        controller.setNextTargetConsensusTime(time.now().plus(CONFIG.tctDuration().multipliedBy(2)));
+        assertEquals(QUIESCENT, controller.getQuiescenceStatus(),
+                "There are no pending transactions, and the TCT is far off, so the status should be quiescent");
+        time.tick(CONFIG.tctDuration().plusNanos(1));
+        assertEquals(NOT_QUIESCENT, controller.getQuiescenceStatus(),
+                "Time has advanced past the TCT threshold, so the status should be not quiescent");
     }
 
     @Test
