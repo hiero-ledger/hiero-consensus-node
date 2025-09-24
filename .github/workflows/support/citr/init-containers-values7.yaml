@@ -224,10 +224,20 @@ envoyDeployment:
       operator: "Equal"
       value: "%NETWORK_ID%"
       effect: "NoSchedule"
+
 cheetah:
   image:
+    registry: "ghcr.io"
+    repository: "hashgraph/solo-cheetah/cheetah"
     tag: "0.3.4" # https://github.com/hashgraph/solo-cheetah/pkgs/container/solo-cheetah%2Fcheetah
-  maxProcessors: 10 # max number of concurrent processors for each pipeline
-  # whether cheetah should stop the pipelines if any error occurs; if false, it will continue with the expectation that the
+    pullPolicy: "IfNotPresent"
+  maxProcessors: 4 # max number of concurrent processors for each pipeline
+  # whether it should stop the pipelines if any error occurs; if false, it will continue with the expectation that the
   # error may get fixed in the next run
   stopOnError: false
+  deployment:
+    # if true, a single instance of cheetah will be deployed for all stream files (i.e. record-streams, events-streams, block-streams etc.)
+    # WARNING: Other steams files uploader sidecar configuration will be ignored
+    single: true
+    nameOverride: "cheetah-stream-uploader"
+    resources: { }
