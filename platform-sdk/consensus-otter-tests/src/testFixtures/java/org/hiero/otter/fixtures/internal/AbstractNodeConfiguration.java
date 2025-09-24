@@ -130,7 +130,7 @@ public abstract class AbstractNodeConfiguration implements NodeConfiguration {
      */
     @Override
     @NonNull
-    public NodeConfiguration setStrings(@NonNull final String key, final List<String> values) {
+    public NodeConfiguration setStrings(@NonNull final String key, @NonNull final List<String> values) {
         throwIfNodeIsRunning();
         overriddenProperties.put(key, String.join(",", values));
         return this;
