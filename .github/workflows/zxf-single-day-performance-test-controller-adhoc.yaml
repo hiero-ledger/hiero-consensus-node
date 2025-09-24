@@ -101,7 +101,7 @@ jobs:
         id: verify-tag
         env:
           PROMOTED_GREP_PATTERN: "build-(.{5})" # Pattern to match build tags (e.g., build-12345)
-          CHECK_TAG: "${{ github.ref }}"
+          CHECK_TAG: "${{ inputs.ref }}"
         run: |
           # Ensure the tag that we received is a build tag
           # if the tag is a build tag then we can parse out the build number (the last 5 characters)
