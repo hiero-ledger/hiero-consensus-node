@@ -275,18 +275,19 @@ jobs:
       access-token: ${{ secrets.GH_ACCESS_TOKEN }}
       slack-detailed-report-webhook: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
 
-  block-node-regression-panel:
-    name: Block Node Regression Panel
-    needs: fetch-xts-candidate
-    if: ${{ needs.fetch-xts-candidate.result == 'success' && needs.fetch-xts-candidate.outputs.xts-tag-exists == 'true' }}
-    uses: ./.github/workflows/zxc-block-node-regression.yaml
-    with:
-      ref: ${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }} # pass the xts-candidate tag to the JRS panel for checkout
-      custom-job-name: "Block Node Regression"
-      solo-version: ${{ vars.CITR_SOLO_VERSION }}
-    secrets:
-      access-token: ${{ secrets.GH_ACCESS_TOKEN }}
-      slack-detailed-report-webhook: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
+  #  TODO: Enable block node regression panel when development is further on
+  #  block-node-regression-panel:
+  #    name: Block Node Regression Panel
+  #    needs: fetch-xts-candidate
+  #    if: ${{ needs.fetch-xts-candidate.result == 'success' && needs.fetch-xts-candidate.outputs.xts-tag-exists == 'true' }}
+  #    uses: ./.github/workflows/zxc-block-node-regression.yaml
+  #    with:
+  #      ref: ${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }} # pass the xts-candidate tag to the JRS panel for checkout
+  #      custom-job-name: "Block Node Regression"
+  #      solo-version: ${{ vars.CITR_SOLO_VERSION }}
+  #    secrets:
+  #      access-token: ${{ secrets.GH_ACCESS_TOKEN }}
+  #      slack-detailed-report-webhook: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
 
   tag-for-promotion:
     name: Tag as XTS-Passing
@@ -568,7 +569,7 @@ jobs:
           ROOTLY_SERVICE_NAME="CITR General"
           if [[ "${{ needs.fetch-xts-candidate.result }}" =~ ^(cancelled|failure)$ ]] \
             || [[ "${{ needs.tag-for-promotion.result }}" =~ ^(cancelled|failure)$ ]] \
-            || [[ "${{ needs.extended-test-suite.outputs.failure-mode }}" == "workflow"; then
+            || [[ "${{ needs.extended-test-suite.outputs.failure-mode }}" == "workflow" ]]; then
             ROOTLY_SERVICE_NAME="CI/CD Workflows"
           elif [[ "${{ needs.sdk-tck-regression-panel.result }}" =~ ^(cancelled|failure)$ ]]; then
             ROOTLY_SERVICE_NAME="CITR TCK"

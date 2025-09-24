@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.precompile.schedule;
 
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getScheduleInfo;
@@ -19,10 +20,12 @@ import com.hedera.services.bdd.spec.utilops.UtilVerbs;
 import com.hedera.services.bdd.suites.HapiSuite;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import edu.umd.cs.findbugs.annotations.NonNull;
+
 import java.math.BigInteger;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
+
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -76,6 +79,7 @@ public class ScheduleDeleteTest {
     @LeakyHapiTest(fees = "scheduled-contract-fees.json")
     @DisplayName(
             "call deleteSchedule/proxy deleteSchedule for scheduleCallWithPayer(address,address,uint256,uint256,uint64,bytes) success")
+    @Tag(MATS)
     public Stream<DynamicTest> scheduleCallWithPayerDeleteTest() {
         return Stream.of("deleteScheduleExample", "deleteScheduleProxyExample")
                 .flatMap(deleteFunc -> deleteScheduleTest(
@@ -91,45 +95,46 @@ public class ScheduleDeleteTest {
     @LeakyHapiTest(fees = "scheduled-contract-fees.json")
     @DisplayName(
             "call deleteSchedule/proxy deleteSchedule for executeCallOnPayerSignature(address,address,uint256,uint256,uint64,bytes) success")
+    @Tag(MATS)
     public Stream<DynamicTest> executeCallOnPayerSignatureDeleteTest() {
-        return Stream.of("deleteScheduleExample", "deleteScheduleProxyExample")
-                .flatMap(deleteFunc -> deleteScheduleTest(
-                        "executeCallOnPayerSignatureExample",
-                        deleteFunc,
-                        payer,
-                        BigInteger.valueOf(50 + COUNTER.getAndIncrement())));
-    }
+            return Stream.of("deleteScheduleExample", "deleteScheduleProxyExample")
+                    .flatMap(deleteFunc -> deleteScheduleTest(
+                            "executeCallOnPayerSignatureExample",
+                            deleteFunc,
+                            payer,
+                            BigInteger.valueOf(50 + COUNTER.getAndIncrement())));
+        }
 
-    private Stream<DynamicTest> deleteScheduleTest(
-            @NonNull final String scheduleFunction,
-            @NonNull final String deleteFunction,
-            @NonNull final Object... parameters) {
-        return hapiTest(UtilVerbs.withOpContext((spec, opLog) -> {
-            // create schedule
-            final var scheduleAddress = new AtomicReference<Address>();
-            allRunFor(
-                    spec,
-                    contract.call(scheduleFunction, parameters)
-                            .gas(2_000_000L)
-                            .exposingResultTo(res -> scheduleAddress.set((Address) res[1]))
-                            .andAssert(txn -> txn.hasKnownStatus(ResponseCodeEnum.SUCCESS)));
-            final var scheduleId = asScheduleId(spec, scheduleAddress.get());
-            final var scheduleIdString = String.valueOf(scheduleId.getScheduleNum());
-            allRunFor(
-                    spec,
-                    // check schedule exists
-                    getScheduleInfo(scheduleIdString)
-                            .hasScheduleId(scheduleIdString)
-                            .isNotExecuted()
-                            .isNotDeleted(),
-                    // delete schedule
-                    contract.call(deleteFunction, scheduleAddress.get())
-                            .gas(200_000L)
-                            .andAssert(txn -> txn.hasKnownStatus(ResponseCodeEnum.SUCCESS)),
-                    // check schedule deleted
-                    getScheduleInfo(scheduleIdString)
-                            .hasScheduleId(scheduleIdString)
-                            .isDeleted());
-        }));
+        private Stream<DynamicTest> deleteScheduleTest (
+        @NonNull final String scheduleFunction,
+        @NonNull final String deleteFunction,
+        @NonNull final Object...parameters){
+            return hapiTest(UtilVerbs.withOpContext((spec, opLog) -> {
+                // create schedule
+                final var scheduleAddress = new AtomicReference<Address>();
+                allRunFor(
+                        spec,
+                        contract.call(scheduleFunction, parameters)
+                                .gas(2_000_000L)
+                                .exposingResultTo(res -> scheduleAddress.set((Address) res[1]))
+                                .andAssert(txn -> txn.hasKnownStatus(ResponseCodeEnum.SUCCESS)));
+                final var scheduleId = asScheduleId(spec, scheduleAddress.get());
+                final var scheduleIdString = String.valueOf(scheduleId.getScheduleNum());
+                allRunFor(
+                        spec,
+                        // check schedule exists
+                        getScheduleInfo(scheduleIdString)
+                                .hasScheduleId(scheduleIdString)
+                                .isNotExecuted()
+                                .isNotDeleted(),
+                        // delete schedule
+                        contract.call(deleteFunction, scheduleAddress.get())
+                                .gas(200_000L)
+                                .andAssert(txn -> txn.hasKnownStatus(ResponseCodeEnum.SUCCESS)),
+                        // check schedule deleted
+                        getScheduleInfo(scheduleIdString)
+                                .hasScheduleId(scheduleIdString)
+                                .isDeleted());
+            }));
+        }
     }
-}

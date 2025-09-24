@@ -1354,7 +1354,7 @@ jobs:
           # use back-ticks for proper substitution in the json report
           freport=`/usr/bin/echo -e "$report" | awk '{print $1" "$2" "$3}' |\
             perl -ne 'if ($. < 6) {$comma=","} else {$comma="";} ($t,$d,$l)=split(/\s+/,$_,3); $p=int(($d-$l)/100); \
-            $excl=""; if ($p<=0) {$excl="\\\u2757";}
+            $excl=""; if ($d <= $l) {$excl="\\\u2757";}
             printf("{\"type\": \"text\",\"text\": \"%-25s %7d     %5d%% %7d %s\\\n\"}%s",$t,$d,$p,$l,$excl,$comma);'`
           freport="{\"type\": \"text\",\"text\": \"Name                          TPS         Above min\n\"},$freport"
 

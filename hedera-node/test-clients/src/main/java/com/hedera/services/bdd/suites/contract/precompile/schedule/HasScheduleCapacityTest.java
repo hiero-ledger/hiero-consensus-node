@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.precompile.schedule;
 
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getScheduleInfo;
@@ -77,6 +78,7 @@ public class HasScheduleCapacityTest {
 
     @HapiTest
     @DisplayName("call hasScheduleCapacity(uint256,uint256) success return true")
+    @Tag(MATS)
     public Stream<DynamicTest> hasScheduleCapacityTest() {
         return hapiTest(hasScheduleCapacity(
                 true, "hasScheduleCapacityExample", BigInteger.valueOf(EXPIRY_SHIFT.getAndIncrement())));
@@ -84,18 +86,21 @@ public class HasScheduleCapacityTest {
 
     @HapiTest
     @DisplayName("call hasScheduleCapacity(uint256,uint256) success return false by 0 expiry")
+    @Tag(MATS)
     public Stream<DynamicTest> hasScheduleCapacity0ExpiryTest() {
         return hapiTest(hasScheduleCapacity(false, FUNCTION_NAME, BigInteger.ZERO, BigInteger.valueOf(2_000_000)));
     }
 
     @HapiTest
     @DisplayName("call hasScheduleCapacity(uint256,uint256) success return false by huge expiry")
+    @Tag(MATS)
     public Stream<DynamicTest> hasScheduleCapacityHugeExpiryTest() {
         return hapiTest(hasScheduleCapacity(false, FUNCTION_NAME, VALUE_MORE_THAN_LONG, BigInteger.valueOf(2_000_000)));
     }
 
     @HapiTest
     @DisplayName("call hasScheduleCapacity(uint256,uint256) success return false by huge gasLimit")
+    @Tag(MATS)
     public Stream<DynamicTest> hasScheduleCapacityHugeGasLimitTest() {
         final BigInteger expirySecond =
                 BigInteger.valueOf(System.currentTimeMillis() / 1000 + EXPIRY_SHIFT.getAndIncrement());
@@ -111,6 +116,7 @@ public class HasScheduleCapacityTest {
             overrides = {CAPACITY_CONFIG_NAME},
             fees = "scheduled-contract-fees.json")
     @DisplayName("call hasScheduleCapacity(uint256,uint256) success return false by no capacity")
+    @Tag(MATS)
     public Stream<DynamicTest> hasScheduleCapacityOverflowTest() {
         final BigInteger expirySecond =
                 BigInteger.valueOf(System.currentTimeMillis() / 1000 + EXPIRY_SHIFT.getAndIncrement());
@@ -130,6 +136,7 @@ public class HasScheduleCapacityTest {
     // execute separately from other tests because it is changes 'contracts.maxGasPerSecBackend' config
     @LeakyHapiTest(overrides = {CAPACITY_CONFIG_NAME})
     @DisplayName("call hasScheduleCapacity(uint256,uint256) success return false by max+1 gasLimit")
+    @Tag(MATS)
     public Stream<DynamicTest> hasScheduleCapacityMaxGasLimitTest() {
         final BigInteger expirySecond =
                 BigInteger.valueOf(System.currentTimeMillis() / 1000 + EXPIRY_SHIFT.getAndIncrement());
@@ -152,6 +159,7 @@ public class HasScheduleCapacityTest {
             value = RepeatableReason.NEEDS_SYNCHRONOUS_HANDLE_WORKFLOW,
             fees = "scheduled-contract-fees.json")
     @DisplayName("call hasScheduleCapacity -> scheduleCall -> deleteSchedule -> success")
+    @Tag(MATS)
     public Stream<DynamicTest> scheduleCallWithCapacityCheckAndDeleteTest() {
         return hapiTest(withOpContext((spec, opLog) -> {
             // create schedule

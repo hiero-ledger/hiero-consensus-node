@@ -234,7 +234,7 @@ jobs:
         run: ${GRADLE_EXEC} :aggregation:testCodeCoverageReport --continue
 
       - name: Publish Unit Test Report
-        uses: step-security/publish-unit-test-result-action@201bbe166c323b2f9dab6dfbf9d6b6c001bd0dce # v2.20.1
+        uses: step-security/publish-unit-test-result-action@5d195d4dec0b9fa7b51a3dbc4298362a021247c7 # v2.20.4
         if: ${{ inputs.enable-unit-tests && steps.gradle-build.conclusion == 'success' && !cancelled() }}
         with:
           check_name: "Node: Unit Test Results"
@@ -256,7 +256,7 @@ jobs:
         run: ${GRADLE_EXEC} timingSensitive --continue
 
       - name: Publish Unit Test (Timing Sensitive) Report
-        uses: step-security/publish-unit-test-result-action@201bbe166c323b2f9dab6dfbf9d6b6c001bd0dce # v2.20.1
+        uses: step-security/publish-unit-test-result-action@5d195d4dec0b9fa7b51a3dbc4298362a021247c7 # v2.20.4
         if: ${{ inputs.enable-timing-sensitive-tests && steps.gradle-build.conclusion == 'success' && !cancelled() }}
         with:
           check_name: "Node: Timing Sensitive Unit Test Results"
@@ -278,7 +278,7 @@ jobs:
         run: ${GRADLE_EXEC} timeConsuming --continue
 
       - name: Publish Unit Test (Time Consuming) Report
-        uses: step-security/publish-unit-test-result-action@201bbe166c323b2f9dab6dfbf9d6b6c001bd0dce # v2.20.1
+        uses: step-security/publish-unit-test-result-action@5d195d4dec0b9fa7b51a3dbc4298362a021247c7 # v2.20.4
         if: ${{ inputs.enable-time-consuming-tests && steps.gradle-build.conclusion == 'success' && !cancelled() }}
         with:
           check_name: "Node: Time Consuming Unit Test Results"
@@ -300,7 +300,7 @@ jobs:
         run: ${GRADLE_EXEC} hammer --continue
 
       - name: Publish Hammer Test Report
-        uses: step-security/publish-unit-test-result-action@201bbe166c323b2f9dab6dfbf9d6b6c001bd0dce # v2.20.1
+        uses: step-security/publish-unit-test-result-action@5d195d4dec0b9fa7b51a3dbc4298362a021247c7 # v2.20.4
         if: ${{ inputs.enable-hammer-tests && steps.gradle-build.conclusion == 'success' && !cancelled() }}
         with:
           check_name: "Node: Hammer Test Results"
@@ -326,7 +326,7 @@ jobs:
         run: ${GRADLE_EXEC} hapiTestMisc${{ inputs.mats-suffix }} --no-daemon && ${GRADLE_EXEC} hapiEmbeddedMisc${{ inputs.mats-suffix }} --no-daemon && ${GRADLE_EXEC} hapiRepeatableMisc${{ inputs.mats-suffix }} --no-daemon
 
       - name: Publish HAPI Test (Misc) Report
-        uses: step-security/publish-unit-test-result-action@201bbe166c323b2f9dab6dfbf9d6b6c001bd0dce # v2.20.1
+        uses: step-security/publish-unit-test-result-action@5d195d4dec0b9fa7b51a3dbc4298362a021247c7 # v2.20.4
         if: ${{ inputs.enable-hapi-tests-misc && steps.gradle-build.conclusion == 'success' && !cancelled() }}
         with:
           check_name: "Node: HAPI Test (Misc) Results"
@@ -362,7 +362,7 @@ jobs:
         run: ${GRADLE_EXEC} hapiTestMiscRecords${{ inputs.mats-suffix }}
 
       - name: Publish HAPI Test (Misc Records) Report
-        uses: step-security/publish-unit-test-result-action@201bbe166c323b2f9dab6dfbf9d6b6c001bd0dce # v2.20.1
+        uses: step-security/publish-unit-test-result-action@5d195d4dec0b9fa7b51a3dbc4298362a021247c7 # v2.20.4
         if: ${{ inputs.enable-hapi-tests-misc-records && steps.gradle-build.conclusion == 'success' && !cancelled() }}
         with:
           check_name: "Node: HAPI Test (Misc Records) Results"
@@ -398,7 +398,7 @@ jobs:
         run: ${GRADLE_EXEC} hapiTestCrypto
 
       - name: Publish HAPI Test (Crypto) Report
-        uses: step-security/publish-unit-test-result-action@201bbe166c323b2f9dab6dfbf9d6b6c001bd0dce # v2.20.1
+        uses: step-security/publish-unit-test-result-action@5d195d4dec0b9fa7b51a3dbc4298362a021247c7 # v2.20.4
         if: ${{ inputs.enable-hapi-tests-crypto && steps.gradle-build.conclusion == 'success' && !cancelled() }}
         with:
           check_name: "Node: HAPI Test (Crypto) Results"
@@ -434,7 +434,7 @@ jobs:
         run: ${GRADLE_EXEC} hapiTestToken${{ inputs.mats-suffix || '' }} --no-daemon
 
       - name: Publish HAPI Test (Token) Report
-        uses: step-security/publish-unit-test-result-action@201bbe166c323b2f9dab6dfbf9d6b6c001bd0dce # v2.20.1
+        uses: step-security/publish-unit-test-result-action@5d195d4dec0b9fa7b51a3dbc4298362a021247c7 # v2.20.4
         if: ${{ inputs.enable-hapi-tests-token && steps.gradle-build.conclusion == 'success' && !cancelled() }}
         with:
           check_name: "Node: HAPI Test (Token) Results"
@@ -467,10 +467,10 @@ jobs:
         env:
           LC_ALL: en.UTF-8
           LANG: en_US.UTF-8
-        run: ${GRADLE_EXEC} hapiTestSmartContract
+        run: ${GRADLE_EXEC} hapiTestSmartContract${{ inputs.mats-suffix || '' }}
 
       - name: Publish HAPI Test (Smart Contract) Report
-        uses: step-security/publish-unit-test-result-action@201bbe166c323b2f9dab6dfbf9d6b6c001bd0dce # v2.20.1
+        uses: step-security/publish-unit-test-result-action@5d195d4dec0b9fa7b51a3dbc4298362a021247c7 # v2.20.4
         if: ${{ inputs.enable-hapi-tests-smart-contract && steps.gradle-build.conclusion == 'success' && !cancelled() }}
         with:
           check_name: "Node: HAPI Test (Smart Contract) Results"
@@ -506,7 +506,7 @@ jobs:
         run: ${GRADLE_EXEC} hapiTestTimeConsuming
 
       - name: Publish HAPI Test (Time Consuming) Report
-        uses: step-security/publish-unit-test-result-action@201bbe166c323b2f9dab6dfbf9d6b6c001bd0dce # v2.20.1
+        uses: step-security/publish-unit-test-result-action@5d195d4dec0b9fa7b51a3dbc4298362a021247c7 # v2.20.4
         if: ${{ inputs.enable-hapi-tests-time-consuming && steps.gradle-build.conclusion == 'success' && !cancelled() }}
         with:
           check_name: "Node: HAPI Test (Time Consuming) Results"
@@ -542,7 +542,7 @@ jobs:
         run: ${GRADLE_EXEC} hapiTestRestart
 
       - name: Publish HAPI Test (Restart) Report
-        uses: step-security/publish-unit-test-result-action@201bbe166c323b2f9dab6dfbf9d6b6c001bd0dce # v2.20.1
+        uses: step-security/publish-unit-test-result-action@5d195d4dec0b9fa7b51a3dbc4298362a021247c7 # v2.20.4
         if: ${{ inputs.enable-hapi-tests-restart && steps.gradle-build.conclusion == 'success' && !cancelled() }}
         with:
           check_name: "Node: HAPI Test (Restart) Results"
@@ -578,7 +578,7 @@ jobs:
         run: ${GRADLE_EXEC} hapiTestNDReconnect
 
       - name: Publish HAPI Test (Node Death Reconnect) Report
-        uses: step-security/publish-unit-test-result-action@201bbe166c323b2f9dab6dfbf9d6b6c001bd0dce # v2.20.1
+        uses: step-security/publish-unit-test-result-action@5d195d4dec0b9fa7b51a3dbc4298362a021247c7 # v2.20.4
         if: ${{ inputs.enable-hapi-tests-nd-reconnect && steps.gradle-build.conclusion == 'success' && !cancelled() }}
         with:
           check_name: "Node: HAPI Test (Node Death Reconnect) Results"
@@ -614,7 +614,7 @@ jobs:
         run: ${GRADLE_EXEC} hapiTestIss
 
       - name: Publish HAPI Test (ISS) Report
-        uses: step-security/publish-unit-test-result-action@201bbe166c323b2f9dab6dfbf9d6b6c001bd0dce # v2.20.1
+        uses: step-security/publish-unit-test-result-action@5d195d4dec0b9fa7b51a3dbc4298362a021247c7 # v2.20.4
         if: ${{ inputs.enable-hapi-tests-iss && steps.gradle-build.conclusion == 'success' && !cancelled() }}
         with:
           check_name: "Node: HAPI Test (ISS) Results"
@@ -650,7 +650,7 @@ jobs:
         run: ${GRADLE_EXEC} hapiTestBlockNodeCommunication
 
       - name: Publish HAPI Test (Block Node Communication) Report
-        uses: step-security/publish-unit-test-result-action@cc82caac074385ae176d39d2d143ad05e1130b2d # v2.18.0
+        uses: step-security/publish-unit-test-result-action@5d195d4dec0b9fa7b51a3dbc4298362a021247c7 # v2.20.4
         if: ${{ inputs.enable-hapi-tests-bn-communication && steps.gradle-build.conclusion == 'success' && !cancelled() }}
         with:
           check_name: "Node: HAPI Test (Block Node Communication) Results"
@@ -681,15 +681,15 @@ jobs:
         env:
           LC_ALL: en.UTF-8
           LANG: en_US.UTF-8
-        run: ${GRADLE_EXEC} :consensus-otter-tests:test
+        run: ${GRADLE_EXEC} :consensus-otter-tests:testIntegration
 
       - name: Publish Otter Testing Report
-        uses: step-security/publish-unit-test-result-action@201bbe166c323b2f9dab6dfbf9d6b6c001bd0dce # v2.20.1
+        uses: step-security/publish-unit-test-result-action@5d195d4dec0b9fa7b51a3dbc4298362a021247c7 # v2.20.4
         if: ${{ inputs.enable-otter-tests && steps.gradle-build.conclusion == 'success' && !cancelled() }}
         with:
           check_name: "Node: Otter Tests Results"
           json_thousands_separator: ","
-          junit_files: "**/consensus-otter-tests/build/test-results/test/TEST-*.xml"
+          junit_files: "**/consensus-otter-tests/build/test-results/testIntegration/TEST-*.xml"
           comment_mode: errors # only comment if we could not find or parse the JUnit XML files
 
       - name: Upload Otter Tests Report Artifacts
@@ -697,7 +697,7 @@ jobs:
         if: ${{ inputs.enable-otter-tests && steps.gradle-build.conclusion == 'success' && !cancelled() }}
         with:
           name: Otter Tests Report
-          path: "**/consensus-otter-tests/build/test-results/test/TEST-*.xml"
+          path: "**/consensus-otter-tests/build/test-results/testIntegration/TEST-*.xml"
           retention-days: 7
 
       - name: Upload Otter Turtle Logs

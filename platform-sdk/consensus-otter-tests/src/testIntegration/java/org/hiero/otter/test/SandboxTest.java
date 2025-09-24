@@ -92,7 +92,7 @@ public class SandboxTest {
         timeManager.waitFor(TEN_SECONDS);
 
         // Start branching
-        nodeX.setBranchingProbability(0.5);
+        nodeX.ping("Hello Hiero");
 
         // Wait for one minute
         timeManager.waitFor(ONE_MINUTE);
