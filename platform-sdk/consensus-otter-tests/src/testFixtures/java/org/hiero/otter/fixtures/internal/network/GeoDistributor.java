@@ -29,7 +29,7 @@ import org.hiero.otter.fixtures.network.utils.GeographicLatencyConfiguration;
  */
 public class GeoDistributor {
 
-    private static final List<String> CONTINENTS = List.of(
+    private static final List<String> CONTINENT_NAMES = List.of(
             "AETHERMOOR",
             "BRIMHAVEN",
             "CRYSTALTHORNE",
@@ -52,7 +52,6 @@ public class GeoDistributor {
             @NonNull final GeographicLatencyConfiguration configuration, @NonNull final Map<Node, Location> nodes) {
         requireNonNull(configuration);
 
-        // Extract a structured map of continents to regions with their node counts
         final List<Continent> continents = extractContinents(nodes);
 
         Location bestOption = null;
@@ -86,9 +85,9 @@ public class GeoDistributor {
 
         // Option 3: Add the node to a new continent and new region
         final int continentCount = continents.size();
-        if (continentCount < CONTINENTS.size()) {
+        if (continentCount < CONTINENT_NAMES.size()) {
             final Region newRegion = new Region("Region-1");
-            final Continent newContinent = new Continent(CONTINENTS.get(continentCount), newRegion);
+            final Continent newContinent = new Continent(CONTINENT_NAMES.get(continentCount), newRegion);
             continents.add(newContinent);
             final double currentError = scoreConfiguration(configuration, continents);
             if (currentError < lowestError) {
@@ -147,6 +146,9 @@ public class GeoDistributor {
                 + Math.pow((1.0 - sameRegionPercent - sameContinentPercent) - targetDifferentContinentPercent, 2);
     }
 
+    /**
+     * Represents a geographic region with a name and the number of nodes assigned to it.
+     */
     private static class Region {
         private final String name;
         private long nodeCount;
@@ -161,6 +163,9 @@ public class GeoDistributor {
         }
     }
 
+    /**
+     * Represents a continent with a name and a list of regions within it.
+     */
     private record Continent(@NonNull String name, @NonNull List<Region> regions) {
         private Continent(@NonNull final String name, @NonNull final Region region) {
             this(name, new ArrayList<>());
