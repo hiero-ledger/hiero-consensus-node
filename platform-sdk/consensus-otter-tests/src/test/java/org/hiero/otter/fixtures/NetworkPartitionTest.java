@@ -8,6 +8,7 @@ import static org.hiero.consensus.model.status.PlatformStatus.CHECKING;
 import com.swirlds.common.test.fixtures.WeightGenerators;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
@@ -37,6 +38,11 @@ class NetworkPartitionTest {
 
     /**
      * Test creating and removing a partition with multiple nodes on all environments.
+     *
+     * <p>Setting up environments other than Turtle is quite expensive. Therefore, this test covers the full lifecycle
+     * of a partition, including creation, verification, and removal. It ensures that the partitioning logic works
+     * correctly and that nodes respond appropriately to changes in network topology. It is run in all environments
+     * to ensure consistent behavior across different setups.
      *
      * @param env the test environment for this test
      */
@@ -120,6 +126,11 @@ class NetworkPartitionTest {
 
     /**
      * Test creating a partition with multiple nodes using {@link java.util.Collection} parameter.
+     *
+     * <p>This test is similar to {@link #testCreateAndRemovePartition(TestEnvironment)} but specifically
+     * verifies the behavior of the {@link Network#createPartition(Collection)} method. As
+     * {@link Network#createPartition(Node, Node...)} calls through to the collection-based method,
+     * it is not necessary to run both tests in all environments.
      */
     @Test
     void testCreatePartitionWithCollection() {
