@@ -11,6 +11,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.NoSuchElementException;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
@@ -153,9 +154,12 @@ public final class RuntimeObjectRegistry {
             return null;
         }
         try {
-            // The list may become empty at any moment, as the method isn't synchronized, so we catch IOOBE
+            // The list may become empty at any moment, as the method isn't synchronized, so we catch the exception
             return oldest ? classRecords.getFirst() : classRecords.getLast();
-        } catch (final IndexOutOfBoundsException e) {
+        } catch (final IndexOutOfBoundsException | NoSuchElementException e) {
+            // NoSuchElementException can be thrown by getFirst() or getLast()
+            // since getFirst() & getLast() are not synchronized, the get() within them may throw
+            // IndexOutOfBoundsException
             return null;
         }
     }
