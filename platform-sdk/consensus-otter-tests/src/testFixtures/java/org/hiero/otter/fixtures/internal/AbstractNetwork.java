@@ -112,7 +112,7 @@ public abstract class AbstractNetwork implements Network {
 
     protected AbstractNetwork(@NonNull final Random random) {
         this.random = requireNonNull(random);
-        this.topology = new GeoMeshTopologyImpl(this::createNodes, this::createInstrumentedNode, random);
+        this.topology = new GeoMeshTopologyImpl(random, this::createNodes, this::createInstrumentedNode);
     }
 
     /**

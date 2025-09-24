@@ -91,53 +91,53 @@ public class ToxiproxyClient {
     }
 
     /**
-     * Creates a new toxic for the specified proxy with the given configuration.
+     * Creates a new toxin for the specified proxy with the given configuration.
      *
-     * @param proxy the proxy to which the toxic will be added
-     * @param toxic the toxic configuration to create
+     * @param proxy the proxy to which the toxin will be added
+     * @param toxin the toxin configuration to create
      */
-    public void createToxic(@NonNull final Proxy proxy, @NonNull final Toxic toxic) {
+    public void createToxin(@NonNull final Proxy proxy, @NonNull final Toxin toxin) {
         try {
             final URI uri =
                     new UriBuilder(baseUri).path(proxy.name()).path("toxics").build();
             final HttpRequest request = HttpRequest.newBuilder()
                     .uri(uri)
                     .header(CONTENT_TYPE, APPLICATION_JSON)
-                    .POST(HttpRequest.BodyPublishers.ofString(MAPPER.writeValueAsString(toxic)))
+                    .POST(HttpRequest.BodyPublishers.ofString(MAPPER.writeValueAsString(toxin)))
                     .build();
             final HttpResponse<String> response = httpClient.send(request, BodyHandlers.ofString());
-            validateToxicFromResponse(response);
+            validateToxinFromResponse(response);
         } catch (final IOException | InterruptedException e) {
-            throw new AssertionError("Exception while creating toxic", e);
+            throw new AssertionError("Exception while creating toxin", e);
         }
     }
 
     /**
-     * Updates an existing toxic for the specified proxy with the given configuration.
+     * Updates an existing toxin for the specified proxy with the given configuration.
      *
-     * @param proxy the proxy to which the toxic belongs
-     * @param toxic the toxic configuration to update
+     * @param proxy the proxy to which the toxin belongs
+     * @param toxin the toxin configuration to update
      */
-    public void updateToxic(@NonNull final Proxy proxy, @NonNull final Toxic toxic) {
+    public void updateToxin(@NonNull final Proxy proxy, @NonNull final Toxin toxin) {
         try {
             final URI uri = new UriBuilder(baseUri)
                     .path(proxy.name())
                     .path("toxics")
-                    .path(toxic.name())
+                    .path(toxin.name())
                     .build();
             final HttpRequest request = HttpRequest.newBuilder()
                     .uri(uri)
                     .header(CONTENT_TYPE, APPLICATION_JSON)
-                    .POST(HttpRequest.BodyPublishers.ofString(MAPPER.writeValueAsString(toxic)))
+                    .POST(HttpRequest.BodyPublishers.ofString(MAPPER.writeValueAsString(toxin)))
                     .build();
             final HttpResponse<String> response = httpClient.send(request, BodyHandlers.ofString());
-            validateToxicFromResponse(response);
+            validateToxinFromResponse(response);
         } catch (final IOException | InterruptedException e) {
             throw new AssertionError("Exception while updating proxy", e);
         }
     }
 
-    private void validateToxicFromResponse(@NonNull final HttpResponse<String> response) throws IOException {
+    private void validateToxinFromResponse(@NonNull final HttpResponse<String> response) throws IOException {
         if (response.statusCode() < 200 || response.statusCode() >= 300) {
             throw new IOException("Failed to process request with error code %d: %s"
                     .formatted(response.statusCode(), response.request()));

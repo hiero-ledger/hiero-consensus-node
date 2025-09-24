@@ -23,7 +23,7 @@ import org.assertj.core.data.Percentage;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.roster.RosterUtils;
 import org.hiero.otter.fixtures.Node;
-import org.hiero.otter.fixtures.container.network.Toxic.LatencyToxic;
+import org.hiero.otter.fixtures.container.network.Toxin.LatencyToxin;
 import org.hiero.otter.fixtures.internal.network.ConnectionKey;
 import org.hiero.otter.fixtures.network.Topology.ConnectionData;
 import org.hiero.otter.fixtures.network.utils.BandwidthLimit;
@@ -79,8 +79,8 @@ public class NetworkBehavior {
                 final String connectionName = "%d-%d".formatted(sender.id(), receiver.id());
                 final Proxy proxy = new Proxy(connectionName, listenAddress, receiverAddress, true);
                 proxies.put(connectionKey, toxiproxyClient.createProxy(proxy));
-                final LatencyToxic latencyToxic = new LatencyToxic(INITIAL_STATE.latency(), INITIAL_STATE.jitter());
-                toxiproxyClient.createToxic(proxy, latencyToxic);
+                final LatencyToxin latencyToxin = new LatencyToxin(INITIAL_STATE.latency(), INITIAL_STATE.jitter());
+                toxiproxyClient.createToxin(proxy, latencyToxin);
                 connections.put(connectionKey, INITIAL_STATE);
             }
         }
@@ -152,8 +152,8 @@ public class NetworkBehavior {
             throw new IllegalStateException("No proxy found for sender %s and receiver %s"
                     .formatted(connectionKey.sender(), connectionKey.receiver()));
         }
-        final LatencyToxic latencyToxic = new LatencyToxic(newConnectionData.latency(), newConnectionData.jitter());
-        toxiproxyClient.updateToxic(proxy, latencyToxic);
+        final LatencyToxin latencyToxin = new LatencyToxin(newConnectionData.latency(), newConnectionData.jitter());
+        toxiproxyClient.updateToxin(proxy, latencyToxin);
     }
 
     /**

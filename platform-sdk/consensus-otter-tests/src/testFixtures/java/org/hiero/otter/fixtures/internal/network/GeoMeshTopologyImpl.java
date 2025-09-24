@@ -38,14 +38,14 @@ public class GeoMeshTopologyImpl implements GeoMeshTopology {
     /**
      * Constructor for the {@link GeoMeshTopologyImpl} class.
      *
+     * @param random a random number generator for simulating network conditions
      * @param nodeFactory a function that creates a list of nodes given the count
      * @param instrumentedNodeFactory a supplier that creates an instrumented node
-     * @param random a random number generator for simulating network conditions
      */
     public GeoMeshTopologyImpl(
+            @NonNull final Random random,
             @NonNull final Function<Integer, List<? extends Node>> nodeFactory,
-            @NonNull final Supplier<InstrumentedNode> instrumentedNodeFactory,
-            @NonNull final Random random) {
+            @NonNull final Supplier<InstrumentedNode> instrumentedNodeFactory) {
         this.nodeFactory = requireNonNull(nodeFactory);
         this.instrumentedNodeFactory = requireNonNull(instrumentedNodeFactory);
         this.random = requireNonNull(random);

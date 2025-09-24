@@ -10,36 +10,36 @@ import java.util.Map;
 import org.assertj.core.data.Percentage;
 
 /**
- * Represents a network toxic that can be applied to a proxy to simulate network conditions.
+ * Represents a network toxin that can be applied to a proxy to simulate network conditions.
  */
-public interface Toxic {
+public interface Toxin {
 
-    /** The types of toxics that can be applied to a proxy. */
-    enum ToxicType {
-        /** A toxic that adds latency to the network traffic. */
+    /** The types of toxins that can be applied to a proxy. */
+    enum Type {
+        /** A toxin that adds latency to the network traffic. */
         @JsonProperty("latency")
         LATENCY,
 
-        /** A toxic that limits the bandwidth. */
+        /** A toxin that limits the bandwidth. */
         @JsonProperty("bandwidth")
         BANDWIDTH,
     }
 
-    /** The direction of the toxic (upstream or downstream). */
-    enum ToxicStream {
-        /** The toxic applies to upstream traffic (client -> server). */
+    /** The direction of the toxin (upstream or downstream). */
+    enum Stream {
+        /** The toxin applies to upstream traffic (client -> server). */
         @JsonProperty("upstream")
         UPSTREAM,
 
-        /** The toxic applies to downstream traffic (server -> client). */
+        /** The toxin applies to downstream traffic (server -> client). */
         @JsonProperty("downstream")
         DOWNSTREAM
     }
 
     /**
-     * The name of the toxic.
+     * The name of the toxin.
      *
-     * @return the name of the toxic
+     * @return the name of the toxin
      */
     @JsonProperty
     @NonNull
@@ -48,35 +48,35 @@ public interface Toxic {
     }
 
     /**
-     * The type of the toxic.
+     * The type of the toxin.
      *
-     * @return the type of the toxic
+     * @return the type of the toxin
      */
     @JsonProperty
     @NonNull
-    ToxicType type();
+    Type type();
 
     /**
-     * The direction of the toxic (upstream or downstream).
+     * The direction of the toxin (upstream or downstream).
      *
-     * @return the direction of the toxic
+     * @return the direction of the toxin
      */
     @JsonProperty
     @NonNull
-    default ToxicStream stream() {
-        return ToxicStream.UPSTREAM;
+    default Stream stream() {
+        return Stream.UPSTREAM;
     }
 
     /**
-     * The percentage of traffic that is affected by the toxic (0.0-1.0).
+     * The percentage of traffic that is affected by the toxin (0.0-1.0).
      *
-     * @return the toxicity of the toxic
+     * @return the toxicity of the toxin
      */
     @JsonProperty
     double toxicity();
 
     /**
-     * Additional attributes specific to the type of toxic.
+     * Additional attributes specific to the type of toxin.
      *
      * @return a map of attribute names to their values
      */
@@ -85,20 +85,20 @@ public interface Toxic {
     Map<String, Long> attributes();
 
     /**
-     * A toxic that adds latency to the network traffic.
+     * A toxin that adds latency to the network traffic.
      */
-    class LatencyToxic implements Toxic {
+    class LatencyToxin implements Toxin {
 
         private final Duration latency;
         private final Percentage jitter;
 
         /**
-         * Constructs a new LatencyToxic instance.
+         * Constructs a new LatencyToxin instance.
          *
          * @param latency the amount of latency to add
          * @param jitter the percentage of jitter to apply to the latency
          */
-        public LatencyToxic(@NonNull final Duration latency, @NonNull final Percentage jitter) {
+        public LatencyToxin(@NonNull final Duration latency, @NonNull final Percentage jitter) {
             this.latency = requireNonNull(latency);
             this.jitter = requireNonNull(jitter);
         }
@@ -108,8 +108,8 @@ public interface Toxic {
          */
         @NonNull
         @Override
-        public ToxicType type() {
-            return ToxicType.LATENCY;
+        public Type type() {
+            return Type.LATENCY;
         }
 
         /**
@@ -139,7 +139,7 @@ public interface Toxic {
                 return false;
             }
 
-            final LatencyToxic that = (LatencyToxic) o;
+            final LatencyToxin that = (LatencyToxin) o;
             return latency.equals(that.latency) && jitter.equals(that.jitter);
         }
 
