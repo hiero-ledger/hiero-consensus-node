@@ -468,6 +468,8 @@ tasks.register<Test>("testRepeatable") {
     modularity.inferModulePath.set(false)
 }
 
+testModuleInfo { requires("com.swirlds.config.extensions.test.fixtures") }
+
 application.mainClass = "com.hedera.services.bdd.suites.SuiteRunner"
 
 // allow shadow Jar files to have more than 64k entries

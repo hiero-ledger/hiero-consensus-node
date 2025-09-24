@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.junit.support.validators.block;
 
+import static java.util.Objects.requireNonNull;
+import static org.assertj.core.api.Fail.fail;
+
 import com.hedera.hapi.block.stream.Block;
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.input.EventHeader;
@@ -24,9 +27,6 @@ import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.crypto.PbjStreamHasher;
 import org.hiero.consensus.model.event.PlatformEvent;
 
-import static java.util.Objects.requireNonNull;
-import static org.assertj.core.api.Fail.fail;
-
 /**
  * A helper class for reconstructing events from the block stream.
  */
@@ -35,10 +35,11 @@ public class BlockStreamEventBuilder {
     /** The blocks to read events from. */
     private final List<Block> blocks;
 
-    /** Track event hashes by index within a single block */
+    /** Track event hashes by index within a single block  for parent lookups within a block */
     private final Map<Integer, PlatformEvent> eventIndexToEvent = new HashMap<>();
 
-    private final Map<Hash, PlatformEvent> eventHashtoEvent = new HashMap<>();
+    /** Track events by event hash for parent lookups across blocks */
+    private final Map<Hash, PlatformEvent> eventHashToEvent = new HashMap<>();
 
     /** A list of transactions to include in the current event */
     private final List<Bytes> currentTransactions = new ArrayList<>();
@@ -162,7 +163,7 @@ public class BlockStreamEventBuilder {
         final PlatformEvent platformEvent =
                 createEventFromData(currentEventHeader, currentTransactions, eventIndexToEvent);
         eventIndexToEvent.put(eventIndexWithinBlock, platformEvent);
-        eventHashtoEvent.put(platformEvent.getHash(), platformEvent);
+        eventHashToEvent.put(platformEvent.getHash(), platformEvent);
         events.add(platformEvent);
         currentEventHeader = null;
     }
@@ -238,8 +239,9 @@ public class BlockStreamEventBuilder {
                     // Parent is already an EventDescriptor (outside current block)
                     final EventDescriptor parentDescriptor = parentRef.parent().as();
                     resolvedParents.add(parentDescriptor);
-                    if (!eventHashtoEvent.containsKey(new Hash(parentDescriptor.hash()))) {
-                        fail("Unable to find event matching parent hash %d", parentDescriptor.hash());
+                    final Hash parentHash = new Hash(parentDescriptor.hash());
+                    if (!eventHashToEvent.containsKey(parentHash)) {
+                        fail("Unable to find event matching parent hash %s", parentHash);
                     }
                     crossBlockParentHashes.add(new Hash(parentDescriptor.hash()));
                     break;
