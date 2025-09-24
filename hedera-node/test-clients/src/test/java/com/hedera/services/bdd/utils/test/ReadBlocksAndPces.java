@@ -31,12 +31,12 @@ import org.hiero.consensus.model.event.PlatformEvent;
 import org.junit.jupiter.api.Test;
 
 public class ReadBlocksAndPces {
-    String pcesFile = "/Users/lazarpetrovic/Downloads/2025-09-22T13+03+02.389731Z_seq0_minr1_maxr501_orgn0.pces";
+    String pcesFile = "/Users/kellygreco/repos/hiero-consensus-node/hedera-node/test-clients/build/hapi-test/node0/data/saved/preconsensus-events/0/2025/09/24/2025-09-24T17+20+58.200747Z_seq0_minr1_maxr501_orgn0.pces";
 
     @Test
     void printBlockFiles() throws ParseException {
         System.out.println("BEGIN");
-        final Path path = Paths.get("/Users/lazarpetrovic/Downloads/block-11.12.3");
+        final Path path = Paths.get("/Users/kellygreco/repos/hiero-consensus-node/hedera-node/test-clients/build/hapi-test/node0/data/blockStreams/block-11.12.3");
         final List<Block> blocks = BlockStreamAccess.BLOCK_STREAM_ACCESS.readBlocks(path);
 
         int count = 0;
@@ -79,12 +79,12 @@ public class ReadBlocksAndPces {
         Collections.sort(events, (e1, e2) -> {
             return HapiUtils.TIMESTAMP_COMPARATOR.compare(e1.left(), e2.left());
         });
-        //        for (Pair<Timestamp, List<TransactionBody>> pair : events) {
-        //            System.out.println(pair.left());
-        //            for (final TransactionBody tb : pair.right()) {
-        //                System.out.println(TransactionBody.JSON.toJSON(tb));
-        //            }
-        //        }
+                for (Pair<Timestamp, List<TransactionBody>> pair : events) {
+                    System.out.println(pair.left());
+                    for (final TransactionBody tb : pair.right()) {
+                        System.out.println(TransactionBody.JSON.toJSON(tb));
+                    }
+                }
         System.out.println("Total events: " + count);
     }
 

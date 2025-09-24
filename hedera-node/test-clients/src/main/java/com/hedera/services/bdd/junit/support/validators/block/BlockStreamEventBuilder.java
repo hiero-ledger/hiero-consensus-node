@@ -7,6 +7,7 @@ import static org.assertj.core.api.Fail.fail;
 import com.hedera.hapi.block.stream.Block;
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.FilteredItemHash;
+import com.hedera.hapi.block.stream.RedactedItem;
 import com.hedera.hapi.block.stream.input.EventHeader;
 import com.hedera.hapi.block.stream.input.ParentEventReference;
 import com.hedera.hapi.node.base.TransactionID;
@@ -108,8 +109,9 @@ public class BlockStreamEventBuilder {
                     case SIGNED_TRANSACTION:
                         signedTransaction(item.item().as());
                         break;
-                    case FILTERED_ITEM_HASH:
-                        filteredItemHash(item.item().as());
+                    case REDACTED_ITEM:
+                        redactedItem(item.item().as());
+                        break;
                     default:
                         // Skip other item types (block headers, proofs, etc.)
                         break;
@@ -119,11 +121,13 @@ public class BlockStreamEventBuilder {
         }
     }
 
-    private void filteredItemHash(@NonNull final FilteredItemHash filteredItemHash) {
+    private void redactedItem(@NonNull final RedactedItem redactedItem) {
         if (currentEventHeader == null) {
-            fail("Unexpected filtered transaction item without an active event header!");
+            fail("Unexpected redacted item without an active event header!");
         }
-        currentTransactions.add(TransactionWrapper.ofTransactionHash(filteredItemHash.itemHash()));
+        if (redactedItem.signedTransactionHash() != null) {
+            currentTransactions.add(TransactionWrapper.ofTransactionHash(redactedItem.signedTransactionHash()));
+        }
     }
 
     private void startOfBlock() {
