@@ -4,6 +4,8 @@ package com.hedera.services.bdd.suites.hip869;
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.toPbj;
 import static com.hedera.services.bdd.junit.EmbeddedReason.NEEDS_STATE_ACCESS;
 import static com.hedera.services.bdd.junit.TestTags.MATS;
+import static com.hedera.services.bdd.junit.TestTags.ONLY_SUBPROCESS;
+import static com.hedera.services.bdd.junit.hedera.utils.AddressBookUtils.CLASSIC_FIRST_NODE_ACCOUNT_NUM;
 import static com.hedera.services.bdd.junit.hedera.utils.AddressBookUtils.endpointFor;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asAccount;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asDnsServiceEndpoint;
@@ -35,12 +37,14 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.GRPC_WEB_PROXY
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ADMIN_KEY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_GOSSIP_CA_CERTIFICATE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_IPV4_ADDRESS;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_NODE_ACCOUNT;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_NODE_DESCRIPTION;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_NODE_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SERVICE_ENDPOINT;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.KEY_REQUIRED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.NOT_SUPPORTED;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.RECORD_NOT_FOUND;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SERVICE_ENDPOINTS_EXCEEDED_LIMIT;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.UPDATE_NODE_ACCOUNT_NOT_ALLOWED;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -55,6 +59,7 @@ import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.LeakyEmbeddedHapiTest;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
+import com.hedera.services.bdd.suites.regression.system.LifecycleTest;
 import java.security.cert.CertificateEncodingException;
 import java.security.cert.X509Certificate;
 import java.util.List;
@@ -66,7 +71,7 @@ import org.junit.jupiter.api.Tag;
 
 @DisplayName("updateNode")
 @HapiTestLifecycle
-public class NodeUpdateTest {
+public class NodeUpdateTest implements LifecycleTest {
     private static List<X509Certificate> gossipCertificates;
 
     @BeforeAll
@@ -130,6 +135,28 @@ public class NodeUpdateTest {
                         .adminKey("adminKey")
                         .gossipCaCertificate(gossipCertificates.getFirst().getEncoded()),
                 nodeUpdate("testNode").accountId("0.0.100").hasPrecheck(UPDATE_NODE_ACCOUNT_NOT_ALLOWED));
+    }
+
+    @Tag(ONLY_SUBPROCESS)
+    @LeakyHapiTest(overrides = {"nodes.updateAccountIdAllowed"})
+    final Stream<DynamicTest> updateAccountIdAndSubmitWithOld() {
+        final var nodeIdToUpdate = 1;
+        final var oldNodeAccountId = nodeIdToUpdate + CLASSIC_FIRST_NODE_ACCOUNT_NUM;
+        return hapiTest(
+                overriding("nodes.updateAccountIdAllowed", "true"),
+                cryptoCreate("newNodeAccount"),
+                // Node update works with nodeId not accountId,
+                // so we are updating the node we are submitting to
+                nodeUpdate(String.valueOf(nodeIdToUpdate))
+                        .accountId("newNodeAccount")
+                        .payingWith(DEFAULT_PAYER)
+                        .signedByPayerAnd(GENESIS),
+                cryptoCreate("foo")
+                        .setNode(oldNodeAccountId)
+                        .hasPrecheck(INVALID_NODE_ACCOUNT)
+                        .via("createTxn"),
+                // Assert that the transaction was not submitted and failed on ingest
+                getTxnRecord("createTxn").hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND));
     }
 
     @HapiTest

@@ -4,7 +4,6 @@ package com.hedera.node.app.workflows.standalone.impl;
 import static com.hedera.node.app.throttle.ThrottleAccumulator.ThrottleType.BACKEND_THROTTLE;
 import static com.hedera.node.app.throttle.ThrottleAccumulator.ThrottleType.NOOP_THROTTLE;
 
-import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.platform.state.PlatformState;
 import com.hedera.node.app.annotations.NodeSelfId;
 import com.hedera.node.app.metrics.StoreMetricsServiceImpl;
@@ -78,9 +77,9 @@ public interface StandaloneModule {
     @Provides
     @Singleton
     @NodeSelfId
-    static AccountID provideNodeSelfId(EntityIdFactory entityIdFactory) {
+    static long provideNodeSelfId(EntityIdFactory entityIdFactory) {
         // This is only used to check the shard and realm of account ids
-        return entityIdFactory.newDefaultAccountId();
+        return entityIdFactory.newDefaultAccountId().accountNum();
     }
 
     @Provides

@@ -3,6 +3,7 @@ package com.hedera.services.bdd.spec.transactions;
 
 import static com.hedera.services.bdd.spec.TargetNetworkType.EMBEDDED_NETWORK;
 import static com.hedera.services.bdd.spec.queries.QueryUtils.txnReceiptQueryFor;
+import static com.hedera.services.bdd.spec.transactions.TxnUtils.asId;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.extractTxnId;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.txnToString;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
@@ -80,9 +81,7 @@ import org.apache.tuweni.bytes.Bytes;
 public abstract class HapiTxnOp<T extends HapiTxnOp<T>> extends HapiSpecOperation {
     private static final Logger log = LogManager.getLogger(HapiTxnOp.class);
 
-    private static final SubmissionStrategy DEFAULT_SUBMISSION_STRATEGY =
-            (network, transaction, functionality, target, nodeAccountId) ->
-                    network.submit(transaction, functionality, target, nodeAccountId);
+    private static final SubmissionStrategy DEFAULT_SUBMISSION_STRATEGY = HederaNetwork::submit;
 
     private static final Response UNKNOWN_RESPONSE = Response.newBuilder()
             .setTransactionGetReceipt(TransactionGetReceiptResponse.newBuilder()
@@ -113,6 +112,7 @@ public abstract class HapiTxnOp<T extends HapiTxnOp<T>> extends HapiSpecOperatio
     protected Optional<ResponseCodeEnum> expectedPrecheck = Optional.empty();
     protected Optional<EnumSet<ResponseCodeEnum>> permissibleStatuses = Optional.empty();
     protected Optional<EnumSet<ResponseCodeEnum>> permissiblePrechecks = Optional.empty();
+    protected Optional<String> alternativeNodeForSubmit = Optional.empty();
     /** if response code in the set then allow to resubmit transaction */
     protected Optional<EnumSet<ResponseCodeEnum>> retryPrechecks = Optional.empty();
 
@@ -228,12 +228,21 @@ public abstract class HapiTxnOp<T extends HapiTxnOp<T>> extends HapiSpecOperatio
                 }
                 final var hederaFunctionality =
                         overriddenHederaFunctionality != null ? overriddenHederaFunctionality : type();
-                response = submissionStrategy.submit(
-                        spec.targetNetworkOrThrow(),
-                        txn,
-                        hederaFunctionality,
-                        systemFunctionalityTarget(),
-                        targetNodeFor(spec));
+                if (alternativeNodeForSubmit.isPresent()) {
+                    response = submissionStrategy.submit(
+                            spec.targetNetworkOrThrow(),
+                            txn,
+                            hederaFunctionality,
+                            systemFunctionalityTarget(),
+                            asId(alternativeNodeForSubmit.get(), spec));
+                } else {
+                    response = submissionStrategy.submit(
+                            spec.targetNetworkOrThrow(),
+                            txn,
+                            hederaFunctionality,
+                            systemFunctionalityTarget(),
+                            targetNodeFor(spec));
+                }
             } catch (StatusRuntimeException e) {
                 if (respondToSRE(e, "submitting transaction")) {
                     continue;
@@ -755,6 +764,11 @@ public abstract class HapiTxnOp<T extends HapiTxnOp<T>> extends HapiSpecOperatio
 
     public T hasAnyKnownStatus() {
         acceptAnyKnownStatus = true;
+        return self();
+    }
+
+    public T nodeForSubmit(String nodeAccount) {
+        alternativeNodeForSubmit = Optional.of(nodeAccount);
         return self();
     }
 

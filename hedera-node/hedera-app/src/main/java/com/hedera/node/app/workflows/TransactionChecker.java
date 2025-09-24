@@ -23,7 +23,6 @@ import static com.hedera.node.app.spi.workflows.PreCheckException.validateFalseP
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
 import static java.util.Objects.requireNonNull;
 
-import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.SignaturePair;
@@ -88,7 +87,7 @@ public class TransactionChecker {
     /** The {@link Counter} used to track the number of super deprecated transactions (body, sigs) received. */
     private final Counter superDeprecatedCounter;
     /** The account ID of the node running this software */
-    private final AccountID nodeAccount;
+    private final long nodeId;
 
     private final HederaConfig hederaConfig;
     private final JumboTransactionsConfig jumboTransactionsConfig;
@@ -106,10 +105,10 @@ public class TransactionChecker {
      */
     @Inject
     public TransactionChecker(
-            @NodeSelfId @NonNull final AccountID nodeAccount,
+            @NodeSelfId final long nodeId,
             @NonNull final ConfigProvider configProvider,
             @NonNull final Metrics metrics) {
-        this.nodeAccount = requireNonNull(nodeAccount);
+        this.nodeId = nodeId;
         this.deprecatedCounter = metrics.getOrCreate(new Counter.Config("app", COUNTER_DEPRECATED_TXNS_NAME)
                 .withDescription(COUNTER_RECEIVED_DEPRECATED_DESC));
         this.superDeprecatedCounter = metrics.getOrCreate(new Counter.Config("app", COUNTER_SUPER_DEPRECATED_TXNS_NAME)
@@ -445,11 +444,8 @@ public class TransactionChecker {
         // the shard and realm match the shard and realm of this node, AND if the account number is positive
         // alias payer account is not allowed to submit transactions.
         final var accountID = txnId.accountID();
-        final var isPlausibleAccount = accountID != null
-                && accountID.shardNum() == nodeAccount.shardNum()
-                && accountID.realmNum() == nodeAccount.realmNum()
-                && accountID.hasAccountNum()
-                && accountID.accountNumOrElse(0L) > 0;
+        final var isPlausibleAccount =
+                accountID != null && accountID.hasAccountNum() && accountID.accountNumOrElse(0L) > 0;
 
         if (!isPlausibleAccount) {
             throw new PreCheckException(PAYER_ACCOUNT_NOT_FOUND);

@@ -11,7 +11,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.FAIL_FEE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_TX_FEE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_NODE_ACCOUNT;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_NODE_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
@@ -180,7 +180,7 @@ class IngestCheckerTest extends AppTestBase {
         when(dispatcher.dispatchComputeFees(any())).thenReturn(DEFAULT_FEES);
 
         subject = new IngestChecker(
-                nodeSelfAccountId,
+                nodeSelfId.id(),
                 currentPlatformStatus,
                 blockStreamManager,
                 transactionChecker,
@@ -247,12 +247,8 @@ class IngestCheckerTest extends AppTestBase {
     @DisplayName("A wrong nodeId in transaction fails")
     void testWrongNodeIdFails() {
         // Given a transaction with an unknown node ID
-        final var otherNodeSelfAccountId = AccountID.newBuilder()
-                .accountNum(nodeSelfAccountId.accountNumOrElse(0L) + 1L)
-                .build();
-
         subject = new IngestChecker(
-                otherNodeSelfAccountId,
+                nodeSelfAccountId.accountNumOrElse(0L) + 1L,
                 currentPlatformStatus,
                 blockStreamManager,
                 transactionChecker,
@@ -271,7 +267,7 @@ class IngestCheckerTest extends AppTestBase {
         // Then the checker should throw a PreCheckException
         assertThatThrownBy(() -> subject.runAllChecks(state, serializedTx, configuration, new IngestChecker.Result()))
                 .isInstanceOf(PreCheckException.class)
-                .has(responseCode(INVALID_NODE_ACCOUNT));
+                .has(responseCode(INVALID_NODE_ID));
         verify(opWorkflowMetrics, never()).incrementThrottled(any());
     }
 
