@@ -16,18 +16,18 @@ public class FunctionWritableSingletonState<S> extends WritableSingletonStateBas
     /**
      * Creates a new instance.
      *
-     * @param serviceName The name of the service that owns the state.
-     * @param stateKey The state key for this instance.
+     * @param stateId The state ID
+     * @param label The state label
      * @param backingStoreAccessor A {@link Supplier} that provides access to the value in the
-     *     backing store.
-     * @param backingStoreMutator A {@link Consumer} for mutating the value in the backing store.
+     *     backing store
+     * @param backingStoreMutator A {@link Consumer} for mutating the value in the backing store
      */
     public FunctionWritableSingletonState(
-            @NonNull final String serviceName,
-            @NonNull final String stateKey,
+            final int stateId,
+            final String label,
             @NonNull final Supplier<S> backingStoreAccessor,
             @NonNull final Consumer<S> backingStoreMutator) {
-        super(serviceName, stateKey);
+        super(stateId, label);
         this.backingStoreAccessor = Objects.requireNonNull(backingStoreAccessor);
         this.backingStoreMutator = Objects.requireNonNull(backingStoreMutator);
     }

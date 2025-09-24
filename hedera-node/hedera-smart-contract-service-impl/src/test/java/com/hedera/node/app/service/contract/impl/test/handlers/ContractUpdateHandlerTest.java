@@ -4,12 +4,14 @@ package com.hedera.node.app.service.contract.impl.test.handlers;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CONTRACT_EXPIRED_AND_PENDING_REMOVAL;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.EXISTING_AUTOMATIC_ASSOCIATIONS_EXCEED_GIVEN_LIMIT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.EXPIRATION_REDUCTION_NOT_ALLOWED;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOK_ID_REPEATED_IN_CREATION_DETAILS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ADMIN_KEY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_AUTORENEW_ACCOUNT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_CONTRACT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_MAX_AUTO_ASSOCIATIONS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.MODIFYING_IMMUTABLE_CONTRACT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.REQUESTED_NUM_AUTOMATIC_ASSOCIATIONS_EXCEEDS_ASSOCIATION_LIMIT;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.hapi.util.HapiUtils.EMPTY_KEY_LIST;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.AN_ED25519_KEY;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.assertFailsWith;
@@ -27,6 +29,7 @@ import static org.mockito.ArgumentMatchers.notNull;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -39,6 +42,10 @@ import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.contract.ContractUpdateTransactionBody;
+import com.hedera.hapi.node.hooks.EvmHookSpec;
+import com.hedera.hapi.node.hooks.HookCreationDetails;
+import com.hedera.hapi.node.hooks.HookExtensionPoint;
+import com.hedera.hapi.node.hooks.LambdaEvmHook;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.state.token.Account.Builder;
 import com.hedera.hapi.node.transaction.TransactionBody;
@@ -46,6 +53,7 @@ import com.hedera.node.app.service.contract.impl.handlers.ContractUpdateHandler;
 import com.hedera.node.app.service.contract.impl.records.ContractUpdateStreamBuilder;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.api.TokenServiceApi;
+import com.hedera.node.app.service.token.records.HookDispatchStreamBuilder;
 import com.hedera.node.app.spi.fees.FeeCalculator;
 import com.hedera.node.app.spi.fees.FeeCalculatorFactory;
 import com.hedera.node.app.spi.fees.FeeContext;
@@ -54,6 +62,7 @@ import com.hedera.node.app.spi.ids.EntityIdFactory;
 import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.app.spi.validation.AttributeValidator;
 import com.hedera.node.app.spi.validation.ExpiryValidator;
+import com.hedera.node.app.spi.workflows.DispatchOptions;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
@@ -118,15 +127,19 @@ class ContractUpdateHandlerTest extends ContractHandlerTestBase {
     @Mock
     private EntityIdFactory entityIdFactory;
 
+    @Mock
+    private HookDispatchStreamBuilder streamBuilder;
+
     private ContractUpdateHandler subject;
 
     @BeforeEach
     public void setUp() {
         subject = new ContractUpdateHandler(entityIdFactory);
+        lenient().when(context.storeFactory()).thenReturn(storeFactory);
     }
 
     @Test
-    void sigRequiredWithoutKeyFails() throws PreCheckException {
+    void sigRequiredWithoutKeyFails() {
         final var txn = TransactionBody.newBuilder()
                 .contractUpdateInstance(ContractUpdateTransactionBody.newBuilder())
                 .transactionID(transactionID)
@@ -517,6 +530,44 @@ class ContractUpdateHandlerTest extends ContractHandlerTestBase {
     }
 
     @Test
+    void testHookDispatches() {
+        doReturn(attributeValidator).when(context).attributeValidator();
+        when(accountStore.getContractById(targetContract)).thenReturn(contract);
+        when(contract.accountIdOrThrow())
+                .thenReturn(AccountID.newBuilder().accountNum(666).build());
+        when(contract.key()).thenReturn(Key.newBuilder().build());
+        when(context.expiryValidator()).thenReturn(expiryValidator);
+        when(context.payer()).thenReturn(payer);
+        given(context.storeFactory()).willReturn(storeFactory);
+        when(storeFactory.serviceApi(TokenServiceApi.class)).thenReturn(tokenServiceApi);
+        given(storeFactory.readableStore(ReadableAccountStore.class)).willReturn(accountStore);
+        final var txn = TransactionBody.newBuilder()
+                .contractUpdateInstance(ContractUpdateTransactionBody.newBuilder()
+                        .contractID(targetContract)
+                        .adminKey(adminKey)
+                        .hookCreationDetails(hookDetails(1), hookDetails(2))
+                        .hookIdsToDelete(5L)
+                        .memo("memo"))
+                .transactionID(transactionID)
+                .build();
+        when(context.body()).thenReturn(txn);
+        when(contract.copyBuilder()).thenReturn(mock(Builder.class));
+        when(context.savepointStack()).thenReturn(stack);
+        when(stack.getBaseBuilder(ContractUpdateStreamBuilder.class)).thenReturn(recordBuilder);
+        given(context.dispatch(any(DispatchOptions.class))).willReturn(streamBuilder);
+        when(streamBuilder.status()).thenReturn(SUCCESS);
+
+        subject.handle(context);
+
+        verify(expiryValidator, times(1)).resolveUpdateAttempt(any(), any());
+        verify(tokenServiceApi, times(1))
+                .assertValidStakingElectionForUpdate(anyBoolean(), any(), any(), any(), any(), any());
+        verify(tokenServiceApi, times(1)).updateContract(any());
+        verify(recordBuilder, times(1)).contractID(any());
+        verify(context, times(3)).dispatch(any(DispatchOptions.class));
+    }
+
+    @Test
     void adminKeyUpdated() {
         final var contractAccount = Account.newBuilder().build();
         final var op = ContractUpdateTransactionBody.newBuilder()
@@ -525,7 +576,7 @@ class ContractUpdateHandlerTest extends ContractHandlerTestBase {
 
         final var updatedContract = subject.update(contractAccount, context, op);
 
-        assertEquals(op.adminKey(), updatedContract.key());
+        assertEquals(op.adminKey(), updatedContract.build().key());
     }
 
     @Test
@@ -537,7 +588,10 @@ class ContractUpdateHandlerTest extends ContractHandlerTestBase {
 
         final var updatedContract = subject.update(contractAccount, context, op);
 
-        assertEquals(contractAccount.key(), updatedContract.key(), "Admin key should not be updated when key is empty");
+        assertEquals(
+                contractAccount.key(),
+                updatedContract.build().key(),
+                "Admin key should not be updated when key is empty");
     }
 
     @Test
@@ -549,8 +603,8 @@ class ContractUpdateHandlerTest extends ContractHandlerTestBase {
 
         final var updatedContract = subject.update(contractAccount, context, op);
 
-        assertEquals(op.expirationTime().seconds(), updatedContract.expirationSecond());
-        assertFalse(updatedContract.expiredAndPendingRemoval());
+        assertEquals(op.expirationTime().seconds(), updatedContract.build().expirationSecond());
+        assertFalse(updatedContract.build().expiredAndPendingRemoval());
     }
 
     @Test
@@ -562,7 +616,7 @@ class ContractUpdateHandlerTest extends ContractHandlerTestBase {
 
         final var updatedContract = subject.update(contractAccount, context, op);
 
-        assertEquals(op.autoRenewPeriod().seconds(), updatedContract.autoRenewSeconds());
+        assertEquals(op.autoRenewPeriod().seconds(), updatedContract.build().autoRenewSeconds());
     }
 
     @Test
@@ -574,7 +628,7 @@ class ContractUpdateHandlerTest extends ContractHandlerTestBase {
 
         final var updatedContract = subject.update(contractAccount, context, op);
 
-        assertEquals(op.memo(), updatedContract.memo());
+        assertEquals(op.memo(), updatedContract.build().memo());
         verify(attributeValidator, times(1)).validateMemo(op.memo());
     }
 
@@ -606,7 +660,7 @@ class ContractUpdateHandlerTest extends ContractHandlerTestBase {
 
         final var updatedContract = subject.update(contractAccount, context, op);
 
-        assertEquals(op.memoWrapper(), updatedContract.memo());
+        assertEquals(op.memoWrapper(), updatedContract.build().memo());
         verify(attributeValidator, times(1)).validateMemo(op.memoWrapper());
     }
 
@@ -619,7 +673,7 @@ class ContractUpdateHandlerTest extends ContractHandlerTestBase {
 
         final var updatedContract = subject.update(contractAccount, context, op);
 
-        assertEquals(op.stakedAccountId(), updatedContract.stakedAccountId());
+        assertEquals(op.stakedAccountId(), updatedContract.build().stakedAccountId());
     }
 
     @Test
@@ -631,7 +685,7 @@ class ContractUpdateHandlerTest extends ContractHandlerTestBase {
 
         final var updatedContract = subject.update(contractAccount, context, op);
 
-        assertNull(updatedContract.stakedAccountId());
+        assertNull(updatedContract.build().stakedAccountId());
     }
 
     @Test
@@ -642,7 +696,7 @@ class ContractUpdateHandlerTest extends ContractHandlerTestBase {
 
         final var updatedContract = subject.update(contractAccount, context, op);
 
-        assertEquals(op.stakedNodeId(), updatedContract.stakedNodeId());
+        assertEquals(op.stakedNodeId(), updatedContract.build().stakedNodeId());
     }
 
     @Test
@@ -653,7 +707,7 @@ class ContractUpdateHandlerTest extends ContractHandlerTestBase {
 
         final var updatedContract = subject.update(contractAccount, context, op);
 
-        assertTrue(updatedContract.declineReward());
+        assertTrue(updatedContract.build().declineReward());
     }
 
     @Test
@@ -665,7 +719,7 @@ class ContractUpdateHandlerTest extends ContractHandlerTestBase {
 
         final var updatedContract = subject.update(contractAccount, context, op);
 
-        assertEquals(op.autoRenewAccountId(), updatedContract.autoRenewAccountId());
+        assertEquals(op.autoRenewAccountId(), updatedContract.build().autoRenewAccountId());
     }
 
     @Test
@@ -677,12 +731,15 @@ class ContractUpdateHandlerTest extends ContractHandlerTestBase {
 
         final var updatedContract = subject.update(contractAccount, context, op);
 
-        assertEquals(op.maxAutomaticTokenAssociations(), updatedContract.maxAutoAssociations());
+        assertEquals(op.maxAutomaticTokenAssociations(), updatedContract.build().maxAutoAssociations());
     }
 
     @Test
     void updateAllFields() {
         when(context.attributeValidator()).thenReturn(attributeValidator);
+        when(context.payer()).thenReturn(asAccount("0.0.10"));
+        given(context.dispatch(any(DispatchOptions.class))).willReturn(streamBuilder);
+        given(streamBuilder.status()).willReturn(SUCCESS);
 
         final var contractAccount = Account.newBuilder().build();
         final var op = ContractUpdateTransactionBody.newBuilder()
@@ -695,20 +752,25 @@ class ContractUpdateHandlerTest extends ContractHandlerTestBase {
                 .declineReward(true)
                 .autoRenewAccountId(AccountID.newBuilder().accountNum(10))
                 .maxAutomaticTokenAssociations(10)
+                .hookCreationDetails(hookDetails(1), hookDetails(2))
                 .build();
 
         final var updatedContract = subject.update(contractAccount, context, op);
 
-        assertEquals(op.adminKey(), updatedContract.key());
-        assertEquals(op.expirationTime().seconds(), updatedContract.expirationSecond());
-        assertFalse(updatedContract.expiredAndPendingRemoval());
-        assertEquals(op.autoRenewPeriod().seconds(), updatedContract.autoRenewSeconds());
-        assertEquals(op.memo(), updatedContract.memo());
-        assertEquals(op.stakedAccountId(), updatedContract.stakedAccountId());
-        assertEquals(op.stakedNodeId(), updatedContract.stakedNodeId());
-        assertTrue(updatedContract.declineReward());
-        assertEquals(op.autoRenewAccountId(), updatedContract.autoRenewAccountId());
-        assertEquals(op.maxAutomaticTokenAssociations(), updatedContract.maxAutoAssociations());
+        assertEquals(op.adminKey(), updatedContract.build().key());
+        assertEquals(op.expirationTime().seconds(), updatedContract.build().expirationSecond());
+        assertFalse(updatedContract.build().expiredAndPendingRemoval());
+        assertEquals(op.autoRenewPeriod().seconds(), updatedContract.build().autoRenewSeconds());
+        assertEquals(op.memo(), updatedContract.build().memo());
+        assertEquals(op.stakedAccountId(), updatedContract.build().stakedAccountId());
+        assertEquals(op.stakedNodeId(), updatedContract.build().stakedNodeId());
+        assertTrue(updatedContract.build().declineReward());
+        assertEquals(op.autoRenewAccountId(), updatedContract.build().autoRenewAccountId());
+        assertEquals(op.maxAutomaticTokenAssociations(), updatedContract.build().maxAutoAssociations());
+
+        subject.updateHooks(context, op, updatedContract, contractAccount);
+        assertEquals(2, updatedContract.build().numberHooksInUse());
+        assertEquals(1, updatedContract.build().firstHookId());
         verify(attributeValidator, times(1)).validateMemo(op.memo());
     }
 
@@ -742,5 +804,30 @@ class ContractUpdateHandlerTest extends ContractHandlerTestBase {
                 .assertValidStakingElectionForUpdate(anyBoolean(), any(), any(), any(), any(), any());
         verify(tokenServiceApi, times(1)).updateContract(any());
         verify(recordBuilder, times(1)).contractID(any());
+    }
+
+    @Test
+    void repeatedHookIdsInCreationDetailsFails() {
+        final var txn = TransactionBody.newBuilder()
+                .contractUpdateInstance(ContractUpdateTransactionBody.newBuilder()
+                        .contractID(targetContract)
+                        .hookCreationDetails(hookDetails(1), hookDetails(1)))
+                .transactionID(transactionID)
+                .build();
+        when(pureChecksContext.body()).thenReturn(txn);
+
+        assertThrowsPreCheck(() -> subject.pureChecks(pureChecksContext), HOOK_ID_REPEATED_IN_CREATION_DETAILS);
+    }
+
+    static HookCreationDetails hookDetails(long id) {
+        final var spec = EvmHookSpec.newBuilder()
+                .contractId(ContractID.newBuilder().contractNum(321).build())
+                .build();
+        final var lambda = LambdaEvmHook.newBuilder().spec(spec).build();
+        return HookCreationDetails.newBuilder()
+                .hookId(id)
+                .extensionPoint(HookExtensionPoint.ACCOUNT_ALLOWANCE_HOOK)
+                .lambdaEvmHook(lambda)
+                .build();
     }
 }

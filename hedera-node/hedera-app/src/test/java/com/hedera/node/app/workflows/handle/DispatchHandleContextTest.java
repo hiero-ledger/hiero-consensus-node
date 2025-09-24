@@ -9,8 +9,10 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BOD
 import static com.hedera.hapi.node.base.ResponseCodeEnum.UNRESOLVABLE_REQUIRED_SIGNERS;
 import static com.hedera.hapi.node.base.SubType.TOKEN_NON_FUNGIBLE_UNIQUE_WITH_CUSTOM_FEES;
 import static com.hedera.hapi.util.HapiUtils.functionOf;
-import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_KEY;
-import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ALIASES_KEY;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_STATE_ID;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_STATE_LABEL;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ALIASES_STATE_ID;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ALIASES_STATE_LABEL;
 import static com.hedera.node.app.spi.authorization.SystemPrivilege.IMPERMISSIBLE;
 import static com.hedera.node.app.spi.fees.NoopFeeCharging.NOOP_FEE_CHARGING;
 import static com.hedera.node.app.spi.fixtures.workflows.ExceptionConditions.responseCode;
@@ -32,7 +34,7 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mock.Strictness.LENIENT;
@@ -151,6 +153,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 public class DispatchHandleContextTest extends StateTestBase implements Scenarios {
+
     private static final Fees FEES = new Fees(1L, 2L, 3L);
     public static final Instant CONSENSUS_NOW = Instant.ofEpochSecond(1_234_567L, 890);
     private static final AccountID PAYER_ACCOUNT_ID =
@@ -594,15 +597,16 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
         @BeforeEach
         void setup() {
             final var baseKVState =
-                    new MapWritableKVState<>(FRUIT_SERVICE_NAME, FRUIT_STATE_KEY, new HashMap<>(BASE_DATA));
+                    new MapWritableKVState<>(FRUIT_STATE_ID, FRUIT_STATE_LABEL, new HashMap<>(BASE_DATA));
             final var writableStates =
                     MapWritableStates.builder().state(baseKVState).build();
             final var readableStates = MapReadableStates.builder()
-                    .state(new MapReadableKVState(FRUIT_SERVICE_NAME, FRUIT_STATE_KEY, new HashMap<>(BASE_DATA)))
+                    .state(new MapReadableKVState(FRUIT_STATE_ID, FRUIT_STATE_LABEL, new HashMap<>(BASE_DATA)))
                     .build();
             when(baseState.getReadableStates(FOOD_SERVICE)).thenReturn(readableStates);
             when(baseState.getWritableStates(FOOD_SERVICE)).thenReturn(writableStates);
-            final var accountsState = new MapWritableKVState<AccountID, Account>(TokenService.NAME, ACCOUNTS_KEY);
+            final var accountsState =
+                    new MapWritableKVState<AccountID, Account>(ACCOUNTS_STATE_ID, ACCOUNTS_STATE_LABEL);
             accountsState.put(ALICE.accountID(), ALICE.account());
             when(baseState.getWritableStates(TokenService.NAME))
                     .thenReturn(MapWritableStates.builder().state(accountsState).build());
@@ -612,7 +616,7 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
                         final var childStack = (SavepointStackImpl) childContext.savepointStack();
                         childStack
                                 .getWritableStates(FOOD_SERVICE)
-                                .get(FRUIT_STATE_KEY)
+                                .get(FRUIT_STATE_ID)
                                 .put(A_KEY, ACAI);
                         return null;
                     })
@@ -853,13 +857,13 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
         lenient()
                 .when(stack.getWritableStates(TokenService.NAME))
                 .thenReturn(MapWritableStates.builder()
-                        .state(MapWritableKVState.builder(TokenService.NAME, ACCOUNTS_KEY)
+                        .state(MapWritableKVState.builder(ACCOUNTS_STATE_ID, ACCOUNTS_STATE_LABEL)
                                 .build())
-                        .state(MapWritableKVState.builder(TokenService.NAME, ALIASES_KEY)
+                        .state(MapWritableKVState.builder(ALIASES_STATE_ID, ALIASES_STATE_LABEL)
                                 .build())
                         .build());
-        lenient().when(writableStates.<EntityNumber>getSingleton(anyString())).thenReturn(entityNumberState);
-        lenient().when(writableStates.<EntityCounts>getSingleton(anyString())).thenReturn(entityCountsState);
+        lenient().when(writableStates.<EntityNumber>getSingleton(anyInt())).thenReturn(entityNumberState);
+        lenient().when(writableStates.<EntityCounts>getSingleton(anyInt())).thenReturn(entityCountsState);
         lenient().when(stack.getWritableStates(EntityIdService.NAME)).thenReturn(writableStates);
         lenient().when(stack.getReadableStates(TokenService.NAME)).thenReturn(defaultTokenReadableStates());
         lenient().when(exchangeRateManager.exchangeRateInfo(any())).thenReturn(exchangeRateInfo);
