@@ -337,6 +337,18 @@ jobs:
         run: |
           if [[ -n "${RC_TAG}" ]] && [[ "${TAG_WITH_EPOCH}" == "false" ]]; then
             TAG="xts-pass-${RC_TAG}"
+
+            set +e
+              TAG_COMMIT="$(git rev-list -n 1 "${TAG}")" >/dev/null 2>&1
+              TAG_EXISTS="${?}"
+            set -e
+
+            if [[ "${TAG_EXISTS}" -eq 0 ]]; then
+              echo "Tag ${TAG} already exists. Deleting."
+              git push --delete origin "${TAG}"
+              git tag -d "${TAG}"
+            fi
+
             git tag --annotate "${TAG}" --message "chore: tagging release candidate as XTS passing"
             git push --set-upstream origin "${TAG}"
             echo "### Commit Tagged as XTS-Passing" >>  "${GITHUB_STEP_SUMMARY}"
