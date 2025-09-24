@@ -52,7 +52,7 @@ public class ScheduleCallDecoder {
         if (attempt.isSelector(ScheduleCallTranslator.SCHEDULE_CALL)) {
             call = ScheduleCallTranslator.SCHEDULE_CALL.decodeCall(attempt.inputBytes());
             to = call.get(paramIndex++);
-            sender = attempt.addressIdConverter().convertSender(attempt.senderAddress());
+            sender = attempt.senderId();
             waitForExpiry = true;
         } else if (attempt.isSelector(ScheduleCallTranslator.SCHEDULE_CALL_WITH_SENDER)) {
             call = ScheduleCallTranslator.SCHEDULE_CALL_WITH_SENDER.decodeCall(attempt.inputBytes());
