@@ -4,7 +4,7 @@ package com.hedera.node.app.workflows.handle;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.BUSY;
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
 import static com.hedera.node.app.blocks.BlockStreamManager.PendingWork.GENESIS_WORK;
-import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCK_INFO_STATE_KEY;
+import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCKS_STATE_ID;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.SCHEDULED;
 import static com.hedera.node.app.state.logging.TransactionStateLogger.logStartEvent;
 import static com.hedera.node.app.state.logging.TransactionStateLogger.logStartRound;
@@ -117,6 +117,7 @@ import org.hiero.consensus.roster.WritableRosterStore;
  */
 @Singleton
 public class HandleWorkflow {
+
     private static final Logger logger = LogManager.getLogger(HandleWorkflow.class);
 
     public static final String ALERT_MESSAGE = "Possibly CATASTROPHIC failure";
@@ -649,10 +650,19 @@ public class HandleWorkflow {
             var nextTime = lastTime.plusNanos(consensusConfig.handleMaxPrecedingRecords() + 1);
             final var entityIdWritableStates = state.getWritableStates(EntityIdService.NAME);
             final var writableEntityIdStore = new WritableEntityIdStore(entityIdWritableStates);
-            // Now we construct the iterator and start executing transactions in this interval
+            // Now we construct the iterator and start executing transactions in the longest permitted
+            // interval; this is constrained by `scheduling.maxExpirySecsToCheckPerUserTxn` so that in
+            // test environments where we restart from a state with last consensus time T and begin
+            // submitting txs again at wall clock time N, handle() doesn't block so painfully long
+            // looking for expired schedules in [T, N] that the network goes into CHECKING
+            final int maxSecsToCheck = schedulingConfig.maxExpirySecsToCheckPerUserTxn();
+            final long lastCheckableSecond = executionStart.getEpochSecond() + maxSecsToCheck - 1;
+            final var iteratorEnd = lastCheckableSecond >= consensusNow.getEpochSecond()
+                    ? consensusNow
+                    : executionStart.plusSeconds(maxSecsToCheck);
             final var iter = scheduleService.executableTxns(
                     executionStart,
-                    consensusNow,
+                    iteratorEnd,
                     StoreFactoryImpl.from(state, ScheduleService.NAME, config, writableEntityIdStore, apiProviders));
 
             final var writableStates = state.getWritableStates(ScheduleService.NAME);
@@ -694,9 +704,10 @@ public class HandleWorkflow {
             if (iter.hasNext()) {
                 lastExecutedSecond = executionEnd.getEpochSecond() - 1;
             } else {
-                // We exhausted the iterator, so jump back ahead to the interval right endpoint
-                executionEnd = consensusNow;
-                lastExecutedSecond = consensusNow.getEpochSecond();
+                // We exhausted the iterator, so jump back to the interval right endpoint
+                // no matter the last executed transaction
+                executionEnd = iteratorEnd;
+                lastExecutedSecond = executionEnd.getEpochSecond();
             }
         }
         // Update our last-processed time with where we ended
@@ -1011,7 +1022,7 @@ public class HandleWorkflow {
      */
     private TransactionType typeOfBoundary(@NonNull final State state) {
         final var blockInfo = state.getReadableStates(BlockRecordService.NAME)
-                .<BlockInfo>getSingleton(BLOCK_INFO_STATE_KEY)
+                .<BlockInfo>getSingleton(BLOCKS_STATE_ID)
                 .get();
         return !requireNonNull(blockInfo).migrationRecordsStreamed() ? POST_UPGRADE_TRANSACTION : ORDINARY_TRANSACTION;
     }

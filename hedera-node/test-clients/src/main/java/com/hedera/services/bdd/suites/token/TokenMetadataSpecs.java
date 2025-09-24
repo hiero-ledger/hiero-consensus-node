@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.token;
 
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.TOKEN;
 import static com.hedera.services.bdd.spec.HapiSpec.defaultHapiSpec;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
@@ -46,6 +47,7 @@ import org.junit.jupiter.api.Tag;
  * </ul>
  */
 @Tag(TOKEN)
+@Tag(MATS)
 public class TokenMetadataSpecs {
     private static final String PRIMARY = "primary";
     private static final String NON_FUNGIBLE_UNIQUE_FINITE = "non-fungible-unique-finite";

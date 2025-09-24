@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures;
 
+import edu.umd.cs.findbugs.annotations.NonNull;
+
 /**
  * Interface representing an instrumented node.
  *
@@ -10,12 +12,9 @@ package org.hiero.otter.fixtures;
 public interface InstrumentedNode extends Node {
 
     /**
-     * Set the branching probability for the instrumented node.
+     * Ping the node with a message. All instrumented components should log the message.
      *
-     * <p>This method allows you to specify the probability of the node branching when creating an event.
-     * The value should be between 0.0 and 1.0, where 0.0 means no branching and 1.0 means certain branching.
-     *
-     * @param probability the branching probability
+     * @param message the message to log
      */
-    void setBranchingProbability(double probability);
+    void ping(@NonNull String message);
 }

@@ -2,8 +2,8 @@
 package com.hedera.node.app.service.token.impl.test;
 
 import static com.hedera.node.app.service.token.impl.TokenServiceImpl.HBARS_TO_TINYBARS;
-import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_KEY;
-import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ALIASES_KEY;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_STATE_ID;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ALIASES_STATE_ID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.BDDMockito.given;
@@ -28,6 +28,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class ReadableAccountStoreImplTest extends CryptoHandlerTestBase {
+
     private ReadableAccountStoreImpl subject;
 
     @Mock
@@ -37,9 +38,9 @@ class ReadableAccountStoreImplTest extends CryptoHandlerTestBase {
     public void setUp() {
         super.setUp();
         readableAccounts = emptyReadableAccountStateBuilder().value(id, account).build();
-        given(readableStates.<AccountID, Account>get(ACCOUNTS_KEY)).willReturn(readableAccounts);
+        given(readableStates.<AccountID, Account>get(ACCOUNTS_STATE_ID)).willReturn(readableAccounts);
         readableAliases = readableAliasState();
-        given(readableStates.<ProtoBytes, AccountID>get(ALIASES_KEY)).willReturn(readableAliases);
+        given(readableStates.<ProtoBytes, AccountID>get(ALIASES_STATE_ID)).willReturn(readableAliases);
         subject = new ReadableAccountStoreImpl(readableStates, readableEntityCounters);
     }
 
@@ -157,7 +158,7 @@ class ReadableAccountStoreImplTest extends CryptoHandlerTestBase {
     @Test
     void getsNullIfMissingAccount() {
         readableAccounts = emptyReadableAccountStateBuilder().build();
-        given(readableStates.<AccountID, Account>get(ACCOUNTS_KEY)).willReturn(readableAccounts);
+        given(readableStates.<AccountID, Account>get(ACCOUNTS_STATE_ID)).willReturn(readableAccounts);
         subject = new ReadableAccountStoreImpl(readableStates, readableEntityCounters);
         readableStore = subject;
 
@@ -174,11 +175,11 @@ class ReadableAccountStoreImplTest extends CryptoHandlerTestBase {
                 aSecp256K1Key.ecdsaSecp256k1OrThrow().toByteArray());
 
         readableAccounts = emptyReadableAccountStateBuilder().value(id, account).build();
-        given(readableStates.<AccountID, Account>get(ACCOUNTS_KEY)).willReturn(readableAccounts);
+        given(readableStates.<AccountID, Account>get(ACCOUNTS_STATE_ID)).willReturn(readableAccounts);
         readableAliases = emptyReadableAliasStateBuilder()
                 .value(new ProtoBytes(Bytes.wrap(evmAddress)), idFactory.newAccountId(accountNum))
                 .build();
-        given(readableStates.<ProtoBytes, AccountID>get(ALIASES_KEY)).willReturn(readableAliases);
+        given(readableStates.<ProtoBytes, AccountID>get(ALIASES_STATE_ID)).willReturn(readableAliases);
 
         subject = new ReadableAccountStoreImpl(readableStates, readableEntityCounters);
 
@@ -198,11 +199,11 @@ class ReadableAccountStoreImplTest extends CryptoHandlerTestBase {
                 aSecp256K1Key.ecdsaSecp256k1OrThrow().toByteArray());
 
         readableAccounts = emptyReadableAccountStateBuilder().value(id, account).build();
-        given(readableStates.<AccountID, Account>get(ACCOUNTS_KEY)).willReturn(readableAccounts);
+        given(readableStates.<AccountID, Account>get(ACCOUNTS_STATE_ID)).willReturn(readableAccounts);
         readableAliases = emptyReadableAliasStateBuilder()
                 .value(new ProtoBytes(Bytes.wrap(evmAddress)), idFactory.newAccountId(accountNum))
                 .build();
-        given(readableStates.<ProtoBytes, AccountID>get(ALIASES_KEY)).willReturn(readableAliases);
+        given(readableStates.<ProtoBytes, AccountID>get(ALIASES_STATE_ID)).willReturn(readableAliases);
 
         subject = new ReadableAccountStoreImpl(readableStates, readableEntityCounters);
 
@@ -278,7 +279,7 @@ class ReadableAccountStoreImplTest extends CryptoHandlerTestBase {
 
     @Test
     void warmWarmsUnderlyingState(@Mock ReadableKVState<AccountID, Account> accounts) {
-        given(readableStates.<AccountID, Account>get(ACCOUNTS_KEY)).willReturn(accounts);
+        given(readableStates.<AccountID, Account>get(ACCOUNTS_STATE_ID)).willReturn(accounts);
         final var accountStore = new ReadableAccountStoreImpl(readableStates, readableEntityCounters);
         accountStore.warm(id);
         verify(accounts).warm(id);
