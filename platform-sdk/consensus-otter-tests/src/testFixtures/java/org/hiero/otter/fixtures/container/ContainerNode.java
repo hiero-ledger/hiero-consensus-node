@@ -6,6 +6,7 @@ import static java.util.Objects.requireNonNull;
 import static org.hiero.otter.fixtures.container.utils.ContainerConstants.CONTAINER_APP_WORKING_DIR;
 import static org.hiero.otter.fixtures.container.utils.ContainerConstants.CONTAINER_CONTROL_PORT;
 import static org.hiero.otter.fixtures.container.utils.ContainerConstants.NODE_COMMUNICATION_PORT;
+import static org.hiero.otter.fixtures.internal.AbstractNetwork.NODE_IDENTIFIER_FORMAT;
 import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.DESTROYED;
 import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.INIT;
 import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.RUNNING;
@@ -14,7 +15,6 @@ import static org.junit.jupiter.api.Assertions.fail;
 
 import com.google.protobuf.ByteString;
 import com.google.protobuf.ProtocolStringList;
-import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import io.grpc.ManagedChannel;
@@ -73,9 +73,6 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
 
     private static final Logger log = LogManager.getLogger();
 
-    private final Roster roster;
-    private final KeysAndCerts keysAndCerts;
-
     /** The image used to run the consensus node. */
     private final ContainerImage container;
 
@@ -107,7 +104,6 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
      * Constructor for the {@link ContainerNode} class.
      *
      * @param selfId the unique identifier for this node
-     * @param roster the roster of the network
      * @param keysAndCerts the keys for the node
      * @param network the network this node is part of
      * @param dockerImage the Docker image to use for this node
@@ -115,15 +111,12 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
      */
     public ContainerNode(
             @NonNull final NodeId selfId,
-            @NonNull final Roster roster,
             @NonNull final KeysAndCerts keysAndCerts,
             @NonNull final Network network,
             @NonNull final ImageFromDockerfile dockerImage,
             @NonNull final Path outputDirectory) {
-        super(selfId, roster);
+        super(selfId, keysAndCerts);
 
-        this.roster = requireNonNull(roster, "roster must not be null");
-        this.keysAndCerts = requireNonNull(keysAndCerts, "keysAndCerts must not be null");
         this.localOutputDirectory = requireNonNull(outputDirectory, "outputDirectory must not be null");
 
         this.resultsCollector = new NodeResultsCollector(selfId);
@@ -160,7 +153,7 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
         containerControlBlockingStub.init(initRequest);
 
         final StartRequest startRequest = StartRequest.newBuilder()
-                .setRoster(ProtobufConverter.fromPbj(roster))
+                .setRoster(ProtobufConverter.fromPbj(roster()))
                 .setKeysAndCerts(KeysAndCertsConverter.toProto(keysAndCerts))
                 .setVersion(ProtobufConverter.fromPbj(version))
                 .putAllOverriddenProperties(nodeConfiguration.overriddenProperties())
@@ -378,7 +371,7 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
     void destroy() {
         try {
             // copy logs from container to the local filesystem
-            final Path logPath = Path.of("build", "container", "node-" + selfId.id(), "output");
+            final Path logPath = Path.of("build", "container", NODE_IDENTIFIER_FORMAT.formatted(selfId.id()), "output");
             Files.createDirectories(logPath.resolve("swirlds-hashstream"));
 
             container.copyFileFromContainer(
@@ -417,7 +410,7 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
                 case MARKER_FILE_ADDED -> {
                     final ProtocolStringList markerFiles =
                             event.getMarkerFileAdded().getMarkerFileNameList();
-                    log.info("Received marker file event from {}: {}", selfId, markerFiles);
+                    log.info("Received marker file event from node {}: {}", selfId, markerFiles);
                     resultsCollector.addMarkerFiles(markerFiles);
                 }
                 default -> log.warn("Received unexpected event: {}", event);
@@ -428,7 +421,7 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
     private void handlePlatformChange(@NonNull final EventMessage value) {
         final PlatformStatusChange change = value.getPlatformStatusChange();
         final String statusName = change.getNewStatus();
-        log.info("Received platform status change from {}: {}", selfId, statusName);
+        log.info("Received platform status change from node {}: {}", selfId, statusName);
         try {
             final PlatformStatus newStatus = PlatformStatus.valueOf(statusName);
             platformStatus = newStatus;
