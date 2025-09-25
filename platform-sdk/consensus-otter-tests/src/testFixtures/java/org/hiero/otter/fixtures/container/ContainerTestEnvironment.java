@@ -49,6 +49,7 @@ public class ContainerTestEnvironment implements TestEnvironment {
         } catch (final IOException ex) {
             fail("Failed to prepare directory: " + rootOutputDirectory, ex);
         }
+
         network = new ContainerNetwork(timeManager, transactionGenerator, rootOutputDirectory);
     }
 
