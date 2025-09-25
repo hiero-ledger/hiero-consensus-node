@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.networkadmin.impl.test.handlers;
 
-import static com.hedera.hapi.node.base.ResponseCodeEnum.FILE_SYSTEM_EXCEPTION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.FREEZE_START_TIME_MUST_BE_FUTURE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.FREEZE_UPDATE_FILE_DOES_NOT_EXIST;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.FREEZE_UPDATE_FILE_HASH_DOES_NOT_MATCH;
@@ -312,7 +311,7 @@ class FreezeHandlerTest {
                             .build())
                     .build();
             given(preHandleContext.body()).willReturn(txn);
-            assertThrowsPreCheck(() -> subject.preHandle(preHandleContext), FILE_SYSTEM_EXCEPTION);
+            assertThrowsPreCheck(() -> subject.preHandle(preHandleContext), FREEZE_UPDATE_FILE_DOES_NOT_EXIST);
         }
     }
 

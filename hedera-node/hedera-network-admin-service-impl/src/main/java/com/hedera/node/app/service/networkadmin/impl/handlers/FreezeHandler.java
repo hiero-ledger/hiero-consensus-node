@@ -306,8 +306,9 @@ public class FreezeHandler implements TransactionHandler {
                     throw new PreCheckException(ResponseCodeEnum.UPDATE_FILE_HASH_DOES_NOT_MATCH_PREPARED);
                 }
             } catch (IOException e) {
-                log.error("Unable to read bytes of file {}", updateFileID, e);
-                throw new PreCheckException(ResponseCodeEnum.FILE_SYSTEM_EXCEPTION);
+                // This should never happen because we already verified the file wasn't null or empty
+                log.error("Couldn't read (previously non-empty) bytes of file {}!", updateFileID, e);
+                throw new PreCheckException(ResponseCodeEnum.FREEZE_UPDATE_FILE_DOES_NOT_EXIST);
             }
         }
     }
