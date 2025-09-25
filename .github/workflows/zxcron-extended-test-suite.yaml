@@ -585,14 +585,18 @@ jobs:
         id: set-rootly-service
         run: |
           ROOTLY_SERVICE_NAME="CITR General"
+          ROOTLY_SERVICES="CITR General,CITR General - EU"
           if [[ "${{ needs.fetch-xts-candidate.result }}" =~ ^(cancelled|failure)$ ]] \
             || [[ "${{ needs.tag-for-promotion.result }}" =~ ^(cancelled|failure)$ ]] \
             || [[ "${{ needs.extended-test-suite.outputs.failure-mode }}" == "workflow" ]]; then
             ROOTLY_SERVICE_NAME="CI/CD Workflows"
+            ROOTLY_SERVICES="${ROOTLY_SERVICE_NAME}"
           elif [[ "${{ needs.sdk-tck-regression-panel.result }}" =~ ^(cancelled|failure)$ ]]; then
             ROOTLY_SERVICE_NAME="CITR TCK"
+            ROOTLY_SERVICES="${ROOTLY_SERVICE_NAME}"
           fi
-          echo "service=${ROOTLY_SERVICE_NAME}" >> "${GITHUB_OUTPUT}"
+          echo "service-target=${ROOTLY_SERVICE_NAME}" >> "${GITHUB_OUTPUT}"
+          echo "services=${ROOTLY_SERVICES}" >> "${GITHUB_OUTPUT}"
 
       - name: Build Rootly Summary
         id: rootly-summary
@@ -624,8 +628,10 @@ jobs:
           echo "## Rootly Summary:"
           echo "### Title: ${{ steps.rootly-summary.outputs.title }}" >> "${GITHUB_STEP_SUMMARY}"
           echo "${{ steps.rootly-summary.outputs.summary }}" >> "${GITHUB_STEP_SUMMARY}"
-          echo "### Rootly Service" >> "${GITHUB_STEP_SUMMARY}"
-          echo "${{ steps.set-rootly-service.outputs.service }}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "### Rootly Notification Target Service" >> "${GITHUB_STEP_SUMMARY}"
+          echo "${{ steps.set-rootly-service.outputs.service-target }}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "### Rootly Services" >> "${GITHUB_STEP_SUMMARY}"
+          echo "${{ steps.set-rootly-service.outputs.services }}" >> "${GITHUB_STEP_SUMMARY}"
 
       - name: Create Rootly Alert
         id: create-rootly-alert
@@ -641,6 +647,7 @@ jobs:
           alert_urgency: "High"
           external_id: ${{ github.run_id }}
           external_url: "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          services: "${{ steps.set-rootly-service.outputs.services }}"
           environments: "CITR"
 
       - name: Build Slack Payload Message
