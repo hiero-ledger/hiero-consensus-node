@@ -390,7 +390,7 @@ public class BlockNodeConnectionManager {
      */
     private void removeConnectionAndClearActive(@NonNull final BlockNodeConnection connection) {
         requireNonNull(connection);
-        connections.remove(connection.getNodeConfig());
+        connections.remove(connection.getNodeConfig(), connection);
         activeConnectionRef.compareAndSet(connection, null);
     }
 
@@ -672,33 +672,40 @@ public class BlockNodeConnectionManager {
         blockBufferService.setLatestAcknowledgedBlock(blockNumber);
     }
 
+    private void sleep(final Duration duration) {
+        try {
+            Thread.sleep(duration);
+        } catch (final InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+    }
+
     private void blockStreamWorkerLoop() {
         while (isConnectionManagerActive.get()) {
+            // use the same connection for all operations per iteration
+            final BlockNodeConnection connection = activeConnectionRef.get();
+
+            if (connection == null) {
+                sleep(workerLoopSleepDuration());
+                continue;
+            }
+
             try {
                 // If signaled to jump to a specific block, do so
                 jumpToBlockIfNeeded();
 
-                final boolean shouldSleep = processStreamingToBlockNode();
+                final boolean shouldSleep = processStreamingToBlockNode(connection);
 
                 // Sleep for a short duration to avoid busy waiting
                 if (shouldSleep) {
-                    Thread.sleep(workerLoopSleepDuration());
+                    sleep(workerLoopSleepDuration());
                 }
-            } catch (final InterruptedException e) {
-                logger.error("Block stream worker interrupted", e);
-                Thread.currentThread().interrupt();
             } catch (final UncheckedIOException e) {
-                logger.debug("UncheckedIOException caught in block stream worker loop {}", e.getMessage());
-                final BlockNodeConnection activeConnection = activeConnectionRef.get();
-                if (activeConnection != null) {
-                    activeConnection.handleStreamFailureWithoutOnComplete();
-                }
+                logger.debug("UncheckedIOException caught in block stream worker loop", e);
+                connection.handleStreamFailureWithoutOnComplete();
             } catch (final Exception e) {
-                logger.debug("Exception caught in block stream worker loop {}", e.getMessage());
-                final BlockNodeConnection activeConnection = activeConnectionRef.get();
-                if (activeConnection != null) {
-                    activeConnection.handleStreamFailure();
-                }
+                logger.debug("Exception caught in block stream worker loop", e);
+                connection.handleStreamFailure();
             }
         }
     }
@@ -709,8 +716,7 @@ public class BlockNodeConnectionManager {
      * @return true if the worker thread should sleep because of a lack of work to do, else false (the worker thread
      * should NOT sleep)
      */
-    private boolean processStreamingToBlockNode() {
-        final BlockNodeConnection connection = activeConnectionRef.get();
+    private boolean processStreamingToBlockNode(final BlockNodeConnection connection) {
         if (connection == null) {
             return true;
         }

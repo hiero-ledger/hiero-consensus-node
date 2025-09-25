@@ -1086,3 +1086,6 @@ hedera-state-validator/validator.log
 snyk-code.html
 snyk-code.json
 snyk/
+
+### Profiler config
+.profileconfig.json
