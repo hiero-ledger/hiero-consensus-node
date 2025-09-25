@@ -14,7 +14,7 @@ import static com.hedera.hapi.node.base.HederaFunctionality.SCHEDULE_SIGN;
 import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_BURN;
 import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_MINT;
 import static com.hedera.hapi.node.base.HederaFunctionality.TRANSACTION_GET_RECEIPT;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
 import static com.hedera.node.app.ids.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_ID;
 import static com.hedera.node.app.ids.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_LABEL;
@@ -1842,7 +1842,7 @@ class ThrottleAccumulatorTest {
         // When & Then - should return ThrottleResult with validation error for invalid transaction
         final var result = subject.checkAndEnforceThrottle(txnInfo, TIME_INSTANT, state, null);
         assertTrue(result.hasValidationError());
-        assertEquals(INVALID_TRANSACTION, result.validationError());
+        assertEquals(INVALID_TRANSACTION_BODY, result.validationError());
     }
 
     @Test
@@ -1873,7 +1873,7 @@ class ThrottleAccumulatorTest {
         // When & Then - should return ThrottleResult with validation error
         final var result = subject.checkAndEnforceThrottle(txnInfo, TIME_INSTANT, state, null);
         assertTrue(result.hasValidationError());
-        assertEquals(ResponseCodeEnum.INVALID_TRANSACTION, result.validationError());
+        assertEquals(ResponseCodeEnum.INVALID_TRANSACTION_BODY, result.validationError());
     }
 
     @Test
@@ -1906,7 +1906,7 @@ class ThrottleAccumulatorTest {
         // When & Then - should return ThrottleResult with validation error
         final var result = subject.checkAndEnforceThrottle(txnInfo, TIME_INSTANT, state, null);
         assertTrue(result.hasValidationError());
-        assertEquals(ResponseCodeEnum.INVALID_TRANSACTION, result.validationError());
+        assertEquals(ResponseCodeEnum.INVALID_TRANSACTION_BODY, result.validationError());
     }
 
     @Test
@@ -1937,7 +1937,7 @@ class ThrottleAccumulatorTest {
         // When & Then - should return ThrottleResult with validation error
         final var result = subject.checkAndEnforceThrottle(txnInfo, TIME_INSTANT, state, null);
         assertTrue(result.hasValidationError());
-        assertEquals(ResponseCodeEnum.INVALID_TRANSACTION, result.validationError());
+        assertEquals(ResponseCodeEnum.INVALID_TRANSACTION_BODY, result.validationError());
     }
 
     @Test

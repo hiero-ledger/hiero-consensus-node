@@ -510,29 +510,29 @@ public class ThrottleAccumulator {
         switch (function) {
             case SCHEDULE_CREATE -> {
                 if (!txnBody.hasScheduleCreate()) {
-                    throw new PreCheckException(ResponseCodeEnum.INVALID_TRANSACTION);
+                    throw new PreCheckException(ResponseCodeEnum.INVALID_TRANSACTION_BODY);
                 }
                 final var scheduleCreate = txnBody.scheduleCreate();
                 if (!scheduleCreate.hasScheduledTransactionBody()) {
-                    throw new PreCheckException(ResponseCodeEnum.INVALID_TRANSACTION);
+                    throw new PreCheckException(ResponseCodeEnum.INVALID_TRANSACTION_BODY);
                 }
             }
             case TOKEN_MINT -> {
                 if (!txnBody.hasTokenMint()) {
-                    throw new PreCheckException(ResponseCodeEnum.INVALID_TRANSACTION);
+                    throw new PreCheckException(ResponseCodeEnum.INVALID_TRANSACTION_BODY);
                 }
                 final var tokenMint = txnBody.tokenMint();
                 if (!tokenMint.hasToken()) {
-                    throw new PreCheckException(ResponseCodeEnum.INVALID_TRANSACTION);
+                    throw new PreCheckException(ResponseCodeEnum.INVALID_TRANSACTION_BODY);
                 }
             }
             case ETHEREUM_TRANSACTION -> {
                 if (!txnBody.hasEthereumTransaction()) {
-                    throw new PreCheckException(ResponseCodeEnum.INVALID_TRANSACTION);
+                    throw new PreCheckException(ResponseCodeEnum.INVALID_TRANSACTION_BODY);
                 }
                 final var ethTxn = txnBody.ethereumTransaction();
                 if (ethTxn.ethereumData() == null || ethTxn.ethereumData().length() == 0) {
-                    throw new PreCheckException(ResponseCodeEnum.INVALID_TRANSACTION);
+                    throw new PreCheckException(ResponseCodeEnum.INVALID_TRANSACTION_BODY);
                 }
             }
         }

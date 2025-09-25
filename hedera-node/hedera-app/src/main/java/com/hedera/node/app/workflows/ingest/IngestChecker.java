@@ -343,13 +343,15 @@ public final class IngestChecker {
         final var hederaConfig = configuration.getConfigData(HederaConfig.class);
         final var hooksConfig = configuration.getConfigData(HooksConfig.class);
         assertThrottlingPreconditions(txInfo, hederaConfig, hooksConfig);
-        ThrottleResult throttleResult = synchronizedThrottleAccumulator.shouldThrottle(txInfo, state, throttleUsages);
-        if (throttleResult.hasValidationError()) {
-            throw new PreCheckException(throttleResult.validationError());
-        }
-        if (hederaConfig.ingestThrottleEnabled() && throttleResult.shouldThrottle()) {
-            workflowMetrics.incrementThrottled(txInfo.functionality());
-            throw new PreCheckException(BUSY);
+        if (hederaConfig.ingestThrottleEnabled()) {
+            ThrottleResult throttleResult = synchronizedThrottleAccumulator.shouldThrottle(txInfo, state, throttleUsages);
+            if (throttleResult.hasValidationError()) {
+                throw new PreCheckException(throttleResult.validationError());
+            }
+            if (throttleResult.shouldThrottle()) {
+                workflowMetrics.incrementThrottled(txInfo.functionality());
+                throw new PreCheckException(BUSY);
+            }
         }
     }
 

@@ -8,17 +8,10 @@ import edu.umd.cs.findbugs.annotations.Nullable;
  * Represents the result of a throttle check operation, encapsulating whether the transaction
  * should be throttled, any validation errors, and gas throttling status.
  */
-public class ThrottleResult {
-    private final boolean shouldThrottle;
-    private final ResponseCodeEnum validationError;
-    private final boolean wasGasThrottled;
-
-    private ThrottleResult(
-            boolean shouldThrottle, @Nullable ResponseCodeEnum validationError, boolean wasGasThrottled) {
-        this.shouldThrottle = shouldThrottle;
-        this.validationError = validationError;
-        this.wasGasThrottled = wasGasThrottled;
-    }
+public record ThrottleResult(
+        boolean shouldThrottle,
+        @Nullable ResponseCodeEnum validationError,
+        boolean wasGasThrottled) {
 
     /**
      * Creates a result indicating the transaction is allowed (not throttled).
@@ -49,31 +42,9 @@ public class ThrottleResult {
     }
 
     /**
-     * @return true if the transaction should be throttled
-     */
-    public boolean shouldThrottle() {
-        return shouldThrottle;
-    }
-
-    /**
      * @return true if there was a validation error
      */
     public boolean hasValidationError() {
         return validationError != null;
-    }
-
-    /**
-     * @return the validation error code, or null if no validation error
-     */
-    @Nullable
-    public ResponseCodeEnum validationError() {
-        return validationError;
-    }
-
-    /**
-     * @return true if the transaction was throttled due to gas limits
-     */
-    public boolean wasGasThrottled() {
-        return wasGasThrottled;
     }
 }
