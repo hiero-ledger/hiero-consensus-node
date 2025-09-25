@@ -15,7 +15,7 @@ import org.hiero.otter.fixtures.result.SingleNodeLogResult;
  *
  * <p>Provides custom assertions for validating log results across multiple nodes.
  */
-@SuppressWarnings("unused")
+@SuppressWarnings({"unused", "UnusedReturnValue"})
 public class MultipleNodeLogResultsAssert extends AbstractAssert<MultipleNodeLogResultsAssert, MultipleNodeLogResults> {
 
     /**
@@ -82,5 +82,22 @@ public class MultipleNodeLogResultsAssert extends AbstractAssert<MultipleNodeLog
     @NonNull
     public MultipleNodeLogResultsAssert haveNoErrorLevelMessages() {
         return haveNoMessagesWithLevelHigherThan(Level.WARN);
+    }
+
+    /**
+     * Verifies that no log messages containing the specified content exist.
+     *
+     * @param searchString the message content that should not be present
+     * @return this assertion object for method chaining
+     */
+    @NonNull
+    public MultipleNodeLogResultsAssert haveNoMessagesContaining(@NonNull final String searchString) {
+        isNotNull();
+
+        for (final SingleNodeLogResult result : actual.results()) {
+            OtterAssertions.assertThat(result).hasNoMessagesContaining(searchString);
+        }
+
+        return this;
     }
 }
