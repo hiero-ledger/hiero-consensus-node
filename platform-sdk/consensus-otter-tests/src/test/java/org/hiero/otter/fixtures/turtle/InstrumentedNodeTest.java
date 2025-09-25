@@ -28,7 +28,7 @@ class InstrumentedNodeTest {
 
     @ParameterizedTest
     @MethodSource("environments")
-    void testInstrumentation(@NonNull final TestEnvironment env) throws InterruptedException {
+    void testInstrumentation(@NonNull final TestEnvironment env) {
         final TimeManager timeManager = env.timeManager();
         final Network network = env.network();
 
