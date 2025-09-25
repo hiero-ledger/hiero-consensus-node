@@ -6,9 +6,10 @@ import java.time.Duration;
 
 /**
  * Configuration for quiescence.
- * @param enabled       indicates if quiescence is enabled
- * @param tctDuration   the amount of time before the target consensus timestamp (TCT) when quiescence should not be
- *                      active
+ *
+ * @param enabled     indicates if quiescence is enabled
+ * @param tctDuration the amount of time before the target consensus timestamp (TCT) when quiescence should not be
+ *                    active
  */
 @ConfigData("quiescence")
 public record QuiescenceConfig(

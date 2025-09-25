@@ -6,14 +6,17 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.hedera.hapi.block.stream.Block;
 import com.hedera.hapi.block.stream.BlockItem;
+import com.hedera.hapi.block.stream.output.StateChanges;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.hapi.services.auxiliary.hints.HintsPartialSignatureTransactionBody;
+import com.hedera.hapi.util.HapiUtils;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.test.fixtures.time.FakeTime;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Random;
@@ -70,7 +73,7 @@ class QuiescenceControllerTest {
     }
 
     @Test
-    void staleEvents(){
+    void staleEvents() {
         controller.onPreHandle(createEvent(TXN_TRANSFER));
         assertEquals(NOT_QUIESCENT, controller.getQuiescenceStatus(),
                 "Since a transaction was received through pre-handle, the status should be not quiescent");
@@ -80,17 +83,24 @@ class QuiescenceControllerTest {
     }
 
     @Test
-    void tct(){
+    void tct() {
         controller.setNextTargetConsensusTime(time.now().plus(CONFIG.tctDuration().multipliedBy(2)));
         assertEquals(QUIESCENT, controller.getQuiescenceStatus(),
                 "There are no pending transactions, and the TCT is far off, so the status should be quiescent");
         time.tick(CONFIG.tctDuration().plusNanos(1));
         assertEquals(NOT_QUIESCENT, controller.getQuiescenceStatus(),
-                "Time has advanced past the TCT threshold, so the status should be not quiescent");
+                "Wall-clock time has advanced past the TCT threshold, so the status should be not quiescent");
+        controller.fullySignedBlock(createBlock(time.now()));
+        time.tick(CONFIG.tctDuration().multipliedBy(2));
+        assertEquals(NOT_QUIESCENT, controller.getQuiescenceStatus(),
+                "Wall-clock time has advanced past the TCT, but consensus time has not, so the status should remain not quiescent");
+        controller.fullySignedBlock(createBlock(time.now()));
+        assertEquals(QUIESCENT, controller.getQuiescenceStatus(),
+                "Consensus time has now advanced past the TCT, so the status should be quiescent again");
     }
 
     @Test
-    void platformStatusUpdate(){
+    void platformStatusUpdate() {
         controller.onPreHandle(createEvent(TXN_TRANSFER));
         assertEquals(NOT_QUIESCENT, controller.getQuiescenceStatus(),
                 "Since a transaction was received through pre-handle, the status should be not quiescent");
@@ -110,6 +120,13 @@ class QuiescenceControllerTest {
                 .map(b -> BlockItem.newBuilder().signedTransaction(b).build())
                 .toList();
         return Block.newBuilder().items(blockItems).build();
+    }
+
+    private Block createBlock(final Instant consensusTime) {
+        final BlockItem blockItem = BlockItem.newBuilder().stateChanges(
+                StateChanges.newBuilder().consensusTimestamp(HapiUtils.asTimestamp(consensusTime)).build()
+        ).build();
+        return Block.newBuilder().items(List.of(blockItem)).build();
     }
 
     private Event createEvent(final TransactionBody... txns) {

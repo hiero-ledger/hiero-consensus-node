@@ -15,7 +15,6 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicLong;
@@ -74,6 +73,8 @@ public class QuiescenceController {
         if (!config.enabled()) {
             return;
         }
+        // FOR EXECUTION REVIEWERS:
+        // Can we avoid parsing transactions here?
         final long transactionCount = block.items().stream()
                 .filter(BlockItem::hasSignedTransaction)
                 .map(BlockItem::signedTransaction)
@@ -85,17 +86,19 @@ public class QuiescenceController {
             logger.error("Quiescence transaction count overflow, turning off quiescence");
             disableQuiescence();
         }
+        // FOR EXECUTION REVIEWERS:
+        // Is this the correct way to get consensus time?
         final Optional<Timestamp> maxConsensusTime = block.items().stream()
                 .filter(BlockItem::hasStateChanges)
                 .map(BlockItem::stateChanges)
                 .filter(Objects::nonNull)
                 .map(StateChanges::consensusTimestamp)
                 .max(HapiUtils.TIMESTAMP_COMPARATOR);
-        if(maxConsensusTime.isEmpty()){
+        if (maxConsensusTime.isEmpty()) {
             return;
         }
         final Instant maxConsensusInstant = HapiUtils.asInstant(maxConsensusTime.get());
-        nextTct.accumulateAndGet(maxConsensusInstant, QuiescenceController::biggerInstant);
+        nextTct.accumulateAndGet(maxConsensusInstant, QuiescenceController::tctUpdate);
     }
 
     /**
@@ -107,6 +110,8 @@ public class QuiescenceController {
         if (!config.enabled()) {
             return;
         }
+        // FOR EXECUTION REVIEWERS:
+        // Should we be parsing the transactions here? I would assume they have already been parsed
         pipelineTransactionCount.addAndGet(countRelevantTransactions(event));
     }
 
@@ -167,8 +172,9 @@ public class QuiescenceController {
         return QuiescenceStatus.QUIESCENT;
     }
 
-    private static Instant biggerInstant(@NonNull final Instant a, @NonNull final Instant b) {
-        return a.isAfter(b) ? a : b;
+    private static Instant tctUpdate(@NonNull final Instant currentTct, @NonNull final Instant currentConsensusTime) {
+        // once consensus time passes the TCT, we want to return null to indicate that there is no TCT
+        return currentConsensusTime.isAfter(currentTct) ? null : currentTct;
     }
 
     private long countRelevantTransactions(@NonNull final Event event) {
@@ -200,9 +206,12 @@ public class QuiescenceController {
         pipelineTransactionCount.set(Long.MAX_VALUE / 2);
     }
 
+
     private boolean isRelevantTransaction(@NonNull final Bytes bytes) {
         final TransactionBody body = transactionBodyParser.apply(signedTransactionParser.apply(bytes)
                 .bodyBytes());
+        // FOR EXECUTION REVIEWERS:
+        // Are these the only two transaction types we should ignore?
         return !body.hasStateSignatureTransaction() &&
                 !body.hasHintsPartialSignature();
     }
