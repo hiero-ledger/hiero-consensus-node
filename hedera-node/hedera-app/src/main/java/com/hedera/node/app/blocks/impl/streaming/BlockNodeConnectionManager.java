@@ -452,12 +452,12 @@ public class BlockNodeConnectionManager {
 
         if (blockNumber == null) {
             logWithContext(
-                    DEBUG, "Scheduling reconnection for node in {} ms (force={}).", connection, delayMillis, force);
+                    DEBUG, "Scheduling reconnection for node in {} ms (force={}).", newConnection, delayMillis, force);
         } else {
             logWithContext(
                     DEBUG,
                     "Scheduling reconnection for node at block {} in {} ms (force={}).",
-                    connection,
+                    newConnection,
                     blockNumber,
                     delayMillis,
                     force);
@@ -469,9 +469,9 @@ public class BlockNodeConnectionManager {
                     new BlockNodeConnectionTask(newConnection, initialDelay, blockNumber, force),
                     delayMillis,
                     TimeUnit.MILLISECONDS);
-            logWithContext(DEBUG, "Successfully scheduled reconnection task.", connection);
+            logWithContext(DEBUG, "Successfully scheduled reconnection task.", newConnection);
         } catch (final Exception e) {
-            logWithContext(WARN, "Failed to schedule connection task for block node.", connection, e);
+            logWithContext(WARN, "Failed to schedule connection task for block node.", newConnection, e);
             connections.remove(newConnection.getNodeConfig());
             newConnection.close(true);
         }
@@ -580,7 +580,8 @@ public class BlockNodeConnectionManager {
             return false;
         }
 
-        logWithContext(DEBUG, "Selected block node {}:{} for connection attempt", selectedNode.address(), selectedNode.port());
+        logWithContext(
+                DEBUG, "Selected block node {}:{} for connection attempt", selectedNode.address(), selectedNode.port());
 
         // Immediately schedule the FIRST connection attempt.
         scheduleConnectionAttempt(selectedNode, Duration.ZERO, null, force);
@@ -1134,14 +1135,16 @@ public class BlockNodeConnectionManager {
             // continuously emits the metric instead of just when a connection is promoted to active.
             ipAsInteger = calculateIpAsInteger(blockAddress);
 
-            logger.info(
+            logWithContext(
+                    INFO,
                     "Active block node connection updated to: {}:{} (resolvedIp: {}, resolvedIpAsInt={})",
                     nodeConfig.address(),
                     nodeConfig.port(),
                     blockAddress.getHostAddress(),
                     ipAsInteger);
         } catch (final IOException e) {
-            logger.error("Failed to resolve block node host ({}:{})", nodeConfig.address(), nodeConfig.port(), e);
+            logWithContext(
+                    ERROR, "Failed to resolve block node host ({}:{})", nodeConfig.address(), nodeConfig.port(), e);
             ipAsInteger = -1L;
         }
 
