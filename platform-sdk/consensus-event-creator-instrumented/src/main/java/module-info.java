@@ -10,6 +10,7 @@ module org.hiero.consensus.event.creator.instrumented {
     requires transitive com.swirlds.metrics.api;
     requires transitive org.hiero.consensus.event.creator;
     requires transitive org.hiero.consensus.model;
+    requires com.swirlds.logging;
     requires org.hiero.base.utility;
     requires org.hiero.consensus.event.creator.impl;
     requires org.apache.logging.log4j;
