@@ -47,7 +47,7 @@ import org.hiero.otter.fixtures.TimeManager;
 import org.hiero.otter.fixtures.TransactionFactory;
 import org.hiero.otter.fixtures.TransactionGenerator;
 import org.hiero.otter.fixtures.internal.network.ConnectionKey;
-import org.hiero.otter.fixtures.internal.network.MeshTopologyImpl;
+import org.hiero.otter.fixtures.internal.network.GeoMeshTopologyImpl;
 import org.hiero.otter.fixtures.internal.result.MultipleNodeConsensusResultsImpl;
 import org.hiero.otter.fixtures.internal.result.MultipleNodeLogResultsImpl;
 import org.hiero.otter.fixtures.internal.result.MultipleNodeMarkerFileResultsImpl;
@@ -100,7 +100,7 @@ public abstract class AbstractNetwork implements Network {
 
     private final Random random;
     private final Map<NodeId, PartitionImpl> partitions = new HashMap<>();
-    private final Topology topology = new MeshTopologyImpl(this::createNodes, this::createInstrumentedNode);
+    private final Topology topology;
 
     protected State state = State.INIT;
     protected WeightGenerator weightGenerator = WeightGenerators.GAUSSIAN;
@@ -112,6 +112,7 @@ public abstract class AbstractNetwork implements Network {
 
     protected AbstractNetwork(@NonNull final Random random) {
         this.random = requireNonNull(random);
+        this.topology = new GeoMeshTopologyImpl(random, this::createNodes, this::createInstrumentedNode);
     }
 
     /**
