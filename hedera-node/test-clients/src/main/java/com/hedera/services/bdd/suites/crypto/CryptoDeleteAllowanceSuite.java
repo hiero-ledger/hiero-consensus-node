@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.suites.crypto;
 
 import static com.hedera.services.bdd.junit.TestTags.CRYPTO;
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountDetailsAsserts.accountDetailsWith;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountDetails;
@@ -96,6 +97,7 @@ public class CryptoDeleteAllowanceSuite {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> canDeleteAllowanceForDeletedSpender() {
         final String owner = "owner";
         final String spender = "spender";
@@ -274,6 +276,7 @@ public class CryptoDeleteAllowanceSuite {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> feesAsExpected() {
         final String owner = "owner";
         final String spender = "spender";
@@ -353,6 +356,7 @@ public class CryptoDeleteAllowanceSuite {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> succeedsWhenTokenPausedFrozenKycRevoked() {
         final String owner = "owner";
         final String spender = "spender";
