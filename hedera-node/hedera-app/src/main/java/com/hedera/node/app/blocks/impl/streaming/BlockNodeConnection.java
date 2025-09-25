@@ -172,6 +172,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
             requestPipeline = blockStreamPublishServiceClient.publishBlockStream(this);
             logWithContext(DEBUG, "Request pipeline initialized.");
             updateConnectionState(ConnectionState.PENDING);
+            blockStreamMetrics.recordConnectionOpened();
         } else {
             logWithContext(DEBUG, "Request pipeline already available.");
         }
@@ -351,6 +352,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                     blockNodeConnectionManager.getMaxEndOfStreamsAllowed(),
                     blockNodeConnectionManager.getEndOfStreamTimeframe(),
                     blockNodeConnectionManager.getEndOfStreamScheduleDelay());
+            blockStreamMetrics.recordEndOfStreamLimitExceeded();
 
             // Schedule delayed retry through connection manager
             closeAndReschedule(blockNodeConnectionManager.getEndOfStreamScheduleDelay(), true);
@@ -500,7 +502,20 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
         requireNonNull(request, "request must not be null");
 
         if (getConnectionState() == ConnectionState.ACTIVE && requestPipeline != null) {
-            requestPipeline.onNext(request);
+            try {
+                requestPipeline.onNext(request);
+                if (request.hasEndStream()) {
+                    blockStreamMetrics.recordRequestEndStreamSent(
+                            request.endStream().endCode());
+                } else {
+                    blockStreamMetrics.recordRequestSent(request.request().kind());
+                    blockStreamMetrics.recordBlockItemsSent(
+                            request.blockItems().blockItems().size());
+                }
+            } catch (final RuntimeException e) {
+                blockStreamMetrics.recordRequestSendFailure();
+                throw e;
+            }
         }
     }
 
@@ -515,13 +530,13 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
             return;
         }
 
-        try {
-            logWithContext(DEBUG, "Closing connection.");
+        logWithContext(DEBUG, "Closing connection.");
 
+        try {
             closePipeline(callOnComplete);
             updateConnectionState(ConnectionState.CLOSED);
             jumpToBlock(-1L);
-
+            blockStreamMetrics.recordConnectionClosed();
             logWithContext(DEBUG, "Connection successfully closed.");
         } catch (final RuntimeException e) {
             logWithContext(WARN, "Error occurred while attempting to close connection.", e);
@@ -556,17 +571,6 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
      */
     public BlockNodeConfig getNodeConfig() {
         return blockNodeConfig;
-    }
-
-    /**
-     * Restarts a new stream at a specified block number.
-     * This method will establish a new stream and start processing from the specified block number.
-     *
-     * @param blockNumber the block number to restart at
-     */
-    private void restartStreamAtBlock(final long blockNumber) {
-        blockNodeConnectionManager.scheduleConnectionAttempt(
-                this, BlockNodeConnectionManager.INITIAL_RETRY_DELAY, blockNumber);
     }
 
     /**
@@ -611,19 +615,20 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
 
         // Process the response
         if (response.hasAcknowledgement()) {
-            blockStreamMetrics.incrementAcknowledgedBlockCount();
+            blockStreamMetrics.recordResponseReceived(response.response().kind());
             handleAcknowledgement(response.acknowledgement());
         } else if (response.hasEndStream()) {
-            blockStreamMetrics.incrementEndOfStreamCount(response.endStream().status());
+            blockStreamMetrics.recordResponseEndOfStreamReceived(
+                    response.endStream().status());
             handleEndOfStream(response.endStream());
         } else if (response.hasSkipBlock()) {
-            blockStreamMetrics.incrementSkipBlockCount();
+            blockStreamMetrics.recordResponseReceived(response.response().kind());
             handleSkipBlock(response.skipBlock());
         } else if (response.hasResendBlock()) {
-            blockStreamMetrics.incrementResendBlockCount();
+            blockStreamMetrics.recordResponseReceived(response.response().kind());
             handleResendBlock(response.resendBlock());
         } else {
-            blockStreamMetrics.incrementUnknownResponseCount();
+            blockStreamMetrics.recordUnknownResponseReceived();
             logWithContext(WARN, "Unexpected response received: {}.", response);
         }
     }
@@ -637,13 +642,13 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
     @Override
     public void onError(final Throwable error) {
         logWithContext(DEBUG, "onError invoked - {}.", error.getMessage());
+        blockStreamMetrics.recordConnectionOnError();
 
         // Check if already in terminal state
         if (getConnectionState() == ConnectionState.CLOSED) {
             logWithContext(DEBUG, "onError invoked but connection is already closed.");
         } else if (getConnectionState() == ConnectionState.ACTIVE || getConnectionState() == ConnectionState.PENDING) {
             logWithContext(DEBUG, "onError handling.");
-            blockStreamMetrics.incrementOnErrorCount();
             handleStreamFailure();
         }
     }
@@ -654,6 +659,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
      */
     @Override
     public void onComplete() {
+        blockStreamMetrics.recordConnectionOnComplete();
         if (getConnectionState() == ConnectionState.CLOSED) {
             logWithContext(DEBUG, "onComplete invoked but connection is already closed.");
             return;
