@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.gossip.shadowgraph;
 
+import static com.swirlds.logging.legacy.LogMarker.SYNC_INFO;
 import static com.swirlds.platform.gossip.shadowgraph.SyncUtils.getMyTipsTheyKnow;
 import static com.swirlds.platform.gossip.shadowgraph.SyncUtils.getTheirTipsIHave;
 import static org.hiero.base.CompareTo.isGreaterThanOrEqualTo;
@@ -139,20 +140,22 @@ public class RpcPeerHandler implements GossipRpcReceiver {
      * Start synchronization with remote side, if all checks are successful (things like enough time has passed since
      * last synchronization, remote side has not fallen behind etc
      *
-     * @param systemHealthy health of the system
-     * @return true if we should continue dispatching messages, false if system is unhealthy, and we are in proper place
-     * to break rpc conversation
+     * @param wantToExit           set to true if for some external reasons we would like to exit sync loop
+     * @param ignoreIncomingEvents we are in some kind of reduced capability state (for example caused by system being
+     *                             unhealthy) and we shouldn't be processing/requesting incoming events
+     * @return true if we should continue dispatching messages, false if we are in proper place to break rpc
+     * conversation
      */
     // dispatch thread
-    public boolean checkForPeriodicActions(final boolean systemHealthy) {
+    public boolean checkForPeriodicActions(final boolean wantToExit, final boolean ignoreIncomingEvents) {
         if (!isSyncCooldownComplete()) {
             this.syncMetrics.doNotSyncCooldown();
-            return systemHealthy;
+            return !wantToExit;
         }
 
         if (state.peerIsBehind) {
             this.syncMetrics.doNotSyncPeerFallenBehind();
-            return systemHealthy;
+            return !wantToExit;
         }
 
         if (state.peerStillSendingEvents) {
@@ -162,11 +165,11 @@ public class RpcPeerHandler implements GossipRpcReceiver {
 
         if (this.intakeEventCounter.hasUnprocessedEvents(peerId)) {
             this.syncMetrics.doNotSyncIntakeCounter();
-            return systemHealthy;
+            return !wantToExit;
         }
 
         if (state.mySyncData == null) {
-            if (systemHealthy) {
+            if (!wantToExit) {
                 if (state.remoteSyncData == null) {
                     if (!syncGuard.isSyncAllowed(peerId)) {
                         this.syncMetrics.doNotSyncFairSelector();
@@ -178,9 +181,9 @@ public class RpcPeerHandler implements GossipRpcReceiver {
                 }
                 // we have received remote sync request, so we want to reply, or sync selector told us it is our
                 // time to initiate sync
-                sendSyncData();
+                sendSyncData(ignoreIncomingEvents);
             }
-            return systemHealthy;
+            return !wantToExit;
         } else {
             this.syncMetrics.doNotSyncAlreadyStarted();
             return true;
@@ -224,11 +227,14 @@ public class RpcPeerHandler implements GossipRpcReceiver {
         state.eventsTheyHave.addAll(knownTips);
         this.syncMetrics.reportSyncPhase(peerId, SyncPhase.EXCHANGING_EVENTS);
 
-        // create a send list based on the known set
-        final List<PlatformEvent> sendList = sharedShadowgraphSynchronizer.createSendList(
-                selfId, state.eventsTheyHave, state.mySyncData.eventWindow(), state.remoteSyncData.eventWindow());
-        sender.sendEvents(sendList.stream().map(PlatformEvent::getGossipEvent).collect(Collectors.toList()));
-        outgoingEventsCounter += sendList.size();
+        if (!state.remoteSyncData.dontReceiveEvents()) {
+            // create a send list based on the known set
+            final List<PlatformEvent> sendList = sharedShadowgraphSynchronizer.createSendList(
+                    selfId, state.eventsTheyHave, state.mySyncData.eventWindow(), state.remoteSyncData.eventWindow());
+            sender.sendEvents(
+                    sendList.stream().map(PlatformEvent::getGossipEvent).collect(Collectors.toList()));
+            outgoingEventsCounter += sendList.size();
+        }
         sender.sendEndOfEvents();
         finishedSendingEvents();
     }
@@ -238,6 +244,13 @@ public class RpcPeerHandler implements GossipRpcReceiver {
      */
     @Override
     public void receiveEvents(@NonNull final List<GossipEvent> gossipEvents) {
+        final SyncData mySyncData = state.mySyncData;
+        if (mySyncData != null && mySyncData.dontReceiveEvents()) {
+            // we ignore all incoming events - they should not be sent to us in first place
+            logger.warn(
+                    SYNC_INFO.getMarker(), "We have asked for no events, but still received an event from {}", peerId);
+            return;
+        }
         // this is one of two important parts of the code to keep outside critical section - receiving events
         final long start = time.nanoTime();
         incomingEventsCounter += gossipEvents.size();
@@ -322,14 +335,14 @@ public class RpcPeerHandler implements GossipRpcReceiver {
         }
     }
 
-    private void sendSyncData() {
+    private void sendSyncData(final boolean ignoreIncomingEvents) {
         syncMetrics.syncStarted();
         this.syncMetrics.reportSyncPhase(peerId, SyncPhase.EXCHANGING_WINDOWS);
         state.shadowWindow = sharedShadowgraphSynchronizer.reserveEventWindow();
         state.myTips = sharedShadowgraphSynchronizer.getTips();
         final List<Hash> tipHashes =
                 state.myTips.stream().map(ShadowEvent::getEventBaseHash).collect(Collectors.toList());
-        state.mySyncData = new SyncData(state.shadowWindow.getEventWindow(), tipHashes);
+        state.mySyncData = new SyncData(state.shadowWindow.getEventWindow(), tipHashes, ignoreIncomingEvents);
         sender.sendSyncData(state.mySyncData);
         this.syncMetrics.outgoingSyncRequestSent();
 

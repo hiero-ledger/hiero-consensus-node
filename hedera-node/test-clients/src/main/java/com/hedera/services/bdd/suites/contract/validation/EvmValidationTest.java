@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.validation;
 
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
@@ -100,6 +101,7 @@ public class EvmValidationTest {
 
             @HapiTest
             @DisplayName("when transferring value to realistic evm address 388C818CA8B9251b393131C08a736A67ccB19297")
+            @Tag(MATS)
             public Stream<DynamicTest> lazyCreateToRealisticEvmAddressSucceeds() {
                 final var REALISTIC_EVM_ADDRESS = "388C818CA8B9251b393131C08a736A67ccB19297";
                 return callContractWithValue(REALISTIC_EVM_ADDRESS, ResponseCodeEnum.SUCCESS);
@@ -134,6 +136,7 @@ public class EvmValidationTest {
 
         @HapiTest
         @DisplayName("should fail to deploy")
+        @Tag(MATS)
         public Stream<DynamicTest> canCallBalanceOperationNonExtantContract() {
             return hapiTest(
                     uploadInitCode(emptyContract),

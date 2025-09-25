@@ -5,7 +5,6 @@ import static java.util.Comparator.comparingLong;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.platform.event.legacy.EventConsensusData;
-import com.hedera.hapi.platform.state.NodeId;
 import com.hederahashgraph.api.proto.java.Timestamp;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
@@ -20,28 +19,14 @@ public class ProtobufConverter {
     private ProtobufConverter() {}
 
     /**
-     * Converts a Legacy NodeId to a PBJ NodeId.
+     * Converts a consensus model NodeId to a Legacy NodeId.
      *
-     * @param sourceNodeId the Legacy NodeId to convert
-     * @return the converted PBJ NodeId
-     */
-    @NonNull
-    public static com.hedera.hapi.platform.state.NodeId toPbj(
-            @NonNull final com.hedera.hapi.platform.state.legacy.NodeId sourceNodeId) {
-        return com.hedera.hapi.platform.state.NodeId.newBuilder()
-                .id(sourceNodeId.getId())
-                .build();
-    }
-
-    /**
-     * Converts a PBJ NodeId to a Legacy NodeId.
-     *
-     * @param sourceNodeId the PBJ NodeId to convert
+     * @param sourceNodeId the consensus model NodeId to convert
      * @return the converted Legacy NodeId
      */
     @NonNull
-    public static com.hedera.hapi.platform.state.legacy.NodeId fromPbj(
-            @NonNull final com.hedera.hapi.platform.state.NodeId sourceNodeId) {
+    public static com.hedera.hapi.platform.state.legacy.NodeId toLegacy(
+            @NonNull final org.hiero.consensus.model.node.NodeId sourceNodeId) {
         return com.hedera.hapi.platform.state.legacy.NodeId.newBuilder()
                 .setId(sourceNodeId.id())
                 .build();
@@ -647,9 +632,7 @@ public class ProtobufConverter {
                 sourceLog.getLoggerName(),
                 sourceLog.getThread(),
                 MarkerManager.getMarker(sourceLog.getMarker()),
-                sourceLog.getNodeId() < 0
-                        ? null
-                        : NodeId.newBuilder().id(sourceLog.getNodeId()).build());
+                sourceLog.getNodeId() < 0 ? null : org.hiero.consensus.model.node.NodeId.of(sourceLog.getNodeId()));
     }
 
     /**

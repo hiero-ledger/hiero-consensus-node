@@ -20,6 +20,7 @@ import java.util.Set;
  * A fully mutable {@link ContractStateStore}.
  */
 public class WritableContractStateStore extends ReadableContractStateStore implements ContractStateStore {
+
     private final WritableKVState<SlotKey, SlotValue> storage;
     private final WritableKVState<ContractID, Bytecode> bytecode;
     private final WritableEntityCounters entityCounters;
@@ -33,8 +34,8 @@ public class WritableContractStateStore extends ReadableContractStateStore imple
             @NonNull final WritableStates states, @NonNull final WritableEntityCounters entityCounters) {
         super(states, entityCounters);
         requireNonNull(states);
-        this.storage = states.get(V0490ContractSchema.STORAGE_KEY);
-        this.bytecode = states.get(V0490ContractSchema.BYTECODE_KEY);
+        this.storage = states.get(V0490ContractSchema.STORAGE_STATE_ID);
+        this.bytecode = states.get(V0490ContractSchema.BYTECODE_STATE_ID);
         this.entityCounters = requireNonNull(entityCounters);
     }
 

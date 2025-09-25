@@ -2,6 +2,7 @@
 package com.hedera.node.app.service.file.impl.test.handlers;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_FILE_ID;
+import static com.hedera.node.app.service.file.impl.schemas.V0490FileSchema.FILES_STATE_ID;
 import static com.hedera.node.app.spi.fixtures.Assertions.assertThrowsPreCheck;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
@@ -149,7 +150,7 @@ class FileGetContentsHandlerTest extends FileTestBase {
     void validatesQueryEvenWhenFileDeletedInState() {
         givenValidFile(true);
         readableFileState = readableFileState();
-        given(readableStates.<FileID, File>get(FILES)).willReturn(readableFileState);
+        given(readableStates.<FileID, File>get(FILES_STATE_ID)).willReturn(readableFileState);
         readableStore = new ReadableFileStoreImpl(readableStates, readableEntityCounters);
 
         final var query = createGetFileContentQuery(fileId);

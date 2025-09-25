@@ -89,13 +89,9 @@ message EvmHookState {
  */
 enum EvmHookType {
   /**
-   * A pure EVM hook.
-   */
-  PURE = 0;
-  /**
    * A lambda EVM hook.
    */
-  LAMBDA = 1;
+  LAMBDA = 0;
 }
 
 /**

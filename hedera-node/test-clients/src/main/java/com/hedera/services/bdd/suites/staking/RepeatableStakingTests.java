@@ -16,7 +16,7 @@ import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.viewAccount;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.blockStreamMustIncludePassFrom;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doWithStartupConfig;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingThree;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingAllOf;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingTwo;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.scheduledExecutionResult;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
@@ -40,6 +40,7 @@ import com.hedera.services.bdd.spec.transactions.TxnUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
@@ -61,10 +62,15 @@ public class RepeatableStakingTests {
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
         testLifecycle.doAdhoc(
-                overridingThree(
-                        "staking.startThreshold", "" + 10 * ONE_HBAR,
-                        "staking.perHbarRewardRate", "1",
-                        "staking.rewardBalanceThreshold", "0"),
+                overridingAllOf(Map.of(
+                        "staking.startThreshold",
+                        "" + 10 * ONE_HBAR,
+                        "scheduling.maxExpirySecsToCheckPerUserTxn",
+                        "" + Integer.MAX_VALUE,
+                        "staking.perHbarRewardRate",
+                        "1",
+                        "staking.rewardBalanceThreshold",
+                        "0")),
                 cryptoTransfer(tinyBarsFromTo(GENESIS, STAKING_REWARD, ONE_MILLION_HBARS)));
     }
 

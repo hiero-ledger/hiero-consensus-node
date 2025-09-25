@@ -6,7 +6,6 @@ import static org.assertj.core.api.Fail.fail;
 
 import com.hedera.hapi.block.stream.Block;
 import com.hedera.hapi.block.stream.BlockItem;
-import com.hedera.hapi.block.stream.FilteredItemHash;
 import com.hedera.hapi.block.stream.RedactedItem;
 import com.hedera.hapi.block.stream.input.EventHeader;
 import com.hedera.hapi.block.stream.input.ParentEventReference;
@@ -148,7 +147,10 @@ public class BlockStreamEventBuilder {
     }
 
     private void signedTransaction(@NonNull final Bytes transactionBytes) {
-        if (currentEventHeader == null) {
+        final TransactionBody transactionBody = getTransactionBody(transactionBytes);
+        // When performing a network transplant, there may be transactions with a non-zero nonce
+        // outside of an event header. These transactions should be ignored.
+        if (transactionBody.transactionID().nonce() == 0 && currentEventHeader == null) {
             fail("Unexpected transaction item without an active event header!");
         }
         if (isTransactionInEvent(transactionBytes)) {
@@ -163,7 +165,8 @@ public class BlockStreamEventBuilder {
     }
 
     /**
-     * Events included in the event hash have a nonce of zero. Other transactions (e.g. synthetic transactions) have a
+     * Events included in the event hash have a nonce of zero and is not a scheduled transaction.
+     * Other transactions (e.g. synthetic transactions) have a
      * non-zero nonce and must not be included in the event in order to calculate the correct event hash.
      *
      * @param transactionBytes the transaction bytes to check
@@ -172,7 +175,7 @@ public class BlockStreamEventBuilder {
     private boolean isTransactionInEvent(@NonNull final Bytes transactionBytes) {
         final TransactionBody transactionBody = getTransactionBody(transactionBytes);
         final TransactionID transactionId = transactionBody.transactionIDOrThrow();
-        return transactionId.nonce() == 0;
+        return transactionId.nonce() == 0 && !transactionId.scheduled();
     }
 
     /**
@@ -195,7 +198,7 @@ public class BlockStreamEventBuilder {
      */
     private void completeEvent() {
         final PlatformEvent platformEvent =
-                createEventFromData(currentEventHeader, currentTransactions, eventIndexToEvent);
+                createEventFromData(currentEventHeader, new ArrayList<>(currentTransactions), eventIndexToEvent);
         eventIndexToEvent.put(eventIndexWithinBlock, platformEvent);
         eventHashToEvent.put(platformEvent.getHash(), platformEvent);
         events.add(platformEvent);

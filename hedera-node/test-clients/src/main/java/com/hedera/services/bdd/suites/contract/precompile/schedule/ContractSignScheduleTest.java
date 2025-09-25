@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.precompile.schedule;
 
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.keys.KeyShape.ED25519;
@@ -270,6 +271,7 @@ public class ContractSignScheduleTest {
 
         @HapiTest
         @DisplayName("Sign schedule using ecdsa key")
+        @Tag(MATS)
         final Stream<DynamicTest> signScheduleWithContractEcdsaKey() {
             return hapiTest(
                     getScheduleInfo(SCHEDULE_G).isNotExecuted(),
@@ -281,6 +283,7 @@ public class ContractSignScheduleTest {
 
         @HapiTest
         @DisplayName("Sign schedule using ed key")
+        @Tag(MATS)
         final Stream<DynamicTest> signScheduleWithContractEdKey() {
             return hapiTest(
                     getScheduleInfo(SCHEDULE_H).isNotExecuted(),

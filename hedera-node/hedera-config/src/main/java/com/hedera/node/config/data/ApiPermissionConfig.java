@@ -280,7 +280,7 @@ public record ApiPermissionConfig(
         @ConfigProperty(defaultValue = "0-0") PermissionedAccountsRange historyProofVote,
         @ConfigProperty(defaultValue = "0-0") PermissionedAccountsRange crsPublication,
         @ConfigProperty(defaultValue = "0-*") PermissionedAccountsRange lambdaSStore,
-        @ConfigProperty(defaultValue = "0-0") PermissionedAccountsRange hookDispatch) {
+        @ConfigProperty(defaultValue = "0-*") PermissionedAccountsRange hookDispatch) {
 
     private static final EnumMap<HederaFunctionality, Function<ApiPermissionConfig, PermissionedAccountsRange>>
             permissionKeys = new EnumMap<>(HederaFunctionality.class);

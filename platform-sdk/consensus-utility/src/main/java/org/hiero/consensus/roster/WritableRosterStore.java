@@ -20,8 +20,6 @@ import java.util.List;
  * Read-write implementation for accessing rosters states.
  */
 public class WritableRosterStore extends ReadableRosterStoreImpl {
-    public static final String ROSTER_KEY = "ROSTERS";
-    public static final String ROSTER_STATES_KEY = "ROSTER_STATE";
 
     /**
      * The maximum number of active rosters to keep in the roster state.
@@ -44,8 +42,8 @@ public class WritableRosterStore extends ReadableRosterStoreImpl {
     public WritableRosterStore(@NonNull final WritableStates writableStates) {
         super(writableStates);
         requireNonNull(writableStates);
-        this.rosterState = writableStates.getSingleton(ROSTER_STATES_KEY);
-        this.rosterMap = writableStates.get(ROSTER_KEY);
+        this.rosterState = writableStates.getSingleton(RosterStateId.ROSTER_STATE_STATE_ID);
+        this.rosterMap = writableStates.get(RosterStateId.ROSTERS_STATE_ID);
     }
 
     /**

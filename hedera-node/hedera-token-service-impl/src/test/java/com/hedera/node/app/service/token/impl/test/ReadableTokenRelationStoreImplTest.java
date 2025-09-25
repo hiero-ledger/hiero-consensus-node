@@ -25,6 +25,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class ReadableTokenRelationStoreImplTest {
+
     private static final long TOKEN_10 = 10L;
     private static final TokenID TOKEN_10_ID =
             TokenID.newBuilder().tokenNum(TOKEN_10).build();
@@ -50,7 +51,7 @@ class ReadableTokenRelationStoreImplTest {
 
     @BeforeEach
     void setUp() {
-        given(states.<EntityIDPair, TokenRelation>get(V0490TokenSchema.TOKEN_RELS_KEY))
+        given(states.<EntityIDPair, TokenRelation>get(V0490TokenSchema.TOKEN_RELS_STATE_ID))
                 .willReturn(tokenRelState);
 
         subject = new ReadableTokenRelationStoreImpl(states, readableEntityCounters);
@@ -96,7 +97,7 @@ class ReadableTokenRelationStoreImplTest {
 
     @Test
     void warmWarmsUnderlyingState(@Mock ReadableKVState<EntityIDPair, TokenRelation> tokenRelations) {
-        given(states.<EntityIDPair, TokenRelation>get(V0490TokenSchema.TOKEN_RELS_KEY))
+        given(states.<EntityIDPair, TokenRelation>get(V0490TokenSchema.TOKEN_RELS_STATE_ID))
                 .willReturn(tokenRelations);
         final var tokenRelationStore = new ReadableTokenRelationStoreImpl(states, readableEntityCounters);
         tokenRelationStore.warm(ACCOUNT_20_ID, TOKEN_10_ID);

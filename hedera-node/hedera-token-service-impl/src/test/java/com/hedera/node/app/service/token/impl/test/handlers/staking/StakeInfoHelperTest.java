@@ -1,10 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.test.handlers.staking;
 
-import static com.hedera.node.app.ids.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_KEY;
-import static com.hedera.node.app.ids.schemas.V0590EntityIdSchema.ENTITY_COUNTS_KEY;
-import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.STAKING_INFO_KEY;
-import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.STAKING_NETWORK_REWARDS_KEY;
+import static com.hedera.node.app.ids.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_ID;
+import static com.hedera.node.app.ids.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_LABEL;
+import static com.hedera.node.app.ids.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
+import static com.hedera.node.app.ids.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_LABEL;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.STAKING_INFOS_STATE_ID;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.STAKING_INFOS_STATE_LABEL;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.STAKING_NETWORK_REWARDS_STATE_ID;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.STAKING_NETWORK_REWARDS_STATE_LABEL;
 import static com.hedera.node.app.service.token.impl.test.WritableStakingInfoStoreImplTest.NODE_ID_1;
 import static com.hedera.node.app.service.token.impl.test.handlers.staking.EndOfStakingPeriodUpdaterTest.NODE_NUM_1;
 import static com.hedera.node.app.service.token.impl.test.handlers.staking.EndOfStakingPeriodUpdaterTest.NODE_NUM_2;
@@ -22,9 +26,7 @@ import com.hedera.hapi.node.state.entity.EntityCounts;
 import com.hedera.hapi.node.state.token.NetworkStakingRewards;
 import com.hedera.hapi.node.state.token.StakingNodeInfo;
 import com.hedera.node.app.hapi.utils.EntityType;
-import com.hedera.node.app.ids.EntityIdService;
 import com.hedera.node.app.ids.WritableEntityIdStore;
-import com.hedera.node.app.service.token.TokenService;
 import com.hedera.node.app.service.token.impl.WritableNetworkStakingRewardsStore;
 import com.hedera.node.app.service.token.impl.WritableStakingInfoStore;
 import com.hedera.node.app.service.token.impl.handlers.staking.StakeInfoHelper;
@@ -47,6 +49,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class StakeInfoHelperTest {
+
     public static final Configuration DEFAULT_CONFIG = HederaTestConfigBuilder.createConfig();
 
     private WritableStakingInfoStore infoStore;
@@ -61,16 +64,16 @@ class StakeInfoHelperTest {
     @BeforeEach
     void setup() {
         entityIdStore = new WritableEntityIdStore(new MapWritableStates(Map.of(
-                ENTITY_ID_STATE_KEY,
+                ENTITY_ID_STATE_ID,
                 new FunctionWritableSingletonState<>(
-                        EntityIdService.NAME,
-                        ENTITY_ID_STATE_KEY,
+                        ENTITY_ID_STATE_ID,
+                        ENTITY_ID_STATE_LABEL,
                         () -> EntityNumber.newBuilder().build(),
                         c -> {}),
-                ENTITY_COUNTS_KEY,
+                ENTITY_COUNTS_STATE_ID,
                 new FunctionWritableSingletonState<>(
-                        EntityIdService.NAME,
-                        ENTITY_COUNTS_KEY,
+                        ENTITY_COUNTS_STATE_ID,
+                        ENTITY_COUNTS_STATE_LABEL,
                         () -> EntityCounts.newBuilder().build(),
                         c -> {}))));
     }
@@ -81,7 +84,7 @@ class StakeInfoHelperTest {
     })
     void increaseUnclaimedStartToLargerThanCurrentStakeReward(int amount, int expectedResult) {
         final var state = MapWritableKVState.<EntityNumber, StakingNodeInfo>builder(
-                        TokenService.NAME, V0490TokenSchema.STAKING_INFO_KEY)
+                        STAKING_INFOS_STATE_ID, STAKING_INFOS_STATE_LABEL)
                 .value(
                         NODE_ID_1,
                         StakingNodeInfo.newBuilder()
@@ -92,7 +95,7 @@ class StakeInfoHelperTest {
                                 .build())
                 .build();
         infoStore = new WritableStakingInfoStore(
-                new MapWritableStates(Map.of(V0490TokenSchema.STAKING_INFO_KEY, state)), entityIdStore);
+                new MapWritableStates(Map.of(V0490TokenSchema.STAKING_INFOS_STATE_ID, state)), entityIdStore);
         assertUnclaimedStakeRewardStartPrecondition();
 
         subject.increaseUnclaimedStakeRewards(NODE_ID_1.number(), amount, infoStore);
@@ -110,7 +113,7 @@ class StakeInfoHelperTest {
     void marksNonExistingNodesToDeletedInStateAndAddsNewNodesToState() {
         // State has nodeIds 1, 2, 3
         final var stakingInfosState = new MapWritableKVState.Builder<EntityNumber, StakingNodeInfo>(
-                        TokenService.NAME, STAKING_INFO_KEY)
+                        STAKING_INFOS_STATE_ID, STAKING_INFOS_STATE_LABEL)
                 .value(NODE_NUM_1, STAKING_INFO_1)
                 .value(NODE_NUM_2, STAKING_INFO_2)
                 .value(NODE_NUM_3, STAKING_INFO_3)
@@ -126,7 +129,7 @@ class StakeInfoHelperTest {
 
         // Should update the state to mark node 1 and 3 as deleted
         subject.adjustPostUpgradeStakes(networkInfo, DEFAULT_CONFIG, infoStore, rewardsStore);
-        final var updatedStates = newStates.get(STAKING_INFO_KEY);
+        final var updatedStates = newStates.get(STAKING_INFOS_STATE_ID);
         // marks nodes 1, 2 as deleted
         assertThat(((StakingNodeInfo) updatedStates.get(NODE_NUM_1)).deleted()).isTrue();
         assertThat(((StakingNodeInfo) updatedStates.get(NODE_NUM_2)).deleted()).isFalse();
@@ -148,7 +151,7 @@ class StakeInfoHelperTest {
         return MapWritableStates.builder()
                 .state(stakingInfo)
                 .state(new FunctionWritableSingletonState<>(
-                        TokenService.NAME, STAKING_NETWORK_REWARDS_KEY, () -> null, c -> {}))
+                        STAKING_NETWORK_REWARDS_STATE_ID, STAKING_NETWORK_REWARDS_STATE_LABEL, () -> null, c -> {}))
                 .build();
     }
 

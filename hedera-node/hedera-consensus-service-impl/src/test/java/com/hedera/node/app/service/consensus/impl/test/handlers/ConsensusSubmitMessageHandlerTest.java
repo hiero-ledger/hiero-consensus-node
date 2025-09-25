@@ -4,9 +4,9 @@ package com.hedera.node.app.service.consensus.impl.test.handlers;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TOPIC_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TOPIC_MESSAGE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
-import static com.hedera.node.app.service.consensus.impl.ConsensusServiceImpl.TOPICS_KEY;
 import static com.hedera.node.app.service.consensus.impl.handlers.ConsensusSubmitMessageHandler.RUNNING_HASH_VERSION;
 import static com.hedera.node.app.service.consensus.impl.handlers.ConsensusSubmitMessageHandler.noThrowSha384HashOf;
+import static com.hedera.node.app.service.consensus.impl.schemas.V0490ConsensusSchema.TOPICS_STATE_ID;
 import static com.hedera.node.app.service.consensus.impl.test.handlers.ConsensusTestUtils.SIMPLE_KEY_A;
 import static com.hedera.node.app.spi.fixtures.Assertions.assertThrowsPreCheck;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -125,8 +125,8 @@ class ConsensusSubmitMessageHandlerTest extends ConsensusTestBase {
         given(handleContext.configuration()).willReturn(config);
 
         writableTopicState = writableTopicStateWithOneKey();
-        given(readableStates.<TopicID, Topic>get(TOPICS_KEY)).willReturn(readableTopicState);
-        given(writableStates.<TopicID, Topic>get(TOPICS_KEY)).willReturn(writableTopicState);
+        given(readableStates.<TopicID, Topic>get(TOPICS_STATE_ID)).willReturn(readableTopicState);
+        given(writableStates.<TopicID, Topic>get(TOPICS_STATE_ID)).willReturn(writableTopicState);
         readableStore = new ReadableTopicStoreImpl(readableStates, readableEntityCounters);
         given(storeFactory.readableStore(ReadableTopicStore.class)).willReturn(readableStore);
         writableStore = new WritableTopicStore(writableStates, entityCounters);
@@ -185,7 +185,7 @@ class ConsensusSubmitMessageHandlerTest extends ConsensusTestBase {
     void topicIdNotFound() throws PreCheckException {
         mockPayerLookup();
         readableTopicState = emptyReadableTopicState();
-        given(readableStates.<TopicID, Topic>get(TOPICS_KEY)).willReturn(readableTopicState);
+        given(readableStates.<TopicID, Topic>get(TOPICS_STATE_ID)).willReturn(readableTopicState);
         readableStore = new ReadableTopicStoreImpl(readableStates, readableEntityCounters);
         final var context = new FakePreHandleContext(accountStore, newDefaultSubmitMessageTxn(topicEntityNum));
         context.registerStore(ReadableTopicStore.class, readableStore);

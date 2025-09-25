@@ -5,6 +5,7 @@ import static com.hedera.node.app.spi.fees.NoopFeeCharging.NOOP_FEE_CHARGING;
 import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.EMPTY_METADATA;
 import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.CUSTOM_FEE_CHARGING;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.SignedTxCustomizer.NOOP_SIGNED_TX_CUSTOMIZER;
+import static com.hedera.node.app.spi.workflows.record.StreamBuilder.SignedTxCustomizer.SUPPRESSING_SIGNED_TX_CUSTOMIZER;
 import static java.util.Collections.emptySet;
 import static java.util.Objects.requireNonNull;
 
@@ -377,5 +378,21 @@ public record DispatchOptions<T extends StreamBuilder>(
                 NOOP_SIGNED_TX_CUSTOMIZER,
                 innerTransactionBytes,
                 customFeeCharging);
+    }
+
+    /**
+     * Returns options for a dispatch that is a step in the parent dispatch's business logic, but only appropriate
+     * to externalize if the parent succeeds. This is used for hook dispatches.
+     * @param payerId the account to pay for the dispatch
+     * @param body the transaction to dispatch
+     * @param streamBuilderType the type of stream builder to use for the dispatch
+     * @return the options for the sub-dispatch
+     * @param <T> the type of stream builder to use for the dispatch
+     */
+    public static <T extends StreamBuilder> DispatchOptions<T> hookDispatch(
+            @NonNull final AccountID payerId,
+            @NonNull final TransactionBody body,
+            @NonNull final Class<T> streamBuilderType) {
+        return stepDispatch(payerId, body, streamBuilderType, SUPPRESSING_SIGNED_TX_CUSTOMIZER);
     }
 }

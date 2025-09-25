@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.precompile;
 
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asTokenString;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
@@ -54,6 +55,7 @@ public class SigningReqsSuite {
     public static final int GAS_TO_OFFER = 1_000_000;
 
     @LeakyHapiTest(overrides = {"contracts.keys.legacyActivations"})
+    @Tag(MATS)
     final Stream<DynamicTest> autoRenewAccountCanUseLegacySigActivationIfConfigured() {
         final var autoRenew = AUTO_RENEW;
         final AtomicReference<Address> autoRenewMirrorAddr = new AtomicReference<>();

@@ -79,12 +79,12 @@ public class ReadBlocksAndPces {
         Collections.sort(events, (e1, e2) -> {
             return HapiUtils.TIMESTAMP_COMPARATOR.compare(e1.left(), e2.left());
         });
-                for (Pair<Timestamp, List<TransactionBody>> pair : events) {
-                    System.out.println(pair.left());
-                    for (final TransactionBody tb : pair.right()) {
-                        System.out.println(TransactionBody.JSON.toJSON(tb));
-                    }
-                }
+        //        for (Pair<Timestamp, List<TransactionBody>> pair : events) {
+        //            System.out.println(pair.left());
+        //            for (final TransactionBody tb : pair.right()) {
+        //                System.out.println(TransactionBody.JSON.toJSON(tb));
+        //            }
+        //        }
         System.out.println("Total events: " + count);
     }
 

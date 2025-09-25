@@ -76,7 +76,7 @@ public class BlockBufferService {
     /**
      * Executor that is used to schedule buffer pruning and triggering backpressure if needed.
      */
-    private final ScheduledExecutorService execSvc = Executors.newSingleThreadScheduledExecutor();
+    private ScheduledExecutorService execSvc;
     /**
      * Global CompletableFuture reference that is used to apply backpressure via {@link #ensureNewBlocksPermitted()}. If
      * the completed future has a value of {@code true}, then it means that the buffer is no longer saturated and no
@@ -152,20 +152,40 @@ public class BlockBufferService {
      * background worker thread. Calling this method multiple times on the same instance will do nothing.
      */
     public void start() {
-        // Initialize buffer and start worker thread if streaming is enabled
-        if (grpcStreamingEnabled && isStarted.compareAndSet(false, true)) {
-            loadBufferFromDisk();
-            scheduleNextWorkerTask();
+        if (!grpcStreamingEnabled || !isStarted.compareAndSet(false, true)) {
+            return;
         }
+
+        // Initialize buffer and start worker thread if streaming is enabled
+        loadBufferFromDisk();
+
+        execSvc = Executors.newSingleThreadScheduledExecutor();
+        scheduleNextWorkerTask();
     }
 
     /**
      * Shuts down the block buffer service and its associated resources.
-     * This terminates the executor service and shuts down the block node connection manager.
+     * This terminates the executor service.
      */
     public void shutdown() {
+        if (!isStarted.compareAndSet(true, false)) {
+            // buffer already shutdown
+            return;
+        }
+
+        // stop the background task from running
         execSvc.shutdownNow();
-        blockNodeConnectionManager.shutdown();
+        // since the pruning task is no longer running, free up the buffer
+        blockBuffer.clear();
+        // if back pressure was enabled, disable it during shutdown
+        disableBackPressure();
+        // clear metadata
+        highestAckedBlockNumber.set(-1);
+        lastProducedBlockNumber.set(-1);
+        earliestBlockNumber.set(-1);
+        lastPruningResult = PruneResult.NIL;
+        lastRecoveryActionTimestamp = Instant.MIN;
+        awaitingRecovery = false;
     }
 
     /**
@@ -287,7 +307,7 @@ public class BlockBufferService {
      * @throws IllegalArgumentException if the block number is negative
      */
     public void openBlock(final long blockNumber) {
-        if (!grpcStreamingEnabled) {
+        if (!grpcStreamingEnabled || !isStarted.get()) {
             return;
         }
 
@@ -321,7 +341,7 @@ public class BlockBufferService {
      * @throws IllegalStateException if no block is currently open
      */
     public void addItem(final long blockNumber, @NonNull final BlockItem blockItem) {
-        if (!grpcStreamingEnabled) {
+        if (!grpcStreamingEnabled || !isStarted.get()) {
             return;
         }
         requireNonNull(blockItem, "blockItem must not be null");
@@ -338,7 +358,7 @@ public class BlockBufferService {
      * @throws IllegalStateException if no block is currently open
      */
     public void closeBlock(final long blockNumber) {
-        if (!grpcStreamingEnabled) {
+        if (!grpcStreamingEnabled || !isStarted.get()) {
             return;
         }
 
@@ -377,7 +397,7 @@ public class BlockBufferService {
      * @param blockNumber the block number to mark acknowledged up to and including
      */
     public void setLatestAcknowledgedBlock(final long blockNumber) {
-        if (!grpcStreamingEnabled) {
+        if (!grpcStreamingEnabled || !isStarted.get()) {
             return;
         }
 
@@ -392,15 +412,6 @@ public class BlockBufferService {
      */
     public long getLastBlockNumberProduced() {
         return lastProducedBlockNumber.get();
-    }
-
-    /**
-     * Retrieves the lowest unacked block number in the buffer.
-     * This is the lowest block number that has not been acknowledged.
-     * @return the lowest unacked block number or -1 if the buffer is empty
-     */
-    public long getLowestUnackedBlockNumber() {
-        return highestAckedBlockNumber.get() == Long.MIN_VALUE ? -1 : highestAckedBlockNumber.get() + 1;
     }
 
     /**
@@ -426,7 +437,7 @@ public class BlockBufferService {
      * enough capacity - i.e. the buffer is saturated - then this method will block until there is enough capacity.
      */
     public void ensureNewBlocksPermitted() {
-        if (!grpcStreamingEnabled) {
+        if (!grpcStreamingEnabled || !isStarted.get()) {
             return;
         }
 
@@ -511,7 +522,7 @@ public class BlockBufferService {
      * @see BlockBufferIO
      */
     public void persistBuffer() {
-        if (!grpcStreamingEnabled || !isBufferPersistenceEnabled()) {
+        if (!grpcStreamingEnabled || !isStarted.get() || !isBufferPersistenceEnabled()) {
             return;
         }
 
@@ -821,6 +832,13 @@ public class BlockBufferService {
                 "Buffer saturation is below or equal to the recovery threshold; back pressure will be disabled. (saturation={}%, recoveryThreshold={}%)",
                 latestPruneResult.saturationPercent, recoveryThreshold);
 
+        disableBackPressure();
+    }
+
+    /**
+     * Disables back pressure.
+     */
+    private void disableBackPressure() {
         final CompletableFuture<Boolean> cf = backpressureCompletableFutureRef.get();
         if (cf != null && !cf.isDone()) {
             // the future isn't completed, so complete it to disable the blocking back pressure
@@ -884,6 +902,11 @@ public class BlockBufferService {
 
         @Override
         public void run() {
+            if (!isStarted.get()) {
+                logger.debug("Buffer service shutdown; aborting worker task");
+                return;
+            }
+
             try {
                 checkBuffer();
             } catch (final RuntimeException e) {

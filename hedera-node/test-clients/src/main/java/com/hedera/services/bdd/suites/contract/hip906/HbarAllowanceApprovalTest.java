@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.hip906;
 
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asEntityString;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
@@ -63,6 +64,7 @@ public class HbarAllowanceApprovalTest {
     private static final String HBAR_APPROVE_DELEGATE_CALL = "hbarApproveDelegateCall";
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> hrc632AllowanceFromEOA() {
         final AtomicReference<AccountID> accountNum = new AtomicReference<>();
         final AtomicReference<Address> spenderNum = new AtomicReference<>();
@@ -217,6 +219,7 @@ public class HbarAllowanceApprovalTest {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> hrc632ApproveFromContract() {
         final AtomicReference<Address> spenderNum = new AtomicReference<>();
         final AtomicReference<Address> contractNum = new AtomicReference<>();

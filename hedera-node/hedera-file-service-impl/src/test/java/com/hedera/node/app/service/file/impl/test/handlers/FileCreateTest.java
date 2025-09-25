@@ -2,6 +2,7 @@
 package com.hedera.node.app.service.file.impl.test.handlers;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_EXPIRATION_TIME;
+import static com.hedera.node.app.service.file.impl.schemas.V0490FileSchema.FILES_STATE_ID;
 import static com.hedera.node.app.spi.fixtures.Assertions.assertThrowsPreCheck;
 import static com.hedera.node.app.spi.validation.ExpiryMeta.NA;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -60,6 +61,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class FileCreateTest extends FileTestBase {
+
     static final AccountID ACCOUNT_ID_3 = AccountID.newBuilder().accountNum(3L).build();
     private static final Configuration DEFAULT_CONFIG = HederaTestConfigBuilder.createConfig();
 
@@ -305,7 +307,7 @@ class FileCreateTest extends FileTestBase {
         final var writableState = writableFileStateWithOneKey();
         givenEntityCounters(2);
 
-        given(writableStates.<FileID, File>get(FILES)).willReturn(writableState);
+        given(writableStates.<FileID, File>get(FILES_STATE_ID)).willReturn(writableState);
         final var fileStore = new WritableFileStore(writableStates, writableEntityCounters);
         given(storeFactory.writableStore(WritableFileStore.class)).willReturn(fileStore);
 

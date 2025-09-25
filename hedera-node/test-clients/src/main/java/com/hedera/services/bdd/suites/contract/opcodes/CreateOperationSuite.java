@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.opcodes;
 
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AssertUtils.inOrder;
@@ -190,6 +191,7 @@ public class CreateOperationSuite {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> resetOnStackedFactoryFailureWorks() {
         return hapiTest(
                 uploadInitCode(CONTRACT),
@@ -238,6 +240,7 @@ public class CreateOperationSuite {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> childContractStorageWorks() {
         final var contract = "CreateTrivial";
         final var CREATED_TRIVIAL_CONTRACT_RETURNS = 7;

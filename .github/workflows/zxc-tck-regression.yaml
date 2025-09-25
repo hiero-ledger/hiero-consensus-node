@@ -11,6 +11,10 @@ on:
         description: "The custom job name to use for the job:"
         required: false
         type: string
+      solo-version:
+        description: "The version of solo to install (if not specified, latest will be used):"
+        required: false
+        type: string
     secrets:
       access-token:
         description: "GitHub Access Token with write permissions to the repository."
@@ -151,7 +155,7 @@ jobs:
       # Install solo and configure to use the artifacts from
       # the hiero-consensus-node build
       - name: Install Solo
-        run: npm install -g @hashgraph/solo@0.37.1
+        run: npm install -g @hashgraph/solo@${{ inputs.solo-version || 'latest' }}
 
       # Set up kind; needed for configuring the solo environment
       - name: Setup Kind
@@ -177,7 +181,7 @@ jobs:
           solo network deploy -i node1 --deployment "${{ env.SOLO_DEPLOYMENT }}"
           solo node setup -i node1 --deployment "${{ env.SOLO_DEPLOYMENT }}" --local-build-path ./hedera-node/data
           solo node start -i node1 --deployment "${{ env.SOLO_DEPLOYMENT }}"
-          solo mirror-node deploy --deployment "${{ env.SOLO_DEPLOYMENT }}" --cluster-ref kind-${{ env.SOLO_CLUSTER_NAME }}
+          solo mirror-node deploy --deployment "${{ env.SOLO_DEPLOYMENT }}" --cluster-ref kind-${{ env.SOLO_CLUSTER_NAME }} --mirror-node-version "v0.138.0"
 
           kubectl port-forward svc/haproxy-node1-svc -n "${{ env.SOLO_NAMESPACE }}" 50211:non-tls-grpc-client-port &
           kubectl port-forward svc/mirror-monitor -n "${{ env.SOLO_NAMESPACE }}" 5600:http &

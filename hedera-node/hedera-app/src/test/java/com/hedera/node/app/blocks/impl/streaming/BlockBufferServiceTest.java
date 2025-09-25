@@ -52,9 +52,11 @@ import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
@@ -79,6 +81,7 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
     private static final VarHandle backPressureFutureRefHandle;
     private static final VarHandle highestAckedBlockNumberHandle;
     private static final VarHandle lastPruningResultHandle;
+    private static final VarHandle isStartedHandle;
     private static final MethodHandle checkBufferHandle;
     private static final MethodHandle persistBufferHandle;
 
@@ -95,6 +98,8 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
                     .findVarHandle(BlockBufferService.class, "highestAckedBlockNumber", AtomicLong.class);
             lastPruningResultHandle = MethodHandles.privateLookupIn(BlockBufferService.class, lookup)
                     .findVarHandle(BlockBufferService.class, "lastPruningResult", PruneResult.class);
+            isStartedHandle = MethodHandles.privateLookupIn(BlockBufferService.class, lookup)
+                    .findVarHandle(BlockBufferService.class, "isStarted", AtomicBoolean.class);
 
             final Method checkBufferMethod = BlockBufferService.class.getDeclaredMethod("checkBuffer");
             checkBufferMethod.setAccessible(true);
@@ -155,17 +160,17 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
 
         // stop the async pruning thread(s)
         final ScheduledExecutorService execSvc = (ScheduledExecutorService) execSvcHandle.get(blockBufferService);
-        execSvc.shutdownNow();
-        assertThat(execSvc.awaitTermination(3, TimeUnit.SECONDS)).isTrue();
+        if (execSvc != null) {
+            execSvc.shutdownNow();
+            assertThat(execSvc.awaitTermination(3, TimeUnit.SECONDS)).isTrue();
+        }
 
         cleanupDirectory();
     }
 
     @Test
     void testOpenNewBlock() {
-        blockBufferService = new BlockBufferService(configProvider, blockStreamMetrics);
-        // given
-        blockBufferService.setBlockNodeConnectionManager(connectionManager);
+        blockBufferService = initBufferService(configProvider);
         // when
         blockBufferService.openBlock(TEST_BLOCK_NUMBER);
 
@@ -187,9 +192,8 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
 
     @Test
     void testCleanUp_NotCompletedBlockState_ShouldNotBeRemoved() {
-        blockBufferService = new BlockBufferService(configProvider, blockStreamMetrics);
+        blockBufferService = initBufferService(configProvider);
         // given
-        blockBufferService.setBlockNodeConnectionManager(connectionManager);
         blockBufferService.openBlock(TEST_BLOCK_NUMBER);
 
         // when
@@ -205,10 +209,9 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
 
     @Test
     void testCleanUp_CompletedNotExpiredBlockState_ShouldNotBeRemoved() {
-        blockBufferService = new BlockBufferService(configProvider, blockStreamMetrics);
+        blockBufferService = initBufferService(configProvider);
         // given
         // expiry period set to zero in order for completed state to be cleared
-        blockBufferService.setBlockNodeConnectionManager(connectionManager);
         blockBufferService.openBlock(TEST_BLOCK_NUMBER);
         blockBufferService.getBlockState(TEST_BLOCK_NUMBER).closeBlock();
 
@@ -222,9 +225,7 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
 
     @Test
     void testMaintainMultipleBlockStates() {
-        blockBufferService = new BlockBufferService(configProvider, blockStreamMetrics);
-        // given
-        blockBufferService.setBlockNodeConnectionManager(connectionManager);
+        blockBufferService = initBufferService(configProvider);
         // when
         blockBufferService.openBlock(TEST_BLOCK_NUMBER);
         blockBufferService.openBlock(TEST_BLOCK_NUMBER2);
@@ -251,7 +252,7 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
 
     @Test
     void testHandleNonExistentBlockState() {
-        blockBufferService = new BlockBufferService(configProvider, blockStreamMetrics);
+        blockBufferService = initBufferService(configProvider);
         // when
         final BlockState blockState = blockBufferService.getBlockState(999L);
 
@@ -272,9 +273,7 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(mockConfig, 1));
 
         // make BlockBufferService use the mocked config
-        blockBufferService = new BlockBufferService(configProvider, blockStreamMetrics);
-
-        blockBufferService.setBlockNodeConnectionManager(connectionManager);
+        blockBufferService = initBufferService(configProvider);
         blockBufferService.openBlock(TEST_BLOCK_NUMBER);
         blockBufferService.openBlock(TEST_BLOCK_NUMBER2);
         blockBufferService.getBlockState(TEST_BLOCK_NUMBER).closeBlock();
@@ -293,8 +292,7 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
     @Test
     void testGetCurrentBlockNumberWhenNoNewBlockIsOpened() {
         // given
-        blockBufferService = new BlockBufferService(configProvider, blockStreamMetrics);
-        blockBufferService.setBlockNodeConnectionManager(connectionManager);
+        blockBufferService = initBufferService(configProvider);
 
         // when and then
         // -1 is a sentinel value indicating no block has been opened
@@ -304,8 +302,7 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
     @Test
     void testGetCurrentBlockNumberWhenNewBlockIsOpened() {
         // given
-        blockBufferService = new BlockBufferService(configProvider, blockStreamMetrics);
-        blockBufferService.setBlockNodeConnectionManager(connectionManager);
+        blockBufferService = initBufferService(configProvider);
         blockBufferService.openBlock(TEST_BLOCK_NUMBER2);
 
         // when and then
@@ -316,8 +313,7 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
     @Test
     void testOpenBlockWithNegativeBlockNumber() {
         // given
-        blockBufferService = new BlockBufferService(configProvider, blockStreamMetrics);
-        blockBufferService.setBlockNodeConnectionManager(connectionManager);
+        blockBufferService = initBufferService(configProvider);
 
         // when and then
         assertThatThrownBy(() -> blockBufferService.openBlock(-1L))
@@ -330,9 +326,8 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
 
     @Test
     void testAddNullBlockItem() {
-        blockBufferService = new BlockBufferService(configProvider, blockStreamMetrics);
+        blockBufferService = initBufferService(configProvider);
         // given
-        blockBufferService.setBlockNodeConnectionManager(connectionManager);
         blockBufferService.openBlock(TEST_BLOCK_NUMBER);
 
         // when and then
@@ -344,8 +339,7 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
     @Test
     void testAddBlockItemToNonExistentBlockState() {
         // given
-        blockBufferService = new BlockBufferService(configProvider, blockStreamMetrics);
-        blockBufferService.setBlockNodeConnectionManager(connectionManager);
+        blockBufferService = initBufferService(configProvider);
 
         // when and then
         assertThatThrownBy(() -> blockBufferService.addItem(
@@ -357,8 +351,7 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
     @Test
     void testGetNonExistentBlockState() {
         // given
-        blockBufferService = new BlockBufferService(configProvider, blockStreamMetrics);
-        blockBufferService.setBlockNodeConnectionManager(connectionManager);
+        blockBufferService = initBufferService(configProvider);
 
         // when and then
         assertThat(blockBufferService.getBlockState(TEST_BLOCK_NUMBER)).isNull();
@@ -366,8 +359,7 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
 
     @Test
     void testOpenBlock_existingBlock_proofNotSent() {
-        blockBufferService = new BlockBufferService(configProvider, blockStreamMetrics);
-        blockBufferService.setBlockNodeConnectionManager(connectionManager);
+        blockBufferService = initBufferService(configProvider);
 
         blockBufferService.openBlock(10);
         blockBufferService.addItem(10, newBlockProofItem());
@@ -385,8 +377,7 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
 
     @Test
     void testOpenBlock_existingBlock_proofSent() {
-        blockBufferService = new BlockBufferService(configProvider, blockStreamMetrics);
-        blockBufferService.setBlockNodeConnectionManager(connectionManager);
+        blockBufferService = initBufferService(configProvider);
 
         blockBufferService.openBlock(10);
         blockBufferService.addItem(10, newBlockProofItem());
@@ -417,8 +408,7 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
                 .getOrCreateConfig();
         when(configProvider.getConfiguration()).thenReturn(new VersionedConfigImpl(config, 1));
 
-        blockBufferService = new BlockBufferService(configProvider, blockStreamMetrics);
-        blockBufferService.setBlockNodeConnectionManager(connectionManager);
+        blockBufferService = initBufferService(configProvider);
         final ConcurrentMap<Long, BlockState> buffer = blockBuffer(blockBufferService);
 
         // IdealMaxBufferSize = BlockTtl (5s) / BlockPeriod (1s) = 5
@@ -538,9 +528,7 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
                 .getOrCreateConfig();
         when(configProvider.getConfiguration()).thenReturn(new VersionedConfigImpl(config, 1));
 
-        blockBufferService = new BlockBufferService(configProvider, blockStreamMetrics);
-
-        blockBufferService.setBlockNodeConnectionManager(connectionManager);
+        blockBufferService = initBufferService(configProvider);
         blockBufferService.openBlock(1L);
 
         // Block 1 has been added. Now lets ack up to block 5
@@ -609,9 +597,7 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
                 .getOrCreateConfig();
         when(configProvider.getConfiguration()).thenReturn(new VersionedConfigImpl(config, 1));
 
-        blockBufferService = new BlockBufferService(configProvider, blockStreamMetrics);
-        blockBufferService.setBlockNodeConnectionManager(connectionManager);
-        blockBufferService.start();
+        blockBufferService = initBufferService(configProvider, true);
 
         final CountDownLatch startLatch = new CountDownLatch(1);
         final CountDownLatch doneLatch = new CountDownLatch(1);
@@ -665,8 +651,7 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
 
     @Test
     void testSetLatestAcknowledgedBlock() {
-        blockBufferService = new BlockBufferService(configProvider, blockStreamMetrics);
-        blockBufferService.setBlockNodeConnectionManager(connectionManager);
+        blockBufferService = initBufferService(configProvider);
 
         blockBufferService.setLatestAcknowledgedBlock(1L);
         verify(blockStreamMetrics).setLatestAcknowledgedBlockNumber(1L);
@@ -692,13 +677,13 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(mockConfig, 1));
 
         // Create a new instance
-        blockBufferService = new BlockBufferService(configProvider, blockStreamMetrics);
+        blockBufferService = initBufferService(configProvider);
 
         // Get the executor service via reflection
         final ScheduledExecutorService execSvc = (ScheduledExecutorService) execSvcHandle.get(blockBufferService);
 
         // Verify that no tasks were scheduled (the executor should be empty)
-        assertThat(execSvc.shutdownNow()).isEmpty();
+        assertThat(execSvc).isNull();
     }
 
     @Test
@@ -713,8 +698,7 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(mockConfig, 1));
 
         // Create a new instance
-        blockBufferService = new BlockBufferService(configProvider, blockStreamMetrics);
-        blockBufferService.setBlockNodeConnectionManager(connectionManager);
+        blockBufferService = initBufferService(configProvider);
 
         // Call openBlock
         blockBufferService.openBlock(TEST_BLOCK_NUMBER);
@@ -739,8 +723,7 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
                 .getOrCreateConfig();
         when(configProvider.getConfiguration()).thenReturn(new VersionedConfigImpl(config, 1));
 
-        blockBufferService = new BlockBufferService(configProvider, blockStreamMetrics);
-        blockBufferService.setBlockNodeConnectionManager(connectionManager);
+        blockBufferService = initBufferService(configProvider);
 
         // The buffer will become fully saturated after 10 blocks
         for (int i = 1; i <= 10; ++i) {
@@ -770,7 +753,7 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         when(blockBufferConfig.bufferDirectory()).thenReturn(testDir);
         when(versionedConfiguration.getConfigData(BlockStreamConfig.class)).thenReturn(blockStreamConfig);
         when(versionedConfiguration.getConfigData(BlockBufferConfig.class)).thenReturn(blockBufferConfig);
-        blockBufferService = new BlockBufferService(configProvider, blockStreamMetrics);
+        blockBufferService = initBufferService(configProvider);
         final ConcurrentMap<Long, BlockState> buffer = blockBuffer(blockBufferService);
 
         blockBufferService.openBlock(10L);
@@ -789,7 +772,7 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         when(blockStreamConfig.streamMode()).thenReturn(StreamMode.BOTH);
         when(blockBufferConfig.bufferDirectory()).thenReturn(testDir);
         when(versionedConfiguration.getConfigData(BlockBufferConfig.class)).thenReturn(blockBufferConfig);
-        blockBufferService = new BlockBufferService(configProvider, blockStreamMetrics);
+        blockBufferService = initBufferService(configProvider);
         final ConcurrentMap<Long, BlockState> buffer = blockBuffer(blockBufferService);
 
         final BlockItem item = BlockItem.newBuilder()
@@ -812,7 +795,7 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         when(blockStreamConfig.streamMode()).thenReturn(StreamMode.BOTH);
         when(blockBufferConfig.bufferDirectory()).thenReturn(testDir);
         when(versionedConfiguration.getConfigData(BlockBufferConfig.class)).thenReturn(blockBufferConfig);
-        blockBufferService = new BlockBufferService(configProvider, blockStreamMetrics);
+        blockBufferService = initBufferService(configProvider);
 
         blockBufferService.closeBlock(10L);
 
@@ -828,7 +811,7 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         when(blockStreamConfig.streamMode()).thenReturn(StreamMode.BOTH);
         when(blockBufferConfig.bufferDirectory()).thenReturn(testDir);
         when(versionedConfiguration.getConfigData(BlockBufferConfig.class)).thenReturn(blockBufferConfig);
-        blockBufferService = new BlockBufferService(configProvider, blockStreamMetrics);
+        blockBufferService = initBufferService(configProvider);
 
         blockBufferService.setLatestAcknowledgedBlock(10L);
 
@@ -844,7 +827,7 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         when(blockStreamConfig.streamMode()).thenReturn(StreamMode.BOTH);
         when(blockBufferConfig.bufferDirectory()).thenReturn(testDir);
         when(versionedConfiguration.getConfigData(BlockBufferConfig.class)).thenReturn(blockBufferConfig);
-        blockBufferService = new BlockBufferService(configProvider, blockStreamMetrics);
+        blockBufferService = initBufferService(configProvider);
         final AtomicReference<CompletableFuture<Boolean>> backPressureFutureRef =
                 backpressureCompletableFutureRef(blockBufferService);
 
@@ -1148,8 +1131,7 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
                 .getOrCreateConfig();
         when(configProvider.getConfiguration()).thenReturn(new VersionedConfigImpl(config, 1));
 
-        blockBufferService = new BlockBufferService(configProvider, blockStreamMetrics);
-        blockBufferService.setBlockNodeConnectionManager(connectionManager);
+        blockBufferService = initBufferService(configProvider);
 
         // saturate the buffer
         for (int i = 0; i < 10; ++i) {
@@ -1262,11 +1244,66 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
                 .getOrCreateConfig();
         when(configProvider.getConfiguration()).thenReturn(new VersionedConfigImpl(config, 1));
 
-        blockBufferService = new BlockBufferService(configProvider, blockStreamMetrics);
-        blockBufferService.setBlockNodeConnectionManager(connectionManager);
+        blockBufferService = initBufferService(configProvider);
 
         final ConcurrentMap<Long, BlockState> buffer = blockBuffer(blockBufferService);
         assertThat(buffer).isEmpty();
+    }
+
+    @Test
+    void testShutdown() throws Throwable {
+        setupState(10, true, true);
+
+        blockBufferService.shutdown();
+
+        final ExecutorService execSvc = (ExecutorService) execSvcHandle.get(blockBufferService);
+        assertThat(execSvc.isShutdown()).isTrue();
+
+        final ConcurrentMap<Long, BlockState> buffer = blockBuffer(blockBufferService);
+        assertThat(buffer).isEmpty();
+
+        final AtomicReference<CompletableFuture<Boolean>> backPressureRef =
+                backpressureCompletableFutureRef(blockBufferService);
+        assertThat(backPressureRef).isNotNull();
+        assertThat(backPressureRef.get()).isCompletedWithValue(true);
+
+        // ensure opening a block doesn't do anything
+        blockBufferService.openBlock(100L);
+
+        assertThat(buffer).isEmpty();
+
+        // calling shutdown again should not fail
+        blockBufferService.shutdown();
+    }
+
+    @Test
+    void testBufferRestart() throws Throwable {
+        setupState(10, true, true);
+
+        // shutdown the service
+        blockBufferService.shutdown();
+
+        final ExecutorService execSvc = (ExecutorService) execSvcHandle.get(blockBufferService);
+        assertThat(execSvc.isShutdown()).isTrue();
+
+        final ConcurrentMap<Long, BlockState> buffer = blockBuffer(blockBufferService);
+        assertThat(buffer).isEmpty();
+
+        final AtomicReference<CompletableFuture<Boolean>> backPressureRef =
+                backpressureCompletableFutureRef(blockBufferService);
+        assertThat(backPressureRef).isNotNull();
+        assertThat(backPressureRef.get()).isCompletedWithValue(true);
+
+        // restart it
+        blockBufferService.start();
+
+        blockBufferService.openBlock(25L);
+
+        assertThat(buffer).hasSize(1);
+
+        final ExecutorService execSvc2 = (ExecutorService) execSvcHandle.get(blockBufferService);
+        assertThat(execSvc).isNotEqualTo(execSvc2); // a new executor service should have been initialized
+        assertThat(execSvc2.isShutdown()).isFalse();
     }
 
     @Test
@@ -1290,8 +1327,7 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
 
         Files.createDirectories(testDirFile.toPath());
 
-        blockBufferService = new BlockBufferService(configProvider, blockStreamMetrics);
-        blockBufferService.setBlockNodeConnectionManager(connectionManager);
+        blockBufferService = initBufferService(configProvider);
 
         // Setup block 1
         final long BLOCK_1 = 1L;
@@ -1391,8 +1427,7 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
 
         Files.createDirectories(testDirFile.toPath());
 
-        blockBufferService = new BlockBufferService(configProvider, blockStreamMetrics);
-        blockBufferService.setBlockNodeConnectionManager(connectionManager);
+        blockBufferService = initBufferService(configProvider);
 
         // create a block
         final long BLOCK_1 = 1L;
@@ -1415,6 +1450,11 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
     // Utilities
 
     void setupState(final int numBlockUnacked, final boolean reconnectExpected) throws Throwable {
+        setupState(numBlockUnacked, reconnectExpected, false);
+    }
+
+    void setupState(final int numBlockUnacked, final boolean reconnectExpected, final boolean realStart)
+            throws Throwable {
         final Configuration config = HederaTestConfigBuilder.create()
                 .withConfigDataType(BlockStreamConfig.class)
                 .withConfigDataType(BlockBufferConfig.class)
@@ -1429,8 +1469,7 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
                 .getOrCreateConfig();
         when(configProvider.getConfiguration()).thenReturn(new VersionedConfigImpl(config, 1));
 
-        blockBufferService = new BlockBufferService(configProvider, blockStreamMetrics);
-        blockBufferService.setBlockNodeConnectionManager(connectionManager);
+        blockBufferService = initBufferService(configProvider, realStart);
 
         // the action stage is at 50%, so open+close 7 blocks but don't ack them to get above the threshold
         for (int i = 1; i <= numBlockUnacked; ++i) {
@@ -1471,13 +1510,19 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         return (AtomicLong) highestAckedBlockNumberHandle.get(bufferService);
     }
 
+    @SuppressWarnings("unchecked")
     private AtomicReference<CompletableFuture<Boolean>> backpressureCompletableFutureRef(
             final BlockBufferService bufferService) {
         return (AtomicReference<CompletableFuture<Boolean>>) backPressureFutureRefHandle.get(bufferService);
     }
 
+    @SuppressWarnings("unchecked")
     private ConcurrentMap<Long, BlockState> blockBuffer(final BlockBufferService bufferService) {
         return (ConcurrentMap<Long, BlockState>) blockBufferHandle.get(bufferService);
+    }
+
+    private AtomicBoolean isStarted(final BlockBufferService bufferService) {
+        return (AtomicBoolean) isStartedHandle.get(bufferService);
     }
 
     private static void cleanupDirectory() throws IOException {
@@ -1498,5 +1543,23 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
                 return FileVisitResult.CONTINUE;
             }
         });
+    }
+
+    private BlockBufferService initBufferService(final ConfigProvider configProvider) {
+        return initBufferService(configProvider, false);
+    }
+
+    private BlockBufferService initBufferService(final ConfigProvider configProvider, final boolean realStart) {
+        final BlockBufferService svc = new BlockBufferService(configProvider, blockStreamMetrics);
+        svc.setBlockNodeConnectionManager(connectionManager);
+
+        if (realStart) {
+            svc.start();
+        } else {
+            // "fake" starting the service
+            final AtomicBoolean isStarted = isStarted(svc);
+            isStarted.set(true);
+        }
+        return svc;
     }
 }

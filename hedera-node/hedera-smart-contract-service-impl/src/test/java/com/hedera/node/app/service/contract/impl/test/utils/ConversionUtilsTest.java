@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.test.utils;
 
+import static com.hedera.node.app.hapi.utils.contracts.HookUtils.minimalRepresentationOf;
 import static com.hedera.node.app.service.contract.impl.exec.scope.HandleHederaOperations.ZERO_ENTROPY;
 import static com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations.MISSING_ENTITY_NUMBER;
 import static com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations.NON_CANONICAL_REFERENCE_NUMBER;
@@ -30,7 +31,6 @@ import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.as
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.contractIDToBesuAddress;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.contractIDToNum;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.isLongZeroAddress;
-import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.minimalRepresentationOf;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.numberOfLongZero;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.pbjLogFrom;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.pbjLogsFrom;
@@ -56,6 +56,7 @@ import com.hedera.hapi.node.contract.ContractLoginfo;
 import com.hedera.hapi.streams.ContractStateChange;
 import com.hedera.hapi.streams.ContractStateChanges;
 import com.hedera.hapi.streams.StorageChange;
+import com.hedera.node.app.hapi.utils.contracts.HookUtils;
 import com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations;
 import com.hedera.node.app.service.contract.impl.utils.ConversionUtils;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
@@ -92,7 +93,7 @@ class ConversionUtilsTest {
         final var start = n == 0
                 ? com.hedera.pbj.runtime.io.buffer.Bytes.EMPTY
                 : com.hedera.pbj.runtime.io.buffer.Bytes.fromHex("00".repeat(n));
-        final var padded = ConversionUtils.leftPad32(start);
+        final var padded = HookUtils.leftPad32(start);
         assertEquals(FULL_32, padded);
     }
 
@@ -115,7 +116,7 @@ class ConversionUtilsTest {
                 .mapToObj(i -> com.hedera.pbj.runtime.io.buffer.Bytes.fromHex("12".repeat(i)))
                 .toList();
         final List<com.hedera.pbj.runtime.io.buffer.Bytes> somePaddedTopics =
-                someStrippedTopics.stream().map(ConversionUtils::leftPad32).toList();
+                someStrippedTopics.stream().map(HookUtils::leftPad32).toList();
         final var data = com.hedera.pbj.runtime.io.buffer.Bytes.wrap("DATA");
         final var conciseLog = new EvmTransactionLog(CALLED_CONTRACT_ID, data, someStrippedTopics);
         final var besuLog = ConversionUtils.asBesuLog(conciseLog, somePaddedTopics);

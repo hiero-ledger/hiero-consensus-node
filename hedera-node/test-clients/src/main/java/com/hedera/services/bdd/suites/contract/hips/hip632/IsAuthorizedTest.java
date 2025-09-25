@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.suites.contract.hips.hip632;
 
 import static com.hedera.node.app.hapi.utils.EthSigsUtils.recoverAddressFromPrivateKey;
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.defaultHapiSpec;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
@@ -99,6 +100,7 @@ public class IsAuthorizedTest {
     @DisplayName("IsAuthorizedRaw")
     class IsAuthorizedRawTests {
         @HapiTest
+        @Tag(MATS)
         final Stream<DynamicTest> isAuthorizedRawECDSAHappyPath() {
             return hapiTest(
                     newKeyNamed(ECDSA_KEY).shape(SECP_256K1_SHAPE).generator(new RepeatableKeyGenerator()),
@@ -831,6 +833,7 @@ public class IsAuthorizedTest {
         }
 
         @HapiTest
+        @Tag(MATS)
         final Stream<DynamicTest> thresholdKey1of2HappyPath() {
             final AtomicReference<AccountID> accountNum = new AtomicReference<>();
             return hapiTest(

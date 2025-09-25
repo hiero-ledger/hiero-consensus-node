@@ -11,14 +11,10 @@ import static com.swirlds.virtualmap.VirtualMap.CLASS_ID;
 import static com.swirlds.virtualmap.internal.Path.FIRST_LEFT_PATH;
 import static com.swirlds.virtualmap.internal.Path.INVALID_PATH;
 import static com.swirlds.virtualmap.internal.Path.ROOT_PATH;
-import static com.swirlds.virtualmap.internal.Path.getIndexInRank;
 import static com.swirlds.virtualmap.internal.Path.getLeftChildPath;
 import static com.swirlds.virtualmap.internal.Path.getParentPath;
-import static com.swirlds.virtualmap.internal.Path.getPathForRankAndIndex;
-import static com.swirlds.virtualmap.internal.Path.getRank;
 import static com.swirlds.virtualmap.internal.Path.getRightChildPath;
 import static com.swirlds.virtualmap.internal.Path.getSiblingPath;
-import static com.swirlds.virtualmap.internal.Path.isFarRight;
 import static com.swirlds.virtualmap.internal.Path.isLeft;
 import static java.util.Objects.requireNonNull;
 import static java.util.concurrent.TimeUnit.MINUTES;
@@ -202,13 +198,6 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
     /** Platform configuration */
     @NonNull
     private final Configuration configuration;
-
-    /**
-     * The maximum size() we have reached, where we have (already) recorded a warning message about how little
-     * space is left before this {@link VirtualMap} hits the size limit.  We retain this information
-     * because if we later delete some nodes and then add some more, we don't want to trigger a duplicate warning.
-     */
-    private long maxSizeReachedTriggeringWarning = 0;
 
     /**
      * A {@link VirtualDataSourceBuilder} used for creating instances of {@link VirtualDataSource}.
@@ -419,7 +408,6 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
         reconnectHashingStarted = null;
         reconnectIterator = null;
         reconnectRecords = null;
-        maxSizeReachedTriggeringWarning = source.maxSizeReachedTriggeringWarning;
         pipeline = source.pipeline;
         flushCandidateThreshold.set(source.flushCandidateThreshold.get());
         statistics = source.statistics;
@@ -1476,28 +1464,6 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
         // We will compute the new leaf path below, and ultimately set it on the leaf.
         long leafPath;
 
-        // Confirm that adding one more entry is not too much for this VirtualMap to hold.
-        final long currentSize = size();
-        final long maximumAllowedSize = virtualMapConfig.maximumVirtualMapSize();
-        if (currentSize >= maximumAllowedSize) {
-            throw new IllegalStateException("Virtual Map has no more space");
-        }
-
-        final long remainingCapacity = maximumAllowedSize - currentSize;
-        if ((currentSize > maxSizeReachedTriggeringWarning)
-                && (remainingCapacity <= virtualMapConfig.virtualMapWarningThreshold())
-                && (remainingCapacity % virtualMapConfig.virtualMapWarningInterval() == 0)) {
-
-            maxSizeReachedTriggeringWarning = currentSize;
-            logger.warn(
-                    VIRTUAL_MERKLE_STATS.getMarker(),
-                    "Virtual Map only has room for {} additional entries",
-                    remainingCapacity);
-        }
-        if (remainingCapacity == 1) {
-            logger.warn(VIRTUAL_MERKLE_STATS.getMarker(), "Virtual Map is now full!");
-        }
-
         // Find the lastLeafPath which will tell me the new path for this new item
         final long lastLeafPath = metadata.getLastLeafPath();
         if (lastLeafPath == INVALID_PATH) {
@@ -1516,14 +1482,9 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
             // an open position on root. So we need to pick a node where a leaf currently exists
             // and then swap it out with a parent, move the leaf to the parent as the
             // "left", and then we can put the new leaf on the right. It turns out,
-            // the slot is always the firstLeafPath. If the current firstLeafPath
-            // is all the way on the far right of the graph, then the next firstLeafPath
-            // will be the first leaf on the far left of the next rank. Otherwise,
-            // it is just the sibling to the right.
+            // the slot is always the firstLeafPath
             final long firstLeafPath = metadata.getFirstLeafPath();
-            final long nextFirstLeafPath = isFarRight(firstLeafPath)
-                    ? getPathForRankAndIndex((byte) (getRank(firstLeafPath) + 1), 0)
-                    : getPathForRankAndIndex(getRank(firstLeafPath), getIndexInRank(firstLeafPath) + 1);
+            final long nextFirstLeafPath = firstLeafPath + 1;
 
             // The firstLeafPath points to the old leaf that we want to replace.
             // Get the old leaf.

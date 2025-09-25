@@ -82,11 +82,11 @@ public class HapiContractUpdate extends HapiTxnOp<HapiContractUpdate> {
         return this;
     }
 
-    public HapiContractUpdate withHook(final Function<HapiSpec, HookCreationDetails> hookFactory) {
+    public HapiContractUpdate withHooks(final Function<HapiSpec, HookCreationDetails>... hookFactory) {
         if (this.hookFactories.isEmpty()) {
             this.hookFactories = new ArrayList<>();
         }
-        this.hookFactories.add(hookFactory);
+        this.hookFactories.addAll(List.of(hookFactory));
         return this;
     }
 

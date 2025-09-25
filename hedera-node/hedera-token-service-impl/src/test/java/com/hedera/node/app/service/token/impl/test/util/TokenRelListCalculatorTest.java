@@ -3,7 +3,8 @@ package com.hedera.node.app.service.token.impl.test.util;
 
 import static com.hedera.node.app.service.token.impl.handlers.BaseCryptoHandler.asAccount;
 import static com.hedera.node.app.service.token.impl.handlers.BaseTokenHandler.asToken;
-import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.TOKEN_RELS_KEY;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.TOKEN_RELS_STATE_ID;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.TOKEN_RELS_STATE_LABEL;
 import static com.hedera.node.app.service.token.impl.test.handlers.util.AdapterUtils.mockStates;
 import static org.mockito.Mockito.mock;
 
@@ -13,7 +14,6 @@ import com.hedera.hapi.node.state.common.EntityIDPair;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.state.token.TokenRelation;
 import com.hedera.node.app.service.token.ReadableTokenRelationStore;
-import com.hedera.node.app.service.token.TokenService;
 import com.hedera.node.app.service.token.impl.ReadableTokenRelationStoreImpl;
 import com.hedera.node.app.service.token.impl.util.TokenRelListCalculator;
 import com.hedera.node.app.spi.ids.ReadableEntityCounters;
@@ -291,8 +291,8 @@ class TokenRelListCalculatorTest {
                         .build(),
                 LOCAL_TOKEN_REL_5);
 
-        final var wrappedState = new MapReadableKVState<>(TokenService.NAME, TOKEN_RELS_KEY, tokenRels);
+        final var wrappedState = new MapReadableKVState<>(TOKEN_RELS_STATE_ID, TOKEN_RELS_STATE_LABEL, tokenRels);
         return new ReadableTokenRelationStoreImpl(
-                mockStates(Map.of(TOKEN_RELS_KEY, wrappedState)), mock(ReadableEntityCounters.class));
+                mockStates(Map.of(TOKEN_RELS_STATE_ID, wrappedState)), mock(ReadableEntityCounters.class));
     }
 }

@@ -3,7 +3,7 @@ package com.hedera.node.app.service.addressbook.impl.test.handlers;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ADMIN_KEY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_NODE_ID;
-import static com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema.NODES_KEY;
+import static com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema.NODES_STATE_ID;
 import static com.hedera.node.app.spi.fixtures.Assertions.assertThrowsPreCheck;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
@@ -80,7 +80,7 @@ class NodeDeleteHandlerTest extends AddressBookTestBase {
         subject = new NodeDeleteHandler();
 
         writableNodeState = writableNodeStateWithOneKey();
-        given(writableStates.<EntityNumber, Node>get(NODES_KEY)).willReturn(writableNodeState);
+        given(writableStates.<EntityNumber, Node>get(NODES_STATE_ID)).willReturn(writableNodeState);
         testConfig = HederaTestConfigBuilder.createConfig();
         writableStore = new WritableNodeStore(writableStates, writableEntityCounters);
         lenient().when(handleContext.configuration()).thenReturn(testConfig);
@@ -134,7 +134,7 @@ class NodeDeleteHandlerTest extends AddressBookTestBase {
 
         given(handleContext.storeFactory()).willReturn(storeFactory);
         writableNodeState = emptyWritableNodeState();
-        given(writableStates.<EntityNumber, Node>get(NODES_KEY)).willReturn(writableNodeState);
+        given(writableStates.<EntityNumber, Node>get(NODES_STATE_ID)).willReturn(writableNodeState);
         writableStore = new WritableNodeStore(writableStates, writableEntityCounters);
         given(storeFactory.writableStore(WritableNodeStore.class)).willReturn(writableStore);
 
@@ -155,7 +155,7 @@ class NodeDeleteHandlerTest extends AddressBookTestBase {
 
         given(handleContext.storeFactory()).willReturn(storeFactory);
         writableNodeState = writableNodeStateWithOneKey();
-        given(writableStates.<EntityNumber, Node>get(NODES_KEY)).willReturn(writableNodeState);
+        given(writableStates.<EntityNumber, Node>get(NODES_STATE_ID)).willReturn(writableNodeState);
         writableStore = new WritableNodeStore(writableStates, writableEntityCounters);
         given(storeFactory.writableStore(WritableNodeStore.class)).willReturn(writableStore);
 

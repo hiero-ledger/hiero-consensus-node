@@ -230,12 +230,12 @@ enum StateIdentifier {
     /**
      * A state identifier for contract storage slots. Key/value state.
      */
-    STATE_ID_CONTRACT_STORAGE = 4;
+    STATE_ID_STORAGE = 4;
 
     /**
      * A state identifier for contract bytecode. Key/value state.
      */
-    STATE_ID_CONTRACT_BYTECODE = 5;
+    STATE_ID_BYTECODE = 5;
 
     /**
      * A state identifier for Hedera File Service (HFS). Key/value state.
@@ -255,27 +255,27 @@ enum StateIdentifier {
     /**
      * A state identifier for token relationships. Key/value state.
      */
-    STATE_ID_TOKEN_RELATIONS = 9;
+    STATE_ID_TOKEN_RELS = 9;
 
     /**
      * A state identifier for network staking information. Key/value state.
      */
-    STATE_ID_STAKING_INFO = 10;
+    STATE_ID_STAKING_INFOS = 10;
 
     /**
      * A state identifier for network staking rewards. Singleton state.
      */
-    STATE_ID_NETWORK_REWARDS = 11;
+    STATE_ID_STAKING_NETWORK_REWARDS = 11;
 
     /**
      * A state identifier for throttle usage. Singleton state.
      */
-    STATE_ID_THROTTLE_USAGE = 12;
+    STATE_ID_THROTTLE_USAGE_SNAPSHOTS = 12;
 
     /**
      * A state identifier for network congestion start times. Singleton state.
      */
-    STATE_ID_CONGESTION_STARTS = 13;
+    STATE_ID_CONGESTION_LEVEL_STARTS = 13;
 
     /**
      * A state identifier for scheduled transactions. Key/value state.
@@ -285,7 +285,7 @@ enum StateIdentifier {
     /**
      * A state identifier for scheduled transaction expiration. Key/value state.
      */
-    STATE_ID_SCHEDULES_BY_EXPIRY = 15;
+    STATE_ID_SCHEDULES_BY_EXPIRY_SEC = 15;
 
     /**
      * A state identifier for scheduled transaction deduplication. Key/value state.
@@ -305,7 +305,7 @@ enum StateIdentifier {
     /**
      * A state identifier for network block information. Singleton state.
      */
-    STATE_ID_BLOCK_INFO = 19;
+    STATE_ID_BLOCKS = 19;
 
     /**
      * A state identifier for address book nodes. Key/value state.
@@ -476,7 +476,7 @@ enum StateIdentifier {
     /**
      * A state identifier for the round receipts queue. Queue state.
      */
-    STATE_ID_TRANSACTION_RECEIPTS_QUEUE = 126;
+    STATE_ID_TRANSACTION_RECEIPTS = 126;
 
     /**
      * A state for the `150` upgrade file data. Queue state.

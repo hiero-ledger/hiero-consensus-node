@@ -5,8 +5,11 @@ import com.hedera.pbj.runtime.Schema;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Set;
 
-/** Essentially, a map of {@link ReadableKVState}s. Each state may be retrieved by key. */
+/**
+ * Essentially, a map of {@link ReadableKVState}s. Each state may be retrieved by key.
+ */
 public interface ReadableStates {
+
     /**
      * Gets the {@link ReadableKVState} associated with the given stateKey. If the state cannot be
      * found, an exception is thrown. This should **never** happen in an application, and represents
@@ -16,29 +19,29 @@ public interface ReadableStates {
      * <p>This method is idempotent. When called with the same stateKey, the same {@link
      * ReadableKVState} instance is returned.
      *
-     * @param stateKey The key used for looking up state
-     * @return The state for that key. This will never be null.
+     * @param stateId The ID used for looking up state
+     * @return The state for that ID. This will never be null.
      * @param <K> The key type in the state.
      * @param <V> The value type in the state.
      * @throws NullPointerException if stateKey is null.
      * @throws IllegalArgumentException if the state cannot be found.
      */
     @NonNull
-    <K, V> ReadableKVState<K, V> get(@NonNull String stateKey);
+    <K, V> ReadableKVState<K, V> get(final int stateId);
 
     @NonNull
-    <T> ReadableSingletonState<T> getSingleton(@NonNull String stateKey);
+    <T> ReadableSingletonState<T> getSingleton(final int stateId);
 
     @NonNull
-    <E> ReadableQueueState<E> getQueue(@NonNull String stateKey);
+    <E> ReadableQueueState<E> getQueue(final int stateId);
 
     /**
-     * Gets whether the given state key is a member of this set.
+     * Gets whether the given state ID is a member of this set.
      *
-     * @param stateKey The state key
-     * @return true if a subsequent call to {@link #get(String)} with this state key would succeed.
+     * @param stateId The state ID
+     * @return true if a subsequent call to {@link #get(int)} with this state key would succeed.
      */
-    boolean contains(@NonNull String stateKey);
+    boolean contains(final int stateId);
 
     /**
      * Gets the set of all state keys supported by this map of states.
@@ -46,7 +49,7 @@ public interface ReadableStates {
      * @return The set of all state keys.
      */
     @NonNull
-    Set<String> stateKeys();
+    Set<Integer> stateIds();
 
     /**
      * Gets the number of states contained in this instance.
@@ -54,7 +57,7 @@ public interface ReadableStates {
      * @return The number of states. The value will be non-negative.
      */
     default int size() {
-        return stateKeys().size();
+        return stateIds().size();
     }
 
     /**
@@ -63,6 +66,6 @@ public interface ReadableStates {
      * @return True if there are no states in this instance.
      */
     default boolean isEmpty() {
-        return stateKeys().isEmpty();
+        return stateIds().isEmpty();
     }
 }

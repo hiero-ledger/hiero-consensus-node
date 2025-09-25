@@ -274,6 +274,8 @@ public class ConfigManager {
             if (!isValid(keyFile, finalPassphrase)) {
                 fail(String.format("No valid passphrase could be obtained for PEM %s!", keyFile.getName()));
             }
+            // clear genesis payer pem resource and then set the new payer as default
+            specConfig.put("default.payer.pemKeyResource", "");
             specConfig.put("default.payer.pemKeyLoc", keyFile.getPath());
             specConfig.put("default.payer.pemKeyPassphrase", finalPassphrase.get());
         } else if (keyFile.getAbsolutePath().endsWith("words")) {

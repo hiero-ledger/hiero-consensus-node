@@ -17,12 +17,11 @@ module com.hedera.node.app.service.token.impl {
     requires transitive javax.inject;
     requires com.swirlds.base;
     requires com.swirlds.common;
+    requires com.github.spotbugs.annotations;
     requires com.google.common;
     requires org.apache.commons.lang3;
     requires org.apache.logging.log4j;
     requires org.bouncycastle.provider;
-    requires static transitive com.github.spotbugs.annotations;
-    requires static java.compiler; // javax.annotation.processing.Generated
 
     exports com.hedera.node.app.service.token.impl.handlers;
     exports com.hedera.node.app.service.token.impl;

@@ -6,12 +6,9 @@ import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.pbj.runtime.Codec;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.utility.Labeled;
-import com.swirlds.merkle.map.MerkleMap;
 import com.swirlds.state.lifecycle.StateDefinition;
 import com.swirlds.state.lifecycle.StateMetadata;
 import com.swirlds.state.merkle.MerkleStateRoot;
-import com.swirlds.state.merkle.memory.InMemoryKey;
-import com.swirlds.state.merkle.memory.InMemoryValue;
 import com.swirlds.state.test.fixtures.StateTestBase;
 import com.swirlds.state.test.fixtures.merkle.TestSchema;
 import com.swirlds.virtualmap.VirtualMap;
@@ -32,8 +29,8 @@ import com.swirlds.virtualmap.VirtualMap;
  * #SECOND_SERVICE} has space, steam, and country themed states. Most of these are simple String
  * types for the key and value, but the space themed state uses Long as the key type.
  *
- * <p>This class defines all the {@link Codec}, {@link StateMetadata}, and {@link MerkleMap}s
- * required to represent each of these. It does not create a {@link VirtualMap} automatically, but
+ * <p>This class defines all the {@link Codec}s and {@link StateMetadata}s required to
+ * represent each of these. It does not create a {@link VirtualMap} automatically, but
  * does provide APIs to make it easy to create them (the {@link VirtualMap} has a lot of setup
  * complexity, and also requires a storage directory, so rather than creating these for every test
  * even if they don't need it, I just use it for virtual map specific tests).
@@ -43,64 +40,35 @@ public class MerkleTestBase extends com.swirlds.state.test.fixtures.merkle.Merkl
     protected SemanticVersion v1 = SemanticVersion.newBuilder().major(1).build();
 
     protected StateMetadata<ProtoBytes, ProtoBytes> fruitMetadata;
-    protected StateMetadata<ProtoBytes, ProtoBytes> fruitVirtualMetadata;
-    protected StateMetadata<ProtoBytes, ProtoBytes> animalMetadata;
-    protected StateMetadata<ProtoBytes, ProtoBytes> spaceMetadata;
     protected StateMetadata<ProtoBytes, ProtoBytes> steamMetadata;
     protected StateMetadata<ProtoBytes, ProtoBytes> countryMetadata;
-
-    /** Sets up the "Fruit" merkle map, label, and metadata. */
-    @Override
-    protected void setupFruitMerkleMap() {
-        super.setupFruitMerkleMap();
-        fruitMetadata = new StateMetadata<>(
-                FIRST_SERVICE,
-                new TestSchema(1),
-                StateDefinition.inMemory(FRUIT_STATE_KEY, ProtoBytes.PROTOBUF, ProtoBytes.PROTOBUF));
-    }
 
     /** Sets up the "Fruit" virtual map, label, and metadata. */
     @Override
     protected void setupFruitVirtualMap() {
         super.setupFruitVirtualMap();
-        fruitVirtualMetadata = new StateMetadata<>(
+        fruitMetadata = new StateMetadata<>(
                 FIRST_SERVICE,
                 new TestSchema(1),
-                StateDefinition.onDisk(FRUIT_STATE_KEY, ProtoBytes.PROTOBUF, ProtoBytes.PROTOBUF, 100));
-    }
-
-    /** Sets up the "Animal" merkle map, label, and metadata. */
-    @Override
-    protected void setupAnimalMerkleMap() {
-        super.setupAnimalMerkleMap();
-        animalMetadata = new StateMetadata<>(
-                FIRST_SERVICE,
-                new TestSchema(1),
-                StateDefinition.inMemory(ANIMAL_STATE_KEY, ProtoBytes.PROTOBUF, ProtoBytes.PROTOBUF));
-    }
-
-    /** Sets up the "Space" merkle map, label, and metadata. */
-    @Override
-    protected void setupSpaceMerkleMap() {
-        super.setupSpaceMerkleMap();
-        spaceMetadata = new StateMetadata<>(
-                SECOND_SERVICE,
-                new TestSchema(1),
-                StateDefinition.inMemory(SPACE_STATE_KEY, ProtoBytes.PROTOBUF, ProtoBytes.PROTOBUF));
+                StateDefinition.onDisk(FRUIT_STATE_ID, FRUIT_STATE_KEY, ProtoBytes.PROTOBUF, ProtoBytes.PROTOBUF, 100));
     }
 
     @Override
     protected void setupSingletonCountry() {
         super.setupSingletonCountry();
         countryMetadata = new StateMetadata<>(
-                FIRST_SERVICE, new TestSchema(1), StateDefinition.singleton(COUNTRY_STATE_KEY, ProtoBytes.PROTOBUF));
+                FIRST_SERVICE,
+                new TestSchema(1),
+                StateDefinition.singleton(COUNTRY_STATE_ID, COUNTRY_STATE_KEY, ProtoBytes.PROTOBUF));
     }
 
     @Override
     protected void setupSteamQueue() {
         super.setupSteamQueue();
         steamMetadata = new StateMetadata<>(
-                FIRST_SERVICE, new TestSchema(1), StateDefinition.queue(STEAM_STATE_KEY, ProtoBytes.PROTOBUF));
+                FIRST_SERVICE,
+                new TestSchema(1),
+                StateDefinition.queue(STEAM_STATE_ID, STEAM_STATE_KEY, ProtoBytes.PROTOBUF));
     }
 
     /**
@@ -123,24 +91,14 @@ public class MerkleTestBase extends com.swirlds.state.test.fixtures.merkle.Merkl
         return null;
     }
 
-    /** A convenience method for adding a k/v state to a merkle map */
-    protected void addKvState(
-            MerkleMap<InMemoryKey<ProtoBytes>, InMemoryValue<ProtoBytes, ProtoBytes>> map,
-            StateMetadata<ProtoBytes, ProtoBytes> md,
-            ProtoBytes key,
-            ProtoBytes value) {
-        final var def = md.stateDefinition();
-        super.addKvState(map, md.inMemoryValueClassId(), def.keyCodec(), def.valueCodec(), key, value);
-    }
-
     /** A convenience method for adding a singleton state to a virtual map */
     protected void addSingletonState(VirtualMap map, StateMetadata<ProtoBytes, ProtoBytes> md, ProtoBytes value) {
-        super.addSingletonState(map, md.serviceName(), md.stateDefinition().stateKey(), value);
+        addSingletonState(map, md.serviceName(), md.stateDefinition().stateId(), value);
     }
 
     /** A convenience method for adding a k/v state to a virtual map */
     protected void addKvState(
             VirtualMap map, StateMetadata<ProtoBytes, ProtoBytes> md, ProtoBytes key, ProtoBytes value) {
-        super.addKvState(map, md.serviceName(), md.stateDefinition().stateKey(), key, value);
+        addKvState(map, md.serviceName(), md.stateDefinition().stateId(), key, value);
     }
 }

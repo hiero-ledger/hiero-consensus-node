@@ -49,6 +49,7 @@ import com.hedera.node.app.service.token.records.CryptoDeleteStreamBuilder;
 import com.hedera.node.app.service.token.records.CryptoTransferStreamBuilder;
 import com.hedera.node.app.service.token.records.CryptoUpdateStreamBuilder;
 import com.hedera.node.app.service.token.records.GenesisAccountStreamBuilder;
+import com.hedera.node.app.service.token.records.HookDispatchStreamBuilder;
 import com.hedera.node.app.service.token.records.NodeStakeUpdateStreamBuilder;
 import com.hedera.node.app.service.token.records.TokenAccountWipeStreamBuilder;
 import com.hedera.node.app.service.token.records.TokenAirdropStreamBuilder;
@@ -102,7 +103,8 @@ public class PairedStreamBuilder
                 CryptoUpdateStreamBuilder,
                 NodeCreateStreamBuilder,
                 TokenAirdropStreamBuilder,
-                ReplayableFeeStreamBuilder {
+                ReplayableFeeStreamBuilder,
+                HookDispatchStreamBuilder {
     private final BlockStreamBuilder blockStreamBuilder;
     private final RecordStreamBuilder recordStreamBuilder;
 
@@ -679,5 +681,16 @@ public class PairedStreamBuilder
     @Override
     public HederaFunctionality functionality() {
         return blockStreamBuilder.functionality();
+    }
+
+    @Override
+    public void nextHookId(final long nextHookId) {
+        recordStreamBuilder.nextHookId(nextHookId);
+        blockStreamBuilder.nextHookId(nextHookId);
+    }
+
+    @Override
+    public long getNextHookId() {
+        return blockStreamBuilder.getNextHookId();
     }
 }

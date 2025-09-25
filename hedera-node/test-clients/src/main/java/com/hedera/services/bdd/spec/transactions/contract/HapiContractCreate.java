@@ -87,11 +87,11 @@ public class HapiContractCreate extends HapiBaseContractCreate<HapiContractCreat
         return this;
     }
 
-    public HapiContractCreate withHook(final Function<HapiSpec, HookCreationDetails> hookFactory) {
+    public HapiContractCreate withHooks(final Function<HapiSpec, HookCreationDetails>... hookFactory) {
         if (this.hookFactories.isEmpty()) {
             this.hookFactories = new ArrayList<>();
         }
-        this.hookFactories.add(hookFactory);
+        this.hookFactories.addAll(List.of(hookFactory));
         return this;
     }
 

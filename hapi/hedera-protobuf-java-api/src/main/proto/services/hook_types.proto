@@ -60,15 +60,10 @@ message HookCreationDetails {
    */
   oneof hook {
     /**
-     * A hook programmed in EVM bytecode that does not require access to state
-     * or interactions with external contracts.
-     */
-    PureEvmHook pure_evm_hook = 3;
-    /**
      * A hook programmed in EVM bytecode that may access state or interact with
      * external contracts.
      */
-    LambdaEvmHook lambda_evm_hook = 4;
+    LambdaEvmHook lambda_evm_hook = 3;
   }
 
   /**
@@ -76,17 +71,7 @@ message HookCreationDetails {
    * applicable, as with a lambda EVM hook) perform transactions that customize
    * the hook.
    */
-  proto.Key admin_key = 5;
-}
-
-/**
- * Definition of a lambda EVM hook.
- */
-message PureEvmHook {
-  /**
-   * The specification for the hook.
-   */
-  EvmHookSpec spec = 1;
+  proto.Key admin_key = 4;
 }
 
 /**

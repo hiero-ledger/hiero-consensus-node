@@ -21,6 +21,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class V059HintsSchemaTest {
+
     @Mock
     private WritableStates writableStates;
 
@@ -46,8 +47,8 @@ class V059HintsSchemaTest {
     @Test
     void definesStatesWithExpectedKeys() {
         final var expectedStateNames = Set.of(
-                V059HintsSchema.ACTIVE_HINT_CONSTRUCTION_KEY,
-                V059HintsSchema.NEXT_HINT_CONSTRUCTION_KEY,
+                V059HintsSchema.ACTIVE_HINTS_CONSTRUCTION_KEY,
+                V059HintsSchema.NEXT_HINTS_CONSTRUCTION_KEY,
                 V059HintsSchema.PREPROCESSING_VOTES_KEY,
                 V059HintsSchema.HINTS_KEY_SETS_KEY);
         final var actualStateNames =
@@ -58,9 +59,9 @@ class V059HintsSchemaTest {
     @Test
     void ensuresNonNullSingletonValues() {
         given(migrationContext.newStates()).willReturn(writableStates);
-        given(writableStates.<HintsConstruction>getSingleton(V059HintsSchema.ACTIVE_HINT_CONSTRUCTION_KEY))
+        given(writableStates.<HintsConstruction>getSingleton(V059HintsSchema.ACTIVE_HINTS_CONSTRUCTION_STATE_ID))
                 .willReturn(activeConstructionState);
-        given(writableStates.<HintsConstruction>getSingleton(V059HintsSchema.NEXT_HINT_CONSTRUCTION_KEY))
+        given(writableStates.<HintsConstruction>getSingleton(V059HintsSchema.NEXT_HINTS_CONSTRUCTION_STATE_ID))
                 .willReturn(nextConstructionState);
 
         subject.migrate(migrationContext);

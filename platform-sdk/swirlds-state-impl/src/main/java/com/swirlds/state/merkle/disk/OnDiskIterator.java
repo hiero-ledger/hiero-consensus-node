@@ -1,29 +1,36 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.state.merkle.disk;
 
-import static com.swirlds.state.merkle.StateUtils.extractStateKeyValueStateId;
 import static java.util.Objects.requireNonNull;
 
-import com.hedera.hapi.platform.state.StateKey;
 import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.iterators.MerkleIterator;
+import com.swirlds.state.merkle.StateKeyUtils;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.internal.merkle.VirtualLeafNode;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.Iterator;
 import java.util.NoSuchElementException;
 
-public class OnDiskIterator<K, V> extends BackedOnDiskIterator<K, V> {
+public class OnDiskIterator<K> implements Iterator<K> {
 
+    // State ID
     private final int stateId;
+
+    // Key protobuf codec
+    private final Codec<K> keyCodec;
+
+    // Merkle node iterator, typically over a virtual map
     private final MerkleIterator<MerkleNode> itr;
+
     private K next = null;
 
     public OnDiskIterator(@NonNull final VirtualMap virtualMap, @NonNull final Codec<K> keyCodec, final int stateId) {
-        super(virtualMap, keyCodec);
         this.stateId = stateId;
+        this.keyCodec = requireNonNull(keyCodec);
         itr = requireNonNull(virtualMap).treeIterator();
     }
 
@@ -35,12 +42,11 @@ public class OnDiskIterator<K, V> extends BackedOnDiskIterator<K, V> {
         while (itr.hasNext()) {
             final MerkleNode merkleNode = itr.next();
             if (merkleNode instanceof VirtualLeafNode leaf) {
-                final Bytes k = leaf.getKey();
-                final int nextNextStateId = extractStateKeyValueStateId(k);
+                final Bytes stateKey = leaf.getKey();
+                final int nextNextStateId = StateKeyUtils.extractStateIdFromStateKeyOneOf(stateKey);
                 if (stateId == nextNextStateId) {
                     try {
-                        final StateKey parse = StateKey.PROTOBUF.parse(k);
-                        this.next = parse.key().as();
+                        this.next = StateKeyUtils.extractKeyFromStateKeyOneOf(stateKey, keyCodec);
                         return true;
                     } catch (final ParseException e) {
                         throw new RuntimeException("Failed to parse a key", e);

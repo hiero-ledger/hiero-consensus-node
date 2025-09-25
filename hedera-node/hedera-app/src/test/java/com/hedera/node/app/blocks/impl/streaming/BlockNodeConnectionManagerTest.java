@@ -13,6 +13,7 @@ import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.reset;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
@@ -62,6 +63,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     private static final VarHandle lastVerifiedBlockPerConnectionHandle;
     private static final VarHandle connectivityTaskConnectionHandle;
     private static final VarHandle isStreamingEnabledHandle;
+    private static final VarHandle nodeStatsHandle;
     private static final MethodHandle jumpToBlockIfNeededHandle;
     private static final MethodHandle processStreamingToBlockNodeHandle;
     private static final MethodHandle blockStreamWorkerLoopHandle;
@@ -91,6 +93,8 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
                     .findVarHandle(BlockNodeConnectionTask.class, "connection", BlockNodeConnection.class);
             isStreamingEnabledHandle = MethodHandles.privateLookupIn(BlockNodeConnectionManager.class, lookup)
                     .findVarHandle(BlockNodeConnectionManager.class, "isStreamingEnabled", AtomicBoolean.class);
+            nodeStatsHandle = MethodHandles.privateLookupIn(BlockNodeConnectionManager.class, lookup)
+                    .findVarHandle(BlockNodeConnectionManager.class, "nodeStats", Map.class);
 
             final Method jumpToBlockIfNeeded =
                     BlockNodeConnectionManager.class.getDeclaredMethod("jumpToBlockIfNeeded");
@@ -244,6 +248,8 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         final AtomicReference<Thread> workerThreadRef = workerThread();
         workerThreadRef.set(dummyWorkerThread);
 
+        isActive.set(true);
+
         try {
             connectionManager.shutdown();
         } finally {
@@ -252,19 +258,32 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
             workerThreadRef.set(null);
         }
 
+        final AtomicReference<BlockNodeConnection> activeConnRef = activeConnection();
+        assertThat(activeConnRef).hasNullValue();
+
         assertThat(connections).isEmpty();
         assertThat(isActive).isFalse();
+
+        final AtomicLong streamBlockNum = streamingBlockNumber();
+        assertThat(streamBlockNum).hasValue(-1);
+
+        final Map<BlockNodeConfig, BlockNodeStats> nodeStats = nodeStats();
+        assertThat(nodeStats).isEmpty();
+
+        // calling shutdown again should not fail
+        connectionManager.shutdown();
 
         verify(node1Conn).close(true);
         verify(node2Conn).close(true);
         verify(node3Conn).close(true);
         verify(dummyWorkerThread).interrupt();
         verify(dummyWorkerThread).join();
+        verify(bufferService, times(2)).shutdown();
         verifyNoMoreInteractions(node1Conn);
         verifyNoMoreInteractions(node2Conn);
         verifyNoMoreInteractions(node3Conn);
         verifyNoInteractions(executorService);
-        verifyNoInteractions(bufferService);
+        verifyNoMoreInteractions(bufferService);
         verifyNoInteractions(metrics);
     }
 
@@ -272,6 +291,8 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     void testShutdown_withWorkerThreadInterrupt() throws InterruptedException {
         final AtomicBoolean isActive = isActiveFlag();
         final Thread dummyWorkerThread = mock(Thread.class);
+
+        isActive.set(true);
 
         doThrow(new InterruptedException("wakey wakey, eggs and bakey"))
                 .when(dummyWorkerThread)
@@ -292,8 +313,9 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
         verify(dummyWorkerThread).interrupt();
         verify(dummyWorkerThread).join();
+        verify(bufferService).shutdown();
         verifyNoInteractions(executorService);
-        verifyNoInteractions(bufferService);
+        verifyNoMoreInteractions(bufferService);
         verifyNoInteractions(metrics);
     }
 
@@ -302,10 +324,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         final AtomicBoolean isActive = isActiveFlag();
         isActive.set(true);
 
-        final Exception exception = catchException(() -> connectionManager.start());
-        assertThat(exception)
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessage("Connection manager already started");
+        connectionManager.start();
 
         verifyNoInteractions(executorService);
         verifyNoInteractions(bufferService);
@@ -1406,6 +1425,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         return (AtomicBoolean) isStreamingEnabledHandle.get(connectionManager);
     }
 
+    @SuppressWarnings("unchecked")
     private Map<BlockNodeConfig, Long> lastVerifiedBlockPerConnection() {
         return (Map<BlockNodeConfig, Long>) lastVerifiedBlockPerConnectionHandle.get(connectionManager);
     }
@@ -1418,14 +1438,17 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         return (AtomicLong) jumpTargetHandle.get(connectionManager);
     }
 
+    @SuppressWarnings("unchecked")
     private AtomicReference<BlockNodeConnection> activeConnection() {
         return (AtomicReference<BlockNodeConnection>) activeConnectionRefHandle.get(connectionManager);
     }
 
+    @SuppressWarnings("unchecked")
     private List<BlockNodeConfig> availableNodes() {
         return (List<BlockNodeConfig>) availableNodesHandle.get(connectionManager);
     }
 
+    @SuppressWarnings("unchecked")
     private Map<BlockNodeConfig, BlockNodeConnection> connections() {
         return (Map<BlockNodeConfig, BlockNodeConnection>) connectionsHandle.get(connectionManager);
     }
@@ -1434,8 +1457,14 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         return (AtomicBoolean) isManagerActiveHandle.get(connectionManager);
     }
 
+    @SuppressWarnings("unchecked")
     private AtomicReference<Thread> workerThread() {
         return (AtomicReference<Thread>) workerThreadRefHandle.get(connectionManager);
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<BlockNodeConfig, BlockNodeStats> nodeStats() {
+        return (Map<BlockNodeConfig, BlockNodeStats>) nodeStatsHandle.get(connectionManager);
     }
 
     private void resetMocks() {

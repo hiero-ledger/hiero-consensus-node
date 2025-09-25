@@ -5,7 +5,6 @@ import static java.util.Objects.requireNonNull;
 import static org.hiero.consensus.model.status.PlatformStatus.RECONNECT_COMPLETE;
 import static org.hiero.otter.fixtures.internal.helpers.LogPayloadUtils.parsePayload;
 
-import com.hedera.hapi.platform.state.NodeId;
 import com.swirlds.logging.legacy.payload.ReconnectFailurePayload;
 import com.swirlds.logging.legacy.payload.ReconnectStartPayload;
 import com.swirlds.logging.legacy.payload.SynchronizationCompletePayload;
@@ -13,6 +12,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
+import org.hiero.consensus.model.node.NodeId;
 import org.hiero.otter.fixtures.logging.StructuredLog;
 import org.hiero.otter.fixtures.result.ReconnectFailureNotification;
 import org.hiero.otter.fixtures.result.ReconnectNotification;

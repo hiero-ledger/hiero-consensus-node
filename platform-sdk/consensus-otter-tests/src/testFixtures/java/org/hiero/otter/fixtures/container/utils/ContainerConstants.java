@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.container.utils;
 
-import com.hedera.hapi.platform.state.NodeId;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * Constants and utility methods used by the container setup code and the container code itself.

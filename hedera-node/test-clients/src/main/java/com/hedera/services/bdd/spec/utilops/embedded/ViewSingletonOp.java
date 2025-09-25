@@ -13,20 +13,20 @@ import java.util.function.Consumer;
  * @param <T> the type of the singleton
  */
 public class ViewSingletonOp<T> extends UtilOp {
+
     private final String serviceName;
-    private final String stateKey;
+    private final int stateId;
     private final Consumer<T> observer;
 
     /**
      * Constructs the operation.
      * @param serviceName the name of the service that manages the record
-     * @param stateKey the key of the record in the state
+     * @param stateId the ID of the record in the state
      * @param observer the observer that will receive the record
      */
-    public ViewSingletonOp(
-            @NonNull final String serviceName, @NonNull final String stateKey, @NonNull final Consumer<T> observer) {
+    public ViewSingletonOp(@NonNull final String serviceName, final int stateId, @NonNull final Consumer<T> observer) {
         this.serviceName = requireNonNull(serviceName);
-        this.stateKey = requireNonNull(stateKey);
+        this.stateId = stateId;
         this.observer = requireNonNull(observer);
     }
 
@@ -35,7 +35,7 @@ public class ViewSingletonOp<T> extends UtilOp {
         final var state = spec.embeddedStateOrThrow();
         final var readableStates = state.getReadableStates(serviceName);
         final var singleton =
-                requireNonNull(readableStates.<T>getSingleton(stateKey).get());
+                requireNonNull(readableStates.<T>getSingleton(stateId).get());
         observer.accept(singleton);
         return false;
     }

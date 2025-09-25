@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.precompile.schedule;
 
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getScheduleInfo;
@@ -56,6 +57,7 @@ public class HasScheduleCapacityTest {
 
     @HapiTest
     @DisplayName("call hasScheduleCapacity(uint256,uint256) success")
+    @Tag(MATS)
     public Stream<DynamicTest> hasScheduleCapacityTest() {
         return hapiTest(contract.call("hasScheduleCapacityExample", BigInteger.valueOf(30))
                 .gas(100_000)
@@ -77,6 +79,7 @@ public class HasScheduleCapacityTest {
             value = RepeatableReason.NEEDS_SYNCHRONOUS_HANDLE_WORKFLOW,
             fees = "scheduled-contract-fees.json")
     @DisplayName("call hasScheduleCapacity -> scheduleCall -> deleteSchedule -> success")
+    @Tag(MATS)
     public Stream<DynamicTest> scheduleCallWithCapacityCheckAndDeleteTest() {
         return hapiTest(withOpContext((spec, opLog) -> {
             // create schedule

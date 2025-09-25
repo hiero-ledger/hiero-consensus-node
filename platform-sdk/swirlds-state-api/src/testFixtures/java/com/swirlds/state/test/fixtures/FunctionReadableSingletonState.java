@@ -13,16 +13,14 @@ public class FunctionReadableSingletonState<S> extends ReadableSingletonStateBas
     /**
      * Creates a new instance.
      *
-     * @param serviceName The name of the service that owns the state.
-     * @param stateKey The state key for this instance.
+     * @param stateId The state ID
+     * @param label The state label
      * @param backingStoreAccessor A {@link Supplier} that provides access to the value in the
      *     backing store.
      */
     public FunctionReadableSingletonState(
-            @NonNull final String serviceName,
-            @NonNull final String stateKey,
-            @NonNull final Supplier<S> backingStoreAccessor) {
-        super(serviceName, stateKey);
+            final int stateId, final String label, @NonNull final Supplier<S> backingStoreAccessor) {
+        super(stateId, label);
         this.backingStoreAccessor = Objects.requireNonNull(backingStoreAccessor);
     }
 

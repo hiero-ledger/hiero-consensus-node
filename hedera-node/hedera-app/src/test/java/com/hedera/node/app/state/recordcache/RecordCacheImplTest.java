@@ -10,7 +10,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.UNKNOWN;
 import static com.hedera.node.app.state.HederaRecordCache.DuplicateCheckResult.NO_DUPLICATE;
 import static com.hedera.node.app.state.HederaRecordCache.DuplicateCheckResult.OTHER_NODE;
 import static com.hedera.node.app.state.HederaRecordCache.DuplicateCheckResult.SAME_NODE;
-import static com.hedera.node.app.state.recordcache.schemas.V0540RecordCacheSchema.TXN_RECEIPT_QUEUE;
+import static com.hedera.node.app.state.recordcache.schemas.V0490RecordCacheSchema.TRANSACTION_RECEIPTS_STATE_ID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
@@ -196,7 +196,8 @@ final class RecordCacheImplTest extends AppTestBase {
             final var state = wsa.getState();
             assertThat(state).isNotNull();
             final var services = state.getWritableStates(RecordCacheService.NAME);
-            final WritableQueueState<TransactionReceiptEntries> queue = services.getQueue(TXN_RECEIPT_QUEUE);
+            final WritableQueueState<TransactionReceiptEntries> queue =
+                    services.getQueue(TRANSACTION_RECEIPTS_STATE_ID);
             assertThat(queue).isNotNull();
             queue.add(entry);
             ((ListWritableQueueState<?>) queue).commit();
@@ -245,7 +246,8 @@ final class RecordCacheImplTest extends AppTestBase {
             final var state = wsa.getState();
             assertThat(state).isNotNull();
             final var services = state.getWritableStates(RecordCacheService.NAME);
-            final WritableQueueState<TransactionReceiptEntries> queue = services.getQueue(TXN_RECEIPT_QUEUE);
+            final WritableQueueState<TransactionReceiptEntries> queue =
+                    services.getQueue(TRANSACTION_RECEIPTS_STATE_ID);
 
             // When we replace the data "behind the scenes" (emulating a reconnect) and call rebuild
             final var payer1 = accountId(1001);

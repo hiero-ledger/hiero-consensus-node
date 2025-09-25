@@ -14,10 +14,8 @@ import com.swirlds.common.metrics.platform.MetricKeyRegistry;
 import com.swirlds.common.metrics.platform.PlatformMetricsFactoryImpl;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
-import com.swirlds.merkledb.MerkleDb;
 import com.swirlds.merkledb.MerkleDbDataSource;
 import com.swirlds.merkledb.MerkleDbStatistics;
-import com.swirlds.merkledb.MerkleDbTableConfig;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.virtualmap.datasource.VirtualHashRecord;
@@ -25,7 +23,6 @@ import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.concurrent.ScheduledExecutorService;
-import org.hiero.base.crypto.DigestType;
 
 /**
  * Supports parameterized testing of {@link MerkleDbDataSource} with
@@ -153,18 +150,15 @@ public enum TestType {
                 final boolean enableMerging,
                 boolean preferDiskBasedIndexes)
                 throws IOException {
-            final MerkleDb database = MerkleDb.getInstance(dbPath, CONFIGURATION);
-            final MerkleDbTableConfig tableConfig =
-                    new MerkleDbTableConfig((short) 1, DigestType.SHA_384, size, hashesRamToDiskThreshold);
-            MerkleDbDataSource dataSource = database.createDataSource(name, tableConfig, enableMerging);
+            MerkleDbDataSource dataSource = new MerkleDbDataSource(
+                    dbPath, CONFIGURATION, name, size, hashesRamToDiskThreshold, enableMerging, preferDiskBasedIndexes);
             dataSource.registerMetrics(getMetrics());
             return dataSource;
         }
 
         public MerkleDbDataSource getDataSource(final Path dbPath, final String name, final boolean enableMerging)
                 throws IOException {
-            final MerkleDb database = MerkleDb.getInstance(dbPath, CONFIGURATION);
-            return database.getDataSource(name, enableMerging);
+            return new MerkleDbDataSource(dbPath, CONFIGURATION, name, enableMerging, false);
         }
 
         public VirtualHashRecord createVirtualInternalRecord(final int i) {

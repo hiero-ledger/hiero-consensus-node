@@ -4,10 +4,10 @@ package org.hiero.otter.fixtures.assertions;
 import static org.hiero.otter.fixtures.result.SubscriberAction.CONTINUE;
 import static org.hiero.otter.fixtures.result.SubscriberAction.UNSUBSCRIBE;
 
-import com.hedera.hapi.platform.state.NodeId;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.function.BiConsumer;
+import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.notification.IssNotification.IssType;
 import org.hiero.otter.fixtures.result.MarkerFileSubscriber;
 import org.hiero.otter.fixtures.result.MarkerFilesStatus;
@@ -15,6 +15,10 @@ import org.hiero.otter.fixtures.result.MultipleNodeMarkerFileResults;
 
 /**
  * Continuous assertions for {@link MultipleNodeMarkerFileResults}.
+ *
+ * <p>Please note: If two continuous assertions fail roughly at the same time, it is non-deterministic which one
+ * will report the failure first. This is even true when running a test in the Turtle environment.
+ * If deterministic behavior is required, please use regular assertions instead of continuous assertions.
  */
 @SuppressWarnings({"UnusedReturnValue", "unused"})
 public class MultipleNodeMarkerFileResultsContinuousAssert

@@ -2,6 +2,7 @@
 package com.hedera.node.app.workflows.dispatcher;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.BDDMockito.given;
 
@@ -54,7 +55,7 @@ class ReadableStoreFactoryTest {
             })
     void returnCorrectStoreClass(final Class<?> storeClass) {
         // given
-        given(readableStates.get(anyString())).willReturn(readableKVState);
+        given(readableStates.get(anyInt())).willReturn(readableKVState);
         given(state.getReadableStates(anyString())).willReturn(readableStates);
         final ReadableStoreFactory subject = new ReadableStoreFactory(state);
 

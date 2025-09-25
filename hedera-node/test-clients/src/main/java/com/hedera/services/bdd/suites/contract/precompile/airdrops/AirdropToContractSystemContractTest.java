@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.precompile.airdrops;
 
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.ContractInfoAsserts.*;
@@ -615,6 +616,7 @@ public class AirdropToContractSystemContractTest {
         @HapiTest
         @RepeatableHapiTest(RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
         @DisplayName("Airdrop to Contract that has filled all its maxAutoAssociation slots")
+        @Tag(MATS)
         public Stream<DynamicTest> airdropToContractWithFilledMaxAutoAssoc(
                 @Contract(contract = "EmptyOne", isImmutable = true, maxAutoAssociations = 1)
                         SpecContract receiverContract,
@@ -665,6 +667,7 @@ public class AirdropToContractSystemContractTest {
         @HapiTest
         @RepeatableHapiTest(RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
         @DisplayName("Can airdrop multiple tokens to contract that has free auto association slots")
+        @Tag(MATS)
         public Stream<DynamicTest> airdropTokensToContractWithFreeSlots(
                 @Contract(
                                 contract = "AssociateContract",
@@ -1045,6 +1048,7 @@ public class AirdropToContractSystemContractTest {
         @RepeatableHapiTest(RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
         @DisplayName(
                 "Airdrop frozen token that is already associated to the receiving contract should result in failed airdrop")
+        @Tag(MATS)
         public Stream<DynamicTest> airdropFrozenToken(
                 @Contract(contract = "AssociateContract", isImmutable = true, creationGas = 3_000_000)
                         SpecContract receiverContract,
@@ -1131,6 +1135,7 @@ public class AirdropToContractSystemContractTest {
         @LeakyHapiTest(overrides = {"entities.unlimitedAutoAssociationsEnabled"})
         @DisplayName(
                 "Airdrop token to a hollow account that would create pending airdrop then deploy a contract on the same address")
+        @Tag(MATS)
         public Stream<DynamicTest> airdropToHollowAccThenCreate2OnSameAddress(
                 @FungibleToken(initialSupply = 1_000_000L) SpecFungibleToken token) {
             final var create2Contract = "Create2Factory";
