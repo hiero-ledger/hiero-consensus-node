@@ -3,7 +3,6 @@ package org.hiero.otter.fixtures;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.assertj.core.api.Assertions.fail;
 import static org.hiero.consensus.model.status.PlatformStatus.ACTIVE;
 
 import com.swirlds.common.test.fixtures.WeightGenerators;
@@ -35,13 +34,13 @@ class NetworkIsolationTest {
     }
 
     /**
-     * Test isolating a single node from the network.
+     * Test isolating and removing a single node from the network on all environments.
      *
      * @param env the test environment for this test
      */
     @ParameterizedTest
     @MethodSource("environments")
-    void testIsolateSingleNode(@NonNull final TestEnvironment env) {
+    void testIsolateAndRejoinSingleNode(@NonNull final TestEnvironment env) {
         try {
             final Network network = env.network();
             final TimeManager timeManager = env.timeManager();
@@ -92,51 +91,13 @@ class NetworkIsolationTest {
             assertThat(remainingPartition.nodes()).containsExactlyInAnyOrder(node1, node2, node3);
 
             // Wait for nodes to become inactive due to network partition
-            if (!timeManager.waitForCondition(node0::isChecking, Duration.ofSeconds(15))) {
-                fail("Node did not enter CHECKING state after isolation");
-            }
+            timeManager.waitForCondition(
+                    node0::isChecking, Duration.ofSeconds(15), "Node did not enter CHECKING state after isolation");
+
             timeManager.waitFor(Duration.ofSeconds(5)); // just to be sure
             assertThat(node1.platformStatus()).isEqualTo(ACTIVE);
             assertThat(node2.platformStatus()).isEqualTo(ACTIVE);
             assertThat(node3.platformStatus()).isEqualTo(ACTIVE);
-        } finally {
-            env.destroy();
-        }
-    }
-
-    /**
-     * Test rejoining an isolated node back to the network.
-     *
-     * @param env the test environment for this test
-     */
-    @ParameterizedTest
-    @MethodSource("environments")
-    void testRejoinIsolatedNode(@NonNull final TestEnvironment env) {
-        try {
-            final Network network = env.network();
-            final TimeManager timeManager = env.timeManager();
-
-            // Setup network with 4 nodes
-            network.setWeightGenerator(WeightGenerators.BALANCED);
-            final List<Node> nodes = network.addNodes(4);
-            final Node node0 = nodes.get(0);
-            final Node node1 = nodes.get(1);
-            final Node node2 = nodes.get(2);
-            final Node node3 = nodes.get(3);
-
-            network.start();
-
-            // Wait for nodes to stabilize
-            timeManager.waitFor(Duration.ofSeconds(5));
-
-            // Isolate node0
-            network.isolate(node0);
-            assertThat(network.isIsolated(node0)).isTrue();
-
-            // Wait for nodes to become inactive due to isolation
-            if (!timeManager.waitForCondition(node0::isChecking, Duration.ofSeconds(15))) {
-                fail("Node did not enter CHECKING state after isolation");
-            }
 
             // Rejoin the isolated node
             network.rejoin(node0);
@@ -155,9 +116,8 @@ class NetworkIsolationTest {
             assertThat(network.getPartitionContaining(node3)).isNull();
 
             // The nodes should be active again
-            if (!timeManager.waitForCondition(() -> network.allNodesInStatus(ACTIVE), Duration.ofSeconds(15))) {
-                fail("Not all nodes became ACTIVE after rejoining");
-            }
+            timeManager.waitForCondition(
+                    network::allNodesAreActive, Duration.ofSeconds(15), "Not all nodes became ACTIVE after rejoining");
         } finally {
             env.destroy();
         }

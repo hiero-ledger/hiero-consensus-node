@@ -29,6 +29,7 @@ import org.apache.logging.log4j.Logger;
  * schedule objects as a result of ScheduleCreate, ScheduleSign, or ScheduleDelete transactions.
  */
 public class WritableScheduleStoreImpl extends ReadableScheduleStoreImpl implements WritableScheduleStore {
+
     private static final Logger logger = LogManager.getLogger(WritableScheduleStoreImpl.class);
 
     private final WritableKVState<ScheduleID, Schedule> schedulesByIdMutable;
@@ -48,11 +49,11 @@ public class WritableScheduleStoreImpl extends ReadableScheduleStoreImpl impleme
             @NonNull final WritableStates states, final WritableEntityCounters entityCounters) {
         super(states, entityCounters);
 
-        schedulesByIdMutable = states.get(V0490ScheduleSchema.SCHEDULES_BY_ID_KEY);
-        scheduleCountsMutable = states.get(V0570ScheduleSchema.SCHEDULED_COUNTS_KEY);
-        scheduleOrdersMutable = states.get(V0570ScheduleSchema.SCHEDULED_ORDERS_KEY);
-        scheduleUsagesMutable = states.get(V0570ScheduleSchema.SCHEDULED_USAGES_KEY);
-        scheduleIdByEqualityMutable = states.get(V0570ScheduleSchema.SCHEDULE_ID_BY_EQUALITY_KEY);
+        schedulesByIdMutable = states.get(V0490ScheduleSchema.SCHEDULES_BY_ID_STATE_ID);
+        scheduleCountsMutable = states.get(V0570ScheduleSchema.SCHEDULED_COUNTS_STATE_ID);
+        scheduleOrdersMutable = states.get(V0570ScheduleSchema.SCHEDULED_ORDERS_STATE_ID);
+        scheduleUsagesMutable = states.get(V0570ScheduleSchema.SCHEDULED_USAGES_STATE_ID);
+        scheduleIdByEqualityMutable = states.get(V0570ScheduleSchema.SCHEDULE_ID_BY_EQUALITY_STATE_ID);
         this.entityCounters = entityCounters;
     }
 

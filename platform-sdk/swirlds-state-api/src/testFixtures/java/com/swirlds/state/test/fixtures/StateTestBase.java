@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.state.test.fixtures;
 
+import static com.swirlds.state.lifecycle.StateMetadata.computeLabel;
 import static org.mockito.ArgumentMatchers.any;
 
 import com.hedera.hapi.node.base.SemanticVersion;
@@ -12,6 +13,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.concurrent.atomic.AtomicReference;
 
 public class StateTestBase extends TestBase {
+
     public static final SemanticVersion TEST_VERSION =
             SemanticVersion.newBuilder().major(1).build();
 
@@ -21,27 +23,23 @@ public class StateTestBase extends TestBase {
 
     public static final String UNKNOWN_SERVICE = "Bogus-Service";
     protected static final String UNKNOWN_STATE_KEY = "BOGUS_STATE_KEY";
+    protected static final int UNKNOWN_STATE_ID = -1;
     protected static final ProtoBytes UNKNOWN_KEY = new ProtoBytes(Bytes.wrap("BOGUS_KEY"));
 
     protected static final String FRUIT_SERVICE_NAME = "Plants";
     protected static final String FRUIT_STATE_KEY = "FRUIT";
     protected static final int FRUIT_STATE_ID = 3;
-
-    protected static final String ANIMAL_SERVICE_NAME = "Organisms";
-    protected static final String ANIMAL_STATE_KEY = "ANIMAL";
-    protected static final int ANIMAL_STATE_ID = 16;
-
-    protected static final String SPACE_SERVICE_NAME = "Universe";
-    protected static final String SPACE_STATE_KEY = "SPACE";
-    protected static final int SPACE_STATE_ID = 1;
+    protected static final String FRUIT_STATE_LABEL = computeLabel(FRUIT_SERVICE_NAME, FRUIT_STATE_KEY);
 
     protected static final String STEAM_SERVICE_NAME = "Learning";
     protected static final String STEAM_STATE_KEY = "STEAM";
     protected static final int STEAM_STATE_ID = 10001;
+    protected static final String STEAM_STATE_LABEL = computeLabel(STEAM_SERVICE_NAME, STEAM_STATE_KEY);
 
     public static final String COUNTRY_SERVICE_NAME = "Planets";
     public static final String COUNTRY_STATE_KEY = "COUNTRY";
     protected static final int COUNTRY_STATE_ID = 11;
+    protected static final String COUNTRY_STATE_LABEL = computeLabel(COUNTRY_SERVICE_NAME, COUNTRY_STATE_KEY);
 
     protected static final ProtoBytes A_KEY = toProtoBytes("A");
     protected static final ProtoBytes B_KEY = toProtoBytes("B");
@@ -66,22 +64,6 @@ public class StateTestBase extends TestBase {
     protected static final ProtoBytes FEIJOA = toProtoBytes("Feijoa");
     protected static final ProtoBytes GRAPE = toProtoBytes("Grape");
 
-    protected static final ProtoBytes AARDVARK = toProtoBytes("Aardvark");
-    protected static final ProtoBytes BEAR = toProtoBytes("Bear");
-    protected static final ProtoBytes CUTTLEFISH = toProtoBytes("Cuttlefish");
-    protected static final ProtoBytes DOG = toProtoBytes("Dog");
-    protected static final ProtoBytes EMU = toProtoBytes("Emu");
-    protected static final ProtoBytes FOX = toProtoBytes("Fox");
-    protected static final ProtoBytes GOOSE = toProtoBytes("Goose");
-
-    protected static final ProtoBytes ASTRONAUT = toProtoBytes("Astronaut");
-    protected static final ProtoBytes BLASTOFF = toProtoBytes("Blastoff");
-    protected static final ProtoBytes COMET = toProtoBytes("Comet");
-    protected static final ProtoBytes DRACO = toProtoBytes("Draco");
-    protected static final ProtoBytes EXOPLANET = toProtoBytes("Exoplanet");
-    protected static final ProtoBytes FORCE = toProtoBytes("Force");
-    protected static final ProtoBytes GRAVITY = toProtoBytes("Gravity");
-
     protected static final ProtoBytes ART = toProtoBytes("Art");
     protected static final ProtoBytes BIOLOGY = toProtoBytes("Biology");
     protected static final ProtoBytes CHEMISTRY = toProtoBytes("Chemistry");
@@ -100,7 +82,7 @@ public class StateTestBase extends TestBase {
 
     @NonNull
     protected MapReadableKVState<ProtoBytes, ProtoBytes> readableFruitState() {
-        return MapReadableKVState.<ProtoBytes, ProtoBytes>builder(FRUIT_SERVICE_NAME, FRUIT_STATE_KEY)
+        return MapReadableKVState.<ProtoBytes, ProtoBytes>builder(FRUIT_STATE_ID, FRUIT_STATE_LABEL)
                 .value(A_KEY, APPLE)
                 .value(B_KEY, BANANA)
                 .value(C_KEY, CHERRY)
@@ -113,7 +95,7 @@ public class StateTestBase extends TestBase {
 
     @NonNull
     protected MapWritableKVState<ProtoBytes, ProtoBytes> writableFruitState() {
-        return MapWritableKVState.<ProtoBytes, ProtoBytes>builder(FRUIT_SERVICE_NAME, FRUIT_STATE_KEY)
+        return MapWritableKVState.<ProtoBytes, ProtoBytes>builder(FRUIT_STATE_ID, FRUIT_STATE_LABEL)
                 .value(A_KEY, APPLE)
                 .value(B_KEY, BANANA)
                 .value(C_KEY, CHERRY)
@@ -125,46 +107,8 @@ public class StateTestBase extends TestBase {
     }
 
     @NonNull
-    protected MapReadableKVState<ProtoBytes, ProtoBytes> readableAnimalState() {
-        return MapReadableKVState.<ProtoBytes, ProtoBytes>builder(ANIMAL_SERVICE_NAME, ANIMAL_STATE_KEY)
-                .value(A_KEY, AARDVARK)
-                .value(B_KEY, BEAR)
-                .value(C_KEY, CUTTLEFISH)
-                .value(D_KEY, DOG)
-                .value(E_KEY, EMU)
-                .value(F_KEY, FOX)
-                .value(G_KEY, GOOSE)
-                .build();
-    }
-
-    @NonNull
-    protected MapWritableKVState<ProtoBytes, ProtoBytes> writableAnimalState() {
-        return MapWritableKVState.<ProtoBytes, ProtoBytes>builder(ANIMAL_SERVICE_NAME, ANIMAL_STATE_KEY)
-                .value(A_KEY, AARDVARK)
-                .value(B_KEY, BEAR)
-                .value(C_KEY, CUTTLEFISH)
-                .value(D_KEY, DOG)
-                .value(E_KEY, EMU)
-                .value(F_KEY, FOX)
-                .value(G_KEY, GOOSE)
-                .build();
-    }
-
-    @NonNull
-    protected ReadableSingletonState<ProtoBytes> readableSpaceState() {
-        return new FunctionReadableSingletonState<>(SPACE_SERVICE_NAME, SPACE_STATE_KEY, () -> ASTRONAUT);
-    }
-
-    @NonNull
-    protected WritableSingletonState<ProtoBytes> writableSpaceState() {
-        final AtomicReference<ProtoBytes> backingValue = new AtomicReference<>(ASTRONAUT);
-        return new FunctionWritableSingletonState<>(
-                SPACE_SERVICE_NAME, SPACE_STATE_KEY, backingValue::get, backingValue::set);
-    }
-
-    @NonNull
     protected ListReadableQueueState<ProtoBytes> readableSTEAMState() {
-        return ListReadableQueueState.<ProtoBytes>builder(STEAM_STATE_KEY, STEAM_SERVICE_NAME)
+        return ListReadableQueueState.<ProtoBytes>builder(STEAM_STATE_ID, STEAM_STATE_LABEL)
                 .value(ART)
                 .value(BIOLOGY)
                 .value(CHEMISTRY)
@@ -177,7 +121,8 @@ public class StateTestBase extends TestBase {
 
     @NonNull
     protected ListWritableQueueState<ProtoBytes> writableSTEAMState() {
-        return ListWritableQueueState.<ProtoBytes>builder(STEAM_SERVICE_NAME, STEAM_STATE_KEY)
+        return ListWritableQueueState.<ProtoBytes>builder(
+                        STEAM_STATE_ID, computeLabel(STEAM_SERVICE_NAME, STEAM_STATE_KEY))
                 .value(ART)
                 .value(BIOLOGY)
                 .value(CHEMISTRY)
@@ -190,14 +135,17 @@ public class StateTestBase extends TestBase {
 
     @NonNull
     protected ReadableSingletonState<ProtoBytes> readableCountryState() {
-        return new FunctionReadableSingletonState<>(COUNTRY_SERVICE_NAME, COUNTRY_STATE_KEY, () -> AUSTRALIA);
+        return new FunctionReadableSingletonState<>(COUNTRY_STATE_ID, COUNTRY_STATE_LABEL, () -> AUSTRALIA);
     }
 
     @NonNull
     protected WritableSingletonState<ProtoBytes> writableCountryState() {
         final AtomicReference<ProtoBytes> backingValue = new AtomicReference<>(AUSTRALIA);
         return new FunctionWritableSingletonState<>(
-                COUNTRY_SERVICE_NAME, COUNTRY_STATE_KEY, backingValue::get, backingValue::set);
+                COUNTRY_STATE_ID,
+                computeLabel(COUNTRY_STATE_KEY, COUNTRY_STATE_LABEL),
+                backingValue::get,
+                backingValue::set);
     }
 
     /** A convenience method for creating {@link SemanticVersion}. */

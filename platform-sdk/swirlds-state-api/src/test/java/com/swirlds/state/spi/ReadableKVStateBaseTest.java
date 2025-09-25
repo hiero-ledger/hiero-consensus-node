@@ -20,6 +20,7 @@ import org.junit.jupiter.api.Test;
  * ReadableKVStateBase#reset()}) will be covered by other tests in addition to this one.
  */
 public class ReadableKVStateBaseTest extends StateTestBase {
+
     private ReadableKVStateBase<ProtoBytes, ProtoBytes> state;
     protected Map<ProtoBytes, ProtoBytes> backingMap;
 
@@ -42,21 +43,21 @@ public class ReadableKVStateBaseTest extends StateTestBase {
     }
 
     protected ReadableKVStateBase<ProtoBytes, ProtoBytes> createFruitState(Map<ProtoBytes, ProtoBytes> backingMap) {
-        return new MapReadableKVState<>(FRUIT_SERVICE_NAME, FRUIT_STATE_KEY, backingMap);
+        return new MapReadableKVState<>(FRUIT_STATE_ID, FRUIT_STATE_LABEL, backingMap);
     }
 
-    /** Make sure the constructor is holding onto the service name properly */
+    /** Make sure the constructor is holding onto the state ID properly */
     @Test
-    @DisplayName("The service name must match what was provided in the constructor")
-    void testServiceName() {
-        assertThat(state.getServiceName()).isEqualTo(FRUIT_SERVICE_NAME);
+    @DisplayName("The state ID must match what was provided in the constructor")
+    void testStateId() {
+        assertThat(state.getStateId()).isEqualTo(FRUIT_STATE_ID);
     }
 
-    /** Make sure the constructor is holding onto the state key properly */
+    /** Make sure the constructor is holding onto the state label properly */
     @Test
-    @DisplayName("The state key must match what was provided in the constructor")
-    void testStateKey() {
-        assertThat(state.getStateKey()).isEqualTo(FRUIT_STATE_KEY);
+    @DisplayName("The state label must match what was provided in the constructor")
+    void testStateLabel() {
+        assertThat(state.label).isEqualTo(FRUIT_STATE_LABEL);
     }
 
     /**
