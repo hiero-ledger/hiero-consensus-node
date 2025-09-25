@@ -5,7 +5,6 @@ import static com.hedera.node.app.throttle.ThrottleAccumulator.ThrottleType.BACK
 import static com.hedera.node.app.throttle.ThrottleAccumulator.ThrottleType.NOOP_THROTTLE;
 
 import com.hedera.hapi.platform.state.PlatformState;
-import com.hedera.node.app.annotations.NodeSelfId;
 import com.hedera.node.app.metrics.StoreMetricsServiceImpl;
 import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.metrics.StoreMetricsService;
@@ -71,13 +70,6 @@ public interface StandaloneModule {
     @Singleton
     static InstantSource provideInstantSource() {
         return InstantSource.system();
-    }
-
-    @Provides
-    @Singleton
-    @NodeSelfId
-    static long provideNodeSelfId() {
-        return 0;
     }
 
     @Provides

@@ -54,7 +54,6 @@ import java.time.Instant;
 import java.util.Arrays;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Nested;
@@ -166,7 +165,7 @@ final class TransactionCheckerTest extends AppTestBase {
                 1);
 
         // And create the checker itself
-        checker = new TransactionChecker(nodeSelfId.id(), props, metrics);
+        checker = new TransactionChecker(props, metrics);
     }
 
     @Nested
@@ -176,10 +175,8 @@ final class TransactionCheckerTest extends AppTestBase {
         @SuppressWarnings("ConstantConditions")
         @DisplayName("Constructor throws on illegal arguments")
         void testConstructorWithIllegalArguments() {
-            assertThatThrownBy(() -> new TransactionChecker(nodeSelfId.id(), null, metrics))
-                    .isInstanceOf(NullPointerException.class);
-            assertThatThrownBy(() -> new TransactionChecker(nodeSelfId.id(), props, null))
-                    .isInstanceOf(NullPointerException.class);
+            assertThatThrownBy(() -> new TransactionChecker(null, metrics)).isInstanceOf(NullPointerException.class);
+            assertThatThrownBy(() -> new TransactionChecker(props, null)).isInstanceOf(NullPointerException.class);
         }
     }
 
@@ -339,7 +336,7 @@ final class TransactionCheckerTest extends AppTestBase {
                             .getOrCreateConfig(),
                     1);
 
-            checker = new TransactionChecker(nodeSelfId.id(), props, metrics);
+            checker = new TransactionChecker(props, metrics);
 
             int maxJumboTxnSize = props.getConfiguration()
                     .getConfigData(JumboTransactionsConfig.class)
@@ -360,7 +357,7 @@ final class TransactionCheckerTest extends AppTestBase {
                             .getOrCreateConfig(),
                     1);
 
-            checker = new TransactionChecker(nodeSelfId.id(), props, metrics);
+            checker = new TransactionChecker(props, metrics);
 
             // assert that even if we are sending a transaction with more than 6KB,
             // it will not fail with TRANSACTION_OVERSIZE
@@ -384,7 +381,7 @@ final class TransactionCheckerTest extends AppTestBase {
                             .getOrCreateConfig(),
                     1);
 
-            checker = new TransactionChecker(nodeSelfId.id(), props, metrics);
+            checker = new TransactionChecker(props, metrics);
 
             final var maxJumboEthereumCallDataSize = props.getConfiguration()
                     .getConfigData(JumboTransactionsConfig.class)
@@ -418,7 +415,7 @@ final class TransactionCheckerTest extends AppTestBase {
                             .getOrCreateConfig(),
                     1);
 
-            checker = new TransactionChecker(nodeSelfId.id(), props, metrics);
+            checker = new TransactionChecker(props, metrics);
 
             TransactionInfo txInfo = mock(TransactionInfo.class);
             when(txInfo.signedTx())
@@ -785,40 +782,6 @@ final class TransactionCheckerTest extends AppTestBase {
             void testCheckTransactionBodyWithZeroAccountNumFails(long account) {
                 // Given a transaction ID with an account number that is not valid (0 is not a valid number)
                 final var payerId = AccountID.newBuilder().accountNum(account).build();
-                final var body = bodyBuilder(txIdBuilder().accountID(payerId));
-                final var tx = txBuilder(signedTxBuilder(body, sigMapBuilder())).build();
-
-                // Then the checker should throw a PreCheckException
-                assertThatThrownBy(() -> checker.check(tx))
-                        .isInstanceOf(PreCheckException.class)
-                        .has(responseCode(PAYER_ACCOUNT_NOT_FOUND));
-            }
-
-            @ParameterizedTest
-            @ValueSource(longs = {1L, -1L})
-            @DisplayName("A transaction ID with the wrong shard fails")
-            @Disabled // no longer checking shard
-            void testCheckTransactionBodyWithBadShardFails(long shard) {
-                // Given a transaction ID with an account number that is not valid (0 is not a valid number)
-                final var payerId =
-                        AccountID.newBuilder().shardNum(shard).accountNum(10L).build();
-                final var body = bodyBuilder(txIdBuilder().accountID(payerId));
-                final var tx = txBuilder(signedTxBuilder(body, sigMapBuilder())).build();
-
-                // Then the checker should throw a PreCheckException
-                assertThatThrownBy(() -> checker.check(tx))
-                        .isInstanceOf(PreCheckException.class)
-                        .has(responseCode(PAYER_ACCOUNT_NOT_FOUND));
-            }
-
-            @ParameterizedTest
-            @ValueSource(longs = {1L, -1L})
-            @DisplayName("A transaction ID with the wrong realm fails")
-            @Disabled // no longer checking realm
-            void testCheckTransactionBodyWithBadRealmFails(long realm) {
-                // Given a transaction ID with an account number that is not valid (0 is not a valid number)
-                final var payerId =
-                        AccountID.newBuilder().realmNum(realm).accountNum(10L).build();
                 final var body = bodyBuilder(txIdBuilder().accountID(payerId));
                 final var tx = txBuilder(signedTxBuilder(body, sigMapBuilder())).build();
 

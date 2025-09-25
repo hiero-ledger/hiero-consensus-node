@@ -59,7 +59,6 @@ import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.LeakyEmbeddedHapiTest;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
-import com.hedera.services.bdd.suites.regression.system.LifecycleTest;
 import java.security.cert.CertificateEncodingException;
 import java.security.cert.X509Certificate;
 import java.util.List;
@@ -71,7 +70,7 @@ import org.junit.jupiter.api.Tag;
 
 @DisplayName("updateNode")
 @HapiTestLifecycle
-public class NodeUpdateTest implements LifecycleTest {
+public class NodeUpdateTest {
     private static List<X509Certificate> gossipCertificates;
 
     @BeforeAll
