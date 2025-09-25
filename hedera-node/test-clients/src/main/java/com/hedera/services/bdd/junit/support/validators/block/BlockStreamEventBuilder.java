@@ -129,7 +129,8 @@ public class BlockStreamEventBuilder {
     }
 
     /**
-     * Events included in the event hash have a nonce of zero. Other transactions (e.g. synthetic transactions) have a
+     * Events included in the event hash have a nonce of zero and is not a scheduled transaction.
+     * Other transactions (e.g. synthetic transactions) have a
      * non-zero nonce and must not be included in the event in order to calculate the correct event hash.
      *
      * @param transactionBytes the transaction bytes to check
@@ -138,7 +139,7 @@ public class BlockStreamEventBuilder {
     private boolean isTransactionInEvent(@NonNull final Bytes transactionBytes) {
         final TransactionBody transactionBody = getTransactionBody(transactionBytes);
         final TransactionID transactionId = transactionBody.transactionIDOrThrow();
-        return transactionId.nonce() == 0;
+        return transactionId.nonce() == 0 && !transactionId.scheduled();
     }
 
     /**
