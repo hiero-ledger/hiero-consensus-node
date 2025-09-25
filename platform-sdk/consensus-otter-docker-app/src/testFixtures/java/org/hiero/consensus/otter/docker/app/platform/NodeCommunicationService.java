@@ -104,6 +104,7 @@ public class NodeCommunicationService extends NodeCommunicationServiceGrpc.NodeC
     @Override
     public synchronized void start(
             @NonNull final StartRequest request, @NonNull final StreamObserver<EventMessage> responseObserver) {
+        setupLoggingStreamingEventDispatcher(responseObserver);
         log.info("Received start request: {}", request);
 
         if (isInvalidRequest(request, responseObserver)) {
@@ -124,22 +125,32 @@ public class NodeCommunicationService extends NodeCommunicationServiceGrpc.NodeC
         consensusNodeManager = new ConsensusNodeManager(
                 selfId, platformConfig, genesisRoster, version, keysAndCerts, backgroundExecutor);
 
-        setupStreamingEventDispatcher(responseObserver);
+        setupStreamingEventDispatcher();
 
         consensusNodeManager.start();
     }
 
     /**
-     * Sets up all the streaming event dispatchers for the platform.
+     * Sets up the logging streaming event dispatcher for the platform.
      *
      * @param responseObserver the observer to register for streaming events
      */
-    private void setupStreamingEventDispatcher(@NonNull final StreamObserver<EventMessage> responseObserver) {
+    private void setupLoggingStreamingEventDispatcher(@NonNull final StreamObserver<EventMessage> responseObserver) {
         dispatcher = new OutboundDispatcher(dispatchExecutor, responseObserver);
 
         // Capture the dispatcher in a final variable so the lambda remains valid
         final OutboundDispatcher currentDispatcher = dispatcher;
 
+        InMemorySubscriptionManager.INSTANCE.subscribe(logEntry -> {
+            dispatcher.enqueue(EventMessageFactory.fromStructuredLog(logEntry));
+            return currentDispatcher.isCancelled() ? SubscriberAction.UNSUBSCRIBE : SubscriberAction.CONTINUE;
+        });
+    }
+
+    /**
+     * Sets up all the streaming event dispatchers for the platform.
+     */
+    private void setupStreamingEventDispatcher() {
         consensusNodeManager.registerPlatformStatusChangeListener(
                 notification -> dispatcher.enqueue(EventMessageFactory.fromPlatformStatusChange(notification)));
 
@@ -148,11 +159,6 @@ public class NodeCommunicationService extends NodeCommunicationServiceGrpc.NodeC
 
         consensusNodeManager.registerMarkerFileListener(
                 markerFiles -> dispatcher.enqueue(EventMessageFactory.fromMarkerFiles(markerFiles)));
-
-        InMemorySubscriptionManager.INSTANCE.subscribe(logEntry -> {
-            dispatcher.enqueue(EventMessageFactory.fromStructuredLog(logEntry));
-            return currentDispatcher.isCancelled() ? SubscriberAction.UNSUBSCRIBE : SubscriberAction.CONTINUE;
-        });
     }
 
     /**

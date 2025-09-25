@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.container;
 
+import com.swirlds.platform.config.ModuleConfig_;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.Path;
 import org.apache.logging.log4j.LogManager;
@@ -35,6 +36,10 @@ public class InstrumentedContainerNode extends ContainerNode implements Instrume
             @NonNull final ImageFromDockerfile dockerImage,
             @NonNull final Path outputDirectory) {
         super(selfId, keysAndCerts, network, dockerImage, outputDirectory);
+        configuration()
+                .set(
+                        ModuleConfig_.EVENT_CREATOR_MODULE,
+                        "org.hiero.consensus.event.creator.instrumented.InstrumentedEventCreator");
     }
 
     /**

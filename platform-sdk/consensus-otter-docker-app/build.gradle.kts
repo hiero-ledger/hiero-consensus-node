@@ -55,11 +55,13 @@ tasks.testFixturesJar {
 tasks.register<Sync>("copyDockerizedApp") {
     into(layout.buildDirectory.dir("data"))
     from(layout.projectDirectory.file("src/testFixtures/docker/Dockerfile"))
+    from(layout.projectDirectory.file("src/testFixtures/docker/Dockerfile.instrumented"))
     into("apps") {
         from(tasks.testFixturesJar)
         rename { "DockerApp.jar" }
     }
     into("lib") { from(configurations.testFixturesRuntimeClasspath) }
+    into("instrumented") { from(project(":consensus-event-creator-instrumented").tasks.jar) }
 }
 
 tasks.assemble { dependsOn("copyDockerizedApp") }

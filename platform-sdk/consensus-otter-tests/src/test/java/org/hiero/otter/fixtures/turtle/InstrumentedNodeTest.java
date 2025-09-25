@@ -10,6 +10,7 @@ import org.hiero.otter.fixtures.InstrumentedNode;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.TimeManager;
+import org.hiero.otter.fixtures.container.ContainerTestEnvironment;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
@@ -23,28 +24,34 @@ class InstrumentedNodeTest {
      * @return a stream of {@link TestEnvironment} instances
      */
     public static Stream<TestEnvironment> environments() {
-        return Stream.of(new TurtleTestEnvironment(RANDOM_SEED) /*, new ContainerTestEnvironment() */);
+        return Stream.of(new TurtleTestEnvironment(RANDOM_SEED), new ContainerTestEnvironment());
     }
 
     @ParameterizedTest
     @MethodSource("environments")
     void testInstrumentation(@NonNull final TestEnvironment env) {
-        final TimeManager timeManager = env.timeManager();
-        final Network network = env.network();
+        try {
+            final TimeManager timeManager = env.timeManager();
+            final Network network = env.network();
 
-        network.addNodes(3);
-        final InstrumentedNode instrumentedNode = network.addInstrumentedNode();
+            network.addNodes(3);
+            final InstrumentedNode instrumentedNode = network.addInstrumentedNode();
 
-        network.start();
-        timeManager.waitFor(Duration.ofSeconds(5));
+            network.start();
+            timeManager.waitFor(Duration.ofSeconds(5));
 
-        assertThat(instrumentedNode.newLogResult()).hasMessageContaining("InstrumentedEventCreator created");
-        assertThat(network.newLogResults().suppressingNode(instrumentedNode))
-                .haveNoMessagesContaining("InstrumentedEventCreator created");
+            instrumentedNode.ping("Hello Hiero!");
 
-        instrumentedNode.ping("Hello Hiero!");
+            timeManager.waitFor(Duration.ofSeconds(5));
 
-        assertThat(instrumentedNode.newLogResult()).hasMessageContaining("Ping message received: Hello Hiero!");
-        assertThat(network.newLogResults().suppressingNode(instrumentedNode)).haveNoMessagesContaining("Ping message received: Hello Hiero!");
+            assertThat(instrumentedNode.newLogResult())
+                    .hasMessageContaining("InstrumentedEventCreator created")
+                    .hasMessageContaining("Ping message received: Hello Hiero!");
+            assertThat(network.newLogResults().suppressingNode(instrumentedNode))
+                    .haveNoMessagesContaining("InstrumentedEventCreator created")
+                    .haveNoMessagesContaining("Ping message received: Hello Hiero!");
+        } finally {
+            env.destroy();
+        }
     }
 }
