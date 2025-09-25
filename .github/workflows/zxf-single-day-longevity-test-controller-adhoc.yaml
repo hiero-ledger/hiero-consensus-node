@@ -29,6 +29,8 @@ on:
         description: "Number of Accounts and NFT tokens"
         type: choice
         options:
+          - "0"
+          - "10000"
           - "100000"
           - "1000000"
           - "20000000"
@@ -41,6 +43,7 @@ on:
         description: "Test execution time options"
         type: choice
         options:
+          - "0"
           - "3"
           - "9"
           - "21"
