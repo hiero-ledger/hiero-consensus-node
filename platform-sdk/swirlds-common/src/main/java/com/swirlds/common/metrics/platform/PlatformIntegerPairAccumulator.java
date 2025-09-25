@@ -6,7 +6,7 @@ import static com.swirlds.metrics.api.Metric.ValueType.VALUE;
 import com.swirlds.base.utility.ToStringBuilder;
 import com.swirlds.common.metrics.IntegerPairAccumulator;
 import com.swirlds.metrics.api.MetricConfig;
-import com.swirlds.metrics.api.snapshot.Snapshot.SnapshotEntry;
+import com.swirlds.metrics.api.Snapshot.SnapshotEntry;
 import com.swirlds.metrics.impl.AbstractMetric;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;

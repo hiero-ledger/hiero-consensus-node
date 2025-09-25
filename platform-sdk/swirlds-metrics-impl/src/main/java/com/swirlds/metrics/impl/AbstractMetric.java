@@ -4,14 +4,13 @@ package com.swirlds.metrics.impl;
 import com.swirlds.base.utility.ToStringBuilder;
 import com.swirlds.metrics.api.Metric;
 import com.swirlds.metrics.api.MetricConfig;
-import com.swirlds.metrics.api.snapshot.SnapshotableMetric;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
 
 /**
  * Basic implementation of all platform-implementations of {@link Metric}
  */
-public abstract class AbstractMetric implements SnapshotableMetric {
+public abstract class AbstractMetric implements Metric {
 
     private final String category;
     private final String name;
