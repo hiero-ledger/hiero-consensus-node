@@ -96,11 +96,19 @@ jobs:
       - name: Verify Version Update (As Specified)
         if: ${{ inputs.version-policy == 'specified' && !cancelled() && !failure() }}
         run: |
-          VALID_VERSION="$(semver validate "${{ inputs.new-version }}")"
+          if [[ "$(semver validate "${VERSION}" 2>/dev/null || echo "invalid")" == "valid" ]]; then
+            VALID_VERSION="true"
+          fi
 
-          if [[ "${VALID_VERSION}" != "valid" ]]; then
+          if [[ "${VERSION}" =~ ^build-[0-9]+$ ]]; then
+            VALID_VERSION="true"
+          fi
+
+          if [[ "${VALID_VERSION}" != "true" ]]; then
             echo "::error title=Version Error::The supplied new-version parameter (${{ inputs.new-version }}) is invalid and does not conform to the semantic versioning specifications."
             exit 2
+          else
+            echo "Input version validated"
           fi
 
       - name: Checkout Code
