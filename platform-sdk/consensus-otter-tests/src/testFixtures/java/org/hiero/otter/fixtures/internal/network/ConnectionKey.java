@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.internal.network;
 
-import com.hedera.hapi.platform.state.NodeId;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * Represents a key for a connection between two nodes in the topology.

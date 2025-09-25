@@ -4,7 +4,7 @@ package com.hedera.node.app.workflows.handle;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.BUSY;
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
 import static com.hedera.node.app.blocks.BlockStreamManager.PendingWork.GENESIS_WORK;
-import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCK_INFO_STATE_KEY;
+import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCKS_STATE_ID;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.SCHEDULED;
 import static com.hedera.node.app.state.logging.TransactionStateLogger.logStartEvent;
 import static com.hedera.node.app.state.logging.TransactionStateLogger.logStartRound;
@@ -116,6 +116,7 @@ import org.hiero.consensus.roster.WritableRosterStore;
  */
 @Singleton
 public class HandleWorkflow {
+
     private static final Logger logger = LogManager.getLogger(HandleWorkflow.class);
 
     public static final String ALERT_MESSAGE = "Possibly CATASTROPHIC failure";
@@ -1002,7 +1003,7 @@ public class HandleWorkflow {
      */
     private TransactionType typeOfBoundary(@NonNull final State state) {
         final var blockInfo = state.getReadableStates(BlockRecordService.NAME)
-                .<BlockInfo>getSingleton(BLOCK_INFO_STATE_KEY)
+                .<BlockInfo>getSingleton(BLOCKS_STATE_ID)
                 .get();
         return !requireNonNull(blockInfo).migrationRecordsStreamed() ? POST_UPGRADE_TRANSACTION : ORDINARY_TRANSACTION;
     }

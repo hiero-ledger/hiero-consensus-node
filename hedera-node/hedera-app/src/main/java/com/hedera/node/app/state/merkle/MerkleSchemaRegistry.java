@@ -93,7 +93,7 @@ public class MerkleSchemaRegistry implements SchemaRegistry {
             @NonNull final Configuration bootstrapConfig,
             @NonNull final SchemaApplications schemaApplications) {
         this.constructableRegistry = requireNonNull(constructableRegistry);
-        this.serviceName = StateMetadata.validateStateKey(requireNonNull(serviceName));
+        this.serviceName = StateMetadata.validateServiceName(requireNonNull(serviceName));
         this.bootstrapConfig = requireNonNull(bootstrapConfig);
         this.schemaApplications = requireNonNull(schemaApplications);
     }
@@ -200,7 +200,7 @@ public class MerkleSchemaRegistry implements SchemaRegistry {
             // add new states into the tree, it doesn't increase the number of states that can
             // be seen by the schema migration code
             final var readableStates = stateRoot.getReadableStates(serviceName);
-            final var previousStates = new FilteredReadableStates(readableStates, readableStates.stateKeys());
+            final var previousStates = new FilteredReadableStates(readableStates, readableStates.stateIds());
             // Similarly, we distinguish between the writable states before and after
             // applying the schema's state definitions. This is done to ensure that we
             // commit all state changes made by applying this schema's state definitions;
@@ -243,7 +243,7 @@ public class MerkleSchemaRegistry implements SchemaRegistry {
                 migrationStateChanges.trackCommit();
             }
             // And finally we can remove any states we need to remove
-            schema.statesToRemove().forEach(stateKey -> stateRoot.removeServiceState(serviceName, stateKey));
+            schema.statesToRemove().forEach(stateId -> stateRoot.removeServiceState(serviceName, stateId));
         }
     }
 
@@ -272,7 +272,7 @@ public class MerkleSchemaRegistry implements SchemaRegistry {
         // from these states until we have completed migration for this schema)
         final var statesToRemove = schema.statesToRemove();
         final var writableStates = stateRoot.getWritableStates(serviceName);
-        final var remainingStates = new HashSet<>(writableStates.stateKeys());
+        final var remainingStates = new HashSet<>(writableStates.stateIds());
         remainingStates.removeAll(statesToRemove);
         logger.info("  Removing states {} from service {}", statesToRemove, serviceName);
         final var newStates = new FilteredWritableStates(writableStates, remainingStates);
