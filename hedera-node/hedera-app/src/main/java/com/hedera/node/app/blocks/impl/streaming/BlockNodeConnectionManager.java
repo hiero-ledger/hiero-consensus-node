@@ -411,7 +411,9 @@ public class BlockNodeConnectionManager {
             final RetryState retryState =
                     retryStates.computeIfAbsent(connection.getNodeConfig(), k -> new RetryState());
             final int retryAttempt = retryState.getRetryAttempt();
-            delayMs = (retryAttempt == 0) ? Math.max(0, delay.toMillis()) : calculateJitteredDelayMs(retryAttempt);
+            delayMs = (retryAttempt == 0)
+                    ? isOnlyOneBlockNodeConfigured() ? 0 : Math.max(0, delay.toMillis())
+                    : calculateJitteredDelayMs(retryAttempt);
 
             logger.debug(
                     "[{}] Apply exponential backoff and reschedule in {} ms (attempt={})",
