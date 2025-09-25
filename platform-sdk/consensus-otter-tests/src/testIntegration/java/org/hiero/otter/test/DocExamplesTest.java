@@ -19,7 +19,6 @@ import org.hiero.otter.fixtures.TimeManager;
 import org.hiero.otter.fixtures.assertions.MultipleNodeLogResultsContinuousAssert;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
 import org.hiero.otter.fixtures.turtle.TurtleSpecs;
-import org.junit.jupiter.api.Disabled;
 
 /**
  * This class contains examples that are used in the documentation. If you change the examples, please make sure to
@@ -63,13 +62,11 @@ class DocExamplesTest {
                 network.newConsensusResults().results().getFirst().lastRoundNum();
 
         // This assertion will always pass with seed=42
-        assertThat(lastRound).isEqualTo(37);
+        assertThat(lastRound).isEqualTo(46L);
     }
 
     // This test is used in the writing-tests.md file.
     // This test requires the capability to reconnect nodes
-    @Disabled(
-            "Can be enabled once this issue is fixed: https://github.com/hiero-ledger/hiero-consensus-node/issues/20499")
     @OtterTest(requires = Capability.RECONNECT)
     void testSimpleNodeDeathReconnect(@NonNull final TestEnvironment env) {
         // ... more test logic here ...

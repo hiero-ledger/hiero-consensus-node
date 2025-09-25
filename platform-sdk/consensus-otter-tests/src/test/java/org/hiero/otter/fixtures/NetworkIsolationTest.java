@@ -34,13 +34,13 @@ class NetworkIsolationTest {
     }
 
     /**
-     * Test isolating a single node from the network.
+     * Test isolating and removing a single node from the network on all environments.
      *
      * @param env the test environment for this test
      */
     @ParameterizedTest
     @MethodSource("environments")
-    void testIsolateSingleNode(@NonNull final TestEnvironment env) {
+    void testIsolateAndRejoinSingleNode(@NonNull final TestEnvironment env) {
         try {
             final Network network = env.network();
             final TimeManager timeManager = env.timeManager();
@@ -98,43 +98,6 @@ class NetworkIsolationTest {
             assertThat(node1.platformStatus()).isEqualTo(ACTIVE);
             assertThat(node2.platformStatus()).isEqualTo(ACTIVE);
             assertThat(node3.platformStatus()).isEqualTo(ACTIVE);
-        } finally {
-            env.destroy();
-        }
-    }
-
-    /**
-     * Test rejoining an isolated node back to the network.
-     *
-     * @param env the test environment for this test
-     */
-    @ParameterizedTest
-    @MethodSource("environments")
-    void testRejoinIsolatedNode(@NonNull final TestEnvironment env) {
-        try {
-            final Network network = env.network();
-            final TimeManager timeManager = env.timeManager();
-
-            // Setup network with 4 nodes
-            network.setWeightGenerator(WeightGenerators.BALANCED);
-            final List<Node> nodes = network.addNodes(4);
-            final Node node0 = nodes.get(0);
-            final Node node1 = nodes.get(1);
-            final Node node2 = nodes.get(2);
-            final Node node3 = nodes.get(3);
-
-            network.start();
-
-            // Wait for nodes to stabilize
-            timeManager.waitFor(Duration.ofSeconds(5));
-
-            // Isolate node0
-            network.isolate(node0);
-            assertThat(network.isIsolated(node0)).isTrue();
-
-            // Wait for nodes to become inactive due to isolation
-            timeManager.waitForCondition(
-                    node0::isChecking, Duration.ofSeconds(15), "Node did not enter CHECKING state after isolation");
 
             // Rejoin the isolated node
             network.rejoin(node0);

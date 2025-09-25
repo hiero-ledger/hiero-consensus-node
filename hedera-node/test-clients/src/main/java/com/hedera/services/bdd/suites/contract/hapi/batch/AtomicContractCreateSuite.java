@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.hapi.batch;
 
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.accountWith;
@@ -301,6 +302,7 @@ public class AtomicContractCreateSuite {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> createsVanillaContractAsExpectedWithOmittedAdminKey() {
         return hapiTest(
                 uploadInitCode(EMPTY_CONSTRUCTOR_CONTRACT),
@@ -322,6 +324,7 @@ public class AtomicContractCreateSuite {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> revertedTryExtCallHasNoSideEffects() {
         final var balance = 3_000;
         final int sendAmount = balance / 3;
@@ -550,6 +553,7 @@ public class AtomicContractCreateSuite {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> blockTimestampChangesWithinFewSeconds() {
         final var contract = "EmitBlockTimestamp";
         final var firstBlock = "firstBlock";
@@ -673,6 +677,7 @@ public class AtomicContractCreateSuite {
                         .logged());
     }
 
+    @Tag(MATS)
     final Stream<DynamicTest> contractCreateShouldChargeTheSame() {
         final var createFeeWithMaxAutoAssoc = 10L;
         final var contract1 = "EmptyOne";
