@@ -4,7 +4,6 @@ package com.hedera.node.app.service.token.impl.handlers.transfer;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TOKEN_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSFER_ACCOUNT_ID;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.hapi.util.HapiUtils.isHollow;
 import static com.hedera.node.app.service.token.AliasUtils.isAlias;
 import static com.hedera.node.app.service.token.HookDispatchUtils.dispatchExecution;
@@ -14,8 +13,6 @@ import static com.hedera.node.app.service.token.impl.handlers.transfer.TransferE
 import static com.hedera.node.app.service.token.impl.util.CryptoTransferValidationHelper.checkReceiver;
 import static com.hedera.node.app.service.token.impl.util.CryptoTransferValidationHelper.checkSender;
 import static com.hedera.node.app.spi.validation.Validations.validateAccountID;
-import static com.hedera.node.app.spi.workflows.DispatchOptions.hookDispatch;
-import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 
 import com.hedera.hapi.node.base.AccountAmount;
 import com.hedera.hapi.node.base.AccountID;
@@ -26,7 +23,6 @@ import com.hedera.hapi.node.base.NftTransfer;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.base.TokenTransferList;
 import com.hedera.hapi.node.base.TransferList;
-import com.hedera.hapi.node.hooks.HookDispatchTransactionBody;
 import com.hedera.hapi.node.hooks.HookExecution;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
@@ -34,16 +30,15 @@ import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.ReadableTokenStore;
 import com.hedera.node.app.service.token.impl.handlers.BaseTokenHandler;
 import com.hedera.node.app.service.token.impl.handlers.transfer.hooks.HookCallFactory;
-import com.hedera.node.app.service.token.impl.handlers.transfer.hooks.HookInvocations;
 import com.hedera.node.app.service.token.impl.validators.CryptoTransferValidator;
 import com.hedera.node.app.service.token.records.CryptoTransferStreamBuilder;
-import com.hedera.node.app.service.token.records.HookDispatchStreamBuilder;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import org.apache.commons.lang3.tuple.Pair;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -155,11 +150,16 @@ public class TransferExecutor extends BaseTokenHandler {
         // Replace all aliases in the transaction body with its account ids
         final var replacedOp = ensureAndReplaceAliasesInOp(txn, transferContext, context, validator);
         // Use the op with replaced aliases in further steps
-        final var steps = decomposeIntoSteps(replacedOp, topLevelPayer, transferContext, skipCustomFee);
+        final var result = decomposeIntoSteps(replacedOp, topLevelPayer, transferContext, skipCustomFee);
+        final var steps = result.getLeft();
+        final var hookInvocations = result.getRight();
         for (final var step : steps) {
             // Apply all changes to the handleContext's States
             step.doIn(transferContext);
         }
+        // Dispatch post hook calls
+        dispatchHookCalls(hookInvocations.post(), transferContext.getHandleContext());
+
         if (!transferContext.getAutomaticAssociations().isEmpty()) {
             transferContext.getAutomaticAssociations().forEach(recordBuilder::addAutomaticTokenAssociation);
         }
@@ -300,7 +300,7 @@ public class TransferExecutor extends BaseTokenHandler {
      * @param transferContext The transfer context
      * @return A list of steps to execute
      */
-    private List<TransferStep> decomposeIntoSteps(
+    private Pair<List<TransferStep>, HookInvocations> decomposeIntoSteps(
             final CryptoTransferTransactionBody op,
             final AccountID topLevelPayer,
             final TransferContextImpl transferContext,
@@ -318,8 +318,8 @@ public class TransferExecutor extends BaseTokenHandler {
         }
 
         // Extract the HookCalls from the transaction bodies after custom fee assessment
-        final var hookInvocations = hookCallFactory.from(transferContext.getHandleContext(), topLevelPayer, txns);
-        dispatchHookCalls(hookInvocations, transferContext.getHandleContext());
+        final var hookInvocations = hookCallFactory.from(transferContext.getHandleContext(), txns);
+        dispatchHookCalls(hookInvocations.pre(), transferContext.getHandleContext());
 
         // The below steps should be doe for both custom fee assessed transaction in addition to
         // original transaction
@@ -341,11 +341,12 @@ public class TransferExecutor extends BaseTokenHandler {
             steps.add(changeNftOwners);
         }
 
-        return steps;
+        return Pair.of(steps, hookInvocations);
     }
 
-    private void dispatchHookCalls(final HookInvocations hookInvocations, final HandleContext handleContext) {
-        for (final var hookCall : hookInvocations.pre()) {
+    private void dispatchHookCalls(final List<HookCallFactory.HookInvocation> hookInvocations,
+                                   final HandleContext handleContext) {
+        for (final var hookCall : hookInvocations) {
             final HookExecution execution = HookExecution.newBuilder()
                     .hookEntityId(HookEntityId.newBuilder()
                             .accountId(hookCall.ownerId())
@@ -484,5 +485,8 @@ public class TransferExecutor extends BaseTokenHandler {
     public enum OptionalKeyCheck {
         RECEIVER_KEY_IS_OPTIONAL,
         RECEIVER_KEY_IS_REQUIRED
+    }
+
+    public record HookInvocations(List<HookCallFactory.HookInvocation> pre, List<HookCallFactory.HookInvocation> post) {
     }
 }
