@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-name: "[Main] Increment to Next Release Version"
+name: "[Release] Increment Version File"
 on:
   workflow_dispatch:
     inputs:
@@ -17,7 +17,7 @@ permissions:
 
 jobs:
   next-main-release:
-    name: Increment to Next Release Version
+    name: Increment Version File
     runs-on: hiero-network-node-linux-medium
     steps:
       - name: Harden Runner

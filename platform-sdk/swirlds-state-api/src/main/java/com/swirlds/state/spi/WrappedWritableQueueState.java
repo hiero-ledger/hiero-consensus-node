@@ -24,7 +24,7 @@ public class WrappedWritableQueueState<E> extends WritableQueueStateBase<E> {
      * @param delegate The delegate. Must not be null.
      */
     public WrappedWritableQueueState(@NonNull final WritableQueueState<E> delegate) {
-        super(delegate.getServiceName(), delegate.getStateKey());
+        super(delegate.getStateId(), null);
         this.delegate = delegate;
     }
 

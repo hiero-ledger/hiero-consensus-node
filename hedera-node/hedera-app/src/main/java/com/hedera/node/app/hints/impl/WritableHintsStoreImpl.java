@@ -3,12 +3,12 @@ package com.hedera.node.app.hints.impl;
 
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
 import static com.hedera.node.app.hints.HintsService.partySizeForRoster;
-import static com.hedera.node.app.hints.schemas.V059HintsSchema.ACTIVE_HINT_CONSTRUCTION_KEY;
-import static com.hedera.node.app.hints.schemas.V059HintsSchema.HINTS_KEY_SETS_KEY;
-import static com.hedera.node.app.hints.schemas.V059HintsSchema.NEXT_HINT_CONSTRUCTION_KEY;
-import static com.hedera.node.app.hints.schemas.V059HintsSchema.PREPROCESSING_VOTES_KEY;
-import static com.hedera.node.app.hints.schemas.V060HintsSchema.CRS_PUBLICATIONS_KEY;
-import static com.hedera.node.app.hints.schemas.V060HintsSchema.CRS_STATE_KEY;
+import static com.hedera.node.app.hints.schemas.V059HintsSchema.ACTIVE_HINTS_CONSTRUCTION_STATE_ID;
+import static com.hedera.node.app.hints.schemas.V059HintsSchema.HINTS_KEY_SETS_STATE_ID;
+import static com.hedera.node.app.hints.schemas.V059HintsSchema.NEXT_HINTS_CONSTRUCTION_STATE_ID;
+import static com.hedera.node.app.hints.schemas.V059HintsSchema.PREPROCESSING_VOTES_STATE_ID;
+import static com.hedera.node.app.hints.schemas.V060HintsSchema.CRS_PUBLICATIONS_STATE_ID;
+import static com.hedera.node.app.hints.schemas.V060HintsSchema.CRS_STATE_STATE_ID;
 import static com.hedera.node.app.roster.ActiveRosters.Phase.BOOTSTRAP;
 import static com.hedera.node.app.roster.ActiveRosters.Phase.HANDOFF;
 import static java.util.Objects.requireNonNull;
@@ -49,6 +49,7 @@ import org.apache.logging.log4j.Logger;
  * Default implementation of {@link WritableHintsStore}.
  */
 public class WritableHintsStoreImpl extends ReadableHintsStoreImpl implements WritableHintsStore {
+
     private static final Logger log = LogManager.getLogger(WritableHintsStoreImpl.class);
 
     private final WritableKVState<HintsPartyId, HintsKeySet> hintsKeys;
@@ -60,12 +61,12 @@ public class WritableHintsStoreImpl extends ReadableHintsStoreImpl implements Wr
 
     public WritableHintsStoreImpl(@NonNull final WritableStates states, final WritableEntityCounters entityCounters) {
         super(states, entityCounters);
-        this.hintsKeys = states.get(HINTS_KEY_SETS_KEY);
-        this.nextConstruction = states.getSingleton(NEXT_HINT_CONSTRUCTION_KEY);
-        this.activeConstruction = states.getSingleton(ACTIVE_HINT_CONSTRUCTION_KEY);
-        this.votes = states.get(PREPROCESSING_VOTES_KEY);
-        this.crsState = states.getSingleton(CRS_STATE_KEY);
-        this.crsPublications = states.get(CRS_PUBLICATIONS_KEY);
+        this.hintsKeys = states.get(HINTS_KEY_SETS_STATE_ID);
+        this.nextConstruction = states.getSingleton(NEXT_HINTS_CONSTRUCTION_STATE_ID);
+        this.activeConstruction = states.getSingleton(ACTIVE_HINTS_CONSTRUCTION_STATE_ID);
+        this.votes = states.get(PREPROCESSING_VOTES_STATE_ID);
+        this.crsState = states.getSingleton(CRS_STATE_STATE_ID);
+        this.crsPublications = states.get(CRS_PUBLICATIONS_STATE_ID);
     }
 
     @NonNull
