@@ -76,7 +76,7 @@ public class BlockBufferService {
     /**
      * Executor that is used to schedule buffer pruning and triggering backpressure if needed.
      */
-    private final ScheduledExecutorService execSvc = Executors.newSingleThreadScheduledExecutor();
+    private ScheduledExecutorService execSvc;
     /**
      * Global CompletableFuture reference that is used to apply backpressure via {@link #ensureNewBlocksPermitted()}. If
      * the completed future has a value of {@code true}, then it means that the buffer is no longer saturated and no
@@ -152,20 +152,40 @@ public class BlockBufferService {
      * background worker thread. Calling this method multiple times on the same instance will do nothing.
      */
     public void start() {
-        // Initialize buffer and start worker thread if streaming is enabled
-        if (grpcStreamingEnabled && isStarted.compareAndSet(false, true)) {
-            loadBufferFromDisk();
-            scheduleNextWorkerTask();
+        if (!grpcStreamingEnabled || !isStarted.compareAndSet(false, true)) {
+            return;
         }
+
+        // Initialize buffer and start worker thread if streaming is enabled
+        loadBufferFromDisk();
+
+        execSvc = Executors.newSingleThreadScheduledExecutor();
+        scheduleNextWorkerTask();
     }
 
     /**
      * Shuts down the block buffer service and its associated resources.
-     * This terminates the executor service and shuts down the block node connection manager.
+     * This terminates the executor service.
      */
     public void shutdown() {
+        if (!isStarted.compareAndSet(true, false)) {
+            // buffer already shutdown
+            return;
+        }
+
+        // stop the background task from running
         execSvc.shutdownNow();
-        blockNodeConnectionManager.shutdown();
+        // since the pruning task is no longer running, free up the buffer
+        blockBuffer.clear();
+        // if back pressure was enabled, disable it during shutdown
+        disableBackPressure();
+        // clear metadata
+        highestAckedBlockNumber.set(-1);
+        lastProducedBlockNumber.set(-1);
+        earliestBlockNumber.set(-1);
+        lastPruningResult = PruneResult.NIL;
+        lastRecoveryActionTimestamp = Instant.MIN;
+        awaitingRecovery = false;
     }
 
     /**
@@ -287,7 +307,7 @@ public class BlockBufferService {
      * @throws IllegalArgumentException if the block number is negative
      */
     public void openBlock(final long blockNumber) {
-        if (!grpcStreamingEnabled) {
+        if (!grpcStreamingEnabled || !isStarted.get()) {
             return;
         }
 
@@ -309,7 +329,8 @@ public class BlockBufferService {
         earliestBlockNumber.updateAndGet(
                 current -> current == Long.MIN_VALUE ? blockNumber : Math.min(current, blockNumber));
         lastProducedBlockNumber.updateAndGet(old -> Math.max(old, blockNumber));
-        blockStreamMetrics.setProducingBlockNumber(blockNumber);
+        blockStreamMetrics.recordLatestBlockOpened(blockNumber);
+        blockStreamMetrics.recordBlockOpened();
         blockNodeConnectionManager.openBlock(blockNumber);
     }
 
@@ -321,7 +342,7 @@ public class BlockBufferService {
      * @throws IllegalStateException if no block is currently open
      */
     public void addItem(final long blockNumber, @NonNull final BlockItem blockItem) {
-        if (!grpcStreamingEnabled) {
+        if (!grpcStreamingEnabled || !isStarted.get()) {
             return;
         }
         requireNonNull(blockItem, "blockItem must not be null");
@@ -338,7 +359,7 @@ public class BlockBufferService {
      * @throws IllegalStateException if no block is currently open
      */
     public void closeBlock(final long blockNumber) {
-        if (!grpcStreamingEnabled) {
+        if (!grpcStreamingEnabled || !isStarted.get()) {
             return;
         }
 
@@ -347,6 +368,7 @@ public class BlockBufferService {
             throw new IllegalStateException("Block state not found for block " + blockNumber);
         }
 
+        blockStreamMetrics.recordBlockClosed();
         blockState.closeBlock();
     }
 
@@ -357,7 +379,13 @@ public class BlockBufferService {
      * @return the block state, or null if no block state exists for the given block number
      */
     public @Nullable BlockState getBlockState(final long blockNumber) {
-        return blockBuffer.get(blockNumber);
+        final BlockState block = blockBuffer.get(blockNumber);
+
+        if (block == null) {
+            blockStreamMetrics.recordBlockMissing();
+        }
+
+        return block;
     }
 
     /**
@@ -377,12 +405,12 @@ public class BlockBufferService {
      * @param blockNumber the block number to mark acknowledged up to and including
      */
     public void setLatestAcknowledgedBlock(final long blockNumber) {
-        if (!grpcStreamingEnabled) {
+        if (!grpcStreamingEnabled || !isStarted.get()) {
             return;
         }
 
         final long highestBlock = highestAckedBlockNumber.updateAndGet(current -> Math.max(current, blockNumber));
-        blockStreamMetrics.setLatestAcknowledgedBlockNumber(highestBlock);
+        blockStreamMetrics.recordLatestBlockAcked(highestBlock);
     }
 
     /**
@@ -392,15 +420,6 @@ public class BlockBufferService {
      */
     public long getLastBlockNumberProduced() {
         return lastProducedBlockNumber.get();
-    }
-
-    /**
-     * Retrieves the lowest unacked block number in the buffer.
-     * This is the lowest block number that has not been acknowledged.
-     * @return the lowest unacked block number or -1 if the buffer is empty
-     */
-    public long getLowestUnackedBlockNumber() {
-        return highestAckedBlockNumber.get() == Long.MIN_VALUE ? -1 : highestAckedBlockNumber.get() + 1;
     }
 
     /**
@@ -426,7 +445,7 @@ public class BlockBufferService {
      * enough capacity - i.e. the buffer is saturated - then this method will block until there is enough capacity.
      */
     public void ensureNewBlocksPermitted() {
-        if (!grpcStreamingEnabled) {
+        if (!grpcStreamingEnabled || !isStarted.get()) {
             return;
         }
 
@@ -511,7 +530,7 @@ public class BlockBufferService {
      * @see BlockBufferIO
      */
     public void persistBuffer() {
-        if (!grpcStreamingEnabled || !isBufferPersistenceEnabled()) {
+        if (!grpcStreamingEnabled || !isStarted.get() || !isBufferPersistenceEnabled()) {
             return;
         }
 
@@ -551,7 +570,6 @@ public class BlockBufferService {
         int numPruned = 0;
         int numChecked = 0;
         int numPendingAck = 0;
-        final AtomicReference<Instant> oldestUnackedTimestamp = new AtomicReference<>(Instant.MAX);
         long newEarliestBlock = Long.MAX_VALUE;
         long newLatestBlock = Long.MIN_VALUE;
 
@@ -576,8 +594,6 @@ public class BlockBufferService {
                     // Track unacknowledged blocks
                     if (block.blockNumber() > highestBlockAcked) {
                         ++numPendingAck;
-                        oldestUnackedTimestamp.updateAndGet(
-                                current -> current.compareTo(closedTimestamp) < 0 ? current : closedTimestamp);
                     }
                     // Keep track of earliest remaining block
                     newEarliestBlock = Math.min(newEarliestBlock, blockNum);
@@ -598,18 +614,17 @@ public class BlockBufferService {
                 // keep track of earliest remaining block
                 newEarliestBlock = Math.min(newEarliestBlock, blockNum);
                 newLatestBlock = Math.max(newLatestBlock, blockNum);
-                oldestUnackedTimestamp.updateAndGet(
-                        current -> current.compareTo(closedTimestamp) < 0 ? current : closedTimestamp);
             }
         }
 
         // update the earliest block number after pruning
-        earliestBlockNumber.set(newEarliestBlock == Long.MAX_VALUE ? -1 : newEarliestBlock);
+        newEarliestBlock = newEarliestBlock == Long.MAX_VALUE ? -1 : newEarliestBlock;
+        newLatestBlock = newLatestBlock == Long.MIN_VALUE ? -1 : newLatestBlock;
+        earliestBlockNumber.set(newEarliestBlock);
 
-        final long oldestUnackedMillis = Instant.MAX.equals(oldestUnackedTimestamp.get())
-                ? -1 // sentinel value indicating no blocks are unacked
-                : oldestUnackedTimestamp.get().toEpochMilli();
-        blockStreamMetrics.setOldestUnacknowledgedBlockTime(oldestUnackedMillis);
+        blockStreamMetrics.recordNumberOfBlocksPruned(numPruned);
+        blockStreamMetrics.recordBufferOldestBlock(newEarliestBlock);
+        blockStreamMetrics.recordBufferNewestBlock(newLatestBlock);
 
         return new PruneResult(
                 idealMaxBufferSize, numChecked, numPendingAck, numPruned, newEarliestBlock, newLatestBlock);
@@ -656,6 +671,17 @@ public class BlockBufferService {
                         .doubleValue();
             }
         }
+
+        @Override
+        public String toString() {
+            return "PruneResult{" + "idealMaxBufferSize="
+                    + idealMaxBufferSize + ", numBlocksChecked="
+                    + numBlocksChecked + ", numBlocksPendingAck="
+                    + numBlocksPendingAck + ", numBlocksPruned="
+                    + numBlocksPruned + ", saturationPercent="
+                    + saturationPercent + ", isSaturated="
+                    + isSaturated + '}';
+        }
     }
 
     /**
@@ -679,11 +705,11 @@ public class BlockBufferService {
                 pruningResult.numBlocksChecked,
                 pruningResult.numBlocksPruned,
                 pruningResult.numBlocksPendingAck,
-                pruningResult.oldestBlockNumber == Long.MAX_VALUE ? "-" : pruningResult.oldestBlockNumber,
-                pruningResult.newestBlockNumber == Long.MIN_VALUE ? "-" : pruningResult.newestBlockNumber,
+                pruningResult.oldestBlockNumber == -1 ? "-" : pruningResult.oldestBlockNumber,
+                pruningResult.newestBlockNumber == -1 ? "-" : pruningResult.newestBlockNumber,
                 pruningResult.saturationPercent);
 
-        blockStreamMetrics.updateBlockBufferSaturation(pruningResult.saturationPercent);
+        blockStreamMetrics.recordBufferSaturation(pruningResult.saturationPercent);
 
         final double actionStageThreshold = actionStageThreshold();
 
@@ -694,16 +720,17 @@ public class BlockBufferService {
                 The buffer has transitioned from zero/low saturation levels to fully saturated. We need to ensure back
                 pressure is engaged and potentially change which Block Node we are connected to.
                  */
+                blockStreamMetrics.recordBackPressureActive();
                 enableBackPressure(pruningResult);
                 switchBlockNodeIfPermitted(pruningResult);
             } else if (pruningResult.saturationPercent >= actionStageThreshold) {
-
                 /*
                 Zero -> Action Stage
                 The buffer has transitioned from zero/low saturation levels to exceeding the action stage threshold. We
                 don't need to engage back pressure, but we should take proactive measures and swap to a different
                 Block Node.
                  */
+                blockStreamMetrics.recordBackPressureActionStage();
                 switchBlockNodeIfPermitted(pruningResult);
             } else {
                 /*
@@ -711,6 +738,7 @@ public class BlockBufferService {
                 Before and after the pruning, the buffer saturation remained lower than the action stage threshold so
                 there is no action we need to take.
                  */
+                blockStreamMetrics.recordBackPressureDisabled();
             }
         } else if (!previousPruneResult.isSaturated && previousPruneResult.saturationPercent >= actionStageThreshold) {
             if (pruningResult.isSaturated) {
@@ -719,6 +747,7 @@ public class BlockBufferService {
                 The buffer has transitioned from the action stage saturation level to being completely full/saturated.
                 Back pressure needs to be applied and possibly switch to a different Block Node.
                  */
+                blockStreamMetrics.recordBackPressureActive();
                 enableBackPressure(pruningResult);
                 switchBlockNodeIfPermitted(pruningResult);
             } else if (pruningResult.saturationPercent >= actionStageThreshold) {
@@ -728,6 +757,7 @@ public class BlockBufferService {
                 does not need to be enabled yet (though may eventually if recovery is slow/blocked) but we should maybe
                 swap Block Node connections.
                  */
+                blockStreamMetrics.recordBackPressureActionStage();
                 switchBlockNodeIfPermitted(pruningResult);
             } else {
                 /*
@@ -735,6 +765,7 @@ public class BlockBufferService {
                 The buffer has transitioned from an action stage to having a saturation that is below the action stage
                 threshold. There is no further action to take since recovery has been achieved.
                  */
+                blockStreamMetrics.recordBackPressureDisabled();
             }
         } else if (previousPruneResult.isSaturated) {
             if (pruningResult.isSaturated) {
@@ -743,8 +774,9 @@ public class BlockBufferService {
                 Before and after pruning, the buffer remained fully saturated. Back pressure should be enabled - if not
                 already - and we should maybe swap to a different Block Node.
                  */
-                enableBackPressure(pruningResult);
+                blockStreamMetrics.recordBackPressureActive();
                 switchBlockNodeIfPermitted(pruningResult);
+                enableBackPressure(pruningResult);
             } else if (pruningResult.saturationPercent >= actionStageThreshold) {
                 /*
                 Full -> Action Stage
@@ -754,6 +786,11 @@ public class BlockBufferService {
                 connect to a different Block Node.
                  */
                 disableBackPressureIfRecovered(pruningResult);
+                if (awaitingRecovery) {
+                    blockStreamMetrics.recordBackPressureRecovering();
+                } else {
+                    blockStreamMetrics.recordBackPressureActionStage();
+                }
             } else {
                 /*
                 Full -> Zero
@@ -762,6 +799,11 @@ public class BlockBufferService {
                 since the buffer fully recovered we should avoid trying to connect to a different Block Node.
                  */
                 disableBackPressureIfRecovered(pruningResult);
+                if (awaitingRecovery) {
+                    blockStreamMetrics.recordBackPressureRecovering();
+                } else {
+                    blockStreamMetrics.recordBackPressureDisabled();
+                }
             }
         }
 
@@ -821,6 +863,13 @@ public class BlockBufferService {
                 "Buffer saturation is below or equal to the recovery threshold; back pressure will be disabled. (saturation={}%, recoveryThreshold={}%)",
                 latestPruneResult.saturationPercent, recoveryThreshold);
 
+        disableBackPressure();
+    }
+
+    /**
+     * Disables back pressure.
+     */
+    private void disableBackPressure() {
         final CompletableFuture<Boolean> cf = backpressureCompletableFutureRef.get();
         if (cf != null && !cf.isDone()) {
             // the future isn't completed, so complete it to disable the blocking back pressure
@@ -884,6 +933,11 @@ public class BlockBufferService {
 
         @Override
         public void run() {
+            if (!isStarted.get()) {
+                logger.debug("Buffer service shutdown; aborting worker task");
+                return;
+            }
+
             try {
                 checkBuffer();
             } catch (final RuntimeException e) {

@@ -30,7 +30,7 @@ public class ContainerNodeConfiguration extends AbstractNodeConfiguration {
      * @return an unmodifiable map of overridden properties
      */
     @NonNull
-    public Map<String, String> overriddenProperties() {
+    Map<String, String> overriddenProperties() {
         return Collections.unmodifiableMap(overriddenProperties);
     }
 }
