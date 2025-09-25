@@ -104,8 +104,8 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
             jumpToBlockIfNeeded.setAccessible(true);
             jumpToBlockIfNeededHandle = lookup.unreflect(jumpToBlockIfNeeded);
 
-            final Method processStreamingToBlockNode = BlockNodeConnectionManager.class
-                    .getDeclaredMethod("processStreamingToBlockNode", BlockNodeConnection.class);
+            final Method processStreamingToBlockNode = BlockNodeConnectionManager.class.getDeclaredMethod(
+                    "processStreamingToBlockNode", BlockNodeConnection.class);
             processStreamingToBlockNode.setAccessible(true);
             processStreamingToBlockNodeHandle = lookup.unreflect(processStreamingToBlockNode);
 

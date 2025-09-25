@@ -12,6 +12,7 @@ import com.hedera.node.internal.network.BlockNodeConfig;
 import com.hedera.pbj.runtime.grpc.GrpcException;
 import com.hedera.pbj.runtime.grpc.Pipeline;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
 import java.util.Objects;
 import java.util.concurrent.Flow;
@@ -180,17 +181,46 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
     /**
      * Updates the connection's state.
      * @param newState the new state to transition to
+     * @return true if the state was successfully updated to the new state, else false
      */
-    public void updateConnectionState(@NonNull final ConnectionState newState) {
+    public boolean updateConnectionState(@NonNull final ConnectionState newState) {
+        return updateConnectionState(null, newState);
+    }
+
+    /**
+     * Updates this connection's state if the current state matches the expected states (if specified).
+     *
+     * @param expectedCurrentState the expected current connection state (optional)
+     * @param newState the new state to transition to
+     * @return true if the state was successfully updated to the new state, else false
+     */
+    private boolean updateConnectionState(
+            @Nullable final ConnectionState expectedCurrentState, @NonNull final ConnectionState newState) {
         requireNonNull(newState, "newState must not be null");
-        final ConnectionState oldState = connectionState.getAndSet(newState);
-        logger.debug("[{}] Connection state transitioned from {} to {}", this, oldState, newState);
+
+        if (expectedCurrentState != null) {
+            if (connectionState.compareAndSet(expectedCurrentState, newState)) {
+                logger.debug("[{}] Connection state transitioned from {} to {}", this, expectedCurrentState, newState);
+            } else {
+                logger.warn(
+                        "[{}] Failed to transition state from {} to {} because current state does not match expected state",
+                        this,
+                        expectedCurrentState,
+                        newState);
+                return false;
+            }
+        } else {
+            final ConnectionState oldState = connectionState.getAndSet(newState);
+            logger.debug("[{}] Connection state transitioned from {} to {}", this, oldState, newState);
+        }
 
         if (newState == ConnectionState.ACTIVE) {
             scheduleStreamReset();
         } else {
             cancelStreamReset();
         }
+
+        return true;
     }
 
     /**
@@ -532,13 +562,13 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
      * @param callOnComplete whether to call onComplete on the request pipeline
      */
     public void close(final boolean callOnComplete) {
-        final ConnectionState connState = connectionState.get();
+        final ConnectionState connState = getConnectionState();
         if (connState == ConnectionState.CLOSING || connState == ConnectionState.CLOSED) {
             logger.debug("[{}] Connection already in terminal state ({})", this, connState);
             return;
         }
 
-        if (!connectionState.compareAndSet(connState, ConnectionState.CLOSING)) {
+        if (!updateConnectionState(connState, ConnectionState.CLOSING)) {
             logger.debug("[{}] State changed while trying to close connection; aborting close attempt", this);
             return;
         }
@@ -566,20 +596,16 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
             streamShutdownInProgress.set(true);
 
             try {
-                final ConnectionState state = connectionState.get();
+                final ConnectionState state = getConnectionState();
                 if (state == ConnectionState.CLOSING && callOnComplete) {
                     pipeline.onComplete();
                     logger.debug("[{}] Request pipeline successfully closed", this);
-                } else {
-                    logger.debug(
-                            "[{}] Attempted to close pipeline, but connection state is not CLOSING (actual={})",
-                            this,
-                            state);
                 }
             } catch (final Exception e) {
                 logger.warn("[{}] Error while completing request pipeline", this, e);
             }
             // Clear the pipeline reference to prevent further use
+            logger.debug("[{}] Request pipeline removed", this);
             requestPipelineRef.compareAndSet(pipeline, null);
         }
     }
