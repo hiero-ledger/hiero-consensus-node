@@ -114,7 +114,8 @@ public class BlockStreamEventBuilder {
     }
 
     private void signedTransaction(final Bytes transactionBytes) {
-        if (currentEventHeader == null) {
+        final TransactionBody transactionBody = getTransactionBody(transactionBytes);
+        if (transactionBody.transactionID().nonce() == 0 && currentEventHeader == null) {
             fail("Unexpected transaction item without an active event header!");
         }
         if (isTransactionInEvent(transactionBytes)) {
