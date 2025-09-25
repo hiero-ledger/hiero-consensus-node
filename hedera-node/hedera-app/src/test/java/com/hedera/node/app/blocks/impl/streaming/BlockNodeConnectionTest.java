@@ -521,6 +521,9 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
 
         final RuntimeException e = catchRuntimeException(() -> connection.sendRequest(request));
         assertThat(e).isInstanceOf(RuntimeException.class).hasMessage("kaboom!");
+
+        verify(metrics).recordRequestSendFailure();
+        verifyNoMoreInteractions(metrics);
     }
 
     @Test
@@ -538,6 +541,8 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
 
         verify(requestPipeline).onNext(any());
         verify(spiedConnection, times(2)).getConnectionState();
+
+        verifyNoInteractions(metrics);
     }
 
     @Test

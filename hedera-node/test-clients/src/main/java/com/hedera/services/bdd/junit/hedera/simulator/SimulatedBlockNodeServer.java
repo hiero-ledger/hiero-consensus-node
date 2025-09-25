@@ -355,8 +355,6 @@ public class SimulatedBlockNodeServer {
                                     final var header = item.blockHeader();
                                     final long blockNumber = header.number();
 
-                                    handleBehindResponse(replies, blockNumber, Long.MAX_VALUE - 1);
-
                                     // We might want to catch up using a supplier from
                                     // another BN simulator
                                     if (externalLastVerifiedBlockNumberSupplier != null

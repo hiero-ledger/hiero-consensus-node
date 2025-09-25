@@ -520,8 +520,8 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                  */
                 if (getConnectionState() == ConnectionState.ACTIVE) {
                     blockStreamMetrics.recordRequestSendFailure();
-                }
                     throw e;
+                }
             }
         }
     }

@@ -717,6 +717,7 @@ public class BlockNodeConnectionManager {
     /**
      * Send at most one request to the active block node - if there is one.
      *
+     * @param connection the connection to use for streaming block data
      * @return true if the worker thread should sleep because of a lack of work to do, else false (the worker thread
      * should NOT sleep)
      */
