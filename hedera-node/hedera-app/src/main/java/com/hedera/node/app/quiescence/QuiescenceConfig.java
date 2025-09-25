@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.quiescence;
 
 import com.swirlds.config.api.ConfigData;
@@ -13,8 +14,5 @@ import java.time.Duration;
  */
 @ConfigData("quiescence")
 public record QuiescenceConfig(
-        @ConfigProperty(value = "enabled", defaultValue = "true")
-        boolean enabled,
-        @ConfigProperty(value = "tctDuration", defaultValue = "5s")
-        Duration tctDuration) {
-}
+        @ConfigProperty(value = "enabled", defaultValue = "true") boolean enabled,
+        @ConfigProperty(value = "tctDuration", defaultValue = "5s") Duration tctDuration) {}

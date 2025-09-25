@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.quiescence;
 
 import com.hedera.hapi.block.stream.Block;
@@ -42,7 +43,6 @@ public class QuiescenceController {
     private final AtomicReference<Instant> nextTct;
     private final AtomicLong pipelineTransactionCount;
 
-
     /**
      * Constructs a new quiescence controller.
      *
@@ -52,9 +52,7 @@ public class QuiescenceController {
      *                                yet included put into an event
      */
     public QuiescenceController(
-            final QuiescenceConfig config,
-            final Time time,
-            final LongSupplier pendingTransactionCount) {
+            final QuiescenceConfig config, final Time time, final LongSupplier pendingTransactionCount) {
         this.config = Objects.requireNonNull(config);
         this.time = Objects.requireNonNull(time);
         this.pendingTransactionCount = Objects.requireNonNull(pendingTransactionCount);
@@ -206,13 +204,11 @@ public class QuiescenceController {
         pipelineTransactionCount.set(Long.MAX_VALUE / 2);
     }
 
-
     private boolean isRelevantTransaction(@NonNull final Bytes bytes) {
-        final TransactionBody body = transactionBodyParser.apply(signedTransactionParser.apply(bytes)
-                .bodyBytes());
+        final TransactionBody body =
+                transactionBodyParser.apply(signedTransactionParser.apply(bytes).bodyBytes());
         // FOR EXECUTION REVIEWERS:
         // Are these the only two transaction types we should ignore?
-        return !body.hasStateSignatureTransaction() &&
-                !body.hasHintsPartialSignature();
+        return !body.hasStateSignatureTransaction() && !body.hasHintsPartialSignature();
     }
 }

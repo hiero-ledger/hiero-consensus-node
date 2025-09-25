@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.quiescence;
 
 import static com.hedera.node.app.quiescence.QuiescenceStatus.NOT_QUIESCENT;
@@ -30,11 +31,14 @@ import org.junit.jupiter.api.Test;
 class QuiescenceControllerTest {
     private static final QuiescenceConfig CONFIG = new QuiescenceConfig(true, Duration.ofSeconds(3));
     private static final TransactionBody TXN_TRANSFER = TransactionBody.newBuilder()
-            .cryptoTransfer(CryptoTransferTransactionBody.DEFAULT).build();
+            .cryptoTransfer(CryptoTransferTransactionBody.DEFAULT)
+            .build();
     private static final TransactionBody TXN_STATE_SIG = TransactionBody.newBuilder()
-            .stateSignatureTransaction(StateSignatureTransaction.DEFAULT).build();
+            .stateSignatureTransaction(StateSignatureTransaction.DEFAULT)
+            .build();
     private static final TransactionBody TXN_HINTS_SIG = TransactionBody.newBuilder()
-            .hintsPartialSignature(HintsPartialSignatureTransactionBody.DEFAULT).build();
+            .hintsPartialSignature(HintsPartialSignatureTransactionBody.DEFAULT)
+            .build();
 
     private final AtomicLong pendingTransactions = new AtomicLong();
     private FakeTime time;
@@ -51,10 +55,14 @@ class QuiescenceControllerTest {
     void basicBehavior() {
         assertEquals(QUIESCENT, controller.getQuiescenceStatus(), "Initially the status should be quiescent");
         controller.onPreHandle(createEvent(TXN_TRANSFER));
-        assertEquals(NOT_QUIESCENT, controller.getQuiescenceStatus(),
+        assertEquals(
+                NOT_QUIESCENT,
+                controller.getQuiescenceStatus(),
                 "Since a transaction was received through pre-handle, the status should be not quiescent");
         controller.fullySignedBlock(createBlock(TXN_TRANSFER));
-        assertEquals(QUIESCENT, controller.getQuiescenceStatus(),
+        assertEquals(
+                QUIESCENT,
+                controller.getQuiescenceStatus(),
                 "Once that transaction has been included in a block, the status should be quiescent again");
     }
 
@@ -62,53 +70,78 @@ class QuiescenceControllerTest {
     void signaturesAreIgnored() {
         assertEquals(QUIESCENT, controller.getQuiescenceStatus(), "Initially the status should be quiescent");
         controller.onPreHandle(createEvent(TXN_STATE_SIG, TXN_HINTS_SIG));
-        assertEquals(QUIESCENT, controller.getQuiescenceStatus(),
+        assertEquals(
+                QUIESCENT,
+                controller.getQuiescenceStatus(),
                 "Signature transactions should be ignored, so the status should remain quiescent");
         controller.onPreHandle(createEvent(TXN_STATE_SIG, TXN_HINTS_SIG, TXN_TRANSFER));
-        assertEquals(NOT_QUIESCENT, controller.getQuiescenceStatus(),
+        assertEquals(
+                NOT_QUIESCENT,
+                controller.getQuiescenceStatus(),
                 "A single non-signature transaction should make the status not quiescent");
         controller.fullySignedBlock(createBlock(TXN_STATE_SIG, TXN_HINTS_SIG));
-        assertEquals(NOT_QUIESCENT, controller.getQuiescenceStatus(),
+        assertEquals(
+                NOT_QUIESCENT,
+                controller.getQuiescenceStatus(),
                 "Signature transactions should be ignored, so the status should remain not quiescent");
     }
 
     @Test
     void staleEvents() {
         controller.onPreHandle(createEvent(TXN_TRANSFER));
-        assertEquals(NOT_QUIESCENT, controller.getQuiescenceStatus(),
+        assertEquals(
+                NOT_QUIESCENT,
+                controller.getQuiescenceStatus(),
                 "Since a transaction was received through pre-handle, the status should be not quiescent");
         controller.staleEvent(createEvent(TXN_TRANSFER));
-        assertEquals(QUIESCENT, controller.getQuiescenceStatus(),
+        assertEquals(
+                QUIESCENT,
+                controller.getQuiescenceStatus(),
                 "A stale event should remove the transaction from the pipeline, so the status should be quiescent again");
     }
 
     @Test
     void tct() {
-        controller.setNextTargetConsensusTime(time.now().plus(CONFIG.tctDuration().multipliedBy(2)));
-        assertEquals(QUIESCENT, controller.getQuiescenceStatus(),
+        controller.setNextTargetConsensusTime(
+                time.now().plus(CONFIG.tctDuration().multipliedBy(2)));
+        assertEquals(
+                QUIESCENT,
+                controller.getQuiescenceStatus(),
                 "There are no pending transactions, and the TCT is far off, so the status should be quiescent");
         time.tick(CONFIG.tctDuration().plusNanos(1));
-        assertEquals(NOT_QUIESCENT, controller.getQuiescenceStatus(),
+        assertEquals(
+                NOT_QUIESCENT,
+                controller.getQuiescenceStatus(),
                 "Wall-clock time has advanced past the TCT threshold, so the status should be not quiescent");
         controller.fullySignedBlock(createBlock(time.now()));
         time.tick(CONFIG.tctDuration().multipliedBy(2));
-        assertEquals(NOT_QUIESCENT, controller.getQuiescenceStatus(),
+        assertEquals(
+                NOT_QUIESCENT,
+                controller.getQuiescenceStatus(),
                 "Wall-clock time has advanced past the TCT, but consensus time has not, so the status should remain not quiescent");
         controller.fullySignedBlock(createBlock(time.now()));
-        assertEquals(QUIESCENT, controller.getQuiescenceStatus(),
+        assertEquals(
+                QUIESCENT,
+                controller.getQuiescenceStatus(),
                 "Consensus time has now advanced past the TCT, so the status should be quiescent again");
     }
 
     @Test
     void platformStatusUpdate() {
         controller.onPreHandle(createEvent(TXN_TRANSFER));
-        assertEquals(NOT_QUIESCENT, controller.getQuiescenceStatus(),
+        assertEquals(
+                NOT_QUIESCENT,
+                controller.getQuiescenceStatus(),
                 "Since a transaction was received through pre-handle, the status should be not quiescent");
         controller.platformStatusUpdate(PlatformStatus.CHECKING);
-        assertEquals(NOT_QUIESCENT, controller.getQuiescenceStatus(),
+        assertEquals(
+                NOT_QUIESCENT,
+                controller.getQuiescenceStatus(),
                 "The checking status should not affect the quiescence status");
         controller.platformStatusUpdate(PlatformStatus.RECONNECT_COMPLETE);
-        assertEquals(QUIESCENT, controller.getQuiescenceStatus(),
+        assertEquals(
+                QUIESCENT,
+                controller.getQuiescenceStatus(),
                 "The reconnect complete status should reset the controller");
     }
 
@@ -123,9 +156,11 @@ class QuiescenceControllerTest {
     }
 
     private Block createBlock(final Instant consensusTime) {
-        final BlockItem blockItem = BlockItem.newBuilder().stateChanges(
-                StateChanges.newBuilder().consensusTimestamp(HapiUtils.asTimestamp(consensusTime)).build()
-        ).build();
+        final BlockItem blockItem = BlockItem.newBuilder()
+                .stateChanges(StateChanges.newBuilder()
+                        .consensusTimestamp(HapiUtils.asTimestamp(consensusTime))
+                        .build())
+                .build();
         return Block.newBuilder().items(List.of(blockItem)).build();
     }
 
@@ -136,6 +171,8 @@ class QuiescenceControllerTest {
                 .map(SignedTransaction.PROTOBUF::toBytes)
                 .toList();
 
-        return new TestingEventBuilder(new Random()).setTransactionBytes(transactions).build();
+        return new TestingEventBuilder(new Random())
+                .setTransactionBytes(transactions)
+                .build();
     }
 }
