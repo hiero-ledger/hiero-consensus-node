@@ -16,13 +16,11 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.statevalidation.merkledb.reflect.BucketIterator;
 import com.hedera.statevalidation.merkledb.reflect.HalfDiskHashMapW;
 import com.hedera.statevalidation.merkledb.reflect.MemoryIndexDiskKeyValueStoreW;
-import com.hedera.statevalidation.parameterresolver.StateResolver;
-import com.hedera.statevalidation.reporting.SlackReportGenerator;
+import com.hedera.statevalidation.validators.Validator;
 import com.swirlds.merkledb.MerkleDbDataSource;
 import com.swirlds.merkledb.collections.LongList;
 import com.swirlds.merkledb.files.hashmap.ParsedBucket;
 import com.swirlds.platform.state.MerkleNodeState;
-import com.swirlds.platform.state.snapshot.DeserializedSignedState;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -30,21 +28,21 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.LongConsumer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.junit.jupiter.api.Tag;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
 
+/**
+ * This validation should be independent as it goes over the files from the hdhm perspective.
+ */
 @SuppressWarnings("NewClassNamingConvention")
-@ExtendWith({StateResolver.class, SlackReportGenerator.class})
-@Tag("hdhm")
-public class ValidateLeafIndexHalfDiskHashMap {
+public class ValidateLeafIndexHalfDiskHashMap implements Validator {
 
     private static final Logger log = LogManager.getLogger(ValidateLeafIndexHalfDiskHashMap.class);
 
-    @Test
-    public void validateIndex(DeserializedSignedState deserializedState) {
-        final MerkleNodeState merkleNodeState =
-                deserializedState.reservedSignedState().get().getState();
+    @Override
+    public String getTag() {
+        return "hdhm";
+    }
+
+    public void validate(MerkleNodeState merkleNodeState) {
         final VirtualMap virtualMap = (VirtualMap) merkleNodeState.getRoot();
         assertNotNull(virtualMap);
         MerkleDbDataSource vds = (MerkleDbDataSource) virtualMap.getDataSource();

@@ -18,6 +18,7 @@ import java.util.List;
 import org.junit.jupiter.api.extension.AfterTestExecutionCallback;
 import org.junit.jupiter.api.extension.ExtensionContext;
 
+// Not sure if it is needed at all, as it is not used in all validators.
 public class SlackReportGenerator implements AfterTestExecutionCallback {
     private static final String REPORT_FILE_PATH = "slack_report.json";
     private static final List<TestResult> testResults;

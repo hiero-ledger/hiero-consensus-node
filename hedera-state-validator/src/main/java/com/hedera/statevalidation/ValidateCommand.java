@@ -1,19 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.statevalidation;
 
-import static org.junit.platform.engine.discovery.DiscoverySelectors.selectPackage;
-
-import com.hedera.statevalidation.listener.LoggingTestExecutionListener;
-import com.hedera.statevalidation.listener.ReportingListener;
-import com.hedera.statevalidation.listener.SummaryGeneratingListener;
+import com.hedera.statevalidation.validators.ValidationEngine;
 import java.util.concurrent.Callable;
-import org.junit.platform.launcher.Launcher;
-import org.junit.platform.launcher.LauncherDiscoveryRequest;
-import org.junit.platform.launcher.LauncherSession;
-import org.junit.platform.launcher.TagFilter;
-import org.junit.platform.launcher.TestPlan;
-import org.junit.platform.launcher.core.LauncherDiscoveryRequestBuilder;
-import org.junit.platform.launcher.core.LauncherFactory;
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.ParentCommand;
@@ -55,21 +44,12 @@ public class ValidateCommand implements Callable<Integer> {
     public Integer call() {
         System.setProperty("state.dir", parent.getStateDir().getAbsolutePath());
 
-        LauncherDiscoveryRequest request = LauncherDiscoveryRequestBuilder.request()
-                .selectors(selectPackage("com.hedera.statevalidation.validators"))
-                .filters(TagFilter.includeTags(tags))
-                .build();
-
-        TestPlan testPlan;
-        SummaryGeneratingListener summaryGeneratingListener = new SummaryGeneratingListener();
-        try (LauncherSession session = LauncherFactory.openSession()) {
-            Launcher launcher = session.getLauncher();
-            launcher.registerTestExecutionListeners(
-                    new ReportingListener(), summaryGeneratingListener, new LoggingTestExecutionListener());
-            testPlan = launcher.discover(request);
-            launcher.execute(testPlan);
+        try {
+            ValidationEngine engine = new ValidationEngine();
+            engine.execute(tags);
+            return 0;
+        } catch (Exception e) {
+            return 1;
         }
-
-        return summaryGeneratingListener.isFailed() ? 1 : 0;
     }
 }

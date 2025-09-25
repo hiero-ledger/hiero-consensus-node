@@ -32,6 +32,9 @@ import org.junit.jupiter.api.extension.ExtendWith;
 /**
  * This tests validates the index for internal nodes of a virtual map.
  * It verifies that all the index pointers are pointing to valid data entries containing hashes.
+ * <p>
+ * It is possible to merge this validation with ValidateLeafIndex, as they both go from firstLeafPath (or 0)
+ * to the lastLeafPath anyway, even if ValidateInternalIndex does so in two steps.
  */
 @SuppressWarnings("NewClassNamingConvention")
 @ExtendWith({StateResolver.class})

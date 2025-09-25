@@ -15,6 +15,7 @@ public class ReportResolver implements ParameterResolver {
     @Override
     public Object resolveParameter(ParameterContext parameterContext, ExtensionContext extensionContext)
             throws ParameterResolutionException {
+        // It has to be only in StateAnalyzer
         return ReportingFactory.getInstance().report();
     }
 }

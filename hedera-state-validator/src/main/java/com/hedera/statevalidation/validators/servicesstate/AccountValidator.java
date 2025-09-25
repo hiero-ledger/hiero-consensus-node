@@ -14,30 +14,25 @@ import com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema;
 import com.hedera.node.app.spi.ids.ReadableEntityIdStore;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.hedera.statevalidation.parameterresolver.ReportResolver;
-import com.hedera.statevalidation.parameterresolver.StateResolver;
-import com.hedera.statevalidation.reporting.Report;
-import com.hedera.statevalidation.reporting.SlackReportGenerator;
+import com.hedera.statevalidation.validators.Validator;
 import com.swirlds.base.utility.Pair;
 import com.swirlds.common.threading.manager.AdHocThreadManager;
 import com.swirlds.platform.state.MerkleNodeState;
-import com.swirlds.platform.state.snapshot.DeserializedSignedState;
 import com.swirlds.state.merkle.StateKeyUtils;
 import com.swirlds.state.merkle.StateValue;
 import com.swirlds.state.spi.ReadableKVState;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.VirtualMapMigration;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.concurrent.atomic.AtomicLong;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.concurrent.interrupt.InterruptableConsumer;
-import org.junit.jupiter.api.Tag;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
 
-@ExtendWith({StateResolver.class, ReportResolver.class, SlackReportGenerator.class})
-@Tag("account")
-public class AccountValidator {
+/**
+ * This validation could be built on top of ValidateLeafIndex.
+ */
+public class AccountValidator implements Validator {
 
     private static final Logger log = LogManager.getLogger(AccountValidator.class);
 
@@ -46,10 +41,12 @@ public class AccountValidator {
     // https://help.hedera.com/hc/en-us/articles/360000665518-What-is-the-total-supply-of-HBAR-
     final long TOTAL_tHBAR_SUPPLY = 5_000_000_000_000_000_000L;
 
-    @Test
-    void validate(DeserializedSignedState deserializedState, Report report) throws InterruptedException {
-        final MerkleNodeState merkleNodeState =
-                deserializedState.reservedSignedState().get().getState();
+    @Override
+    public String getTag() {
+        return "account";
+    }
+
+    public void validate(@NonNull final MerkleNodeState merkleNodeState) throws InterruptedException {
 
         final VirtualMap virtualMap = (VirtualMap) merkleNodeState.getRoot();
         assertNotNull(virtualMap);
