@@ -26,6 +26,7 @@ import org.hiero.otter.fixtures.KeysAndCertsConverter;
 import org.hiero.otter.fixtures.ProtobufConverter;
 import org.hiero.otter.fixtures.container.proto.EventMessage;
 import org.hiero.otter.fixtures.container.proto.NodeCommunicationServiceGrpc;
+import org.hiero.otter.fixtures.container.proto.PingRequest;
 import org.hiero.otter.fixtures.container.proto.StartRequest;
 import org.hiero.otter.fixtures.container.proto.SyntheticBottleneckRequest;
 import org.hiero.otter.fixtures.container.proto.TransactionRequest;
@@ -230,6 +231,27 @@ public class NodeCommunicationService extends NodeCommunicationServiceGrpc.NodeC
             return;
         }
         consensusNodeManager.updateSyntheticBottleneck(request.getSleepMillisPerRound());
+        responseObserver.onNext(Empty.getDefaultInstance());
+        responseObserver.onCompleted();
+    }
+
+    /**
+     * Handles a ping request from the test framework.
+     *
+     * <p>The ping message is sent to the event bus and will be logged by all instrumented components.
+     * This can be used to verify the instrumentation is working.
+     *
+     * @param request the ping request
+     * @param responseObserver the observer to send the response to
+     */
+    @Override
+    public void ping(final PingRequest request, final StreamObserver<Empty> responseObserver) {
+        log.info("Received ping request: {}", request);
+        if (consensusNodeManager == null) {
+            setPlatformNotStartedResponse(responseObserver);
+            return;
+        }
+        consensusNodeManager.handlePing(request.getMessage());
         responseObserver.onNext(Empty.getDefaultInstance());
         responseObserver.onCompleted();
     }

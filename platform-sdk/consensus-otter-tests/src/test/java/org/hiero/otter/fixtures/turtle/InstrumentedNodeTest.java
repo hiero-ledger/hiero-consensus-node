@@ -28,7 +28,7 @@ class InstrumentedNodeTest {
 
     @ParameterizedTest
     @MethodSource("environments")
-    void testInitialization(@NonNull final TestEnvironment env) {
+    void testInstrumentation(@NonNull final TestEnvironment env) throws InterruptedException {
         final TimeManager timeManager = env.timeManager();
         final Network network = env.network();
 
@@ -41,5 +41,10 @@ class InstrumentedNodeTest {
         assertThat(instrumentedNode.newLogResult()).hasMessageContaining("InstrumentedEventCreator created");
         assertThat(network.newLogResults().suppressingNode(instrumentedNode))
                 .haveNoMessagesContaining("InstrumentedEventCreator created");
+
+        instrumentedNode.ping("Hello Hiero!");
+
+        assertThat(instrumentedNode.newLogResult()).hasMessageContaining("Ping message received: Hello Hiero!");
+        assertThat(network.newLogResults().suppressingNode(instrumentedNode)).haveNoMessagesContaining("Ping message received: Hello Hiero!");
     }
 }

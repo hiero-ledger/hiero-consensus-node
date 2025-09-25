@@ -28,6 +28,7 @@ import org.hiero.consensus.model.transaction.SignatureTransactionCheck;
 public class InstrumentedEventCreator implements EventCreatorModule {
 
     private static final Logger log = LogManager.getLogger();
+    private static final String PING_CHANNEL = "ping";
 
     /** Regular implementation that can be used to trigger standard behavior. */
     private final DefaultEventCreator delegate;
@@ -70,6 +71,11 @@ public class InstrumentedEventCreator implements EventCreatorModule {
                 signatureTransactionCheck);
 
         this.eventBus = EventBus.getInstance(selfId);
+        eventBus.subscribe(PING_CHANNEL, this::onPing);
+    }
+
+    private void onPing(@NonNull final String message) {
+        log.info("Ping message received: {}", message);
     }
 
     /**

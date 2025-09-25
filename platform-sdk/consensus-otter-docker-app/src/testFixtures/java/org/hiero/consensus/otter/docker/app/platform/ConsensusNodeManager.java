@@ -56,6 +56,9 @@ public class ConsensusNodeManager {
 
     private static final Logger log = LogManager.getLogger(ConsensusNodeManager.class);
 
+    /** The instance of the Otter application running on this consensus node. */
+    private final OtterApp otterApp;
+
     /** The instance of the platform this consensus node manager runs. */
     private final Platform platform;
 
@@ -126,6 +129,7 @@ public class ConsensusNodeManager {
                 OtterAppState::new);
         final ReservedSignedState initialState = reservedState.state();
 
+        otterApp = new OtterApp(legacySelfId);
         final MerkleNodeState state = initialState.get().getState();
         final RosterHistory rosterHistory = RosterUtils.createRosterHistory(state);
         executionCallback = new OtterExecutionLayer(metrics);
@@ -134,7 +138,7 @@ public class ConsensusNodeManager {
                         OtterApp.SWIRLD_NAME,
                         version,
                         initialState,
-                        OtterApp.INSTANCE,
+                        otterApp,
                         legacySelfId,
                         selfId.toString(),
                         rosterHistory,
@@ -231,6 +235,15 @@ public class ConsensusNodeManager {
         if (millisToSleepPerRound < 0) {
             throw new IllegalArgumentException("millisToSleepPerRound must be non-negative");
         }
-        OtterApp.INSTANCE.updateSyntheticBottleneck(millisToSleepPerRound);
+        otterApp.updateSyntheticBottleneck(millisToSleepPerRound);
+    }
+
+    /**
+     * Handles a ping message received from the test framework.
+     *
+     * @param message the ping message received, must not be {@code null}
+     */
+    public void handlePing(@NonNull final String message) {
+        otterApp.handlePing(message);
     }
 }

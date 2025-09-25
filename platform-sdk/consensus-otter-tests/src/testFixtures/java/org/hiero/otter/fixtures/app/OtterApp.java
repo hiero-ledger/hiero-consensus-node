@@ -16,9 +16,11 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
+import org.hiero.base.eventbus.EventBus;
 import org.hiero.consensus.model.event.ConsensusEvent;
 import org.hiero.consensus.model.event.Event;
 import org.hiero.consensus.model.hashgraph.Round;
+import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.roster.AddressBook;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 
@@ -26,11 +28,15 @@ import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
  * Simple application that can process all transactions required to run tests on Turtle
  */
 @SuppressWarnings("removal")
-public enum OtterApp implements ConsensusStateEventHandler<OtterAppState> {
-    INSTANCE;
+public class OtterApp implements ConsensusStateEventHandler<OtterAppState> {
 
     public static final String APP_NAME = "org.hiero.otter.fixtures.app.OtterApp";
     public static final String SWIRLD_NAME = "123";
+
+    private static final String PING = "ping";
+
+    /** The event bus to use for publishing events. */
+    private final EventBus eventBus;
 
     /**
      * The number of milliseconds to sleep per handled consensus round. Sleeping for long enough over a period of time
@@ -40,6 +46,15 @@ public enum OtterApp implements ConsensusStateEventHandler<OtterAppState> {
      * node's handle thread.
      */
     private final AtomicLong syntheticBottleneckMillis = new AtomicLong(0);
+
+    /**
+     * Create a new instance of the Otter application.
+     *
+     * @param selfId the ID of this node
+     */
+    public OtterApp(@NonNull final NodeId selfId) {
+        this.eventBus = EventBus.getInstance(selfId);
+    }
 
     /**
      * {@inheritDoc}
@@ -135,5 +150,14 @@ public enum OtterApp implements ConsensusStateEventHandler<OtterAppState> {
      */
     public void updateSyntheticBottleneck(final long millisToSleepPerRound) {
         this.syntheticBottleneckMillis.set(millisToSleepPerRound);
+    }
+
+    /**
+     * Handles a ping message by publishing it to the event bus.
+     *
+     * @param message the ping message
+     */
+    public void handlePing(@NonNull final String message) {
+        eventBus.publish(PING, message);
     }
 }

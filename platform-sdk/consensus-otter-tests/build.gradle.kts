@@ -22,6 +22,8 @@ plugins {
 
 description = "Consensus Otter Test Framework"
 
+testFixturesModuleInfo { runtimeOnly("org.hiero.consensus.event.creator.instrumented") }
+
 testModuleInfo {
     requires("com.swirlds.base.test.fixtures")
     requires("com.swirlds.common.test.fixtures")

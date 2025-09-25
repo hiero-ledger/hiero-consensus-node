@@ -98,6 +98,9 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
     @Nullable
     private PlatformComponents platformComponent;
 
+    @Nullable
+    protected OtterApp otterApp;
+
     /**
      * Constructor of {@link TurtleNode}.
      *
@@ -182,6 +185,8 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
                     OtterAppState::new);
             final ReservedSignedState initialState = reservedState.state();
 
+            otterApp = new OtterApp(selfId);
+
             final State state = initialState.get().getState();
             final RosterHistory rosterHistory = RosterUtils.createRosterHistory(state);
             final String eventStreamLoc = selfId.toString();
@@ -193,7 +198,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
                             OtterApp.SWIRLD_NAME,
                             version,
                             initialState,
-                            OtterApp.INSTANCE,
+                            otterApp,
                             selfId,
                             eventStreamLoc,
                             rosterHistory,
@@ -395,7 +400,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
     }
 
     @NonNull
-    private NodeLoggingContext.LoggingContextScope installNodeContext() {
+    protected final NodeLoggingContext.LoggingContextScope installNodeContext() {
         return NodeLoggingContext.install(Long.toString(selfId().id()));
     }
 
