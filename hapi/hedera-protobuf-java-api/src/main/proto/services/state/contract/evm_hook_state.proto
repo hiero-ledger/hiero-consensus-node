@@ -48,7 +48,7 @@ message EvmHookState {
   /**
    * True if the hook has been deleted.
    */
-  bool deleted = 5;
+  bool deleted = 5; // remove this
 
   /**
    * If set, a key that that can be used to remove or replace the hook; or (if

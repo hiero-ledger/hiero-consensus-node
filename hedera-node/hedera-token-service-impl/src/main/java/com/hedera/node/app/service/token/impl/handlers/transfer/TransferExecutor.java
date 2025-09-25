@@ -30,6 +30,8 @@ import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.ReadableTokenStore;
 import com.hedera.node.app.service.token.impl.handlers.BaseTokenHandler;
 import com.hedera.node.app.service.token.impl.handlers.transfer.hooks.HookCallFactory;
+import com.hedera.node.app.service.token.impl.handlers.transfer.hooks.HookContext;
+import com.hedera.node.app.service.token.impl.handlers.transfer.hooks.HooksABI;
 import com.hedera.node.app.service.token.impl.validators.CryptoTransferValidator;
 import com.hedera.node.app.service.token.records.CryptoTransferStreamBuilder;
 import com.hedera.node.app.spi.workflows.HandleContext;
@@ -38,7 +40,6 @@ import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import org.apache.commons.lang3.tuple.Pair;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -144,21 +145,42 @@ public class TransferExecutor extends BaseTokenHandler {
             CryptoTransferStreamBuilder recordBuilder,
             boolean skipCustomFee) {
         final var topLevelPayer = context.payer();
-        // Use the op with replaced aliases in further steps
         transferContext.validateHbarAllowances();
 
         // Replace all aliases in the transaction body with its account ids
         final var replacedOp = ensureAndReplaceAliasesInOp(txn, transferContext, context, validator);
+
         // Use the op with replaced aliases in further steps
-        final var result = decomposeIntoSteps(replacedOp, topLevelPayer, transferContext, skipCustomFee);
-        final var steps = result.getLeft();
-        final var hookInvocations = result.getRight();
+        final List<TransferStep> steps = new ArrayList<>();
+        steps.add(new AssociateTokenRecipientsStep(replacedOp));
+        final var customFeeStep = new CustomFeeAssessmentStep(replacedOp);
+
+        List<CryptoTransferTransactionBody> txns = List.of(replacedOp);
+        if (!skipCustomFee) {
+            txns = customFeeStep.assessCustomFees(transferContext);
+        }
+
+        // Extract the HookCalls from the transaction bodies after custom fee assessment
+        final var hookCalls = hookCallFactory.from(transferContext.getHandleContext(), replacedOp, txns);
+        dispatchHookCalls(hookCalls.context(), hookCalls.preOnlyHooks(), transferContext.getHandleContext(), HooksABI.FN_ALLOW);
+        dispatchHookCalls(hookCalls.context(), hookCalls.prePostHooks(), transferContext.getHandleContext(), HooksABI.FN_ALLOW_PRE);
+
+        for (final var t : txns) {
+            steps.add(new AssociateTokenRecipientsStep(t));
+
+            final var assessHbarTransfers = new AdjustHbarChangesStep(t, topLevelPayer);
+            steps.add(assessHbarTransfers);
+            final var assessFungibleTokenTransfers = new AdjustFungibleTokenChangesStep(t.tokenTransfers(), topLevelPayer);
+            steps.add(assessFungibleTokenTransfers);
+
+            final var changeNftOwners = new NFTOwnersChangeStep(t.tokenTransfers(), topLevelPayer);
+            steps.add(changeNftOwners);
+        }
         for (final var step : steps) {
-            // Apply all changes to the handleContext's States
             step.doIn(transferContext);
         }
         // Dispatch post hook calls
-        dispatchHookCalls(hookInvocations.post(), transferContext.getHandleContext());
+        dispatchHookCalls(hookCalls.context(), hookCalls.prePostHooks(), transferContext.getHandleContext(), HooksABI.FN_ALLOW_POST);
 
         if (!transferContext.getAutomaticAssociations().isEmpty()) {
             transferContext.getAutomaticAssociations().forEach(recordBuilder::addAutomaticTokenAssociation);
@@ -277,86 +299,21 @@ public class TransferExecutor extends BaseTokenHandler {
         ensureAliasExistence.doIn(transferContext);
     }
 
-    /**
-     * Decomposes a crypto transfer into a sequence of steps that can be executed in order.
-     * Each step validates the preconditions needed from TransferContextImpl in order to perform its action.
-     * Steps are as follows:
-     * <ol>
-     *     <li>(c,o)Ensure existence of alias-referenced accounts</li>
-     *     <li>(+,c)Charge custom fees for token transfers</li>
-     *     <li>(o)Ensure associations of token recipients</li>
-     *     <li>(+)Do zero-sum hbar balance changes</li>
-     *     <li>(+)Do zero-sum fungible token transfers</li>
-     *     <li>(+)Change NFT owners</li>
-     *     <li>(+,c)Pay staking rewards, possibly to previously unmentioned stakee accounts</li>
-     * </ol>
-     * LEGEND: '+' = creates new BalanceChange(s) from either the transaction body, custom fee schedule,
-     * or staking reward situation
-     *        'c' = updates an existing BalanceChange
-     *        'o' = causes a side effect not represented as BalanceChange
-     *
-     * @param op The crypto transfer transaction body
-     * @param topLevelPayer The payer of the transaction
-     * @param transferContext The transfer context
-     * @return A list of steps to execute
-     */
-    private Pair<List<TransferStep>, HookInvocations> decomposeIntoSteps(
-            final CryptoTransferTransactionBody op,
-            final AccountID topLevelPayer,
-            final TransferContextImpl transferContext,
-            boolean skipCustomFees) {
-        final List<TransferStep> steps = new ArrayList<>();
-        // Step 1: associate any token recipients that are not already associated and have
-        // auto association slots open
-        steps.add(new AssociateTokenRecipientsStep(op));
-        // Step 2: Charge custom fees for token transfers
-        final var customFeeStep = new CustomFeeAssessmentStep(op);
-
-        List<CryptoTransferTransactionBody> txns = List.of(op);
-        if (!skipCustomFees) {
-            txns = customFeeStep.assessCustomFees(transferContext);
-        }
-
-        // Extract the HookCalls from the transaction bodies after custom fee assessment
-        final var hookInvocations = hookCallFactory.from(transferContext.getHandleContext(), txns);
-        dispatchHookCalls(hookInvocations.pre(), transferContext.getHandleContext());
-
-        // The below steps should be doe for both custom fee assessed transaction in addition to
-        // original transaction
-        for (final var txn : txns) {
-            steps.add(new AssociateTokenRecipientsStep(txn));
-            // Step 3: Charge hbar transfers and also ones with isApproval. Modify the allowances map on account
-            final var assessHbarTransfers = new AdjustHbarChangesStep(txn, topLevelPayer);
-            steps.add(assessHbarTransfers);
-
-            // Step 4: Charge token transfers with an approval. Modify the allowances map on account
-            final var assessFungibleTokenTransfers =
-                    new AdjustFungibleTokenChangesStep(txn.tokenTransfers(), topLevelPayer);
-            steps.add(assessFungibleTokenTransfers);
-
-            // Step 5: Change NFT owners and also ones with isApproval. Clear the spender on NFT.
-            // Will be a no-op for every txn except possibly the first (i.e., the top-level txn).
-            // This is because assessed custom fees never change NFT owners
-            final var changeNftOwners = new NFTOwnersChangeStep(txn.tokenTransfers(), topLevelPayer);
-            steps.add(changeNftOwners);
-        }
-
-        return Pair.of(steps, hookInvocations);
-    }
-
-    private void dispatchHookCalls(final List<HookCallFactory.HookInvocation> hookInvocations,
-                                   final HandleContext handleContext) {
-        for (final var hookCall : hookInvocations) {
+    private void dispatchHookCalls(final HookContext hookContext,
+                                   final List<HookCallFactory.HookInvocation> hookInvocations,
+                                   final HandleContext handleContext,
+                                   com.esaulpaugh.headlong.abi.Function function) {
+        for (final var hookInvocation : hookInvocations) {
             final HookExecution execution = HookExecution.newBuilder()
                     .hookEntityId(HookEntityId.newBuilder()
-                            .accountId(hookCall.ownerId())
+                            .accountId(hookInvocation.ownerId())
                             .build())
                     .call(HookCall.newBuilder()
                             .evmHookCall(EvmHookCall.newBuilder()
-                                    .gasLimit(hookCall.gasLimit())
-                                    .data(Bytes.wrap(hookCall.abiEncodedInput()))
+                                    .gasLimit(hookInvocation.gasLimit())
+                                    .data(Bytes.wrap(HooksABI.encode(hookInvocation, hookContext, function)))
                                     .build())
-                            .hookId(hookCall.hookId())
+                            .hookId(hookInvocation.hookId())
                             .build())
                     .build();
             dispatchExecution(handleContext, execution);

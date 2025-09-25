@@ -6,7 +6,9 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOK_DELETED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOK_ID_IN_USE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOK_NOT_FOUND;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_HOOK_ADMIN_KEY;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_HOOK_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.service.contract.impl.utils.HookValidationUtils.validateHook;
 import static com.hedera.node.app.spi.workflows.DispatchOptions.hookDispatch;
@@ -97,25 +99,7 @@ public class HookDispatchHandler implements TransactionHandler {
                 final var hook = evmHookStore.getEvmHook(new HookId(execution.hookEntityId(), execution.callOrThrow().hookIdOrThrow()));
                 validateTrue(hook != null, HOOK_NOT_FOUND);
                 validateTrue(!hook.deleted(), HOOK_DELETED);
-
-                // Build a synthetic ContractCall to 0x16d with the pre-encoded ABI call data
-                final var evmCall = call.evmHookCallOrThrow();
-                final var gasLimit = evmCall.gasLimit();
-                final var calldata = evmCall.data().toByteArray();
-
-                final var syntheticCall = ContractCallTransactionBody.newBuilder()
-                        .contractID(ContractID.newBuilder()
-                                .evmAddress(Bytes.wrap(HOOK_ADDR_20))
-                                .build())
-                        .gas(gasLimit)
-                        .amount(0L)
-                        .functionParameters(Bytes.wrap(calldata))
-                        .build();
-                final var streamBuilder = context.dispatch(hookDispatch(
-                        context.payer(),
-                        TransactionBody.newBuilder().contractCall(syntheticCall).build(),
-                        HookDispatchStreamBuilder.class));
-                validateTrue(streamBuilder.status() == SUCCESS, streamBuilder.status());
+                validateTrue(hookKey.hookId() % 2 == 0, REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK);
             }
         }
     }

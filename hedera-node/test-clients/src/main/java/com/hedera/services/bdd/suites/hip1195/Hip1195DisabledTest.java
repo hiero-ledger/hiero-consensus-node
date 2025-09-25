@@ -4,7 +4,7 @@ package com.hedera.services.bdd.suites.hip1195;
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
 import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
-import static com.hedera.services.bdd.spec.transactions.TxnUtils.lambdaAccountAllowanceHook;
+import static com.hedera.services.bdd.spec.transactions.TxnUtils.accountAllowanceHook;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.accountLambdaSStore;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractUpdate;
@@ -64,11 +64,11 @@ public class Hip1195DisabledTest {
     final Stream<DynamicTest> cannotCreateAccountsOrContractsWithHooksWhenDisabled() {
         return hapiTest(
                 cryptoCreate("notToBe")
-                        .withHook(lambdaAccountAllowanceHook(123L, HOOK_CONTRACT.name()))
+                        .withHook(accountAllowanceHook(123L, HOOK_CONTRACT.name()))
                         .hasPrecheck(HOOKS_NOT_ENABLED),
                 contractCreate("notToBe")
                         .inlineInitCode(ByteString.EMPTY)
-                        .withHooks(lambdaAccountAllowanceHook(123L, HOOK_CONTRACT.name()))
+                        .withHooks(accountAllowanceHook(123L, HOOK_CONTRACT.name()))
                         .hasPrecheck(HOOKS_NOT_ENABLED));
     }
 
@@ -77,11 +77,11 @@ public class Hip1195DisabledTest {
         return hapiTest(
                 cryptoCreate(CIVILIAN),
                 cryptoUpdate(CIVILIAN)
-                        .withHook(lambdaAccountAllowanceHook(123L, HOOK_CONTRACT.name()))
+                        .withHook(accountAllowanceHook(123L, HOOK_CONTRACT.name()))
                         .hasPrecheck(HOOKS_NOT_ENABLED),
                 cryptoUpdate(CIVILIAN).removingHook(123L).hasPrecheck(HOOKS_NOT_ENABLED),
                 contractUpdate(HOOK_CONTRACT.name())
-                        .withHooks(lambdaAccountAllowanceHook(123L, HOOK_CONTRACT.name()))
+                        .withHooks(accountAllowanceHook(123L, HOOK_CONTRACT.name()))
                         .hasPrecheck(HOOKS_NOT_ENABLED),
                 contractUpdate(HOOK_CONTRACT.name()).removingHook(123L).hasPrecheck(HOOKS_NOT_ENABLED));
     }

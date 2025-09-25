@@ -58,9 +58,9 @@ interface IHieroAccountAllowancePrePostHook {
     /// Combines HBAR and HTS asset transfers.
     struct Transfers {
         /// The HBAR transfers
-        IHederaTokenService.TransferList hbar;
+        TransferList hbar;
         /// The HTS token transfers
-        IHederaTokenService.TokenTransferList[] tokens;
+        TokenTransferList[] tokens;
     }
 
     /// Combines the full proposed transfers for a Hiero transaction,
