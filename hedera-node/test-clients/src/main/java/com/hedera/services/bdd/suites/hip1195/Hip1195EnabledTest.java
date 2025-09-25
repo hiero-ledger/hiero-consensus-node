@@ -31,10 +31,8 @@ import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.dsl.annotations.Contract;
 import com.hedera.services.bdd.spec.dsl.entities.SpecContract;
 import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
-import com.hederahashgraph.api.proto.java.ContractID;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
@@ -55,7 +53,7 @@ public class Hip1195EnabledTest {
     }
 
     @HapiTest
-    final Stream<DynamicTest> createAndUpdateAccountWithHooks() {
+    final Stream<DynamicTest> createAndUpdateAccountWithHooksAndValidateFees() {
         return hapiTest(
                 newKeyNamed("adminKey"),
                 cryptoCreate("payer").balance(ONE_MILLION_HBARS),
@@ -69,37 +67,39 @@ public class Hip1195EnabledTest {
                         .payingWith("payer")
                         .fee(ONE_HUNDRED_HBARS)
                         .via("createTxn"),
-//                viewAccount("testAccount", account -> {
-//                    assertEquals(123L, account.firstHookId());
-//                    assertEquals(3, account.numberHooksInUse());
-//                }),
-//                // $1 for each hook and $0.05 for the create itself
-//                validateChargedUsd("createTxn", 3.05),
-//                cryptoUpdate("testAccount")
-//                        .withHooks(
-//                                lambdaAccountAllowanceHook(127L, HOOK_CONTRACT.name()),
-//                                lambdaAccountAllowanceHook(128L, HOOK_CONTRACT.name()),
-//                                lambdaAccountAllowanceHook(129L, HOOK_CONTRACT.name()))
-//                        .removingHooks(124L)
-//                        .payingWith("payer")
-//                        .via("updateTxn"),
-//                viewAccount("testAccount", account -> {
-//                    assertEquals(127L, account.firstHookId());
-//                    assertEquals(5, account.numberHooksInUse());
-//                }),
-//                // $1 for each hook and $0.00022 for the update itself
-//                validateChargedUsd("updateTxn", 4.00022),
+                viewAccount("testAccount", account -> {
+                    assertEquals(123L, account.firstHookId());
+                    assertEquals(3, account.numberHooksInUse());
+                }),
+                // $1 for each hook and $0.05 for the create itself
+                validateChargedUsd("createTxn", 3.05),
+                cryptoUpdate("testAccount")
+                        .withHooks(
+                                lambdaAccountAllowanceHook(127L, HOOK_CONTRACT.name()),
+                                lambdaAccountAllowanceHook(128L, HOOK_CONTRACT.name()),
+                                lambdaAccountAllowanceHook(129L, HOOK_CONTRACT.name()))
+                        .removingHooks(124L)
+                        .payingWith("payer")
+                        .via("updateTxn"),
+                viewAccount("testAccount", account -> {
+                    assertEquals(127L, account.firstHookId());
+                    assertEquals(5, account.numberHooksInUse());
+                }),
+                // $1 for each hook and $0.00022 for the update itself
+                validateChargedUsd("updateTxn", 4.00022),
+
+                // Finally, do a transfer to validate fees with pre and post hooks transfer
                 cryptoTransfer(TokenMovement.movingHbar(10).between("payer", "testAccount"))
                         .withPreHookFor("payer", 125L, 25_000L, "")
                         .withPrePostHookFor("testAccount", 128L, 25_000L, "")
                         .payingWith("payer")
                         .via("xferTxn"),
-                // $0.0001 for the hooks, $0.05 for the hook invocation
-                validateChargedUsd("xferTxn", 0.0001 + 0.05));
+                // $0.05 for the hook invocation crypto transfer
+                validateChargedUsd("xferTxn", 0.05));
     }
 
     @HapiTest
-    final Stream<DynamicTest> duplicateHookIdsInOneList_failsPrecheck() {
+    final Stream<DynamicTest> duplicateHookIdsInOneListFailsPrecheck() {
         final var OWNER = "acctDupIds";
         final var H1 = lambdaAccountAllowanceHook(7L, HOOK_CONTRACT.name());
         final var H2 = lambdaAccountAllowanceHook(7L, HOOK_CONTRACT.name());
@@ -112,6 +112,17 @@ public class Hip1195EnabledTest {
                         .withHook(H1)
                         .withHook(H2)
                         .hasPrecheck(HOOK_ID_REPEATED_IN_CREATION_DETAILS));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> deleteHooks() {
+        final var OWNER = "acctHeadRun";
+        final long A = 1L;
+
+        return hapiTest(
+                newKeyNamed("k"),
+                cryptoCreate(OWNER).key("k").balance(1L).withHooks(lambdaAccountAllowanceHook(A, HOOK_CONTRACT.name())),
+                cryptoUpdate(OWNER).removingHooks(A));
     }
 
     @HapiTest
@@ -218,9 +229,7 @@ public class Hip1195EnabledTest {
     }
 
     @HapiTest
-    final Stream<DynamicTest> contractCreateWithHooks() {
-        final var OWNER = "contractOwner";
-        final AtomicReference<ContractID> contractId = new AtomicReference<>();
+    final Stream<DynamicTest> contractCreateWithHooksAndValidateFees() {
         return hapiTest(
                 cryptoCreate("payer").balance(ONE_MILLION_HBARS),
                 uploadInitCode(SIMPLE_UPDATE),
@@ -255,6 +264,17 @@ public class Hip1195EnabledTest {
                     assertEquals(3, c.numberHooksInUse());
                 }),
                 // $3 for hooks, $0.026 for update
-                validateChargedUsd("contractUpdateTxn", 3.026));
+                validateChargedUsd("contractUpdateTxn", 3.026),
+                contractUpdate(SIMPLE_UPDATE)
+                        .withHooks(lambdaAccountAllowanceHook(26L, HOOK_UPDATE_CONTRACT.name()))
+                        .payingWith("payer")
+                        .blankMemo()
+                        .via("contractUpdateWithSingleHookTxn"),
+                viewContract(SIMPLE_UPDATE, (Account c) -> {
+                    assertEquals(26L, c.firstHookId());
+                    assertEquals(4, c.numberHooksInUse());
+                }),
+                // $1 for hook, $0.026 for update
+                validateChargedUsd("contractUpdateWithSingleHookTxn", 1.026, 2));
     }
 }

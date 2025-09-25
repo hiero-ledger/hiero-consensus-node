@@ -99,11 +99,10 @@ public final class OverflowCheckingCalc {
     }
 
     private long serviceFeeInTinycents(final UsageAccumulator usage, final FeeComponents servicePrices) {
-        final var nominal = safeAccumulateThree(
+        final var nominal = safeAccumulateTwo(
                 servicePrices.getConstant(),
                 usage.getServiceRbh() * servicePrices.getRbh(),
-                usage.getServiceSbh() * servicePrices.getSbh(),
-                usage.getServiceTv() * servicePrices.getTv());
+                usage.getServiceSbh() * servicePrices.getSbh());
         return constrainedTinycentFee(nominal, servicePrices.getMin(), servicePrices.getMax());
     }
 

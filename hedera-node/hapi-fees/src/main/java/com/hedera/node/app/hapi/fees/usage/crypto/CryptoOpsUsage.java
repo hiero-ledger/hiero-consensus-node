@@ -36,6 +36,7 @@ public class CryptoOpsUsage {
 
     public static final long CREATE_SLOT_MULTIPLIER = 1228;
     public static final long UPDATE_SLOT_MULTIPLIER = 24000;
+    public static final long HOUR_TO_SECOND_MULTIPLIER = 3600L;
 
     public static EstimatorFactory txnEstimateFactory = TxnUsageEstimator::new;
     static Function<ResponseType, QueryUsage> queryEstimateFactory = QueryUsage::new;
@@ -50,11 +51,13 @@ public class CryptoOpsUsage {
             final CryptoTransferMeta xferMeta,
             final BaseTransactionMeta baseMeta,
             final UsageAccumulator accumulator,
-            final long hookGasLimit) {
+            final long hookGasLimit,
+            final boolean usesHooks) {
         accumulator.resetForTransaction(baseMeta, sigUsage);
-        if (hookGasLimit > 0) {
+        // Use a different calculation if the transaction uses hooks
+        if (usesHooks) {
             accumulator.addGas(hookGasLimit);
-            accumulator.addSbs(3600L);
+            accumulator.addSbs(HOUR_TO_SECOND_MULTIPLIER);
             accumulator.addVpt(Math.max(0, sigUsage.numSigs() - 1));
         } else {
             final int tokenMultiplier = xferMeta.getTokenMultiplier();
@@ -164,9 +167,10 @@ public class CryptoOpsUsage {
         if (slotRbsDelta > 0) {
             accumulator.addRbs(slotRbsDelta);
         }
+        // Add SBH for hook creations/deletions
         if (cryptoUpdateMeta.getNumHookCreations() > 0 || cryptoUpdateMeta.getNumHookDeletions() > 0) {
-            accumulator.addSbs(
-                    (cryptoUpdateMeta.getNumHookCreations() + cryptoUpdateMeta.getNumHookDeletions()) * 3600L);
+            accumulator.addSbs((cryptoUpdateMeta.getNumHookCreations() + cryptoUpdateMeta.getNumHookDeletions())
+                    * HOUR_TO_SECOND_MULTIPLIER);
         }
     }
 
@@ -192,7 +196,10 @@ public class CryptoOpsUsage {
         accumulator.addBpt(baseSize + 2 * LONG_SIZE + BOOL_SIZE);
         accumulator.addRbs((CRYPTO_ENTITY_SIZES.fixedBytesInAccountRepr() + baseSize) * lifeTime);
         accumulator.addNetworkRbs(BASIC_ENTITY_ID_SIZE * USAGE_PROPERTIES.legacyReceiptStorageSecs());
-        accumulator.addSbs(cryptoCreateMeta.getNumHooks() * 3600L);
+        // Add SBH for hook creations
+        if (cryptoCreateMeta.getNumHooks() > 0) {
+            accumulator.addSbs(cryptoCreateMeta.getNumHooks() * HOUR_TO_SECOND_MULTIPLIER);
+        }
     }
 
     public void cryptoApproveAllowanceUsage(

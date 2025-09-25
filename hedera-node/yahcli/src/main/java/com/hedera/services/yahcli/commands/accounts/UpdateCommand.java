@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.yahcli.commands.accounts;
 
+import static com.hedera.services.bdd.spec.HapiPropertySource.asEntityString;
 import static com.hedera.services.yahcli.util.ParseUtils.normalizePossibleIdLiteral;
 
 import com.google.common.collect.Lists;
@@ -63,12 +64,9 @@ public class UpdateCommand implements Callable<Integer> {
             throw new CommandLine.PicocliException("you have to schedule the update command");
         }
 
-        final var delegate = new UpdateSuite(
-                config.asSpecConfig(),
-                effectiveMemo,
-                effectivePublicKeys,
-                effectiveTargetAccount,
-                accountsCommand.getYahcli().isScheduled());
+        final var isScheduled = accountsCommand.getYahcli().isScheduled();
+        final var delegate =
+                new UpdateSuite(config, effectiveMemo, effectivePublicKeys, effectiveTargetAccount, isScheduled);
         delegate.runSuiteSync();
 
         if (delegate.getFinalSpecs().getFirst().getStatus() == HapiSpec.SpecStatus.PASSED) {
@@ -80,7 +78,8 @@ public class UpdateCommand implements Callable<Integer> {
                             + effectivePublicKeys
                             + " with memo: '"
                             + memo
-                            + "'");
+                            + "'"
+                            + maybeScheduleId(isScheduled, delegate));
         } else {
             config.output()
                     .warn("FAILED - "
@@ -110,5 +109,16 @@ public class UpdateCommand implements Callable<Integer> {
             unHexedKeys.add(key);
         }
         return unHexedKeys;
+    }
+
+    private String maybeScheduleId(boolean isSchedule, UpdateSuite delegate) {
+        final var message = new StringBuilder();
+        if (isSchedule) {
+            final var scheduleId = delegate.getScheduleId().get();
+            message.append(" with schedule ID ");
+            message.append(
+                    asEntityString(scheduleId.getShardNum(), scheduleId.getRealmNum(), scheduleId.getScheduleNum()));
+        }
+        return message.toString();
     }
 }

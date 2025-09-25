@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.hapi.fees.usage.state;
 
-import static com.hedera.hapi.node.base.schema.FeeComponentsSchema.TV;
 import static com.hedera.node.app.hapi.fees.usage.SingletonEstimatorUtils.ESTIMATOR_UTILS;
 import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.BASIC_ACCOUNT_AMT_SIZE;
 import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.BASIC_RECEIPT_SIZE;
@@ -48,6 +47,7 @@ import org.apache.commons.lang3.builder.HashCodeBuilder;
  *       effects are visible. Units are {@code sbh} (“storage byte-hours”).
  *   <li>Computation needed to verify a Ed25519 cryptographic signature. Units are {@code vpt}
  *       (“verifications per transaction”).
+ *   <li>Transferred value, in tinybars. Units are {@code tv} (“tinybar value”).
  *   <li>Computation needed for incremental execution of a Solidity smart contract. Units are {@code
  *       gas}.
  * </ol>
@@ -161,10 +161,6 @@ public class UsageAccumulator {
         networkRbs += amount;
     }
 
-    public void addTv(final long amount) {
-        tv += amount;
-    }
-
     /* Provider-scoped usage estimates (pure functions of the total resource usage) */
     /* -- NETWORK & NODE -- */
     public long getUniversalBpt() {
@@ -244,8 +240,6 @@ public class UsageAccumulator {
                         return getServiceSbh();
                     case CONSTANT:
                         return 1L;
-                    case TV:
-                        return getServiceTv();
                     default:
                         return 0L;
                 }
