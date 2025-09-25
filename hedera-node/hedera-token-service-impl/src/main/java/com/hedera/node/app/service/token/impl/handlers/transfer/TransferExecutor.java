@@ -4,34 +4,47 @@ package com.hedera.node.app.service.token.impl.handlers.transfer;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TOKEN_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSFER_ACCOUNT_ID;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.hapi.util.HapiUtils.isHollow;
 import static com.hedera.node.app.service.token.AliasUtils.isAlias;
+import static com.hedera.node.app.service.token.HookDispatchUtils.dispatchExecution;
 import static com.hedera.node.app.service.token.impl.handlers.BaseCryptoHandler.isStakingAccount;
 import static com.hedera.node.app.service.token.impl.handlers.transfer.TransferExecutor.OptionalKeyCheck.RECEIVER_KEY_IS_OPTIONAL;
 import static com.hedera.node.app.service.token.impl.handlers.transfer.TransferExecutor.OptionalKeyCheck.RECEIVER_KEY_IS_REQUIRED;
 import static com.hedera.node.app.service.token.impl.util.CryptoTransferValidationHelper.checkReceiver;
 import static com.hedera.node.app.service.token.impl.util.CryptoTransferValidationHelper.checkSender;
 import static com.hedera.node.app.spi.validation.Validations.validateAccountID;
+import static com.hedera.node.app.spi.workflows.DispatchOptions.hookDispatch;
+import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 
 import com.hedera.hapi.node.base.AccountAmount;
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.EvmHookCall;
+import com.hedera.hapi.node.base.HookCall;
+import com.hedera.hapi.node.base.HookEntityId;
 import com.hedera.hapi.node.base.NftTransfer;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.base.TokenTransferList;
 import com.hedera.hapi.node.base.TransferList;
+import com.hedera.hapi.node.hooks.HookDispatchTransactionBody;
+import com.hedera.hapi.node.hooks.HookExecution;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.ReadableTokenStore;
 import com.hedera.node.app.service.token.impl.handlers.BaseTokenHandler;
 import com.hedera.node.app.service.token.impl.handlers.transfer.hooks.HookCallFactory;
+import com.hedera.node.app.service.token.impl.handlers.transfer.hooks.HookInvocations;
 import com.hedera.node.app.service.token.impl.validators.CryptoTransferValidator;
 import com.hedera.node.app.service.token.records.CryptoTransferStreamBuilder;
+import com.hedera.node.app.service.token.records.HookDispatchStreamBuilder;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
+
 import java.util.ArrayList;
 import java.util.List;
 import javax.inject.Inject;
@@ -61,6 +74,7 @@ public class TransferExecutor extends BaseTokenHandler {
 
     /**
      * Pre-handle for crypto transfer transaction.
+     *
      * @param context handle context
      * @param op transaction body
      * @throws PreCheckException if any error occurs during the process
@@ -93,6 +107,7 @@ public class TransferExecutor extends BaseTokenHandler {
      * Pre-handle for airdrop transaction, that ignore receiver sign required check. Because airdrops to
      * receiver with signature required, should result in a pending airdrop or crypto transfer transaction depending
      * on association and signature.
+     *
      * @param context handle context
      * @param op transaction body
      * @throws PreCheckException if any error occurs during the process
@@ -176,8 +191,7 @@ public class TransferExecutor extends BaseTokenHandler {
      * {@link com.hedera.node.app.service.token.impl.handlers.TokenAirdropHandler}
      * </p>
      *
-     *
-     * @param txn             transaction body
+     * @param txn transaction body
      * @param transferContext transfer context
      * @return transfer transaction body after custom fees assessment
      * <p>
@@ -208,10 +222,10 @@ public class TransferExecutor extends BaseTokenHandler {
      * Executes crypto transfer, but skip custom fee steps. Used when custom fees should be prepaid in
      * {@link com.hedera.node.app.service.token.impl.handlers.TokenAirdropHandler}
      *
-     * @param txn             transaction body
+     * @param txn transaction body
      * @param transferContext transfer context
-     * @param context         handle context
-     * @param recordBuilder   record builder
+     * @param context handle context
+     * @param recordBuilder record builder
      */
     protected void executeCryptoTransferWithoutCustomFee(
             TransactionBody txn,
@@ -227,6 +241,7 @@ public class TransferExecutor extends BaseTokenHandler {
      * transferContext, which is used by subsequent steps and throttling.
      * It will also replace all aliases in the {@link CryptoTransferTransactionBody} with its account ids, so it will
      * be easier to process in next steps.
+     *
      * @param txn the given transaction body
      * @param transferContext the given transfer context
      * @param context the given handle context
@@ -280,8 +295,8 @@ public class TransferExecutor extends BaseTokenHandler {
      *        'c' = updates an existing BalanceChange
      *        'o' = causes a side effect not represented as BalanceChange
      *
-     * @param op              The crypto transfer transaction body
-     * @param topLevelPayer   The payer of the transaction
+     * @param op The crypto transfer transaction body
+     * @param topLevelPayer The payer of the transaction
      * @param transferContext The transfer context
      * @return A list of steps to execute
      */
@@ -303,8 +318,8 @@ public class TransferExecutor extends BaseTokenHandler {
         }
 
         // Extract the HookCalls from the transaction bodies after custom fee assessment
-        final var hookCalls = hookCallFactory.extractHookCalls(txns);
-        dispatchHookCalls(hookCalls, transferContext);
+        final var hookInvocations = hookCallFactory.from(transferContext.getHandleContext(), topLevelPayer, txns);
+        dispatchHookCalls(hookInvocations, transferContext.getHandleContext());
 
         // The below steps should be doe for both custom fee assessed transaction in addition to
         // original transaction
@@ -329,6 +344,24 @@ public class TransferExecutor extends BaseTokenHandler {
         return steps;
     }
 
+    private void dispatchHookCalls(final HookInvocations hookInvocations, final HandleContext handleContext) {
+        for (final var hookCall : hookInvocations.pre()) {
+            final HookExecution execution = HookExecution.newBuilder()
+                    .hookEntityId(HookEntityId.newBuilder()
+                            .accountId(hookCall.ownerId())
+                            .build())
+                    .call(HookCall.newBuilder()
+                            .evmHookCall(EvmHookCall.newBuilder()
+                                    .gasLimit(hookCall.gasLimit())
+                                    .data(Bytes.wrap(hookCall.abiEncodedInput()))
+                                    .build())
+                            .hookId(hookCall.hookId())
+                            .build())
+                    .build();
+            dispatchExecution(handleContext, execution);
+        }
+    }
+
     private void checkFungibleTokenTransfers(
             @NonNull final List<AccountAmount> transfers,
             @NonNull final PreHandleContext ctx,
@@ -341,13 +374,13 @@ public class TransferExecutor extends BaseTokenHandler {
     /**
      * As part of pre-handle, checks that HBAR or fungible token transfers in the transfer list are plausible.
      *
-     * @param transfers                The transfers to check
-     * @param ctx                      The context we gather signing keys into
-     * @param accountStore             The account store to use to look up accounts
-     * @param hbarTransfer             Whether this is a hbar transfer. When HIP-583 is implemented, we can remove
-     *                                 this argument.
+     * @param transfers The transfers to check
+     * @param ctx The context we gather signing keys into
+     * @param accountStore The account store to use to look up accounts
+     * @param hbarTransfer Whether this is a hbar transfer. When HIP-583 is implemented, we can remove
+     * this argument.
      * @param receiverKeyCheck Since in airdrops receiver key is optional to sign the transaction, add it to
-     *                         optional keys
+     * optional keys
      * @throws PreCheckException If the transaction is invalid
      */
     private void checkFungibleTokenTransfers(

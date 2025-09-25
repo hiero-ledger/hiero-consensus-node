@@ -1,27 +1,33 @@
 package com.hedera.node.app.service.token.impl.handlers.transfer.hooks;
 
-import com.esaulpaugh.headlong.abi.Pair;
+import com.esaulpaugh.headlong.abi.Address;
 import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.hapi.node.base.AccountAmount;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.NftTransfer;
 import com.hedera.hapi.node.base.TokenTransferList;
 import com.hedera.hapi.node.base.TransferList;
+import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.ReadableTokenStore;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import org.apache.tuweni.bytes.Bytes;
 
 import javax.inject.Inject;
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
 
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID;
 import static com.hedera.node.app.hapi.utils.CommonUtils.asEvmAddress;
+import static com.hedera.node.app.service.token.AliasUtils.extractEvmAddress;
 import static com.hedera.node.app.service.token.impl.handlers.transfer.hooks.HooksABI.encodeAllow;
 import static com.hedera.node.app.service.token.impl.handlers.transfer.hooks.HooksABI.encodeAllowPost;
 import static com.hedera.node.app.service.token.impl.handlers.transfer.hooks.HooksABI.encodeAllowPre;
+import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
+import static java.util.Objects.requireNonNull;
 
 public class HookCallFactory {
     @Inject
@@ -30,9 +36,9 @@ public class HookCallFactory {
 
     public HookInvocations from(HandleContext handleContext,
                                 AccountID payer,
-                                List<CryptoTransferTransactionBody> userAndAssessedTxns,
-                                ReadableAccountStore accountStore,
-                                ReadableTokenStore tokenStore) {
+                                List<CryptoTransferTransactionBody> userAndAssessedTxns) {
+        final var accountStore = handleContext.storeFactory().readableStore(ReadableAccountStore.class);
+        final var tokenStore = handleContext.storeFactory().readableStore(ReadableTokenStore.class);
         final var pre = new ArrayList<HookInvocation>();
         final var post = new ArrayList<HookInvocation>();
 
@@ -47,29 +53,131 @@ public class HookCallFactory {
 
         for (final var aa : hbarAAs) {
             final var ownerId = aa.accountIDOrThrow();
-            final var ownerAddr = asEvmAddress(ownerId.accountNumOrThrow());
+            final var ownerAddr = getAddress(accountStore, ownerId);
 
             if (aa.hasPreTxAllowanceHook()) {
                 final var hook = aa.preTxAllowanceHookOrThrow();
                 final var hookCall = hook.evmHookCallOrThrow();
                 pre.add(new HookInvocation(hook.hookId(),
                         ownerId,
-                        hookCall.gasLimit(),
-                        encodeAllow(ownerAddr, txnFee, hookCall.gasLimit(), memo, hookCall.data().toByteArray(), proposedTransfers)));
+                        false,
+                        encodeAllow(ownerAddr, txnFee, BigInteger.valueOf(hookCall.gasLimit()), memo, hookCall.data().toByteArray(), proposedTransfers),
+                        hookCall.gasLimit()));
             }
             if(aa.hasPrePostTxAllowanceHook()) {
                 final var hook = aa.prePostTxAllowanceHook();
                 final var hookCall = hook.evmHookCallOrThrow();
+                final var gasLimit = BigInteger.valueOf(hookCall.gasLimit());
                 pre.add(new HookInvocation(hook.hookId(),
                         ownerId,
-                        hookCall.gasLimit(),
-                        encodeAllowPre(ownerAddr, txnFee, hookCall.gasLimit(), memo, hookCall.data().toByteArray(), proposedTransfers)));
+                        false,
+                        encodeAllowPre(ownerAddr, txnFee, gasLimit, memo, hookCall.data().toByteArray(), proposedTransfers), hookCall.gasLimit()));
                 post.add(new HookInvocation(hook.hookId(),
                         ownerId,
-                        hookCall.gasLimit(),
-                        encodeAllowPost(ownerAddr, txnFee, hookCall.gasLimit(), memo, hookCall.data().toByteArray(), proposedTransfers)));
+                        true,
+                        encodeAllowPost(ownerAddr, txnFee, gasLimit, memo, hookCall.data().toByteArray(), proposedTransfers), hookCall.gasLimit()));
             }
         }
+        for(final var ttl : userTxn.tokenTransfers()) {
+            for(final var aa : ttl.transfers()) {
+                final var ownerId = aa.accountIDOrThrow();
+                final var ownerAddr = getAddress(accountStore, ownerId);
+                if (aa.hasPreTxAllowanceHook()) {
+                    final var hook = aa.preTxAllowanceHookOrThrow();
+                    final var hookCall = hook.evmHookCallOrThrow();
+                    final var gasLimit = BigInteger.valueOf(hookCall.gasLimit());
+                    pre.add(new HookInvocation(hook.hookId(),
+                            ownerId,
+                            false,
+                            encodeAllow(ownerAddr, txnFee, gasLimit, memo, hookCall.data().toByteArray(), proposedTransfers),
+                            hookCall.gasLimit()));
+                }
+                if(aa.hasPrePostTxAllowanceHook()) {
+                    final var hook = aa.prePostTxAllowanceHook();
+                    final var hookCall = hook.evmHookCallOrThrow();
+                    final var gasLimit = BigInteger.valueOf(hookCall.gasLimit());
+                    pre.add(new HookInvocation(hook.hookId(),
+                            ownerId,
+                            false,
+                            encodeAllowPre(ownerAddr, txnFee, gasLimit, memo, hookCall.data().toByteArray(), proposedTransfers),
+                            hookCall.gasLimit()));
+                    post.add(new HookInvocation(hook.hookId(),
+                            ownerId,
+                            true,
+                            encodeAllowPost(ownerAddr, txnFee, gasLimit, memo, hookCall.data().toByteArray(), proposedTransfers),
+                            hookCall.gasLimit()));
+                }
+            }
+            for(final var nft : ttl.nftTransfers()) {
+                if(nft.hasPreTxSenderAllowanceHook() || nft.hasPrePostTxSenderAllowanceHook()) {
+                    final var ownerId = nft.senderAccountIDOrThrow();
+                    final var ownerAddr = getAddress(accountStore, ownerId);
+                    if (nft.hasPreTxSenderAllowanceHook()) {
+                        final var hook = nft.preTxSenderAllowanceHook();
+                        final var hookCall = hook.evmHookCallOrThrow();
+                        final var gasLimit = BigInteger.valueOf(hookCall.gasLimit());
+                        pre.add(new HookInvocation(hook.hookId(),
+                                ownerId,
+                                false,
+                                encodeAllow(ownerAddr, txnFee, gasLimit, memo, hookCall.data().toByteArray(), proposedTransfers),
+                                hookCall.gasLimit()));
+                    }
+                    if (nft.hasPrePostTxSenderAllowanceHook()) {
+                        final var hook = nft.prePostTxSenderAllowanceHook();
+                        final var hookCall = hook.evmHookCallOrThrow();
+                        final var gasLimit = BigInteger.valueOf(hookCall.gasLimit());
+                        pre.add(new HookInvocation(hook.hookId(),
+                                ownerId,
+                                false,
+                                encodeAllowPre(ownerAddr, txnFee, gasLimit, memo, hookCall.data().toByteArray(), proposedTransfers),
+                                hookCall.gasLimit()));
+                        post.add(new HookInvocation(hook.hookId(),
+                                ownerId,
+                                true,
+                                encodeAllowPost(ownerAddr, txnFee, gasLimit, memo, hookCall.data().toByteArray(), proposedTransfers),
+                                hookCall.gasLimit()));
+                    }
+                }
+                if(nft.hasPreTxReceiverAllowanceHook() || nft.hasPrePostTxReceiverAllowanceHook()){
+                    final var ownerId = nft.receiverAccountIDOrThrow();
+                    final var ownerAddr = getAddress(accountStore, ownerId);
+                    if (nft.hasPreTxReceiverAllowanceHook()) {
+                        final var hook = nft.preTxReceiverAllowanceHook();
+                        final var hookCall = hook.evmHookCallOrThrow();
+                        final var gasLimit = BigInteger.valueOf(hookCall.gasLimit());
+                        pre.add(new HookInvocation(hook.hookId(),
+                                ownerId,
+                               false,
+                                encodeAllow(ownerAddr, txnFee, gasLimit, memo, hookCall.data().toByteArray(), proposedTransfers),
+                                hookCall.gasLimit()));
+                    }
+                    if (nft.hasPrePostTxReceiverAllowanceHook()) {
+                        final var hook = nft.prePostTxReceiverAllowanceHook();
+                        final var hookCall = hook.evmHookCallOrThrow();
+                        final var gasLimit = BigInteger.valueOf(hookCall.gasLimit());
+                        pre.add(new HookInvocation(hook.hookId(),
+                                ownerId,
+                                false,
+                                encodeAllowPre(ownerAddr, txnFee, gasLimit, memo, hookCall.data().toByteArray(), proposedTransfers),
+                                hookCall.gasLimit()));
+                        post.add(new HookInvocation(hook.hookId(),
+                                ownerId,
+                               true,
+                                encodeAllowPost(ownerAddr, txnFee, gasLimit, memo, hookCall.data().toByteArray(), proposedTransfers),
+                                hookCall.gasLimit()));
+                    }
+                }
+            }
+        }
+        return new HookInvocations(pre, post);
+    }
+
+    @NonNull
+    private static Address getAddress(final ReadableAccountStore accountStore, final AccountID ownerId) {
+        final var owner = accountStore.getAccountById(ownerId);
+        validateTrue(owner != null, INVALID_ACCOUNT_ID);
+        final var ownerAddr = priorityAddressOf(owner);
+        return ownerAddr;
     }
 
     private Tuple encodeProposedTransfers(final List<CryptoTransferTransactionBody> assessedTxns,
@@ -139,6 +247,33 @@ public class HookCallFactory {
             return Tuple.of(address, amount); // (address,int64)
         }).toArray(Tuple[]::new);
     }
+
+    /**
+     * Given an account, returns its "priority" address as a Besu address.
+     *
+     * @param account the account
+     * @return the priority address
+     */
+    public static Address priorityAddressOf(@NonNull final Account account) {
+        requireNonNull(account);
+        return Address.wrap(String.valueOf(Bytes.wrap(explicitAddressOf(account))));
+    }
+
+
+    /**
+     * Given an account, returns its explicit 20-byte address.
+     *
+     * @param account the account
+     * @return the explicit 20-byte address
+     */
+    public static byte[] explicitAddressOf(@NonNull final Account account) {
+        requireNonNull(account);
+        final var evmAddress = extractEvmAddress(account.alias());
+        return evmAddress != null
+                ? evmAddress.toByteArray()
+                : asEvmAddress(account.accountIdOrThrow().accountNumOrThrow());
+    }
+
 
 
 }

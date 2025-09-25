@@ -23,6 +23,7 @@ import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
 import com.hedera.node.config.data.HooksConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
+
 import javax.inject.Inject;
 
 public class HookDispatchHandler implements TransactionHandler {
@@ -43,6 +44,9 @@ public class HookDispatchHandler implements TransactionHandler {
         validateTruePreCheck(op.hasCreation() || op.hasExecution() || op.hasHookIdToDelete(), INVALID_TRANSACTION_BODY);
         if (op.hasCreation()) {
             validateHook(op.creationOrThrow().details());
+        } else if (op.hasExecution()) {
+            validateTrue(op.executionOrThrow().hasCall(), INVALID_TRANSACTION_BODY);
+            validateTrue(op.executionOrThrow().callOrThrow().hasHookId(), INVALID_TRANSACTION_BODY);
         }
     }
 
@@ -79,7 +83,11 @@ public class HookDispatchHandler implements TransactionHandler {
                     recordBuilder.nextHookId(hook.nextHookId());
                 }
             }
-            case EXECUTION -> throw new UnsupportedOperationException("EVM hook execution not implemented yet");
+            case EXECUTION -> {
+                final var execution = op.executionOrThrow();
+                final var hook = evmHookStore.getEvmHook(new HookId(execution.hookEntityId(), execution.callOrThrow().hookIdOrThrow()));
+                validateTrue(hook != null, HOOK_NOT_FOUND);
+            }
         }
     }
 }
