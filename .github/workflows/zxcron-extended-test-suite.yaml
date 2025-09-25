@@ -8,6 +8,11 @@ on:
         description: "Release Candidate Tag:"
         type: string
         default: ""
+      enable-promotion:
+        required: false
+        description: "Tag with epoch timestamp (enables promotion)"
+        default: false
+        type: boolean
   schedule:
     # Runs Extended Test Suite every three hours Monday to Friday
     - cron: "0 */3 * * 1-5"
@@ -328,9 +333,22 @@ jobs:
       - name: Tag for XTS promotion
         env:
           RC_TAG: ${{ inputs.rc-tag || '' }}
+          TAG_WITH_EPOCH: ${{ inputs.enable-promotion || 'false' }}
         run: |
-          if [[ -n "${RC_TAG}" ]]; then
+          if [[ -n "${RC_TAG}" ]] && [[ "${TAG_WITH_EPOCH}" == "false" ]]; then
             TAG="xts-pass-${RC_TAG}"
+
+            set +e
+              TAG_COMMIT="$(git rev-list -n 1 "${TAG}")" >/dev/null 2>&1
+              TAG_EXISTS="${?}"
+            set -e
+
+            if [[ "${TAG_EXISTS}" -eq 0 ]]; then
+              echo "Tag ${TAG} already exists. Deleting."
+              git push --delete origin "${TAG}"
+              git tag -d "${TAG}"
+            fi
+
             git tag --annotate "${TAG}" --message "chore: tagging release candidate as XTS passing"
             git push --set-upstream origin "${TAG}"
             echo "### Commit Tagged as XTS-Passing" >>  "${GITHUB_STEP_SUMMARY}"
