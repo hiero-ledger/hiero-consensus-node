@@ -131,7 +131,7 @@ public class HapiCryptoCreate extends HapiTxnOp<HapiCryptoCreate> {
         if (this.hookFactories.isEmpty()) {
             this.hookFactories = new ArrayList<>();
         }
-        for(final var hook : hooks){
+        for (final var hook : hooks) {
             hookFactories.add(hook);
         }
         return this;

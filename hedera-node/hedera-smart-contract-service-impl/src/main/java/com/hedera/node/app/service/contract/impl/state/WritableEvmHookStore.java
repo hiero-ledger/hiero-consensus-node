@@ -207,6 +207,22 @@ public class WritableEvmHookStore extends ReadableEvmHookStoreImpl {
                 .adminKey(details.adminKey())
                 .build();
         hookStates.put(hookId, state);
+
+        // Also change the previous pointer of next hookId to this hookId
+        if (creation.nextHookId() != null) {
+            final var next = HookId.newBuilder()
+                    .hookId(creation.nextHookId())
+                    .entityId(hookId.entityId())
+                    .build();
+            final var nextState = hookStates.get(next);
+            if (nextState != null) {
+                hookStates.put(
+                        next,
+                        nextState.copyBuilder().previousHookId(details.hookId()).build());
+            } else {
+                log.warn("Inconsistent state: next hook {} not found when linking {}", next, hookId);
+            }
+        }
         if (type == LAMBDA) {
             final var initialUpdates = details.lambdaEvmHookOrThrow().storageUpdates();
             if (!initialUpdates.isEmpty()) {

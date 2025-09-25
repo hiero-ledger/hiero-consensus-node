@@ -8,8 +8,6 @@ import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
 
 import com.hedera.hapi.node.base.AccountID;
-import com.hedera.hapi.node.base.EvmHookCall;
-import com.hedera.hapi.node.base.HookCall;
 import com.hedera.hapi.node.base.HookEntityId;
 import com.hedera.hapi.node.base.HookId;
 import com.hedera.hapi.node.hooks.HookCreation;
@@ -20,7 +18,6 @@ import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.token.records.HookDispatchStreamBuilder;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.PreCheckException;
-import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import java.util.stream.Collectors;

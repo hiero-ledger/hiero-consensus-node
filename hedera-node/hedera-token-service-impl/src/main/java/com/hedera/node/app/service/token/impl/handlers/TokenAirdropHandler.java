@@ -252,10 +252,11 @@ public class TokenAirdropHandler extends TransferExecutor implements Transaction
             case ED25519 -> true;
             case RSA_3072 -> false;
             case ECDSA_384 -> false;
-            case THRESHOLD_KEY -> key.thresholdKeyOrThrow().keysOrThrow().keys().stream()
-                            .filter(TokenAirdropHandler::canClaimAirdrop)
-                            .count()
-                    >= key.thresholdKeyOrThrow().threshold();
+            case THRESHOLD_KEY ->
+                key.thresholdKeyOrThrow().keysOrThrow().keys().stream()
+                                .filter(TokenAirdropHandler::canClaimAirdrop)
+                                .count()
+                        >= key.thresholdKeyOrThrow().threshold();
             case KEY_LIST -> key.keyListOrThrow().keys().stream().allMatch(TokenAirdropHandler::canClaimAirdrop);
             case ECDSA_SECP256K1 -> true;
             case DELEGATABLE_CONTRACT_ID -> false;

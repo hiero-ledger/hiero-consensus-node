@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.hedera.services.bdd.suites.hip1195;
+package com.hedera.services.bdd.suites.integration;
 
+import static com.hedera.services.bdd.junit.TestTags.INTEGRATION;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.accountAllowanceHook;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.accountLambdaSStore;
@@ -10,6 +11,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoUpdate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.mintToken;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenAssociate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.viewAccount;
@@ -29,6 +31,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNAT
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import com.google.protobuf.ByteString;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.HapiTest;
@@ -40,13 +43,16 @@ import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
 import com.hederahashgraph.api.proto.java.TokenSupplyType;
 import com.hederahashgraph.api.proto.java.TokenType;
 import edu.umd.cs.findbugs.annotations.NonNull;
-
 import java.util.Map;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
-
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.Order;
+import org.junit.jupiter.api.Tag;
 
+@Order(12)
+@Tag(INTEGRATION)
 @HapiTestLifecycle
 public class Hip1195EnabledTest {
     @Contract(contract = "PayableConstructor")
@@ -100,7 +106,7 @@ public class Hip1195EnabledTest {
 
                 // Finally, do a transfer to validate fees with pre and post hooks transfer
                 cryptoTransfer(TokenMovement.movingHbar(10).between("payer", "testAccount"))
-                        .withPreHookFor("payer", 125L, 25_000L, "")
+                        .withPreHookFor("testAccount", 125L, 25_000L, "")
                         .withPrePostHookFor("testAccount", 128L, 25_000L, "")
                         .payingWith("payer")
                         .via("xferTxn"),
@@ -115,7 +121,6 @@ public class Hip1195EnabledTest {
                         .withHooks(
                                 accountAllowanceHook(123L, HOOK_CONTRACT.name()),
                                 accountAllowanceHook(124L, HOOK_CONTRACT.name())),
-
                 cryptoTransfer(TokenMovement.movingHbar(10).between("testAccount", GENESIS))
                         .withPreHookFor("testAccount", 123L, 25_000L, "")
                         .signedBy(DEFAULT_PAYER)
@@ -152,7 +157,6 @@ public class Hip1195EnabledTest {
                         .withHooks(
                                 accountAllowanceHook(123L, HOOK_CONTRACT.name()),
                                 accountAllowanceHook(124L, HOOK_CONTRACT.name())),
-
                 cryptoTransfer(TokenMovement.movingHbar(10).between("testAccount", GENESIS))
                         .withPrePostHookFor("testAccount", 123L, 25_000L, "")
                         .signedBy(DEFAULT_PAYER)
@@ -163,7 +167,7 @@ public class Hip1195EnabledTest {
     }
 
     @HapiTest
-    final Stream<DynamicTest> authorizeHbarCreditPrePostHook() {
+    final Stream<DynamicTest> authorizeHbarCreditPrePostHookReceiverSigRequired() {
         return hapiTest(
                 cryptoCreate("testAccount")
                         .withHooks(
@@ -183,6 +187,26 @@ public class Hip1195EnabledTest {
     }
 
     @HapiTest
+    final Stream<DynamicTest> authorizeHbarCreditPreOnlyHookReceiverSigRequired() {
+        return hapiTest(
+                cryptoCreate("testAccount")
+                        .withHooks(
+                                accountAllowanceHook(123L, HOOK_CONTRACT.name()),
+                                accountAllowanceHook(124L, HOOK_CONTRACT.name()))
+                        .receiverSigRequired(true),
+                cryptoTransfer(TokenMovement.movingHbar(10).between(GENESIS, "testAccount"))
+                        .signedBy(DEFAULT_PAYER)
+                        .hasKnownStatus(INVALID_SIGNATURE),
+                cryptoTransfer(TokenMovement.movingHbar(10).between(GENESIS, "testAccount"))
+                        .withPreHookFor("testAccount", 123L, 25_000L, "")
+                        .signedBy(DEFAULT_PAYER)
+                        .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK),
+                cryptoTransfer(TokenMovement.movingHbar(10).between(GENESIS, "testAccount"))
+                        .withPreHookFor("testAccount", 124L, 25_000L, "")
+                        .signedBy(DEFAULT_PAYER));
+    }
+
+    @HapiTest
     final Stream<DynamicTest> authorizeTokenDebitPreOnlyHook() {
         return hapiTest(
                 newKeyNamed("supplyKey"),
@@ -192,7 +216,6 @@ public class Hip1195EnabledTest {
                                 accountAllowanceHook(124L, HOOK_CONTRACT.name())),
                 tokenCreate("token")
                         .treasury("testAccount")
-                        .tokenType(TokenType.FUNGIBLE_COMMON)
                         .supplyType(TokenSupplyType.FINITE)
                         .supplyKey("supplyKey")
                         .initialSupply(10L)
@@ -203,6 +226,253 @@ public class Hip1195EnabledTest {
                         .signedBy(DEFAULT_PAYER)
                         .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK),
                 cryptoTransfer(TokenMovement.movingHbar(10).between("testAccount", GENESIS))
+                        .withPreHookFor("testAccount", 124L, 25_000L, "")
+                        .signedBy(DEFAULT_PAYER));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> authorizeTokenDebitPrePostHook() {
+        return hapiTest(
+                newKeyNamed("supplyKey"),
+                cryptoCreate("testAccount")
+                        .withHooks(
+                                accountAllowanceHook(123L, HOOK_CONTRACT.name()),
+                                accountAllowanceHook(124L, HOOK_CONTRACT.name())),
+                tokenCreate("token")
+                        .treasury("testAccount")
+                        .supplyType(TokenSupplyType.FINITE)
+                        .supplyKey("supplyKey")
+                        .initialSupply(10L)
+                        .maxSupply(1000L),
+                mintToken("token", 10),
+                cryptoTransfer(TokenMovement.moving(10, "token").between("testAccount", GENESIS))
+                        .withPrePostHookFor("testAccount", 123L, 25_000L, "")
+                        .signedBy(DEFAULT_PAYER)
+                        .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK),
+                cryptoTransfer(TokenMovement.movingHbar(10).between("testAccount", GENESIS))
+                        .withPrePostHookFor("testAccount", 124L, 25_000L, "")
+                        .signedBy(DEFAULT_PAYER));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> authorizeTokenCreditPrePostHookReceiverSigRequired() {
+        return hapiTest(
+                newKeyNamed("supplyKey"),
+                cryptoCreate("testAccount")
+                        .withHooks(
+                                accountAllowanceHook(123L, HOOK_CONTRACT.name()),
+                                accountAllowanceHook(124L, HOOK_CONTRACT.name()))
+                        .receiverSigRequired(true),
+                tokenCreate("token")
+                        .treasury(GENESIS)
+                        .supplyType(TokenSupplyType.FINITE)
+                        .supplyKey("supplyKey")
+                        .initialSupply(10L)
+                        .maxSupply(1000L),
+                mintToken("token", 10),
+                tokenAssociate("testAccount", "token"),
+                cryptoTransfer(TokenMovement.moving(10, "token").between(GENESIS, "testAccount"))
+                        .signedBy(DEFAULT_PAYER)
+                        .hasKnownStatus(INVALID_SIGNATURE),
+                cryptoTransfer(TokenMovement.moving(10, "token").between(GENESIS, "testAccount"))
+                        .withPrePostHookFor("testAccount", 123L, 25_000L, "")
+                        .signedBy(DEFAULT_PAYER)
+                        .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK),
+                cryptoTransfer(TokenMovement.moving(10, "token").between(GENESIS, "testAccount"))
+                        .withPrePostHookFor("testAccount", 124L, 25_000L, "")
+                        .signedBy(DEFAULT_PAYER));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> authorizeTokenCreditPreOnlyHookReceiverSigRequired() {
+        return hapiTest(
+                newKeyNamed("supplyKey"),
+                cryptoCreate("testAccount")
+                        .withHooks(
+                                accountAllowanceHook(123L, HOOK_CONTRACT.name()),
+                                accountAllowanceHook(124L, HOOK_CONTRACT.name()))
+                        .receiverSigRequired(true),
+                tokenCreate("token")
+                        .treasury(GENESIS)
+                        .supplyType(TokenSupplyType.FINITE)
+                        .supplyKey("supplyKey")
+                        .initialSupply(10L)
+                        .maxSupply(1000L),
+                mintToken("token", 10),
+                tokenAssociate("testAccount", "token"),
+                cryptoTransfer(TokenMovement.moving(10, "token").between(GENESIS, "testAccount"))
+                        .signedBy(DEFAULT_PAYER)
+                        .hasKnownStatus(INVALID_SIGNATURE),
+                cryptoTransfer(TokenMovement.moving(10, "token").between(GENESIS, "testAccount"))
+                        .withPreHookFor("testAccount", 123L, 25_000L, "")
+                        .signedBy(DEFAULT_PAYER)
+                        .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK),
+                cryptoTransfer(TokenMovement.moving(10, "token").between(GENESIS, "testAccount"))
+                        .withPreHookFor("testAccount", 124L, 25_000L, "")
+                        .signedBy(DEFAULT_PAYER));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> authorizeNftDebitSenderPreHook() {
+        return hapiTest(
+                newKeyNamed("supplyKey"),
+                cryptoCreate("testAccount")
+                        .withHooks(
+                                accountAllowanceHook(123L, HOOK_CONTRACT.name()),
+                                accountAllowanceHook(124L, HOOK_CONTRACT.name())),
+                tokenCreate("token")
+                        .treasury("testAccount")
+                        .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
+                        .supplyType(TokenSupplyType.FINITE)
+                        .supplyKey("supplyKey")
+                        .initialSupply(0)
+                        .maxSupply(1000L),
+                mintToken(
+                        "token",
+                        IntStream.range(0, 10)
+                                .mapToObj(a -> ByteString.copyFromUtf8(String.valueOf(a)))
+                                .toList()),
+                tokenAssociate(GENESIS, "token"),
+                cryptoTransfer(TokenMovement.movingUnique("token", 1L).between("testAccount", GENESIS))
+                        .withNftSenderPreHookFor("testAccount", 123L, 25_000L, "")
+                        .signedBy(DEFAULT_PAYER)
+                        .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK),
+                cryptoTransfer(TokenMovement.movingUnique("token", 1L).between("testAccount", GENESIS))
+                        .withNftSenderPreHookFor("testAccount", 124L, 25_000L, "")
+                        .signedBy(DEFAULT_PAYER));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> authorizeNftDebitSenderPrePostHook() {
+        return hapiTest(
+                newKeyNamed("supplyKey"),
+                cryptoCreate("testAccount")
+                        .withHooks(
+                                accountAllowanceHook(123L, HOOK_CONTRACT.name()),
+                                accountAllowanceHook(124L, HOOK_CONTRACT.name())),
+                tokenCreate("token")
+                        .treasury("testAccount")
+                        .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
+                        .supplyType(TokenSupplyType.FINITE)
+                        .supplyKey("supplyKey")
+                        .initialSupply(0)
+                        .maxSupply(1000L),
+                mintToken(
+                        "token",
+                        IntStream.range(0, 10)
+                                .mapToObj(a -> ByteString.copyFromUtf8(String.valueOf(a)))
+                                .toList()),
+                tokenAssociate(GENESIS, "token"),
+                cryptoTransfer(TokenMovement.movingUnique("token", 1L).between("testAccount", GENESIS))
+                        .withNftSenderPrePostHookFor("testAccount", 123L, 25_000L, "")
+                        .signedBy(DEFAULT_PAYER)
+                        .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK),
+                cryptoTransfer(TokenMovement.movingUnique("token", 1L).between("testAccount", GENESIS))
+                        .withNftSenderPrePostHookFor("testAccount", 124L, 25_000L, "")
+                        .signedBy(DEFAULT_PAYER));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> authorizeNftCreditReceiverPreHookReceiverSigRequired() {
+        return hapiTest(
+                newKeyNamed("supplyKey"),
+                cryptoCreate("testAccount")
+                        .withHooks(
+                                accountAllowanceHook(123L, HOOK_CONTRACT.name()),
+                                accountAllowanceHook(124L, HOOK_CONTRACT.name()))
+                        .receiverSigRequired(true),
+                tokenCreate("token")
+                        .treasury(GENESIS)
+                        .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
+                        .supplyType(TokenSupplyType.FINITE)
+                        .supplyKey("supplyKey")
+                        .initialSupply(0)
+                        .maxSupply(1000L),
+                mintToken(
+                        "token",
+                        IntStream.range(0, 10)
+                                .mapToObj(a -> ByteString.copyFromUtf8(String.valueOf(a)))
+                                .toList()),
+                tokenAssociate("testAccount", "token"),
+                cryptoTransfer(TokenMovement.movingUnique("token", 1L).between(GENESIS, "testAccount"))
+                        .signedBy(DEFAULT_PAYER)
+                        .hasKnownStatus(INVALID_SIGNATURE),
+                cryptoTransfer(TokenMovement.movingUnique("token", 1L).between(GENESIS, "testAccount"))
+                        .withNftSenderPreHookFor("testAccount", 123L, 25_000L, "")
+                        .signedBy(DEFAULT_PAYER)
+                        .hasKnownStatus(INVALID_SIGNATURE),
+                cryptoTransfer(TokenMovement.movingUnique("token", 1L).between(GENESIS, "testAccount"))
+                        .withNftReceiverPreHookFor("testAccount", 123L, 25_000L, "")
+                        .signedBy(DEFAULT_PAYER)
+                        .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK),
+                cryptoTransfer(TokenMovement.movingUnique("token", 1L).between(GENESIS, "testAccount"))
+                        .withNftReceiverPreHookFor("testAccount", 124L, 25_000L, "")
+                        .signedBy(DEFAULT_PAYER));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> authorizeNftCreditReceiverPrePostHookReceiverSigRequired() {
+        return hapiTest(
+                newKeyNamed("supplyKey"),
+                cryptoCreate("testAccount")
+                        .withHooks(
+                                accountAllowanceHook(123L, HOOK_CONTRACT.name()),
+                                accountAllowanceHook(124L, HOOK_CONTRACT.name()))
+                        .receiverSigRequired(true),
+                tokenCreate("token")
+                        .treasury(GENESIS)
+                        .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
+                        .supplyType(TokenSupplyType.FINITE)
+                        .supplyKey("supplyKey")
+                        .initialSupply(0)
+                        .maxSupply(1000L),
+                mintToken(
+                        "token",
+                        IntStream.range(0, 10)
+                                .mapToObj(a -> ByteString.copyFromUtf8(String.valueOf(a)))
+                                .toList()),
+                tokenAssociate("testAccount", "token"),
+                cryptoTransfer(TokenMovement.movingUnique("token", 1L).between(GENESIS, "testAccount"))
+                        .signedBy(DEFAULT_PAYER)
+                        .hasKnownStatus(INVALID_SIGNATURE),
+                cryptoTransfer(TokenMovement.movingUnique("token", 1L).between(GENESIS, "testAccount"))
+                        .withNftSenderPrePostHookFor("testAccount", 123L, 25_000L, "")
+                        .signedBy(DEFAULT_PAYER)
+                        .hasKnownStatus(INVALID_SIGNATURE),
+                cryptoTransfer(TokenMovement.movingUnique("token", 1L).between(GENESIS, "testAccount"))
+                        .withNftReceiverPrePostHookFor("testAccount", 123L, 25_000L, "")
+                        .signedBy(DEFAULT_PAYER)
+                        .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK),
+                cryptoTransfer(TokenMovement.movingUnique("token", 1L).between(GENESIS, "testAccount"))
+                        .withNftReceiverPrePostHookFor("testAccount", 124L, 25_000L, "")
+                        .signedBy(DEFAULT_PAYER));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> authorizeNftCreditPreOnlyHookReceiverSigRequired() {
+        return hapiTest(
+                newKeyNamed("supplyKey"),
+                cryptoCreate("testAccount")
+                        .withHooks(
+                                accountAllowanceHook(123L, HOOK_CONTRACT.name()),
+                                accountAllowanceHook(124L, HOOK_CONTRACT.name()))
+                        .receiverSigRequired(true),
+                tokenCreate("token")
+                        .treasury(GENESIS)
+                        .supplyType(TokenSupplyType.FINITE)
+                        .supplyKey("supplyKey")
+                        .initialSupply(10L)
+                        .maxSupply(1000L),
+                tokenAssociate("testAccount", "token"),
+                mintToken("token", 10),
+                cryptoTransfer(TokenMovement.moving(10, "token").between(GENESIS, "testAccount"))
+                        .signedBy(DEFAULT_PAYER)
+                        .hasKnownStatus(INVALID_SIGNATURE),
+                cryptoTransfer(TokenMovement.moving(10, "token").between(GENESIS, "testAccount"))
+                        .withPreHookFor("testAccount", 123L, 25_000L, "")
+                        .signedBy(DEFAULT_PAYER)
+                        .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK),
+                cryptoTransfer(TokenMovement.moving(10, "token").between(GENESIS, "testAccount"))
                         .withPreHookFor("testAccount", 124L, 25_000L, "")
                         .signedBy(DEFAULT_PAYER));
     }
@@ -314,10 +584,7 @@ public class Hip1195EnabledTest {
         final Bytes D = Bytes.fromHex("dddd");
         return hapiTest(
                 newKeyNamed("k"),
-                cryptoCreate(OWNER)
-                        .key("k")
-                        .balance(1L)
-                        .withHooks(accountAllowanceHook(1L, HOOK_CONTRACT.name())),
+                cryptoCreate(OWNER).key("k").balance(1L).withHooks(accountAllowanceHook(1L, HOOK_CONTRACT.name())),
                 viewAccount(OWNER, (Account a) -> {
                     assertEquals(1L, a.firstHookId());
                     assertEquals(1, a.numberHooksInUse());

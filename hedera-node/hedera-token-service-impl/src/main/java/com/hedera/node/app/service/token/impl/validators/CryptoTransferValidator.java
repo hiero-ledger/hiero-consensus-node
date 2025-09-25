@@ -35,7 +35,6 @@ import com.hedera.node.config.data.AccountsConfig;
 import com.hedera.node.config.data.HooksConfig;
 import com.hedera.node.config.data.LedgerConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
-
 import java.math.BigInteger;
 import java.util.HashSet;
 import java.util.List;
@@ -184,11 +183,13 @@ public class CryptoTransferValidator {
     }
 
     private static boolean hasApprovalAndHookExecution(final AccountAmount acctAmount) {
-        return acctAmount.isApproval() && (acctAmount.hasPreTxAllowanceHook() || acctAmount.hasPrePostTxAllowanceHook());
+        return acctAmount.isApproval()
+                && (acctAmount.hasPreTxAllowanceHook() || acctAmount.hasPrePostTxAllowanceHook());
     }
 
     private static boolean hasApprovalAndHookExecution(final NftTransfer nftTransfer) {
-        return nftTransfer.isApproval() && (nftTransfer.hasPreTxSenderAllowanceHook() || nftTransfer.hasPrePostTxSenderAllowanceHook());
+        return nftTransfer.isApproval()
+                && (nftTransfer.hasPreTxSenderAllowanceHook() || nftTransfer.hasPrePostTxSenderAllowanceHook());
     }
 
     public static void validateNftTransfers(
@@ -219,8 +220,8 @@ public class CryptoTransferValidator {
         return net.equals(ZERO);
     }
 
-    private static boolean hasHooks(final @NonNull CryptoTransferTransactionBody op) {
-        for (final AccountAmount aa : op.transfers().accountAmounts()) {
+    public static boolean hasHooks(final @NonNull CryptoTransferTransactionBody op) {
+        for (final AccountAmount aa : op.transfersOrElse(TransferList.DEFAULT).accountAmounts()) {
             if (aa.hasPreTxAllowanceHook() || aa.hasPrePostTxAllowanceHook()) {
                 return true;
             }
@@ -232,15 +233,16 @@ public class CryptoTransferValidator {
                 }
             }
             for (final NftTransfer nft : ttl.nftTransfers()) {
-                if (nft.hasPreTxSenderAllowanceHook() || nft.hasPrePostTxSenderAllowanceHook()
-                        || nft.hasPreTxReceiverAllowanceHook() || nft.hasPrePostTxReceiverAllowanceHook()) {
+                if (nft.hasPreTxSenderAllowanceHook()
+                        || nft.hasPrePostTxSenderAllowanceHook()
+                        || nft.hasPreTxReceiverAllowanceHook()
+                        || nft.hasPrePostTxReceiverAllowanceHook()) {
                     return true;
                 }
             }
         }
         return false;
     }
-
 
     /**
      * Enum to specify the strategy for handling allowances. For airdrops, currently we don't support allowances.

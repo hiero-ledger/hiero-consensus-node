@@ -12,6 +12,7 @@ import static com.hedera.node.app.service.token.impl.handlers.transfer.TransferE
 import static com.hedera.node.app.service.token.impl.handlers.transfer.TransferExecutor.OptionalKeyCheck.RECEIVER_KEY_IS_REQUIRED;
 import static com.hedera.node.app.service.token.impl.util.CryptoTransferValidationHelper.checkReceiver;
 import static com.hedera.node.app.service.token.impl.util.CryptoTransferValidationHelper.checkSender;
+import static com.hedera.node.app.service.token.impl.validators.CryptoTransferValidator.hasHooks;
 import static com.hedera.node.app.spi.validation.Validations.validateAccountID;
 
 import com.hedera.hapi.node.base.AccountAmount;
@@ -30,6 +31,7 @@ import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.ReadableTokenStore;
 import com.hedera.node.app.service.token.impl.handlers.BaseTokenHandler;
 import com.hedera.node.app.service.token.impl.handlers.transfer.hooks.HookCallFactory;
+import com.hedera.node.app.service.token.impl.handlers.transfer.hooks.HookCalls;
 import com.hedera.node.app.service.token.impl.handlers.transfer.hooks.HookContext;
 import com.hedera.node.app.service.token.impl.handlers.transfer.hooks.HooksABI;
 import com.hedera.node.app.service.token.impl.validators.CryptoTransferValidator;
@@ -61,8 +63,7 @@ public class TransferExecutor extends BaseTokenHandler {
      * Default constructor for injection.
      */
     @Inject
-    public TransferExecutor(final CryptoTransferValidator validator,
-                            final HookCallFactory hookCallFactory) {
+    public TransferExecutor(final CryptoTransferValidator validator, final HookCallFactory hookCallFactory) {
         // For Dagger injection
         this.validator = validator;
         this.hookCallFactory = hookCallFactory;
@@ -160,17 +161,29 @@ public class TransferExecutor extends BaseTokenHandler {
             txns = customFeeStep.assessCustomFees(transferContext);
         }
 
-        // Extract the HookCalls from the transaction bodies after custom fee assessment
-        final var hookCalls = hookCallFactory.from(transferContext.getHandleContext(), replacedOp, txns);
-        dispatchHookCalls(hookCalls.context(), hookCalls.preOnlyHooks(), transferContext.getHandleContext(), HooksABI.FN_ALLOW);
-        dispatchHookCalls(hookCalls.context(), hookCalls.prePostHooks(), transferContext.getHandleContext(), HooksABI.FN_ALLOW_PRE);
+        final var hasHooks = hasHooks(replacedOp);
+        HookCalls hookCalls = null;
+
+        if (hasHooks) {
+            // Extract the HookCalls from the transaction bodies after custom fee assessment
+            hookCalls = hookCallFactory.from(transferContext.getHandleContext(), replacedOp, txns);
+            dispatchHookCalls(
+                    hookCalls.context(), hookCalls.preOnlyHooks(), transferContext.getHandleContext(), HooksABI.FN_ALLOW);
+            dispatchHookCalls(
+                    hookCalls.context(),
+                    hookCalls.prePostHooks(),
+                    transferContext.getHandleContext(),
+                    HooksABI.FN_ALLOW_PRE);
+        }
+
 
         for (final var t : txns) {
             steps.add(new AssociateTokenRecipientsStep(t));
 
             final var assessHbarTransfers = new AdjustHbarChangesStep(t, topLevelPayer);
             steps.add(assessHbarTransfers);
-            final var assessFungibleTokenTransfers = new AdjustFungibleTokenChangesStep(t.tokenTransfers(), topLevelPayer);
+            final var assessFungibleTokenTransfers =
+                    new AdjustFungibleTokenChangesStep(t.tokenTransfers(), topLevelPayer);
             steps.add(assessFungibleTokenTransfers);
 
             final var changeNftOwners = new NFTOwnersChangeStep(t.tokenTransfers(), topLevelPayer);
@@ -179,8 +192,14 @@ public class TransferExecutor extends BaseTokenHandler {
         for (final var step : steps) {
             step.doIn(transferContext);
         }
-        // Dispatch post hook calls
-        dispatchHookCalls(hookCalls.context(), hookCalls.prePostHooks(), transferContext.getHandleContext(), HooksABI.FN_ALLOW_POST);
+        if (hasHooks) {
+            // Dispatch post hook calls
+            dispatchHookCalls(
+                    hookCalls.context(),
+                    hookCalls.prePostHooks(),
+                    transferContext.getHandleContext(),
+                    HooksABI.FN_ALLOW_POST);
+        }
 
         if (!transferContext.getAutomaticAssociations().isEmpty()) {
             transferContext.getAutomaticAssociations().forEach(recordBuilder::addAutomaticTokenAssociation);
@@ -299,10 +318,11 @@ public class TransferExecutor extends BaseTokenHandler {
         ensureAliasExistence.doIn(transferContext);
     }
 
-    private void dispatchHookCalls(final HookContext hookContext,
-                                   final List<HookCallFactory.HookInvocation> hookInvocations,
-                                   final HandleContext handleContext,
-                                   com.esaulpaugh.headlong.abi.Function function) {
+    private void dispatchHookCalls(
+            final HookContext hookContext,
+            final List<HookCallFactory.HookInvocation> hookInvocations,
+            final HandleContext handleContext,
+            com.esaulpaugh.headlong.abi.Function function) {
         for (final var hookInvocation : hookInvocations) {
             final HookExecution execution = HookExecution.newBuilder()
                     .hookEntityId(HookEntityId.newBuilder()
@@ -444,6 +464,7 @@ public class TransferExecutor extends BaseTokenHandler {
         RECEIVER_KEY_IS_REQUIRED
     }
 
-    public record HookInvocations(List<HookCallFactory.HookInvocation> pre, List<HookCallFactory.HookInvocation> post) {
+    public record HookInvocations(
+            List<HookCallFactory.HookInvocation> pre, List<HookCallFactory.HookInvocation> post) {
     }
 }

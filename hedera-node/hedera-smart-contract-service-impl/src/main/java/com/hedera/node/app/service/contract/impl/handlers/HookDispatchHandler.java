@@ -6,20 +6,14 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOK_DELETED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOK_ID_IN_USE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOK_NOT_FOUND;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_HOOK_ADMIN_KEY;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_HOOK_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.service.contract.impl.utils.HookValidationUtils.validateHook;
-import static com.hedera.node.app.spi.workflows.DispatchOptions.hookDispatch;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
 import static java.util.Objects.requireNonNull;
 
-import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.HookId;
-import com.hedera.hapi.node.contract.ContractCallTransactionBody;
-import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.contract.impl.state.WritableEvmHookStore;
 import com.hedera.node.app.service.token.records.HookDispatchStreamBuilder;
 import com.hedera.node.app.spi.workflows.HandleContext;
@@ -29,9 +23,7 @@ import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
 import com.hedera.node.config.data.HooksConfig;
-import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
-
 import javax.inject.Inject;
 
 public class HookDispatchHandler implements TransactionHandler {
@@ -96,7 +88,8 @@ public class HookDispatchHandler implements TransactionHandler {
                 final var call = execution.callOrThrow();
                 final var hookKey = new HookId(execution.hookEntityId(), call.hookIdOrThrow());
 
-                final var hook = evmHookStore.getEvmHook(new HookId(execution.hookEntityId(), execution.callOrThrow().hookIdOrThrow()));
+                final var hook = evmHookStore.getEvmHook(new HookId(
+                        execution.hookEntityId(), execution.callOrThrow().hookIdOrThrow()));
                 validateTrue(hook != null, HOOK_NOT_FOUND);
                 validateTrue(!hook.deleted(), HOOK_DELETED);
                 validateTrue(hookKey.hookId() % 2 == 0, REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK);

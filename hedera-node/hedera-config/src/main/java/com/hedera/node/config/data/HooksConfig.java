@@ -9,4 +9,5 @@ import com.swirlds.config.api.ConfigProperty;
 public record HooksConfig(
         @ConfigProperty(defaultValue = "10") @NetworkProperty int maxLambdaSStoreUpdates,
         @ConfigProperty(defaultValue = "false") @NetworkProperty boolean hooksEnabled,
-        @ConfigProperty(value = "evm.lambdaIntrinsicGasCost", defaultValue = "1000") @NetworkProperty int lambdaIntrinsicGasCost) {}
+        @ConfigProperty(value = "evm.lambdaIntrinsicGasCost", defaultValue = "1000") @NetworkProperty
+                int lambdaIntrinsicGasCost) {}

@@ -79,8 +79,8 @@ public class CryptoTransferHandler extends TransferExecutor implements Transacti
      * @param validator the validator to use to validate the transaction
      */
     @Inject
-    public CryptoTransferHandler(@NonNull final CryptoTransferValidator validator,
-                                 @NonNull final HookCallFactory hookCallFactory) {
+    public CryptoTransferHandler(
+            @NonNull final CryptoTransferValidator validator, @NonNull final HookCallFactory hookCallFactory) {
         this(validator, true, hookCallFactory);
     }
 
