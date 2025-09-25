@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.statevalidation.validators;
 
+import com.hedera.statevalidation.listener.ValidationListener;
 import com.hedera.statevalidation.parameterresolver.StateResolver;
 import com.hedera.statevalidation.validators.merkledb.ValidateLeafIndexHalfDiskHashMap;
 import com.hedera.statevalidation.validators.servicesstate.AccountValidator;
@@ -19,6 +20,8 @@ public class ValidationEngine {
 
     private static final Logger log = LogManager.getLogger(ValidationEngine.class);
 
+    private final List<ValidationListener> listeners = new ArrayList<>();
+
     // Can be a validation context in the future
     private final MerkleNodeState merkleNodeState;
 
@@ -27,7 +30,11 @@ public class ValidationEngine {
                 StateResolver.initState().reservedSignedState().get().getState();
     }
 
-    public void execute(String[] requestedTags) throws Exception {
+    public void addListener(ValidationListener listener) {
+        listeners.add(listener);
+    }
+
+    public void execute(String[] requestedTags) {
         Set<String> tagSet = Set.of(requestedTags);
 
         // Execute independent validators first (no traversal optimization needed)
@@ -37,7 +44,7 @@ public class ValidationEngine {
         executeTraversalValidators(tagSet);
     }
 
-    private void executeIndependentValidators(Set<String> tags) throws Exception {
+    private void executeIndependentValidators(Set<String> tags) {
         log.info("Executing independent validators...");
 
         // Only one for PoC simplicity...
@@ -45,13 +52,19 @@ public class ValidationEngine {
 
         for (Validator validator : independentValidators) {
             if (tags.contains(validator.getTag())) {
+                notifyValidationStarted(validator.getTag());
                 log.info("Running validator: {}", validator.getTag());
-                validator.validate(merkleNodeState);
+                try {
+                    validator.validate(merkleNodeState);
+                    notifyValidationCompleted(validator.getTag());
+                } catch (ValidationException e) {
+                    notifyValidationFailed(e);
+                }
             }
         }
     }
 
-    private void executeTraversalValidators(Set<String> tags) throws Exception {
+    private void executeTraversalValidators(Set<String> tags) {
         log.info("Executing traversal validators with optimization...");
 
         // Only one for PoC simplicity...
@@ -60,9 +73,30 @@ public class ValidationEngine {
 
         for (Validator validator : independentValidators) {
             if (tags.contains(validator.getTag())) {
+                notifyValidationStarted(validator.getTag());
                 log.info("Running validator: {}", validator.getTag());
-                validator.validate(merkleNodeState);
+                try {
+                    validator.validate(merkleNodeState);
+                    notifyValidationCompleted(validator.getTag());
+                } catch (ValidationException e) {
+                    notifyValidationFailed(e);
+                }
             }
         }
+    }
+
+    // These methods could be passing further some "Validation Context", which can have info
+    // about executed validation, for example, and state, which was validated
+
+    private void notifyValidationStarted(String tag) {
+        listeners.forEach(listener -> listener.onValidationStarted(tag));
+    }
+
+    private void notifyValidationCompleted(String tag) {
+        listeners.forEach(listener -> listener.onValidationCompleted(tag));
+    }
+
+    private void notifyValidationFailed(ValidationException error) {
+        listeners.forEach(listener -> listener.onValidationFailed(error));
     }
 }

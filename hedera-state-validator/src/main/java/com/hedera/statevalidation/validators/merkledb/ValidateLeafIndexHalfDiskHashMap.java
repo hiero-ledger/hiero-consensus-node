@@ -6,8 +6,8 @@ import static com.hedera.statevalidation.validators.Constants.VALIDATE_INCORRECT
 import static com.hedera.statevalidation.validators.Constants.VALIDATE_STALE_KEYS_EXCLUSIONS;
 import static com.hedera.statevalidation.validators.ParallelProcessingUtil.processRange;
 import static com.hedera.statevalidation.validators.Utils.printFileDataLocationError;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static com.hedera.statevalidation.validators.ValidationAssertions.requireNonNull;
+import static com.hedera.statevalidation.validators.ValidationAssertions.requireTrue;
 
 import com.hedera.hapi.platform.state.StateKey;
 import com.hedera.pbj.runtime.ParseException;
@@ -16,6 +16,7 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.statevalidation.merkledb.reflect.BucketIterator;
 import com.hedera.statevalidation.merkledb.reflect.HalfDiskHashMapW;
 import com.hedera.statevalidation.merkledb.reflect.MemoryIndexDiskKeyValueStoreW;
+import com.hedera.statevalidation.validators.ValidationException;
 import com.hedera.statevalidation.validators.Validator;
 import com.swirlds.merkledb.MerkleDbDataSource;
 import com.swirlds.merkledb.collections.LongList;
@@ -37,14 +38,17 @@ public class ValidateLeafIndexHalfDiskHashMap implements Validator {
 
     private static final Logger log = LogManager.getLogger(ValidateLeafIndexHalfDiskHashMap.class);
 
+    public static final String HDHM = "hdhm";
+
     @Override
     public String getTag() {
-        return "hdhm";
+        return HDHM;
     }
 
     public void validate(MerkleNodeState merkleNodeState) {
         final VirtualMap virtualMap = (VirtualMap) merkleNodeState.getRoot();
-        assertNotNull(virtualMap);
+        requireNonNull(virtualMap, HDHM);
+
         MerkleDbDataSource vds = (MerkleDbDataSource) virtualMap.getDataSource();
 
         if (vds.getFirstLeafPath() == -1) {
@@ -130,7 +134,7 @@ public class ValidateLeafIndexHalfDiskHashMap implements Validator {
                 if (bucketLocation != 0) {
                     printFileDataLocationError(log, e.getMessage(), dfc, bucketLocation);
                 }
-                throw new RuntimeException(e);
+                throw new ValidationException(HDHM, "Error in bucket entry processing", e);
             }
         };
         // iterate over all the buckets
@@ -170,7 +174,7 @@ public class ValidateLeafIndexHalfDiskHashMap implements Validator {
                     hashCodeMismatchInfos.size());
         }
 
-        assertTrue(
+        requireTrue(
                 (stalePathsInfos.isEmpty() || skipStaleKeysValidation)
                                 && nullLeafsInfo.isEmpty()
                                 && unexpectedKeyInfos.isEmpty()
@@ -178,6 +182,7 @@ public class ValidateLeafIndexHalfDiskHashMap implements Validator {
                                 && incorrectBucketIndexList.isEmpty()
                                 && hashCodeMismatchInfos.isEmpty()
                         || skipIncorrectBucketIndexValidation,
+                HDHM,
                 "One of the test condition hasn't been met. "
                         + "Conditions: "
                         + ("stalePathsInfos.isEmpty() = %s, "

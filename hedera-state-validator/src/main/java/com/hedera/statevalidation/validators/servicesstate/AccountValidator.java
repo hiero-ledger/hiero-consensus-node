@@ -2,8 +2,9 @@
 package com.hedera.statevalidation.validators.servicesstate;
 
 import static com.hedera.statevalidation.validators.ParallelProcessingUtil.VALIDATOR_FORK_JOIN_POOL;
-import static org.junit.jupiter.api.Assertions.*;
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static com.hedera.statevalidation.validators.ValidationAssertions.requireEqual;
+import static com.hedera.statevalidation.validators.ValidationAssertions.requireNonNull;
+import static com.hedera.statevalidation.validators.ValidationAssertions.requireTrue;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.state.token.Account;
@@ -14,6 +15,7 @@ import com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema;
 import com.hedera.node.app.spi.ids.ReadableEntityIdStore;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.hedera.statevalidation.validators.ValidationException;
 import com.hedera.statevalidation.validators.Validator;
 import com.swirlds.base.utility.Pair;
 import com.swirlds.common.threading.manager.AdHocThreadManager;
@@ -41,23 +43,24 @@ public class AccountValidator implements Validator {
     // https://help.hedera.com/hc/en-us/articles/360000665518-What-is-the-total-supply-of-HBAR-
     final long TOTAL_tHBAR_SUPPLY = 5_000_000_000_000_000_000L;
 
+    public static final String ACCOUNT = "account";
+
     @Override
     public String getTag() {
-        return "account";
+        return ACCOUNT;
     }
 
-    public void validate(@NonNull final MerkleNodeState merkleNodeState) throws InterruptedException {
-
+    public void validate(@NonNull final MerkleNodeState merkleNodeState) {
         final VirtualMap virtualMap = (VirtualMap) merkleNodeState.getRoot();
-        assertNotNull(virtualMap);
+        requireNonNull(virtualMap, ACCOUNT);
 
         final ReadableEntityIdStore entityCounters =
                 new ReadableEntityIdStoreImpl(merkleNodeState.getReadableStates(EntityIdService.NAME));
+        requireNonNull(entityCounters, ACCOUNT);
+
         final ReadableKVState<AccountID, Account> accounts =
                 merkleNodeState.getReadableStates(TokenServiceImpl.NAME).get(V0490TokenSchema.ACCOUNTS_STATE_ID);
-
-        assertNotNull(accounts);
-        assertNotNull(entityCounters);
+        requireNonNull(accounts, ACCOUNT);
 
         final long numAccounts = entityCounters.numAccounts();
         log.debug("Number of accounts: {}", numAccounts);
@@ -78,22 +81,26 @@ public class AccountValidator implements Validator {
                             com.hedera.hapi.platform.state.StateValue.PROTOBUF.parse(valueBytes);
                     final Account account = stateValue.value().as();
                     final long tinybarBalance = account.tinybarBalance();
-                    assertTrue(tinybarBalance >= 0);
+                    requireTrue(tinybarBalance >= 0, ACCOUNT);
                     totalBalance.addAndGet(tinybarBalance);
                     accountsCreated.incrementAndGet();
                 } catch (final ParseException e) {
-                    throw new RuntimeException("Failed to parse a key", e);
+                    throw new ValidationException(ACCOUNT, "Failed to parse a key", e);
                 }
             }
         };
 
-        VirtualMapMigration.extractVirtualMapDataC(
-                AdHocThreadManager.getStaticThreadManager(),
-                virtualMap,
-                handler,
-                VALIDATOR_FORK_JOIN_POOL.getParallelism());
+        try {
+            VirtualMapMigration.extractVirtualMapDataC(
+                    AdHocThreadManager.getStaticThreadManager(),
+                    virtualMap,
+                    handler,
+                    VALIDATOR_FORK_JOIN_POOL.getParallelism());
+        } catch (InterruptedException e) {
+            throw new ValidationException(ACCOUNT, "Failed to traverse virtual map", e);
+        }
 
-        assertEquals(TOTAL_tHBAR_SUPPLY, totalBalance.get());
-        assertEquals(accountsCreated.get(), numAccounts);
+        requireEqual(TOTAL_tHBAR_SUPPLY, totalBalance.get(), ACCOUNT);
+        requireEqual(accountsCreated.get(), numAccounts, ACCOUNT);
     }
 }

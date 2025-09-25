@@ -19,5 +19,5 @@ public interface Validator {
      *
      * @param merkleNodeState the state (can be a validation context in the future)
      */
-    void validate(MerkleNodeState merkleNodeState) throws Exception;
+    void validate(MerkleNodeState merkleNodeState);
 }
