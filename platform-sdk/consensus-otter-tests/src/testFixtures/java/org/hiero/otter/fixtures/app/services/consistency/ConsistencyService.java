@@ -1,10 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.otter.fixtures.app;
+package org.hiero.otter.fixtures.app.services.consistency;
 
 import static org.hiero.base.utility.ByteUtils.byteArrayToLong;
 import static org.hiero.base.utility.NonCryptographicHashing.hash64;
-import static org.hiero.otter.fixtures.app.OtterStateId.CONSISTENCY_SINGLETON_STATE_ID;
-import static org.hiero.otter.fixtures.app.V1ConsistencyStateSchema.CONSISTENCY_SINGLETON_KEY;
+import static org.hiero.otter.fixtures.app.state.OtterStateId.CONSISTENCY_SINGLETON_STATE_ID;
 
 import com.swirlds.state.spi.WritableSingletonState;
 import com.swirlds.state.spi.WritableStates;
@@ -27,6 +26,8 @@ import org.hiero.otter.fixtures.app.state.ConsistencyState;
  */
 public class ConsistencyService {
     public static final String NAME = "ConsistencyStateService";
+    public static final int STATE_ID = CONSISTENCY_SINGLETON_STATE_ID.id();
+    public static final String STATE_KEY = "CONSISTENCY_SINGLETON";
 
     private Long stateRunningHash = null;
 

@@ -1,4 +1,4 @@
-package org.hiero.otter.fixtures.app;
+package org.hiero.otter.fixtures.app.state;
 
 
 public enum OtterStateId {

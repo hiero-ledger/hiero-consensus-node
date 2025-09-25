@@ -48,7 +48,7 @@ import org.hiero.consensus.roster.RosterUtils;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.NodeConfiguration;
 import org.hiero.otter.fixtures.app.OtterApp;
-import org.hiero.otter.fixtures.app.OtterAppState;
+import org.hiero.otter.fixtures.app.state.OtterAppState;
 import org.hiero.otter.fixtures.app.OtterExecutionLayer;
 import org.hiero.otter.fixtures.internal.AbstractNode;
 import org.hiero.otter.fixtures.internal.result.NodeResultsCollector;

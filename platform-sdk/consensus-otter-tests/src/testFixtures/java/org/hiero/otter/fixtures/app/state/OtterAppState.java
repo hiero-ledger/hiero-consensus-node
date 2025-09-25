@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.otter.fixtures.app;
+package org.hiero.otter.fixtures.app.state;
 
 import static com.swirlds.platform.state.service.PlatformStateFacade.DEFAULT_PLATFORM_STATE_FACADE;
 import static com.swirlds.platform.test.fixtures.config.ConfigUtils.CONFIGURATION;

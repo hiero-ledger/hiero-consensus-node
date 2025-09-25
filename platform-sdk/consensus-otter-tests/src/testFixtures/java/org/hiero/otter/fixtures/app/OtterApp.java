@@ -20,6 +20,8 @@ import org.hiero.consensus.model.event.Event;
 import org.hiero.consensus.model.hashgraph.Round;
 import org.hiero.consensus.model.roster.AddressBook;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
+import org.hiero.otter.fixtures.app.services.consistency.ConsistencyService;
+import org.hiero.otter.fixtures.app.state.OtterAppState;
 
 /**
  * Simple application that can process all transactions required to run tests on Turtle
