@@ -453,9 +453,17 @@ public class BlockNodeConnectionManager {
             return;
         }
 
+        // Shutdown the block buffer
+        blockBufferService.shutdown();
+
         logger.info("Shutting down connection manager!");
+
+        if (!isConnectionManagerActive.compareAndSet(true, false)) {
+            logger.debug("Connection Manager already shutdown");
+            return;
+        }
+
         // Stop the block stream worker loop thread
-        isConnectionManagerActive.set(false);
         final Thread workerThread = blockStreamWorkerThreadRef.get();
         if (workerThread != null) {
             workerThread.interrupt();
@@ -466,8 +474,9 @@ public class BlockNodeConnectionManager {
                 logger.error("Interrupted while waiting for block stream worker thread to terminate", e);
             }
         }
+        blockStreamWorkerThreadRef.set(null);
 
-        // Close all of the connections
+        // Close all connections
         final Iterator<Map.Entry<BlockNodeConfig, BlockNodeConnection>> it =
                 connections.entrySet().iterator();
         while (it.hasNext()) {
@@ -483,6 +492,12 @@ public class BlockNodeConnectionManager {
             }
             it.remove();
         }
+
+        // clear metadata
+        streamingBlockNumber.set(-1);
+        requestIndex = 0;
+        activeConnectionRef.set(null);
+        nodeStats.clear();
     }
 
     /**
@@ -495,7 +510,7 @@ public class BlockNodeConnectionManager {
         }
 
         if (!isConnectionManagerActive.compareAndSet(false, true)) {
-            throw new IllegalStateException("Connection manager already started");
+            return;
         }
 
         // start worker thread

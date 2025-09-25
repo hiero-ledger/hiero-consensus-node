@@ -1179,7 +1179,7 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
             notifications.unregister(AsyncFatalIssListener.class, daggerApp.fatalIssListener());
             if (blockStreamEnabled) {
                 notifications.unregister(StateHashedListener.class, daggerApp.blockStreamManager());
-                daggerApp.blockBufferService().shutdown();
+                daggerApp.blockNodeConnectionManager().shutdown();
             }
         }
         if (trigger == RECONNECT) {
