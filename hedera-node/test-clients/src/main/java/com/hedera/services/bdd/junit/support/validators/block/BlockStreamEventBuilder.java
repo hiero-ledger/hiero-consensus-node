@@ -102,7 +102,7 @@ public class BlockStreamEventBuilder {
         eventIndexToEvent.clear();
     }
 
-    private void eventHeader(final EventHeader eventHeader) {
+    private void eventHeader(@NonNull final EventHeader eventHeader) {
         if (currentEventHeader != null) {
             completeEvent();
             eventIndexWithinBlock++;
@@ -113,7 +113,7 @@ public class BlockStreamEventBuilder {
         currentTransactions.clear();
     }
 
-    private void signedTransaction(final Bytes transactionBytes) {
+    private void signedTransaction(@NonNull final Bytes transactionBytes) {
         if (currentEventHeader == null) {
             fail("Unexpected transaction item without an active event header!");
         }
@@ -162,7 +162,7 @@ public class BlockStreamEventBuilder {
      */
     private void completeEvent() {
         final PlatformEvent platformEvent =
-                createEventFromData(currentEventHeader, currentTransactions, eventIndexToEvent);
+                createEventFromData(currentEventHeader, new ArrayList<>(currentTransactions), eventIndexToEvent);
         eventIndexToEvent.put(eventIndexWithinBlock, platformEvent);
         eventHashToEvent.put(platformEvent.getHash(), platformEvent);
         events.add(platformEvent);
