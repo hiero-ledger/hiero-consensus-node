@@ -113,8 +113,11 @@ public class BlockStreamEventBuilder {
         currentTransactions.clear();
     }
 
-    private void signedTransaction(@NonNull final Bytes transactionBytes) {
-        if (currentEventHeader == null) {
+    private void signedTransaction(final Bytes transactionBytes) {
+        final TransactionBody transactionBody = getTransactionBody(transactionBytes);
+        // When performing a network transplant, there may be transactions with a non-zero nonce
+        // outside of an event header. These transactions should be ignored.
+        if (transactionBody.transactionID().nonce() == 0 && currentEventHeader == null) {
             fail("Unexpected transaction item without an active event header!");
         }
         if (isTransactionInEvent(transactionBytes)) {
