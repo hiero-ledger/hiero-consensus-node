@@ -1564,8 +1564,9 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         connectionManager.shutdown();
 
         assertThat(isActive).isFalse();
-        // Verify no interactions with any thread since workerThread was null
-        verifyNoInteractions(bufferService);
+        // Verify buffer service shutdown is called even with no worker thread
+        verify(bufferService).shutdown();
+        // Verify no interactions with executor and metrics since no worker thread to manage
         verifyNoInteractions(executorService);
         verifyNoInteractions(metrics);
     }
