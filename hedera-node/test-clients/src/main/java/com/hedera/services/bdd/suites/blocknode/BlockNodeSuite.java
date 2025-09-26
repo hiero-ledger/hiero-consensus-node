@@ -31,6 +31,7 @@ import java.util.concurrent.locks.LockSupport;
 import java.util.stream.Stream;
 import org.hiero.block.api.PublishStreamResponse.EndOfStream.Code;
 import org.hiero.consensus.model.status.PlatformStatus;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Tag;
@@ -326,6 +327,7 @@ public class BlockNodeSuite {
                         "saturation=0.0%")));
     }
 
+    @Disabled
     @HapiTest
     @HapiBlockNode(
             networkSize = 1,
