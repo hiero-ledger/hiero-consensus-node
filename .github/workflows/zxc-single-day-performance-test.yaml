@@ -78,11 +78,11 @@ env:
   #Thresholds for performance
   #benchmarks
   #CryptoTransfer   HCS   NftTransfer SmartContract HeliSwap CryptoBenchMerkleDb
-  #         20398 23374         12078          8259     1187               20023
+  #         20398 23374         12078          8259     1187               27818
   #-15%
-  #         17338 19867         10266          7020     1008               17019
+  #         17338 19867         10266          7020     1008               23645
   MinNFTscore: 10266
-  MinMerkleDBscore: 17019
+  MinMerkleDBscore: 23645
   MinHCSLoadTest: 19867
   MinCryptoTransferLoadTest: 17338
   MinHeliSwapLoadTest: 1008
@@ -1044,7 +1044,7 @@ jobs:
       - name: Extract benchmark score of CryptoBenchMerkleDb test
         id: CryptoBenchMerkleDbLogs
         run: |
-          result="$(grep 'CryptoBench.transferPrefetch' "${{ github.workspace }}"/report/swirlds-benchmarks.log | tail -n 1 | awk '{print $9}' | awk -F \. '{print $1}')"
+          result=$(grep 'Total transactions:' "${{ github.workspace }}"/report/swirlds-benchmarks.log | tail -n 1 | awk '{print $NF}')
           echo "value=${result}" >> $GITHUB_OUTPUT
           echo "value=${result}"
 
