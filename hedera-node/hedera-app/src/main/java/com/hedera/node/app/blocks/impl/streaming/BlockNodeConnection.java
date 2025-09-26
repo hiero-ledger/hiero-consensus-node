@@ -548,6 +548,15 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
             try {
                 if (logger.isDebugEnabled()) {
                     logger.debug(
+                            "[{}] Sending request to block node (type={})",
+                            this,
+                            request.request().kind());
+                } else if (logger.isTraceEnabled()) {
+                    /*
+                    PublishStreamRequest#protobufSize does the size calculation lazily and thus calling this can incur
+                    a performance penality. Therefore, we only want to log the byte size at trace level.
+                     */
+                    logger.trace(
                             "[{}] Sending request to block node (type={}, bytes={})",
                             this,
                             request.request().kind(),
