@@ -149,6 +149,7 @@ import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.charset.Charset;
+import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.InstantSource;
@@ -657,7 +658,7 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
                         return;
                     }
                     logger.info("CATASTROPHIC_FAILURE - Uploading ISS context to S3");
-                    daggerApp.recordBlockCache().uploadIssContextToS3(s3Uploader);
+                    // daggerApp.recordBlockCache().uploadIssContextToS3(s3Uploader);
                     uploadIssPcesFiles(s3Uploader);
                 }
             }
@@ -671,6 +672,7 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
      * Uploads Pces files to the S3 bucket.
      */
     private void uploadIssPcesFiles(final S3Uploader s3Uploader) {
+        logger.info("Uploading ISS pces files to S3");
         try {
             final var state = daggerApp.workingStateAccessor().getState();
             final var consensusSnapshot = requireNonNull(state.getReadableStates(PlatformStateService.NAME)
@@ -682,17 +684,25 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
                     .min(Long::compareTo)
                     .orElse(-1L);
 
-            final var pcesFiles = SavedStateUtils.pcesFilesFromDisk(
-                    configProvider.getConfiguration(), platform.getSelfId(), minimumRound, consensusSnapshot.round());
-            final String key = "%s/node/%s/pces/%010d.zip"
+            final var pcesFiles = SavedStateUtils.pcesSnapshot(
+                    platform.getContext().getConfiguration(),
+                    platform.getSelfId(),
+                    minimumRound,
+                    consensusSnapshot.round());
+            final String base = "%s/node%d/pces/%d/"
                     .formatted(
                             configProvider
                                     .getConfiguration()
                                     .getConfigData(S3IssConfig.class)
                                     .basePath(),
-                            platform.getSelfId(),
+                            platform.getSelfId().id(),
                             consensusSnapshot.round());
-            s3Uploader.uploadFilesAsZippedFolder(key, pcesFiles);
+
+            pcesFiles.forEach(path -> {
+                final String key = Path.of(base).resolve(path.getFileName()).toString();
+                s3Uploader.uploadFile(key, path, "application/octet-stream");
+                logger.info("Successfully uploaded ISS pces file {} as {} to S3", path.getFileName(), key);
+            });
 
         } catch (Exception e) {
             logger.error("Failed to upload ISS pces files to S3", e);

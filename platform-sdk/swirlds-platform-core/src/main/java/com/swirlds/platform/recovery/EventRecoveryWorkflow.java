@@ -180,7 +180,7 @@ public final class EventRecoveryWorkflow {
                     recoveredState.state().get().getState().copy();
 
             SignedStateFileWriter.writeSignedStateFilesToDirectory(
-                    platformContext,
+                    platformContext.getConfiguration(),
                     selfId,
                     resultingStateDirectory,
                     recoveredState.state().get(),

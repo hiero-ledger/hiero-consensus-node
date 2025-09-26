@@ -253,14 +253,10 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
         throwIfNotIn(SHUTDOWN, "Node must be in the shutdown state to retrieve PCES results.");
 
         final Configuration configuration = nodeConfiguration.current();
-        try {
-            final Path databaseDirectory =
-                    getDatabaseDirectory(configuration, org.hiero.consensus.model.node.NodeId.of(selfId.id()));
-            final Path pcesDirectory = mountedDir.resolve(databaseDirectory);
-            return new SingleNodePcesResultImpl(selfId, nodeConfiguration.current(), pcesDirectory);
-        } catch (final IOException e) {
-            throw new UncheckedIOException("Failed to resolve directory of PCES files", e);
-        }
+        final Path databaseDirectory =
+                getDatabaseDirectory(configuration, org.hiero.consensus.model.node.NodeId.of(selfId.id()));
+        final Path pcesDirectory = mountedDir.resolve(databaseDirectory);
+        return new SingleNodePcesResultImpl(selfId, nodeConfiguration.current(), pcesDirectory);
     }
 
     /**

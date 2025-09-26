@@ -67,11 +67,7 @@ public class SingleNodePcesResultImpl implements SingleNodePcesResult {
      * @return the default PCES directory path
      */
     private static Path defaultPcesDirectory(final long nodeId, final Configuration configuration) {
-        try {
-            return getDatabaseDirectory(configuration, org.hiero.consensus.model.node.NodeId.of(nodeId));
-        } catch (final IOException e) {
-            throw new UncheckedIOException("Error resolving default PCES directory", e);
-        }
+        return getDatabaseDirectory(configuration, org.hiero.consensus.model.node.NodeId.of(nodeId));
     }
 
     /**

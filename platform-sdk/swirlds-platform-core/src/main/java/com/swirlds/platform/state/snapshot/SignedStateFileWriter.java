@@ -16,8 +16,10 @@ import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.streams.MerkleDataOutputStream;
 import com.swirlds.common.merkle.utility.MerkleTreeVisualizer;
+import com.swirlds.config.api.Configuration;
 import com.swirlds.logging.legacy.payload.StateSavedToDiskPayload;
 import com.swirlds.platform.config.StateConfig;
+import com.swirlds.platform.event.preconsensus.PcesConfig;
 import com.swirlds.platform.recovery.emergencyfile.EmergencyRecoveryFile;
 import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.service.PlatformStateFacade;
@@ -50,17 +52,17 @@ public final class SignedStateFileWriter {
      * human needs to decide what is contained within a signed state file. If the file already exists in the given
      * directory then it is overwritten.
      *
-     * @param platformContext the platform context
+     * @param configuration the configuration
      * @param state           the state that is being written
      * @param directory       the directory where the state is being written
      */
     public static void writeHashInfoFile(
-            @NonNull final PlatformContext platformContext,
+            @NonNull final Configuration configuration,
             @NonNull final Path directory,
             @NonNull final MerkleNodeState state,
             @NonNull final PlatformStateFacade platformStateFacade)
             throws IOException {
-        final StateConfig stateConfig = platformContext.getConfiguration().getConfigData(StateConfig.class);
+        final StateConfig stateConfig = configuration.getConfigData(StateConfig.class);
         final String platformInfo = platformStateFacade.getInfoString(state, stateConfig.debugHashDepth());
 
         logger.info(
@@ -128,19 +130,19 @@ public final class SignedStateFileWriter {
     /**
      * Write all files that belong in the signed state directory into a directory.
      *
-     * @param platformContext the platform context
+     * @param configuration the configuration
      * @param selfId          the id of the platform
      * @param directory       the directory where all files should be placed
      * @param signedState     the signed state being written to disk
      */
     public static void writeSignedStateFilesToDirectory(
-            @Nullable final PlatformContext platformContext,
+            @Nullable final Configuration configuration,
             @Nullable final NodeId selfId,
             @NonNull final Path directory,
             @NonNull final SignedState signedState,
             @NonNull final PlatformStateFacade platformStateFacade)
             throws IOException {
-        Objects.requireNonNull(platformContext);
+        Objects.requireNonNull(configuration);
         Objects.requireNonNull(directory);
         Objects.requireNonNull(signedState);
 
@@ -148,22 +150,29 @@ public final class SignedStateFileWriter {
 
         state.createSnapshot(directory);
         writeSignatureSetFile(directory, signedState);
-        writeHashInfoFile(platformContext, directory, signedState.getState(), platformStateFacade);
+        writeHashInfoFile(configuration, directory, signedState.getState(), platformStateFacade);
         writeMetadataFile(selfId, directory, signedState, platformStateFacade);
         writeEmergencyRecoveryFile(directory, signedState);
         final Roster currentRoster = signedState.getRoster();
         if (currentRoster != null) {
             writeRosterFile(directory, currentRoster);
         }
-        writeSettingsUsed(directory, platformContext.getConfiguration());
+        writeSettingsUsed(directory, configuration);
 
         if (selfId != null) {
-            copyPcesFilesRetryOnFailure(
-                    platformContext,
-                    selfId,
-                    directory,
-                    platformStateFacade.ancientThresholdOf(signedState.getState()),
-                    signedState.getRound());
+            final boolean copyPreconsensusStream =
+                    configuration.getConfigData(PcesConfig.class).copyRecentStreamToStateSnapshots();
+            if (copyPreconsensusStream) {
+                // PCES copying is enabled
+                final Path pcesDestination =
+                        directory.resolve("preconsensus-events").resolve(Long.toString(selfId.id()));
+                copyPcesFilesRetryOnFailure(
+                        configuration,
+                        selfId,
+                        pcesDestination,
+                        platformStateFacade.ancientThresholdOf(signedState.getState()),
+                        signedState.getRound());
+            }
         }
     }
 
@@ -216,7 +225,7 @@ public final class SignedStateFileWriter {
             executeAndRename(
                     savedStateDirectory,
                     directory -> writeSignedStateFilesToDirectory(
-                            platformContext, selfId, directory, signedState, platformStateFacade),
+                            platformContext.getConfiguration(), selfId, directory, signedState, platformStateFacade),
                     platformContext.getConfiguration());
 
             logger.info(STATE_TO_DISK.getMarker(), () -> new StateSavedToDiskPayload(

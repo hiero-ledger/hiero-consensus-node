@@ -6,16 +6,12 @@ import com.swirlds.common.s3.S3Client;
 import com.swirlds.common.s3.S3ClientInitializationException;
 import com.swirlds.common.s3.S3ResponseException;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Iterator;
-import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Objects;
-import java.util.zip.ZipEntry;
-import java.util.zip.ZipOutputStream;
 
 /**
  * An S3 client for uploading files into a configured bucket.
@@ -23,7 +19,6 @@ import java.util.zip.ZipOutputStream;
 public class S3Uploader {
     private final S3Client s3Client;
     private final S3Config s3Config;
-    private static final String ZIP_CONTENT_TYPE = "application/zip";
 
     public S3Uploader(final @NonNull S3Config config) {
         this.s3Config = Objects.requireNonNull(config);
@@ -36,17 +31,6 @@ public class S3Uploader {
                     s3Config.secretKey());
         } catch (S3ClientInitializationException e) {
             throw new IllegalStateException(e);
-        }
-    }
-
-    public void uploadFilesAsZippedFolder(final @NonNull String key, final @NonNull List<Path> files) {
-        Objects.requireNonNull(key, "key must not be null");
-        Objects.requireNonNull(files, "files must not be null");
-        try {
-            final byte[] byteArray = zipCompress(files);
-            uploadFileContent(key, byteArray, ZIP_CONTENT_TYPE);
-        } catch (IOException e) {
-            throw new IllegalStateException("Error uploading file:" + key + " to:" + s3Config.bucketName(), e);
         }
     }
 
@@ -72,22 +56,6 @@ public class S3Uploader {
             s3Client.uploadFile(key, s3Config.storageClass(), SingleElementIterator.of(byteArray), contentType);
         } catch (IOException | S3ResponseException e) {
             throw new IllegalStateException("Error uploading file:" + key + " to:" + s3Config.bucketName(), e);
-        }
-    }
-
-    private static byte[] zipCompress(@NonNull final List<Path> inputFiles) throws IOException {
-        try (final ByteArrayOutputStream baos = new ByteArrayOutputStream();
-                final ZipOutputStream zos = new ZipOutputStream(baos)) {
-            for (final Path file : inputFiles) {
-                if (Files.isRegularFile(file)) {
-                    final ZipEntry entry = new ZipEntry(file.getFileName().toString());
-                    zos.putNextEntry(entry);
-                    Files.copy(file, zos);
-                    zos.closeEntry();
-                }
-            }
-            zos.finish();
-            return baos.toByteArray();
         }
     }
 

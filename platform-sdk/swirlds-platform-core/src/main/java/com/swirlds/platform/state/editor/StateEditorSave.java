@@ -61,7 +61,11 @@ public class StateEditorSave extends StateEditorOperation {
 
             try (final ReservedSignedState signedState = getStateEditor().getSignedStateCopy()) {
                 writeSignedStateFilesToDirectory(
-                        platformContext, NO_NODE_ID, directory, signedState.get(), DEFAULT_PLATFORM_STATE_FACADE);
+                        platformContext.getConfiguration(),
+                        NO_NODE_ID,
+                        directory,
+                        signedState.get(),
+                        DEFAULT_PLATFORM_STATE_FACADE);
             }
 
         } catch (final IOException e) {
