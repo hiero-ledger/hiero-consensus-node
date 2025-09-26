@@ -13,6 +13,8 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.hiero.consensus.model.event.ConsensusEvent;
 import org.hiero.consensus.model.event.Event;
 import org.hiero.consensus.model.hashgraph.Round;
@@ -32,7 +34,8 @@ public class OtterApp implements ConsensusStateEventHandler<OtterAppState> {
     public static final String APP_NAME = "org.hiero.otter.fixtures.app.OtterApp";
     public static final String SWIRLD_NAME = "123";
 
-    private final List<OtterService> services;
+    private final List<OtterService> allServices;
+    private final List<OtterService> appServices;
 
     /**
      * The number of milliseconds to sleep per handled consensus round. Sleeping for long enough over a period of time
@@ -49,17 +52,28 @@ public class OtterApp implements ConsensusStateEventHandler<OtterAppState> {
      * Create the app and its services.
      */
     public OtterApp() {
-        this.services = List.of(new PlatformStateService(), new RosterService(), consistencyService);
+        this.appServices = List.of(consistencyService);
+        this.allServices = List.of(consistencyService, new PlatformStateService(), new RosterService());
     }
 
     /**
-     * Get the list of services used by this app.
+     * Get the list of services that are part of the application only, and not by the platform.
+     *
+     * @return the list of app services
+     */
+    @NonNull
+    public List<OtterService> appServices() {
+        return appServices;
+    }
+
+    /**
+     * Get the list of all services, both platform and app.
      *
      * @return the list of services
      */
     @NonNull
-    public List<OtterService> services() {
-        return services;
+    public List<OtterService> allServices() {
+        return allServices;
     }
 
     /**
@@ -81,19 +95,19 @@ public class OtterApp implements ConsensusStateEventHandler<OtterAppState> {
             @NonNull final Round round,
             @NonNull final OtterAppState state,
             @NonNull final Consumer<ScopedSystemTransaction<StateSignatureTransaction>> callback) {
-        for (final OtterService service : services) {
+        for (final OtterService service : allServices) {
             service.onRound(state.getWritableStates(service.name()), round);
         }
 
         for (final ConsensusEvent consensusEvent : round) {
-            for (final OtterService service : services) {
+            for (final OtterService service : allServices) {
                 service.onEvent(state.getWritableStates(service.name()), consensusEvent);
             }
             for (final Iterator<ConsensusTransaction> transactionIterator =
-                            consensusEvent.consensusTransactionIterator();
+                    consensusEvent.consensusTransactionIterator();
                     transactionIterator.hasNext(); ) {
                 final ConsensusTransaction transaction = transactionIterator.next();
-                for (final OtterService service : services) {
+                for (final OtterService service : allServices) {
                     service.onTransaction(
                             state.getWritableStates(service.name()), consensusEvent, transaction, callback);
                 }

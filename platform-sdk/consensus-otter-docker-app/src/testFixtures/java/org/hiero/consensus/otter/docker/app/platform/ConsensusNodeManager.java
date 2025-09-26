@@ -46,6 +46,7 @@ import org.hiero.consensus.roster.RosterUtils;
 import org.hiero.otter.fixtures.app.OtterApp;
 import org.hiero.otter.fixtures.app.OtterAppState;
 import org.hiero.otter.fixtures.app.OtterExecutionLayer;
+import org.hiero.otter.fixtures.app.state.OtterStateInitializer;
 
 /**
  * Manages the lifecycle and operations of a consensus node within a container-based network. This class initializes the
@@ -123,7 +124,7 @@ public class ConsensusNodeManager {
                 recycleBin,
                 version,
                 () -> OtterAppState.createGenesisState(
-                        platformConfig, genesisRoster, metrics, version, otterApp.services()),
+                        platformConfig, genesisRoster, metrics, version, otterApp.allServices()),
                 OtterApp.APP_NAME,
                 OtterApp.SWIRLD_NAME,
                 legacySelfId,
@@ -131,8 +132,15 @@ public class ConsensusNodeManager {
                 platformContext,
                 OtterAppState::new);
         final ReservedSignedState initialState = reservedState.state();
-
         final MerkleNodeState state = initialState.get().getState();
+
+        // In a genesis state, this will already have been done.
+        // For state loaded from disk, we must register the app-specific services.
+        if (!platformStateFacade.isGenesisStateOf(state)) {
+            OtterStateInitializer.initOtterAppState(platformConfig, (OtterAppState) state, version,
+                    otterApp.appServices());
+        }
+
         final RosterHistory rosterHistory = RosterUtils.createRosterHistory(state);
         executionCallback = new OtterExecutionLayer(metrics);
         final PlatformBuilder builder = PlatformBuilder.create(

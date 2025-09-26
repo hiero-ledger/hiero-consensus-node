@@ -55,10 +55,8 @@ public class OtterAppState extends VirtualMapState<OtterAppState> implements Mer
             @NonNull final SemanticVersion version,
             @NonNull final List<OtterService> services) {
 
-        // Setup the parts of the state required by the consensus module.
         final OtterAppState state = new OtterAppState(CONFIGURATION, metrics);
 
-        // Setup the parts of the state required by the Otter app.
         initOtterAppState(configuration, state, version, services);
         RosterUtils.setActiveRoster(state, roster, 0L);
 
