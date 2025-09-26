@@ -722,7 +722,7 @@ public class BlockNodeConnectionManager {
      * should NOT sleep)
      */
     private boolean processStreamingToBlockNode(final BlockNodeConnection connection) {
-        if (connection == null) {
+        if (connection == null || ConnectionState.ACTIVE != connection.getConnectionState()) {
             return true;
         }
 

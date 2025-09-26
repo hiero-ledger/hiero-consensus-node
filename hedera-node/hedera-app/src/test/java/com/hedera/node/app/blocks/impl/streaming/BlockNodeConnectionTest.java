@@ -624,7 +624,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
     }
 
     @Test
-    void testOnError() {
+    void testOnError_activeConnection() {
         openConnectionAndResetMocks();
         connection.updateConnectionState(ConnectionState.ACTIVE);
 
@@ -641,6 +641,19 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         verifyNoMoreInteractions(metrics);
         verifyNoMoreInteractions(requestPipeline);
         verifyNoMoreInteractions(connectionManager);
+        verifyNoInteractions(bufferService);
+    }
+
+    @Test
+    void testOnError_terminalConnection() {
+        openConnectionAndResetMocks();
+        connection.updateConnectionState(ConnectionState.CLOSING);
+
+        connection.onError(new RuntimeException("oh bother"));
+
+        verifyNoInteractions(metrics);
+        verifyNoInteractions(requestPipeline);
+        verifyNoInteractions(connectionManager);
         verifyNoInteractions(bufferService);
     }
 

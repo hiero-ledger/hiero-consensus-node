@@ -114,21 +114,37 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
         /**
          * bidi RequestObserver needs to be created.
          */
-        UNINITIALIZED,
+        UNINITIALIZED(false),
         /**
          * bidi RequestObserver is established but this connection has not been chosen as the active one (priority based).
          */
-        PENDING,
+        PENDING(false),
         /**
          * Connection is active. Block Stream Worker Thread is sending PublishStreamRequest's to the block node through async bidi stream.
          */
-        ACTIVE,
-        CLOSING,
+        ACTIVE(false),
+        /**
+         * The connection is being closed. Once in this state, only cleanup operations should be permitted.
+         */
+        CLOSING(true),
         /**
          * Connection has been closed and pipeline terminated. This is a terminal state.
          * No more requests can be sent and no more responses will be received.
          */
-        CLOSED
+        CLOSED(true);
+
+        private final boolean isTerminal;
+
+        ConnectionState(final boolean isTerminal) {
+            this.isTerminal = isTerminal;
+        }
+
+        /**
+         * @return true if the state represents a terminal or end-state for the connection lifecycle, else false
+         */
+        boolean isTerminal() {
+            return isTerminal;
+        }
     }
 
     /**
@@ -530,6 +546,13 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
         final Pipeline<? super PublishStreamRequest> pipeline = requestPipelineRef.get();
         if (getConnectionState() == ConnectionState.ACTIVE && pipeline != null) {
             try {
+                if (logger.isDebugEnabled()) {
+                    logger.debug(
+                            "[{}] Sending request to block node (type={}, bytes={})",
+                            this,
+                            request.request().kind(),
+                            request.protobufSize());
+                }
                 pipeline.onNext(request);
 
                 if (request.hasEndStream()) {
@@ -563,7 +586,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
      */
     public void close(final boolean callOnComplete) {
         final ConnectionState connState = getConnectionState();
-        if (connState == ConnectionState.CLOSING || connState == ConnectionState.CLOSED) {
+        if (connState.isTerminal()) {
             logger.debug("[{}] Connection already in terminal state ({})", this, connState);
             return;
         }
@@ -688,18 +711,16 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
      */
     @Override
     public void onError(final Throwable error) {
-        if (error instanceof final GrpcException grpcException) {
-            logger.debug("[{}] Error received (grpcStatus={})", this, grpcException.status(), grpcException);
-        } else {
-            logger.debug("[{}] Error received", this, error);
-        }
-        blockStreamMetrics.recordConnectionOnError();
+        // Suppress errors that happen when the connection is in a terminal state
+        if (!getConnectionState().isTerminal()) {
+            blockStreamMetrics.recordConnectionOnError();
 
-        // Check if already in terminal state
-        if (getConnectionState() == ConnectionState.CLOSED) {
-            logger.debug("[{}] onError invoked but connection is already closed", this);
-        } else if (getConnectionState() == ConnectionState.ACTIVE || getConnectionState() == ConnectionState.PENDING) {
-            logger.warn("[{}] onError being handled", this, error);
+            if (error instanceof final GrpcException grpcException) {
+                logger.debug("[{}] Error received (grpcStatus={})", this, grpcException.status(), grpcException);
+            } else {
+                logger.debug("[{}] Error received", this, error);
+            }
+
             handleStreamFailure();
         }
     }
