@@ -130,12 +130,18 @@ public final class RecordAccessor {
         if ((path < 0) || (path > state.getLastLeafPath())) {
             return false;
         }
-        final Hash hash = cache.lookupHashByPath(path);
+        Hash hash = cache.lookupHashByPath(path);
         if (hash != null) {
             hash.serialize(out);
             return true;
         }
-        return dataSource.loadAndWriteHash(path, out);
+        // FUTURE WORK: load and write the hash without extra byte array allocations
+        final long hashChunkId = VirtualHashChunk.pathToChunkId(path, hashChunkHeight);
+        final VirtualHashChunk hashChunk = dataSource.loadHashChunk(hashChunkId);
+        assert hashChunk != null;
+        hash = hashChunk.getHashAtPath(path);
+        hash.serialize(out);
+        return true;
     }
 
     /**

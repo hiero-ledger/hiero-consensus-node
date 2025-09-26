@@ -30,6 +30,13 @@ testFixturesModuleInfo {
     runtimeOnly("io.grpc.netty.shaded")
 }
 
+// This should probably not be necessary (Log4j issue?)
+// https://github.com/apache/logging-log4j2/pull/3053
+tasks.compileTestFixturesJava {
+    options.compilerArgs.add("-Alog4j.graalvm.groupId=${project.group}")
+    options.compilerArgs.add("-Alog4j.graalvm.artifactId=${project.name}")
+}
+
 tasks.testFixturesJar {
     inputs.files(configurations.testFixturesRuntimeClasspath)
     manifest { attributes("Main-Class" to "org.hiero.consensus.otter.docker.app.DockerMain") }

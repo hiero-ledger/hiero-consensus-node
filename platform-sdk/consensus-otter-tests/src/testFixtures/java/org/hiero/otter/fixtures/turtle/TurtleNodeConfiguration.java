@@ -18,7 +18,7 @@ import org.hiero.otter.fixtures.internal.AbstractNodeConfiguration;
 /**
  * {@link NodeConfiguration} implementation for a Turtle node.
  */
-public class TurtleNodeConfiguration extends AbstractNodeConfiguration<TurtleNodeConfiguration> {
+public class TurtleNodeConfiguration extends AbstractNodeConfiguration {
 
     /**
      * Constructor for the {@link TurtleNodeConfiguration} class.
@@ -51,13 +51,5 @@ public class TurtleNodeConfiguration extends AbstractNodeConfiguration<TurtleNod
                 outputDirectory.resolve("data/saved/marker_files").toString());
         overriddenProperties.put(PcesConfig_.LIMIT_REPLAY_FREQUENCY, "false");
         overriddenProperties.put(PcesConfig_.PCES_FILE_WRITER_TYPE, PcesFileWriterType.OUTPUT_STREAM.toString());
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public TurtleNodeConfiguration self() {
-        return this;
     }
 }

@@ -88,18 +88,13 @@ class MerkleDbDataSourceMetricsTest {
                 Stream.empty(),
                 Stream.empty());
 
-        // two 8 MB memory chunks
-        final int expectedHashesIndexSize = 16;
+        // one 8 MB memory chunk
+        final int expectedHashesIndexSize = 8;
         assertMetricValue("ds_offheap_hashesIndexMb_" + TABLE_NAME, expectedHashesIndexSize);
         final int hashListBucketSize =
                 CONFIGURATION.getConfigData(MerkleDbConfig.class).hashStoreRamBufferSize();
         final int expectedHashListBuckets = (HASHES_RAM_THRESHOLD + hashListBucketSize - 1) / hashListBucketSize;
-        final int expectedHashesListSize = (int) (expectedHashListBuckets
-                * hashListBucketSize
-                * DigestType.SHA_384.digestLength()
-                * UnitConstants.BYTES_TO_MEBIBYTES);
-        assertMetricValue("ds_offheap_hashesListMb_" + TABLE_NAME, expectedHashesListSize);
-        assertMetricValue("ds_offheap_dataSourceMb_" + TABLE_NAME, expectedHashesIndexSize + expectedHashesListSize);
+        assertMetricValue("ds_offheap_dataSourceMb_" + TABLE_NAME, expectedHashesIndexSize);
         assertNoMemoryForLeafAndKeyToPathLists();
     }
 

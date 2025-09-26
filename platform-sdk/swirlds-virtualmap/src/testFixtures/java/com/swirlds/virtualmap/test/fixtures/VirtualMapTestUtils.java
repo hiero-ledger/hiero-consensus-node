@@ -19,8 +19,10 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Stream;
 import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.CryptographyException;
@@ -112,5 +114,15 @@ public final class VirtualMapTestUtils {
             chunk.setHashAtPath(path, hash(rec));
         }
         return hashChunks.values().stream().sorted(Comparator.comparingLong(VirtualHashChunk::path));
+    }
+
+    public static long hashChunkStreamSize(
+            final int hashChunkHeight, final long startPathInc, final long endPathExc) {
+        final Set<Long> chunkIds = new HashSet<>();
+        for (long path = startPathInc; path < endPathExc; path++) {
+            final long chunkId = VirtualHashChunk.pathToChunkId(path, hashChunkHeight);
+            chunkIds.add(chunkId);
+        }
+        return chunkIds.size();
     }
 }

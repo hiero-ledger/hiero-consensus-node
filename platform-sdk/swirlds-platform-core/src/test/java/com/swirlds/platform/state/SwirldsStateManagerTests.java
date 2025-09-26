@@ -14,7 +14,6 @@ import com.swirlds.common.Reservable;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.test.fixtures.Randotron;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
-import com.swirlds.merkledb.MerkleDb;
 import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
 import com.swirlds.platform.SwirldsPlatform;
 import com.swirlds.platform.state.service.PlatformStateFacade;
@@ -38,7 +37,6 @@ class SwirldsStateManagerTests {
 
     @BeforeEach
     void setup() {
-        MerkleDb.resetDefaultInstancePath();
         final SwirldsPlatform platform = mock(SwirldsPlatform.class);
         final Roster roster = RandomRosterBuilder.create(Randotron.create()).build();
         when(platform.getRoster()).thenReturn(roster);
@@ -60,12 +58,6 @@ class SwirldsStateManagerTests {
 
     @AfterEach
     void tearDown() {
-        if (!initialState.isDestroyed()) {
-            initialState.release();
-        }
-        if (!swirldStateManager.getConsensusState().isDestroyed()) {
-            swirldStateManager.getConsensusState().release();
-        }
         if (!initialState.isDestroyed()) {
             initialState.release();
         }
@@ -101,7 +93,6 @@ class SwirldsStateManagerTests {
     void loadFromSignedStateRefCount() {
         final SignedState ss1 = newSignedState();
         final Reservable state1 = ss1.getState().getRoot();
-        MerkleDb.resetDefaultInstancePath();
         swirldStateManager.loadFromSignedState(ss1);
 
         assertEquals(
@@ -115,9 +106,7 @@ class SwirldsStateManagerTests {
                 consensusState1.getRoot().getReservationCount(),
                 "The current consensus state should have a single reference count.");
 
-        MerkleDb.resetDefaultInstancePath();
         final SignedState ss2 = newSignedState();
-        MerkleDb.resetDefaultInstancePath();
         swirldStateManager.loadFromSignedState(ss2);
         final MerkleNodeState consensusState2 = swirldStateManager.getConsensusState();
 

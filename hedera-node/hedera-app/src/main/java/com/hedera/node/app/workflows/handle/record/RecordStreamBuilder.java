@@ -63,6 +63,7 @@ import com.hedera.node.app.service.token.records.CryptoDeleteStreamBuilder;
 import com.hedera.node.app.service.token.records.CryptoTransferStreamBuilder;
 import com.hedera.node.app.service.token.records.CryptoUpdateStreamBuilder;
 import com.hedera.node.app.service.token.records.GenesisAccountStreamBuilder;
+import com.hedera.node.app.service.token.records.HookDispatchStreamBuilder;
 import com.hedera.node.app.service.token.records.NodeStakeUpdateStreamBuilder;
 import com.hedera.node.app.service.token.records.TokenAccountWipeStreamBuilder;
 import com.hedera.node.app.service.token.records.TokenAirdropStreamBuilder;
@@ -137,7 +138,8 @@ public class RecordStreamBuilder
                 CryptoUpdateStreamBuilder,
                 NodeCreateStreamBuilder,
                 TokenAirdropStreamBuilder,
-                ReplayableFeeStreamBuilder {
+                ReplayableFeeStreamBuilder,
+                HookDispatchStreamBuilder {
     private static final Comparator<TokenAssociation> TOKEN_ASSOCIATION_COMPARATOR =
             Comparator.<TokenAssociation>comparingLong(a -> a.tokenId().tokenNum())
                     .thenComparingLong(a -> a.accountIdOrThrow().accountNum());
@@ -214,6 +216,11 @@ public class RecordStreamBuilder
      * ops duration used by the contract transaction
      */
     private long opsDuration;
+    /**
+     * The next hook ID after the hook dispatch.
+     * This is useful to set the first hookId on the account if the head is deleted
+     */
+    private long nextHookId;
 
     public RecordStreamBuilder(
             @NonNull final ReversingBehavior reversingBehavior,
@@ -524,31 +531,31 @@ public class RecordStreamBuilder
     @NonNull
     @Override
     public EthereumTransactionStreamBuilder newSenderNonce(long senderNonce) {
-        throw new UnsupportedOperationException("Record stream uses verbose results");
+        return this;
     }
 
     @NonNull
     @Override
     public ContractCallStreamBuilder evmCallTransactionResult(@Nullable EvmTransactionResult result) {
-        throw new UnsupportedOperationException("Record stream uses verbose results");
+        return this;
     }
 
     @NonNull
     @Override
     public ContractCreateStreamBuilder evmCreateTransactionResult(@Nullable EvmTransactionResult result) {
-        throw new UnsupportedOperationException("Record stream uses verbose results");
+        return this;
     }
 
     @NonNull
     @Override
     public RecordStreamBuilder changedNonceInfo(@NonNull final List<ContractNonceInfo> nonceInfos) {
-        throw new UnsupportedOperationException("Record stream uses verbose results");
+        return this;
     }
 
     @NonNull
     @Override
     public ContractOperationStreamBuilder createdContractIds(@NonNull final List<ContractID> contractIds) {
-        throw new UnsupportedOperationException("Record stream uses verbose results");
+        return this;
     }
 
     /**
@@ -568,7 +575,7 @@ public class RecordStreamBuilder
     @NonNull
     @Override
     public ContractCallStreamBuilder addLogs(@NonNull final List<EvmTransactionLog> logs) {
-        throw new UnsupportedOperationException("Record stream uses verbose results");
+        return this;
     }
 
     /**
@@ -918,7 +925,7 @@ public class RecordStreamBuilder
     @NonNull
     @Override
     public RecordStreamBuilder createdEvmAddress(@Nullable final Bytes evmAddress) {
-        throw new UnsupportedOperationException("Record stream uses verbose results");
+        return this;
     }
 
     /**
@@ -1113,7 +1120,7 @@ public class RecordStreamBuilder
 
     @Override
     public ContractOperationStreamBuilder testForIdenticalKeys(@NonNull final Predicate<Object> test) {
-        throw new UnsupportedOperationException("Record stream uses verbose sidecars");
+        return this;
     }
 
     /**
@@ -1156,19 +1163,19 @@ public class RecordStreamBuilder
     @NonNull
     @Override
     public ContractOperationStreamBuilder addContractSlotUsages(@NonNull final List<ContractSlotUsage> slotUsages) {
-        throw new UnsupportedOperationException("Record stream uses legacy sidecars");
+        return this;
     }
 
     @NonNull
     @Override
     public ContractOperationStreamBuilder addActions(@NonNull final List<ContractAction> actions) {
-        throw new UnsupportedOperationException("Record stream uses legacy sidecars");
+        return this;
     }
 
     @NonNull
     @Override
     public ContractOperationStreamBuilder addInitcode(@NonNull final ExecutedInitcode initcode) {
-        throw new UnsupportedOperationException("Record stream uses legacy sidecars");
+        return this;
     }
 
     /**
@@ -1305,5 +1312,15 @@ public class RecordStreamBuilder
     @Override
     public HederaFunctionality functionality() {
         return function;
+    }
+
+    @Override
+    public void nextHookId(final long nextHookId) {
+        this.nextHookId = nextHookId;
+    }
+
+    @Override
+    public long getNextHookId() {
+        return nextHookId;
     }
 }

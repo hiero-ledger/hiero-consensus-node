@@ -16,8 +16,6 @@ import org.hiero.base.io.streams.SerializableDataOutputStream;
  */
 public class InMemoryBuilder implements VirtualDataSourceBuilder {
 
-    private final Map<String, InMemoryDataSource> databases = new ConcurrentHashMap<>();
-
     // Path to data source, used in snapshot() and restore()
     private static final Map<String, InMemoryDataSource> snapshots = new ConcurrentHashMap<>();
 
@@ -49,7 +47,7 @@ public class InMemoryBuilder implements VirtualDataSourceBuilder {
     @NonNull
     @Override
     public InMemoryDataSource build(final String label, final boolean withDbCompactionEnabled) {
-        return databases.computeIfAbsent(label, (s) -> createDataSource(label));
+        return createDataSource(label);
     }
 
     /**
@@ -58,17 +56,15 @@ public class InMemoryBuilder implements VirtualDataSourceBuilder {
     @NonNull
     @Override
     public InMemoryDataSource copy(
-            final VirtualDataSource snapshotMe, final boolean makeCopyActive, final boolean offlineUse) {
+            final VirtualDataSource snapshotMe, final boolean compactionEnabled, final boolean offlineUse) {
         final InMemoryDataSource source = (InMemoryDataSource) snapshotMe;
         final InMemoryDataSource snapshot = new InMemoryDataSource(source);
-        databases.put(createUniqueDataSourceName(source.getName()), snapshot);
         return snapshot;
     }
 
     /**
      * {@inheritDoc}
      */
-    @NonNull
     @Override
     public void snapshot(final Path to, final VirtualDataSource snapshotMe) {
         final InMemoryDataSource source = (InMemoryDataSource) snapshotMe;
@@ -100,9 +96,5 @@ public class InMemoryBuilder implements VirtualDataSourceBuilder {
 
     protected InMemoryDataSource createDataSource(final String name) {
         return new InMemoryDataSource(name);
-    }
-
-    private String createUniqueDataSourceName(final String name) {
-        return name + "-" + System.currentTimeMillis();
     }
 }

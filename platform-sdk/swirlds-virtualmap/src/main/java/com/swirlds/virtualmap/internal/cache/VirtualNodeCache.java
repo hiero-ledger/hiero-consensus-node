@@ -953,7 +953,6 @@ public final class VirtualNodeCache implements FastCopyable {
             return null;
         }
 
-        assert mutation.version == getFastCopyVersion();
         return mutation.value.getHashAtPath(path);
     }
 

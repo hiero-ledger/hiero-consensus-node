@@ -22,10 +22,7 @@ Create your first test:
         // 4. Wait 30 seconds while the network is running
         timeManager.waitFor(Duration.ofSeconds(30));
 
-        // 5. Verify consensus was reached and advanced past round 2
-        assertThat(network.getConsensusResults()).haveEqualCommonRounds().haveAdvancedSinceRound(2);
-
-        // 6. Check for no error-level log messages
+        // 5. Check for no error-level log messages
         assertThat(network.getLogResults()).haveNoErrorLevelMessages();
     }
 ```
@@ -95,42 +92,6 @@ The framework supports two environments with identical APIs:
 ./gradlew testContainer
 ```
 
-## Test Output
-
-Tests generate detailed logs at environment-specific locations.
-
-### Turtle Environment Logs
-
-The logs can be found in the `build/turtle/` directory:
-
-```
-build/turtle/
-├── otter.log                      # Global test log
-├── node-0/
-│   ├── swirlds.log                # Node-specific logs
-│   └── swirlds-hashstream.log
-└── node-1/
-    ├── swirlds.log
-    └── swirlds-hashstream.log
-```
-
-### Container Environment Logs
-
-Container tests run in Docker, and logs are accessible via Docker commands:
-
-```
-docker logs <container-id>      # Container environment
-```
-
-## ⚠️ Common Issues
-
-|        Issue         |                Solution                 |
-|----------------------|-----------------------------------------|
-| **Docker not found** | Ensure Docker is installed and running  |
-| **Port conflicts**   | Kill processes using ports 8080+        |
-| **Memory issues**    | Increase JVM heap: `-Xmx8g`             |
-| **Timeout errors**   | Use longer timeouts for Container tests |
-
 ## Next Steps
 
 Now that you've written your first test:
@@ -138,8 +99,6 @@ Now that you've written your first test:
 1. **Learn Framework Architecture** - [Architecture Guide](architecture.md)
 2. **Explore Environments** - [Turtle Environment](turtle-environment.md) | [Container Environment](container-environment.md)
 3. **Advanced Testing** - [Writing Tests Guide](writing-tests.md)
-4. **Assertions API** - [Assertions Reference](assertions-api.md)
-5. **Configuration** - [Configuration Guide](configuration.md)
 
 ## 💡 Tips for Success
 

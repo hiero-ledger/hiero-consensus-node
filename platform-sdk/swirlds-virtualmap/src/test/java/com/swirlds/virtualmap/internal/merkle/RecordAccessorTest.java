@@ -126,29 +126,11 @@ public class RecordAccessorTest {
     }
 
     @Test
-    @DisplayName("findHash in cache returns same instance")
-    void findHashInCacheReturnsSameInstance() {
-        final var hash = records.findHash(CHANGED_INTERNAL_PATH);
-        assertNotNull(hash, "Did not find record");
-        assertSame(hash, records.findHash(CHANGED_INTERNAL_PATH), "Did not find the same in memory instance!");
-    }
-
-    @Test
     @DisplayName("findHash of record on disk works")
     void findHashOnDiskReturns() {
         final var hash = records.findHash(UNCHANGED_INTERNAL_PATH);
         assertNotNull(hash, "Did not find record");
         assertEquals(hash, records.findHash(UNCHANGED_INTERNAL_PATH), "Did not find the same hash on disk");
-    }
-
-    @Test
-    @DisplayName("findHash of record with broken data source throws")
-    void findHashChunkOnDiskWhenBrokenThrows() {
-        dataSource.throwExceptionOnLoadHashChunk = true;
-        assertThrows(
-                UncheckedIOException.class,
-                () -> records.findHash(UNCHANGED_INTERNAL_PATH),
-                " Should have thrown UncheckedIOException");
     }
 
     @Test
@@ -284,7 +266,7 @@ public class RecordAccessorTest {
                 VIRTUAL_MAP_CONFIG, hashChunkHeight, dataSource::loadHashChunk);
         records = new RecordAccessor(state, hashChunkHeight, cache, dataSource);
 
-        state.setLastLeafPath(chunkSize * 2);
+        state.setLastLeafPath(chunkSize * 2L);
         state.setFirstLeafPath(chunkSize);
         cache.prepareForHashing();
 
@@ -293,15 +275,17 @@ public class RecordAccessorTest {
 
         dataSource.throwExceptionOnLoadHashChunk = false;
         // This time, it should trigger loading hash chunk from data source to cache
-        cache.putHash(1, internal(1).hash());
+        for (int i = 1; i <= chunkSize; i++) {
+            cache.putHash(i, internal(i).hash());
+        }
 
         dataSource.throwExceptionOnLoadHashChunk = true;
         // Hashes 1 to 6 are in the loaded chunk, no access to data source is expected
         for (int i = 1; i <= chunkSize; i++) {
-            records.findHash(i);
+            assertEquals(internal(i).hash(), records.findHash(i));
         }
         // Hash 7 is in another chunk
-        assertThrows(UncheckedIOException.class, () -> records.findHash(chunkSize + 1));
+        assertNull(records.findHash(chunkSize + 1));
     }
 
     private static final class BreakableDataSource implements VirtualDataSource {

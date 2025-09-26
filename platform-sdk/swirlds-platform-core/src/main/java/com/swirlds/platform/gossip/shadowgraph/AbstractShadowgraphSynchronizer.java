@@ -12,9 +12,12 @@ import com.swirlds.platform.metrics.SyncMetrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -89,6 +92,13 @@ public class AbstractShadowgraphSynchronizer {
     protected final int maximumEventsPerSync;
 
     /**
+     * Keep track of how much behind or ahead we are compared to peers based on the latestConsensusRound
+     */
+    private final ConcurrentMap<NodeId, Long> consensusLag = new ConcurrentHashMap<>();
+
+    private final Consumer<Double> syncLagHandler;
+
+    /**
      * Constructs a new ShadowgraphSynchronizer.
      *
      * @param platformContext      the platform context
@@ -98,6 +108,7 @@ public class AbstractShadowgraphSynchronizer {
      * @param receivedEventHandler events that are received are passed here
      * @param fallenBehindManager  tracks if we have fallen behind
      * @param intakeEventCounter   used for tracking events in the intake pipeline per peer
+     * @param syncLagHandler       callback for reporting median sync lag
      */
     public AbstractShadowgraphSynchronizer(
             @NonNull final PlatformContext platformContext,
@@ -106,7 +117,8 @@ public class AbstractShadowgraphSynchronizer {
             @NonNull final SyncMetrics syncMetrics,
             @NonNull final Consumer<PlatformEvent> receivedEventHandler,
             @NonNull final FallenBehindManager fallenBehindManager,
-            @NonNull final IntakeEventCounter intakeEventCounter) {
+            @NonNull final IntakeEventCounter intakeEventCounter,
+            @NonNull final Consumer<Double> syncLagHandler) {
         Objects.requireNonNull(platformContext);
 
         this.time = platformContext.getTime();
@@ -123,6 +135,7 @@ public class AbstractShadowgraphSynchronizer {
 
         this.filterLikelyDuplicates = syncConfig.filterLikelyDuplicates();
         this.maximumEventsPerSync = syncConfig.maxSyncEventCount();
+        this.syncLagHandler = Objects.requireNonNull(syncLagHandler);
     }
 
     @NonNull
@@ -159,6 +172,30 @@ public class AbstractShadowgraphSynchronizer {
         }
 
         return status;
+    }
+
+    protected void reportRoundDifference(
+            @NonNull final EventWindow self, @NonNull final EventWindow other, @NonNull final NodeId nodeId) {
+        final long diff = other.getPendingConsensusRound() - self.getPendingConsensusRound();
+        consensusLag.put(nodeId, diff);
+
+        final var lagArray = consensusLag.values().toArray(Long[]::new);
+        final double medianLag;
+        if (lagArray.length > 0) {
+            Arrays.sort(lagArray);
+            if (lagArray.length % 2 == 1) {
+                medianLag = lagArray[lagArray.length / 2];
+            } else {
+                medianLag = (lagArray[lagArray.length / 2 - 1] + lagArray[lagArray.length / 2]) / 2.0;
+            }
+        } else {
+            medianLag = 0.0;
+        }
+
+        final double clampedMedianLag = Math.max(medianLag, 0);
+
+        syncMetrics.reportMedianLag(clampedMedianLag);
+        syncLagHandler.accept(clampedMedianLag);
     }
 
     /**

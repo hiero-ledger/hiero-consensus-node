@@ -15,12 +15,5 @@ public record StatsConfig(
                                 "<GAS>,ThroughputLimits,OffHeapQueryLimits,CreationLimits,FreeQueryLimits,BalanceQueryLimits")
                 @NodeProperty
                 List<String> hapiThrottlesToSample,
-        @ConfigProperty(defaultValue = "0") @NodeProperty int executionTimesToTrack,
-        @ConfigProperty(value = "entityUtils.gaugeUpdateIntervalMs", defaultValue = "3000") @NodeProperty
-                long entityUtilsGaugeUpdateIntervalMs,
-        @ConfigProperty(value = "hapiOps.speedometerUpdateIntervalMs", defaultValue = "3000") @NodeProperty
-                long hapiOpsSpeedometerUpdateIntervalMs,
-        @ConfigProperty(value = "throttleUtils.gaugeUpdateIntervalMs", defaultValue = "1000") @NodeProperty
-                long throttleUtilsGaugeUpdateIntervalMs,
         @ConfigProperty(defaultValue = "10.0") @NodeProperty double runningAvgHalfLifeSecs,
         @ConfigProperty(defaultValue = "10.0") @NodeProperty double speedometerHalfLifeSecs) {}

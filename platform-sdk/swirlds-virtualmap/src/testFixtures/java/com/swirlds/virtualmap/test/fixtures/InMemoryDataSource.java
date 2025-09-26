@@ -195,7 +195,8 @@ public class InMemoryDataSource implements VirtualDataSource {
             throw new IllegalArgumentException(NEGATIVE_CHUNKID_MESSAGE);
         }
 
-        return hashChunks.get(chunkId);
+        final VirtualHashChunk c = hashChunks.get(chunkId);
+        return c == null ? null : c.copy();
     }
 
     /**

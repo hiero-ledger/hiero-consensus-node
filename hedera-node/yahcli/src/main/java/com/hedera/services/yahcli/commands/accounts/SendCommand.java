@@ -2,7 +2,6 @@
 package com.hedera.services.yahcli.commands.accounts;
 
 import static com.hedera.services.bdd.spec.HapiPropertySource.asEntityString;
-import static com.hedera.services.yahcli.output.CommonMessages.COMMON_MESSAGES;
 import static com.hedera.services.yahcli.util.ParseUtils.normalizePossibleIdLiteral;
 
 import com.hedera.services.bdd.spec.HapiSpec;
@@ -94,27 +93,29 @@ public class SendCommand implements Callable<Integer> {
 
         final var firstSpec = delegate.getFinalSpecs().getFirst();
         if (firstSpec.getStatus() == HapiSpec.SpecStatus.PASSED) {
-            COMMON_MESSAGES.info("SUCCESS - "
-                    + "sent "
-                    + amountRepr
-                    + " "
-                    + originalDenomination
-                    + " to account "
-                    + asEntityString(firstSpec.shard(), firstSpec.realm(), normalizedBeneficiary)
-                    + " with memo: '"
-                    + memo
-                    + "'");
+            config.output()
+                    .info("SUCCESS - "
+                            + "sent "
+                            + amountRepr
+                            + " "
+                            + originalDenomination
+                            + " to account "
+                            + asEntityString(firstSpec.shard(), firstSpec.realm(), normalizedBeneficiary)
+                            + " with memo: '"
+                            + memo
+                            + "'");
         } else {
-            COMMON_MESSAGES.info("FAILED - "
-                    + "could not send "
-                    + amountRepr
-                    + " "
-                    + originalDenomination
-                    + " to account "
-                    + normalizedBeneficiary
-                    + " with memo: '"
-                    + memo
-                    + "'");
+            config.output()
+                    .info("FAILED - "
+                            + "could not send "
+                            + amountRepr
+                            + " "
+                            + originalDenomination
+                            + " to account "
+                            + normalizedBeneficiary
+                            + " with memo: '"
+                            + memo
+                            + "'");
             return 1;
         }
 

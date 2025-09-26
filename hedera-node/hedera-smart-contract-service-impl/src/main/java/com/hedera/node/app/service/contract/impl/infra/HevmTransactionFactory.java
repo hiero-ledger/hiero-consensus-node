@@ -53,6 +53,8 @@ import com.hedera.node.app.service.contract.impl.hevm.HydratedEthTxData;
 import com.hedera.node.app.service.file.ReadableFileStore;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.api.TokenServiceApi;
+import com.hedera.node.app.spi.ids.EntityIdFactory;
+import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.validation.AttributeValidator;
 import com.hedera.node.app.spi.validation.ExpiryMeta;
 import com.hedera.node.app.spi.validation.ExpiryValidator;
@@ -62,8 +64,6 @@ import com.hedera.node.config.data.EntitiesConfig;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.LedgerConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.state.lifecycle.EntityIdFactory;
-import com.swirlds.state.lifecycle.info.NetworkInfo;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import javax.inject.Inject;
@@ -182,9 +182,7 @@ public class HevmTransactionFactory {
     private HederaEvmTransaction fromHapiEthereum(
             @NonNull final AccountID payerId, @NonNull final EthereumTransactionBody body) {
         final var ethTxData = assertValidEthTx(body);
-        final var ethTxSig = ethereumSignatures.computeIfAbsent(ethTxData);
-        final var senderId =
-                AccountID.newBuilder().alias(Bytes.wrap(ethTxSig.address())).build();
+        final var senderId = asAliasedSender(ethTxData);
         return ethTxData.hasToAddress()
                 ? fromEthTxCall(payerId, senderId, ethTxData, body.maxGasAllowance())
                 : fromEthTxCreate(payerId, senderId, ethTxData, body.maxGasAllowance());
@@ -240,6 +238,9 @@ public class HevmTransactionFactory {
      */
     public HederaEvmTransaction fromContractTxException(
             @NonNull final TransactionBody body, @NonNull final HandleException exception) {
+        AccountID sender = null;
+        AccountID relayer = null;
+
         final var gasPrice =
                 switch (body.data().kind()) {
                     case CONTRACT_CREATE_INSTANCE ->
@@ -247,13 +248,15 @@ public class HevmTransactionFactory {
                     case CONTRACT_CALL -> body.contractCallOrThrow().gas();
                     case ETHEREUM_TRANSACTION -> {
                         final var ethTxData = assertValidEthTx(body.ethereumTransactionOrThrow());
+                        sender = asAliasedSender(ethTxData);
+                        relayer = body.transactionID().accountID();
                         yield ethTxData.gasLimit();
                     }
                     default -> throw new IllegalArgumentException("Not a contract operation");
                 };
         return new HederaEvmTransaction(
-                AccountID.DEFAULT,
-                null,
+                sender == null ? AccountID.DEFAULT : sender,
+                relayer,
                 null,
                 NOT_APPLICABLE,
                 Bytes.EMPTY,
@@ -350,5 +353,10 @@ public class HevmTransactionFactory {
                 throw new HandleException(ERROR_DECODING_BYTESTRING);
             }
         }
+    }
+
+    private AccountID asAliasedSender(@NonNull final EthTxData txData) {
+        final var txSign = ethereumSignatures.computeIfAbsent(txData);
+        return AccountID.newBuilder().alias(Bytes.wrap(txSign.address())).build();
     }
 }

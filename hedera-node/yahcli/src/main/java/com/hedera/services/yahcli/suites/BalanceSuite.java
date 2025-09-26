@@ -7,8 +7,10 @@ import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.suites.HapiSuite;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
@@ -21,9 +23,15 @@ public class BalanceSuite extends HapiSuite {
     private final Map<String, String> specConfig;
     private final List<String> accounts;
 
+    private final AtomicReference<Map<String, Long>> balances = new AtomicReference<>(new HashMap<>());
+
     public BalanceSuite(final Map<String, String> specConfig, final String[] accounts) {
         this.specConfig = specConfig;
         this.accounts = rationalized(accounts);
+    }
+
+    public Map<String, Long> balancesByRepr() {
+        return balances.get();
     }
 
     private List<String> rationalized(final String[] accounts) {
@@ -42,7 +50,8 @@ public class BalanceSuite extends HapiSuite {
                 .withProperties(specConfig)
                 .given()
                 .when()
-                .then(getAccountBalance(accountID).noLogging().withYahcliLogging());
+                .then(getAccountBalance(accountID).noLogging().exposingBalanceTo(value -> balancesByRepr()
+                        .put(accountID, value)));
     }
 
     @Override

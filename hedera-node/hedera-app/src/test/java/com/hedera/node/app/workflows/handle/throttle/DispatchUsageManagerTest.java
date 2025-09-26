@@ -33,6 +33,8 @@ import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
 import com.hedera.node.app.service.token.ReadableAccountStore;
+import com.hedera.node.app.spi.info.NetworkInfo;
+import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.store.ReadableStoreFactory;
 import com.hedera.node.app.throttle.CongestionThrottleService;
@@ -46,8 +48,6 @@ import com.hedera.node.app.workflows.handle.stack.SavepointStackImpl;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.state.lifecycle.info.NetworkInfo;
-import com.swirlds.state.lifecycle.info.NodeInfo;
 import com.swirlds.state.spi.ReadableStates;
 import java.time.Instant;
 import org.assertj.core.api.Assertions;
@@ -66,7 +66,9 @@ class DispatchUsageManagerTest {
     public static final EthTxData ETH_DATA_WITH_TO_ADDRESS =
             requireNonNull(EthTxData.populateEthTxData(ETH_WITH_TO_ADDRESS.toByteArray()));
     private static final Instant CONSENSUS_NOW = Instant.ofEpochSecond(1_234_567L, 890);
-    public static final Configuration DEFAULT_CONFIG = HederaTestConfigBuilder.createConfig();
+    public static final Configuration DEFAULT_CONFIG = HederaTestConfigBuilder.create()
+            .withValue("contracts.throttle.throttleByGas", "true")
+            .getOrCreateConfig();
     private static final AccountID CREATOR_ACCOUNT_ID =
             AccountID.newBuilder().accountNum(3).build();
     private static final AccountID OTHER_NODE_ID =

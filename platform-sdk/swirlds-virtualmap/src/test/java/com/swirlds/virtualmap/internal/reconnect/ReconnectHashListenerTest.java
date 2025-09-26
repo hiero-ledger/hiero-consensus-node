@@ -3,6 +3,8 @@ package com.swirlds.virtualmap.internal.reconnect;
 
 import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.CONFIGURATION;
 import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.VIRTUAL_MAP_CONFIG;
+import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.createHashChunkStream;
+import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.hashChunkStreamSize;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.fail;
@@ -64,41 +66,46 @@ class ReconnectHashListenerTest {
 
     @SuppressWarnings("unchecked")
     @ParameterizedTest
-    @ValueSource(ints = {1, 2, 10, 100, 1000, 10_000, 100_000, 1_000_000})
+    @ValueSource(ints = {2, 10, 100, 1000, 10_000, 100_000, 1_000_000})
     @DisplayName("Flushed data is always done in the right order")
     void flushOrder(int size) {
         final VirtualDataSourceSpy ds = new VirtualDataSourceSpy(new InMemoryBuilder().build("flushOrder", true));
 
         final VirtualMapStatistics statistics = mock(VirtualMapStatistics.class);
+        final int hashChunkHeight = VIRTUAL_MAP_CONFIG.virtualHasherChunkHeight();
         final ReconnectHashLeafFlusher flusher = new ReconnectHashLeafFlusher(
-                ds, VIRTUAL_MAP_CONFIG.virtualHasherChunkHeight(), VIRTUAL_MAP_CONFIG.reconnectFlushInterval(), statistics);
+                ds, hashChunkHeight, VIRTUAL_MAP_CONFIG.reconnectFlushInterval(), statistics);
 
         // 100 leaves would have firstLeafPath = 99, lastLeafPath = 198
-        final long last = size + size;
+        final int first = size - 1;
+        final int last = 2 * size - 2;
         final ReconnectHashListener listener = new ReconnectHashListener(flusher);
         final VirtualHasher hasher = new VirtualHasher();
         hasher.hash(
                 this::hash,
                 null,
-                LongStream.range(size, last).mapToObj(this::leaf).iterator(),
-                size,
+                LongStream.range(first, last + 1).mapToObj(this::leaf).iterator(),
+                first,
                 last,
                 listener,
                 CONFIGURATION.getConfigData(VirtualMapConfig.class));
 
         // Now validate that everything showed up the data source in ordered chunks
-        final TreeSet<VirtualHashChunk> allInternalRecords =
+        final TreeSet<VirtualHashChunk> allFlushedChunks =
                 new TreeSet<>(Comparator.comparingLong(VirtualHashChunk::path));
         for (List<VirtualHashChunk> internalRecords : ds.internalRecords) {
-            allInternalRecords.addAll(internalRecords);
+            allFlushedChunks.addAll(internalRecords);
         }
 
-        assertEquals(size + size, allInternalRecords.size(), "Some internal records were not written!");
-        long expected = 0;
-        for (VirtualHashChunk rec : allInternalRecords) {
+        final long expectedFlushedChunkCount = hashChunkStreamSize(hashChunkHeight, 1, last + 1);
+
+        assertEquals(expectedFlushedChunkCount, allFlushedChunks.size(), "Some internal records were not written!");
+        int chunkId = 0;
+        for (VirtualHashChunk rec : allFlushedChunks) {
             final long path = rec.path();
-            assertEquals(expected, path, "Path did not match expectation. path=" + path + ", expected=" + expected);
-            expected++;
+            final long expectedPath = VirtualHashChunk.chunkIdToChunkPath(chunkId, hashChunkHeight);
+            assertEquals(expectedPath, path, "Path did not match expectation. path=" + path + ", expected=" + expectedPath);
+            chunkId++;
         }
 
         final TreeSet<VirtualLeafBytes> allLeafRecords =
@@ -109,7 +116,7 @@ class ReconnectHashListenerTest {
         }
 
         assertEquals(size, allLeafRecords.size(), "Some leaf records were not written!");
-        expected = size;
+        long expected = first;
         for (VirtualLeafBytes rec : allLeafRecords) {
             final long path = rec.path();
             assertEquals(expected, path, "Path did not match expectation. path=" + path + ", expected=" + expected);

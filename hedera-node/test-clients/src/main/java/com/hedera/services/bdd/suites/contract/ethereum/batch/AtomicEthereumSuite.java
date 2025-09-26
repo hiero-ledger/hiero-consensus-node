@@ -144,6 +144,7 @@ public class AtomicEthereumSuite {
     public static final String EMIT_SENDER_ORIGIN_CONTRACT = "EmitSenderOrigin";
     private static final long DEPOSIT_AMOUNT = 20_000L;
     private static final long ETH_TXN_FAILURE_FEE = 83_333L;
+    private static final long GAS_PRICE = 71;
     private static final String PARTY = "party";
     private static final String LAZY_MEMO = "";
     private static final String PAY_RECEIVABLE_CONTRACT = "PayReceivable";
@@ -290,16 +291,15 @@ public class AtomicEthereumSuite {
     }
 
     List<Stream<DynamicTest>> feePaymentMatrix() {
-        final long gasPrice = 71;
         final long chargedGasLimit = GAS_LIMIT * 4 / 5;
 
         final long noPayment = 0L;
-        final long thirdOfFee = gasPrice / 3;
+        final long thirdOfFee = GAS_PRICE / 3;
         final long thirdOfPayment = thirdOfFee * chargedGasLimit;
         final long thirdOfLimit = thirdOfFee * GAS_LIMIT;
-        final long fullAllowance = gasPrice * chargedGasLimit * 5 / 4;
-        final long fullPayment = gasPrice * chargedGasLimit;
-        final long ninetyPercentFee = gasPrice * 9 / 10;
+        final long fullAllowance = GAS_PRICE * chargedGasLimit * 5 / 4;
+        final long fullPayment = GAS_PRICE * chargedGasLimit;
+        final long ninetyPercentFee = GAS_PRICE * 9 / 10;
 
         return Stream.of(
                         new Object[] {false, noPayment, noPayment, noPayment},
@@ -311,9 +311,9 @@ public class AtomicEthereumSuite {
                         new Object[] {true, thirdOfFee, fullAllowance * 9 / 10, thirdOfLimit},
                         new Object[] {false, ninetyPercentFee, noPayment, noPayment},
                         new Object[] {true, ninetyPercentFee, thirdOfPayment, fullPayment},
-                        new Object[] {true, gasPrice, noPayment, fullPayment},
-                        new Object[] {true, gasPrice, thirdOfPayment, fullPayment},
-                        new Object[] {true, gasPrice, fullAllowance, fullPayment})
+                        new Object[] {true, GAS_PRICE, noPayment, fullPayment},
+                        new Object[] {true, GAS_PRICE, thirdOfPayment, fullPayment},
+                        new Object[] {true, GAS_PRICE, fullAllowance, fullPayment})
                 .map(params ->
                         // [0] - success
                         // [1] - sender gas price
@@ -401,6 +401,7 @@ public class AtomicEthereumSuite {
                 withOpContext((spec, ignore) -> {
                     final String senderBalance = "senderBalance";
                     final String payerBalance = "payerBalance";
+                    final AtomicLong gasUsed = new AtomicLong();
                     final var subop1 = balanceSnapshot(senderBalance, SECP_256K1_SOURCE_KEY)
                             .accountIsAlias();
                     final var subop2 = balanceSnapshot(payerBalance, RELAYER);
@@ -1026,7 +1027,6 @@ public class AtomicEthereumSuite {
 
     @HapiTest
     final Stream<DynamicTest> accountDeletionResetsTheAliasNonce() {
-
         final AtomicReference<AccountID> partyId = new AtomicReference<>();
         final AtomicReference<byte[]> partyAlias = new AtomicReference<>();
         final AtomicReference<byte[]> counterAlias = new AtomicReference<>();

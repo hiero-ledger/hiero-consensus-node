@@ -157,33 +157,6 @@ public interface VirtualDataSource {
     VirtualHashChunk loadHashChunk(final long chunkId) throws IOException;
 
     /**
-     * Load a virtual node hash by path and, if found, write it to the specified output stream. This
-     * method helps avoid (de)serialization overhead during reconnects on the teacher side. Instead of
-     * loading bytes from disk, then deserializing them into {@link Hash} objects, and then serializing
-     * again to socket output stream, this method can write the bytes directly to the stream.
-     *
-     * <p>Written bytes must be 100% identical to how hashes are serialized using {@link
-     * Hash#serialize(SerializableDataOutputStream)} method.
-     *
-     * @param path Virtual node path
-     * @param out Output stream to write the hash, if found
-     * @return If the hash was found and written to the stream
-     * @throws IOException If an I/O error occurred
-     */
-    default boolean loadAndWriteHash(final long path, final SerializableDataOutputStream out) throws IOException {
-        if ((path < 0) || (path > getLastLeafPath())) {
-            return false;
-        }
-        final VirtualHashChunk chunk = loadHashChunk(path);
-        if (chunk == null) {
-            throw new IOException("Unable to load hash chunk for path: " + path);
-        }
-        final Hash hash = chunk.getHashAtPath(path);
-        hash.serialize(out);
-        return true;
-    }
-
-    /**
      * Write a snapshot of the current state of the database at this moment in time. This will need to be called between
      * calls to saveRecords to have a reliable state. This will block till the snapshot is completely created.
      * <p><b>

@@ -22,6 +22,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.getEd25519PrivateKe
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepForSeconds;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
@@ -217,6 +218,7 @@ public class ContractSignScheduleTest {
                             .payingWith(SENDER)
                             .sigMapPrefixes(TrieSigMapGenerator.withNature(FULL_PREFIXES))
                             .gas(1_000_000),
+                    sleepForSeconds(1),
                     getScheduleInfo(SCHEDULE_E).isExecuted());
         }
 

@@ -51,16 +51,16 @@ public class DataSourceValidator {
                 assertTrue(hash != null, "internal record's hash for path [" + path + "] was null");
                 printProgress(path, firstLeafPath);
             }
-            System.out.println("All internal node hashes are valid :-)" + WHITESPACE);
+            System.out.println("All internal node hashes are not null :-)" + WHITESPACE);
             // iterate over leaf nodes and get them all
             System.out.printf("Validating %,d leaf hashes...%n", firstLeafPath);
             progressPercentage = 0;
             for (long path = firstLeafPath; path <= lastLeafPath; path++) {
                 Hash leafHash = VirtualMapTestUtils.loadHash(dataSource, path, dataSource.getHashChunkHeight());
-                assertTrue(leafHash == null, "leaf record's hash for path [" + path + "] was not null");
+                assertTrue(leafHash != null, "leaf record's hash for path [" + path + "] was null");
                 printProgress(path - firstLeafPath, leafCount);
             }
-            System.out.println("All leaf hashes are null :-)" + WHITESPACE);
+            System.out.println("All leaf hashes are not null :-)" + WHITESPACE);
             System.out.printf("Validating %,d leaf record by path...%n", firstLeafPath);
             List<Bytes> keys = new ArrayList<>(leafCount);
             progressPercentage = 0;

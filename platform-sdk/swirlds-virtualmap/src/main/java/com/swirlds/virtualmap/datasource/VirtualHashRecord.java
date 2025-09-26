@@ -114,29 +114,4 @@ public record VirtualHashRecord(long path, Hash hash) {
         }
     }
 
-    public static void extractAndWriteHashBytes(final ReadableSequentialData in, final SerializableDataOutputStream out)
-            throws IOException {
-        // Hash.serialize() format is: digest ID (4 bytes) + size (4 bytes) + hash (48 bytes)
-        out.writeInt(DigestType.SHA_384.id());
-        // hashBytes is in protobuf format
-        while (in.hasRemaining()) {
-            final int tag = in.readVarInt(false);
-            final int fieldNum = tag >> TAG_FIELD_OFFSET;
-            if (fieldNum == FIELD_HASHRECORD_PATH.number()) {
-                in.skip(Long.BYTES);
-            } else if (fieldNum == FIELD_HASHRECORD_HASH.number()) {
-                final int hashSize = in.readVarInt(false);
-                // It would be helpful to have BufferedData.readBytes(OutputStream) method, similar to
-                // readBytes(ByteBuffer) or readBytes(BufferedData). Since there is no such method,
-                // use a workaround to allocate a byte array
-                final byte[] arr = new byte[hashSize];
-                in.readBytes(arr);
-                out.writeInt(hashSize);
-                out.write(arr);
-                break;
-            } else {
-                throw new IllegalArgumentException("Unknown virtual hash record field: " + fieldNum);
-            }
-        }
-    }
 }

@@ -144,11 +144,9 @@ public class HapiClients {
         if (existingPool.size() < MAX_DESIRED_CHANNELS_PER_NODE) {
             final var channel = createNettyChannel(false, node.getHost(), node.getGrpcNodeOperatorPort(), -1);
             requireNonNull(channel, "FATAL: Cannot continue without additional Netty channel");
-            existingPool.add(ChannelStubs.from(
-                    channel,
-                    new NodeConnectInfo(node.hapiSpecInfo(
-                            node.getAccountId().shardNum(), node.getAccountId().realmNum())),
-                    false));
+            final long shard = node.getAccountId().shardNum();
+            final long realm = node.getAccountId().realmNum();
+            existingPool.add(ChannelStubs.from(channel, new NodeConnectInfo(node.hapiSpecInfo(shard, realm)), false));
         }
         stubSequences.putIfAbsent(channelUri, new AtomicInteger());
     }
@@ -188,8 +186,8 @@ public class HapiClients {
         return String.format("%s:%d", host, port);
     }
 
-    public static HapiClients clientsFor(HapiSpecSetup setup) {
-        return new HapiClients(setup::nodes);
+    public static HapiClients clientsFor(HapiSpecSetup setup, long shard, long realm) {
+        return new HapiClients(() -> setup.nodes(shard, realm));
     }
 
     public static HapiClients clientsFor(@NonNull final HederaNetwork network) {
@@ -210,9 +208,8 @@ public class HapiClients {
      * @return a blocking stub for the FileService with a specified deadline
      */
     public FileServiceBlockingStub getFileSvcStub(AccountID nodeId, boolean useTls, boolean asNodeOperator) {
-        return nextStubsFromPool(stubId(nodeId, useTls, asNodeOperator))
-                .fileSvcStubs()
-                .withDeadlineAfter(DEADLINE_SECS, TimeUnit.SECONDS);
+        final var stubId = stubId(nodeId, useTls, asNodeOperator);
+        return nextStubsFromPool(stubId).fileSvcStubs().withDeadlineAfter(DEADLINE_SECS, TimeUnit.SECONDS);
     }
 
     /**

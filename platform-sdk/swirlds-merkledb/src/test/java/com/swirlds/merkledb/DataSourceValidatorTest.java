@@ -5,9 +5,11 @@ import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.createHashChu
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.swirlds.common.io.utility.FileUtils;
 import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
 import com.swirlds.merkledb.test.fixtures.TestType;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -23,9 +25,12 @@ class DataSourceValidatorTest {
     private int count;
 
     @BeforeEach
-    public void setUp() {
+    public void setUp() throws IOException {
         count = 10_000;
         MerkleDbTestUtils.assertAllDatabasesClosed();
+        if (Files.exists(tempDir)) {
+            FileUtils.deleteDirectory(tempDir);
+        }
     }
 
     @Test
@@ -40,7 +45,7 @@ class DataSourceValidatorTest {
                     dataSource.saveRecords(
                             count - 1,
                             count * 2L - 2,
-                            createHashChunkStream(count - 2, dataSource.getHashChunkHeight()),
+                            createHashChunkStream((int) (count * 2L - 2), dataSource.getHashChunkHeight()),
                             IntStream.range(count - 1, count * 2 - 1)
                                     .mapToObj(
                                             i -> TestType.long_fixed.dataType().createVirtualLeafRecord(i)),

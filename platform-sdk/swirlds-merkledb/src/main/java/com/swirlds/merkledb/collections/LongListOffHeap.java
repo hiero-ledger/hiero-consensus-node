@@ -185,7 +185,7 @@ public final class LongListOffHeap extends AbstractLongList<ByteBuffer> implemen
             }
         } finally {
             // releasing memory allocated
-            MemoryUtils.closeDirectByteBuffer(emptyBuffer);
+            closeChunk(emptyBuffer);
         }
     }
 

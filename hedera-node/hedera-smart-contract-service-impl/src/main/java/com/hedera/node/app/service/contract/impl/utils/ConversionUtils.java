@@ -41,9 +41,9 @@ import com.hedera.node.app.service.contract.impl.state.RootProxyWorldUpdater;
 import com.hedera.node.app.service.contract.impl.state.StorageAccesses;
 import com.hedera.node.app.service.contract.impl.state.TxStorageUsage;
 import com.hedera.node.app.service.token.ReadableAccountStore;
+import com.hedera.node.app.spi.ids.EntityIdFactory;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.config.data.HederaConfig;
-import com.swirlds.state.lifecycle.EntityIdFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.math.BigInteger;
@@ -112,7 +112,7 @@ public class ConversionUtils {
 
     /**
      * Given a {@link com.esaulpaugh.headlong.abi.Address}, returns its implied token id.
-     *
+     * <p>
      * Use the passed in EntityIdFactory to create the TokenID.  This means that the new TokenID
      * will have the same shard and realm as the EntityIdFactory's default shard and realm which it reads from configuration.
      *
@@ -631,6 +631,24 @@ public class ConversionUtils {
     }
 
     /**
+     * Converts
+     * - a long-zero address to a PBJ {@link ContractID} with id number instead of alias.
+     * - an EVM address to a PBJ {@link ContractID} with alias instead of id number.
+     *
+     * @param entityIdFactory the entity id factory
+     * @param address the EVM address
+     * @return the PBJ {@link ContractID}
+     */
+    public static ContractID asContractId(
+            @NonNull final EntityIdFactory entityIdFactory, @NonNull final Address address) {
+        if (isLongZero(address)) {
+            return entityIdFactory.newContractId(numberOfLongZero(address));
+        } else {
+            return asEvmContractId(entityIdFactory, address);
+        }
+    }
+
+    /**
      * Converts a headlong address to a PBJ {@link ScheduleID}.
      *
      * @param entityIdFactory the entity id factory
@@ -1060,23 +1078,6 @@ public class ConversionUtils {
         final var offset = contents.matchesPrefix(hexPrefix) ? hexPrefix.length : 0L;
         final var len = contents.length() - offset;
         return contents.getBytes(offset, len).toByteArray();
-    }
-
-    /**
-     * Pads the given bytes to 32 bytes by left-padding with zeros.
-     * @param bytes the bytes to pad
-     * @return the left-padded bytes, or the original bytes if they are already 32 bytes long
-     */
-    public static com.hedera.pbj.runtime.io.buffer.Bytes leftPad32(
-            @NonNull final com.hedera.pbj.runtime.io.buffer.Bytes bytes) {
-        requireNonNull(bytes);
-        final int n = (int) bytes.length();
-        if (n == 32) {
-            return bytes;
-        }
-        final var padded = new byte[32];
-        bytes.getBytes(0, padded, 32 - n, n);
-        return com.hedera.pbj.runtime.io.buffer.Bytes.wrap(padded);
     }
 
     /**

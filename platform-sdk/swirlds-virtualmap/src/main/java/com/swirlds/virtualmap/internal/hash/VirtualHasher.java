@@ -253,12 +253,18 @@ public final class VirtualHasher {
                         final long leftPath = rankPath + i * 2;
                         if (left == null) {
                             left = hashReader.apply(leftPath);
+                            if (left == null) {
+                                throw new RuntimeException("Failed to load hash for path = " + leftPath);
+                            }
                         } else {
                             listener.onNodeHashed(leftPath, left);
                         }
                         final long rightPath = rankPath + i * 2 + 1;
                         if (right == null) {
                             right = hashReader.apply(rightPath);
+                            if ((right == null) && (rightPath != 2)) {
+                                throw new RuntimeException("Failed to load hash for path = " + rightPath);
+                            }
                         } else if (right != NO_PATH2_HASH) {
                             listener.onNodeHashed(rightPath, right);
                         }

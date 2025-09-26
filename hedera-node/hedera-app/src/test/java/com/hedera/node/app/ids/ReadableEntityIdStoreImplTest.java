@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.ids;
 
-import static com.hedera.node.app.ids.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_KEY;
-import static com.hedera.node.app.ids.schemas.V0590EntityIdSchema.ENTITY_COUNTS_KEY;
+import static com.hedera.node.app.ids.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_ID;
+import static com.hedera.node.app.ids.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.*;
@@ -19,6 +19,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class ReadableEntityIdStoreImplTest {
+
     @Mock
     private ReadableStates mockStates;
 
@@ -32,8 +33,8 @@ class ReadableEntityIdStoreImplTest {
 
     @BeforeEach
     void setUp() {
-        given(mockStates.<EntityNumber>getSingleton(ENTITY_ID_STATE_KEY)).willReturn(mockEntityIdState);
-        given(mockStates.<EntityCounts>getSingleton(ENTITY_COUNTS_KEY)).willReturn(mockEntityCountsState);
+        given(mockStates.<EntityNumber>getSingleton(ENTITY_ID_STATE_ID)).willReturn(mockEntityIdState);
+        given(mockStates.<EntityCounts>getSingleton(ENTITY_COUNTS_STATE_ID)).willReturn(mockEntityCountsState);
 
         subject = new ReadableEntityIdStoreImpl(mockStates);
     }

@@ -9,7 +9,7 @@ public class StorageReport {
     long numberOfStorageFiles;
 
     double wastePercentage;
-    int duplicateItems;
+    long duplicateItems;
     long itemCount;
 
     public long minPath() {
@@ -52,11 +52,11 @@ public class StorageReport {
         this.wastePercentage = wastePercentage;
     }
 
-    public int duplicateItems() {
+    public long duplicateItems() {
         return duplicateItems;
     }
 
-    public void setDuplicateItems(final int duplicateItems) {
+    public void setDuplicateItems(final long duplicateItems) {
         this.duplicateItems = duplicateItems;
     }
 

@@ -2,10 +2,10 @@
 package org.hiero.otter.fixtures;
 
 import com.hedera.hapi.node.base.SemanticVersion;
-import com.hedera.hapi.platform.state.NodeId;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
+import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
 import org.hiero.otter.fixtures.result.SingleNodeLogResult;
@@ -28,6 +28,14 @@ public interface Node {
     SemanticVersion DEFAULT_VERSION = SemanticVersion.newBuilder().major(1).build();
 
     /**
+     * Start the node.
+     *
+     * <p>The method will wait for a environment-specific timeout before throwing an exception if the node cannot be
+     * started. The default can be overridden by calling {@link #withTimeout(Duration)}.
+     */
+    void start();
+
+    /**
      * Kill the node without prior cleanup.
      *
      * <p>This method simulates a sudden failure of the node. No attempt to finish ongoing work,
@@ -35,10 +43,8 @@ public interface Node {
      *
      * <p>The method will wait for a environment-specific timeout before throwing an exception if the nodes cannot be
      * killed. The default can be overridden by calling {@link #withTimeout(Duration)}.
-     *
-     * @throws InterruptedException if the thread is interrupted while waiting
      */
-    void killImmediately() throws InterruptedException;
+    void killImmediately();
 
     /**
      * Start a synthetic bottleneck on the node.
@@ -77,14 +83,6 @@ public interface Node {
     void stopSyntheticBottleneck();
 
     /**
-     * Start the node.
-     *
-     * <p>The method will wait for a environment-specific timeout before throwing an exception if the node cannot be
-     * started. The default can be overridden by calling {@link #withTimeout(Duration)}.
-     */
-    void start();
-
-    /**
      * Allows to override the default timeout for node operations.
      *
      * @param timeout the duration to wait before considering the operation as failed
@@ -106,7 +104,7 @@ public interface Node {
      * @return the configuration of the node
      */
     @NonNull
-    NodeConfiguration<?> configuration();
+    NodeConfiguration configuration();
 
     /**
      * Gets the self id of the node. This value can be used to identify a node.
@@ -184,7 +182,7 @@ public interface Node {
      *
      * @param version the software version to set for the node
      */
-    void setVersion(@NonNull SemanticVersion version);
+    void version(@NonNull SemanticVersion version);
 
     /**
      * This method updates the version to trigger a "config only upgrade" on the next restart. This method can only be

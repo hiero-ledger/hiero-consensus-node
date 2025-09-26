@@ -83,7 +83,7 @@ public record VirtualHashChunk(long path, int height, @NonNull byte[] hashData) 
         return new VirtualHashChunk(path, height, dataCopy);
     }
 
-    public static VirtualHashChunk parseFrom(final ReadableSequentialData in) throws IOException {
+    public static VirtualHashChunk parseFrom(final ReadableSequentialData in) {
         if (in == null) {
             return null;
         }
@@ -112,7 +112,7 @@ public record VirtualHashChunk(long path, int height, @NonNull byte[] hashData) 
                 final int len = in.readVarInt(false);
                 hashData = new byte[len];
                 if (in.readBytes(hashData) != len) {
-                    throw new IOException("Failed to read " + len + " bytes");
+                    throw new IllegalArgumentException("Failed to read " + len + " bytes");
                 }
             } else {
                 throw new IllegalArgumentException("Unknown field: " + field);

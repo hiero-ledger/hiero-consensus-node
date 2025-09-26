@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.ids;
 
-import static com.hedera.node.app.ids.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_KEY;
-import static com.hedera.node.app.ids.schemas.V0590EntityIdSchema.ENTITY_COUNTS_KEY;
+import static com.hedera.node.app.ids.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_ID;
+import static com.hedera.node.app.ids.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.state.common.EntityNumber;
@@ -17,6 +17,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
  * A writeable store for entity ids.
  */
 public class WritableEntityIdStore extends ReadableEntityIdStoreImpl implements WritableEntityCounters {
+
     /**
      * The underlying data storage class that holds the entity id data.
      */
@@ -32,8 +33,8 @@ public class WritableEntityIdStore extends ReadableEntityIdStoreImpl implements 
     public WritableEntityIdStore(@NonNull final WritableStates states) {
         super(states);
         requireNonNull(states);
-        this.entityIdState = states.getSingleton(ENTITY_ID_STATE_KEY);
-        this.entityCountsState = states.getSingleton(ENTITY_COUNTS_KEY);
+        this.entityIdState = states.getSingleton(ENTITY_ID_STATE_ID);
+        this.entityCountsState = states.getSingleton(ENTITY_COUNTS_STATE_ID);
     }
 
     /**
@@ -74,13 +75,15 @@ public class WritableEntityIdStore extends ReadableEntityIdStoreImpl implements 
             case TOPIC -> newEntityCounts.numTopics(entityCounts.numTopics() + delta);
             case FILE -> newEntityCounts.numFiles(entityCounts.numFiles() + delta);
             case CONTRACT_BYTECODE -> newEntityCounts.numContractBytecodes(entityCounts.numContractBytecodes() + delta);
-            case CONTRACT_STORAGE -> newEntityCounts.numContractStorageSlots(
-                    entityCounts.numContractStorageSlots() + delta);
+            case CONTRACT_STORAGE ->
+                newEntityCounts.numContractStorageSlots(entityCounts.numContractStorageSlots() + delta);
             case NFT -> newEntityCounts.numNfts(entityCounts.numNfts() + delta);
             case SCHEDULE -> newEntityCounts.numSchedules(entityCounts.numSchedules() + delta);
             case AIRDROP -> newEntityCounts.numAirdrops(entityCounts.numAirdrops() + delta);
             case NODE -> newEntityCounts.numNodes(entityCounts.numNodes() + delta);
             case STAKING_INFO -> newEntityCounts.numStakingInfos(entityCounts.numStakingInfos() + delta);
+            case HOOK -> newEntityCounts.numHooks(entityCounts.numHooks() + delta);
+            case LAMBDA_STORAGE -> newEntityCounts.numLambdaStorageSlots(entityCounts.numLambdaStorageSlots() + delta);
         }
         entityCountsState.put(newEntityCounts.build());
     }
