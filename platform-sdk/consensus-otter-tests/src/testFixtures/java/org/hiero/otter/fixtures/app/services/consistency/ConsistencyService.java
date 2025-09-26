@@ -5,13 +5,16 @@ import static org.hiero.base.utility.ByteUtils.byteArrayToLong;
 import static org.hiero.base.utility.NonCryptographicHashing.hash64;
 import static org.hiero.otter.fixtures.app.state.OtterStateId.CONSISTENCY_SINGLETON_STATE_ID;
 
+import com.hedera.hapi.node.base.SemanticVersion;
+import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.spi.WritableSingletonState;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.hiero.consensus.model.event.Event;
 import org.hiero.consensus.model.hashgraph.Round;
 import org.hiero.consensus.model.transaction.Transaction;
-import org.hiero.otter.fixtures.app.state.ConsistencyState;
+import org.hiero.otter.fixtures.app.services.OtterService;
+import org.hiero.otter.fixtures.app.state.model.ConsistencyState;
 
 /**
  * A service that ensures the consistency of rounds and transactions sent by the platform to the execution layer for
@@ -24,10 +27,8 @@ import org.hiero.otter.fixtures.app.state.ConsistencyState;
  *     <li>After a restart, any rounds that reach consensus in PCES replay exactly match the rounds calculated previously.</li>
  * </ol>
  */
-public class ConsistencyService {
+public class ConsistencyService implements OtterService {
     public static final String NAME = "ConsistencyStateService";
-    public static final int STATE_ID = CONSISTENCY_SINGLETON_STATE_ID.id();
-    public static final String STATE_KEY = "CONSISTENCY_SINGLETON";
 
     private Long stateRunningHash = null;
 
@@ -39,8 +40,8 @@ public class ConsistencyService {
      * @param round the round to handle
      */
     public void recordRoundContents(@NonNull final WritableStates writableStates, @NonNull final Round round) {
-        final WritableSingletonState<ConsistencyState> writableSingletonState = writableStates.getSingleton(
-                CONSISTENCY_SINGLETON_STATE_ID.id());
+        final WritableSingletonState<ConsistencyState> writableSingletonState =
+                writableStates.getSingleton(CONSISTENCY_SINGLETON_STATE_ID.id());
         final ConsistencyState consistencyState = writableSingletonState.get();
         stateRunningHash = consistencyState.runningHash();
 
@@ -84,5 +85,23 @@ public class ConsistencyService {
 
     private static long getTransactionContents(@NonNull final Transaction transaction) {
         return byteArrayToLong(transaction.getApplicationTransaction().toByteArray(), 0);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
+    public String name() {
+        return NAME;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
+    public Schema genesisSchema(@NonNull final SemanticVersion version) {
+        return new V1ConsistencyStateSchema(version);
     }
 }

@@ -1,32 +1,39 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.app.services.consistency;
 
+import static org.hiero.otter.fixtures.app.state.OtterStateId.CONSISTENCY_SINGLETON_STATE_ID;
+
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.lifecycle.StateDefinition;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Set;
-import org.hiero.otter.fixtures.app.state.ConsistencyState;
-import org.jetbrains.annotations.NotNull;
+import org.hiero.otter.fixtures.app.state.model.ConsistencyState;
 
-import static org.hiero.otter.fixtures.app.state.OtterStateId.CONSISTENCY_SINGLETON_STATE_ID;
-
+/**
+ * Genesis schema for the Consistency service
+ */
 public class V1ConsistencyStateSchema extends Schema {
-    /** Defines the section of the state that is for the Consistency Service */
-    public static final String CONSISTENCY_SINGLETON_KEY = "CONSISTENCY_SINGLETON";
+
+    private static final int STATE_ID = CONSISTENCY_SINGLETON_STATE_ID.id();
+    private static final String STATE_KEY = "CONSISTENCY_SINGLETON";
 
     /**
      * Create a new instance
      *
-     * @param version The version of this schema
+     * @param version the current software version
      */
-    public V1ConsistencyStateSchema(@NotNull final SemanticVersion version) {
+    public V1ConsistencyStateSchema(@NonNull final SemanticVersion version) {
         super(version);
     }
 
-    @NonNull
+    /**
+     * {@inheritDoc}
+     */
     @Override
+    @NonNull
+    @SuppressWarnings("rawtypes")
     public Set<StateDefinition> statesToCreate() {
-        return Set.of(StateDefinition.singleton(CONSISTENCY_SINGLETON_STATE_ID.id(), CONSISTENCY_SINGLETON_KEY, ConsistencyState.PROTOBUF));
+        return Set.of(StateDefinition.singleton(STATE_ID, STATE_KEY, ConsistencyState.PROTOBUF));
     }
 }

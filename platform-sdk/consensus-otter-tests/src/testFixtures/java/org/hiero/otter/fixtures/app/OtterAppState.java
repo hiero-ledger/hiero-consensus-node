@@ -1,19 +1,24 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.otter.fixtures.app.state;
+package org.hiero.otter.fixtures.app;
 
-import static com.swirlds.platform.state.service.PlatformStateFacade.DEFAULT_PLATFORM_STATE_FACADE;
 import static com.swirlds.platform.test.fixtures.config.ConfigUtils.CONFIGURATION;
+import static org.hiero.otter.fixtures.app.state.OtterStateInitializer.initOtterAppState;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.state.MerkleNodeState;
-import com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer;
 import com.swirlds.state.merkle.VirtualMapState;
+import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.List;
 import org.hiero.consensus.roster.RosterUtils;
+import org.hiero.otter.fixtures.app.services.OtterService;
+import org.hiero.otter.fixtures.app.services.consistency.ConsistencyService;
+import org.hiero.otter.fixtures.app.services.platform.PlatformStateService;
+import org.hiero.otter.fixtures.app.services.roster.RosterService;
 
 public class OtterAppState extends VirtualMapState<OtterAppState> implements MerkleNodeState {
 
@@ -54,15 +59,14 @@ public class OtterAppState extends VirtualMapState<OtterAppState> implements Mer
             @NonNull final SemanticVersion version) {
 
         // Setup the parts of the state required by the consensus module.
-        final TestingAppStateInitializer initializer = new TestingAppStateInitializer(configuration);
         final OtterAppState state = new OtterAppState(CONFIGURATION, metrics);
-        initializer.initConsensusModuleStates(state);
-        RosterUtils.setActiveRoster(state, roster, 0L);
-        DEFAULT_PLATFORM_STATE_FACADE.setCreationSoftwareVersionTo(state, version);
+        final List<OtterService> services =
+                List.of(new PlatformStateService(), new RosterService(), new ConsistencyService());
 
         // Setup the parts of the state required by the Otter app.
-        final OtterStateInitializer otterStateInitializer = new OtterStateInitializer();
-        otterStateInitializer.initOtterAppState(state);
+        initOtterAppState(configuration, state, version, services);
+        RosterUtils.setActiveRoster(state, roster, 0L);
+
         return state;
     }
 
@@ -83,5 +87,15 @@ public class OtterAppState extends VirtualMapState<OtterAppState> implements Mer
     @Override
     protected OtterAppState newInstance(@NonNull final VirtualMap virtualMap) {
         return new OtterAppState(virtualMap);
+    }
+
+    /**
+     * Commit the state of all services.
+     */
+    public void commitState() {
+        this.getServices().keySet().stream()
+                .map(this::getWritableStates)
+                .map(writableStates -> (CommittableWritableStates) writableStates)
+                .forEach(CommittableWritableStates::commit);
     }
 }

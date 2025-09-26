@@ -44,7 +44,7 @@ import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.roster.RosterUtils;
 import org.hiero.otter.fixtures.app.OtterApp;
-import org.hiero.otter.fixtures.app.state.OtterAppState;
+import org.hiero.otter.fixtures.app.OtterAppState;
 import org.hiero.otter.fixtures.app.OtterExecutionLayer;
 
 /**

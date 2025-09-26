@@ -11,7 +11,6 @@ import java.util.function.Consumer;
 import org.hiero.base.utility.CommonUtils;
 import org.hiero.consensus.model.event.Event;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
-import org.hiero.otter.fixtures.app.state.OtterAppState;
 
 /**
  * Utility class to handle transactions in the Otter testing tool.
