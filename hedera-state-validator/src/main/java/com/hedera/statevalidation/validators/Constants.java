@@ -15,9 +15,9 @@ public class Constants {
 
     //
     public static int PARALLELISM = Integer.parseInt(
-            System.getProperty("thread.num", "" + Runtime.getRuntime().availableProcessors()));
+            System.getProperty("thread.num", "" + Runtime.getRuntime().availableProcessors() * 2));
     public static int FILE_CHANNELS = Integer.parseInt(
-            System.getProperty("file.channels", "" + (Runtime.getRuntime().availableProcessors() / 2)));
+            System.getProperty("file.channels", "" + (Runtime.getRuntime().availableProcessors())));
 
     public static Boolean VALIDATE_FILE_LAYOUT =
             Boolean.parseBoolean(System.getProperty("validate.file.layout", "true"));
