@@ -190,15 +190,20 @@ public class BlockNodeConnectionManager {
         }
 
         public void increment() {
+            retryAttempt++;
+        }
+
+        public void updateRetryTime() {
             final Instant now = Instant.now();
             if (lastRetryTime != null) {
                 final Duration timeSinceLastRetry = Duration.between(lastRetryTime, now);
                 if (timeSinceLastRetry.compareTo(expBackoffTimeframeReset()) > 0) {
                     // It has been long enough since the last retry, so reset the attempt count
                     retryAttempt = 0;
+                    lastRetryTime = now;
+                    return;
                 }
             }
-            retryAttempt++;
             lastRetryTime = now;
         }
     }
@@ -260,16 +265,6 @@ public class BlockNodeConnectionManager {
                 .getConfiguration()
                 .getConfigData(BlockNodeConnectionConfig.class)
                 .blockNodeConnectionFileDir();
-    }
-
-    /**
-     * @return true if exponential backoff is enabled for connection attempts, else false
-     */
-    private boolean expBackoffEnabled() {
-        return configProvider
-                .getConfiguration()
-                .getConfigData(BlockNodeConnectionConfig.class)
-                .protocolExpBackoffEnabled();
     }
 
     /**
@@ -363,37 +358,19 @@ public class BlockNodeConnectionManager {
      * @param connection the connection to close and reschedule
      * @param delay the delay before attempting to reconnect
      */
-    public void rescheduleConnection(@NonNull final BlockNodeConnection connection, @NonNull final Duration delay) {
+    public void rescheduleConnection(
+            @NonNull final BlockNodeConnection connection,
+            @Nullable final Duration delay,
+            @Nullable final Long blockNumber) {
         if (!isStreamingEnabled.get()) {
             return;
         }
-
         requireNonNull(connection, "connection must not be null");
-        requireNonNull(delay, "delay must not be null");
 
         logger.warn("[{}] Closing and rescheduling connection for reconnect attempt", connection);
 
         // Handle cleanup and rescheduling
-        handleConnectionCleanupAndReschedule(connection, delay);
-    }
-
-    /**
-     * Schedules an immediate restart of the connection at the specified block number.
-     * This method handles immediate restart scenarios with minimal delay.
-     *
-     * @param connection the connection to close and restart
-     * @param blockNumber the block number to restart at
-     */
-    public void restartConnection(@NonNull final BlockNodeConnection connection, final long blockNumber) {
-        requireNonNull(connection, "connection must not be null");
-
-        // Remove from connections map and clear active reference
-        removeConnectionAndClearActive(connection);
-
-        logger.debug("[{}] Immediately scheduling connection at block {}", connection, blockNumber);
-
-        // Schedule restart at the specific block
-        scheduleConnectionAttempt(connection.getNodeConfig(), Duration.ZERO, blockNumber, false);
+        handleConnectionCleanupAndReschedule(connection, delay, blockNumber);
     }
 
     /**
@@ -401,32 +378,34 @@ public class BlockNodeConnectionManager {
      * This centralizes the retry and node selection logic.
      */
     private void handleConnectionCleanupAndReschedule(
-            @NonNull final BlockNodeConnection connection, @NonNull final Duration delay) {
+            @NonNull final BlockNodeConnection connection, @Nullable Duration delay, @Nullable final Long blockNumber) {
         // Remove from connections map and clear active reference
         removeConnectionAndClearActive(connection);
 
         long delayMs;
-        if (expBackoffEnabled()) {
-            // Get or create the retry attempt for this node
-            final RetryState retryState =
-                    retryStates.computeIfAbsent(connection.getNodeConfig(), k -> new RetryState());
-            final int retryAttempt = retryState.getRetryAttempt();
-            delayMs = (retryAttempt == 0)
-                    ? isOnlyOneBlockNodeConfigured() ? 0 : Math.max(0, delay.toMillis())
-                    : calculateJitteredDelayMs(retryAttempt);
-
-            logger.debug(
-                    "[{}] Apply exponential backoff and reschedule in {} ms (attempt={})",
-                    connection,
-                    delayMs,
-                    retryAttempt);
+        // Get or create the retry attempt for this node
+        final RetryState retryState = retryStates.computeIfAbsent(connection.getNodeConfig(), k -> new RetryState());
+        int retryAttempt = 0;
+        synchronized (retryState) {
+            // First update the last retry time and possibly reset the attempt count
+            retryState.updateRetryTime();
+            retryAttempt = retryState.getRetryAttempt();
+            if (delay == null) {
+                delayMs = calculateJitteredDelayMs(retryAttempt);
+            } else {
+                delayMs = delay.toMillis();
+            }
             // Increment retry attempt count
             retryState.increment();
-        } else {
-            delayMs = isOnlyOneBlockNodeConfigured() ? 0 : Math.max(0, delay.toMillis());
         }
 
-        scheduleConnectionAttempt(connection.getNodeConfig(), Duration.ofMillis(delayMs), null, false);
+        logger.debug(
+                "[{}] Apply exponential backoff and reschedule in {} ms (attempt={})",
+                connection,
+                delayMs,
+                retryAttempt);
+
+        scheduleConnectionAttempt(connection.getNodeConfig(), Duration.ofMillis(delayMs), blockNumber, false);
 
         if (!isOnlyOneBlockNodeConfigured()) {
             // Immediately try to find and connect to the next available node
@@ -458,7 +437,7 @@ public class BlockNodeConnectionManager {
      */
     private void removeConnectionAndClearActive(@NonNull final BlockNodeConnection connection) {
         requireNonNull(connection);
-        connections.remove(connection.getNodeConfig());
+        connections.remove(connection.getNodeConfig(), connection);
         activeConnectionRef.compareAndSet(connection, null);
     }
 
@@ -796,7 +775,7 @@ public class BlockNodeConnectionManager {
                     latestBlockNumber);
 
             connection.close(true);
-            rescheduleConnection(connection, LONGER_RETRY_DELAY);
+            rescheduleConnection(connection, LONGER_RETRY_DELAY, null);
             return true;
         }
 

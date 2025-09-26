@@ -11,6 +11,7 @@ import com.hedera.node.config.data.BlockNodeConnectionConfig;
 import com.hedera.node.internal.network.BlockNodeConfig;
 import com.hedera.pbj.runtime.grpc.Pipeline;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
 import java.util.Objects;
 import java.util.concurrent.Flow;
@@ -23,6 +24,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.block.api.BlockStreamPublishServiceInterface.BlockStreamPublishServiceClient;
 import org.hiero.block.api.PublishStreamRequest;
+import org.hiero.block.api.PublishStreamRequest.EndStream;
 import org.hiero.block.api.PublishStreamResponse;
 import org.hiero.block.api.PublishStreamResponse.BlockAcknowledgement;
 import org.hiero.block.api.PublishStreamResponse.EndOfStream;
@@ -218,37 +220,34 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
      *
      * @param delay the delay before attempting to reconnect
      */
-    private void closeAndReschedule(@NonNull final Duration delay, final boolean callOnComplete) {
-        requireNonNull(delay, "delay must not be null");
+    private void closeAndReschedule(@Nullable final Duration delay, final boolean callOnComplete) {
         close(callOnComplete);
-        blockNodeConnectionManager.rescheduleConnection(this, delay);
+        blockNodeConnectionManager.rescheduleConnection(this, delay, null);
     }
 
     /**
-     * Ends the stream with the specified code and reschedules with the specified delay.
-     * This method sends an end stream message before cleanup and retry logic.
+     * Ends the stream with the specified code and reschedules with a longer retry delay. This method sends an end stream
+     * message before cleanup and retry logic.
      *
      * @param code the code indicating why the stream was ended
-     * @param delay the delay before attempting to reconnect
      */
-    private void endStreamAndReschedule(
-            @NonNull final PublishStreamRequest.EndStream.Code code, @NonNull final Duration delay) {
+    private void endStreamAndReschedule(@NonNull final EndStream.Code code) {
         requireNonNull(code, "code must not be null");
-        requireNonNull(delay, "delay must not be null");
+        requireNonNull(BlockNodeConnection.LONGER_RETRY_DELAY, "delay must not be null");
 
         endTheStreamWith(code);
-        blockNodeConnectionManager.rescheduleConnection(this, delay);
+        blockNodeConnectionManager.rescheduleConnection(this, BlockNodeConnection.LONGER_RETRY_DELAY, null);
     }
 
     /**
-     * Closes the connection and restarts the stream at the specified block number.
-     * This method ensures proper cleanup and restart logic for immediate retries.
+     * Closes the connection and restarts the stream at the specified block number. This method ensures proper cleanup
+     * and restart logic for immediate retries.
      *
      * @param blockNumber the block number to restart at
      */
-    private void closeAndRestart(final long blockNumber, final boolean callOnComplete) {
-        close(callOnComplete);
-        blockNodeConnectionManager.restartConnection(this, blockNumber);
+    private void closeAndRestart(final long blockNumber) {
+        close(true);
+        blockNodeConnectionManager.rescheduleConnection(this, null, blockNumber);
     }
 
     /**
@@ -358,7 +357,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                         this,
                         blockNumber);
 
-                closeAndReschedule(LONGER_RETRY_DELAY, true);
+                closeAndReschedule(null, true);
             }
             case Code.TIMEOUT, Code.DUPLICATE_BLOCK, Code.BAD_BLOCK_PROOF, Code.INVALID_REQUEST -> {
                 // We should restart the stream at the block immediately
@@ -370,13 +369,13 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                         this,
                         restartBlockNumber);
 
-                closeAndRestart(restartBlockNumber, true);
+                closeAndRestart(restartBlockNumber);
             }
             case Code.SUCCESS -> {
                 // The block node orderly ended the stream. In this case, no errors occurred.
                 // We should wait for a longer period before attempting to retry.
                 logger.debug("[{}] Block node orderly ended the stream at block {}", this, blockNumber);
-                closeAndReschedule(LONGER_RETRY_DELAY, true);
+                closeAndReschedule(null, true);
             }
             case Code.BEHIND -> {
                 // The block node is behind us, check if we have the last verified block still available in order to
@@ -388,14 +387,14 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                             this,
                             restartBlockNumber);
 
-                    closeAndRestart(restartBlockNumber, true);
+                    closeAndRestart(restartBlockNumber);
                 } else {
                     // If we don't have the block state, we schedule retry for this connection and establish new one
                     // with different block node
                     logger.debug("[{}] Block node is behind and block state is not available.", this);
 
                     // Indicate that the block node should recover and catch up from another trustworthy block node
-                    endStreamAndReschedule(TOO_FAR_BEHIND, LONGER_RETRY_DELAY);
+                    endStreamAndReschedule(TOO_FAR_BEHIND);
                 }
             }
             case Code.UNKNOWN -> {
@@ -461,7 +460,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
      *
      * @param code the code on why stream was ended
      */
-    public void endTheStreamWith(PublishStreamRequest.EndStream.Code code) {
+    public void endTheStreamWith(final PublishStreamRequest.EndStream.Code code) {
         final var earliestBlockNumber = blockBufferService.getEarliestAvailableBlockNumber();
         final var highestAckedBlockNumber = blockBufferService.getHighestAckedBlockNumber();
 
@@ -473,6 +472,12 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                         .latestBlockNumber(highestAckedBlockNumber))
                 .build();
 
+        logger.debug(
+                "[{}] Sending EndStream request with code {} (earliestBlockNumber={}, highestAckedBlockNumber={})",
+                this,
+                code,
+                earliestBlockNumber,
+                highestAckedBlockNumber);
         sendRequest(endStream);
         close(true);
     }
