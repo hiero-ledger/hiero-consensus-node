@@ -63,20 +63,6 @@ public class BlockStreamEventBuilder {
     /** The set of parent hashes that reference events in another block. Useful for verifying calculated hash integrity. */
     private final Set<Hash> crossBlockParentHashes = new HashSet<>();
 
-    private record TransactionWrapper(@Nullable Bytes transaction, @Nullable Bytes transactionHash) {
-        public boolean isTransaction() {
-            return transaction != null;
-        }
-
-        public static TransactionWrapper ofTransaction(@NonNull final Bytes transaction) {
-            return new TransactionWrapper(transaction, null);
-        }
-
-        public static TransactionWrapper ofTransactionHash(@NonNull final Bytes transactionHash) {
-            return new TransactionWrapper(null, transactionHash);
-        }
-    }
-
     /**
      * Constructor.
      *
@@ -87,8 +73,8 @@ public class BlockStreamEventBuilder {
     }
 
     /**
-     * Reconstructs GossipEvent objects from BlockItems across all blocks. Events are processed in order to handle
-     * parent index references correctly.
+     * Reconstructs GossipEvent objects from BlockItems across all blocks. Events are processed to handle parent index
+     * references correctly.
      *
      * <p><strong>Important:</strong> The events in the returned list are in consensus order,
      * which also means they are in topological order. This ordering is critical for proper event hash chain validation,
@@ -147,13 +133,13 @@ public class BlockStreamEventBuilder {
     }
 
     private void signedTransaction(@NonNull final Bytes transactionBytes) {
-        final TransactionBody transactionBody = getTransactionBody(transactionBytes);
-        // When performing a network transplant, there may be transactions with a non-zero nonce
-        // outside of an event header. These transactions should be ignored.
-        if (transactionBody.transactionID().nonce() == 0 && currentEventHeader == null) {
-            fail("Unexpected transaction item without an active event header!");
-        }
         if (isTransactionInEvent(transactionBytes)) {
+            // When performing a network transplant, there may be transactions with a non-zero nonce
+            // outside an event header. These transactions should be ignored. But transactions with
+            // a zero nonce outside an event header should never happen.
+            if (currentEventHeader == null) {
+                fail("Unexpected transaction item without an active event header!");
+            }
             currentTransactions.add(TransactionWrapper.ofTransaction(transactionBytes));
         }
     }
@@ -165,14 +151,14 @@ public class BlockStreamEventBuilder {
     }
 
     /**
-     * Events included in the event hash have a nonce of zero and is not a scheduled transaction.
-     * Other transactions (e.g. synthetic transactions) have a
-     * non-zero nonce and must not be included in the event in order to calculate the correct event hash.
+     * Events included in the event hash have a nonce of zero and is not a scheduled transaction. Other transactions
+     * (e.g. synthetic transactions) have a non-zero nonce and must not be included in the event in order to calculate
+     * the correct event hash.
      *
-     * @param transactionBytes the transaction bytes to check
+     * @param transactionBytes the signed transaction bytes to check
      * @return true if the transaction should be included in the event, false otherwise
      */
-    private boolean isTransactionInEvent(@NonNull final Bytes transactionBytes) {
+    public static boolean isTransactionInEvent(@NonNull final Bytes transactionBytes) {
         final TransactionBody transactionBody = getTransactionBody(transactionBytes);
         final TransactionID transactionId = transactionBody.transactionIDOrThrow();
         return transactionId.nonce() == 0 && !transactionId.scheduled();
@@ -184,7 +170,7 @@ public class BlockStreamEventBuilder {
      * @param transactionBytes the transaction bytes
      * @return the parsed transaction body
      */
-    private TransactionBody getTransactionBody(@NonNull final Bytes transactionBytes) {
+    public static TransactionBody getTransactionBody(@NonNull final Bytes transactionBytes) {
         try {
             final SignedTransaction signedTransaction = SignedTransaction.PROTOBUF.parse(transactionBytes);
             return TransactionBody.PROTOBUF.parse(signedTransaction.bodyBytes());
@@ -363,6 +349,26 @@ public class BlockStreamEventBuilder {
             } else {
                 eventStream.writeBytes(wrappedTransaction.transactionHash());
             }
+        }
+    }
+
+    /**
+     * A wrapper for either a full transaction or just its hash.
+     *
+     * @param transaction the full transaction bytes, or null if only the hash is available
+     * @param transactionHash the transaction hash, or null if the full transaction is available
+     */
+    private record TransactionWrapper(@Nullable Bytes transaction, @Nullable Bytes transactionHash) {
+        public boolean isTransaction() {
+            return transaction != null;
+        }
+
+        public static TransactionWrapper ofTransaction(@NonNull final Bytes transaction) {
+            return new TransactionWrapper(transaction, null);
+        }
+
+        public static TransactionWrapper ofTransactionHash(@NonNull final Bytes transactionHash) {
+            return new TransactionWrapper(null, transactionHash);
         }
     }
 }

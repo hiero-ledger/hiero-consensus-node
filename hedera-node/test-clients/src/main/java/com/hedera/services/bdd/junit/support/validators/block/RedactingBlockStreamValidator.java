@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.junit.support.validators.block;
 
+import static com.hedera.services.bdd.junit.support.validators.block.BlockStreamEventBuilder.isTransactionInEvent;
 import static org.assertj.core.api.Fail.fail;
 
 import com.hedera.hapi.block.stream.Block;
@@ -103,7 +104,7 @@ public class RedactingBlockStreamValidator implements BlockStreamValidator {
 
             logger.info("Successfully processed and verified {} redacted blocks", reloadedBlocks.size());
 
-        } catch (final IOException e) {
+        } catch (final IOException | ParseException e) {
             logger.error("Failed to process blocks for redaction", e);
             throw new RuntimeException("Block redaction failed", e);
         }
@@ -115,9 +116,7 @@ public class RedactingBlockStreamValidator implements BlockStreamValidator {
      * @param originalBlocks the original blocks containing transactions to redact
      * @return a new list of blocks with redacted transactions
      */
-    private List<Block> redactBlocks(@NonNull final List<Block> originalBlocks) {
-        logger.debug("Redacting transactions in {} blocks", originalBlocks.size());
-
+    private List<Block> redactBlocks(@NonNull final List<Block> originalBlocks) throws ParseException {
         final List<Block> redactedBlocks = new ArrayList<>();
 
         int blockIndex = 0;
@@ -137,16 +136,17 @@ public class RedactingBlockStreamValidator implements BlockStreamValidator {
      * @param blockIndex the index of the block for logging purposes
      * @return a new block with redacted transactions
      */
-    private Block redactBlock(@NonNull final Block originalBlock, final int blockIndex) {
+    private Block redactBlock(@NonNull final Block originalBlock, final int blockIndex) throws ParseException {
         final List<BlockItem> originalItems = originalBlock.items();
         final List<BlockItem> redactedItems = new ArrayList<>();
 
         int transactionCount = 0;
 
         for (final BlockItem item : originalItems) {
-            if (hasSignedTransaction(item)) {
-                // Redact the transaction if it is a user transaction
-                final BlockItem redactedItem = redactTransactionItem(item);
+            final SignedTransaction maybeEventTransaction = getEventTransactionOrNull(item);
+            // Redact the transaction if it is a user transaction
+            if (maybeEventTransaction != null) {
+                final BlockItem redactedItem = redactTransactionItem(maybeEventTransaction);
                 redactedItems.add(redactedItem);
                 transactionCount++;
             } else {
@@ -156,7 +156,7 @@ public class RedactingBlockStreamValidator implements BlockStreamValidator {
         }
 
         logger.debug(
-                "Block {}: redacted {} transactions out of {} total items",
+                "Block {}: redacted {} event transactions out of {} total items",
                 blockIndex,
                 transactionCount,
                 originalItems.size());
@@ -170,51 +170,32 @@ public class RedactingBlockStreamValidator implements BlockStreamValidator {
      * @param item the block item to check
      * @return true if the item contains a signed_transaction
      */
-    private boolean hasSignedTransaction(@NonNull final BlockItem item) {
-        // Check if this is a signed_transaction item (field 4 in the protobuf)
+    private SignedTransaction getEventTransactionOrNull(@NonNull final BlockItem item) throws ParseException {
         final var itemKind = item.item().kind();
-        return itemKind == BlockItem.ItemOneOfType.SIGNED_TRANSACTION;
-    }
-
-    /**
-     * Gets the signed_transaction bytes from a BlockItem.
-     *
-     * @param item the block item containing a signed_transaction
-     * @return the transaction bytes
-     */
-    private Bytes getSignedTransaction(@NonNull final BlockItem item) {
-        if (!hasSignedTransaction(item)) {
-            throw new IllegalArgumentException("BlockItem does not contain a signed_transaction");
+        if (itemKind == BlockItem.ItemOneOfType.SIGNED_TRANSACTION && isTransactionInEvent(item.item().as())) {
+            return SignedTransaction.PROTOBUF.parse((Bytes) item.item().as());
         }
-        return item.item().as();
+        return null;
     }
 
     /**
-     * Redacts a single transaction item by replacing its content with a hash in a filtered block item, iff it is a user
-     * transaction.
+     * Redacts a single transaction item by replacing its content with a hash in a filtered block item.
      *
-     * @param originalItem the original block item containing a signed_transaction
+     * @param signedTransaction the signed_transaction
      * @return a new filtered block item with the transaction content replaced by its hash, or the original block itemß
      */
-    private BlockItem redactTransactionItem(@NonNull final BlockItem originalItem) {
-        final Bytes originalTransactionBytes = getSignedTransaction(originalItem);
+    private BlockItem redactTransactionItem(@NonNull final SignedTransaction signedTransaction) {
         try {
-            final SignedTransaction signedTransaction = SignedTransaction.PROTOBUF.parse(originalTransactionBytes);
             final TransactionBody body = TransactionBody.PROTOBUF.parse(signedTransaction.bodyBytes());
             final TransactionID transactionID = body.transactionID();
             assert transactionID != null;
-            // Redact user transactions, but leave other transactions alone.
-            if (transactionID.nonce() == 0) {
-                // Compute SHA-384 hash of the original transaction content
-                final Bytes transactionHash = computeTransactionHash(originalTransactionBytes);
-                return BlockItem.newBuilder()
-                        .filteredItemHash(FilteredItemHash.newBuilder()
-                                .itemHash(transactionHash)
-                                .build())
-                        .build();
-            } else {
-                return originalItem;
-            }
+            // Compute SHA-384 hash of the original transaction content
+            final Bytes transactionHash = computeTransactionHash(SignedTransaction.PROTOBUF.toBytes(signedTransaction));
+            return BlockItem.newBuilder()
+                    .filteredItemHash(FilteredItemHash.newBuilder()
+                            .itemHash(transactionHash)
+                            .build())
+                    .build();
         } catch (final ParseException e) {
             throw new RuntimeException("Unable to parse transaction bytes", e);
         }
