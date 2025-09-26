@@ -12,8 +12,6 @@ import java.util.EnumMap;
 import java.util.Map;
 import javax.inject.Inject;
 import javax.inject.Singleton;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.hiero.block.api.PublishStreamRequest;
 import org.hiero.block.api.PublishStreamResponse;
 
@@ -23,8 +21,6 @@ import org.hiero.block.api.PublishStreamResponse;
  */
 @Singleton
 public class BlockStreamMetrics {
-    private static final Logger logger = LogManager.getLogger(BlockStreamMetrics.class);
-
     private static final String CATEGORY = "blockStream";
 
     private static final String GROUP_CONN = "conn";
@@ -58,6 +54,8 @@ public class BlockStreamMetrics {
     private Counter conn_createFailureCounter;
     private LongGauge conn_activeConnIpGauge;
     private Counter conn_endOfStreamLimitCounter;
+    private DoubleGauge conn_ackLatencyGauge;
+    private Counter conn_highLatencyCounter;
 
     // buffer metrics
     private static final long BACK_PRESSURE_ACTIVE = 3;
@@ -270,6 +268,15 @@ public class BlockStreamMetrics {
                 .withDescription(
                         "Number of times the active block node connection has exceeded the allowed number of EndOfStream responses");
         conn_endOfStreamLimitCounter = metrics.getOrCreate(endOfStreamLimitCfg);
+
+        final DoubleGauge.Config ackLatencyCfg = newDoubleGauge(GROUP_CONN, "acknowledgementLatency")
+                .withDescription(
+                        "Latency (ms) for the last block acknowledgement received from the active block node connection");
+        conn_ackLatencyGauge = metrics.getOrCreate(ackLatencyCfg);
+
+        final Counter.Config highLatencyCfg = newCounter(GROUP_CONN, "highLatencyEvents")
+                .withDescription("Count of high latency events from the active block node connection");
+        conn_highLatencyCounter = metrics.getOrCreate(highLatencyCfg);
     }
 
     /**
@@ -328,6 +335,21 @@ public class BlockStreamMetrics {
      */
     public void recordActiveConnectionIp(final long ipAddress) {
         conn_activeConnIpGauge.set(ipAddress);
+    }
+
+    /**
+     * Records the latency for a block acknowledgement from a specific block node.
+     * @param latencyMs the latency in milliseconds
+     */
+    public void recordAcknowledgementLatency(final long latencyMs) {
+        conn_ackLatencyGauge.set(latencyMs);
+    }
+
+    /**
+     * Record a high-latency event for a specific block node.
+     */
+    public void recordHighLatencyEvent() {
+        conn_highLatencyCounter.increment();
     }
 
     // Connection RECV metrics -----------------------------------------------------------------------------------------

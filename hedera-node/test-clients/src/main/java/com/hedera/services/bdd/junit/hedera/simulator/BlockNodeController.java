@@ -296,7 +296,7 @@ public class BlockNodeController {
                     ? lastVerifiedBlockNumbers.getOrDefault(nodeId, -1L)
                     : -1L;
             final SimulatedBlockNodeServer newServer =
-                    new SimulatedBlockNodeServer(port, () -> lastVerifiedBlockNumber);
+                    new SimulatedBlockNodeServer(port, false, () -> lastVerifiedBlockNumber);
             newServer.start();
 
             // Replace the old server in the list

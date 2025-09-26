@@ -33,6 +33,7 @@ import java.lang.invoke.MethodHandles.Lookup;
 import java.lang.invoke.VarHandle;
 import java.lang.reflect.Method;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
@@ -69,7 +70,6 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     private static final MethodHandle jumpToBlockIfNeededHandle;
     private static final MethodHandle processStreamingToBlockNodeHandle;
     private static final MethodHandle blockStreamWorkerLoopHandle;
-    private static final MethodHandle createNewGrpcClientHandle;
 
     static {
         try {
@@ -114,10 +114,6 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
             blockStreamWorkerLoop.setAccessible(true);
             blockStreamWorkerLoopHandle = lookup.unreflect(blockStreamWorkerLoop);
 
-            final Method createNewGrpcClientMethod =
-                    BlockNodeConnectionManager.class.getDeclaredMethod("createNewGrpcClient", BlockNodeConfig.class);
-            createNewGrpcClientMethod.setAccessible(true);
-            createNewGrpcClientHandle = lookup.unreflect(createNewGrpcClientMethod);
         } catch (final Exception e) {
             throw new RuntimeException(e);
         }
@@ -1454,15 +1450,20 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         verifyNoMoreInteractions(metrics);
     }
 
-    // Utilities
+    @Test
+    void testHighLatencyTracking() {
+        final BlockNodeConfig nodeConfig = newBlockNodeConfig(8080, 1);
+        final Instant ackedTime = Instant.now();
 
-    private void invoke_createNewGrpcClient(final BlockNodeConfig config) {
-        try {
-            createNewGrpcClientHandle.invoke(connectionManager, config);
-        } catch (final Throwable t) {
-            throw new RuntimeException(t);
-        }
+        connectionManager.recordBlockSent(nodeConfig, 1L, ackedTime);
+        connectionManager.recordBlockAckAndCheckLatency(nodeConfig, 1L, ackedTime.plusMillis(1000));
+
+        verify(metrics).recordAcknowledgementLatency(1000);
+        verify(metrics).recordHighLatencyEvent();
+        verifyNoMoreInteractions(metrics);
     }
+
+    // Utilities
 
     private void invoke_blockStreamWorkerLoop() {
         try {

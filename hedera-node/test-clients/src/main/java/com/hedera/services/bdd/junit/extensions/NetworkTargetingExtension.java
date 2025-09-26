@@ -126,6 +126,9 @@ public class NetworkTargetingExtension implements BeforeEachCallback, AfterEachC
                 // Configure block node mode based on annotation
                 for (final BlockNodeConfig blockNodeConfig : annotation.blockNodeConfigs()) {
                     targetBlockNodeNetwork.getBlockNodeModeById().put(blockNodeConfig.nodeId(), blockNodeConfig.mode());
+                    targetBlockNodeNetwork
+                            .getBlockNodeHighLatencyById()
+                            .put(blockNodeConfig.nodeId(), blockNodeConfig.highLatency());
                 }
 
                 for (final SubProcessNodeConfig subProcessNodeConfig : annotation.subProcessNodeConfigs()) {

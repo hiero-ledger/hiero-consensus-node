@@ -555,4 +555,45 @@ public class BlockNodeSuite {
                                 portNumbers.getLast()))),
                 waitUntilNextBlocks(5).withBackgroundTraffic(true));
     }
+
+    @HapiTest
+    @HapiBlockNode(
+            networkSize = 1,
+            blockNodeConfigs = {
+                @BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.SIMULATOR, highLatency = true),
+                @BlockNodeConfig(nodeId = 1, mode = BlockNodeMode.SIMULATOR, highLatency = true)
+            },
+            subProcessNodeConfigs = {
+                @SubProcessNodeConfig(
+                        nodeId = 0,
+                        blockNodeIds = {0, 1},
+                        blockNodePriorities = {0, 1},
+                        applicationPropertiesOverrides = {
+                            "blockStream.streamMode", "BOTH",
+                            "blockStream.writerMode", "FILE_AND_GRPC"
+                        })
+            })
+    @Order(10)
+    final Stream<DynamicTest> node0StreamingToHighLatencyBlockNode() {
+        final AtomicReference<Instant> time = new AtomicReference<>();
+        final List<Integer> portNumbers = new ArrayList<>();
+        return hapiTest(
+                doingContextual(spec -> {
+                    portNumbers.add(spec.getBlockNodePortById(0));
+                }),
+                doingContextual(spec -> time.set(Instant.now())),
+                waitUntilNextBlocks(10).withBackgroundTraffic(true),
+                sourcingContextual(spec -> assertHgcaaLogContainsTimeframe(
+                        byNodeId(0),
+                        time::get,
+                        Duration.of(30, SECONDS),
+                        Duration.of(45, SECONDS),
+                        String.format(
+                                "[localhost:%s/ACTIVE] Block node has exceeded high latency threshold 5 times consecutively.",
+                                portNumbers.getFirst()),
+                        String.format(
+                                "[localhost:%s/CLOSED] Closing and rescheduling connection for reconnect attempt",
+                                portNumbers.getFirst()),
+                        "No block nodes found for attempted streaming")));
+    }
 }
