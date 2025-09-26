@@ -394,7 +394,7 @@ public class HapiUtils {
     }
 
     /**
-     * Converts given AccountID to strin
+     * Converts given AccountID to string.
      * @param accountID account id to convert
      * @return string representation
      */
