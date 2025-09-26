@@ -113,14 +113,14 @@ public class BlockStreamEventBuilder {
         currentTransactions.clear();
     }
 
-    private void signedTransaction(final Bytes transactionBytes) {
-        final TransactionBody transactionBody = getTransactionBody(transactionBytes);
-        // When performing a network transplant, there may be transactions with a non-zero nonce
-        // outside of an event header. These transactions should be ignored.
-        if (transactionBody.transactionID().nonce() == 0 && currentEventHeader == null) {
-            fail("Unexpected transaction item without an active event header!");
-        }
+    private void signedTransaction(@NonNull final Bytes transactionBytes) {
         if (isTransactionInEvent(transactionBytes)) {
+            // When performing a network transplant, there may be transactions with a non-zero nonce
+            // outside an event header. These transactions should be ignored. But transactions with
+            // a zero nonce outside an event header should never happen.
+            if (currentEventHeader == null) {
+                fail("Unexpected transaction item without an active event header!");
+            }
             currentTransactions.add(transactionBytes);
         }
     }
@@ -132,14 +132,14 @@ public class BlockStreamEventBuilder {
     }
 
     /**
-     * Events included in the event hash have a nonce of zero and is not a scheduled transaction.
-     * Other transactions (e.g. synthetic transactions) have a
-     * non-zero nonce and must not be included in the event in order to calculate the correct event hash.
+     * Events included in the event hash have a nonce of zero and is not a scheduled transaction. Other transactions
+     * (e.g. synthetic transactions) have a non-zero nonce and must not be included in the event to calculate
+     * the correct event hash.
      *
-     * @param transactionBytes the transaction bytes to check
+     * @param transactionBytes the signed transaction bytes to check
      * @return true if the transaction should be included in the event, false otherwise
      */
-    private boolean isTransactionInEvent(@NonNull final Bytes transactionBytes) {
+    private static boolean isTransactionInEvent(@NonNull final Bytes transactionBytes) {
         final TransactionBody transactionBody = getTransactionBody(transactionBytes);
         final TransactionID transactionId = transactionBody.transactionIDOrThrow();
         return transactionId.nonce() == 0 && !transactionId.scheduled();
@@ -151,7 +151,7 @@ public class BlockStreamEventBuilder {
      * @param transactionBytes the transaction bytes
      * @return the parsed transaction body
      */
-    private TransactionBody getTransactionBody(@NonNull final Bytes transactionBytes) {
+    private static TransactionBody getTransactionBody(@NonNull final Bytes transactionBytes) {
         try {
             final SignedTransaction signedTransaction = SignedTransaction.PROTOBUF.parse(transactionBytes);
             return TransactionBody.PROTOBUF.parse(signedTransaction.bodyBytes());
