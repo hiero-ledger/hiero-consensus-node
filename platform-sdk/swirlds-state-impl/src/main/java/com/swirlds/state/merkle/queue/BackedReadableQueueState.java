@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.state.merkle.queue;
 
-import static com.swirlds.state.merkle.logging.StateLogger.logQueuePeek;
 import static java.util.Objects.requireNonNull;
 
 import com.swirlds.state.merkle.MerkleStateRoot;
@@ -31,7 +30,6 @@ public class BackedReadableQueueState<E> extends ReadableQueueStateBase<E> {
     @Override
     protected E peekOnDataSource() {
         final var value = dataSource.peek();
-        logQueuePeek(label, value);
         return value;
     }
 

@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.state.merkle.queue;
 
-import static com.swirlds.state.merkle.logging.StateLogger.logQueueAdd;
-import static com.swirlds.state.merkle.logging.StateLogger.logQueueRemove;
 import static java.util.Objects.requireNonNull;
 
 import com.swirlds.state.merkle.MerkleStateRoot;
@@ -34,14 +32,10 @@ public class BackedWritableQueueState<E> extends WritableQueueStateBase<E> {
     @Override
     protected void addToDataSource(@NonNull E element) {
         dataSource.add(element);
-        // Log to transaction state log, what was added
-        logQueueAdd(label, element);
     }
 
     @Override
     protected void removeFromDataSource() {
         final var removedValue = dataSource.remove();
-        // Log to transaction state log, what was added
-        logQueueRemove(label, removedValue);
     }
 }
