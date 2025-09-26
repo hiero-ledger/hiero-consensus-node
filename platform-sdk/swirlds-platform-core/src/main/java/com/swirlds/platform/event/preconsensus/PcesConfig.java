@@ -11,8 +11,9 @@ import java.time.Duration;
  * Configuration for preconsensus event storage.
  *
  * @param minimumRetentionPeriod               the minimum amount of time that preconsensus events should be stored on
- *                                             disk. At a minimum, should exceed the length of time between state
- *                                             saving.
+ *                                             disk. This is only needed for running a node that does not have state
+ *                                             snapshots enabled. If state snapshots are enabled, PCES files are kept
+ *                                             that allow the node to replay events since the oldest state snapshot.
  * @param preferredFileSizeMegabytes           the preferred file size for preconsensus event files. Not a strong
  *                                             guarantee on file size, more of a suggestion.
  * @param bootstrapSpan                        when first starting up a preconsensus event file manager, the running
