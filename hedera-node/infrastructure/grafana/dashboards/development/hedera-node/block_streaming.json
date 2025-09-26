@@ -126,7 +126,7 @@
           },
           "disableTextWrap": false,
           "editorMode": "builder",
-          "expr": "blockStream_buffer_saturation{node=~\"$NodeId\"}",
+          "expr": "max by(node) (blockStream_buffer_saturation{node=~\"$NodeId\"})",
           "fullMetaSearch": false,
           "includeNullMetadata": true,
           "legendFormat": "node {{node}}",
@@ -241,7 +241,7 @@
           },
           "disableTextWrap": false,
           "editorMode": "builder",
-          "expr": "blockStream_buffer_backPressureState{node=~\"$NodeId\"}",
+          "expr": "max by(node) (blockStream_buffer_backPressureState{node=~\"$NodeId\"})",
           "fullMetaSearch": false,
           "includeNullMetadata": true,
           "legendFormat": "node {{node}}",
@@ -288,12 +288,12 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 8,
-        "w": 24,
+        "h": 9,
+        "w": 6,
         "x": 0,
         "y": 10
       },
-      "id": 43,
+      "id": 45,
       "options": {
         "cellHeight": "sm",
         "footer": {
@@ -304,6 +304,7 @@
           ],
           "show": false
         },
+        "frameIndex": 0,
         "showHeader": true
       },
       "pluginVersion": "12.1.1",
@@ -316,115 +317,44 @@
           "disableTextWrap": false,
           "editorMode": "builder",
           "exemplar": false,
-          "expr": "blockStream_buffer_latestBlockOpened{node=~\"$NodeId\"}",
+          "expr": "max by(node) (blockStream_buffer_latestBlockOpened{node=~\"$NodeId\"})",
           "fullMetaSearch": false,
           "includeNullMetadata": true,
           "instant": false,
-          "legendFormat": "node {{node}}",
+          "legendFormat": "{{node}}",
           "range": true,
           "refId": "A",
           "useBackend": false
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
-          },
-          "disableTextWrap": false,
-          "editorMode": "builder",
-          "exemplar": false,
-          "expr": "blockStream_buffer_latestBlockAcked{node=\"$NodeId\"}",
-          "fullMetaSearch": false,
-          "hide": false,
-          "includeNullMetadata": true,
-          "instant": false,
-          "legendFormat": "node {{node}}",
-          "range": true,
-          "refId": "B",
-          "useBackend": false
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
-          },
-          "disableTextWrap": false,
-          "editorMode": "builder",
-          "exemplar": false,
-          "expr": "blockStream_buffer_oldestBlock{node=\"$NodeId\"}",
-          "fullMetaSearch": false,
-          "hide": false,
-          "includeNullMetadata": true,
-          "instant": false,
-          "legendFormat": "node {{node}}",
-          "range": true,
-          "refId": "C",
-          "useBackend": false
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
-          },
-          "disableTextWrap": false,
-          "editorMode": "builder",
-          "exemplar": false,
-          "expr": "blockStream_buffer_newestBlock{node=\"$NodeId\"}",
-          "fullMetaSearch": false,
-          "hide": false,
-          "includeNullMetadata": true,
-          "instant": false,
-          "legendFormat": "node {{node}}",
-          "range": true,
-          "refId": "D",
-          "useBackend": false
         }
       ],
-      "title": "Lastest Block Opened",
+      "title": "Latest Block Opened",
       "transformations": [
         {
-          "disabled": true,
           "id": "joinByLabels",
           "options": {
             "value": "node"
           }
         },
         {
-          "id": "labelsToFields",
+          "id": "reduce",
           "options": {
-            "keepLabels": [
-              "node"
+            "includeTimeField": false,
+            "labelsToFields": false,
+            "mode": "seriesToRows",
+            "reducers": [
+              "lastNotNull"
             ]
-          }
-        },
-        {
-          "id": "joinByField",
-          "options": {
-            "byField": "node",
-            "mode": "outer"
           }
         },
         {
           "id": "organize",
           "options": {
-            "excludeByName": {
-              "Time": true,
-              "Time 1": false,
-              "blockStream_buffer_latestBlockOpened 3": false,
-              "node": false
-            },
+            "excludeByName": {},
             "includeByName": {},
-            "indexByName": {
-              "Time": 0,
-              "blockStream_buffer_latestBlockOpened": 2,
-              "node": 1
-            },
+            "indexByName": {},
             "renameByName": {
-              "blockStream_buffer_latestBlockAcked": "Latest Block Acked",
-              "blockStream_buffer_latestBlockOpened": "Latest Block Opened",
-              "blockStream_buffer_newestBlock": "Buffer Newest Block",
-              "blockStream_buffer_oldestBlock": "Buffer Oldest Block",
-              "node": "Node ID"
+              "Field": "Node",
+              "Last *": "Block"
             }
           }
         },
@@ -434,7 +364,364 @@
             "fields": {},
             "sort": [
               {
-                "field": "Node ID"
+                "field": "Node"
+              }
+            ]
+          }
+        }
+      ],
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "fixedColor": "blue",
+            "mode": "fixed"
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto",
+              "wrapText": false
+            },
+            "inspect": false
+          },
+          "fieldMinMax": false,
+          "mappings": [],
+          "noValue": "0",
+          "thresholds": {
+            "mode": "percentage",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 6,
+        "x": 6,
+        "y": 10
+      },
+      "id": 49,
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "countRows": false,
+          "fields": "",
+          "reducer": [
+            "median"
+          ],
+          "show": false
+        },
+        "frameIndex": 0,
+        "showHeader": true
+      },
+      "pluginVersion": "12.1.1",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "disableTextWrap": false,
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "max by(node) (blockStream_buffer_latestBlockAcked{node=~\"$NodeId\"})",
+          "fullMetaSearch": false,
+          "includeNullMetadata": true,
+          "instant": false,
+          "legendFormat": "{{node}}",
+          "range": true,
+          "refId": "A",
+          "useBackend": false
+        }
+      ],
+      "title": "Latest Block Acked",
+      "transformations": [
+        {
+          "id": "joinByLabels",
+          "options": {
+            "value": "node"
+          }
+        },
+        {
+          "id": "reduce",
+          "options": {
+            "includeTimeField": false,
+            "labelsToFields": false,
+            "mode": "seriesToRows",
+            "reducers": [
+              "lastNotNull"
+            ]
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {},
+            "includeByName": {},
+            "indexByName": {},
+            "renameByName": {
+              "Field": "Node",
+              "Last *": "Block"
+            }
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "fields": {},
+            "sort": [
+              {
+                "field": "Node"
+              }
+            ]
+          }
+        }
+      ],
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "fixedColor": "blue",
+            "mode": "fixed"
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto",
+              "wrapText": false
+            },
+            "inspect": false
+          },
+          "fieldMinMax": false,
+          "mappings": [],
+          "noValue": "0",
+          "thresholds": {
+            "mode": "percentage",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 6,
+        "x": 12,
+        "y": 10
+      },
+      "id": 50,
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "countRows": false,
+          "fields": "",
+          "reducer": [
+            "median"
+          ],
+          "show": false
+        },
+        "frameIndex": 0,
+        "showHeader": true
+      },
+      "pluginVersion": "12.1.1",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "disableTextWrap": false,
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "max by(node) (blockStream_buffer_oldestBlock{node=~\"$NodeId\"})",
+          "fullMetaSearch": false,
+          "includeNullMetadata": true,
+          "instant": false,
+          "legendFormat": "{{node}}",
+          "range": true,
+          "refId": "A",
+          "useBackend": false
+        }
+      ],
+      "title": "Oldest Buffered Block",
+      "transformations": [
+        {
+          "id": "joinByLabels",
+          "options": {
+            "value": "node"
+          }
+        },
+        {
+          "id": "reduce",
+          "options": {
+            "includeTimeField": false,
+            "labelsToFields": false,
+            "mode": "seriesToRows",
+            "reducers": [
+              "lastNotNull"
+            ]
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {},
+            "includeByName": {},
+            "indexByName": {},
+            "renameByName": {
+              "Field": "Node",
+              "Last *": "Block"
+            }
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "fields": {},
+            "sort": [
+              {
+                "field": "Node"
+              }
+            ]
+          }
+        }
+      ],
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "fixedColor": "blue",
+            "mode": "fixed"
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto",
+              "wrapText": false
+            },
+            "inspect": false
+          },
+          "fieldMinMax": false,
+          "mappings": [],
+          "noValue": "0",
+          "thresholds": {
+            "mode": "percentage",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 6,
+        "x": 18,
+        "y": 10
+      },
+      "id": 51,
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "countRows": false,
+          "fields": "",
+          "reducer": [
+            "median"
+          ],
+          "show": false
+        },
+        "frameIndex": 0,
+        "showHeader": true
+      },
+      "pluginVersion": "12.1.1",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "disableTextWrap": false,
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "max by(node) (blockStream_buffer_newestBlock{node=~\"$NodeId\"})",
+          "fullMetaSearch": false,
+          "includeNullMetadata": true,
+          "instant": false,
+          "legendFormat": "{{node}}",
+          "range": true,
+          "refId": "A",
+          "useBackend": false
+        }
+      ],
+      "title": "Newest Buffered Block",
+      "transformations": [
+        {
+          "id": "joinByLabels",
+          "options": {
+            "value": "node"
+          }
+        },
+        {
+          "id": "reduce",
+          "options": {
+            "includeTimeField": false,
+            "labelsToFields": false,
+            "mode": "seriesToRows",
+            "reducers": [
+              "lastNotNull"
+            ]
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {},
+            "includeByName": {},
+            "indexByName": {},
+            "renameByName": {
+              "Field": "Node",
+              "Last *": "Block"
+            }
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "fields": {},
+            "sort": [
+              {
+                "field": "Node"
               }
             ]
           }
@@ -506,7 +793,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 18
+        "y": 19
       },
       "id": 6,
       "options": {
@@ -533,7 +820,7 @@
           },
           "disableTextWrap": false,
           "editorMode": "builder",
-          "expr": "rate(blockStream_buffer_numBlocksOpened_total{node=~\"$NodeId\"}[5m])",
+          "expr": "max by(node) (delta(blockStream_buffer_numBlocksOpened_total{node=~\"$NodeId\"}[1m]))",
           "fullMetaSearch": false,
           "includeNullMetadata": true,
           "legendFormat": "node {{node}}",
@@ -542,7 +829,7 @@
           "useBackend": false
         }
       ],
-      "title": "Blocks Opened (5m rate)",
+      "title": "Blocks Opened (1m delta)",
       "type": "timeseries"
     },
     {
@@ -609,7 +896,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 18
+        "y": 19
       },
       "id": 7,
       "options": {
@@ -636,7 +923,7 @@
           },
           "disableTextWrap": false,
           "editorMode": "builder",
-          "expr": "rate(blockStream_buffer_numBlocksClosed_total{node=~\"$NodeId\"}[5m])",
+          "expr": "max by(node) (delta(blockStream_buffer_numBlocksClosed_total{node=~\"$NodeId\"}[1m]))",
           "fullMetaSearch": false,
           "includeNullMetadata": true,
           "legendFormat": "node {{node}}",
@@ -645,7 +932,7 @@
           "useBackend": false
         }
       ],
-      "title": "Blocks Closed (5m rate)",
+      "title": "Blocks Closed (1m delta)",
       "type": "timeseries"
     },
     {
@@ -712,7 +999,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 26
+        "y": 27
       },
       "id": 8,
       "options": {
@@ -739,7 +1026,7 @@
           },
           "disableTextWrap": false,
           "editorMode": "builder",
-          "expr": "rate(blockStream_buffer_numBlocksPruned_total{node=~\"$NodeId\"}[5m])",
+          "expr": "max by(node) (delta(blockStream_buffer_numBlocksPruned_total{node=~\"$NodeId\"}[1m]))",
           "fullMetaSearch": false,
           "includeNullMetadata": true,
           "legendFormat": "node {{node}}",
@@ -748,7 +1035,7 @@
           "useBackend": false
         }
       ],
-      "title": "Blocks Pruned (5m rate)",
+      "title": "Blocks Pruned (1m delta)",
       "type": "timeseries"
     },
     {
@@ -815,7 +1102,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 26
+        "y": 27
       },
       "id": 9,
       "options": {
@@ -842,7 +1129,7 @@
           },
           "disableTextWrap": false,
           "editorMode": "builder",
-          "expr": "rate(blockStream_buffer_numBlocksMissing_total{node=~\"$NodeId\"}[5m])",
+          "expr": "max by(node) (delta(blockStream_buffer_numBlocksMissing_total{node=~\"$NodeId\"}[1m]))",
           "fullMetaSearch": false,
           "includeNullMetadata": true,
           "legendFormat": "node {{node}}",
@@ -851,7 +1138,7 @@
           "useBackend": false
         }
       ],
-      "title": "Blocks Missing (5m rate)",
+      "title": "Blocks Missing (1m delta)",
       "type": "timeseries"
     },
     {
@@ -860,7 +1147,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 34
+        "y": 35
       },
       "id": 10,
       "panels": [],
@@ -876,6 +1163,7 @@
       "fieldConfig": {
         "defaults": {
           "color": {
+            "fixedColor": "blue",
             "mode": "continuous-BlPu"
           },
           "custom": {
@@ -926,7 +1214,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 35
+        "y": 36
       },
       "id": 42,
       "options": {
@@ -955,7 +1243,7 @@
           "disableTextWrap": false,
           "editorMode": "builder",
           "exemplar": false,
-          "expr": "blockStream_conn_activeConnIp{node=~\"$NodeId\"}",
+          "expr": "max by(node) (blockStream_conn_activeConnIp{node=~\"$NodeId\"})",
           "fullMetaSearch": false,
           "includeNullMetadata": true,
           "instant": false,
@@ -1032,7 +1320,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 35
+        "y": 36
       },
       "id": 11,
       "options": {
@@ -1059,7 +1347,7 @@
           },
           "disableTextWrap": false,
           "editorMode": "builder",
-          "expr": "blockStream_conn_opened_total{node=~\"$NodeId\"}",
+          "expr": "max by(node) (delta(blockStream_conn_opened_total{node=~\"$NodeId\"}[1m]))",
           "fullMetaSearch": false,
           "includeNullMetadata": true,
           "legendFormat": "node {{node}}",
@@ -1068,7 +1356,7 @@
           "useBackend": false
         }
       ],
-      "title": "Connections Opened",
+      "title": "Connections Opened (1m delta)",
       "type": "timeseries"
     },
     {
@@ -1135,7 +1423,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 43
+        "y": 44
       },
       "id": 13,
       "options": {
@@ -1162,7 +1450,7 @@
           },
           "disableTextWrap": false,
           "editorMode": "builder",
-          "expr": "blockStream_conn_noActive_total{node=~\"$NodeId\"}",
+          "expr": "max by(node) (delta(blockStream_conn_noActive_total{node=~\"$NodeId\"}[1m]))",
           "fullMetaSearch": false,
           "includeNullMetadata": true,
           "legendFormat": "node {{node}}",
@@ -1171,7 +1459,7 @@
           "useBackend": false
         }
       ],
-      "title": "Missing Active Connections",
+      "title": "Missing Active Connections (1m delta)",
       "type": "timeseries"
     },
     {
@@ -1238,7 +1526,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 43
+        "y": 44
       },
       "id": 12,
       "options": {
@@ -1265,7 +1553,7 @@
           },
           "disableTextWrap": false,
           "editorMode": "builder",
-          "expr": "blockStream_conn_closed_total{node=~\"$NodeId\"}",
+          "expr": "max by(node) (delta(blockStream_conn_closed_total{node=~\"$NodeId\"}[1m]))",
           "fullMetaSearch": false,
           "includeNullMetadata": true,
           "legendFormat": "node {{node}}",
@@ -1274,7 +1562,7 @@
           "useBackend": false
         }
       ],
-      "title": "Connections Closed",
+      "title": "Connections Closed (1m delta)",
       "type": "timeseries"
     },
     {
@@ -1341,7 +1629,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 51
+        "y": 52
       },
       "id": 14,
       "options": {
@@ -1368,7 +1656,7 @@
           },
           "disableTextWrap": false,
           "editorMode": "builder",
-          "expr": "rate(blockStream_conn_createFailure_total{node=~\"$NodeId\"}[5m])",
+          "expr": "max by(node) (delta(blockStream_conn_createFailure_total{node=~\"$NodeId\"}[1m]))",
           "fullMetaSearch": false,
           "includeNullMetadata": true,
           "legendFormat": "node {{node}}",
@@ -1377,7 +1665,7 @@
           "useBackend": false
         }
       ],
-      "title": "Connection Create Errors (5m rate)",
+      "title": "Connection Create Errors (1m delta)",
       "type": "timeseries"
     },
     {
@@ -1444,7 +1732,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 51
+        "y": 52
       },
       "id": 16,
       "options": {
@@ -1471,7 +1759,7 @@
           },
           "disableTextWrap": false,
           "editorMode": "builder",
-          "expr": "blockStream_conn_onError_total{node=~\"$NodeId\"}",
+          "expr": "max by(node) (delta(blockStream_conn_onError_total{node=~\"$NodeId\"}[1m]))",
           "fullMetaSearch": false,
           "includeNullMetadata": true,
           "legendFormat": "node {{node}}",
@@ -1480,7 +1768,7 @@
           "useBackend": false
         }
       ],
-      "title": "Connection OnError",
+      "title": "Connection OnError (1m delta)",
       "type": "timeseries"
     },
     {
@@ -1547,7 +1835,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 59
+        "y": 60
       },
       "id": 15,
       "options": {
@@ -1574,7 +1862,7 @@
           },
           "disableTextWrap": false,
           "editorMode": "builder",
-          "expr": "blockStream_conn_onComplete_total{node=~\"$NodeId\"}",
+          "expr": "max by(node) (delta(blockStream_conn_onComplete_total{node=~\"$NodeId\"}[1m]))",
           "fullMetaSearch": false,
           "includeNullMetadata": true,
           "legendFormat": "node {{node}}",
@@ -1583,7 +1871,7 @@
           "useBackend": false
         }
       ],
-      "title": "Connection OnComplete",
+      "title": "Connection OnComplete (1m delta)",
       "type": "timeseries"
     },
     {
@@ -1650,7 +1938,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 59
+        "y": 60
       },
       "id": 44,
       "options": {
@@ -1677,7 +1965,7 @@
           },
           "disableTextWrap": false,
           "editorMode": "builder",
-          "expr": "rate(blockStream_conn_endOfStreamLimitExceeded_total{node=~\"$NodeId\"}[5m])",
+          "expr": "max by(node) (delta(blockStream_conn_endOfStreamLimitExceeded_total{node=~\"$NodeId\"}[1m]))",
           "fullMetaSearch": false,
           "includeNullMetadata": true,
           "legendFormat": "node {{node}}",
@@ -1686,7 +1974,7 @@
           "useBackend": false
         }
       ],
-      "title": "Connection EndOfStream Limit Exceeded (5m rate)",
+      "title": "Connection EndOfStream Limit Exceeded (1m delta)",
       "type": "timeseries"
     },
     {
@@ -1695,7 +1983,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 67
+        "y": 68
       },
       "id": 25,
       "panels": [],
@@ -1766,7 +2054,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 68
+        "y": 69
       },
       "id": 26,
       "options": {
@@ -1792,8 +2080,8 @@
             "uid": "PBFA97CFB590B2093"
           },
           "disableTextWrap": false,
-          "editorMode": "builder",
-          "expr": "rate(blockStream_connRecv_unknown_total{node=~\"$NodeId\"}[5m])",
+          "editorMode": "code",
+          "expr": "max by(node) (delta(blockStream_connRecv_unknown_total{node=~\"$NodeId\"}[1m]))",
           "fullMetaSearch": false,
           "includeNullMetadata": true,
           "legendFormat": "node {{node}}",
@@ -1802,7 +2090,7 @@
           "useBackend": false
         }
       ],
-      "title": "Unknown Type Responses Received (5m rate)",
+      "title": "Unknown Type Responses Received (1m delta)",
       "type": "timeseries"
     },
     {
@@ -1869,7 +2157,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 68
+        "y": 69
       },
       "id": 27,
       "options": {
@@ -1895,8 +2183,8 @@
             "uid": "PBFA97CFB590B2093"
           },
           "disableTextWrap": false,
-          "editorMode": "builder",
-          "expr": "rate(blockStream_connRecv_acknowledgement_total{node=~\"$NodeId\"}[5m])",
+          "editorMode": "code",
+          "expr": "max by(node) (delta(blockStream_connRecv_acknowledgement_total{node=~\"$NodeId\"}[1m]))",
           "fullMetaSearch": false,
           "includeNullMetadata": true,
           "legendFormat": "node {{node}}",
@@ -1905,7 +2193,7 @@
           "useBackend": false
         }
       ],
-      "title": "Acknowledgement Responses Received (5m rate)",
+      "title": "Acknowledgement Responses Received (1m delta)",
       "type": "timeseries"
     },
     {
@@ -1972,7 +2260,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 76
+        "y": 77
       },
       "id": 29,
       "options": {
@@ -1998,8 +2286,8 @@
             "uid": "PBFA97CFB590B2093"
           },
           "disableTextWrap": false,
-          "editorMode": "builder",
-          "expr": "rate(blockStream_connRecv_skipBlock_total{node=~\"$NodeId\"}[5m])",
+          "editorMode": "code",
+          "expr": "max by(node) (delta(blockStream_connRecv_skipBlock_total{node=~\"$NodeId\"}[1m]))",
           "fullMetaSearch": false,
           "includeNullMetadata": true,
           "legendFormat": "node {{node}}",
@@ -2008,7 +2296,7 @@
           "useBackend": false
         }
       ],
-      "title": "SkipBlock Responses Received (5m rate)",
+      "title": "SkipBlock Responses Received (1m delta)",
       "type": "timeseries"
     },
     {
@@ -2075,7 +2363,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 76
+        "y": 77
       },
       "id": 28,
       "options": {
@@ -2101,8 +2389,8 @@
             "uid": "PBFA97CFB590B2093"
           },
           "disableTextWrap": false,
-          "editorMode": "builder",
-          "expr": "rate(blockStream_connRecv_resendBlock_total{node=~\"$NodeId\"}[5m])",
+          "editorMode": "code",
+          "expr": "max by(node) (delta(blockStream_connRecv_resendBlock_total{node=~\"$NodeId\"}[1m]))",
           "fullMetaSearch": false,
           "includeNullMetadata": true,
           "legendFormat": "node {{node}}",
@@ -2111,7 +2399,7 @@
           "useBackend": false
         }
       ],
-      "title": "ResendBlock Responses Received (5m rate)",
+      "title": "ResendBlock Responses Received (1m delta)",
       "type": "timeseries"
     },
     {
@@ -2178,7 +2466,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 84
+        "y": 85
       },
       "id": 31,
       "options": {
@@ -2204,8 +2492,8 @@
             "uid": "PBFA97CFB590B2093"
           },
           "disableTextWrap": false,
-          "editorMode": "builder",
-          "expr": "rate(blockStream_connRecv_endStream_success_total{node=~\"$NodeId\"}[5m])",
+          "editorMode": "code",
+          "expr": "max by(node) (delta(blockStream_connRecv_endStream_success_total{node=~\"$NodeId\"}[1m]))",
           "fullMetaSearch": false,
           "includeNullMetadata": true,
           "legendFormat": "node {{node}}",
@@ -2214,7 +2502,7 @@
           "useBackend": false
         }
       ],
-      "title": "EndStream:Success Responses Received (5m rate)",
+      "title": "EndStream:Success Responses Received (1m delta)",
       "type": "timeseries"
     },
     {
@@ -2281,7 +2569,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 84
+        "y": 85
       },
       "id": 30,
       "options": {
@@ -2307,8 +2595,8 @@
             "uid": "PBFA97CFB590B2093"
           },
           "disableTextWrap": false,
-          "editorMode": "builder",
-          "expr": "rate(blockStream_connRecv_endStream_invalidRequest_total{node=~\"$NodeId\"}[5m])",
+          "editorMode": "code",
+          "expr": "max by(node) (delta(blockStream_connRecv_endStream_invalidRequest_total{node=~\"$NodeId\"}[1m]))",
           "fullMetaSearch": false,
           "includeNullMetadata": true,
           "legendFormat": "node {{node}}",
@@ -2317,7 +2605,7 @@
           "useBackend": false
         }
       ],
-      "title": "EndStream:InvalidRequest Responses Received (5m rate)",
+      "title": "EndStream:InvalidRequest Responses Received (1m delta)",
       "type": "timeseries"
     },
     {
@@ -2384,7 +2672,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 92
+        "y": 93
       },
       "id": 32,
       "options": {
@@ -2410,8 +2698,8 @@
             "uid": "PBFA97CFB590B2093"
           },
           "disableTextWrap": false,
-          "editorMode": "builder",
-          "expr": "rate(blockStream_connRecv_endStream_error_total{node=~\"$NodeId\"}[5m])",
+          "editorMode": "code",
+          "expr": "max by(node) (delta(blockStream_connRecv_endStream_error_total{node=~\"$NodeId\"}[1m]))",
           "fullMetaSearch": false,
           "includeNullMetadata": true,
           "legendFormat": "node {{node}}",
@@ -2420,7 +2708,7 @@
           "useBackend": false
         }
       ],
-      "title": "EndStream:Error Responses Received (5m rate)",
+      "title": "EndStream:Error Responses Received (1m delta)",
       "type": "timeseries"
     },
     {
@@ -2487,7 +2775,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 92
+        "y": 93
       },
       "id": 33,
       "options": {
@@ -2513,8 +2801,8 @@
             "uid": "PBFA97CFB590B2093"
           },
           "disableTextWrap": false,
-          "editorMode": "builder",
-          "expr": "rate(blockStream_connRecv_endStream_timeout_total{node=~\"$NodeId\"}[5m])",
+          "editorMode": "code",
+          "expr": "max by(node) (delta(blockStream_connRecv_endStream_timeout_total{node=~\"$NodeId\"}[1m]))",
           "fullMetaSearch": false,
           "includeNullMetadata": true,
           "legendFormat": "node {{node}}",
@@ -2523,7 +2811,7 @@
           "useBackend": false
         }
       ],
-      "title": "EndStream:Timeout Responses Received (5m rate)",
+      "title": "EndStream:Timeout Responses Received (1m delta)",
       "type": "timeseries"
     },
     {
@@ -2590,7 +2878,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 100
+        "y": 101
       },
       "id": 34,
       "options": {
@@ -2616,8 +2904,8 @@
             "uid": "PBFA97CFB590B2093"
           },
           "disableTextWrap": false,
-          "editorMode": "builder",
-          "expr": "rate(blockStream_connRecv_endStream_timeout_total{node=~\"$NodeId\"}[5m])",
+          "editorMode": "code",
+          "expr": "max by(node) (delta(blockStream_connRecv_endStream_timeout_total{node=~\"$NodeId\"}[1m]))",
           "fullMetaSearch": false,
           "includeNullMetadata": true,
           "legendFormat": "node {{node}}",
@@ -2626,7 +2914,7 @@
           "useBackend": false
         }
       ],
-      "title": "EndStream:Timeout Responses Received (5m rate)",
+      "title": "EndStream:Timeout Responses Received (1m delta)",
       "type": "timeseries"
     },
     {
@@ -2693,7 +2981,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 100
+        "y": 101
       },
       "id": 35,
       "options": {
@@ -2719,8 +3007,8 @@
             "uid": "PBFA97CFB590B2093"
           },
           "disableTextWrap": false,
-          "editorMode": "builder",
-          "expr": "rate(blockStream_connRecv_endStream_duplicateBlock_total{node=~\"$NodeId\"}[5m])",
+          "editorMode": "code",
+          "expr": "max by(node) (delta(blockStream_connRecv_endStream_duplicateBlock_total{node=~\"$NodeId\"}[1m]))",
           "fullMetaSearch": false,
           "includeNullMetadata": true,
           "legendFormat": "node {{node}}",
@@ -2729,7 +3017,7 @@
           "useBackend": false
         }
       ],
-      "title": "EndStream:DuplicateBlock Responses Received (5m rate)",
+      "title": "EndStream:DuplicateBlock Responses Received (1m delta)",
       "type": "timeseries"
     },
     {
@@ -2796,7 +3084,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 108
+        "y": 109
       },
       "id": 36,
       "options": {
@@ -2822,8 +3110,8 @@
             "uid": "PBFA97CFB590B2093"
           },
           "disableTextWrap": false,
-          "editorMode": "builder",
-          "expr": "rate(blockStream_connRecv_endStream_badBlockProof_total{node=~\"$NodeId\"}[5m])",
+          "editorMode": "code",
+          "expr": "max by(node) (delta(blockStream_connRecv_endStream_badBlockProof_total{node=~\"$NodeId\"}[1m]))",
           "fullMetaSearch": false,
           "includeNullMetadata": true,
           "legendFormat": "node {{node}}",
@@ -2832,7 +3120,7 @@
           "useBackend": false
         }
       ],
-      "title": "EndStream:BadBlockProof Responses Received (5m rate)",
+      "title": "EndStream:BadBlockProof Responses Received (1m delta)",
       "type": "timeseries"
     },
     {
@@ -2899,7 +3187,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 108
+        "y": 109
       },
       "id": 37,
       "options": {
@@ -2925,8 +3213,8 @@
             "uid": "PBFA97CFB590B2093"
           },
           "disableTextWrap": false,
-          "editorMode": "builder",
-          "expr": "rate(blockStream_connRecv_endStream_behind_total{node=~\"$NodeId\"}[5m])",
+          "editorMode": "code",
+          "expr": "max by(node) (delta(blockStream_connRecv_endStream_behind_total{node=~\"$NodeId\"}[1m]))",
           "fullMetaSearch": false,
           "includeNullMetadata": true,
           "legendFormat": "node {{node}}",
@@ -2935,7 +3223,7 @@
           "useBackend": false
         }
       ],
-      "title": "EndStream:Behind Responses Received (5m rate)",
+      "title": "EndStream:Behind Responses Received (1m delta)",
       "type": "timeseries"
     },
     {
@@ -3002,7 +3290,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 116
+        "y": 117
       },
       "id": 38,
       "options": {
@@ -3028,8 +3316,8 @@
             "uid": "PBFA97CFB590B2093"
           },
           "disableTextWrap": false,
-          "editorMode": "builder",
-          "expr": "rate(blockStream_connRecv_endStream_persistenceFailed_total{node=~\"$NodeId\"}[5m])",
+          "editorMode": "code",
+          "expr": "max by(node) (delta(blockStream_connRecv_endStream_persistenceFailed_total{node=~\"$NodeId\"}[1m]))",
           "fullMetaSearch": false,
           "includeNullMetadata": true,
           "legendFormat": "node {{node}}",
@@ -3038,767 +3326,766 @@
           "useBackend": false
         }
       ],
-      "title": "EndStream:PersistenceFailed Responses Received (5m rate)",
+      "title": "EndStream:PersistenceFailed Responses Received (1m delta)",
       "type": "timeseries"
     },
     {
-      "collapsed": true,
+      "collapsed": false,
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 124
+        "y": 125
       },
       "id": 17,
-      "panels": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
-          },
-          "fieldConfig": {
-            "defaults": {
-              "color": {
-                "mode": "palette-classic"
-              },
-              "custom": {
-                "axisBorderShow": false,
-                "axisCenteredZero": false,
-                "axisColorMode": "text",
-                "axisLabel": "",
-                "axisPlacement": "auto",
-                "barAlignment": 0,
-                "barWidthFactor": 0.6,
-                "drawStyle": "line",
-                "fillOpacity": 0,
-                "gradientMode": "none",
-                "hideFrom": {
-                  "legend": false,
-                  "tooltip": false,
-                  "viz": false
-                },
-                "insertNulls": false,
-                "lineInterpolation": "linear",
-                "lineWidth": 1,
-                "pointSize": 5,
-                "scaleDistribution": {
-                  "type": "linear"
-                },
-                "showPoints": "never",
-                "spanNulls": false,
-                "stacking": {
-                  "group": "A",
-                  "mode": "none"
-                },
-                "thresholdsStyle": {
-                  "mode": "off"
-                }
-              },
-              "mappings": [],
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  {
-                    "color": "green",
-                    "value": 0
-                  },
-                  {
-                    "color": "red",
-                    "value": 80
-                  }
-                ]
-              }
-            },
-            "overrides": []
-          },
-          "gridPos": {
-            "h": 8,
-            "w": 12,
-            "x": 0,
-            "y": 125
-          },
-          "id": 18,
-          "options": {
-            "legend": {
-              "calcs": [
-                "last"
-              ],
-              "displayMode": "table",
-              "placement": "right",
-              "showLegend": true
-            },
-            "tooltip": {
-              "hideZeros": false,
-              "mode": "single",
-              "sort": "none"
-            }
-          },
-          "pluginVersion": "12.1.1",
-          "targets": [
-            {
-              "datasource": {
-                "type": "prometheus",
-                "uid": "PBFA97CFB590B2093"
-              },
-              "disableTextWrap": false,
-              "editorMode": "builder",
-              "expr": "blockStream_connSend_failure_total",
-              "fullMetaSearch": false,
-              "includeNullMetadata": true,
-              "legendFormat": "node {{node}}",
-              "range": true,
-              "refId": "A",
-              "useBackend": false
-            }
-          ],
-          "title": "Request Send Failures",
-          "type": "timeseries"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
-          },
-          "fieldConfig": {
-            "defaults": {
-              "color": {
-                "mode": "palette-classic"
-              },
-              "custom": {
-                "axisBorderShow": false,
-                "axisCenteredZero": false,
-                "axisColorMode": "text",
-                "axisLabel": "",
-                "axisPlacement": "auto",
-                "barAlignment": 0,
-                "barWidthFactor": 0.6,
-                "drawStyle": "line",
-                "fillOpacity": 0,
-                "gradientMode": "none",
-                "hideFrom": {
-                  "legend": false,
-                  "tooltip": false,
-                  "viz": false
-                },
-                "insertNulls": false,
-                "lineInterpolation": "linear",
-                "lineWidth": 1,
-                "pointSize": 5,
-                "scaleDistribution": {
-                  "type": "linear"
-                },
-                "showPoints": "never",
-                "spanNulls": false,
-                "stacking": {
-                  "group": "A",
-                  "mode": "none"
-                },
-                "thresholdsStyle": {
-                  "mode": "off"
-                }
-              },
-              "mappings": [],
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  {
-                    "color": "green",
-                    "value": 0
-                  },
-                  {
-                    "color": "red",
-                    "value": 80
-                  }
-                ]
-              }
-            },
-            "overrides": []
-          },
-          "gridPos": {
-            "h": 8,
-            "w": 12,
-            "x": 12,
-            "y": 125
-          },
-          "id": 19,
-          "options": {
-            "legend": {
-              "calcs": [
-                "last"
-              ],
-              "displayMode": "table",
-              "placement": "right",
-              "showLegend": true
-            },
-            "tooltip": {
-              "hideZeros": false,
-              "mode": "multi",
-              "sort": "none"
-            }
-          },
-          "pluginVersion": "12.1.1",
-          "targets": [
-            {
-              "datasource": {
-                "type": "prometheus",
-                "uid": "PBFA97CFB590B2093"
-              },
-              "disableTextWrap": false,
-              "editorMode": "builder",
-              "expr": "rate(blockStream_connSend_blockItemCount_total[5m])",
-              "fullMetaSearch": false,
-              "includeNullMetadata": true,
-              "legendFormat": "node {{node}}",
-              "range": true,
-              "refId": "A",
-              "useBackend": false
-            }
-          ],
-          "title": "Block Items Sent (5m rate)",
-          "type": "timeseries"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
-          },
-          "fieldConfig": {
-            "defaults": {
-              "color": {
-                "mode": "palette-classic"
-              },
-              "custom": {
-                "axisBorderShow": false,
-                "axisCenteredZero": false,
-                "axisColorMode": "text",
-                "axisLabel": "",
-                "axisPlacement": "auto",
-                "barAlignment": 0,
-                "barWidthFactor": 0.6,
-                "drawStyle": "line",
-                "fillOpacity": 0,
-                "gradientMode": "none",
-                "hideFrom": {
-                  "legend": false,
-                  "tooltip": false,
-                  "viz": false
-                },
-                "insertNulls": false,
-                "lineInterpolation": "linear",
-                "lineWidth": 1,
-                "pointSize": 5,
-                "scaleDistribution": {
-                  "type": "linear"
-                },
-                "showPoints": "never",
-                "spanNulls": false,
-                "stacking": {
-                  "group": "A",
-                  "mode": "none"
-                },
-                "thresholdsStyle": {
-                  "mode": "off"
-                }
-              },
-              "mappings": [],
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  {
-                    "color": "green",
-                    "value": 0
-                  },
-                  {
-                    "color": "red",
-                    "value": 80
-                  }
-                ]
-              }
-            },
-            "overrides": []
-          },
-          "gridPos": {
-            "h": 8,
-            "w": 12,
-            "x": 0,
-            "y": 133
-          },
-          "id": 20,
-          "options": {
-            "legend": {
-              "calcs": [
-                "last"
-              ],
-              "displayMode": "table",
-              "placement": "right",
-              "showLegend": true
-            },
-            "tooltip": {
-              "hideZeros": false,
-              "mode": "multi",
-              "sort": "none"
-            }
-          },
-          "pluginVersion": "12.1.1",
-          "targets": [
-            {
-              "datasource": {
-                "type": "prometheus",
-                "uid": "PBFA97CFB590B2093"
-              },
-              "disableTextWrap": false,
-              "editorMode": "builder",
-              "expr": "rate(blockStream_connSend_blockItems_total[5m])",
-              "fullMetaSearch": false,
-              "includeNullMetadata": true,
-              "legendFormat": "node {{node}}",
-              "range": true,
-              "refId": "A",
-              "useBackend": false
-            }
-          ],
-          "title": "BlockItem Requests Sent (5m rate)",
-          "type": "timeseries"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
-          },
-          "fieldConfig": {
-            "defaults": {
-              "color": {
-                "mode": "palette-classic"
-              },
-              "custom": {
-                "axisBorderShow": false,
-                "axisCenteredZero": false,
-                "axisColorMode": "text",
-                "axisLabel": "",
-                "axisPlacement": "auto",
-                "barAlignment": 0,
-                "barWidthFactor": 0.6,
-                "drawStyle": "line",
-                "fillOpacity": 0,
-                "gradientMode": "none",
-                "hideFrom": {
-                  "legend": false,
-                  "tooltip": false,
-                  "viz": false
-                },
-                "insertNulls": false,
-                "lineInterpolation": "linear",
-                "lineWidth": 1,
-                "pointSize": 5,
-                "scaleDistribution": {
-                  "type": "linear"
-                },
-                "showPoints": "never",
-                "spanNulls": false,
-                "stacking": {
-                  "group": "A",
-                  "mode": "none"
-                },
-                "thresholdsStyle": {
-                  "mode": "off"
-                }
-              },
-              "mappings": [],
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  {
-                    "color": "green",
-                    "value": 0
-                  },
-                  {
-                    "color": "red",
-                    "value": 80
-                  }
-                ]
-              }
-            },
-            "overrides": []
-          },
-          "gridPos": {
-            "h": 8,
-            "w": 12,
-            "x": 12,
-            "y": 133
-          },
-          "id": 21,
-          "options": {
-            "legend": {
-              "calcs": [
-                "last"
-              ],
-              "displayMode": "table",
-              "placement": "right",
-              "showLegend": true
-            },
-            "tooltip": {
-              "hideZeros": false,
-              "mode": "multi",
-              "sort": "none"
-            }
-          },
-          "pluginVersion": "12.1.1",
-          "targets": [
-            {
-              "datasource": {
-                "type": "prometheus",
-                "uid": "PBFA97CFB590B2093"
-              },
-              "disableTextWrap": false,
-              "editorMode": "builder",
-              "expr": "rate(blockStream_connSend_endStream_error_total[5m])",
-              "fullMetaSearch": false,
-              "includeNullMetadata": true,
-              "legendFormat": "node {{node}}",
-              "range": true,
-              "refId": "A",
-              "useBackend": false
-            }
-          ],
-          "title": "EndStream:Error Requests Sent (5m rate)",
-          "transformations": [
-            {
-              "id": "groupBy",
-              "options": {}
-            }
-          ],
-          "type": "timeseries"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
-          },
-          "fieldConfig": {
-            "defaults": {
-              "color": {
-                "mode": "palette-classic"
-              },
-              "custom": {
-                "axisBorderShow": false,
-                "axisCenteredZero": false,
-                "axisColorMode": "text",
-                "axisLabel": "",
-                "axisPlacement": "auto",
-                "barAlignment": 0,
-                "barWidthFactor": 0.6,
-                "drawStyle": "line",
-                "fillOpacity": 0,
-                "gradientMode": "none",
-                "hideFrom": {
-                  "legend": false,
-                  "tooltip": false,
-                  "viz": false
-                },
-                "insertNulls": false,
-                "lineInterpolation": "linear",
-                "lineWidth": 1,
-                "pointSize": 5,
-                "scaleDistribution": {
-                  "type": "linear"
-                },
-                "showPoints": "never",
-                "spanNulls": false,
-                "stacking": {
-                  "group": "A",
-                  "mode": "none"
-                },
-                "thresholdsStyle": {
-                  "mode": "off"
-                }
-              },
-              "mappings": [],
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  {
-                    "color": "green",
-                    "value": 0
-                  },
-                  {
-                    "color": "red",
-                    "value": 80
-                  }
-                ]
-              }
-            },
-            "overrides": []
-          },
-          "gridPos": {
-            "h": 8,
-            "w": 12,
-            "x": 0,
-            "y": 141
-          },
-          "id": 22,
-          "options": {
-            "legend": {
-              "calcs": [
-                "last"
-              ],
-              "displayMode": "table",
-              "placement": "right",
-              "showLegend": true
-            },
-            "tooltip": {
-              "hideZeros": false,
-              "mode": "multi",
-              "sort": "none"
-            }
-          },
-          "pluginVersion": "12.1.1",
-          "targets": [
-            {
-              "datasource": {
-                "type": "prometheus",
-                "uid": "PBFA97CFB590B2093"
-              },
-              "disableTextWrap": false,
-              "editorMode": "code",
-              "expr": "rate(blockStream_connSend_endStream_reset_total[5m])",
-              "fullMetaSearch": false,
-              "includeNullMetadata": true,
-              "legendFormat": "node {{node}}",
-              "range": true,
-              "refId": "A",
-              "useBackend": false
-            }
-          ],
-          "title": "EndStream:Reset Requests Sent (5m rate)",
-          "transformations": [
-            {
-              "id": "groupBy",
-              "options": {}
-            }
-          ],
-          "type": "timeseries"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
-          },
-          "fieldConfig": {
-            "defaults": {
-              "color": {
-                "mode": "palette-classic"
-              },
-              "custom": {
-                "axisBorderShow": false,
-                "axisCenteredZero": false,
-                "axisColorMode": "text",
-                "axisLabel": "",
-                "axisPlacement": "auto",
-                "barAlignment": 0,
-                "barWidthFactor": 0.6,
-                "drawStyle": "line",
-                "fillOpacity": 0,
-                "gradientMode": "none",
-                "hideFrom": {
-                  "legend": false,
-                  "tooltip": false,
-                  "viz": false
-                },
-                "insertNulls": false,
-                "lineInterpolation": "linear",
-                "lineWidth": 1,
-                "pointSize": 5,
-                "scaleDistribution": {
-                  "type": "linear"
-                },
-                "showPoints": "never",
-                "spanNulls": false,
-                "stacking": {
-                  "group": "A",
-                  "mode": "none"
-                },
-                "thresholdsStyle": {
-                  "mode": "off"
-                }
-              },
-              "mappings": [],
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  {
-                    "color": "green",
-                    "value": 0
-                  },
-                  {
-                    "color": "red",
-                    "value": 80
-                  }
-                ]
-              }
-            },
-            "overrides": []
-          },
-          "gridPos": {
-            "h": 8,
-            "w": 12,
-            "x": 12,
-            "y": 141
-          },
-          "id": 23,
-          "options": {
-            "legend": {
-              "calcs": [
-                "last"
-              ],
-              "displayMode": "table",
-              "placement": "right",
-              "showLegend": true
-            },
-            "tooltip": {
-              "hideZeros": false,
-              "mode": "multi",
-              "sort": "none"
-            }
-          },
-          "pluginVersion": "12.1.1",
-          "targets": [
-            {
-              "datasource": {
-                "type": "prometheus",
-                "uid": "PBFA97CFB590B2093"
-              },
-              "disableTextWrap": false,
-              "editorMode": "code",
-              "expr": "rate(blockStream_connSend_endStream_timeout_total[5m])",
-              "fullMetaSearch": false,
-              "includeNullMetadata": true,
-              "legendFormat": "node {{node}}",
-              "range": true,
-              "refId": "A",
-              "useBackend": false
-            }
-          ],
-          "title": "EndStream:Timeout Requests Sent (5m rate)",
-          "transformations": [
-            {
-              "id": "groupBy",
-              "options": {}
-            }
-          ],
-          "type": "timeseries"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
-          },
-          "fieldConfig": {
-            "defaults": {
-              "color": {
-                "mode": "palette-classic"
-              },
-              "custom": {
-                "axisBorderShow": false,
-                "axisCenteredZero": false,
-                "axisColorMode": "text",
-                "axisLabel": "",
-                "axisPlacement": "auto",
-                "barAlignment": 0,
-                "barWidthFactor": 0.6,
-                "drawStyle": "line",
-                "fillOpacity": 0,
-                "gradientMode": "none",
-                "hideFrom": {
-                  "legend": false,
-                  "tooltip": false,
-                  "viz": false
-                },
-                "insertNulls": false,
-                "lineInterpolation": "linear",
-                "lineWidth": 1,
-                "pointSize": 5,
-                "scaleDistribution": {
-                  "type": "linear"
-                },
-                "showPoints": "never",
-                "spanNulls": false,
-                "stacking": {
-                  "group": "A",
-                  "mode": "none"
-                },
-                "thresholdsStyle": {
-                  "mode": "off"
-                }
-              },
-              "mappings": [],
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  {
-                    "color": "green",
-                    "value": 0
-                  },
-                  {
-                    "color": "red",
-                    "value": 80
-                  }
-                ]
-              }
-            },
-            "overrides": []
-          },
-          "gridPos": {
-            "h": 8,
-            "w": 12,
-            "x": 0,
-            "y": 149
-          },
-          "id": 24,
-          "options": {
-            "legend": {
-              "calcs": [
-                "last"
-              ],
-              "displayMode": "table",
-              "placement": "right",
-              "showLegend": true
-            },
-            "tooltip": {
-              "hideZeros": false,
-              "mode": "multi",
-              "sort": "none"
-            }
-          },
-          "pluginVersion": "12.1.1",
-          "targets": [
-            {
-              "datasource": {
-                "type": "prometheus",
-                "uid": "PBFA97CFB590B2093"
-              },
-              "disableTextWrap": false,
-              "editorMode": "code",
-              "expr": "rate(blockStream_connSend_endStream_tooFarBehind_total[5m])",
-              "fullMetaSearch": false,
-              "includeNullMetadata": true,
-              "legendFormat": "node {{node}}",
-              "range": true,
-              "refId": "A",
-              "useBackend": false
-            }
-          ],
-          "title": "EndStream:TooFarBehind Requests Sent (5m rate)",
-          "transformations": [
-            {
-              "id": "groupBy",
-              "options": {}
-            }
-          ],
-          "type": "timeseries"
-        }
-      ],
+      "panels": [],
       "title": "Requests (To Block Node)",
       "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 126
+      },
+      "id": 18,
+      "options": {
+        "legend": {
+          "calcs": [
+            "last"
+          ],
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "12.1.1",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "disableTextWrap": false,
+          "editorMode": "builder",
+          "expr": "max by(node) (delta(blockStream_connSend_failure_total{node=~\"$NodeId\"}[1m]))",
+          "fullMetaSearch": false,
+          "includeNullMetadata": true,
+          "legendFormat": "node {{node}}",
+          "range": true,
+          "refId": "A",
+          "useBackend": false
+        }
+      ],
+      "title": "Request Send Failures (1m delta)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 126
+      },
+      "id": 19,
+      "options": {
+        "legend": {
+          "calcs": [
+            "last"
+          ],
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "12.1.1",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "disableTextWrap": false,
+          "editorMode": "code",
+          "expr": "max by(node) (delta(blockStream_connSend_blockItemCount_total{node=~\"$NodeId\"}[1m]))",
+          "fullMetaSearch": false,
+          "includeNullMetadata": true,
+          "legendFormat": "node {{node}}",
+          "range": true,
+          "refId": "A",
+          "useBackend": false
+        }
+      ],
+      "title": "Block Items Sent (1m delta)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 134
+      },
+      "id": 20,
+      "options": {
+        "legend": {
+          "calcs": [
+            "last"
+          ],
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "12.1.1",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "disableTextWrap": false,
+          "editorMode": "code",
+          "expr": "max by(node) (delta(blockStream_connSend_blockItems_total{node=~\"$NodeId\"}[1m]))",
+          "fullMetaSearch": false,
+          "includeNullMetadata": true,
+          "legendFormat": "node {{node}}",
+          "range": true,
+          "refId": "A",
+          "useBackend": false
+        }
+      ],
+      "title": "BlockItem Requests Sent (1m delta)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 134
+      },
+      "id": 21,
+      "options": {
+        "legend": {
+          "calcs": [
+            "last"
+          ],
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "12.1.1",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "disableTextWrap": false,
+          "editorMode": "code",
+          "expr": "max by(node) (delta(blockStream_connSend_endStream_error_total{node=~\"$NodeId\"}[1m]))",
+          "fullMetaSearch": false,
+          "includeNullMetadata": true,
+          "legendFormat": "node {{node}}",
+          "range": true,
+          "refId": "A",
+          "useBackend": false
+        }
+      ],
+      "title": "EndStream:Error Requests Sent (1m delta)",
+      "transformations": [
+        {
+          "id": "groupBy",
+          "options": {}
+        }
+      ],
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 142
+      },
+      "id": 22,
+      "options": {
+        "legend": {
+          "calcs": [
+            "last"
+          ],
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "12.1.1",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "disableTextWrap": false,
+          "editorMode": "code",
+          "expr": "max by(node) (delta(blockStream_connSend_endStream_reset_total{node=~\"$NodeId\"}[1m]))",
+          "fullMetaSearch": false,
+          "includeNullMetadata": true,
+          "legendFormat": "node {{node}}",
+          "range": true,
+          "refId": "A",
+          "useBackend": false
+        }
+      ],
+      "title": "EndStream:Reset Requests Sent (1m delta)",
+      "transformations": [
+        {
+          "id": "groupBy",
+          "options": {}
+        }
+      ],
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 142
+      },
+      "id": 23,
+      "options": {
+        "legend": {
+          "calcs": [
+            "last"
+          ],
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "12.1.1",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "disableTextWrap": false,
+          "editorMode": "builder",
+          "expr": "max by(node) (delta(blockStream_connSend_endStream_timeout_total{node=~\"$NodeId\"}[1m]))",
+          "fullMetaSearch": false,
+          "includeNullMetadata": true,
+          "legendFormat": "node {{node}}",
+          "range": true,
+          "refId": "A",
+          "useBackend": false
+        }
+      ],
+      "title": "EndStream:Timeout Requests Sent (1m delta)",
+      "transformations": [
+        {
+          "id": "groupBy",
+          "options": {}
+        }
+      ],
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 150
+      },
+      "id": 24,
+      "options": {
+        "legend": {
+          "calcs": [
+            "last"
+          ],
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "12.1.1",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "disableTextWrap": false,
+          "editorMode": "builder",
+          "expr": "max by(node) (delta(blockStream_connSend_endStream_tooFarBehind_total{node=~\"$NodeId\"}[1m]))",
+          "fullMetaSearch": false,
+          "includeNullMetadata": true,
+          "legendFormat": "node {{node}}",
+          "range": true,
+          "refId": "A",
+          "useBackend": false
+        }
+      ],
+      "title": "EndStream:TooFarBehind Requests Sent (1m delta)",
+      "transformations": [
+        {
+          "id": "groupBy",
+          "options": {}
+        }
+      ],
+      "type": "timeseries"
     }
   ],
   "preload": false,
@@ -3811,10 +4098,10 @@
         "allValue": ".*",
         "current": {
           "text": [
-            "0"
+            "All"
           ],
           "value": [
-            "0"
+            "$__all"
           ]
         },
         "datasource": {
@@ -3846,5 +4133,5 @@
   "timezone": "browser",
   "title": "Block Stream Metrics (CN -> BN)",
   "uid": "eeb41171-20de-401d-b13d-4a5d2d626b2b",
-  "version": 31
+  "version": 36
 }

@@ -12,6 +12,7 @@ import java.util.function.BooleanSupplier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.otter.fixtures.TimeManager;
+import org.hiero.otter.fixtures.util.TimeoutException;
 
 /**
  * An abstract implementation of {@link TimeManager} that contains all functionality shared between the different
@@ -50,14 +51,33 @@ public abstract class AbstractTimeManager implements TimeManager {
     public void waitFor(@NonNull final Duration waitTime) {
         log.info("Waiting for {}...", waitTime);
 
-        waitForCondition(() -> false, waitTime);
+        final Instant start = now();
+        final Instant end = start.plus(waitTime);
+
+        Instant now = start;
+        while (now.isBefore(end)) {
+            for (final TimeTickReceiver receiver : timeTickReceivers) {
+                receiver.tick(now);
+            }
+            advanceTime(granularity);
+            now = now();
+        }
     }
 
     /**
      * {@inheritDoc}
      */
     @Override
-    public boolean waitForCondition(@NonNull final BooleanSupplier condition, @NonNull final Duration waitTime) {
+    public void waitForCondition(@NonNull final BooleanSupplier condition, @NonNull final Duration waitTime) {
+        waitForCondition(condition, waitTime, "Condition not met within the allotted time.");
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void waitForCondition(
+            @NonNull final BooleanSupplier condition, @NonNull final Duration waitTime, @NonNull final String message) {
         log.debug("Waiting up to {} for condition to become true...", waitTime);
 
         final Instant start = now();
@@ -72,7 +92,9 @@ public abstract class AbstractTimeManager implements TimeManager {
             now = now();
         }
 
-        return condition.getAsBoolean();
+        if (!condition.getAsBoolean()) {
+            throw new TimeoutException(message);
+        }
     }
 
     /**

@@ -8,6 +8,11 @@ on:
         description: "Release Candidate Tag:"
         type: string
         default: ""
+      enable-promotion:
+        required: false
+        description: "Tag with epoch timestamp (enables promotion)"
+        default: false
+        type: boolean
   schedule:
     # Runs Extended Test Suite every three hours Monday to Friday
     - cron: "0 */3 * * 1-5"
@@ -146,7 +151,7 @@ jobs:
             # Commit list output (multiline)
             {
               echo 'commit-list<<EOF'
-              echo "${COMMIT_LIST}"
+              echo "${COMMIT_LIST//\`/}"
               echo EOF
             } >> "${GITHUB_OUTPUT}"
 
@@ -243,6 +248,7 @@ jobs:
     with:
       ref: ${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }} # pass the xts-candidate tag to the JRS panel for checkout
       custom-job-name: "SDK TCK Regression"
+      solo-version: "v0.38.0"
     secrets:
       access-token: ${{ secrets.GH_ACCESS_TOKEN }}
       slack-tck-report-webhook: ${{ secrets.SLACK_TCK_MONITOR_WEBHOOK }}
@@ -274,18 +280,19 @@ jobs:
       access-token: ${{ secrets.GH_ACCESS_TOKEN }}
       slack-detailed-report-webhook: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
 
-  block-node-regression-panel:
-    name: Block Node Regression Panel
-    needs: fetch-xts-candidate
-    if: ${{ needs.fetch-xts-candidate.result == 'success' && needs.fetch-xts-candidate.outputs.xts-tag-exists == 'true' }}
-    uses: ./.github/workflows/zxc-block-node-regression.yaml
-    with:
-      ref: ${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }} # pass the xts-candidate tag to the JRS panel for checkout
-      custom-job-name: "Block Node Regression"
-      solo-version: ${{ vars.CITR_SOLO_VERSION }}
-    secrets:
-      access-token: ${{ secrets.GH_ACCESS_TOKEN }}
-      slack-detailed-report-webhook: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
+  #  TODO: Enable block node regression panel when development is further on
+  #  block-node-regression-panel:
+  #    name: Block Node Regression Panel
+  #    needs: fetch-xts-candidate
+  #    if: ${{ needs.fetch-xts-candidate.result == 'success' && needs.fetch-xts-candidate.outputs.xts-tag-exists == 'true' }}
+  #    uses: ./.github/workflows/zxc-block-node-regression.yaml
+  #    with:
+  #      ref: ${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }} # pass the xts-candidate tag to the JRS panel for checkout
+  #      custom-job-name: "Block Node Regression"
+  #      solo-version: ${{ vars.CITR_SOLO_VERSION }}
+  #    secrets:
+  #      access-token: ${{ secrets.GH_ACCESS_TOKEN }}
+  #      slack-detailed-report-webhook: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
 
   tag-for-promotion:
     name: Tag as XTS-Passing
@@ -326,9 +333,22 @@ jobs:
       - name: Tag for XTS promotion
         env:
           RC_TAG: ${{ inputs.rc-tag || '' }}
+          TAG_WITH_EPOCH: ${{ inputs.enable-promotion || 'false' }}
         run: |
-          if [[ -n "${RC_TAG}" ]]; then
+          if [[ -n "${RC_TAG}" ]] && [[ "${TAG_WITH_EPOCH}" == "false" ]]; then
             TAG="xts-pass-${RC_TAG}"
+
+            set +e
+              TAG_COMMIT="$(git rev-list -n 1 "${TAG}")" >/dev/null 2>&1
+              TAG_EXISTS="${?}"
+            set -e
+
+            if [[ "${TAG_EXISTS}" -eq 0 ]]; then
+              echo "Tag ${TAG} already exists. Deleting."
+              git push --delete origin "${TAG}"
+              git tag -d "${TAG}"
+            fi
+
             git tag --annotate "${TAG}" --message "chore: tagging release candidate as XTS passing"
             git push --set-upstream origin "${TAG}"
             echo "### Commit Tagged as XTS-Passing" >>  "${GITHUB_STEP_SUMMARY}"
@@ -566,7 +586,8 @@ jobs:
         run: |
           ROOTLY_SERVICE_NAME="CITR General"
           if [[ "${{ needs.fetch-xts-candidate.result }}" =~ ^(cancelled|failure)$ ]] \
-            || [[ "${{ needs.tag-for-promotion.result }}" =~ ^(cancelled|failure)$ ]]; then
+            || [[ "${{ needs.tag-for-promotion.result }}" =~ ^(cancelled|failure)$ ]] \
+            || [[ "${{ needs.extended-test-suite.outputs.failure-mode }}" == "workflow" ]]; then
             ROOTLY_SERVICE_NAME="CI/CD Workflows"
           elif [[ "${{ needs.sdk-tck-regression-panel.result }}" =~ ^(cancelled|failure)$ ]]; then
             ROOTLY_SERVICE_NAME="CITR TCK"
@@ -621,22 +642,6 @@ jobs:
           external_id: ${{ github.run_id }}
           external_url: "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
           environments: "CITR"
-
-      - name: Create Rootly Incident
-        uses: pandaswhocode/rootly-incident-action@4327542435bb4c8c48f15fba47efb87a28f8533f # v2.0.1
-        continue-on-error: true # continue on error so we can get the slack reporting
-        with:
-          api_key: ${{ secrets.ROOTLY_API_TOKEN }}
-          title: "${{ steps.rootly-summary.outputs.title }}"
-          kind: "normal"
-          create_public_incident: "false"
-          summary: "${{ steps.rootly-summary.outputs.summary }}"
-          severity: "Triage Event"
-          alert_ids: ${{ steps.create-rootly-alert.outputs.alert_id || '' }}
-          environments: "CITR"
-          incident_types: "Platform CI"
-          services: ${{ steps.set-rootly-service.outputs.service }}
-          teams: "Platform CI"
 
       - name: Build Slack Payload Message
         id: payload
