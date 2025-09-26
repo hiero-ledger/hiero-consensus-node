@@ -2,6 +2,7 @@
 package com.swirlds.platform.state.snapshot;
 
 import static com.swirlds.common.io.streams.StreamDebugUtils.deserializeAndDebugOnFailure;
+import static com.swirlds.platform.StateInitializer.initializeMerkleNodeState;
 import static com.swirlds.platform.state.snapshot.SignedStateFileUtils.SIGNATURE_SET_FILE_NAME;
 import static com.swirlds.platform.state.snapshot.SignedStateFileUtils.SUPPORTED_SIGSET_VERSIONS;
 import static java.nio.file.Files.exists;
@@ -73,10 +74,8 @@ public final class SignedStateFileReader {
                     return in.readSerializable();
                 });
 
-        final VirtualMap virtualMap = (VirtualMap) data.stateRoot();
-        final Metrics metrics = platformContext.getMetrics();
-        virtualMap.registerMetrics(metrics);
-        final MerkleNodeState merkleNodeState = createStateFromVirtualMap.apply(virtualMap);
+        final MerkleNodeState merkleNodeState =
+                initializeMerkleNodeState(createStateFromVirtualMap, data.stateRoot(), platformContext.getMetrics());
 
         final SignedState newSignedState = new SignedState(
                 conf,

@@ -3,6 +3,7 @@ package com.swirlds.platform.reconnect;
 
 import static com.swirlds.common.formatting.StringFormattingUtils.formattedList;
 import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
+import static com.swirlds.platform.StateInitializer.initializeMerkleNodeState;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.common.context.PlatformContext;
@@ -12,7 +13,6 @@ import com.swirlds.common.merkle.synchronization.LearningSynchronizer;
 import com.swirlds.common.merkle.synchronization.config.ReconnectConfig;
 import com.swirlds.common.threading.manager.ThreadManager;
 import com.swirlds.logging.legacy.payload.ReconnectDataUsagePayload;
-import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.crypto.CryptoStatic;
 import com.swirlds.platform.metrics.ReconnectMetrics;
 import com.swirlds.platform.network.Connection;
@@ -208,10 +208,8 @@ public class ReconnectLearner {
                 platformContext.getMetrics());
         synchronizer.synchronize();
 
-        final VirtualMap virtualMap = (VirtualMap) synchronizer.getRoot();
-        final Metrics metrics = platformContext.getMetrics();
-        virtualMap.registerMetrics(metrics);
-        final MerkleNodeState merkleNodeState = createStateFromVirtualMap.apply(virtualMap);
+        final MerkleNodeState merkleNodeState = initializeMerkleNodeState(
+                createStateFromVirtualMap, synchronizer.getRoot(), platformContext.getMetrics());
 
         final SignedState newSignedState = new SignedState(
                 platformContext.getConfiguration(),
