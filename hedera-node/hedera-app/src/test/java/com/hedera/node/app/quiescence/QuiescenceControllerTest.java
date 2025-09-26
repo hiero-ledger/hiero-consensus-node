@@ -141,13 +141,11 @@ class QuiescenceControllerTest {
                 "The checking status should not affect the quiescence status");
         controller.platformStatusUpdate(PlatformStatus.RECONNECT_COMPLETE);
         assertEquals(
-                QUIESCE,
-                controller.getQuiescenceStatus(),
-                "The reconnect complete status should reset the controller");
+                QUIESCE, controller.getQuiescenceStatus(), "The reconnect complete status should reset the controller");
     }
 
     @Test
-    void quiescenceBreaking(){
+    void quiescenceBreaking() {
         pendingTransactions.set(1);
         assertEquals(
                 BREAK_QUIESCENCE,
