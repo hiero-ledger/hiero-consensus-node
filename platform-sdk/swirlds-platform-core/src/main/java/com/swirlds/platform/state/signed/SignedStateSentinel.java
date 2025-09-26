@@ -10,7 +10,7 @@ import java.time.Instant;
  */
 public interface SignedStateSentinel {
     /**
-     * Check the maximum age of signed states, and take action if a really old state is observed.
+     * Check the maximum age gap of signed states, and take action if a really old state is observed.
      *
      * @param now the current time
      */
