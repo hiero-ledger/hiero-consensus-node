@@ -72,11 +72,12 @@ public class HookDispatchHandler implements TransactionHandler {
                 final var hook = evmHookStore.getEvmHook(new HookId(deletion.entityId(), deletion.hookId()));
                 validateTrue(hook != null, HOOK_NOT_FOUND);
                 validateTrue(!hook.deleted(), HOOK_DELETED);
+                evmHookStore.remove(op.hookIdToDeleteOrThrow());
                 // Set the next available hook ID of the deleted hook to the record builder. This will be used by
                 // the caller to set the next available hook ID in the account if the deleted hook is the head
-                recordBuilder.nextHookId(hook.nextHookId());
-
-                evmHookStore.removeOrMarkDeleted(op.hookIdToDeleteOrThrow());
+                if (hook.nextHookId() != null) {
+                    recordBuilder.nextHookId(hook.nextHookId());
+                }
             }
             case EXECUTION -> throw new UnsupportedOperationException("EVM hook execution not implemented yet");
         }

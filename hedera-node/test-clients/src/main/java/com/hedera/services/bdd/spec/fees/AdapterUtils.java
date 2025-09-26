@@ -25,6 +25,7 @@ public class AdapterUtils {
         var service = FeeComponents.newBuilder()
                 .setConstant(FEE_MATRICES_CONST)
                 .setRbh(usage.getServiceRbh())
+                .setTv(usage.getServiceTv())
                 .setSbh(usage.getServiceSbh());
         return usages.setNetworkdata(network)
                 .setNodedata(node)

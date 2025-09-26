@@ -121,7 +121,7 @@ public class HapiTokenClaimAirdrop extends HapiTxnOp<HapiTokenClaimAirdrop> {
         final var xferUsageMeta = getCryptoTransferMeta(multiplier, op);
 
         final var accumulator = new UsageAccumulator();
-        cryptoOpsUsage.cryptoTransferUsage(suFrom(svo), xferUsageMeta, baseMeta, accumulator);
+        cryptoOpsUsage.cryptoTransferUsage(suFrom(svo), xferUsageMeta, baseMeta, accumulator, 0, false);
 
         final var feeData = AdapterUtils.feeDataFrom(accumulator);
         return feeData.toBuilder().setSubType(xferUsageMeta.getSubType()).build();
@@ -142,6 +142,6 @@ public class HapiTokenClaimAirdrop extends HapiTxnOp<HapiTokenClaimAirdrop> {
                 numNftRejections++;
             }
         }
-        return new CryptoTransferMeta(multiplier, numTokensInvolved, numTokenRejections, numNftRejections);
+        return new CryptoTransferMeta(multiplier, numTokensInvolved, numTokenRejections, numNftRejections, false);
     }
 }
