@@ -62,7 +62,7 @@ public class PbjStreamHasher implements EventHasher {
      * @return the hash of the event
      */
     @NonNull
-    private Hash hashEvent(
+    public Hash hashEvent(
             @NonNull final EventCore eventCore,
             @NonNull final List<EventDescriptor> parents,
             @NonNull final List<TransactionWrapper> transactions) {
