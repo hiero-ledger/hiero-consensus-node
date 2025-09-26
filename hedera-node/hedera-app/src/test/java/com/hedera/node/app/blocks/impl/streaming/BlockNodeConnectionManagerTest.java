@@ -1564,8 +1564,9 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         connectionManager.shutdown();
 
         assertThat(isActive).isFalse();
-        // Verify no interactions with any thread since workerThread was null
-        verifyNoInteractions(bufferService);
+        // Verify buffer service shutdown is called even with no worker thread
+        verify(bufferService).shutdown();
+        // Verify no interactions with executor and metrics since no worker thread to manage
         verifyNoInteractions(executorService);
         verifyNoInteractions(metrics);
     }
@@ -1834,7 +1835,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
                 new BlockNodeConfig("node13.example.com", 8080, 2), // Priority 2
                 new BlockNodeConfig("node14.example.com", 8080, 3), // Priority 3
                 new BlockNodeConfig("node15.example.com", 8080, 3) // Priority 3
-        );
+                );
 
         // Track which priority 0 nodes get selected over multiple runs
         final Set<String> selectedNodes = new HashSet<>();
@@ -1892,7 +1893,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
                 new BlockNodeConfig("node1.example.com", 8080, 1), // Priority 1
                 new BlockNodeConfig("node2.example.com", 8080, 2), // Priority 2
                 new BlockNodeConfig("node3.example.com", 8080, 3) // Priority 3
-        );
+                );
 
         final BlockNodeConnectionManager manager = createConnectionManager(blockNodes);
 
@@ -1920,7 +1921,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
                 new BlockNodeConfig("node3.example.com", 8080, 0), // Priority 0 - available
                 new BlockNodeConfig("node4.example.com", 8080, 1), // Priority 1
                 new BlockNodeConfig("node5.example.com", 8080, 2) // Priority 2
-        );
+                );
 
         final BlockNodeConnectionManager manager = createConnectionManager(allBlockNodes);
 
@@ -1958,7 +1959,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
                 new BlockNodeConfig("node3.example.com", 8080, 1), // Priority 1 - available
                 new BlockNodeConfig("node4.example.com", 8080, 1), // Priority 1 - available
                 new BlockNodeConfig("node5.example.com", 8080, 2) // Priority 2 - available
-        );
+                );
 
         final BlockNodeConnectionManager manager = createConnectionManager(allBlockNodes);
 
@@ -1987,6 +1988,14 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     }
 
     // Utilities
+
+    private void invoke_createNewGrpcClient(final BlockNodeConfig config) {
+        try {
+            createNewGrpcClientHandle.invoke(connectionManager, config);
+        } catch (final Throwable t) {
+            throw new RuntimeException(t);
+        }
+    }
 
     private BlockNodeConnectionManager createConnectionManager(List<BlockNodeConfig> blockNodes) {
         // Create a custom config provider with the specified block nodes
