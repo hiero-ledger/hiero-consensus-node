@@ -49,4 +49,11 @@ class TokenServiceDefinitionTest {
                         new RpcMethodDefinition<>("claimAirdrop", Transaction.class, TransactionResponse.class),
                         new RpcMethodDefinition<>("cancelAirdrop", Transaction.class, TransactionResponse.class));
     }
+
+    @Test
+    void instanceCantLoadWithoutImplementation() {
+        Assertions.assertThatExceptionOfType(IllegalStateException.class)
+                .isThrownBy(TokenService::getInstance)
+                .isNotNull();
+    }
 }

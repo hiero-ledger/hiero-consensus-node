@@ -26,4 +26,11 @@ class ScheduleServiceDefinitionTest {
                         new RpcMethodDefinition<>("deleteSchedule", Transaction.class, TransactionResponse.class),
                         new RpcMethodDefinition<>("getScheduleInfo", Query.class, Response.class));
     }
+
+    @Test
+    void instanceCantLoadWithoutImplementation() {
+        Assertions.assertThatExceptionOfType(IllegalStateException.class)
+                .isThrownBy(ScheduleService::getInstance)
+                .isNotNull();
+    }
 }

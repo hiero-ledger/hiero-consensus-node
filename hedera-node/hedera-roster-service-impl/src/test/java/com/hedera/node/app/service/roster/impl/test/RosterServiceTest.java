@@ -64,4 +64,11 @@ class RosterServiceTest {
     void testServiceNameReturnsCorrectName() {
         Assertions.assertThat(rosterService.getServiceName()).isEqualTo(RosterService.NAME);
     }
+
+    @Test
+    void instanceCantLoadWithoutImplementation() {
+        Assertions.assertThatExceptionOfType(IllegalStateException.class)
+                .isThrownBy(RosterService::getInstance)
+                .isNotNull();
+    }
 }

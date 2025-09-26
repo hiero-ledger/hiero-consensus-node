@@ -22,4 +22,11 @@ class AddressBookServiceDefinitionTest {
                         new RpcMethodDefinition<>("updateNode", Transaction.class, TransactionResponse.class),
                         new RpcMethodDefinition<>("deleteNode", Transaction.class, TransactionResponse.class));
     }
+
+    @Test
+    void instanceCantLoadWithoutImplementation() {
+        Assertions.assertThatExceptionOfType(IllegalStateException.class)
+                .isThrownBy(AddressBookService::getInstance)
+                .isNotNull();
+    }
 }
