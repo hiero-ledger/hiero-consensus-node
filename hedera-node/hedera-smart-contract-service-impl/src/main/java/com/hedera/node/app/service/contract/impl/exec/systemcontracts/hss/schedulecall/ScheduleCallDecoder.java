@@ -68,9 +68,9 @@ public class ScheduleCallDecoder {
             throw new IllegalStateException("Unexpected function selector");
         }
 
-        final long expirySecond = ConversionUtils.uintToLong(call.get(paramIndex++));
-        final long gasLimit = ConversionUtils.uintToLong(call.get(paramIndex++));
-        final long value = ConversionUtils.uintToLong(call.get(paramIndex++));
+        final long expirySecond = ConversionUtils.asLongLimitedToZeroOrMax(call.get(paramIndex++));
+        final long gasLimit = ConversionUtils.asLongLimitedToZeroOrMax(call.get(paramIndex++));
+        final long value = ConversionUtils.asLongLimitedToZeroOrMax(call.get(paramIndex++));
         final byte[] callData = call.get(paramIndex);
 
         // convert parameters

@@ -51,8 +51,8 @@ public class HasScheduleCapacityTranslator extends AbstractCallTranslator<HssCal
     @Override
     public Call callFrom(@NonNull final HssCallAttempt attempt) {
         final var call = HAS_SCHEDULE_CAPACITY.decodeCall(attempt.inputBytes());
-        final long expiry = ConversionUtils.uintToLong(call.get(EXPIRY_INDEX));
-        final long gasLimit = ConversionUtils.uintToLong(call.get(GAS_LIMIT_INDEX));
+        final long expiry = ConversionUtils.asLongLimitedToZeroOrMax(call.get(EXPIRY_INDEX));
+        final long gasLimit = ConversionUtils.asLongLimitedToZeroOrMax(call.get(GAS_LIMIT_INDEX));
         return new HasScheduleCapacityCall(attempt, expiry, gasLimit);
     }
 }

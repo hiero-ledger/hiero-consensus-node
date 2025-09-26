@@ -143,7 +143,7 @@ public class ConversionUtils {
     }
 
     /**
-     * Given a {@link BigInteger} representing 'unit' value.
+     * Given a {@link BigInteger} representing 'uint' value.
      * Returns either:
      * <br>
      * - its long value
@@ -155,7 +155,7 @@ public class ConversionUtils {
      * @param value the {@link BigInteger}
      * @return long value
      */
-    public static long uintToLong(@NonNull final BigInteger value) {
+    public static long asLongLimitedToZeroOrMax(@NonNull final BigInteger value) {
         requireNonNull(value);
         return ZERO.max(MAX_LONG_VALUE.min(value)).longValueExact();
     }
