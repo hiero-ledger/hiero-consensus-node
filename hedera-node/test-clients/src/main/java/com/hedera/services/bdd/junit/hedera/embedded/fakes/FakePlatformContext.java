@@ -25,6 +25,7 @@ import org.hiero.base.crypto.config.CryptoConfig;
 import org.hiero.consensus.model.node.NodeId;
 
 public class FakePlatformContext implements PlatformContext {
+
     public static final Configuration PLATFORM_CONFIG = ConfigurationBuilder.create()
             .withConfigDataType(MetricsConfig.class)
             .withConfigDataType(CryptoConfig.class)

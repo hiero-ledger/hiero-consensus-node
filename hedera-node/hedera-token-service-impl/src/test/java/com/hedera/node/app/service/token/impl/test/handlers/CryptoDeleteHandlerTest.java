@@ -10,8 +10,8 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_PAYER_ACCOUNT_I
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSFER_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TRANSACTION_REQUIRES_ZERO_TOKEN_BALANCES;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TRANSFER_ACCOUNT_SAME_AS_DELETE_ACCOUNT;
-import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_KEY;
-import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ALIASES_KEY;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_STATE_ID;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ALIASES_STATE_ID;
 import static com.hedera.node.app.spi.fixtures.Assertions.assertThrowsPreCheck;
 import static com.hedera.node.app.spi.fixtures.workflows.ExceptionConditions.responseCode;
 import static org.assertj.core.api.Assertions.assertThatNoException;
@@ -278,7 +278,7 @@ class CryptoDeleteHandlerTest extends CryptoHandlerTestBase {
 
     @Test
     void happyPathWorks() {
-        given(writableStates.<ProtoBytes, AccountID>get(ALIASES_KEY)).willReturn(writableAliases);
+        given(writableStates.<ProtoBytes, AccountID>get(ALIASES_STATE_ID)).willReturn(writableAliases);
         updateWritableStore(
                 Map.of(accountNum, account, deleteAccountNum, deleteAccount, transferAccountNum, transferAccount));
 
@@ -392,7 +392,7 @@ class CryptoDeleteHandlerTest extends CryptoHandlerTestBase {
     @Test
     void happyPathWithEcdsaKeyWorks() {
         writableAliases = writableAliasesStateWithEcdsaKey();
-        given(writableStates.<ProtoBytes, AccountID>get(ALIASES_KEY)).willReturn(writableAliases);
+        given(writableStates.<ProtoBytes, AccountID>get(ALIASES_STATE_ID)).willReturn(writableAliases);
 
         deleteAccount =
                 deleteAccount.copyBuilder().alias(ecdsaAlias.aliasOrThrow()).build();
@@ -401,7 +401,7 @@ class CryptoDeleteHandlerTest extends CryptoHandlerTestBase {
                 .value(idFactory.newAccountId(deleteAccountNum), deleteAccount)
                 .value(idFactory.newAccountId(transferAccountNum), transferAccount)
                 .build();
-        given(writableStates.<AccountID, Account>get(ACCOUNTS_KEY)).willReturn(writableAccounts);
+        given(writableStates.<AccountID, Account>get(ACCOUNTS_STATE_ID)).willReturn(writableAccounts);
         writableStore = new WritableAccountStore(writableStates, entityCounters);
 
         givenTxnWith(deleteAccountId, transferAccountId);
@@ -436,7 +436,7 @@ class CryptoDeleteHandlerTest extends CryptoHandlerTestBase {
             emptyStateBuilder.value(idFactory.newAccountId(entry.getKey()), entry.getValue());
         }
         readableAccounts = emptyStateBuilder.build();
-        given(readableStates.<AccountID, Account>get(ACCOUNTS_KEY)).willReturn(readableAccounts);
+        given(readableStates.<AccountID, Account>get(ACCOUNTS_STATE_ID)).willReturn(readableAccounts);
         readableStore = new ReadableAccountStoreImpl(readableStates, readableEntityCounters);
     }
 
@@ -446,7 +446,7 @@ class CryptoDeleteHandlerTest extends CryptoHandlerTestBase {
             emptyStateBuilder.value(idFactory.newAccountId(entry.getKey()), entry.getValue());
         }
         writableAccounts = emptyStateBuilder.build();
-        given(writableStates.<AccountID, Account>get(ACCOUNTS_KEY)).willReturn(writableAccounts);
+        given(writableStates.<AccountID, Account>get(ACCOUNTS_STATE_ID)).willReturn(writableAccounts);
         writableStore = new WritableAccountStore(writableStates, entityCounters);
     }
 
