@@ -89,7 +89,7 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
     private final ContainerControlServiceGrpc.ContainerControlServiceBlockingStub containerControlBlockingStub;
 
     /** The gRPC service used to communicate with the consensus node */
-    private NodeCommunicationServiceGrpc.NodeCommunicationServiceBlockingStub nodeCommBlockingStub;
+    protected NodeCommunicationServiceGrpc.NodeCommunicationServiceBlockingStub nodeCommBlockingStub;
 
     /** The configuration of this node */
     private final ContainerNodeConfiguration nodeConfiguration;

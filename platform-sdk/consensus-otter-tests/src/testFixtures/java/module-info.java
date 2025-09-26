@@ -29,7 +29,6 @@ module org.hiero.otter.fixtures {
     requires com.swirlds.component.framework;
     requires com.swirlds.config.extensions;
     requires com.swirlds.platform.core.test.fixtures;
-    requires org.hiero.consensus.event.creator.instrumented;
     requires org.hiero.consensus.utility;
     requires com.fasterxml.jackson.core;
     requires com.fasterxml.jackson.databind;
@@ -57,6 +56,4 @@ module org.hiero.otter.fixtures {
     exports org.hiero.otter.fixtures.util;
     exports org.hiero.otter.fixtures.container.utils to
             org.hiero.consensus.otter.docker.app;
-
-    uses org.hiero.consensus.event.creator.instrumented.InstrumentedEventCreator;
 }

@@ -8,6 +8,7 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.otter.fixtures.InstrumentedNode;
+import org.hiero.otter.fixtures.container.proto.PingRequest;
 import org.testcontainers.containers.Network;
 import org.testcontainers.images.builder.ImageFromDockerfile;
 
@@ -39,8 +40,12 @@ public class InstrumentedContainerNode extends ContainerNode implements Instrume
     /**
      * {@inheritDoc}
      */
+    @SuppressWarnings("ResultOfMethodCallIgnored")
     @Override
     public void ping(@NonNull final String message) {
-        log.warn("Pinging is not implemented yet.");
+        throwIfNotIn(LifeCycle.RUNNING, "Cannot ping a node that is not running");
+        log.info("Sending ping '{}' to node {}", message, selfId);
+        final PingRequest request = PingRequest.newBuilder().setMessage(message).build();
+        nodeCommBlockingStub.ping(request);
     }
 }

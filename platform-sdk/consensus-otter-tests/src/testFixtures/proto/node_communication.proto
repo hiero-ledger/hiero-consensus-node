@@ -200,6 +200,12 @@ message SyntheticBottleneckRequest {
   uint64 sleep_millis_per_round = 1;
 }
 
+// Simple ping request message.
+message PingRequest {
+  // The ping message
+  string message = 1;
+}
+
 // Service definition for communicating with the consensus node.
 service NodeCommunicationService {
 
@@ -212,4 +218,7 @@ service NodeCommunicationService {
 
   // RPC to change the synthetic bottleneck of the handle thread.
   rpc SyntheticBottleneckUpdate(SyntheticBottleneckRequest) returns (google.protobuf.Empty);
+
+  // Simple ping method to check connectivity.
+  rpc Ping(PingRequest) returns (google.protobuf.Empty);
 }
