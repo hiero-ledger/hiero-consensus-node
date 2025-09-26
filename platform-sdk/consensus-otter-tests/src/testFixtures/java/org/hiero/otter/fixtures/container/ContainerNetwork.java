@@ -135,7 +135,7 @@ public class ContainerNetwork extends AbstractNetwork {
                     .filter(receiver -> !receiver.equals(sender))
                     .map(receiver -> networkBehavior.getProxyEndpoint(sender, receiver))
                     .toList();
-            sender.configuration().set(GossipConfig_.ENDPOINT_OVERRIDES, endpointOverrides);
+            sender.configuration().setNetworkEndpoints(GossipConfig_.ENDPOINT_OVERRIDES, endpointOverrides);
         }
     }
 

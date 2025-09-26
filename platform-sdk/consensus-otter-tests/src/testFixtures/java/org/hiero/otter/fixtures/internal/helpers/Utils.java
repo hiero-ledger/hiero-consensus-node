@@ -3,8 +3,6 @@ package org.hiero.otter.fixtures.internal.helpers;
 
 import static java.util.Objects.requireNonNull;
 
-import com.hedera.hapi.node.base.SemanticVersion;
-import com.hedera.node.config.converter.SemanticVersionConverter;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.sources.SimpleConfigSource;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
@@ -65,7 +63,6 @@ public class Utils {
     public static Configuration createConfiguration(@NonNull final Map<String, String> overriddenProperties) {
         requireNonNull(overriddenProperties, "Overridden properties must not be null");
         return new TestConfigBuilder()
-                .withConverter(SemanticVersion.class, new SemanticVersionConverter())
                 .withSource(new SimpleConfigSource(overriddenProperties))
                 .getOrCreateConfig();
     }
