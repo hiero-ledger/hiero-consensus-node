@@ -32,7 +32,6 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepForBlockPeriod
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitUntilStartOfNextStakingPeriod;
 import static com.hedera.services.bdd.spec.utilops.streams.assertions.SelectedItemsAssertion.SELECTED_ITEMS_KEY;
 import static com.hedera.services.bdd.suites.HapiSuite.CIVILIAN_PAYER;
-import static com.hedera.services.bdd.suites.HapiSuite.FUNDING;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.NODE_REWARD;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
@@ -664,26 +663,7 @@ public class RepeatableHip1064Tests {
                 nodeUpdate("0").declineReward(false),
                 sleepForBlockPeriod(),
                 // Hack to make nodes appear active
-                mutateSingleton(TokenService.NAME, NODE_REWARDS_STATE_ID, (NodeRewards nodeRewards) -> nodeRewards
-                        .copyBuilder()
-                        .nodeActivities(List.of(
-                                NodeActivity.newBuilder()
-                                        .nodeId(0)
-                                        .numMissedJudgeRounds(0)
-                                        .build(),
-                                NodeActivity.newBuilder()
-                                        .nodeId(1)
-                                        .numMissedJudgeRounds(0)
-                                        .build(),
-                                NodeActivity.newBuilder()
-                                        .nodeId(2)
-                                        .numMissedJudgeRounds(0)
-                                        .build(),
-                                NodeActivity.newBuilder()
-                                        .nodeId(3)
-                                        .numMissedJudgeRounds(0)
-                                        .build()))
-                        .build()),
+                setAllNodesActive(),
                 cryptoTransfer(tinyBarsFromTo(GENESIS, NODE_REWARD, ONE_MILLION_HBARS)),
                 // Move into a new staking period
                 waitUntilStartOfNextStakingPeriod(1),
@@ -691,11 +671,9 @@ public class RepeatableHip1064Tests {
                 doingContextual(spec -> spec.repeatableEmbeddedHederaOrThrow().handleRoundWithNoUserTransactions()),
                 sleepForBlockPeriod(),
                 doingContextual(spec -> spec.repeatableEmbeddedHederaOrThrow().handleRoundWithNoUserTransactions()),
-                sleepForBlockPeriod(),
-                cryptoTransfer(tinyBarsFromTo(GENESIS, FUNDING, 1)),
                 exposeLatestBlock(
                         b -> {
-                            final var rewardPayment = findFirst(b, CRYPTO_TRANSFER);
+                            final var rewardPayment = findLast(b, CRYPTO_TRANSFER);
                             assertTrue(
                                     rewardPayment.isPresent(), "Node rewards payment should be present in the block");
                             final var rewardPaymentTx =
@@ -705,10 +683,33 @@ public class RepeatableHip1064Tests {
                                             .anyMatch(aa -> aa.amount() < 0
                                                     && aa.accountIDOrThrow().accountNumOrThrow() == 801L);
                             assertTrue(hasNodeRewardDebit, "Node rewards payment should be present in the block");
-                            final var nodeStakeUpdate = findFirst(b, NODE_STAKE_UPDATE);
+                            final var nodeStakeUpdate = findLast(b, NODE_STAKE_UPDATE);
                             assertTrue(nodeStakeUpdate.isPresent(), "Node stake update should be present in the block");
                         },
                         Duration.ofSeconds(1)));
+    }
+
+    private static SpecOperation setAllNodesActive() {
+        return mutateSingleton(TokenService.NAME, NODE_REWARDS_STATE_ID, (NodeRewards nodeRewards) -> nodeRewards
+                .copyBuilder()
+                .nodeActivities(List.of(
+                        NodeActivity.newBuilder()
+                                .nodeId(0)
+                                .numMissedJudgeRounds(0)
+                                .build(),
+                        NodeActivity.newBuilder()
+                                .nodeId(1)
+                                .numMissedJudgeRounds(0)
+                                .build(),
+                        NodeActivity.newBuilder()
+                                .nodeId(2)
+                                .numMissedJudgeRounds(0)
+                                .build(),
+                        NodeActivity.newBuilder()
+                                .nodeId(3)
+                                .numMissedJudgeRounds(0)
+                                .build()))
+                .build());
     }
 
     private static Optional<TransactionParts> findFirst(
@@ -719,6 +720,18 @@ public class RepeatableHip1064Tests {
                 .map(TransactionParts::from)
                 .filter(parts -> parts.function() == function)
                 .findFirst();
+    }
+
+    private static Optional<TransactionParts> findLast(
+            @NonNull final Block b, @NonNull final HederaFunctionality function) {
+        final var allItems = b.items().stream()
+                .filter(BlockItem::hasSignedTransaction)
+                .map(BlockItem::signedTransactionOrThrow)
+                .map(TransactionParts::from)
+                .filter(parts -> parts.function() == function)
+                .toList();
+        System.out.println("All items matching " + function + ": " + allItems);
+        return allItems.isEmpty() ? Optional.empty() : Optional.of(allItems.getLast());
     }
 
     static SpecOperation exposeLatestBlock(Consumer<Block> cb, Duration after) {
