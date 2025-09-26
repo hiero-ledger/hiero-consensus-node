@@ -123,8 +123,7 @@ public class AtomicBatchTokenAirdropTest {
     @HapiTest
     @DisplayName("Can atomic airdrop fungible token to a contract that is already associated to it")
     public Stream<DynamicTest> atomicAirdropToContract(
-            @NonNull @Account(maxAutoAssociations = 10, tinybarBalance = 10_000L * ONE_MILLION_HBARS)
-                    final SpecAccount sender,
+            @NonNull @Account(maxAutoAssociations = 10, tinybarBalance = ONE_MILLION_HBARS) final SpecAccount sender,
             @NonNull @Contract(contract = "AssociateContract", isImmutable = true, creationGas = 3_000_000)
                     final SpecContract receiverContract,
             @NonNull @FungibleToken(initialSupply = 1000L) final SpecFungibleToken token) {
@@ -188,8 +187,8 @@ public class AtomicBatchTokenAirdropTest {
     @DisplayName("Can cancel atomic airdrop of fungible token")
     public Stream<DynamicTest> canCancelAtomicAirdropOfFungibleToken(
             @NonNull @FungibleToken(initialSupply = 1_000L) final SpecFungibleToken token,
-            @NonNull @Account(tinybarBalance = 10_000L * ONE_MILLION_HBARS) final SpecAccount sender,
-            @NonNull @Account(maxAutoAssociations = 0) final SpecAccount receiver) {
+            @NonNull @Account(tinybarBalance = ONE_MILLION_HBARS) final SpecAccount sender,
+            @NonNull @Account() final SpecAccount receiver) {
         return hapiTest(
                 cryptoCreate(DEFAULT_BATCH_OPERATOR).balance(ONE_HBAR),
                 sender.associateTokens(token),
@@ -327,20 +326,25 @@ public class AtomicBatchTokenAirdropTest {
             @NonNull @Account(tinybarBalance = ONE_HBAR) final SpecAccount sender) {
         return hapiTest(
                 cryptoCreate(DEFAULT_BATCH_OPERATOR).balance(ONE_HBAR),
-                sender.authorizeContract(tokenReject), withOpContext((spec, opLog) -> {
-            allRunFor(
-                    spec,
-                    sender.associateTokens(token),
-                    token.treasury().transferUnitsTo(sender, 100, token),
-                    token.treasury().getBalance().andAssert(balance -> balance.hasTokenBalance(token.name(), 900L)));
-            final var tokenAddress = token.addressOn(spec.targetNetworkOrThrow());
-            allRunFor(
-                    spec,
-                    tokenReject
-                            .call("rejectTokens", sender, new Address[] {tokenAddress}, new Address[0])
-                            .wrappedInBatchOperation(DEFAULT_BATCH_OPERATOR),
-                    sender.getBalance().andAssert(balance -> balance.hasTokenBalance(token.name(), 0L)),
-                    token.treasury().getBalance().andAssert(balance -> balance.hasTokenBalance(token.name(), 1000L)));
-        }));
+                sender.authorizeContract(tokenReject),
+                withOpContext((spec, opLog) -> {
+                    allRunFor(
+                            spec,
+                            sender.associateTokens(token),
+                            token.treasury().transferUnitsTo(sender, 100, token),
+                            token.treasury()
+                                    .getBalance()
+                                    .andAssert(balance -> balance.hasTokenBalance(token.name(), 900L)));
+                    final var tokenAddress = token.addressOn(spec.targetNetworkOrThrow());
+                    allRunFor(
+                            spec,
+                            tokenReject
+                                    .call("rejectTokens", sender, new Address[] {tokenAddress}, new Address[0])
+                                    .wrappedInBatchOperation(DEFAULT_BATCH_OPERATOR),
+                            sender.getBalance().andAssert(balance -> balance.hasTokenBalance(token.name(), 0L)),
+                            token.treasury()
+                                    .getBalance()
+                                    .andAssert(balance -> balance.hasTokenBalance(token.name(), 1000L)));
+                }));
     }
 }
