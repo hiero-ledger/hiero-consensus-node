@@ -28,11 +28,11 @@ abstract contract HederaScheduleService_HIP1215 {
     }
 
     /// Allows for the creation of a schedule transaction to schedule any contract call for a given smart contract
-    /// address, with a sender for the scheduled transaction, expiration time, the gas limit for the future call,
+    /// address, with a payer for the scheduled transaction, expiration time, the gas limit for the future call,
     /// the value to send with that call and the call data to use.
     /// Waits until the consensus second is not before `expirySecond` to execute.
     /// @param to the address of the smart contract for the future call
-    /// @param sender an account identifier of a `payer` for the scheduled transaction
+    /// @param payer an account identifier of a `payer` for the scheduled transaction
     /// @param expirySecond an expiration time of the future call
     /// @param gasLimit a maximum limit to the amount of gas to use for future call
     /// @param value an amount of tinybar sent via this future contract call
@@ -41,19 +41,19 @@ abstract contract HederaScheduleService_HIP1215 {
     /// arguments being passed to the function.
     /// @return responseCode The response code for the status of the request. SUCCESS is 22.
     /// @return scheduleAddress The address of the newly created schedule transaction.
-    function scheduleCallWithSender(address to, address sender, uint256 expirySecond, uint256 gasLimit, uint64 value, bytes memory callData)
+    function scheduleCallWithPayer(address to, address payer, uint256 expirySecond, uint256 gasLimit, uint64 value, bytes memory callData)
     internal returns (int64 responseCode, address scheduleAddress) {
         (bool success, bytes memory result) = HSS.call(
-            abi.encodeWithSelector(IHederaScheduleService_HIP1215.scheduleCallWithSender.selector, to, sender, expirySecond, gasLimit, value, callData));
+            abi.encodeWithSelector(IHederaScheduleService_HIP1215.scheduleCallWithPayer.selector, to, payer, expirySecond, gasLimit, value, callData));
         (responseCode, scheduleAddress) = success ? abi.decode(result, (int64, address)) : (int64(HederaResponseCodes.UNKNOWN), address(0));
     }
 
     /// Allows for the creation of a schedule transaction to schedule any contract call for a given smart contract
-    /// address, with a sender for the scheduled transaction, expiration time, the gas limit for the future call,
+    /// address, with a payer for the scheduled transaction, expiration time, the gas limit for the future call,
     /// the value to send with that call and the call data to use.
     /// Executes as soon as the payer signs (unless consensus time is already past the `expirySecond`, of course).
     /// @param to the address of the smart contract for the future call
-    /// @param sender an account identifier of a `payer` for the scheduled transaction
+    /// @param payer an account identifier of a `payer` for the scheduled transaction
     /// @param expirySecond an expiration time of the future call
     /// @param gasLimit a maximum limit to the amount of gas to use for future call
     /// @param value an amount of tinybar sent via this future contract call
@@ -62,10 +62,10 @@ abstract contract HederaScheduleService_HIP1215 {
     /// arguments being passed to the function.
     /// @return responseCode The response code for the status of the request. SUCCESS is 22.
     /// @return scheduleAddress The address of the newly created schedule transaction.
-    function executeCallOnSenderSignature(address to, address sender, uint256 expirySecond, uint256 gasLimit, uint64 value, bytes memory callData)
+    function executeCallOnPayerSignature(address to, address payer, uint256 expirySecond, uint256 gasLimit, uint64 value, bytes memory callData)
     internal returns (int64 responseCode, address scheduleAddress) {
         (bool success, bytes memory result) = HSS.call(
-            abi.encodeWithSelector(IHederaScheduleService_HIP1215.executeCallOnSenderSignature.selector, to, sender, expirySecond, gasLimit, value, callData));
+            abi.encodeWithSelector(IHederaScheduleService_HIP1215.executeCallOnPayerSignature.selector, to, payer, expirySecond, gasLimit, value, callData));
         (responseCode, scheduleAddress) = success ? abi.decode(result, (int64, address)) : (int64(HederaResponseCodes.UNKNOWN), address(0));
     }
 

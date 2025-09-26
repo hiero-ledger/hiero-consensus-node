@@ -3,7 +3,6 @@ package org.hiero.otter.fixtures;
 
 import com.swirlds.component.framework.schedulers.builders.TaskSchedulerConfiguration;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.platform.gossip.config.NetworkEndpoint;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.Path;
 import java.time.Duration;
@@ -100,7 +99,7 @@ public interface NodeConfiguration {
      * @return this {@code NodeConfiguration} instance for method chaining
      */
     @NonNull
-    NodeConfiguration setStrings(@NonNull String key, List<String> values);
+    NodeConfiguration set(@NonNull String key, List<String> values);
 
     /**
      * Updates a single property of the configuration to a file path. Can only be invoked when the
@@ -112,17 +111,6 @@ public interface NodeConfiguration {
      */
     @NonNull
     NodeConfiguration set(@NonNull String key, @NonNull Path path);
-
-    /**
-     * Updates a single property of the configuration to a {@link List} of {@link NetworkEndpoint}.
-     * Can only be invoked when the node is not running.
-     *
-     * @param key the key of the property
-     * @param endpoints the list of network endpoints to set
-     * @return this {@code NodeConfiguration} instance for method chaining
-     */
-    @NonNull
-    NodeConfiguration setNetworkEndpoints(@NonNull String key, @NonNull List<NetworkEndpoint> endpoints);
 
     /**
      * Updates a single property of the configuration to a {@link TaskSchedulerConfiguration}. Can
