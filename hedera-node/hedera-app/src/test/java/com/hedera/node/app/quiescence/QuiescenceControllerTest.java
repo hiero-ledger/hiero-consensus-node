@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.quiescence;
 
+import static org.hiero.consensus.model.quiescence.QuiescenceCommand.BREAK_QUIESCENCE;
 import static org.hiero.consensus.model.quiescence.QuiescenceCommand.DONT_QUIESCE;
 import static org.hiero.consensus.model.quiescence.QuiescenceCommand.QUIESCE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -147,7 +148,16 @@ class QuiescenceControllerTest {
 
     @Test
     void quiescenceBreaking(){
-        //TODO
+        pendingTransactions.set(1);
+        assertEquals(
+                BREAK_QUIESCENCE,
+                controller.getQuiescenceStatus(),
+                "If there are pending transactions, and no pipeline transactions, we should be break quiescence");
+        controller.onPreHandle(createEvent(TXN_TRANSFER));
+        assertEquals(
+                DONT_QUIESCE,
+                controller.getQuiescenceStatus(),
+                "Once there are pipeline transactions, pending transactions should not matter");
     }
 
     private Block createBlock(final TransactionBody... txns) {
