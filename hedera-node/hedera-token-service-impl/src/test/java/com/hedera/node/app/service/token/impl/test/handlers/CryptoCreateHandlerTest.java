@@ -56,10 +56,12 @@ import com.hedera.node.app.service.token.impl.handlers.CryptoCreateHandler;
 import com.hedera.node.app.service.token.impl.test.handlers.util.CryptoHandlerTestBase;
 import com.hedera.node.app.service.token.impl.validators.CryptoCreateValidator;
 import com.hedera.node.app.service.token.records.CryptoCreateStreamBuilder;
+import com.hedera.node.app.service.token.records.HookDispatchStreamBuilder;
 import com.hedera.node.app.spi.fees.FeeCalculatorFactory;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.fixtures.fees.FakeFeeCalculator;
+import com.hedera.node.app.spi.fixtures.ids.FakeEntityIdFactoryImpl;
 import com.hedera.node.app.spi.fixtures.workflows.FakePreHandleContext;
 import com.hedera.node.app.spi.ids.EntityNumGenerator;
 import com.hedera.node.app.spi.ids.WritableEntityCounters;
@@ -101,6 +103,9 @@ class CryptoCreateHandlerTest extends CryptoHandlerTestBase {
     private CryptoCreateStreamBuilder recordBuilder;
 
     @Mock
+    private HookDispatchStreamBuilder hookDispatchStreamBuilder;
+
+    @Mock
     private HandleContext.SavepointStack stack;
 
     @Mock
@@ -124,6 +129,8 @@ class CryptoCreateHandlerTest extends CryptoHandlerTestBase {
     @Mock
     private PureChecksContext pureChecksContext;
 
+    private FakeEntityIdFactoryImpl idFactory = new FakeEntityIdFactoryImpl(0, 0);
+
     private CryptoCreateHandler subject;
 
     private TransactionBody txn;
@@ -146,7 +153,7 @@ class CryptoCreateHandlerTest extends CryptoHandlerTestBase {
         lenient().when(handleContext.entityNumGenerator()).thenReturn(entityNumGenerator);
 
         given(handleContext.networkInfo()).willReturn(networkInfo);
-        subject = new CryptoCreateHandler(new CryptoCreateValidator(), null);
+        subject = new CryptoCreateHandler(new CryptoCreateValidator(), null, idFactory);
     }
 
     @Test

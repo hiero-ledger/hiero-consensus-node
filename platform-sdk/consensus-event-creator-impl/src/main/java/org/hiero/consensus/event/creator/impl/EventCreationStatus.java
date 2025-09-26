@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.event.creator.impl;
 
+import org.hiero.consensus.event.creator.EventCreationConfig;
+
 /**
  * Describes various status that the event creator may be in.
  */
@@ -34,7 +36,7 @@ public enum EventCreationStatus {
     /**
      * Event creation is not permitted because this node is currently lagging behind median latest round of peers by
      * more than configured amount of rounds
-     * {@link org.hiero.consensus.event.creator.impl.config.EventCreationConfig#maxAllowedSyncLag()}
+     * {@link EventCreationConfig#maxAllowedSyncLag()}
      */
     ROUND_LAG,
     /**

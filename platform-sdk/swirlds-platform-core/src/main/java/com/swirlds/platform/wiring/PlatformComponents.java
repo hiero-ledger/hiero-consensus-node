@@ -43,7 +43,7 @@ import com.swirlds.platform.state.signed.StateGarbageCollector;
 import com.swirlds.platform.state.signed.StateSignatureCollector;
 import com.swirlds.platform.state.signer.StateSigner;
 import com.swirlds.platform.state.snapshot.StateSnapshotManager;
-import com.swirlds.platform.system.status.StatusStateMachine;
+import com.swirlds.platform.system.PlatformMonitor;
 import com.swirlds.platform.wiring.components.ConsensusWiring;
 import com.swirlds.platform.wiring.components.GossipWiring;
 import com.swirlds.platform.wiring.components.PcesReplayerWiring;
@@ -54,7 +54,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Queue;
 import org.hiero.consensus.crypto.EventHasher;
-import org.hiero.consensus.event.creator.impl.EventCreationManager;
+import org.hiero.consensus.event.creator.EventCreatorModule;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
@@ -87,7 +87,7 @@ public record PlatformComponents(
         ComponentWiring<EventSignatureValidator, PlatformEvent> eventSignatureValidatorWiring,
         ComponentWiring<OrphanBuffer, List<PlatformEvent>> orphanBufferWiring,
         ConsensusWiring consensusEngineWiring,
-        ComponentWiring<EventCreationManager, PlatformEvent> eventCreationManagerWiring,
+        ComponentWiring<EventCreatorModule, PlatformEvent> eventCreationManagerWiring,
         ComponentWiring<InlinePcesWriter, PlatformEvent> pcesInlineWriterWiring,
         ComponentWiring<TransactionPrehandler, Queue<ScopedSystemTransaction<StateSignatureTransaction>>>
                 applicationTransactionPrehandlerWiring,
@@ -100,7 +100,7 @@ public record PlatformComponents(
         ComponentWiring<StateHasher, ReservedSignedState> stateHasherWiring,
         ComponentWiring<AppNotifier, Void> notifierWiring,
         ComponentWiring<PlatformPublisher, Void> platformPublisherWiring,
-        ComponentWiring<StatusStateMachine, PlatformStatus> statusStateMachineWiring,
+        ComponentWiring<PlatformMonitor, PlatformStatus> platformMonitorWiring,
         ComponentWiring<BranchDetector, PlatformEvent> branchDetectorWiring,
         ComponentWiring<BranchReporter, Void> branchReporterWiring) {
 
@@ -143,7 +143,7 @@ public record PlatformComponents(
         } else {
             pcesInlineWriterWiring.bind(builder::buildInlinePcesWriter);
         }
-        eventCreationManagerWiring.bind(builder::buildEventCreationManager);
+        eventCreationManagerWiring.bind(builder::buildEventCreator);
         stateSignatureCollectorWiring.bind(stateSignatureCollector);
         eventWindowManagerWiring.bind(eventWindowManager);
         applicationTransactionPrehandlerWiring.bind(builder::buildTransactionPrehandler);
@@ -160,7 +160,7 @@ public record PlatformComponents(
         notifierWiring.bind(notifier);
         platformPublisherWiring.bind(platformPublisher);
         stateGarbageCollectorWiring.bind(builder::buildStateGarbageCollector);
-        statusStateMachineWiring.bind(builder::buildStatusStateMachine);
+        platformMonitorWiring.bind(builder::buildPlatformMonitor);
         signedStateSentinelWiring.bind(builder::buildSignedStateSentinel);
         gossipWiring.bind(builder.buildGossip());
         branchDetectorWiring.bind(builder::buildBranchDetector);
@@ -200,8 +200,8 @@ public record PlatformComponents(
                 new ComponentWiring<>(model, OrphanBuffer.class, config.orphanBuffer());
         final ConsensusWiring consensusEngineWiring = ConsensusWiring.create(model, config.consensusEngine());
 
-        final ComponentWiring<EventCreationManager, PlatformEvent> eventCreationManagerWiring =
-                new ComponentWiring<>(model, EventCreationManager.class, config.eventCreationManager());
+        final ComponentWiring<EventCreatorModule, PlatformEvent> eventCreationManagerWiring =
+                new ComponentWiring<>(model, EventCreatorModule.class, config.eventCreationManager());
 
         final ComponentWiring<TransactionPrehandler, Queue<ScopedSystemTransaction<StateSignatureTransaction>>>
                 applicationTransactionPrehandlerWiring = new ComponentWiring<>(
@@ -277,8 +277,8 @@ public record PlatformComponents(
                 new ComponentWiring<>(model, StateGarbageCollector.class, config.stateGarbageCollector());
         final ComponentWiring<SignedStateSentinel, Void> signedStateSentinelWiring =
                 new ComponentWiring<>(model, SignedStateSentinel.class, config.signedStateSentinel());
-        final ComponentWiring<StatusStateMachine, PlatformStatus> statusStateMachineWiring =
-                new ComponentWiring<>(model, StatusStateMachine.class, config.statusStateMachine());
+        final ComponentWiring<PlatformMonitor, PlatformStatus> platformMonitorWiring =
+                new ComponentWiring<>(model, PlatformMonitor.class, config.platformMonitor());
 
         final ComponentWiring<BranchDetector, PlatformEvent> branchDetectorWiring =
                 new ComponentWiring<>(model, BranchDetector.class, config.branchDetector());
@@ -317,7 +317,7 @@ public record PlatformComponents(
                 stateHasherWiring,
                 notifierWiring,
                 platformPublisherWiring,
-                statusStateMachineWiring,
+                platformMonitorWiring,
                 branchDetectorWiring,
                 branchReporterWiring);
     }
