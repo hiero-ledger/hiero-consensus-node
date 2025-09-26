@@ -292,3 +292,108 @@ message FilteredItemHash {
      */
     uint64 filtered_path = 3;
 }
+
+/** Identifer for each sub-tree of the block root fixed size tree */
+enum SubMerkleTree {
+  ITEM_TYPE_UNSPECIFIED = 0;  // Default value, required best practice
+  CONSENSUS_HEADER = 1;
+  INPUT_ITEM = 2;
+  OUTPUT_ITEM = 3;
+  STATE_CHANGE_ITEM = 4;
+  TRACE_ITEM = 5;
+  FUTURE_1 = 6; // these place holders for future use sub trees, will be renamed if they are used later
+  FUTURE_2 = 7;
+  FUTURE_3 = 8;
+  FUTURE_4 = 9;
+  FUTURE_5 = 10;
+  FUTURE_6 = 11;
+  FUTURE_7 = 12;
+  FUTURE_8 = 13;
+}
+
+/**
+ * Verification data for an item filtered from the stream.
+ *
+ * Items of this type SHALL NOT be present in the full (unfiltered) block
+ * stream.<br/>
+ * Items of this type SHALL replace any item removed from a partial (filtered)
+ * block stream.<br/>
+ * Presence of `filtered_item` entries SHALL NOT prevent verification
+ * of a block, but MAY preclude verification or reconstruction
+ * of consensus state.<br/>
+ */
+message FilteredSingleItem {
+  /**
+   * A hash of an item filtered from the stream.
+   * <p>
+   * The hash algorithm used MUST match the hash algorithm specified in
+   * the block header for the containing block.<br/>
+   * This field is REQUIRED.
+   */
+  bytes item_hash = 1;
+
+  /**
+   * This tells you which of the block merkle sub trees to add the item hash into
+   * <p>
+   * This REQUIRED field SHALL describe the type of filtered item
+   */
+  SubMerkleTree tree = 2;
+}
+
+/**
+ * Filtered Block Item representing a complete block sub merkle tree that has been
+ * filtered out and replaced by a hash.
+ */
+message FilteredMerkleSubTree {
+  /**
+   * Root hash of a sub-merkle tree
+   */
+  bytes subtree_root_hash = 1;
+
+  /**
+   * This tells you which of the block merkle sub trees the hash is the root for
+   */
+  SubMerkleTree tree = 2;
+
+  /**
+   * The number of leaves filtered by this FilteredMerkleSubTree.
+   */
+  uint32 filtered_leaf_count = 3;
+}
+
+/**
+ * Verification data for an item redacted from the stream.
+ *
+ * Presence of `redacted_item` entries SHALL NOT prevent verification
+ * of a block.<br/>
+ */
+message RedactedItem {
+  /**
+   * A hash of an item redacted from the stream.
+   * <p>
+   * The hash algorithm used MUST match the hash algorithm specified in
+   * the block header for the containing block.<br/>
+   * This field is REQUIRED.
+   */
+  bytes item_hash = 1;
+
+  /**
+   * When thise redacted item is a SignedTransaction, this value is the hash of that SignedTransaction
+   * directly, without the BlockItem wrapper. This is needed for event reconstruction. The
+   * signed_transaction_hash will only be set for event transactions, synthetic transactions will have
+   * empty value.
+   * <p>
+   * The hash algorithm used MUST match the hash algorithm specified in
+   * the block header for the containing block.<br/>
+   * This value SHALL NOT be provided if the original item MUST NOT be included in an
+   * event hash.
+   */
+  bytes signed_transaction_hash = 2;
+
+  /**
+   * This tells you which of the block merkle sub trees to add the item hash into
+   * <p>
+   * This REQUIRED field SHALL describe the type of filtered item
+   */
+  SubMerkleTree tree = 3;
+}
