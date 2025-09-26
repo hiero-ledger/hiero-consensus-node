@@ -27,6 +27,23 @@ import java.util.regex.Pattern;
  * Utility class for working with the HAPI. We might move this to the HAPI project.
  */
 public class HapiUtils {
+    /**
+     * A {@link Comparator} for {@link SemanticVersion}s that ignores
+     * any semver part that cannot be parsed as an integer.
+     */
+    public static final Comparator<SemanticVersion> SEMANTIC_VERSION_COMPARATOR =
+            Comparator.nullsFirst(Comparator.comparingInt(SemanticVersion::major)
+                    .thenComparingInt(SemanticVersion::minor)
+                    .thenComparingInt(SemanticVersion::patch)
+                    .thenComparingInt(semVer -> parsedAlphaIntOrMaxValue(semVer.pre()))
+                    .thenComparingInt(semVer -> parsedIntOrZero(semVer.build())));
+    /** A simple {@link Comparator} for {@link Timestamp}s. */
+    public static final Comparator<Timestamp> TIMESTAMP_COMPARATOR =
+            Comparator.comparingLong(Timestamp::seconds).thenComparingInt(Timestamp::nanos);
+
+    private static final String ALPHA_PREFIX = "alpha.";
+    private static final int ALPHA_PREFIX_LENGTH = ALPHA_PREFIX.length();
+
     private static final int EVM_ADDRESS_ALIAS_LENGTH = 20;
     public static final Key EMPTY_KEY_LIST =
             Key.newBuilder().keyList(KeyList.DEFAULT).build();
@@ -90,10 +107,6 @@ public class HapiUtils {
         }
         return 0;
     };
-
-    /** A simple {@link Comparator} for {@link Timestamp}s. */
-    public static final Comparator<Timestamp> TIMESTAMP_COMPARATOR =
-            Comparator.comparingLong(Timestamp::seconds).thenComparingInt(Timestamp::nanos);
 
     private HapiUtils() {}
 
@@ -400,5 +413,29 @@ public class HapiUtils {
      */
     public static String asAccountString(@NonNull final AccountID accountID) {
         return String.format("%d.%d.%d", accountID.shardNum(), accountID.realmNum(), accountID.accountNum());
+    }
+
+    private static int parsedAlphaIntOrMaxValue(@NonNull final String s) {
+        if (s.isBlank() || !s.startsWith(ALPHA_PREFIX)) {
+            return Integer.MAX_VALUE;
+        } else {
+            try {
+                return Integer.parseInt(s.substring(ALPHA_PREFIX_LENGTH));
+            } catch (NumberFormatException ignore) {
+                return Integer.MAX_VALUE;
+            }
+        }
+    }
+
+    private static int parsedIntOrZero(@NonNull final String s) {
+        if (s.isBlank() || "0".equals(s)) {
+            return 0;
+        } else {
+            try {
+                return Integer.parseInt(s);
+            } catch (NumberFormatException ignore) {
+                return 0;
+            }
+        }
     }
 }

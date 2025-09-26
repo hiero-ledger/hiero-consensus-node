@@ -9,6 +9,7 @@ import static com.swirlds.virtualmap.constructable.ConstructableUtils.registerVi
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.SemanticVersion;
+import com.hedera.hapi.util.HapiUtils;
 import com.swirlds.common.utility.CommonUtils;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
@@ -37,7 +38,6 @@ import com.swirlds.platform.swirldapp.AppLoaderException;
 import com.swirlds.platform.swirldapp.SwirldAppLoader;
 import com.swirlds.platform.system.SwirldMain;
 import com.swirlds.state.State;
-import com.swirlds.state.lifecycle.HapiUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.awt.Dimension;
