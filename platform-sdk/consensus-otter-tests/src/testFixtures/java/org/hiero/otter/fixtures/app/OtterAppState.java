@@ -15,10 +15,6 @@ import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import org.hiero.consensus.roster.RosterUtils;
-import org.hiero.otter.fixtures.app.services.OtterService;
-import org.hiero.otter.fixtures.app.services.consistency.ConsistencyService;
-import org.hiero.otter.fixtures.app.services.platform.PlatformStateService;
-import org.hiero.otter.fixtures.app.services.roster.RosterService;
 
 public class OtterAppState extends VirtualMapState<OtterAppState> implements MerkleNodeState {
 
@@ -56,12 +52,11 @@ public class OtterAppState extends VirtualMapState<OtterAppState> implements Mer
             @NonNull final Configuration configuration,
             @NonNull final Roster roster,
             @NonNull final Metrics metrics,
-            @NonNull final SemanticVersion version) {
+            @NonNull final SemanticVersion version,
+            @NonNull final List<OtterService> services) {
 
         // Setup the parts of the state required by the consensus module.
         final OtterAppState state = new OtterAppState(CONFIGURATION, metrics);
-        final List<OtterService> services =
-                List.of(new PlatformStateService(), new RosterService(), new ConsistencyService());
 
         // Setup the parts of the state required by the Otter app.
         initOtterAppState(configuration, state, version, services);

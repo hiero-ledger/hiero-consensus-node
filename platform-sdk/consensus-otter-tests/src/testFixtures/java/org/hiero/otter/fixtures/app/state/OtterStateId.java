@@ -11,7 +11,7 @@ public enum OtterStateId {
     ROSTER_STATE_STATE_ID(RosterStateId.ROSTER_STATE_STATE_ID), // 27
     ROSTERS_STATE_ID(RosterStateId.ROSTERS_STATE_ID), // 28
 
-    CONSISTENCY_SINGLETON_STATE_ID(0);
+    CONSISTENCY_SINGLETON_STATE_ID(1);
 
     private final int id;
 

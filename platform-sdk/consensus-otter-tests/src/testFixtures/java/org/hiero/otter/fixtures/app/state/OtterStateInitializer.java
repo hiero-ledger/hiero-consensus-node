@@ -8,10 +8,9 @@ import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.lifecycle.StateDefinition;
 import com.swirlds.state.lifecycle.StateMetadata;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.Comparator;
 import java.util.List;
 import org.hiero.otter.fixtures.app.OtterAppState;
-import org.hiero.otter.fixtures.app.services.OtterService;
+import org.hiero.otter.fixtures.app.OtterService;
 
 /**
  * Utility class to initialize the state for the OtterApp.
@@ -36,19 +35,15 @@ public class OtterStateInitializer {
             @NonNull final List<OtterService> services) {
         for (final OtterService service : services) {
             final Schema schema = service.genesisSchema(version);
-            final List<StateDefinition> stateDefinitions = schema.statesToCreate().stream()
-                    .sorted(Comparator.comparing(StateDefinition::stateId)).toList();
-            for (final StateDefinition<?, ?> stateDefinition : stateDefinitions) {
-
+            for (final StateDefinition<?, ?> stateDefinition : schema.statesToCreate()) {
                 // the metadata associates the state definition with the service
                 final StateMetadata<?, ?> stateMetadata = new StateMetadata<>(service.name(), schema, stateDefinition);
                 state.initializeState(stateMetadata);
-
-                // perform the migration to create the initial state
-                final MigrationContext migrationContext =
-                        new GenesisMigrationContext(configuration, state, service.name());
-                schema.migrate(migrationContext);
             }
+
+            // perform the migration to create the initial state
+            final MigrationContext migrationContext = new GenesisMigrationContext(configuration, state, service.name());
+            schema.migrate(migrationContext);
         }
         state.commitState();
     }

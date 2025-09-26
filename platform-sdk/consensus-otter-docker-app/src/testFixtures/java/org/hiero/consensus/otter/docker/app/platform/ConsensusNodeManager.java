@@ -56,6 +56,9 @@ public class ConsensusNodeManager {
 
     private static final Logger log = LogManager.getLogger(ConsensusNodeManager.class);
 
+    /** The instance of the Otter application used by this consensus node manager. */
+    private final OtterApp otterApp;
+
     /** The instance of the platform this consensus node manager runs. */
     private final Platform platform;
 
@@ -114,10 +117,13 @@ public class ConsensusNodeManager {
         final PlatformContext platformContext = PlatformContext.create(
                 platformConfig, Time.getCurrent(), metrics, fileSystemManager, recycleBin, merkleCryptography);
 
+        otterApp = new OtterApp();
+
         final HashedReservedSignedState reservedState = loadInitialState(
                 recycleBin,
                 version,
-                () -> OtterAppState.createGenesisState(platformConfig, genesisRoster, metrics, version),
+                () -> OtterAppState.createGenesisState(
+                        platformConfig, genesisRoster, metrics, version, otterApp.services()),
                 OtterApp.APP_NAME,
                 OtterApp.SWIRLD_NAME,
                 legacySelfId,
@@ -134,7 +140,7 @@ public class ConsensusNodeManager {
                         OtterApp.SWIRLD_NAME,
                         version,
                         initialState,
-                        OtterApp.INSTANCE,
+                        otterApp,
                         legacySelfId,
                         selfId.toString(),
                         rosterHistory,
@@ -231,6 +237,6 @@ public class ConsensusNodeManager {
         if (millisToSleepPerRound < 0) {
             throw new IllegalArgumentException("millisToSleepPerRound must be non-negative");
         }
-        OtterApp.INSTANCE.updateSyntheticBottleneck(millisToSleepPerRound);
+        otterApp.updateSyntheticBottleneck(millisToSleepPerRound);
     }
 }

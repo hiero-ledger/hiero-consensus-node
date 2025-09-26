@@ -1,19 +1,23 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.app.services.consistency;
 
+import static java.util.Optional.ofNullable;
 import static org.hiero.base.utility.ByteUtils.byteArrayToLong;
 import static org.hiero.base.utility.NonCryptographicHashing.hash64;
 import static org.hiero.otter.fixtures.app.state.OtterStateId.CONSISTENCY_SINGLETON_STATE_ID;
 
 import com.hedera.hapi.node.base.SemanticVersion;
+import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.spi.WritableSingletonState;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.function.Consumer;
 import org.hiero.consensus.model.event.Event;
 import org.hiero.consensus.model.hashgraph.Round;
+import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 import org.hiero.consensus.model.transaction.Transaction;
-import org.hiero.otter.fixtures.app.services.OtterService;
+import org.hiero.otter.fixtures.app.OtterService;
 import org.hiero.otter.fixtures.app.state.model.ConsistencyState;
 
 /**
@@ -22,15 +26,13 @@ import org.hiero.otter.fixtures.app.state.model.ConsistencyState;
  * <ol>
  *     <li>Consensus rounds increase in number monotonically</li>
  *     <li>Consensus rounds are received only once</li>
- *     <li>Differences in rounds or transactions sent to {@link #recordRoundContents} on different nodes will cause an ISS</li>
+ *     <li>Differences in rounds or transactions sent to {@link #recordRound(Round)} on different nodes will cause an ISS</li>
  *     <li>Consensus transactions were previous received in preHandle</li>
  *     <li>After a restart, any rounds that reach consensus in PCES replay exactly match the rounds calculated previously.</li>
  * </ol>
  */
 public class ConsistencyService implements OtterService {
     public static final String NAME = "ConsistencyStateService";
-
-    private Long stateRunningHash = null;
 
     /**
      * Records the contents of all rounds, even empty ones. This method calculates a running hash that includes the
@@ -39,29 +41,49 @@ public class ConsistencyService implements OtterService {
      * @param writableStates the writable states used to modify the consistency state
      * @param round the round to handle
      */
-    public void recordRoundContents(@NonNull final WritableStates writableStates, @NonNull final Round round) {
+    @Override
+    public void onRound(@NonNull final WritableStates writableStates, @NonNull final Round round) {
         final WritableSingletonState<ConsistencyState> writableSingletonState =
                 writableStates.getSingleton(CONSISTENCY_SINGLETON_STATE_ID.id());
-        final ConsistencyState consistencyState = writableSingletonState.get();
-        stateRunningHash = consistencyState.runningHash();
-
-        // Update the running hash with each transaction in the round
-        round.forEachTransaction(transaction -> {
-            final long transactionContents = getTransactionContents(transaction);
-            stateRunningHash = hash64(stateRunningHash, transactionContents);
-        });
+        final ConsistencyState consistencyState =
+                ofNullable(writableSingletonState.get()).orElse(ConsistencyState.DEFAULT);
+        final long oldStateRunningHash = consistencyState.runningHash();
 
         // Update the running hash with the round number
-        stateRunningHash = hash64(stateRunningHash, round.getRoundNum());
+        final long newStateRunningHash = hash64(oldStateRunningHash, round.getRoundNum());
 
         // Update the state with the data for this round.
         writableSingletonState.put(consistencyState
                 .copyBuilder()
                 .roundsHandled(consistencyState.roundsHandled() + 1)
-                .runningHash(stateRunningHash)
+                .runningHash(newStateRunningHash)
                 .build());
 
         recordRound(round);
+    }
+
+    /**
+     * This method updates the running hash that includes the contents of all
+     * transactions.
+     */
+    @Override
+    public void onTransaction(
+            @NonNull final WritableStates writableStates,
+            final Event event,
+            @NonNull final Transaction transaction,
+            @NonNull final Consumer<ScopedSystemTransaction<StateSignatureTransaction>> callback) {
+        final WritableSingletonState<ConsistencyState> writableSingletonState =
+                writableStates.getSingleton(CONSISTENCY_SINGLETON_STATE_ID.id());
+        final ConsistencyState consistencyState =
+                ofNullable(writableSingletonState.get()).orElse(ConsistencyState.DEFAULT);
+        final long oldStateRunningHash = consistencyState.runningHash();
+
+        final long transactionContents = getTransactionContents(transaction);
+        final long newStateRunningHash = hash64(oldStateRunningHash, transactionContents);
+
+        // Update the state with the data for this round.
+        writableSingletonState.put(
+                consistencyState.copyBuilder().runningHash(newStateRunningHash).build());
     }
 
     private void recordRound(@NonNull final Round round) {

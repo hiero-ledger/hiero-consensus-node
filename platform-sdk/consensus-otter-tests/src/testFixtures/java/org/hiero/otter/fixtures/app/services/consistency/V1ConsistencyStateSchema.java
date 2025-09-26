@@ -16,7 +16,7 @@ import org.hiero.otter.fixtures.app.state.model.ConsistencyState;
 public class V1ConsistencyStateSchema extends Schema {
 
     private static final int STATE_ID = CONSISTENCY_SINGLETON_STATE_ID.id();
-    private static final String STATE_KEY = "CONSISTENCY_SINGLETON";
+    private static final String STATE_KEY = "CONSISTENCY_STATE_KEY";
 
     /**
      * Create a new instance

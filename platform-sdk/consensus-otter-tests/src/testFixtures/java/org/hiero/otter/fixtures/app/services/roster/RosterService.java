@@ -5,7 +5,7 @@ import com.hedera.hapi.node.base.SemanticVersion;
 import com.swirlds.platform.state.service.schemas.V0540RosterBaseSchema;
 import com.swirlds.state.lifecycle.Schema;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import org.hiero.otter.fixtures.app.services.OtterService;
+import org.hiero.otter.fixtures.app.OtterService;
 
 /**
  * The main entry point for the Roster service in the Otter application.
