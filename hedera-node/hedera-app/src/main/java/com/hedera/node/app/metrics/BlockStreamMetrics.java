@@ -3,6 +3,7 @@ package com.hedera.node.app.metrics;
 
 import static java.util.Objects.requireNonNull;
 
+import com.swirlds.common.metrics.RunningAverageMetric;
 import com.swirlds.metrics.api.Counter;
 import com.swirlds.metrics.api.DoubleGauge;
 import com.swirlds.metrics.api.LongGauge;
@@ -33,6 +34,7 @@ public class BlockStreamMetrics {
     // connection send metrics
     private Counter connSend_failureCounter;
     private Counter connSend_blockItemsCounter;
+    private RunningAverageMetric connSend_publishStreamRequestLatency;
     private final Map<PublishStreamRequest.RequestOneOfType, Counter> connSend_counters =
             new EnumMap<>(PublishStreamRequest.RequestOneOfType.class);
     private final Map<PublishStreamRequest.EndStream.Code, Counter> connSend_endStreamCounters =
@@ -271,7 +273,7 @@ public class BlockStreamMetrics {
 
         final DoubleGauge.Config ackLatencyCfg = newDoubleGauge(GROUP_CONN, "acknowledgementLatency")
                 .withDescription(
-                        "Latency (ms) for the last block acknowledgement received from the active block node connection");
+                        "Latency (ms) between the last sent BlockProof and the corresponding BlockAcknowledgement");
         conn_ackLatencyGauge = metrics.getOrCreate(ackLatencyCfg);
 
         final Counter.Config highLatencyCfg = newCounter(GROUP_CONN, "highLatencyEvents")
@@ -454,6 +456,12 @@ public class BlockStreamMetrics {
         final Counter.Config blockItemsCfg = newCounter(GROUP_CONN_SEND, "blockItemCount")
                 .withDescription("Number of individual block items sent to block nodes");
         this.connSend_blockItemsCounter = metrics.getOrCreate(blockItemsCfg);
+
+        final RunningAverageMetric.Config publishStreamRequestLatencyCfg = new RunningAverageMetric.Config(
+                        CATEGORY, GROUP_CONN_SEND + "_publishStreamRequestLatency")
+                .withDescription("The average latency (ms) for a PublishStreamRequest to be sent to a block node")
+                .withFormat("%,.2f");
+        this.connSend_publishStreamRequestLatency = metrics.getOrCreate(publishStreamRequestLatencyCfg);
     }
 
     /**
@@ -486,6 +494,14 @@ public class BlockStreamMetrics {
         if (counter != null) {
             counter.increment();
         }
+    }
+
+    /**
+     * Record the latency for a request to be sent to a block node.
+     * @param latencyMs the latency in milliseconds
+     */
+    public void recordRequestLatency(final long latencyMs) {
+        connSend_publishStreamRequestLatency.update(latencyMs);
     }
 
     /**

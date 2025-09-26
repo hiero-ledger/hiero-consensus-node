@@ -501,7 +501,12 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
 
         if (getConnectionState() == ConnectionState.ACTIVE && requestPipeline != null) {
             try {
+                final Instant requestStartTime = Instant.now();
                 requestPipeline.onNext(request);
+                final Instant requestEndTime = Instant.now();
+                blockStreamMetrics.recordRequestLatency(
+                        Duration.between(requestStartTime, requestEndTime).toMillis());
+
                 if (request.hasEndStream()) {
                     blockStreamMetrics.recordRequestEndStreamSent(
                             request.endStream().endCode());
