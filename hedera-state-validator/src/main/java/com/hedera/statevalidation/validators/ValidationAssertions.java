@@ -86,4 +86,52 @@ public final class ValidationAssertions {
             throw new ValidationException(validatorTag, String.format("Expected <%d> but was <%d>", expected, actual));
         }
     }
+
+    /**
+     * Validates that two long values are equal.
+     * Specialized version for better performance and error messages with numeric values.
+     *
+     * @param expected the expected value
+     * @param actual the actual value
+     * @param validatorTag the tag of the validator performing the check
+     * @throws ValidationException if the values are not equal
+     */
+    public static void requireEqual(long expected, long actual, @NonNull String message, @NonNull String validatorTag) {
+        if (expected != actual) {
+            throw new ValidationException(
+                    validatorTag, String.format("Expected <%d> but was <%d>. %s", expected, actual, message));
+        }
+    }
+
+    /**
+     * Validates that two values are not equal.
+     *
+     * @param expected the expected value
+     * @param actual the actual value
+     * @param validatorTag the tag of the validator performing the check
+     * @throws ValidationException if the values are equal
+     */
+    public static void requireNotEqual(
+            @Nullable Object expected, @Nullable Object actual, @NonNull String validatorTag) {
+        if (java.util.Objects.equals(expected, actual)) {
+            throw new ValidationException(
+                    validatorTag, String.format("Expected not equal <%s> but was <%s>", expected, actual));
+        }
+    }
+
+    /**
+     * Validates that two long values are not equal.
+     * Specialized version for better performance and error messages with numeric values.
+     *
+     * @param expected the expected value
+     * @param actual the actual value
+     * @param validatorTag the tag of the validator performing the check
+     * @throws ValidationException if the values are equal
+     */
+    public static void requireNotEqual(long expected, long actual, @NonNull String validatorTag) {
+        if (expected == actual) {
+            throw new ValidationException(
+                    validatorTag, String.format("Expected not equal <%d> but was <%d>", expected, actual));
+        }
+    }
 }

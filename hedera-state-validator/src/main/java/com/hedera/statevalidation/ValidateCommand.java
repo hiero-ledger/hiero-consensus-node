@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.statevalidation;
 
+import static com.hedera.statevalidation.validators.merkledb.ValidateLeafIndex.LEAF;
 import static com.hedera.statevalidation.validators.merkledb.ValidateLeafIndexHalfDiskHashMap.HDHM;
 import static com.hedera.statevalidation.validators.servicesstate.AccountValidator.ACCOUNT;
 
@@ -39,16 +40,7 @@ public class ValidateCommand implements Callable<Integer> {
             description =
                     "Tag to run: [stateAnalyzer, internal, leaf, hdhm, account, tokenRelations, rehash, files, compaction, entityIds]")
     private String[] tags = {
-        "stateAnalyzer",
-        "internal",
-        "leaf",
-        HDHM,
-        ACCOUNT,
-        "tokenRelations",
-        "rehash",
-        "files",
-        "compaction",
-        "entityIds"
+        "stateAnalyzer", "internal", LEAF, HDHM, ACCOUNT, "tokenRelations", "rehash", "files", "compaction", "entityIds"
     };
 
     @Override

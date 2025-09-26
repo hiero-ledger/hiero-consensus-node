@@ -4,20 +4,20 @@ package com.hedera.statevalidation.validators;
 import com.swirlds.platform.state.MerkleNodeState;
 
 /**
- * Base interface for all validators.
- * Simple design - each validator knows its tag and can execute validation logic.
+ * Base interface for all validators with clear lifecycle.
  */
 public interface Validator {
-
-    /**
-     * Returns the validation category/tag for this validator.
-     */
     String getTag();
 
     /**
-     * Executes the validation logic.
-     *
-     * @param merkleNodeState the state (can be a validation context in the future)
+     * Initialize validator with necessary context.
+     * Called once before validation starts.
      */
-    void validate(MerkleNodeState merkleNodeState);
+    void initialize(MerkleNodeState context);
+
+    /**
+     * Finalize validation and assert results.
+     * Called once after all data processing is complete.
+     */
+    void validate();
 }

@@ -24,7 +24,7 @@ public class LoggingTestExecutionListenerPoc implements ValidationListener {
 
     @Override
     public void onValidationFailed(ValidationException error) {
-        log.debug(framedString(error.getValidatorTag() + " finished"));
+        log.debug(framedString(error.getValidatorTag() + " failed"));
     }
 
     private String framedString(String stringToFrame) {

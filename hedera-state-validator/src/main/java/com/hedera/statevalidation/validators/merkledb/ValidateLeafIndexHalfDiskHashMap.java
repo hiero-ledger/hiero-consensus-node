@@ -16,10 +16,11 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.statevalidation.merkledb.reflect.BucketIterator;
 import com.hedera.statevalidation.merkledb.reflect.HalfDiskHashMapW;
 import com.hedera.statevalidation.merkledb.reflect.MemoryIndexDiskKeyValueStoreW;
+import com.hedera.statevalidation.validators.StateValidator;
 import com.hedera.statevalidation.validators.ValidationException;
-import com.hedera.statevalidation.validators.Validator;
 import com.swirlds.merkledb.MerkleDbDataSource;
 import com.swirlds.merkledb.collections.LongList;
+import com.swirlds.merkledb.files.DataFileCollection;
 import com.swirlds.merkledb.files.hashmap.ParsedBucket;
 import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.virtualmap.VirtualMap;
@@ -34,9 +35,35 @@ import org.apache.logging.log4j.Logger;
  * This validation should be independent as it goes over the files from the hdhm perspective.
  */
 @SuppressWarnings("NewClassNamingConvention")
-public class ValidateLeafIndexHalfDiskHashMap implements Validator {
+public class ValidateLeafIndexHalfDiskHashMap implements StateValidator {
 
     private static final Logger log = LogManager.getLogger(ValidateLeafIndexHalfDiskHashMap.class);
+
+    private boolean skipStaleKeysValidation;
+
+    private boolean skipIncorrectBucketIndexValidation;
+
+    private HalfDiskHashMapW hdhm;
+
+    private LongList pathToDiskLocationLeafNodes;
+
+    private DataFileCollection hdhmDfc;
+
+    private DataFileCollection leafStoreDfc;
+
+    private final CopyOnWriteArrayList<StalePathInfo> stalePathsInfos = new CopyOnWriteArrayList<>();
+
+    private final CopyOnWriteArrayList<NullLeafInfo> nullLeafsInfo = new CopyOnWriteArrayList<>();
+
+    private final CopyOnWriteArrayList<UnexpectedKeyInfo> unexpectedKeyInfos = new CopyOnWriteArrayList<>();
+
+    private final CopyOnWriteArrayList<PathMismatchInfo> pathMismatchInfos = new CopyOnWriteArrayList<>();
+
+    private final CopyOnWriteArrayList<HashCodeMismatchInfo> hashCodeMismatchInfos = new CopyOnWriteArrayList<>();
+
+    private final CopyOnWriteArrayList<Integer> incorrectBucketIndexList = new CopyOnWriteArrayList<>();
+
+    private LongList bucketIndexToBucketLocation;
 
     public static final String HDHM = "hdhm";
 
@@ -45,43 +72,34 @@ public class ValidateLeafIndexHalfDiskHashMap implements Validator {
         return HDHM;
     }
 
-    public void validate(MerkleNodeState merkleNodeState) {
+    @Override
+    public void initialize(MerkleNodeState merkleNodeState) {
         final VirtualMap virtualMap = (VirtualMap) merkleNodeState.getRoot();
         requireNonNull(virtualMap, HDHM);
 
-        MerkleDbDataSource vds = (MerkleDbDataSource) virtualMap.getDataSource();
+        skipStaleKeysValidation = VALIDATE_STALE_KEYS_EXCLUSIONS.contains(virtualMap.getLabel());
+        skipIncorrectBucketIndexValidation = VALIDATE_INCORRECT_BUCKET_INDEX_EXCLUSIONS.contains(virtualMap.getLabel());
 
-        if (vds.getFirstLeafPath() == -1) {
-            log.info("Skipping the validation for {} as the map is empty", virtualMap.getLabel());
-            return;
-        }
+        final MerkleDbDataSource virtualDataSource = (MerkleDbDataSource) virtualMap.getDataSource();
 
-        boolean skipStaleKeysValidation = VALIDATE_STALE_KEYS_EXCLUSIONS.contains(virtualMap.getLabel());
-        boolean skipIncorrectBucketIndexValidation =
-                VALIDATE_INCORRECT_BUCKET_INDEX_EXCLUSIONS.contains(virtualMap.getLabel());
+        hdhm = new HalfDiskHashMapW(virtualDataSource.getKeyToPath());
+        final var leafStore = new MemoryIndexDiskKeyValueStoreW<>(virtualDataSource.getPathToKeyValue());
+        pathToDiskLocationLeafNodes = virtualDataSource.getPathToDiskLocationLeafNodes();
+        hdhmDfc = hdhm.getFileCollection();
+        leafStoreDfc = leafStore.getFileCollection();
+        bucketIndexToBucketLocation = hdhm.getBucketIndexToBucketLocation();
+    }
 
-        log.debug(vds.getHashStoreDisk().getFilesSizeStatistics());
-
-        final var hdhm = new HalfDiskHashMapW(vds.getKeyToPath());
-        final var leafStore = new MemoryIndexDiskKeyValueStoreW<>(vds.getPathToKeyValue());
-        final var pathToDiskLocationLeafNodes = vds.getPathToDiskLocationLeafNodes();
-        final var dfc = hdhm.getFileCollection();
-        final var leafStoreDFC = leafStore.getFileCollection();
-        final var stalePathsInfos = new CopyOnWriteArrayList<StalePathInfo>();
-        final var nullLeafsInfo = new CopyOnWriteArrayList<NullLeafInfo>();
-        final var unexpectedKeyInfos = new CopyOnWriteArrayList<UnexpectedKeyInfo>();
-        final var pathMismatchInfos = new CopyOnWriteArrayList<PathMismatchInfo>();
-        final var hashCodeMismatchInfos = new CopyOnWriteArrayList<HashCodeMismatchInfo>();
-        final var incorrectBucketIndexList = new CopyOnWriteArrayList<Integer>();
-        final LongList index = hdhm.getBucketIndexToBucketLocation();
+    @Override
+    public void processState(MerkleNodeState merkleNodeState) {
         LongConsumer consumer = i -> {
             long bucketLocation = 0;
             try {
-                bucketLocation = index.get(i);
+                bucketLocation = bucketIndexToBucketLocation.get(i);
                 if (bucketLocation == 0) {
                     return;
                 }
-                final BufferedData bucketData = dfc.readDataItem(bucketLocation);
+                final BufferedData bucketData = hdhmDfc.readDataItem(bucketLocation);
                 if (bucketData == null) {
                     // FUTURE WORK: report
                     return;
@@ -100,45 +118,50 @@ public class ValidateLeafIndexHalfDiskHashMap implements Validator {
                     // get path -> dataLocation
                     var dataLocation = pathToDiskLocationLeafNodes.get(path);
                     if (dataLocation == 0) {
-                        printFileDataLocationError(log, "Stale path", dfc, bucketLocation);
+                        printFileDataLocationError(log, "Stale path", hdhmDfc, bucketLocation);
                         collectInfo(new StalePathInfo(path, parseKey(keyBytes)), stalePathsInfos);
                         continue;
                     }
-                    final BufferedData leafData = leafStoreDFC.readDataItem(dataLocation);
+                    final BufferedData leafData = leafStoreDfc.readDataItem(dataLocation);
                     if (leafData == null) {
-                        printFileDataLocationError(log, "Null leaf", dfc, bucketLocation);
+                        printFileDataLocationError(log, "Null leaf", hdhmDfc, bucketLocation);
                         collectInfo(new NullLeafInfo(path, parseKey(keyBytes)), nullLeafsInfo);
                         continue;
                     }
                     final VirtualLeafBytes<?> leafBytes = VirtualLeafBytes.parseFrom(leafData);
                     if (!keyBytes.equals(leafBytes.keyBytes())) {
-                        printFileDataLocationError(log, "Leaf key mismatch", dfc, bucketLocation);
+                        printFileDataLocationError(log, "Leaf key mismatch", hdhmDfc, bucketLocation);
                         collectInfo(
                                 new UnexpectedKeyInfo(path, parseKey(keyBytes), parseKey(leafBytes.keyBytes())),
                                 unexpectedKeyInfos);
                     }
                     if (leafBytes.path() != path) {
-                        printFileDataLocationError(log, "Leaf path mismatch", dfc, bucketLocation);
+                        printFileDataLocationError(log, "Leaf path mismatch", hdhmDfc, bucketLocation);
                         collectInfo(
                                 new PathMismatchInfo(path, leafBytes.path(), parseKey(keyBytes)), pathMismatchInfos);
                         continue;
                     }
                     final int hashCode = entry.getHashCode();
                     if ((hashCode & bucketIndex) != bucketIndex) {
-                        printFileDataLocationError(log, "Hash code mismatch", dfc, bucketLocation);
+                        printFileDataLocationError(log, "Hash code mismatch", hdhmDfc, bucketLocation);
                         collectInfo(new HashCodeMismatchInfo(hashCode, bucketIndex), hashCodeMismatchInfos);
                         continue;
                     }
                 }
             } catch (Exception e) {
                 if (bucketLocation != 0) {
-                    printFileDataLocationError(log, e.getMessage(), dfc, bucketLocation);
+                    printFileDataLocationError(log, e.getMessage(), hdhmDfc, bucketLocation);
                 }
                 throw new ValidationException(HDHM, "Error in bucket entry processing", e);
             }
         };
+
         // iterate over all the buckets
         processRange(0, hdhm.getBucketIndexToBucketLocation().size(), consumer).join();
+    }
+
+    @Override
+    public void validate() {
         if (!stalePathsInfos.isEmpty()) {
             log.error("Stale path info:\n{}", stalePathsInfos);
             log.error(
