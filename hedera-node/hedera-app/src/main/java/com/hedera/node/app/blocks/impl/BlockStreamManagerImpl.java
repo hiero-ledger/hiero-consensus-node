@@ -91,6 +91,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.concurrent.AbstractTask;
 import org.hiero.base.crypto.Hash;
+import org.hiero.base.exceptions.NotImplementedException;
 import org.hiero.consensus.model.hashgraph.Round;
 
 @Singleton
@@ -759,7 +760,10 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                             STATE_CHANGES,
                             ROUND_HEADER,
                             BLOCK_HEADER,
-                            TRACE_DATA -> {
+						 	BLOCK_FOOTER,
+						    BLOCK_PROOF
+							// Also EndBlock?
+							-> {
                         MessageDigest digest = sha384DigestOrThrow();
                         bytes.writeTo(digest);
                         hash = ByteBuffer.wrap(digest.digest());
@@ -798,7 +802,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                 }
                 case TRANSACTION_OUTPUT, BLOCK_HEADER -> outputTreeHasher.addLeaf(hash);
                 case STATE_CHANGES -> stateChangesHasher.addLeaf(hash);
-                case TRACE_DATA -> traceDataHasher.addLeaf(hash);
+				case BLOCK_FOOTER, BLOCK_PROOF -> throw new NotImplementedException();
             }
 
             final BlockHeader header = item.blockHeader();
