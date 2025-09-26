@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.state.merkle.disk;
+package com.swirlds.state.test.fixtures.merkle.disk;
 
 import static com.swirlds.state.merkle.StateUtils.readFromStream;
 import static com.swirlds.state.merkle.StateUtils.writeToStream;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.pbj.runtime.Codec;
+import com.swirlds.state.test.fixtures.merkle.MerkleStateRoot;
 import com.swirlds.virtualmap.VirtualKey;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -27,8 +28,11 @@ import org.hiero.base.io.streams.SerializableDataOutputStream;
  * convert the "real" key into bytes for hashing, saving to disk via the {@link VirtualMap}, reading
  * from disk, reconnect, and for state saving.
  *
+ * @deprecated This class should be removed together with {@link MerkleStateRoot}.
+ *
  * @param <K> The type of key
  */
+@Deprecated
 public final class OnDiskKey<K> implements VirtualKey {
 
     @Deprecated(forRemoval = true)

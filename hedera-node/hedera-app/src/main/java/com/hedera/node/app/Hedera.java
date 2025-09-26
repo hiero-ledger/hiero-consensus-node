@@ -135,7 +135,6 @@ import com.swirlds.platform.system.state.notifications.StateHashedListener;
 import com.swirlds.state.State;
 import com.swirlds.state.StateChangeListener;
 import com.swirlds.state.lifecycle.StartupNetworks;
-import com.swirlds.state.merkle.MerkleStateRoot;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.state.spi.WritableSingletonStateBase;
@@ -626,11 +625,6 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
                     // Disabling start up mode, so since now singletons will be commited only on block close
                     if (initState instanceof VirtualMapState<?> virtualMapState) {
                         virtualMapState.disableStartupMode();
-                    } else if (initState instanceof MerkleStateRoot<?> merkleStateRoot) {
-                        // Non production case (testing tools)
-                        // Otherwise assume it is a MerkleStateRoot
-                        // This branch should be removed once the MerkleStateRoot is removed
-                        merkleStateRoot.disableStartupMode();
                     }
                 }
             }

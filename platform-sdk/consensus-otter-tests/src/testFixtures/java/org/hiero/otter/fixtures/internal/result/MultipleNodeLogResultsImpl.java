@@ -19,7 +19,6 @@ import org.hiero.otter.fixtures.result.MultipleNodeLogResults;
 import org.hiero.otter.fixtures.result.OtterResult;
 import org.hiero.otter.fixtures.result.SingleNodeLogResult;
 import org.hiero.otter.fixtures.result.SubscriberAction;
-import org.jetbrains.annotations.NotNull;
 
 /**
  * Default implementation of {@link MultipleNodeLogResults}
@@ -89,7 +88,7 @@ public class MultipleNodeLogResultsImpl implements MultipleNodeLogResults {
      * {@inheritDoc}
      */
     @Override
-    public @NotNull MultipleNodeLogResults suppressingNodes(@NotNull final Collection<Node> nodes) {
+    public @NonNull MultipleNodeLogResults suppressingNodes(@NonNull final Collection<Node> nodes) {
         final Set<NodeId> nodeIdsToSuppress = nodes.stream().map(Node::selfId).collect(Collectors.toSet());
         final List<SingleNodeLogResult> filtered = results.stream()
                 .filter(result -> !nodeIdsToSuppress.contains(result.nodeId()))

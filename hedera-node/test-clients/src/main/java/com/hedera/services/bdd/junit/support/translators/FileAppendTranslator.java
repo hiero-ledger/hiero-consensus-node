@@ -9,8 +9,8 @@ import com.hedera.hapi.block.stream.trace.TraceData;
 import com.hedera.node.app.state.SingleTransactionRecord;
 import com.hedera.services.bdd.junit.support.translators.inputs.BlockTransactionParts;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
-import org.jetbrains.annotations.Nullable;
 
 /**
  * Translates a file append transaction into a {@link SingleTransactionRecord}, with the

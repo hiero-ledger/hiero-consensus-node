@@ -6,7 +6,6 @@ import static com.hedera.node.app.state.merkle.SchemaApplicationType.RESTART;
 import static com.hedera.node.app.state.merkle.SchemaApplicationType.STATE_DEFINITIONS;
 import static com.hedera.node.app.state.merkle.VersionUtils.alreadyIncludesStateDefs;
 import static com.hedera.node.app.state.merkle.VersionUtils.isSoOrdered;
-import static com.swirlds.state.merkle.StateUtils.registerWithSystem;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.SemanticVersion;
@@ -37,7 +36,6 @@ import java.util.SortedSet;
 import java.util.TreeSet;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.base.constructable.ConstructableRegistry;
 
 /**
  * An implementation of {@link SchemaRegistry}.
@@ -60,17 +58,6 @@ public class MerkleSchemaRegistry implements SchemaRegistry {
      */
     private final String serviceName;
     /**
-     * The current bootstrap configuration of the network; note this ideally would be a
-     * provider of {@link com.hedera.node.config.VersionedConfiguration}s per version,
-     * in case a service's states evolved with changing config. But this is a very edge
-     * affordance that we have no example of needing.
-     */
-    private final Configuration bootstrapConfig;
-    /**
-     * The registry to use when deserializing from saved states
-     */
-    private final ConstructableRegistry constructableRegistry;
-    /**
      * The ordered set of all schemas registered by the service
      */
     private final SortedSet<Schema> schemas = new TreeSet<>();
@@ -82,19 +69,12 @@ public class MerkleSchemaRegistry implements SchemaRegistry {
     /**
      * Create a new instance with the default {@link SchemaApplications}.
      *
-     * @param constructableRegistry The {@link ConstructableRegistry} to register states with for
-     * deserialization
      * @param serviceName The name of the service using this registry.
      * @param schemaApplications the analysis to use when determining how to apply a schema
      */
     public MerkleSchemaRegistry(
-            @NonNull final ConstructableRegistry constructableRegistry,
-            @NonNull final String serviceName,
-            @NonNull final Configuration bootstrapConfig,
-            @NonNull final SchemaApplications schemaApplications) {
-        this.constructableRegistry = requireNonNull(constructableRegistry);
+            @NonNull final String serviceName, @NonNull final SchemaApplications schemaApplications) {
         this.serviceName = StateMetadata.validateServiceName(requireNonNull(serviceName));
-        this.bootstrapConfig = requireNonNull(bootstrapConfig);
         this.schemaApplications = requireNonNull(schemaApplications);
     }
 
@@ -111,13 +91,6 @@ public class MerkleSchemaRegistry implements SchemaRegistry {
                 "Registering schema {} for service {} ",
                 () -> HapiUtils.toString(schema.getVersion()),
                 () -> serviceName);
-
-        // Any states being created, need to be registered for deserialization
-        schema.statesToCreate(bootstrapConfig).forEach(def -> {
-            //noinspection rawtypes,unchecked
-            final var md = new StateMetadata<>(serviceName, schema, def);
-            registerWithSystem(md, constructableRegistry);
-        });
 
         return this;
     }
