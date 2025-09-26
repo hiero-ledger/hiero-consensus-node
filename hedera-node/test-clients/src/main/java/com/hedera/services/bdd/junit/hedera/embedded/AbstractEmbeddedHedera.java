@@ -46,6 +46,7 @@ import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.config.legacy.LegacyConfigPropertiesLoader;
 import com.swirlds.platform.listeners.PlatformStatusChangeNotification;
 import com.swirlds.platform.state.service.PlatformStateFacade;
+import com.swirlds.platform.state.service.WritablePlatformStateStore;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.state.notifications.StateHashedNotification;
 import com.swirlds.platform.test.fixtures.addressbook.RandomAddressBookBuilder;
@@ -154,6 +155,7 @@ public abstract class AbstractEmbeddedHedera implements EmbeddedHedera {
                 metricsConfig);
         state = new FakeState();
         rebuildHedera();
+        hedera.withListeners(state);
         Runtime.getRuntime().addShutdownHook(new Thread(executorService::shutdownNow));
     }
 
@@ -195,6 +197,15 @@ public abstract class AbstractEmbeddedHedera implements EmbeddedHedera {
         fakePlatform().notifyListeners(FREEZE_COMPLETE_NOTIFICATION);
         hedera.newPlatformStatus(FREEZE_COMPLETE_NOTIFICATION.getNewStatus());
         executorService.shutdownNow();
+    }
+
+    @Override
+    public void closeStreams() {
+        // close the block and record stream
+        final var platformStateStore = new WritablePlatformStateStore(state.getWritableStates("PlatformStateService"));
+        platformStateStore.setLatestFreezeRound(fakePlatform().lastRoundNo());
+        hedera.blockStreamManager().endRound(state, fakePlatform().lastRoundNo());
+        hedera.blockRecordManager().close();
     }
 
     @Override
