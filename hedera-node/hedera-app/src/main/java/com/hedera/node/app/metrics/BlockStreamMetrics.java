@@ -270,7 +270,8 @@ public class BlockStreamMetrics {
         conn_endOfStreamLimitCounter = metrics.getOrCreate(endOfStreamLimitCfg);
 
         final DoubleGauge.Config ackLatencyCfg = newDoubleGauge(GROUP_CONN, "acknowledgementLatency")
-                .withDescription("Latency (ms) for block acknowledgements from the active block node connection");
+                .withDescription(
+                        "Latency (ms) for the last block acknowledgement received from the active block node connection");
         conn_ackLatencyGauge = metrics.getOrCreate(ackLatencyCfg);
 
         final Counter.Config highLatencyCfg = newCounter(GROUP_CONN, "highLatencyEvents")
