@@ -14,6 +14,7 @@ import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.node.internal.network.BlockNodeConfig;
+import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -78,18 +79,24 @@ public abstract class BlockNodeCommunicationTestBase {
         return PublishStreamRequest.newBuilder().endStream(endStream).build();
     }
 
-    protected ConfigProvider createConfigProvider() {
+    protected TestConfigBuilder createDefaultConfigProvider() {
         final var configPath = Objects.requireNonNull(
                         BlockNodeCommunicationTestBase.class.getClassLoader().getResource("bootstrap/"))
                 .getPath();
         assertThat(Files.exists(Path.of(configPath))).isTrue();
 
-        final var config = HederaTestConfigBuilder.create()
+        return HederaTestConfigBuilder.create()
                 .withValue("blockStream.writerMode", "FILE_AND_GRPC")
                 .withValue("blockNode.blockNodeConnectionFileDir", configPath)
-                .withValue("blockStream.blockItemBatchSize", BATCH_SIZE)
-                .getOrCreateConfig();
-        return () -> new VersionedConfigImpl(config, 1L);
+                .withValue("blockStream.blockItemBatchSize", BATCH_SIZE);
+    }
+
+    protected TestConfigBuilder withValue(TestConfigBuilder builder, final String key, final Object value) {
+        return builder.withValue(key, value);
+    }
+
+    protected ConfigProvider createConfigProvider(final TestConfigBuilder configBuilder) {
+        return () -> new VersionedConfigImpl(configBuilder.getOrCreateConfig(), 1L);
     }
 
     protected static BlockItem newBlockHeaderItem() {

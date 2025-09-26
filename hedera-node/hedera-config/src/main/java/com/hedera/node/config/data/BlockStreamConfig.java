@@ -20,6 +20,7 @@ import java.time.Duration;
  * @param blockPeriod the block period
  * @param blockItemBatchSize the number of items to send in a batch to block nodes
  * @param receiptEntriesBatchSize the maximum number of receipts to accumulate in a {@link com.hedera.hapi.node.state.recordcache.TransactionReceiptEntries} wrapper before writing a queue state changes item to the block stream
+ * @param workerLoopSleepDuration the duration to sleep between iterations of the worker loop
  */
 @ConfigData("blockStream")
 public record BlockStreamConfig(
