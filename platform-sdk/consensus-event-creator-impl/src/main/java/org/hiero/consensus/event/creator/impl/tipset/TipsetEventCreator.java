@@ -31,6 +31,7 @@ import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.event.UnsignedEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.consensus.model.transaction.EventTransactionSupplier;
 import org.hiero.consensus.roster.RosterUtils;
 
@@ -176,6 +177,11 @@ public class TipsetEventCreator implements EventCreator {
         this.eventWindow = Objects.requireNonNull(eventWindow);
         tipsetTracker.setEventWindow(eventWindow);
         childlessOtherEventTracker.pruneOldEvents(eventWindow);
+    }
+
+    @Override
+    public void quiescenceCommand(@NonNull final QuiescenceCommand quiescenceCommand) {
+        throw new UnsupportedOperationException("Quiescence is not yet implemented");
     }
 
     /**
