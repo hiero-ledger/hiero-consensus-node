@@ -12,7 +12,6 @@ import com.hedera.pbj.runtime.FieldDefinition;
 import com.hedera.pbj.runtime.FieldType;
 import com.hedera.pbj.runtime.ProtoWriterTools;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
-import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
@@ -21,7 +20,6 @@ import com.swirlds.base.utility.ToStringBuilder;
 import com.swirlds.common.threading.framework.config.ThreadConfiguration;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.merkledb.collections.HashList;
-import com.swirlds.merkledb.collections.HashListByteBuffer;
 import com.swirlds.merkledb.collections.LongList;
 import com.swirlds.merkledb.collections.LongListDisk;
 import com.swirlds.merkledb.collections.LongListOffHeap;
@@ -56,13 +54,11 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Hash;
-import org.hiero.base.io.streams.SerializableDataOutputStream;
 
 @SuppressWarnings("rawtypes")
 public final class MerkleDbDataSource implements VirtualDataSource {
@@ -1099,13 +1095,7 @@ public final class MerkleDbDataSource implements VirtualDataSource {
                 // Empty store
                 hashStoreDisk.updateValidKeyRange(-1, -1);
             } else {
-                final long lastLeafPathChunkId = VirtualHashChunk.pathToChunkId(lastLeafPath, hashChunkHeight);
-                final int firstLeafPathRank = com.swirlds.virtualmap.internal.Path.getRank(Math.max(firstLeafPath, lastLeafPath / 2));
-                final long maxPathInLeafPathRank =
-                        com.swirlds.virtualmap.internal.Path.getRightGrandChildPath(0, firstLeafPathRank);
-                final long maxFirstLeafRankChunkId =
-                        VirtualHashChunk.pathToChunkId(maxPathInLeafPathRank, hashChunkHeight);
-                hashStoreDisk.updateValidKeyRange(0, Math.max(lastLeafPathChunkId, maxFirstLeafRankChunkId));
+                hashStoreDisk.updateValidKeyRange(0, VirtualHashChunk.minChunkIdForPaths(lastLeafPath, hashChunkHeight));
             }
 //        }
 

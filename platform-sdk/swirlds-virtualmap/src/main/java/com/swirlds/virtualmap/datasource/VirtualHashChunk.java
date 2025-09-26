@@ -10,8 +10,6 @@ import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
 import com.swirlds.virtualmap.internal.Path;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.io.IOException;
-import java.util.Arrays;
 import java.util.Objects;
 import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.Hash;
@@ -292,6 +290,26 @@ public record VirtualHashChunk(long path, int height, @NonNull byte[] hashData) 
         }
         index += Math.toIntExact(path - firstInLevel); // now get the index in the level
         return index;
+    }
+
+    /**
+     * Given a virtual path, returns chunk ID, so that chunks 0 to the ID cover
+     * all hashes up to (and including) the path.
+     *
+     * @param maxPath Virtual path
+     * @param chunkHeight Chunk height
+     * @return Min chunk ID to cover all paths up to the given path
+     */
+    public static long minChunkIdForPaths(final long maxPath, final int chunkHeight) {
+        assert maxPath > 0;
+        // ID of a chunk that contains maxPath
+        final long maxPathChunkId = pathToChunkId(maxPath, chunkHeight);
+        // Now check what chunk covers the last path in the previous rank, it may
+        // be greater than the chunk for maxPath
+        final int prevPathRank = Math.max(1, Path.getRank(maxPath) - 1);
+        final long maxPathInHalfPathRank = Path.getRightGrandChildPath(0, prevPathRank);
+        final long halfPathChunkId = pathToChunkId(maxPathInHalfPathRank, chunkHeight);
+        return Math.max(halfPathChunkId, maxPathChunkId);
     }
 
     public long getPath(final int pathIndex) {
