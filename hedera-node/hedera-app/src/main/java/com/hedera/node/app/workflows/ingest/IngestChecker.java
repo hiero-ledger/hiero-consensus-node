@@ -344,7 +344,8 @@ public final class IngestChecker {
         final var hooksConfig = configuration.getConfigData(HooksConfig.class);
         assertThrottlingPreconditions(txInfo, hederaConfig, hooksConfig);
         if (hederaConfig.ingestThrottleEnabled()) {
-            ThrottleResult throttleResult = synchronizedThrottleAccumulator.shouldThrottle(txInfo, state, throttleUsages);
+            ThrottleResult throttleResult =
+                    synchronizedThrottleAccumulator.shouldThrottle(txInfo, state, throttleUsages);
             if (throttleResult.hasValidationError()) {
                 throw new PreCheckException(throttleResult.validationError());
             }

@@ -9,9 +9,7 @@ import edu.umd.cs.findbugs.annotations.Nullable;
  * should be throttled, any validation errors, and gas throttling status.
  */
 public record ThrottleResult(
-        boolean shouldThrottle,
-        @Nullable ResponseCodeEnum validationError,
-        boolean wasGasThrottled) {
+        boolean shouldThrottle, @Nullable ResponseCodeEnum validationError, boolean wasGasThrottled) {
 
     /**
      * Creates a result indicating the transaction is allowed (not throttled).
