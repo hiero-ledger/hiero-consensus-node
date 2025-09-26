@@ -364,7 +364,6 @@ jobs:
       - xts-time-consuming-tests
       - xts-timing-sensitive-tests
     if: ${{ needs.abbreviated-panel.result == 'success' ||
-      needs.extended-test-suite.result == 'success' ||
       needs.hedera-node-jrs-panel.result == 'success' ||
       needs.sdk-tck-regression-panel.result == 'success' ||
       needs.xts-hammer-tests.result == 'success' ||
@@ -614,7 +613,6 @@ jobs:
       - xts-timing-sensitive-tests
     if: ${{ (needs.fetch-xts-candidate.result != 'success' ||
       needs.abbreviated-panel.result != 'success' ||
-      needs.extended-test-suite.result != 'success' ||
       needs.hedera-node-jrs-panel.result != 'success' ||
       needs.sdk-tck-regression-panel.result != 'success' ||
       needs.tag-for-promotion.result != 'success' ||
