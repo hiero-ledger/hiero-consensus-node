@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
+import org.hiero.consensus.event.creator.EventCreatorModule;
+import org.hiero.consensus.event.creator.impl.DefaultEventCreator;
+
+// SPDX-License-Identifier: Apache-2.0
 module org.hiero.consensus.event.creator.impl {
-    exports org.hiero.consensus.event.creator.impl.config;
     exports org.hiero.consensus.event.creator.impl.rules;
     exports org.hiero.consensus.event.creator.impl.signing;
     exports org.hiero.consensus.event.creator.impl.tipset;
@@ -22,6 +25,6 @@ module org.hiero.consensus.event.creator.impl {
     requires org.apache.logging.log4j;
     requires static transitive com.github.spotbugs.annotations;
 
-    provides org.hiero.consensus.event.creator.ConsensusEventCreator with
-            org.hiero.consensus.event.creator.impl.ConsensusEventCreatorImpl;
+    provides EventCreatorModule with
+            DefaultEventCreator;
 }

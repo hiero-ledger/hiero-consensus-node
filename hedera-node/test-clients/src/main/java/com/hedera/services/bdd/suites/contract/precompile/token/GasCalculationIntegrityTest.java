@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.suites.contract.precompile.token;
 
 import static com.hedera.services.bdd.junit.ContextRequirement.UPGRADE_FILE_CONTENT;
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.dsl.entities.SpecTokenKey.ADMIN_KEY;
@@ -139,6 +140,7 @@ public class GasCalculationIntegrityTest {
 
     @LeakyHapiTest(requirement = UPGRADE_FILE_CONTENT)
     @DisplayName("when using nft via redirect proxy contract")
+    @Tag(MATS)
     public Stream<DynamicTest> approveViaProxyNft() {
         final AtomicLong gasUsed = new AtomicLong();
         return testCases.flatMap(rates -> hapiTest(
@@ -154,6 +156,7 @@ public class GasCalculationIntegrityTest {
 
     @LeakyHapiTest(requirement = UPGRADE_FILE_CONTENT)
     @DisplayName("when using fungible token hts system contract")
+    @Tag(MATS)
     public Stream<DynamicTest> approveFungibleToken() {
         final AtomicLong gasUsed = new AtomicLong();
         return testCases.flatMap(rates -> hapiTest(

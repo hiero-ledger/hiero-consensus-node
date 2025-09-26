@@ -19,6 +19,10 @@ import org.hiero.otter.fixtures.result.MultipleNodeLogResults;
 
 /**
  * Continuous assertions for {@link MultipleNodeLogResults}.
+ *
+ * <p>Please note: If two continuous assertions fail roughly at the same time, it is non-deterministic which one
+ * will report the failure first. This is even true when running a test in the Turtle environment.
+ * If deterministic behavior is required, please use regular assertions instead of continuous assertions.
  */
 @SuppressWarnings({"UnusedReturnValue", "unused"})
 public class MultipleNodeLogResultsContinuousAssert
@@ -117,6 +121,21 @@ public class MultipleNodeLogResultsContinuousAssert
     @NonNull
     public MultipleNodeLogResultsContinuousAssert haveNoErrorLevelMessages() {
         return haveNoMessageWithLevelHigherThan(Level.WARN);
+    }
+
+    /**
+     * Verifies that no log message contains the specified content.
+     *
+     * @param searchString the substring that should not be present
+     * @return this assertion object for method chaining
+     */
+    @NonNull
+    public MultipleNodeLogResultsContinuousAssert haveNoMessageContaining(@NonNull final String searchString) {
+        return checkContinuously(logEntry -> {
+            if (logEntry.message().contains(searchString)) {
+                failWithMessage("Expected no message containing '%s', but found in %n%s", searchString, logEntry);
+            }
+        });
     }
 
     private MultipleNodeLogResultsContinuousAssert checkContinuously(final Consumer<StructuredLog> check) {
