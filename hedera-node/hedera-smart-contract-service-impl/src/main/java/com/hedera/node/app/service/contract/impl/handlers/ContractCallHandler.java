@@ -80,8 +80,9 @@ public class ContractCallHandler extends AbstractContractTransactionHandler {
                         op.contractID().evmAddressOrThrow().length() == EVM_ADDRESS_LENGTH_AS_INT, INVALID_CONTRACT_ID);
             }
 
+            // TODO: Revisit baselineGas with Pectra support epic
             final var intrinsicGas = gasCalculator.transactionIntrinsicGasCost(
-                    Bytes.wrap(op.functionParameters().toByteArray()), false);
+                    Bytes.wrap(op.functionParameters().toByteArray()), false, 0L);
             validateTruePreCheck(op.gas() >= intrinsicGas, INSUFFICIENT_GAS);
         } catch (@NonNull final Exception e) {
             bumpExceptionMetrics(CONTRACT_CALL, e);

@@ -94,8 +94,9 @@ public class ContractCallLocalHandler extends PaidQueryHandler {
         validateTruePreCheck(requestedGas >= 0, CONTRACT_NEGATIVE_GAS);
         final var maxGasLimit = getMaxGasLimit(context.configuration().getConfigData(ContractsConfig.class));
         validateTruePreCheck(requestedGas <= maxGasLimit, MAX_GAS_LIMIT_EXCEEDED);
+        // TODO: Revisit baselineGas with Pectra support epic
         final var intrinsicGas = gasCalculator.transactionIntrinsicGasCost(
-                org.apache.tuweni.bytes.Bytes.wrap(op.functionParameters().toByteArray()), false);
+                org.apache.tuweni.bytes.Bytes.wrap(op.functionParameters().toByteArray()), false, 0L);
         validateTruePreCheck(op.gas() >= intrinsicGas, INSUFFICIENT_GAS);
 
         final var contractID = op.contractID();

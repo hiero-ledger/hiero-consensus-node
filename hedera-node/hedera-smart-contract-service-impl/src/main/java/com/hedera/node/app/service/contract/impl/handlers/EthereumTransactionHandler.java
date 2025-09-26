@@ -97,8 +97,9 @@ public class EthereumTransactionHandler extends AbstractContractTransactionHandl
                             .toByteArray());
             validateTruePreCheck(nonNull(ethTxData), INVALID_ETHEREUM_TRANSACTION);
             final byte[] callData = ethTxData.hasCallData() ? ethTxData.callData() : new byte[0];
+            // TODO: Revisit baselineGas with Pectra support epic
             final var intrinsicGas =
-                    gasCalculator.transactionIntrinsicGasCost(org.apache.tuweni.bytes.Bytes.wrap(callData), false);
+                    gasCalculator.transactionIntrinsicGasCost(org.apache.tuweni.bytes.Bytes.wrap(callData), false, 0L);
             validateTruePreCheck(ethTxData.gasLimit() >= intrinsicGas, INSUFFICIENT_GAS);
             // Do not allow sending HBars to Burn Address
             if (ethTxData.value().compareTo(BigInteger.ZERO) > 0) {

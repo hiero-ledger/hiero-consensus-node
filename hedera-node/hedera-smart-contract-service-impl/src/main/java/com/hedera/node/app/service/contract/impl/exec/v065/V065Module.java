@@ -50,6 +50,7 @@ import javax.inject.Singleton;
 import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.evm.EVM;
 import org.hyperledger.besu.evm.EvmSpecVersion;
+import org.hyperledger.besu.evm.code.CodeFactory;
 import org.hyperledger.besu.evm.contractvalidation.ContractValidationRule;
 import org.hyperledger.besu.evm.gascalculator.GasCalculator;
 import org.hyperledger.besu.evm.internal.EvmConfiguration;
@@ -86,24 +87,25 @@ public interface V065Module {
             @ServicesV065 @NonNull final CustomMessageCallProcessor messageCallProcessor,
             @ServicesV065 @NonNull final ContractCreationProcessor contractCreationProcessor,
             @NonNull final CustomGasCharging gasCharging,
-            @ServicesV065 @NonNull final FeatureFlags featureFlags) {
+            @ServicesV065 @NonNull final FeatureFlags featureFlags,
+            @NonNull final CodeFactory codeFactory) {
         return new TransactionProcessor(
-                frameBuilder, frameRunner, gasCharging, messageCallProcessor, contractCreationProcessor, featureFlags);
+                frameBuilder,
+                frameRunner,
+                gasCharging,
+                messageCallProcessor,
+                contractCreationProcessor,
+                featureFlags,
+                codeFactory);
     }
 
     @Provides
     @Singleton
     @ServicesV065
     static ContractCreationProcessor provideContractCreationProcessor(
-            @ServicesV065 @NonNull final EVM evm,
-            @NonNull final GasCalculator gasCalculator,
-            @NonNull final Set<ContractValidationRule> validationRules) {
+            @ServicesV065 @NonNull final EVM evm, @NonNull final Set<ContractValidationRule> validationRules) {
         return new CustomContractCreationProcessor(
-                evm,
-                gasCalculator,
-                REQUIRE_CODE_DEPOSIT_TO_SUCCEED,
-                List.copyOf(validationRules),
-                INITIAL_CONTRACT_NONCE);
+                evm, REQUIRE_CODE_DEPOSIT_TO_SUCCEED, List.copyOf(validationRules), INITIAL_CONTRACT_NONCE);
     }
 
     @Provides
@@ -216,16 +218,19 @@ public interface V065Module {
     @Provides
     @IntoSet
     @ServicesV065
-    static Operation provideCreateOperation(@NonNull final GasCalculator gasCalculator) {
-        return new CustomCreateOperation(gasCalculator);
+    static Operation provideCreateOperation(
+            @NonNull final GasCalculator gasCalculator, @NonNull final CodeFactory codeFactory) {
+        return new CustomCreateOperation(gasCalculator, codeFactory);
     }
 
     @Provides
     @IntoSet
     @ServicesV065
     static Operation provideCreate2Operation(
-            @NonNull final GasCalculator gasCalculator, @ServicesV065 @NonNull final FeatureFlags featureFlags) {
-        return new CustomCreate2Operation(gasCalculator, featureFlags);
+            @NonNull final GasCalculator gasCalculator,
+            @ServicesV065 @NonNull final FeatureFlags featureFlags,
+            @NonNull final CodeFactory codeFactory) {
+        return new CustomCreate2Operation(gasCalculator, featureFlags, codeFactory);
     }
 
     @Provides
@@ -315,7 +320,6 @@ public interface V065Module {
     @ServicesV065
     static Operation provideSelfDestructOperation(
             @NonNull final GasCalculator gasCalculator, @ServicesV065 @NonNull final AddressChecks addressChecks) {
-        // Here we adopt EIP-6780 semantics, for SELFDESTRUCT, for the first time
         return new CustomSelfDestructOperation(gasCalculator, addressChecks, UseEIP6780Semantics.YES);
     }
 
