@@ -75,6 +75,7 @@ import com.hedera.node.app.ids.WritableEntityIdStore;
 import com.hedera.node.app.info.CurrentPlatformStatusImpl;
 import com.hedera.node.app.info.StateNetworkInfo;
 import com.hedera.node.app.metrics.StoreMetricsServiceImpl;
+import com.hedera.node.app.records.BlockRecordManager;
 import com.hedera.node.app.records.BlockRecordService;
 import com.hedera.node.app.roster.RosterService;
 import com.hedera.node.app.service.addressbook.impl.AddressBookServiceImpl;
@@ -1091,6 +1092,10 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
         return daggerApp.blockStreamManager();
     }
 
+    public BlockRecordManager blockRecordManager() {
+        return daggerApp.blockRecordManager();
+    }
+
     public ThrottleDefinitions activeThrottleDefinitions() {
         return daggerApp.throttleServiceManager().activeThrottleDefinitionsOrThrow();
     }
@@ -1371,7 +1376,7 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
         }
     }
 
-    private MerkleNodeState withListeners(@NonNull final MerkleNodeState root) {
+    public MerkleNodeState withListeners(@NonNull final MerkleNodeState root) {
         root.registerCommitListener(boundaryStateChangeListener);
         root.registerCommitListener(immediateStateChangeListener);
         return root;

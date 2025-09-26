@@ -327,20 +327,25 @@ public class AtomicBatchTokenAirdropTest {
             @NonNull @Account(tinybarBalance = ONE_HBAR) final SpecAccount sender) {
         return hapiTest(
                 cryptoCreate(DEFAULT_BATCH_OPERATOR).balance(ONE_HBAR),
-                sender.authorizeContract(tokenReject), withOpContext((spec, opLog) -> {
-            allRunFor(
-                    spec,
-                    sender.associateTokens(token),
-                    token.treasury().transferUnitsTo(sender, 100, token),
-                    token.treasury().getBalance().andAssert(balance -> balance.hasTokenBalance(token.name(), 900L)));
-            final var tokenAddress = token.addressOn(spec.targetNetworkOrThrow());
-            allRunFor(
-                    spec,
-                    tokenReject
-                            .call("rejectTokens", sender, new Address[] {tokenAddress}, new Address[0])
-                            .wrappedInBatchOperation(DEFAULT_BATCH_OPERATOR),
-                    sender.getBalance().andAssert(balance -> balance.hasTokenBalance(token.name(), 0L)),
-                    token.treasury().getBalance().andAssert(balance -> balance.hasTokenBalance(token.name(), 1000L)));
-        }));
+                sender.authorizeContract(tokenReject),
+                withOpContext((spec, opLog) -> {
+                    allRunFor(
+                            spec,
+                            sender.associateTokens(token),
+                            token.treasury().transferUnitsTo(sender, 100, token),
+                            token.treasury()
+                                    .getBalance()
+                                    .andAssert(balance -> balance.hasTokenBalance(token.name(), 900L)));
+                    final var tokenAddress = token.addressOn(spec.targetNetworkOrThrow());
+                    allRunFor(
+                            spec,
+                            tokenReject
+                                    .call("rejectTokens", sender, new Address[] {tokenAddress}, new Address[0])
+                                    .wrappedInBatchOperation(DEFAULT_BATCH_OPERATOR),
+                            sender.getBalance().andAssert(balance -> balance.hasTokenBalance(token.name(), 0L)),
+                            token.treasury()
+                                    .getBalance()
+                                    .andAssert(balance -> balance.hasTokenBalance(token.name(), 1000L)));
+                }));
     }
 }

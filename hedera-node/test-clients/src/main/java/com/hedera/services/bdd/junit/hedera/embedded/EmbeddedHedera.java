@@ -40,6 +40,11 @@ public interface EmbeddedHedera {
     void stop();
 
     /**
+     *  Closes the record and the block streams
+     */
+    void closeStreams();
+
+    /**
      * Returns the fake state of the embedded Hedera node.
      * @return the fake state of the embedded Hedera node
      */
