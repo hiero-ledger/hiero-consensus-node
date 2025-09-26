@@ -178,7 +178,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         final Duration delay = Duration.ofSeconds(1);
         doReturn(nodeConfig).when(connection).getNodeConfig();
 
-        connectionManager.rescheduleConnection(connection, delay);
+        connectionManager.rescheduleConnection(connection, delay, null);
 
         // Verify task created to reconnect to the failing connection after a delay
         verify(executorService)
@@ -198,10 +198,10 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         final BlockNodeConfig nodeConfig = newBlockNodeConfig(8080, 1);
         doReturn(nodeConfig).when(connection).getNodeConfig();
 
-        connectionManager.rescheduleConnection(connection, Duration.ZERO);
-        connectionManager.rescheduleConnection(connection, Duration.ofMillis(10L));
-        connectionManager.rescheduleConnection(connection, Duration.ofMillis(20L));
-        connectionManager.rescheduleConnection(connection, Duration.ofMillis(30L));
+        connectionManager.rescheduleConnection(connection, Duration.ZERO, null);
+        connectionManager.rescheduleConnection(connection, Duration.ofMillis(10L), null);
+        connectionManager.rescheduleConnection(connection, Duration.ofMillis(20L), null);
+        connectionManager.rescheduleConnection(connection, Duration.ofMillis(30L), null);
 
         assertThat(retryStates).hasSize(1);
         assertThat(retryStates.get(nodeConfig).getRetryAttempt()).isEqualTo(4);
@@ -223,9 +223,9 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
         connectionManager = new BlockNodeConnectionManager(configProvider, bufferService, metrics, executorService);
 
-        connectionManager.rescheduleConnection(connection, Duration.ZERO);
+        connectionManager.rescheduleConnection(connection, Duration.ZERO, null);
         Thread.sleep(1_000L); // sleep to ensure the backoff timeframe has passed
-        connectionManager.rescheduleConnection(connection, Duration.ZERO);
+        connectionManager.rescheduleConnection(connection, Duration.ZERO, null);
 
         final Map<BlockNodeConfig, RetryState> retryStates = retryStates();
         assertThat(retryStates).hasSize(1);
@@ -1350,7 +1350,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         isStreamingEnabled.set(false);
         final BlockNodeConnection connection = mock(BlockNodeConnection.class);
 
-        connectionManager.rescheduleConnection(connection, Duration.ZERO);
+        connectionManager.rescheduleConnection(connection, Duration.ZERO, null);
 
         verifyNoInteractions(connection);
         verifyNoInteractions(bufferService);
