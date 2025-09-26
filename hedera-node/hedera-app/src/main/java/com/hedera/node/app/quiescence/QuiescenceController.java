@@ -25,6 +25,7 @@ import java.util.function.LongSupplier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.event.Event;
+import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.model.transaction.Transaction;
 
@@ -149,25 +150,25 @@ public class QuiescenceController {
     }
 
     /**
-     * Returns the current quiescence status.
+     * Returns the current quiescence command.
      *
-     * @return the current quiescence status
+     * @return the current quiescence command
      */
-    public QuiescenceStatus getQuiescenceStatus() {
+    public QuiescenceCommand getQuiescenceStatus() {
         if (!config.enabled()) {
-            return QuiescenceStatus.NOT_QUIESCENT;
+            return QuiescenceCommand.DONT_QUIESCE;
         }
         if (pipelineTransactionCount.get() > 0) {
-            return QuiescenceStatus.NOT_QUIESCENT;
+            return QuiescenceCommand.DONT_QUIESCE;
         }
         final Instant tct = nextTct.get();
         if (tct != null && tct.minus(config.tctDuration()).isBefore(time.now())) {
-            return QuiescenceStatus.NOT_QUIESCENT;
+            return QuiescenceCommand.DONT_QUIESCE;
         }
         if (pendingTransactionCount.getAsLong() > 0) {
-            return QuiescenceStatus.BREAKING_QUIESCENCE;
+            return QuiescenceCommand.BREAK_QUIESCENCE;
         }
-        return QuiescenceStatus.QUIESCENT;
+        return QuiescenceCommand.QUIESCE;
     }
 
     private static Instant tctUpdate(@NonNull final Instant currentTct, @NonNull final Instant currentConsensusTime) {
