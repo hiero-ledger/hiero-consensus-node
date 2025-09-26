@@ -643,6 +643,9 @@ jobs:
           COMMIT_LIST="${{ needs.fetch-xts-candidate.outputs.commit-list }}"
           # Escape double quotes and backslashes for JSON
           ESCAPED_COMMIT_LIST=$(jq -Rs . <<< "${COMMIT_LIST}")
+
+          # Remove the surrounding quotes added by jq
+          ESCAPED_COMMIT_LIST=${ESCAPED_COMMIT_LIST:1:-1}
           echo "commit-list=${ESCAPED_COMMIT_LIST}" >> "${GITHUB_OUTPUT}"
 
       - name: Checkout Code
