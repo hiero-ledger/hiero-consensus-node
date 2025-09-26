@@ -34,24 +34,6 @@ then
   rm -rf data/saved/com.hedera.services.ServicesMain/${node_id}/123/*
   export PATH=/usr/local/java/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
   cp .archive/config.txt .
-  rm -rf .archive
-  if [ 1 -eq 0 ]
-  then
-  echo "Generate module allowances:";
-  echo > module_reads.txt
-  java -p $(find data/lib/* -type f -name '*.jar' -printf "%p:") --list-modules |  grep -E '[\.]hiero|[\.]swirlds|[\.]hedera|[\.]pbj|hyperledger[\.]besu' > packs.txt
-
-  for package in `cat packs.txt | awk '{print $1}'`
-  do
-   file=`grep $package packs.txt | awk '{print $2}'| sed -e 's@file://@@g'`
-   packagename=`echo $package | awk -F @ '{print $1}'`
-   unzip -l $file | awk '{print $NF}' |  grep '.class' | grep -v 'module-info.class' | grep besu | sed -e 's/^\(.*\)[\/][^\/][^\/]*.class/\1/g' | sort -u | sed -e 's/[\/]/./g' |\
-   perl -ne "~s/\n//g;print \"--add-modules=$packagename --add-reads $packagename=cobertura --add-opens $packagename/\$_=cobertura --add-exports $packagename/\$_=cobertura \"" >>module_reads.txt
-  done
-  export DISABLE_JDK_SERIAL_FILTER=true
-  find data/lib/* -type f -name '*.jar' -printf "%p:" > module_path.txt
-  export EXTRA_COBERTURA_OPTS="-Dnet.sourceforge.cobertura.datafile=/tmp/cobertura.ser --module-path $(cat module_path.txt) --add-modules cobertura --add-reads cobertura=ALL-UNNAMED --add-opens cobertura/net.sourceforge.cobertura=ALL-UNNAMED  --add-modules org.slf4j --add-reads cobertura=org.slf4j --add-reads org.slf4j=cobertura $(cat module_reads.txt)"
-  fi
   export EXTRA_COBERTURA_OPTS="--illegal-access=warn -Dnet.sourceforge.cobertura.datafile=/tmp/cobertura.ser -Dio.grpc.netty.shaded.io.netty.tryReflectionSetAccessible=true"
 fi
 
@@ -88,5 +70,4 @@ LOGNAME=hedera
 PATH=/usr/local/java/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
 cd $APP_HOME
-echo "${JAVA_HEAP_OPTS} ${JAVA_OPTS} ${EXTRA_COBERTURA_OPTS} -cp ${JAVA_CLASS_PATH} ${JAVA_MAIN_CLASS} -local ${node_id}" | perl -pne '~s/\n/ /g'>args.txt
-nohup /usr/bin/env java @args.txt > node.log 2>&1 &
+nohup /usr/bin/env java "${JAVA_HEAP_OPTS} ${JAVA_OPTS} ${EXTRA_COBERTURA_OPTS} -cp ${JAVA_CLASS_PATH} ${JAVA_MAIN_CLASS} -local ${node_id}" > node.log 2>&1 &
