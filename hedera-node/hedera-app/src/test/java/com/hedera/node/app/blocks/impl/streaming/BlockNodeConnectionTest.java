@@ -263,7 +263,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         verify(metrics).recordConnectionClosed();
         verify(requestPipeline).onComplete();
         verify(connectionManager).jumpToBlock(-1L);
-        verify(connectionManager).rescheduleConnection(connection, null, null);
+        verify(connectionManager).rescheduleConnection(connection, Duration.ofSeconds(30), null);
         verify(connectionManager).updateLastVerifiedBlock(connection.getNodeConfig(), 10L);
         verifyNoMoreInteractions(metrics);
         verifyNoMoreInteractions(requestPipeline);
@@ -305,7 +305,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         verify(requestPipeline).onComplete();
         verify(connectionManager).jumpToBlock(-1L);
         verify(connectionManager).updateLastVerifiedBlock(connection.getNodeConfig(), 10L);
-        verify(connectionManager).rescheduleConnection(connection, null, null);
+        verify(connectionManager).rescheduleConnection(connection, Duration.ofSeconds(30), null);
         verifyNoMoreInteractions(metrics);
         verifyNoMoreInteractions(requestPipeline);
     }

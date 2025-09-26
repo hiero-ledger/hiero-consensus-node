@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.blocks.impl.streaming;
 
-import static com.hedera.node.app.blocks.impl.streaming.BlockNodeConnection.LONGER_RETRY_DELAY;
+import static com.hedera.node.app.blocks.impl.streaming.BlockNodeConnection.THIRTY_SECONDS;
 import static java.util.Collections.shuffle;
 import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.collectingAndThen;
@@ -775,7 +775,7 @@ public class BlockNodeConnectionManager {
                     latestBlockNumber);
 
             connection.close(true);
-            rescheduleConnection(connection, LONGER_RETRY_DELAY, null);
+            rescheduleConnection(connection, THIRTY_SECONDS, null);
             return true;
         }
 
