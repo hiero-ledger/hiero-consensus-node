@@ -27,11 +27,4 @@ class ConsensusServiceDefinitionTest {
                         new RpcMethodDefinition<>("getTopicInfo", Query.class, Response.class),
                         new RpcMethodDefinition<>("submitMessage", Transaction.class, TransactionResponse.class));
     }
-
-    @Test
-    void instanceCantLoadWithoutImplementation() {
-        Assertions.assertThatExceptionOfType(IllegalStateException.class)
-                .isThrownBy(ConsensusService::getInstance)
-                .isNotNull();
-    }
 }

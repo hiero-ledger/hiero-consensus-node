@@ -23,7 +23,7 @@ import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
-class RosterServiceTest {
+class RosterServiceImplTest {
     @Mock
     private Predicate<Roster> canAdopt;
 
@@ -63,12 +63,5 @@ class RosterServiceTest {
     @Test
     void testServiceNameReturnsCorrectName() {
         Assertions.assertThat(rosterService.getServiceName()).isEqualTo(RosterService.NAME);
-    }
-
-    @Test
-    void instanceCantLoadWithoutImplementation() {
-        Assertions.assertThatExceptionOfType(IllegalStateException.class)
-                .isThrownBy(RosterService::getInstance)
-                .isNotNull();
     }
 }

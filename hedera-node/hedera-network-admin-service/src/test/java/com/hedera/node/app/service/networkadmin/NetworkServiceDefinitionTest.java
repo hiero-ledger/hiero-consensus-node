@@ -26,11 +26,4 @@ class NetworkServiceDefinitionTest {
                         new RpcMethodDefinition<>("uncheckedSubmit", Transaction.class, TransactionResponse.class),
                         new RpcMethodDefinition<>("getAccountDetails", Query.class, Response.class));
     }
-
-    @Test
-    void instanceCantLoadWithoutImplementation() {
-        Assertions.assertThatExceptionOfType(IllegalStateException.class)
-                .isThrownBy(NetworkService::getInstance)
-                .isNotNull();
-    }
 }

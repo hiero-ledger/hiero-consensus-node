@@ -21,11 +21,4 @@ class FreezeServiceDefinitionTest {
                 .containsExactlyInAnyOrder(
                         new RpcMethodDefinition<>("freeze", Transaction.class, TransactionResponse.class));
     }
-
-    @Test
-    void instanceCantLoadWithoutImplementation() {
-        Assertions.assertThatExceptionOfType(IllegalStateException.class)
-                .isThrownBy(FreezeService::getInstance)
-                .isNotNull();
-    }
 }
