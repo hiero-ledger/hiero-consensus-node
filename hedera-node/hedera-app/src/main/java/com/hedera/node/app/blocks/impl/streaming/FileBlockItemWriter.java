@@ -2,7 +2,7 @@
 package com.hedera.node.app.blocks.impl.streaming;
 
 import static com.swirlds.common.io.utility.FileUtils.getAbsolutePath;
-import static com.swirlds.state.lifecycle.HapiUtils.asAccountString;
+import static com.hedera.hapi.util.HapiUtils.asAccountString;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.block.stream.Block;

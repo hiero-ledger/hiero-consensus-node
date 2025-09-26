@@ -14,7 +14,7 @@ import static com.hedera.node.app.records.impl.producers.formats.v6.SignatureWri
 import static com.hedera.pbj.runtime.ProtoWriterTools.writeLong;
 import static com.hedera.pbj.runtime.ProtoWriterTools.writeMessage;
 import static com.swirlds.common.stream.LinkedObjectStreamUtilities.convertInstantToStringWithPadding;
-import static com.swirlds.state.lifecycle.HapiUtils.asAccountString;
+import static com.hedera.hapi.util.HapiUtils.asAccountString;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.SemanticVersion;

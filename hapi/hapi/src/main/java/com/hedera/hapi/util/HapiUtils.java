@@ -392,4 +392,8 @@ public class HapiUtils {
                         ipV4Addr.getByte(2) & 0xFF,
                         ipV4Addr.getByte(3) & 0xFF);
     }
+
+    public static String asAccountString(final AccountID accountID) {
+        return String.format("%d.%d.%d", accountID.shardNum(), accountID.realmNum(), accountID.accountNum());
+    }
 }
