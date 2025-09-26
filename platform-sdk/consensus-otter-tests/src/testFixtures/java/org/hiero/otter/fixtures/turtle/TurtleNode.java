@@ -226,7 +226,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
                             wrapConsumerWithNodeContext(resultsCollector::addConsensusRounds));
 
             platformComponent
-                    .statusStateMachineWiring()
+                    .platformMonitorWiring()
                     .getOutputWire()
                     .solderTo(
                             "nodePlatformStatusCollector",
