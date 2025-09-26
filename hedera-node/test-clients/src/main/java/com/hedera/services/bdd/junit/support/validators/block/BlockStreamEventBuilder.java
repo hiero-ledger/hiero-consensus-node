@@ -110,9 +110,7 @@ public class BlockStreamEventBuilder {
         if (currentEventHeader == null) {
             fail("Unexpected redacted item without an active event header!");
         }
-        if (redactedItem.signedTransactionHash() != null) {
-            currentTransactions.add(TransactionWrapper.ofTransactionHash(redactedItem.signedTransactionHash()));
-        }
+        currentTransactions.add(TransactionWrapper.ofTransactionHash(redactedItem.signedTransactionHash()));
     }
 
     private void startOfBlock() {
@@ -152,7 +150,7 @@ public class BlockStreamEventBuilder {
 
     /**
      * Events included in the event hash have a nonce of zero and is not a scheduled transaction. Other transactions
-     * (e.g. synthetic transactions) have a non-zero nonce and must not be included in the event in order to calculate
+     * (e.g. synthetic transactions) have a non-zero nonce and must not be included in the event to calculate
      * the correct event hash.
      *
      * @param transactionBytes the signed transaction bytes to check
