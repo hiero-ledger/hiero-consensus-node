@@ -171,17 +171,73 @@ jobs:
             gh run cancel "${{ github.run_id }}"
           fi
 
-  extended-test-suite:
-    name: Execute eXtended Test Suite
+  xts-timing-sensitive-tests:
+    name: XTS Timing Sensitive Tests
     uses: ./.github/workflows/node-zxc-compile-application-code.yaml
     needs: fetch-xts-candidate
     if: ${{ needs.fetch-xts-candidate.result == 'success' && needs.fetch-xts-candidate.outputs.xts-tag-exists == 'true' }}
     with:
-      custom-job-label: Execute eXtended Test Suite
+      custom-job-label: "XTS Timing Sensitive"
       enable-timing-sensitive-tests: true
+      enable-network-log-capture: true
+      ref: ${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }}
+    secrets:
+      access-token: ${{ secrets.GITHUB_TOKEN }}
+      gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
+      gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
+
+  xts-time-consuming-tests:
+    name: XTS Time Consuming Tests
+    uses: ./.github/workflows/node-zxc-compile-application-code.yaml
+    needs: fetch-xts-candidate
+    if: ${{ needs.fetch-xts-candidate.result == 'success' && needs.fetch-xts-candidate.outputs.xts-tag-exists == 'true' }}
+    with:
+      custom-job-label: "XTS Time Consuming"
       enable-time-consuming-tests: true
+      enable-network-log-capture: true
+      ref: ${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }}
+    secrets:
+      access-token: ${{ secrets.GITHUB_TOKEN }}
+      gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
+      gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
+
+  xts-hammer-tests:
+    name: XTS Hammer Tests
+    uses: ./.github/workflows/node-zxc-compile-application-code.yaml
+    needs: fetch-xts-candidate
+    if: ${{ needs.fetch-xts-candidate.result == 'success' && needs.fetch-xts-candidate.outputs.xts-tag-exists == 'true' }}
+    with:
+      custom-job-label: "XTS Hammer Tests"
       enable-hammer-tests: true
+      enable-network-log-capture: true
+      ref: ${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }}
+    secrets:
+      access-token: ${{ secrets.GITHUB_TOKEN }}
+      gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
+      gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
+
+  xts-hapi-time-consuming-tests:
+    name: XTS HAPI Tests (Time Consuming)
+    uses: ./.github/workflows/node-zxc-compile-application-code.yaml
+    needs: fetch-xts-candidate
+    if: ${{ needs.fetch-xts-candidate.result == 'success' && needs.fetch-xts-candidate.outputs.xts-tag-exists == 'true' }}
+    with:
+      custom-job-label: "XTS HAPI Time Consuming"
       enable-hapi-tests-time-consuming: true
+      enable-network-log-capture: true
+      ref: ${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }}
+    secrets:
+      access-token: ${{ secrets.GITHUB_TOKEN }}
+      gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
+      gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
+
+  xts-hapi-block-node-comms-tests:
+    name: XTS HAPI Tests (Block Node Communication)
+    uses: ./.github/workflows/node-zxc-compile-application-code.yaml
+    needs: fetch-xts-candidate
+    if: ${{ needs.fetch-xts-candidate.result == 'success' && needs.fetch-xts-candidate.outputs.xts-tag-exists == 'true' }}
+    with:
+      custom-job-label: "XTS HAPI Block Node Comms"
       enable-hapi-tests-bn-communication: true
       enable-network-log-capture: true
       ref: ${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }}
@@ -299,11 +355,22 @@ jobs:
     runs-on: hiero-citr-linux-medium
     needs:
       - abbreviated-panel
-      - extended-test-suite
       - fetch-xts-candidate
       - hedera-node-jrs-panel
       - sdk-tck-regression-panel
-    if: ${{ needs.abbreviated-panel.result == 'success' || needs.extended-test-suite.result == 'success' || needs.hedera-node-jrs-panel.result == 'success' }}
+      - xts-hammer-tests
+      - xts-hapi-block-node-comms-tests
+      - xts-hapi-time-consuming-tests
+      - xts-time-consuming-tests
+      - xts-timing-sensitive-tests
+    if: ${{ needs.abbreviated-panel.result == 'success' ||
+      needs.hedera-node-jrs-panel.result == 'success' ||
+      needs.sdk-tck-regression-panel.result == 'success' ||
+      needs.xts-hammer-tests.result == 'success' ||
+      needs.xts-hapi-block-node-comms-tests.result == 'success' ||
+      needs.xts-hapi-time-consuming-tests.result == 'success' ||
+      needs.xts-time-consuming-tests.result == 'success' ||
+      needs.xts-timing-sensitive-tests.result == 'success' }}
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
@@ -367,17 +434,25 @@ jobs:
     runs-on: hiero-citr-linux-medium
     needs:
       - abbreviated-panel
-      - extended-test-suite
       - fetch-xts-candidate
       - hedera-node-jrs-panel
       - sdk-tck-regression-panel
       - tag-for-promotion
+      - xts-hammer-tests
+      - xts-hapi-block-node-comms-tests
+      - xts-hapi-time-consuming-tests
+      - xts-time-consuming-tests
+      - xts-timing-sensitive-tests
     if: ${{ (needs.abbreviated-panel.result == 'success' &&
-      needs.extended-test-suite.result == 'success' &&
       needs.fetch-xts-candidate.result == 'success' &&
       needs.hedera-node-jrs-panel.result == 'success' &&
       needs.sdk-tck-regression-panel.result == 'success' &&
-      needs.tag-for-promotion.result == 'success') &&
+      needs.tag-for-promotion.result == 'success' &&
+      needs.xts-hammer-tests.result == 'success' &&
+      needs.xts-hapi-block-node-comms-tests.result == 'success' &&
+      needs.xts-hapi-time-consuming-tests.result == 'success' &&
+      needs.xts-time-consuming-tests.result == 'success' &&
+      needs.xts-timing-sensitive-tests == 'success') &&
       !cancelled() }}
     steps:
       - name: Harden Runner
@@ -421,7 +496,23 @@ jobs:
                         },
                         {
                           "type": "plain_text",
-                          "text": "Execute eXtended Test Suite: ${{ needs.extended-test-suite.result }}"
+                          "text": "XTS Timing Sensitive Tests: ${{ needs.xts-timing-sensitive-tests.result }}"
+                        },
+                        {
+                          "type": "plain_text",
+                          "text": "XTS Time Consuming Tests: ${{ needs.xts-time-consuming-tests.result }}"
+                        },
+                        {
+                          "type": "plain_text",
+                          "text": "XTS Hammer Tests: ${{ needs.xts-hammer-tests.result }}"
+                        },
+                        {
+                          "type": "plain_text",
+                          "text": "XTS HAPI Time Consuming Tests: ${{ needs.xts-hapi-time-consuming-tests.result }}"
+                        },
+                        {
+                          "type": "plain_text",
+                          "text": "XTS HAPI Block Node Comms Tests: ${{ needs.xts-hapi-block-node-comms-tests.result }}"
                         },
                         {
                           "type": "plain_text",
@@ -511,17 +602,25 @@ jobs:
     runs-on: hiero-citr-linux-medium
     needs:
       - abbreviated-panel
-      - extended-test-suite
       - fetch-xts-candidate
       - hedera-node-jrs-panel
       - sdk-tck-regression-panel
       - tag-for-promotion
+      - xts-hammer-tests
+      - xts-hapi-block-node-comms-tests
+      - xts-hapi-time-consuming-tests
+      - xts-time-consuming-tests
+      - xts-timing-sensitive-tests
     if: ${{ (needs.fetch-xts-candidate.result != 'success' ||
       needs.abbreviated-panel.result != 'success' ||
-      needs.extended-test-suite.result != 'success' ||
       needs.hedera-node-jrs-panel.result != 'success' ||
       needs.sdk-tck-regression-panel.result != 'success' ||
-      needs.tag-for-promotion.result != 'success') &&
+      needs.tag-for-promotion.result != 'success' ||
+      needs.xts-hammer-tests.result != 'success' ||
+      needs.xts-hapi-block-node-comms-tests.result != 'success' ||
+      needs.xts-hapi-time-consuming-tests.result != 'success' ||
+      needs.xts-time-consuming-tests.result != 'success' ||
+      needs.xts-timing-sensitive-tests.result != 'success') &&
       !cancelled() && always() }}
 
     steps:
@@ -581,13 +680,48 @@ jobs:
           fi
           echo "slack-user-id=${SLACK_USER_ID}" >> "${GITHUB_OUTPUT}"
 
+      - name: Determine failure mode
+        id: extended-test-suite-failure
+        if: ${{ needs.xts-timing-sensitive-tests.result != 'success' ||
+          needs.xts-time-consuming-tests.result != 'success' ||
+          needs.xts-hammer-tests.result != 'success' ||
+          needs.xts-hapi-time-consuming-tests.result != 'success' ||
+          needs.xts-hapi-block-node-comms-tests.result != 'success' }}
+        run: |
+          # define a function to check for workflow failure mode
+          has_workflow() {
+            local arr=("$@")
+            for mode in "${arr[@]}"; do
+              [[ "mode" == "workflow" ]] && return 0
+            done
+            return 1
+          }
+
+          # Collect the statuses of all XTS suite jobs
+          xts_suite_statuses=(
+            "${{ needs.xts-timing-sensitive-tests.outputs.mode }}"
+            "${{ needs.xts-time-consuming-tests.outputs.mode }}"
+            "${{ needs.xts-hammer-tests.outputs.mode }}"
+            "${{ needs.xts-hapi-time-consuming-tests.outputs.mode }}"
+            "${{ needs.xts-hapi-block-node-comms-tests.outputs.mode }}"
+          )
+
+          # determine failure mode
+          failure_mode="general"
+          if has_workflow "${xts_suite_statuses[@]}"; then
+            failure_mode="workflow"
+          fi
+
+          # Set the output variable
+          echo "mode=${failure_mode}" >> "${GITHUB_OUTPUT}"
+
       - name: Set Rootly Service Name
         id: set-rootly-service
         run: |
           ROOTLY_SERVICE_NAME="CITR General"
           if [[ "${{ needs.fetch-xts-candidate.result }}" =~ ^(cancelled|failure)$ ]] \
             || [[ "${{ needs.tag-for-promotion.result }}" =~ ^(cancelled|failure)$ ]] \
-            || [[ "${{ needs.extended-test-suite.outputs.failure-mode }}" == "workflow" ]]; then
+            || [[ "${{ steps.extended-test-suite-failure.outputs.mode || 'general' }}" == "workflow" ]]; then
             ROOTLY_SERVICE_NAME="CI/CD Workflows"
           elif [[ "${{ needs.sdk-tck-regression-panel.result }}" =~ ^(cancelled|failure)$ ]]; then
             ROOTLY_SERVICE_NAME="CITR TCK"
@@ -604,7 +738,11 @@ jobs:
             echo "------------------------------------"
             echo "Status of each jobs:"
             echo "- Abbreviated Panel: ${{ needs.abbreviated-panel.result }}"
-            echo "- Extended Test Suite: ${{ needs.extended-test-suite.result }}"
+            echo "- XTS Timing Sensitive Tests: ${{ needs.xts-timing-sensitive-tests.result }}"
+            echo "- XTS Time Consuming Tests: ${{ needs.xts-time-consuming-tests.result }}"
+            echo "- XTS Hammer Tests: ${{ needs.xts-hammer-tests.result }}"
+            echo "- XTS HAPI Time Consuming Tests: ${{ needs.xts-hapi-time-consuming-tests.result }}"
+            echo "- XTS HAPI Block Node Comms Tests: ${{ needs.xts-hapi-block-node-comms-tests.result }}"
             echo "- Hedera Node JRS Panel: ${{ needs.hedera-node-jrs-panel.result }}"
             echo "- SDK TCK Regression Panel: ${{ needs.sdk-tck-regression-panel.result }}"
             echo "- Tag for Promotion: ${{ needs.tag-for-promotion.result }}"
@@ -676,7 +814,23 @@ jobs:
                       },
                       {
                         "type": "plain_text",
-                        "text": "Execute eXtended Test Suite: ${{ needs.extended-test-suite.result }}"
+                        "text": "XTS Timing Sensitive Tests: ${{ needs.xts-timing-sensitive-tests.result }}"
+                      },
+                      {
+                        "type": "plain_text",
+                        "text": "XTS Time Consuming Tests: ${{ needs.xts-time-consuming-tests.result }}"
+                      },
+                      {
+                        "type": "plain_text",
+                        "text": "XTS Hammer Tests: ${{ needs.xts-hammer-tests.result }}"
+                      },
+                      {
+                        "type": "plain_text",
+                        "text": "XTS HAPI Time Consuming Tests: ${{ needs.xts-hapi-time-consuming-tests.result }}"
+                      },
+                      {
+                        "type": "plain_text",
+                        "text": "XTS HAPI Block Node Comms Tests: ${{ needs.xts-hapi-block-node-comms-tests.result }}"
                       },
                       {
                         "type": "plain_text",

@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.suites.crypto;
 
 import static com.hedera.services.bdd.junit.TestTags.CRYPTO;
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.accountWith;
 import static com.hedera.services.bdd.spec.keys.SigControl.OFF;
@@ -87,6 +88,7 @@ public class AutoAccountUpdateSuite {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> updateKeyOnAutoCreatedAccount() {
         final var complexKey = "complexKey";
 
