@@ -42,7 +42,6 @@ import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
-
 import java.util.ArrayList;
 import java.util.List;
 import javax.inject.Inject;
@@ -165,17 +164,24 @@ public class TransferExecutor extends BaseTokenHandler {
         HookCalls hookCalls = null;
 
         if (hasHooks) {
+            final var assessCustomFees = transferContext.getAssessedCustomFees();
             // Extract the HookCalls from the transaction bodies after custom fee assessment
-            hookCalls = hookCallFactory.from(transferContext.getHandleContext(), replacedOp, txns);
+            hookCalls = hookCallFactory.from(
+                    transferContext.getHandleContext(),
+                    replacedOp,
+                    assessCustomFees,
+                    transferContext.getMultiPayerNonNetTransferAdjustments());
             dispatchHookCalls(
-                    hookCalls.context(), hookCalls.preOnlyHooks(), transferContext.getHandleContext(), HooksABI.FN_ALLOW);
+                    hookCalls.context(),
+                    hookCalls.preOnlyHooks(),
+                    transferContext.getHandleContext(),
+                    HooksABI.FN_ALLOW);
             dispatchHookCalls(
                     hookCalls.context(),
                     hookCalls.prePostHooks(),
                     transferContext.getHandleContext(),
                     HooksABI.FN_ALLOW_PRE);
         }
-
 
         for (final var t : txns) {
             steps.add(new AssociateTokenRecipientsStep(t));
@@ -465,6 +471,5 @@ public class TransferExecutor extends BaseTokenHandler {
     }
 
     public record HookInvocations(
-            List<HookCallFactory.HookInvocation> pre, List<HookCallFactory.HookInvocation> post) {
-    }
+            List<HookCallFactory.HookInvocation> pre, List<HookCallFactory.HookInvocation> post) {}
 }

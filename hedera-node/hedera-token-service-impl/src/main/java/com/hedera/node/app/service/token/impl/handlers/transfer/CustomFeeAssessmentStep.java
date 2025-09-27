@@ -140,8 +140,9 @@ public class CustomFeeAssessmentStep {
             // we still need to set the transfer as assessed
             customFeeAssessor.setTransactionFeesAsAssessed(payer, transactionFixedFee, assessmentResult);
             result.assessedCustomFees.addAll(assessmentResult.getAssessedCustomFees());
+            transferContext.setMultiPayerNonNetTransferAdjustments(
+                    assessmentResult.getAggregatedMultiPayerNonNetDeltas());
         }
-
         result.assessedCustomFees().forEach(transferContext::addToAssessedCustomFee);
         customFeeAssessor.resetInitialNftChanges();
         return result.assessedTxns();

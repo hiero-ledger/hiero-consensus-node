@@ -16,33 +16,47 @@ import com.hedera.hapi.node.base.TokenTransferList;
 import com.hedera.hapi.node.base.TransferList;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
+import com.hedera.hapi.node.transaction.AssessedCustomFee;
 import com.hedera.node.app.service.token.ReadableAccountStore;
+import com.hedera.node.app.service.token.impl.handlers.transfer.customfees.AssessmentResult;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import javax.inject.Inject;
 
 public class HookCallFactory {
+    private static final Logger log = LoggerFactory.getLogger(HookCallFactory.class);
+
     @Inject
-    public HookCallFactory() {}
+    public HookCallFactory() {
+    }
 
     public HookCalls from(
             HandleContext handleContext,
             CryptoTransferTransactionBody userTxn,
-            List<CryptoTransferTransactionBody> userAndAssessedTxns) {
+            List<AssessedCustomFee> assessedCustomFees,
+            final Map<TokenID, Map<AccountID, Long>> multiPayerNonNetFeeDeltas) {
         final var accountStore = handleContext.storeFactory().readableStore(ReadableAccountStore.class);
         final var memo = handleContext.body().memo();
         final var txnFee = handleContext.body().transactionFee();
-        return getProposedTransfers(userTxn, accountStore, memo, txnFee);
+        return getProposedTransfers(userTxn, accountStore, memo, txnFee, assessedCustomFees, multiPayerNonNetFeeDeltas);
     }
 
     private HookCalls getProposedTransfers(
             final CryptoTransferTransactionBody userTxn,
             final ReadableAccountStore accountStore,
             final String memo,
-            final long txnFee) {
+            final long txnFee,
+            final List<AssessedCustomFee> assessedCustomFees,
+            final Map<TokenID, Map<AccountID, Long>> multiPayerNonNetFeeDeltas) {
         final var preOnly = new ArrayList<HookInvocation>();
         final var prePost = new ArrayList<HookInvocation>();
 
@@ -52,12 +66,73 @@ public class HookCallFactory {
                 accountStore,
                 preOnly,
                 prePost);
-        // TODO: add assessed fees
-        final var emptyTransfers = Tuple.of(new Tuple[] {}, new Tuple[] {});
+
+        final var customFeeTransfers = encodeCustomFees(accountStore, assessedCustomFees, multiPayerNonNetFeeDeltas);
         return new HookCalls(
-                new HookContext(Tuple.of(directTransfers, emptyTransfers), memo, txnFee),
-                preOnly,
-                prePost); // ((TransferList,TokenTransferList[]),(TransferList,TokenTransferList[]))
+                new HookContext(Tuple.of(directTransfers, customFeeTransfers), memo, txnFee), preOnly, prePost);
+    }
+
+    private Tuple encodeCustomFees(
+            final ReadableAccountStore accountStore,
+            final List<AssessedCustomFee> assessedCustomFees,
+            final Map<TokenID, Map<AccountID, Long>> multiPayerNonNetFeeDeltas) {
+        if (assessedCustomFees.isEmpty()) {
+            return Tuple.of(new Tuple[]{}, new Tuple[]{});
+        }
+        final Map<TokenID, Map<AccountID, Long>> deltas = new HashMap<>();
+        for (final var fee : assessedCustomFees) {
+            final var token = fee.hasTokenId() ? fee.tokenIdOrThrow() : AssessmentResult.HBAR_TOKEN_ID;
+            final var map = deltas.computeIfAbsent(token, t -> new LinkedHashMap<>());
+
+            map.merge(fee.feeCollectorAccountIdOrThrow(), +fee.amount(), Long::sum);
+
+            // if exactly one effective payer, debit it now; else skip, multi-payer handled below
+            if (fee.effectivePayerAccountId().size() == 1) {
+                final var payer = fee.effectivePayerAccountId().getFirst();
+                map.merge(payer, -fee.amount(), Long::sum);
+            }
+        }
+        // Merge in aggregated multi-payer non-net deltas
+        if (multiPayerNonNetFeeDeltas != null) {
+            for (final var e : multiPayerNonNetFeeDeltas.entrySet()) {
+                final var map = deltas.computeIfAbsent(e.getKey(), t -> new LinkedHashMap<>());
+                for (final var accDelta : e.getValue().entrySet()) {
+                    map.merge(accDelta.getKey(), accDelta.getValue(), Long::sum);
+                }
+            }
+        }
+        // Construct TransferList + TokenTransferList[]
+        final var hbarMap = deltas.getOrDefault(AssessmentResult.HBAR_TOKEN_ID, Map.of());
+        final var hbarTransfers = TransferList.newBuilder()
+                .accountAmounts(toAccountAmounts(hbarMap))
+                .build();
+
+        final var tokenTransfers = deltas.entrySet().stream()
+                .filter(en -> !en.getKey().equals(AssessmentResult.HBAR_TOKEN_ID))
+                .map(en -> TokenTransferList.newBuilder()
+                        .token(en.getKey())
+                        .transfers(toAccountAmounts(en.getValue()))
+                        .build())
+                .toList();
+
+        log.info("XXXX Proposed customFees: HBAR {}, Tokens {}", hbarTransfers, tokenTransfers);
+
+        // Reuse the normal encoder; used empty hook collector as custom fees don't introduce new hooks
+        return encodeTransfers(hbarTransfers, tokenTransfers, accountStore, List.of(), List.of());
+    }
+
+    private static List<AccountAmount> toAccountAmounts(final Map<AccountID, Long> map) {
+        final var out = new ArrayList<AccountAmount>(map.size());
+        for (final var e : map.entrySet()) {
+            final var amt = e.getValue();
+            if (amt != 0L) {
+                out.add(AccountAmount.newBuilder()
+                        .accountID(e.getKey())
+                        .amount(amt)
+                        .build());
+            }
+        }
+        return out;
     }
 
     /**
@@ -215,5 +290,6 @@ public class HookCallFactory {
         return asHeadlongAddress(asEvmAddress(tokenId.tokenNum()));
     }
 
-    public record HookInvocation(AccountID ownerId, long hookId, Address ownerAddress, Bytes calldata, long gasLimit) {}
+    public record HookInvocation(AccountID ownerId, long hookId, Address ownerAddress, Bytes calldata, long gasLimit) {
+    }
 }

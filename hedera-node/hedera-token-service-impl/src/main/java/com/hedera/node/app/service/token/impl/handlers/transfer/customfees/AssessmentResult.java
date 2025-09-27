@@ -57,6 +57,8 @@ public class AssessmentResult {
     /* And for each "assessable change" that can be charged a custom fee, delegate to our
     fee assessor to update the balance changes with the custom fee. */
     private final List<AssessedCustomFee> assessedCustomFees;
+    // For multi-payer non-net fees, we need to keep track of the individual parts paid by each payer,
+    private final Map<TokenID, Map<AccountID, Long>> aggregatedMultiPayerNonNetDeltas = new LinkedHashMap<>();
 
     /**
      * Constructs an AssessmentResult object with the input token transfers and hbar transfers
@@ -152,6 +154,30 @@ public class AssessmentResult {
      */
     public Map<AccountID, Long> getImmutableInputHbarAdjustments() {
         return immutableInputHbarAdjustments;
+    }
+
+    public Map<TokenID, Map<AccountID, Long>> getAggregatedMultiPayerNonNetDeltas() {
+        return aggregatedMultiPayerNonNetDeltas;
+    }
+
+    /** Record a multi‑payer non‑net fractional fee: debit each payer, credit the collector. */
+    public void addMultiPayerNonNetFeeDeltas(
+            final TokenID token,
+            final AccountID collector,
+            final Map<AccountID, Long> reclaimedByPayer,
+            final long collectedAmount) {
+        final var deltasForToken = aggregatedMultiPayerNonNetDeltas.computeIfAbsent(token, __ -> new LinkedHashMap<>());
+        for (final var e : reclaimedByPayer.entrySet()) {
+            deltasForToken.merge(e.getKey(), -e.getValue(), Long::sum);
+        }
+        deltasForToken.merge(collector, +collectedAmount, Long::sum);
+    }
+
+    public void addCustomFeeDelta(final TokenID token, final AccountID account, final long amount) {
+        if (amount == 0) return;
+        aggregatedMultiPayerNonNetDeltas
+                .computeIfAbsent(token, __ -> new LinkedHashMap<>())
+                .merge(account, amount, Long::sum);
     }
 
     /**
