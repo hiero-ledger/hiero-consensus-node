@@ -66,7 +66,8 @@ class ReconnectHashListenerTest {
     @ValueSource(ints = {1, 2, 10, 100, 1000, 10_000, 100_000, 1_000_000})
     @DisplayName("Flushed data is always done in the right order")
     void flushOrder(int size) {
-        final VirtualDataSourceSpy ds = new VirtualDataSourceSpy(new InMemoryBuilder().build("flushOrder", true));
+        final VirtualDataSourceSpy ds =
+                new VirtualDataSourceSpy(new InMemoryBuilder().build("flushOrder", null, true, false));
 
         final VirtualMapStatistics statistics = mock(VirtualMapStatistics.class);
         final ReconnectHashLeafFlusher flusher =
