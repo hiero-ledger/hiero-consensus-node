@@ -1,36 +1,39 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.app;
 
-import static org.assertj.core.api.Assertions.fail;
-import static org.hiero.otter.fixtures.app.TransactionHandlers.handleTransaction;
-
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
-import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.io.IOException;
+import java.util.Iterator;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import org.hiero.consensus.model.event.ConsensusEvent;
 import org.hiero.consensus.model.event.Event;
 import org.hiero.consensus.model.hashgraph.Round;
 import org.hiero.consensus.model.roster.AddressBook;
+import org.hiero.consensus.model.transaction.ConsensusTransaction;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
+import org.hiero.otter.fixtures.app.services.consistency.ConsistencyService;
+import org.hiero.otter.fixtures.app.services.platform.PlatformStateService;
+import org.hiero.otter.fixtures.app.services.roster.RosterService;
 
 /**
  * Simple application that can process all transactions required to run tests on Turtle
  */
 @SuppressWarnings("removal")
-public enum OtterApp implements ConsensusStateEventHandler<OtterAppState> {
-    INSTANCE;
+public class OtterApp implements ConsensusStateEventHandler<OtterAppState> {
 
     public static final String APP_NAME = "org.hiero.otter.fixtures.app.OtterApp";
     public static final String SWIRLD_NAME = "123";
+
+    private final List<OtterService> allServices;
+    private final List<OtterService> appServices;
 
     /**
      * The number of milliseconds to sleep per handled consensus round. Sleeping for long enough over a period of time
@@ -41,6 +44,36 @@ public enum OtterApp implements ConsensusStateEventHandler<OtterAppState> {
      */
     private final AtomicLong syntheticBottleneckMillis = new AtomicLong(0);
 
+    private final ConsistencyService consistencyService = new ConsistencyService();
+
+    /**
+     * Create the app and its services.
+     */
+    public OtterApp() {
+        this.appServices = List.of(consistencyService);
+        this.allServices = List.of(consistencyService, new PlatformStateService(), new RosterService());
+    }
+
+    /**
+     * Get the list of services that are part of the application only, and not by the platform.
+     *
+     * @return the list of app services
+     */
+    @NonNull
+    public List<OtterService> appServices() {
+        return appServices;
+    }
+
+    /**
+     * Get the list of all services, both platform and app.
+     *
+     * @return the list of services
+     */
+    @NonNull
+    public List<OtterService> allServices() {
+        return allServices;
+    }
+
     /**
      * {@inheritDoc}
      */
@@ -49,7 +82,7 @@ public enum OtterApp implements ConsensusStateEventHandler<OtterAppState> {
             @NonNull final Event event,
             @NonNull final OtterAppState state,
             @NonNull final Consumer<ScopedSystemTransaction<StateSignatureTransaction>> callback) {
-        // No pre-handling required yet
+        consistencyService.recordPreHandleTransactions(event);
     }
 
     /**
@@ -60,17 +93,27 @@ public enum OtterApp implements ConsensusStateEventHandler<OtterAppState> {
             @NonNull final Round round,
             @NonNull final OtterAppState state,
             @NonNull final Consumer<ScopedSystemTransaction<StateSignatureTransaction>> callback) {
-        for (final ConsensusEvent event : round) {
-            event.forEachTransaction(txn -> {
-                final Bytes payload = txn.getApplicationTransaction();
-                try {
-                    final OtterTransaction transaction = OtterTransaction.parseFrom(payload.toInputStream());
-                    handleTransaction(state, event, transaction, callback);
-                } catch (final IOException ex) {
-                    fail("Failed to parse transaction: " + payload, ex);
-                }
-            });
+        for (final OtterService service : allServices) {
+            service.onRound(state.getWritableStates(service.name()), round);
         }
+
+        for (final ConsensusEvent consensusEvent : round) {
+            for (final OtterService service : allServices) {
+                service.onEvent(state.getWritableStates(service.name()), consensusEvent);
+            }
+            for (final Iterator<ConsensusTransaction> transactionIterator =
+                            consensusEvent.consensusTransactionIterator();
+                    transactionIterator.hasNext(); ) {
+                final ConsensusTransaction transaction = transactionIterator.next();
+                for (final OtterService service : allServices) {
+                    service.onTransaction(
+                            state.getWritableStates(service.name()), consensusEvent, transaction, callback);
+                }
+            }
+        }
+
+        state.commitState();
+
         maybeDoBottleneck();
     }
 
@@ -106,7 +149,7 @@ public enum OtterApp implements ConsensusStateEventHandler<OtterAppState> {
             @NonNull final Platform platform,
             @NonNull final InitTrigger trigger,
             @Nullable final SemanticVersion previousVersion) {
-        // No initialization required yet
+        consistencyService.initialize();
     }
 
     /**

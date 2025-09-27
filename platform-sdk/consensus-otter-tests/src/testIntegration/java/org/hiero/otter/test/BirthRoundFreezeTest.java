@@ -62,6 +62,7 @@ public class BirthRoundFreezeTest {
 
         // Wait for 30 seconds
         timeManager.waitFor(THIRTY_SECONDS);
+        network.shutdown();
 
         // Validations
         assertThat(network.newLogResults()).haveNoMessagesWithLevelHigherThan(WARN);

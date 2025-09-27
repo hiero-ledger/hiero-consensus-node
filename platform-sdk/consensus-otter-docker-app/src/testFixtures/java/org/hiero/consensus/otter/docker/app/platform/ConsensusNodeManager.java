@@ -46,6 +46,7 @@ import org.hiero.consensus.roster.RosterUtils;
 import org.hiero.otter.fixtures.app.OtterApp;
 import org.hiero.otter.fixtures.app.OtterAppState;
 import org.hiero.otter.fixtures.app.OtterExecutionLayer;
+import org.hiero.otter.fixtures.app.state.OtterStateInitializer;
 
 /**
  * Manages the lifecycle and operations of a consensus node within a container-based network. This class initializes the
@@ -55,6 +56,9 @@ import org.hiero.otter.fixtures.app.OtterExecutionLayer;
 public class ConsensusNodeManager {
 
     private static final Logger log = LogManager.getLogger(ConsensusNodeManager.class);
+
+    /** The instance of the Otter application used by this consensus node manager. */
+    private final OtterApp otterApp;
 
     /** The instance of the platform this consensus node manager runs. */
     private final Platform platform;
@@ -114,10 +118,13 @@ public class ConsensusNodeManager {
         final PlatformContext platformContext = PlatformContext.create(
                 platformConfig, Time.getCurrent(), metrics, fileSystemManager, recycleBin, merkleCryptography);
 
+        otterApp = new OtterApp();
+
         final HashedReservedSignedState reservedState = loadInitialState(
                 recycleBin,
                 version,
-                () -> OtterAppState.createGenesisState(platformConfig, genesisRoster, metrics, version),
+                () -> OtterAppState.createGenesisState(
+                        platformConfig, genesisRoster, metrics, version, otterApp.allServices()),
                 OtterApp.APP_NAME,
                 OtterApp.SWIRLD_NAME,
                 legacySelfId,
@@ -125,8 +132,15 @@ public class ConsensusNodeManager {
                 platformContext,
                 OtterAppState::new);
         final ReservedSignedState initialState = reservedState.state();
-
         final MerkleNodeState state = initialState.get().getState();
+
+        // In a genesis state, this will already have been done.
+        // For state loaded from disk, we must register the app-specific services.
+        if (!platformStateFacade.isGenesisStateOf(state)) {
+            OtterStateInitializer.initOtterAppState(
+                    platformConfig, (OtterAppState) state, version, otterApp.appServices());
+        }
+
         final RosterHistory rosterHistory = RosterUtils.createRosterHistory(state);
         executionCallback = new OtterExecutionLayer(metrics);
         final PlatformBuilder builder = PlatformBuilder.create(
@@ -134,7 +148,7 @@ public class ConsensusNodeManager {
                         OtterApp.SWIRLD_NAME,
                         version,
                         initialState,
-                        OtterApp.INSTANCE,
+                        otterApp,
                         legacySelfId,
                         selfId.toString(),
                         rosterHistory,
@@ -231,6 +245,6 @@ public class ConsensusNodeManager {
         if (millisToSleepPerRound < 0) {
             throw new IllegalArgumentException("millisToSleepPerRound must be non-negative");
         }
-        OtterApp.INSTANCE.updateSyntheticBottleneck(millisToSleepPerRound);
+        otterApp.updateSyntheticBottleneck(millisToSleepPerRound);
     }
 }

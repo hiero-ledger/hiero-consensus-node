@@ -57,7 +57,7 @@ public class ConsistencyTestingToolStateTest {
     static void initState() {
         state = new ConsistencyTestingToolState();
         stateLifecycle = new ConsistencyTestingToolConsensusStateEventHandler(DEFAULT_PLATFORM_STATE_FACADE);
-        TestingAppStateInitializer.DEFAULT.initStates(state);
+        TestingAppStateInitializer.DEFAULT.initConsensusModuleStates(state);
     }
 
     @BeforeEach

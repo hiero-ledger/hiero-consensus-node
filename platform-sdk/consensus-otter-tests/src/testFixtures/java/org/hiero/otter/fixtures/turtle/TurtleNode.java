@@ -51,6 +51,7 @@ import org.hiero.otter.fixtures.NodeConfiguration;
 import org.hiero.otter.fixtures.app.OtterApp;
 import org.hiero.otter.fixtures.app.OtterAppState;
 import org.hiero.otter.fixtures.app.OtterExecutionLayer;
+import org.hiero.otter.fixtures.app.state.OtterStateInitializer;
 import org.hiero.otter.fixtures.internal.AbstractNode;
 import org.hiero.otter.fixtures.internal.result.NodeResultsCollector;
 import org.hiero.otter.fixtures.internal.result.SingleNodeMarkerFileResultImpl;
@@ -170,19 +171,30 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
                     .withUncaughtExceptionHandler((t, e) -> fail("Unexpected exception in wiring framework", e))
                     .build();
 
+            final OtterApp otterApp = new OtterApp();
+
             final HashedReservedSignedState reservedState = loadInitialState(
                     recycleBin,
                     version,
-                    () -> OtterAppState.createGenesisState(currentConfiguration, roster(), metrics, version),
+                    () -> OtterAppState.createGenesisState(
+                            currentConfiguration, roster(), metrics, version, otterApp.allServices()),
                     OtterApp.APP_NAME,
                     OtterApp.SWIRLD_NAME,
                     selfId,
                     platformStateFacade,
                     platformContext,
                     OtterAppState::new);
-            final ReservedSignedState initialState = reservedState.state();
 
+            final ReservedSignedState initialState = reservedState.state();
             final State state = initialState.get().getState();
+
+            // In a genesis state, this will already have been done.
+            // For state loaded from disk, we must register the app-specific services.
+            if (!platformStateFacade.isGenesisStateOf(state)) {
+                OtterStateInitializer.initOtterAppState(
+                        currentConfiguration, (OtterAppState) state, version, otterApp.appServices());
+            }
+
             final RosterHistory rosterHistory = RosterUtils.createRosterHistory(state);
             final String eventStreamLoc = selfId.toString();
 
@@ -193,7 +205,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
                             OtterApp.SWIRLD_NAME,
                             version,
                             initialState,
-                            OtterApp.INSTANCE,
+                            otterApp,
                             selfId,
                             eventStreamLoc,
                             rosterHistory,
@@ -252,19 +264,18 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
     @Override
     protected void doKillImmediately(@NonNull final Duration timeout) {
         try (final LoggingContextScope ignored = installNodeContext()) {
-            if (lifeCycle == RUNNING) {
-                markerFileObserver.stopObserving();
-                assert platform != null; // platform must be initialized if lifeCycle is STARTED
-                try {
+            markerFileObserver.stopObserving();
+            try {
+                if (platform != null) {
                     platform.destroy();
-                } catch (final InterruptedException e) {
-                    throw new AssertionError("Unexpected interruption during platform shutdown", e);
                 }
-                platformStatus = null;
-                platform = null;
-                platformComponent = null;
-                model = null;
+            } catch (final InterruptedException e) {
+                throw new AssertionError("Unexpected interruption during platform shutdown", e);
             }
+            platformStatus = null;
+            platform = null;
+            platformComponent = null;
+            model = null;
             lifeCycle = SHUTDOWN;
         }
     }

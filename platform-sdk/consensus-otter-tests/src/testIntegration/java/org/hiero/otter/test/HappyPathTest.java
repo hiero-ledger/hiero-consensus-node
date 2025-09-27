@@ -49,8 +49,12 @@ public class HappyPathTest {
 
         network.start();
 
+        env.transactionGenerator().start();
+
         // Wait for 30 seconds
         timeManager.waitFor(Duration.ofSeconds(30L));
+
+        env.transactionGenerator().stop();
 
         // Validations
         assertThat(network.newLogResults()).haveNoErrorLevelMessages();

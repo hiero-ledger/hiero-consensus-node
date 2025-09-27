@@ -57,4 +57,5 @@ module org.hiero.otter.fixtures {
     exports org.hiero.otter.fixtures.container.utils to
             org.hiero.consensus.otter.docker.app;
     exports org.hiero.otter.fixtures.network.utils;
+    exports org.hiero.otter.fixtures.app.state;
 }
