@@ -70,4 +70,4 @@ LOGNAME=hedera
 PATH=/usr/local/java/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
 cd $APP_HOME
-nohup /usr/bin/env java "${JAVA_HEAP_OPTS} ${JAVA_OPTS} ${EXTRA_COBERTURA_OPTS} -cp ${JAVA_CLASS_PATH} ${JAVA_MAIN_CLASS} -local ${node_id}" > node.log 2>&1 &
+nohup /usr/bin/env java ${JAVA_HEAP_OPTS} ${JAVA_OPTS} ${EXTRA_COBERTURA_OPTS} -cp "${JAVA_CLASS_PATH}" "${JAVA_MAIN_CLASS}" -local ${node_id} > node.log 2>&1 &
