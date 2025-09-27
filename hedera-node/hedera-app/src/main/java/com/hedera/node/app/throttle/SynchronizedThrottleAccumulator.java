@@ -48,7 +48,7 @@ public class SynchronizedThrottleAccumulator {
      * @param throttleUsages a list to accumulate throttle usages during the decision
      * @return whether the transaction should be throttled
      */
-    public synchronized boolean shouldThrottle(
+    public synchronized ThrottleResult shouldThrottle(
             @NonNull final TransactionInfo txnInfo,
             @NonNull final State state,
             @NonNull final List<ThrottleUsage> throttleUsages) {

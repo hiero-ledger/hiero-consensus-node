@@ -3,6 +3,7 @@ package com.hedera.node.app.throttle;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -10,6 +11,7 @@ import static org.mockito.Mockito.verify;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.transaction.Query;
+import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.workflows.TransactionInfo;
 import com.swirlds.state.State;
 import java.time.InstantSource;
@@ -40,10 +42,12 @@ class SynchronizedThrottleAccumulatorTest {
     }
 
     @Test
-    void verifyCheckAndEnforceThrottleIsCalled() {
+    void verifyCheckAndEnforceThrottleIsCalled() throws PreCheckException {
         // given
         final var state = mock(State.class);
         final List<ThrottleUsage> usages = new ArrayList<>();
+        given(throttleAccumulator.checkAndEnforceThrottle(eq(transactionInfo), any(), eq(state), eq(usages)))
+                .willReturn(ThrottleResult.allowed());
 
         // when
         subject.shouldThrottle(transactionInfo, state, usages);
