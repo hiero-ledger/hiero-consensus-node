@@ -1,8 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.hedera.node.app.roster;
-
-import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
-import static org.junit.jupiter.api.Assertions.assertEquals;
+package com.hedera.node.app.service.roster.impl.test;
 
 import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.hapi.node.state.roster.Roster;
@@ -13,6 +10,7 @@ import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
 import java.io.FileInputStream;
 import java.nio.file.Paths;
 import java.util.List;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 public class RosterSerializationTest {
@@ -39,14 +37,14 @@ public class RosterSerializationTest {
 
         Roster roster = new Roster(List.of(rosterEntry1, rosterEntry2, rosterEntry));
 
-        assertDoesNotThrow(() -> {
+        org.junit.jupiter.api.Assertions.assertDoesNotThrow(() -> {
             try (FileInputStream fis = new FileInputStream(TEST_RESOURCES_PATH + "/old_roster.dat")) {
                 ReadableSequentialData in2 = new ReadableStreamingData(fis);
                 var deserializedRoster = Roster.PROTOBUF.parse(in2);
-                assertEquals(deserializedRoster, roster);
+                Assertions.assertEquals(deserializedRoster, roster);
 
                 // Verify the deserialized roster
-                assertEquals(
+                Assertions.assertEquals(
                         roster.rosterEntries().size(),
                         deserializedRoster.rosterEntries().size());
 
@@ -55,10 +53,10 @@ public class RosterSerializationTest {
                     RosterEntry expectedEntry = roster.rosterEntries().get(i);
                     RosterEntry actualEntry = deserializedRoster.rosterEntries().get(i);
 
-                    assertEquals(expectedEntry.nodeId(), actualEntry.nodeId());
-                    assertEquals(expectedEntry.weight(), actualEntry.weight());
-                    assertEquals(expectedEntry.gossipCaCertificate(), actualEntry.gossipCaCertificate());
-                    assertEquals(
+                    Assertions.assertEquals(expectedEntry.nodeId(), actualEntry.nodeId());
+                    Assertions.assertEquals(expectedEntry.weight(), actualEntry.weight());
+                    Assertions.assertEquals(expectedEntry.gossipCaCertificate(), actualEntry.gossipCaCertificate());
+                    Assertions.assertEquals(
                             expectedEntry.gossipEndpoint().size(),
                             actualEntry.gossipEndpoint().size());
 
@@ -67,8 +65,8 @@ public class RosterSerializationTest {
                                 expectedEntry.gossipEndpoint().get(j);
                         ServiceEndpoint actualEndpoint =
                                 actualEntry.gossipEndpoint().get(j);
-                        assertEquals(expectedEndpoint.domainName(), actualEndpoint.domainName());
-                        assertEquals(expectedEndpoint.port(), actualEndpoint.port());
+                        Assertions.assertEquals(expectedEndpoint.domainName(), actualEndpoint.domainName());
+                        Assertions.assertEquals(expectedEndpoint.port(), actualEndpoint.port());
                     }
                 }
             }

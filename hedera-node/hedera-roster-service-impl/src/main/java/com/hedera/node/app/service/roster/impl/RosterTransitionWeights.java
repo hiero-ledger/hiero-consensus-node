@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.hedera.node.app.roster;
+package com.hedera.node.app.service.roster.impl;
 
 import static java.util.Objects.requireNonNull;
 
