@@ -181,7 +181,7 @@ public class AtomicNodeDeleteTest {
 
     @HapiTest
     final Stream<DynamicTest> handleNodeNotExist() {
-        final String nodeName = "33";
+        final String nodeName = "10006";
         return hapiTest(
                 atomicBatch(nodeDelete(nodeName).hasKnownStatus(INVALID_NODE_ID).batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR)

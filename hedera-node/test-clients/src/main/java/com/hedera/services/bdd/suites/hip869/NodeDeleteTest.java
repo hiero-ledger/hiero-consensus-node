@@ -150,7 +150,7 @@ public class NodeDeleteTest {
 
     @HapiTest
     final Stream<DynamicTest> handleNodeNotExist() {
-        final String nodeName = "33";
+        final String nodeName = "10005";
         return hapiTest(nodeDelete(nodeName).hasKnownStatus(INVALID_NODE_ID));
     }
 
