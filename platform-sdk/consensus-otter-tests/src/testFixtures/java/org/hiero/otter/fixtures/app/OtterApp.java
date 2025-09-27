@@ -13,8 +13,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 import org.hiero.consensus.model.event.ConsensusEvent;
 import org.hiero.consensus.model.event.Event;
 import org.hiero.consensus.model.hashgraph.Round;
@@ -104,7 +102,7 @@ public class OtterApp implements ConsensusStateEventHandler<OtterAppState> {
                 service.onEvent(state.getWritableStates(service.name()), consensusEvent);
             }
             for (final Iterator<ConsensusTransaction> transactionIterator =
-                    consensusEvent.consensusTransactionIterator();
+                            consensusEvent.consensusTransactionIterator();
                     transactionIterator.hasNext(); ) {
                 final ConsensusTransaction transaction = transactionIterator.next();
                 for (final OtterService service : allServices) {

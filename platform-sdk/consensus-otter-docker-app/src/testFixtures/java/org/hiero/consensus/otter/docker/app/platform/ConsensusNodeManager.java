@@ -137,8 +137,8 @@ public class ConsensusNodeManager {
         // In a genesis state, this will already have been done.
         // For state loaded from disk, we must register the app-specific services.
         if (!platformStateFacade.isGenesisStateOf(state)) {
-            OtterStateInitializer.initOtterAppState(platformConfig, (OtterAppState) state, version,
-                    otterApp.appServices());
+            OtterStateInitializer.initOtterAppState(
+                    platformConfig, (OtterAppState) state, version, otterApp.appServices());
         }
 
         final RosterHistory rosterHistory = RosterUtils.createRosterHistory(state);
