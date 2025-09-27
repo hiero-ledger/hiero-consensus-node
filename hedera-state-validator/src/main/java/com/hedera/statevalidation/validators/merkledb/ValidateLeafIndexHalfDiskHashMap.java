@@ -6,8 +6,8 @@ import static com.hedera.statevalidation.validators.Constants.VALIDATE_INCORRECT
 import static com.hedera.statevalidation.validators.Constants.VALIDATE_STALE_KEYS_EXCLUSIONS;
 import static com.hedera.statevalidation.validators.ParallelProcessingUtil.processRange;
 import static com.hedera.statevalidation.validators.Utils.printFileDataLocationError;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static com.hedera.statevalidation.validators.ValidationAssertions.requireNonNull;
+import static com.hedera.statevalidation.validators.ValidationAssertions.requireTrue;
 
 import com.hedera.hapi.platform.state.StateKey;
 import com.hedera.pbj.runtime.ParseException;
@@ -16,13 +16,13 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.statevalidation.merkledb.reflect.BucketIterator;
 import com.hedera.statevalidation.merkledb.reflect.HalfDiskHashMapW;
 import com.hedera.statevalidation.merkledb.reflect.MemoryIndexDiskKeyValueStoreW;
-import com.hedera.statevalidation.parameterresolver.StateResolver;
-import com.hedera.statevalidation.reporting.SlackReportGenerator;
+import com.hedera.statevalidation.validators.StateValidator;
+import com.hedera.statevalidation.validators.ValidationException;
 import com.swirlds.merkledb.MerkleDbDataSource;
 import com.swirlds.merkledb.collections.LongList;
+import com.swirlds.merkledb.files.DataFileCollection;
 import com.swirlds.merkledb.files.hashmap.ParsedBucket;
 import com.swirlds.platform.state.MerkleNodeState;
-import com.swirlds.platform.state.snapshot.DeserializedSignedState;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -30,56 +30,76 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.LongConsumer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.junit.jupiter.api.Tag;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
 
+/**
+ * This validation should be independent as it goes over the files from the hdhm perspective.
+ */
 @SuppressWarnings("NewClassNamingConvention")
-@ExtendWith({StateResolver.class, SlackReportGenerator.class})
-@Tag("hdhm")
-public class ValidateLeafIndexHalfDiskHashMap {
+public class ValidateLeafIndexHalfDiskHashMap implements StateValidator {
 
     private static final Logger log = LogManager.getLogger(ValidateLeafIndexHalfDiskHashMap.class);
 
-    @Test
-    public void validateIndex(DeserializedSignedState deserializedState) {
-        final MerkleNodeState merkleNodeState =
-                deserializedState.reservedSignedState().get().getState();
+    private boolean skipStaleKeysValidation;
+
+    private boolean skipIncorrectBucketIndexValidation;
+
+    private HalfDiskHashMapW hdhm;
+
+    private LongList pathToDiskLocationLeafNodes;
+
+    private DataFileCollection hdhmDfc;
+
+    private DataFileCollection leafStoreDfc;
+
+    private final CopyOnWriteArrayList<StalePathInfo> stalePathsInfos = new CopyOnWriteArrayList<>();
+
+    private final CopyOnWriteArrayList<NullLeafInfo> nullLeafsInfo = new CopyOnWriteArrayList<>();
+
+    private final CopyOnWriteArrayList<UnexpectedKeyInfo> unexpectedKeyInfos = new CopyOnWriteArrayList<>();
+
+    private final CopyOnWriteArrayList<PathMismatchInfo> pathMismatchInfos = new CopyOnWriteArrayList<>();
+
+    private final CopyOnWriteArrayList<HashCodeMismatchInfo> hashCodeMismatchInfos = new CopyOnWriteArrayList<>();
+
+    private final CopyOnWriteArrayList<Integer> incorrectBucketIndexList = new CopyOnWriteArrayList<>();
+
+    private LongList bucketIndexToBucketLocation;
+
+    public static final String HDHM = "hdhm";
+
+    @Override
+    public String getTag() {
+        return HDHM;
+    }
+
+    @Override
+    public void initialize(MerkleNodeState merkleNodeState) {
         final VirtualMap virtualMap = (VirtualMap) merkleNodeState.getRoot();
-        assertNotNull(virtualMap);
-        MerkleDbDataSource vds = (MerkleDbDataSource) virtualMap.getDataSource();
+        requireNonNull(virtualMap, HDHM);
 
-        if (vds.getFirstLeafPath() == -1) {
-            log.info("Skipping the validation for {} as the map is empty", virtualMap.getLabel());
-            return;
-        }
+        skipStaleKeysValidation = VALIDATE_STALE_KEYS_EXCLUSIONS.contains(virtualMap.getLabel());
+        skipIncorrectBucketIndexValidation = VALIDATE_INCORRECT_BUCKET_INDEX_EXCLUSIONS.contains(virtualMap.getLabel());
 
-        boolean skipStaleKeysValidation = VALIDATE_STALE_KEYS_EXCLUSIONS.contains(virtualMap.getLabel());
-        boolean skipIncorrectBucketIndexValidation =
-                VALIDATE_INCORRECT_BUCKET_INDEX_EXCLUSIONS.contains(virtualMap.getLabel());
+        final MerkleDbDataSource virtualDataSource = (MerkleDbDataSource) virtualMap.getDataSource();
 
-        log.debug(vds.getHashStoreDisk().getFilesSizeStatistics());
+        hdhm = new HalfDiskHashMapW(virtualDataSource.getKeyToPath());
+        final var leafStore = new MemoryIndexDiskKeyValueStoreW<>(virtualDataSource.getPathToKeyValue());
+        pathToDiskLocationLeafNodes = virtualDataSource.getPathToDiskLocationLeafNodes();
+        hdhmDfc = hdhm.getFileCollection();
+        leafStoreDfc = leafStore.getFileCollection();
+        bucketIndexToBucketLocation = hdhm.getBucketIndexToBucketLocation();
+    }
 
-        final var hdhm = new HalfDiskHashMapW(vds.getKeyToPath());
-        final var leafStore = new MemoryIndexDiskKeyValueStoreW<>(vds.getPathToKeyValue());
-        final var pathToDiskLocationLeafNodes = vds.getPathToDiskLocationLeafNodes();
-        final var dfc = hdhm.getFileCollection();
-        final var leafStoreDFC = leafStore.getFileCollection();
-        final var stalePathsInfos = new CopyOnWriteArrayList<StalePathInfo>();
-        final var nullLeafsInfo = new CopyOnWriteArrayList<NullLeafInfo>();
-        final var unexpectedKeyInfos = new CopyOnWriteArrayList<UnexpectedKeyInfo>();
-        final var pathMismatchInfos = new CopyOnWriteArrayList<PathMismatchInfo>();
-        final var hashCodeMismatchInfos = new CopyOnWriteArrayList<HashCodeMismatchInfo>();
-        final var incorrectBucketIndexList = new CopyOnWriteArrayList<Integer>();
-        final LongList index = hdhm.getBucketIndexToBucketLocation();
+    @Override
+    public void processState(MerkleNodeState merkleNodeState) {
         LongConsumer consumer = i -> {
             long bucketLocation = 0;
             try {
-                bucketLocation = index.get(i);
+                bucketLocation = bucketIndexToBucketLocation.get(i);
                 if (bucketLocation == 0) {
                     return;
                 }
-                final BufferedData bucketData = dfc.readDataItem(bucketLocation);
+                final BufferedData bucketData = hdhmDfc.readDataItem(bucketLocation);
                 if (bucketData == null) {
                     // FUTURE WORK: report
                     return;
@@ -98,45 +118,50 @@ public class ValidateLeafIndexHalfDiskHashMap {
                     // get path -> dataLocation
                     var dataLocation = pathToDiskLocationLeafNodes.get(path);
                     if (dataLocation == 0) {
-                        printFileDataLocationError(log, "Stale path", dfc, bucketLocation);
+                        printFileDataLocationError(log, "Stale path", hdhmDfc, bucketLocation);
                         collectInfo(new StalePathInfo(path, parseKey(keyBytes)), stalePathsInfos);
                         continue;
                     }
-                    final BufferedData leafData = leafStoreDFC.readDataItem(dataLocation);
+                    final BufferedData leafData = leafStoreDfc.readDataItem(dataLocation);
                     if (leafData == null) {
-                        printFileDataLocationError(log, "Null leaf", dfc, bucketLocation);
+                        printFileDataLocationError(log, "Null leaf", hdhmDfc, bucketLocation);
                         collectInfo(new NullLeafInfo(path, parseKey(keyBytes)), nullLeafsInfo);
                         continue;
                     }
                     final VirtualLeafBytes<?> leafBytes = VirtualLeafBytes.parseFrom(leafData);
                     if (!keyBytes.equals(leafBytes.keyBytes())) {
-                        printFileDataLocationError(log, "Leaf key mismatch", dfc, bucketLocation);
+                        printFileDataLocationError(log, "Leaf key mismatch", hdhmDfc, bucketLocation);
                         collectInfo(
                                 new UnexpectedKeyInfo(path, parseKey(keyBytes), parseKey(leafBytes.keyBytes())),
                                 unexpectedKeyInfos);
                     }
                     if (leafBytes.path() != path) {
-                        printFileDataLocationError(log, "Leaf path mismatch", dfc, bucketLocation);
+                        printFileDataLocationError(log, "Leaf path mismatch", hdhmDfc, bucketLocation);
                         collectInfo(
                                 new PathMismatchInfo(path, leafBytes.path(), parseKey(keyBytes)), pathMismatchInfos);
                         continue;
                     }
                     final int hashCode = entry.getHashCode();
                     if ((hashCode & bucketIndex) != bucketIndex) {
-                        printFileDataLocationError(log, "Hash code mismatch", dfc, bucketLocation);
+                        printFileDataLocationError(log, "Hash code mismatch", hdhmDfc, bucketLocation);
                         collectInfo(new HashCodeMismatchInfo(hashCode, bucketIndex), hashCodeMismatchInfos);
                         continue;
                     }
                 }
             } catch (Exception e) {
                 if (bucketLocation != 0) {
-                    printFileDataLocationError(log, e.getMessage(), dfc, bucketLocation);
+                    printFileDataLocationError(log, e.getMessage(), hdhmDfc, bucketLocation);
                 }
-                throw new RuntimeException(e);
+                throw new ValidationException(HDHM, "Error in bucket entry processing", e);
             }
         };
+
         // iterate over all the buckets
         processRange(0, hdhm.getBucketIndexToBucketLocation().size(), consumer).join();
+    }
+
+    @Override
+    public void validate() {
         if (!stalePathsInfos.isEmpty()) {
             log.error("Stale path info:\n{}", stalePathsInfos);
             log.error(
@@ -172,7 +197,7 @@ public class ValidateLeafIndexHalfDiskHashMap {
                     hashCodeMismatchInfos.size());
         }
 
-        assertTrue(
+        requireTrue(
                 (stalePathsInfos.isEmpty() || skipStaleKeysValidation)
                                 && nullLeafsInfo.isEmpty()
                                 && unexpectedKeyInfos.isEmpty()
@@ -180,6 +205,7 @@ public class ValidateLeafIndexHalfDiskHashMap {
                                 && incorrectBucketIndexList.isEmpty()
                                 && hashCodeMismatchInfos.isEmpty()
                         || skipIncorrectBucketIndexValidation,
+                HDHM,
                 "One of the test condition hasn't been met. "
                         + "Conditions: "
                         + ("stalePathsInfos.isEmpty() = %s, "

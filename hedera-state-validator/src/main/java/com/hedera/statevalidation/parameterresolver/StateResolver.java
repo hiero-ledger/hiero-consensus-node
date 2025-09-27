@@ -55,6 +55,7 @@ public class StateResolver implements ParameterResolver {
     public DeserializedSignedState resolveParameter(
             ParameterContext parameterContext, ExtensionContext extensionContext) throws ParameterResolutionException {
 
+        // this should be initialized at the ValidateCommand level and passed down to validators
         if (deserializedSignedState == null) {
             try {
                 initState();

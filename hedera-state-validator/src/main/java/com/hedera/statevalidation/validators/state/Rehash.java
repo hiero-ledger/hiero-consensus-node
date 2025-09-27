@@ -34,6 +34,9 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
+/**
+ * This validation should be both independent as it uses tasks for going over the state.
+ */
 @ExtendWith({StateResolver.class, ReportResolver.class, SlackReportGenerator.class, HashInfoResolver.class})
 @Tag("rehash")
 public class Rehash {

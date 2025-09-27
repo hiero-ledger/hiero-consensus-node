@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.statevalidation.validators.servicesstate;
 
-import static com.hedera.statevalidation.validators.ParallelProcessingUtil.VALIDATOR_FORK_JOIN_POOL;
-import static org.junit.jupiter.api.Assertions.*;
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static com.hedera.statevalidation.validators.ValidationAssertions.requireEqual;
+import static com.hedera.statevalidation.validators.ValidationAssertions.requireNonNull;
+import static com.hedera.statevalidation.validators.ValidationAssertions.requireTrue;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.state.token.Account;
@@ -14,30 +14,21 @@ import com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema;
 import com.hedera.node.app.spi.ids.ReadableEntityIdStore;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.hedera.statevalidation.parameterresolver.ReportResolver;
-import com.hedera.statevalidation.parameterresolver.StateResolver;
-import com.hedera.statevalidation.reporting.Report;
-import com.hedera.statevalidation.reporting.SlackReportGenerator;
-import com.swirlds.base.utility.Pair;
-import com.swirlds.common.threading.manager.AdHocThreadManager;
+import com.hedera.statevalidation.validators.KeyValueValidator;
+import com.hedera.statevalidation.validators.ValidationException;
 import com.swirlds.platform.state.MerkleNodeState;
-import com.swirlds.platform.state.snapshot.DeserializedSignedState;
 import com.swirlds.state.merkle.StateKeyUtils;
 import com.swirlds.state.merkle.StateValue;
 import com.swirlds.state.spi.ReadableKVState;
 import com.swirlds.virtualmap.VirtualMap;
-import com.swirlds.virtualmap.VirtualMapMigration;
 import java.util.concurrent.atomic.AtomicLong;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.base.concurrent.interrupt.InterruptableConsumer;
-import org.junit.jupiter.api.Tag;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
 
-@ExtendWith({StateResolver.class, ReportResolver.class, SlackReportGenerator.class})
-@Tag("account")
-public class AccountValidator {
+/**
+ * This validation could be built on top of ValidateLeafIndex.
+ */
+public class AccountValidator implements KeyValueValidator {
 
     private static final Logger log = LogManager.getLogger(AccountValidator.class);
 
@@ -46,57 +37,62 @@ public class AccountValidator {
     // https://help.hedera.com/hc/en-us/articles/360000665518-What-is-the-total-supply-of-HBAR-
     final long TOTAL_tHBAR_SUPPLY = 5_000_000_000_000_000_000L;
 
-    @Test
-    void validate(DeserializedSignedState deserializedState, Report report) throws InterruptedException {
-        final MerkleNodeState merkleNodeState =
-                deserializedState.reservedSignedState().get().getState();
+    private final AtomicLong accountsCreated = new AtomicLong(0L);
 
+    private final AtomicLong totalBalance = new AtomicLong(0L);
+
+    private long numAccounts;
+
+    private int accountStateId;
+
+    public static final String ACCOUNT = "account";
+
+    @Override
+    public String getTag() {
+        return ACCOUNT;
+    }
+
+    @Override
+    public void initialize(MerkleNodeState merkleNodeState) {
         final VirtualMap virtualMap = (VirtualMap) merkleNodeState.getRoot();
-        assertNotNull(virtualMap);
+        requireNonNull(virtualMap, ACCOUNT);
 
         final ReadableEntityIdStore entityCounters =
                 new ReadableEntityIdStoreImpl(merkleNodeState.getReadableStates(EntityIdService.NAME));
+        requireNonNull(entityCounters, ACCOUNT);
+
         final ReadableKVState<AccountID, Account> accounts =
                 merkleNodeState.getReadableStates(TokenServiceImpl.NAME).get(V0490TokenSchema.ACCOUNTS_STATE_ID);
+        requireNonNull(accounts, ACCOUNT);
 
-        assertNotNull(accounts);
-        assertNotNull(entityCounters);
-
-        final long numAccounts = entityCounters.numAccounts();
+        numAccounts = entityCounters.numAccounts();
         log.debug("Number of accounts: {}", numAccounts);
 
-        AtomicLong accountsCreated = new AtomicLong(0L);
-        AtomicLong totalBalance = new AtomicLong(0L);
+        accountStateId = V0490TokenSchema.ACCOUNTS_STATE_ID;
+    }
 
-        final int accountStateId = V0490TokenSchema.ACCOUNTS_STATE_ID;
-
-        InterruptableConsumer<Pair<Bytes, Bytes>> handler = pair -> {
-            final Bytes keyBytes = pair.left();
-            final Bytes valueBytes = pair.right();
-            final int readKeyStateId = StateKeyUtils.extractStateIdFromStateKeyOneOf(keyBytes);
-            final int readValueStateId = StateValue.extractStateIdFromStateValueOneOf(valueBytes);
-            if ((readKeyStateId == accountStateId) && (readValueStateId == accountStateId)) {
-                try {
-                    final com.hedera.hapi.platform.state.StateValue stateValue =
-                            com.hedera.hapi.platform.state.StateValue.PROTOBUF.parse(valueBytes);
-                    final Account account = stateValue.value().as();
-                    final long tinybarBalance = account.tinybarBalance();
-                    assertTrue(tinybarBalance >= 0);
-                    totalBalance.addAndGet(tinybarBalance);
-                    accountsCreated.incrementAndGet();
-                } catch (final ParseException e) {
-                    throw new RuntimeException("Failed to parse a key", e);
-                }
+    @Override
+    public void processKeyValue(Bytes keyBytes, Bytes valueBytes) {
+        final int readKeyStateId = StateKeyUtils.extractStateIdFromStateKeyOneOf(keyBytes);
+        final int readValueStateId = StateValue.extractStateIdFromStateValueOneOf(valueBytes);
+        if ((readKeyStateId == accountStateId) && (readValueStateId == accountStateId)) {
+            try {
+                final com.hedera.hapi.platform.state.StateValue stateValue =
+                        com.hedera.hapi.platform.state.StateValue.PROTOBUF.parse(valueBytes);
+                final Account account = stateValue.value().as();
+                final long tinybarBalance = account.tinybarBalance();
+                requireTrue(tinybarBalance >= 0, ACCOUNT);
+                totalBalance.addAndGet(tinybarBalance);
+                accountsCreated.incrementAndGet();
+            } catch (final ParseException e) {
+                throw new ValidationException(ACCOUNT, "Failed to parse a key", e);
             }
-        };
+        }
+    }
 
-        VirtualMapMigration.extractVirtualMapDataC(
-                AdHocThreadManager.getStaticThreadManager(),
-                virtualMap,
-                handler,
-                VALIDATOR_FORK_JOIN_POOL.getParallelism());
-
-        assertEquals(TOTAL_tHBAR_SUPPLY, totalBalance.get());
-        assertEquals(accountsCreated.get(), numAccounts);
+    @Override
+    public void validate() {
+        requireEqual(TOTAL_tHBAR_SUPPLY, totalBalance.get(), ACCOUNT);
+        requireEqual(accountsCreated.get(), numAccounts, ACCOUNT);
     }
 }

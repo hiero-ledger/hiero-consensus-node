@@ -25,6 +25,10 @@ import org.junit.jupiter.api.extension.ExtendWith;
 
 /**
  * Validates the file layout of the state folder.
+ * <p>
+ * This validation should be independent as it doesn't go over the db - it just checks the existence of
+ * certain files.
+ * </p>
  */
 @ExtendWith({StateResolver.class})
 @Tag("files")

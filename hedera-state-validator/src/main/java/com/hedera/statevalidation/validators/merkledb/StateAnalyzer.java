@@ -42,6 +42,9 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
+/**
+ * This has to be implemented as an independent command.
+ */
 @ExtendWith({StateResolver.class, ReportResolver.class, SlackReportGenerator.class})
 @Tag("stateAnalyzer")
 public class StateAnalyzer {
