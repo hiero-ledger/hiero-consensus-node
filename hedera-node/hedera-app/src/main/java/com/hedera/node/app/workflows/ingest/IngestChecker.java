@@ -18,6 +18,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.CREATING_SYSTEM_ENTITIE
 import static com.hedera.hapi.node.base.ResponseCodeEnum.DUPLICATE_TRANSACTION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOKS_NOT_ENABLED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_NODE_ACCOUNT;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_NODE_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.NOT_SUPPORTED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.PLATFORM_NOT_ACTIVE;
@@ -32,7 +33,6 @@ import static com.hedera.node.app.workflows.handle.dispatch.DispatchValidator.Wo
 import static java.util.Objects.requireNonNull;
 import static org.hiero.consensus.model.status.PlatformStatus.ACTIVE;
 
-import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.SignaturePair;
 import com.hedera.hapi.node.base.Transaction;
@@ -44,6 +44,7 @@ import com.hedera.node.app.fees.FeeContextImpl;
 import com.hedera.node.app.fees.FeeManager;
 import com.hedera.node.app.hapi.utils.EthSigsUtils;
 import com.hedera.node.app.info.CurrentPlatformStatus;
+import com.hedera.node.app.service.addressbook.ReadableNodeStore;
 import com.hedera.node.app.signature.DefaultKeyVerifier;
 import com.hedera.node.app.signature.ExpandedSignaturePair;
 import com.hedera.node.app.signature.SignatureExpander;
@@ -106,7 +107,7 @@ public final class IngestChecker {
     private final DeduplicationCache deduplicationCache;
     private final TransactionDispatcher dispatcher;
     private final FeeManager feeManager;
-    private final AccountID nodeAccount;
+    private final long nodeId;
     private final Authorizer authorizer;
     private final SynchronizedThrottleAccumulator synchronizedThrottleAccumulator;
     private final InstantSource instantSource;
@@ -144,7 +145,7 @@ public final class IngestChecker {
     /**
      * Constructor of the {@code IngestChecker}
      *
-     * @param nodeAccount the {@link AccountID} of the node
+     * @param nodeId the id of the node
      * @param currentPlatformStatus the {@link CurrentPlatformStatus} that contains the current status of the platform
      * @param transactionChecker the {@link TransactionChecker} that pre-processes the bytes of a transaction
      * @param solvencyPreCheck the {@link SolvencyPreCheck} that checks payer balance
@@ -159,7 +160,7 @@ public final class IngestChecker {
      */
     @Inject
     public IngestChecker(
-            @NodeSelfId @NonNull final AccountID nodeAccount,
+            @NodeSelfId final long nodeId,
             @NonNull final CurrentPlatformStatus currentPlatformStatus,
             @NonNull final BlockStreamManager blockStreamManager,
             @NonNull final TransactionChecker transactionChecker,
@@ -174,7 +175,7 @@ public final class IngestChecker {
             @NonNull final InstantSource instantSource,
             @NonNull final OpWorkflowMetrics workflowMetrics,
             @Nullable final AtomicBoolean systemEntitiesCreatedFlag) {
-        this.nodeAccount = requireNonNull(nodeAccount, "nodeAccount must not be null");
+        this.nodeId = nodeId;
         this.currentPlatformStatus = requireNonNull(currentPlatformStatus, "currentPlatformStatus must not be null");
         this.blockStreamManager = requireNonNull(blockStreamManager, "blockStreamManager must not be null");
         this.transactionChecker = requireNonNull(transactionChecker, "transactionChecker must not be null");
@@ -264,7 +265,12 @@ public final class IngestChecker {
         final var functionality = txInfo.functionality();
 
         // 1a. Verify the transaction has been sent to *this* node
-        if (!nodeAccount.equals(txBody.nodeAccountID()) && innerTransaction == NO) {
+        final var nodeStore = new ReadableStoreFactory(state).getStore(ReadableNodeStore.class);
+        final var node = nodeStore.get(nodeId);
+        if (node == null) {
+            throw new PreCheckException(INVALID_NODE_ID);
+        }
+        if (!node.accountIdOrThrow().equals(txBody.nodeAccountID()) && innerTransaction == NO) {
             throw new PreCheckException(INVALID_NODE_ACCOUNT);
         }
 

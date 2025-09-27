@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.info;
 
-import com.hedera.hapi.node.base.AccountID;
 import com.hedera.node.app.annotations.NodeSelfId;
 import com.hedera.node.app.spi.info.NodeInfo;
 import dagger.Module;
@@ -13,7 +12,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 public abstract class InfoInjectionModule {
     @Provides
     @NodeSelfId
-    static AccountID selfAccountID(@NonNull final NodeInfo info) {
-        return info.accountId();
+    static long selfNodeId(@NonNull final NodeInfo info) {
+        return info.nodeId();
     }
 }

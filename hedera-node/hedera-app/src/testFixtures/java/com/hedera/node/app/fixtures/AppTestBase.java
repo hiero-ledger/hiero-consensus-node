@@ -5,6 +5,8 @@ import static com.hedera.node.app.ids.schemas.V0490EntityIdSchema.ENTITY_ID_STAT
 import static com.hedera.node.app.ids.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_LABEL;
 import static com.hedera.node.app.ids.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
 import static com.hedera.node.app.ids.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_LABEL;
+import static com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema.NODES_STATE_ID;
+import static com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema.NODES_STATE_LABEL;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_STATE_ID;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_STATE_LABEL;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ALIASES_STATE_ID;
@@ -16,6 +18,7 @@ import static org.hiero.consensus.roster.RosterRetriever.buildRoster;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.SemanticVersion;
+import com.hedera.hapi.node.state.addressbook.Node;
 import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.entity.EntityCounts;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
@@ -26,6 +29,7 @@ import com.hedera.node.app.fixtures.state.FakeStartupNetworks;
 import com.hedera.node.app.fixtures.state.FakeState;
 import com.hedera.node.app.ids.EntityIdService;
 import com.hedera.node.app.info.NodeInfoImpl;
+import com.hedera.node.app.service.addressbook.AddressBookService;
 import com.hedera.node.app.service.token.TokenService;
 import com.hedera.node.app.spi.fixtures.Scenarios;
 import com.hedera.node.app.spi.fixtures.TransactionFactory;
@@ -106,6 +110,7 @@ public class AppTestBase extends TestBase implements TransactionFactory, Scenari
 
     protected MapWritableKVState<AccountID, Account> accountsState;
     protected MapWritableKVState<ProtoBytes, AccountID> aliasesState;
+    protected MapWritableKVState<EntityNumber, Node> nodesState;
     protected WritableSingletonState<EntityCounts> entityCountsState;
     protected WritableSingletonState<EntityNumber> entityIdState;
     protected State state;
@@ -124,11 +129,19 @@ public class AppTestBase extends TestBase implements TransactionFactory, Scenari
                 new FunctionWritableSingletonState<>(ENTITY_ID_STATE_ID, ENTITY_ID_STATE_LABEL, () -> null, (a) -> {});
         entityCountsState = new FunctionWritableSingletonState<>(
                 ENTITY_COUNTS_STATE_ID, ENTITY_COUNTS_STATE_LABEL, () -> EntityCounts.DEFAULT, (a) -> {});
+        nodesState = new MapWritableKVState<>(NODES_STATE_ID, NODES_STATE_LABEL);
+        nodesState.put(
+                EntityNumber.newBuilder().number(nodeSelfId.id()).build(),
+                Node.newBuilder()
+                        .nodeId(nodeSelfId.id())
+                        .accountId(nodeSelfAccountId)
+                        .build());
         final var writableStates = MapWritableStates.builder()
                 .state(accountsState)
                 .state(aliasesState)
                 .state(entityIdState)
                 .state(entityCountsState)
+                .state(nodesState)
                 .build();
 
         final var virtualMapLabel = "vm-" + AppTestBase.class.getSimpleName() + "-" + java.util.UUID.randomUUID();
@@ -138,7 +151,9 @@ public class AppTestBase extends TestBase implements TransactionFactory, Scenari
             @NonNull
             @Override
             public ReadableStates getReadableStates(@NonNull String serviceName) {
-                return TokenService.NAME.equals(serviceName) || EntityIdService.NAME.equals(serviceName)
+                return TokenService.NAME.equals(serviceName)
+                                || EntityIdService.NAME.equals(serviceName)
+                                || AddressBookService.NAME.equals(serviceName)
                         ? writableStates
                         : null;
             }
@@ -146,15 +161,14 @@ public class AppTestBase extends TestBase implements TransactionFactory, Scenari
             @NonNull
             @Override
             public WritableStates getWritableStates(@NonNull String serviceName) {
-                return TokenService.NAME.equals(serviceName) || EntityIdService.NAME.equals(serviceName)
+                return TokenService.NAME.equals(serviceName)
+                                || EntityIdService.NAME.equals(serviceName)
+                                || AddressBookService.NAME.equals(serviceName)
                         ? writableStates
                         : null;
             }
         };
     }
-
-    private final SemanticVersion hapiVersion =
-            SemanticVersion.newBuilder().major(1).minor(2).patch(3).build();
     /** Represents "this node" in our tests. */
     protected final NodeId nodeSelfId = NodeId.of(7);
     /** The AccountID of "this node" in our tests. */
