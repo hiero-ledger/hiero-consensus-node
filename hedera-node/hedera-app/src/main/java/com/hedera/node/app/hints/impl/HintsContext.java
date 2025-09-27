@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.hints.impl;
 
-import static com.hedera.node.app.roster.RosterTransitionWeights.atLeastOneThirdOfTotal;
 import static java.util.Objects.requireNonNull;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static java.util.stream.Collectors.toMap;
@@ -177,7 +176,7 @@ public class HintsContext {
         }
         return new Signing(
                 blockHash,
-                atLeastOneThirdOfTotal(totalWeight),
+                totalWeight / 2,
                 preprocessedKeys.aggregationKey(),
                 requireNonNull(nodePartyIds),
                 nodeWeights,
@@ -277,7 +276,7 @@ public class HintsContext {
             signatures.put(partyId, signature);
             final var weight = nodeWeights.getOrDefault(nodeId, 0L);
             final var totalWeight = weightOfSignatures.addAndGet(weight);
-            if (totalWeight >= thresholdWeight && completed.compareAndSet(false, true)) {
+            if (totalWeight > thresholdWeight && completed.compareAndSet(false, true)) {
                 final var aggregatedSignature =
                         library.aggregateSignatures(crs, aggregationKey, verificationKey, signatures);
                 future.complete(aggregatedSignature);
