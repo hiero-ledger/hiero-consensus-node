@@ -39,6 +39,7 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Objects;
 import java.util.function.Consumer;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
@@ -234,7 +235,9 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
                             wrapConsumerWithNodeContext(this::handlePlatformStatusChange));
 
             InMemorySubscriptionManager.INSTANCE.subscribe(logEntry -> {
-                resultsCollector.addLogEntry(logEntry);
+                if (Objects.equals(logEntry.nodeId(), selfId)) {
+                    resultsCollector.addLogEntry(logEntry);
+                }
                 return lifeCycle == DESTROYED ? UNSUBSCRIBE : CONTINUE;
             });
 
