@@ -39,6 +39,7 @@ import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -141,7 +142,7 @@ public class CustomFeeAssessmentStep {
             customFeeAssessor.setTransactionFeesAsAssessed(payer, transactionFixedFee, assessmentResult);
             result.assessedCustomFees.addAll(assessmentResult.getAssessedCustomFees());
         }
-
+        transferContext.setMultiPayerNonNetTransferAdjustments(result.fractionalFeeMultiPayerDebits());
         result.assessedCustomFees().forEach(transferContext::addToAssessedCustomFee);
         customFeeAssessor.resetInitialNftChanges();
         return result.assessedTxns();
@@ -173,6 +174,7 @@ public class CustomFeeAssessmentStep {
 
         // list of total assessed custom fees to be added to the record
         final List<AssessedCustomFee> customFeesAssessed = new ArrayList<>();
+        final Map<TokenID, Map<AccountID, Long>> multiPayerFractionalAdjustments = new LinkedHashMap<>();
         // the transaction to be assessed
         var txnToAssess = op;
         // list of assessed transactions, to be fed into further steps
@@ -192,6 +194,7 @@ public class CustomFeeAssessmentStep {
                 final var modifiedInputBody = changedInputTxn(txnToAssess, result);
                 assessedTxns.add(modifiedInputBody);
                 customFeesAssessed.addAll(result.getAssessedCustomFees());
+                multiPayerFractionalAdjustments.putAll(result.getAggregatedMultiPayerNonNetDeltas());
                 // build body from assessed custom fees to be fed to next level of assessment
                 txnToAssess = buildBodyFromAdjustments(result);
             } else {
@@ -222,7 +225,7 @@ public class CustomFeeAssessmentStep {
                     numUniqueAdjustmentsIn(assessedTxns) <= maxBalanceChanges,
                     CUSTOM_FEE_CHARGING_EXCEEDED_MAX_ACCOUNT_AMOUNTS);
         }
-        return new CustomFeeAssessmentResult(assessedTxns, customFeesAssessed);
+        return new CustomFeeAssessmentResult(assessedTxns, customFeesAssessed, multiPayerFractionalAdjustments);
     }
 
     private int numUniqueAdjustmentsIn(final List<CryptoTransferTransactionBody> assessedTxns) {
@@ -250,7 +253,9 @@ public class CustomFeeAssessmentStep {
      * @param assessedCustomFees - list of assessed custom fees
      */
     public record CustomFeeAssessmentResult(
-            List<CryptoTransferTransactionBody> assessedTxns, List<AssessedCustomFee> assessedCustomFees) {}
+            List<CryptoTransferTransactionBody> assessedTxns,
+            List<AssessedCustomFee> assessedCustomFees,
+            Map<TokenID, Map<AccountID, Long>> fractionalFeeMultiPayerDebits) {}
 
     private CryptoTransferTransactionBody changedInputTxn(
             final CryptoTransferTransactionBody op, final AssessmentResult result) {

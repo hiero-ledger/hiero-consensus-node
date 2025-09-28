@@ -9,6 +9,7 @@ import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.TokenAssociation;
+import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.base.TransferList;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
@@ -17,7 +18,6 @@ import com.hedera.node.app.service.token.AliasUtils;
 import com.hedera.node.app.service.token.impl.WritableAccountStore;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
-import com.hedera.node.config.data.TokensConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -36,11 +36,11 @@ public class TransferContextImpl implements TransferContext {
     private int numAutoCreations;
     private int numLazyCreations;
     private final Map<Bytes, AccountID> resolutions = new LinkedHashMap<>();
-    private final TokensConfig tokensConfig;
     private final List<TokenAssociation> automaticAssociations = new ArrayList<>();
     private final List<AssessedCustomFee> assessedCustomFees = new ArrayList<>();
     private CryptoTransferTransactionBody syntheticBody = null;
     private final boolean enforceMonoServiceRestrictionsOnAutoCreationCustomFeePayments;
+    private Map<TokenID, Map<AccountID, Long>> multiPayerNonNetTransfers;
 
     /**
      * Create a new {@link TransferContextImpl} instance.
@@ -61,7 +61,6 @@ public class TransferContextImpl implements TransferContext {
         this.context = context;
         this.accountStore = context.storeFactory().writableStore(WritableAccountStore.class);
         this.autoAccountCreator = new AutoAccountCreator(context);
-        this.tokensConfig = context.configuration().getConfigData(TokensConfig.class);
         this.enforceMonoServiceRestrictionsOnAutoCreationCustomFeePayments =
                 enforceMonoServiceRestrictionsOnAutoCreationCustomFeePayments;
     }
@@ -83,7 +82,6 @@ public class TransferContextImpl implements TransferContext {
         this.syntheticBody = syntheticBody;
         this.accountStore = context.storeFactory().writableStore(WritableAccountStore.class);
         this.autoAccountCreator = new AutoAccountCreator(context);
-        this.tokensConfig = context.configuration().getConfigData(TokensConfig.class);
         this.enforceMonoServiceRestrictionsOnAutoCreationCustomFeePayments =
                 enforceMonoServiceRestrictionsOnAutoCreationCustomFeePayments;
     }
@@ -168,6 +166,10 @@ public class TransferContextImpl implements TransferContext {
         return enforceMonoServiceRestrictionsOnAutoCreationCustomFeePayments;
     }
 
+    public void setMultiPayerNonNetTransferAdjustments(Map<TokenID, Map<AccountID, Long>> multiPayerNonNetTransfers) {
+        this.multiPayerNonNetTransfers = multiPayerNonNetTransfers;
+    }
+
     @Override
     public void validateHbarAllowances() {
         final var topLevelPayer = context.payer();
@@ -196,5 +198,9 @@ public class TransferContextImpl implements TransferContext {
             }
             throw new HandleException(SPENDER_DOES_NOT_HAVE_ALLOWANCE);
         }
+    }
+
+    public Map<TokenID, Map<AccountID, Long>> getMultiPayerNonNetTransferAdjustments() {
+        return multiPayerNonNetTransfers;
     }
 }

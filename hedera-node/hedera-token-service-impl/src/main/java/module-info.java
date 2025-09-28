@@ -32,4 +32,5 @@ module com.hedera.node.app.service.token.impl {
     exports com.hedera.node.app.service.token.impl.handlers.transfer;
     exports com.hedera.node.app.service.token.impl.schemas;
     exports com.hedera.node.app.service.token.impl.comparator;
+    exports com.hedera.node.app.service.token.impl.handlers.transfer.hooks;
 }

@@ -104,7 +104,7 @@ class HookDispatchHandlerTest extends ContractHandlerTestBase {
         assertDoesNotThrow(() -> subject.handle(handleContext));
 
         verify(recordBuilder).nextHookId(2L);
-        verify(evmHookStore).removeOrMarkDeleted(HookId.newBuilder().hookId(1L).build());
+        verify(evmHookStore).remove(HookId.newBuilder().hookId(1L).build());
     }
 
     @Test

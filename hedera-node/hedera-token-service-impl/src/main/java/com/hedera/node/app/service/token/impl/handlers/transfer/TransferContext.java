@@ -3,6 +3,7 @@ package com.hedera.node.app.service.token.impl.handlers.transfer;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.TokenAssociation;
+import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.transaction.AssessedCustomFee;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -107,4 +108,10 @@ public interface TransferContext {
      */
     // @Future Remove this, only needed for diff testing and has no logical priority.
     void validateHbarAllowances();
+
+    /**
+     * Sets the multi-payer non-net transfer adjustments.
+     * @param multiPayerNonNetTransfers the multi-payer non-net transfer adjustments
+     */
+    void setMultiPayerNonNetTransferAdjustments(Map<TokenID, Map<AccountID, Long>> multiPayerNonNetTransfers);
 }

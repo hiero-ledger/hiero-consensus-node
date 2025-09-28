@@ -37,6 +37,7 @@ import com.hedera.node.app.service.token.ReadableTokenStore;
 import com.hedera.node.app.service.token.impl.handlers.transfer.CustomFeeAssessmentStep;
 import com.hedera.node.app.service.token.impl.handlers.transfer.TransferContextImpl;
 import com.hedera.node.app.service.token.impl.handlers.transfer.TransferExecutor;
+import com.hedera.node.app.service.token.impl.handlers.transfer.hooks.HookCallFactory;
 import com.hedera.node.app.service.token.impl.validators.CryptoTransferValidator;
 import com.hedera.node.app.service.token.records.CryptoTransferStreamBuilder;
 import com.hedera.node.app.spi.fees.FeeContext;
@@ -50,6 +51,7 @@ import com.hedera.node.app.spi.workflows.TransactionHandler;
 import com.hedera.node.app.spi.workflows.WarmupContext;
 import com.hedera.node.config.data.AccountsConfig;
 import com.hedera.node.config.data.FeesConfig;
+import com.hedera.node.config.data.HooksConfig;
 import com.hedera.node.config.data.LedgerConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
@@ -70,22 +72,26 @@ public class CryptoTransferHandler extends TransferExecutor implements Transacti
 
     /**
      * Default constructor for injection.
+     *
      * @param validator the validator to use to validate the transaction
      */
     @Inject
-    public CryptoTransferHandler(@NonNull final CryptoTransferValidator validator) {
-        this(validator, true);
+    public CryptoTransferHandler(
+            @NonNull final CryptoTransferValidator validator, @NonNull final HookCallFactory hookCallFactory) {
+        this(validator, true, hookCallFactory);
     }
 
     /**
      * Constructor for injection with the option to enforce mono-service restrictions on auto-creation custom fee.
+     *
      * @param validator the validator to use to validate the transaction
      * @param enforceMonoServiceRestrictionsOnAutoCreationCustomFeePayments whether to enforce mono-service restrictions
      */
     public CryptoTransferHandler(
             @NonNull final CryptoTransferValidator validator,
-            final boolean enforceMonoServiceRestrictionsOnAutoCreationCustomFeePayments) {
-        super(validator);
+            final boolean enforceMonoServiceRestrictionsOnAutoCreationCustomFeePayments,
+            @NonNull final HookCallFactory hookCallFactory) {
+        super(validator, hookCallFactory);
         this.validator = validator;
         this.enforceMonoServiceRestrictionsOnAutoCreationCustomFeePayments =
                 enforceMonoServiceRestrictionsOnAutoCreationCustomFeePayments;
@@ -188,8 +194,9 @@ public class CryptoTransferHandler extends TransferExecutor implements Transacti
 
         final var ledgerConfig = context.configuration().getConfigData(LedgerConfig.class);
         final var accountsConfig = context.configuration().getConfigData(AccountsConfig.class);
+        final var hooksConfig = context.configuration().getConfigData(HooksConfig.class);
 
-        validator.validateSemantics(op, ledgerConfig, accountsConfig);
+        validator.validateSemantics(op, ledgerConfig, accountsConfig, hooksConfig);
 
         // create a new transfer context that is specific only for this transaction
         final var transferContext =
@@ -235,8 +242,8 @@ public class CryptoTransferHandler extends TransferExecutor implements Transacti
         boolean triedAndFailedToUseCustomFees = false;
         try {
             assessedCustomFees = customFeeAssessor.assessNumberOfCustomFees(feeContext);
-        } catch (HandleException ignore) {
-            final var status = ignore.getStatus();
+        } catch (HandleException ex) {
+            final var status = ex.getStatus();
             // If the transaction tried and failed to use custom fees, enable this flag.
             // This is used to charge a different canonical fees.
             triedAndFailedToUseCustomFees = status == INSUFFICIENT_PAYER_BALANCE_FOR_CUSTOM_FEE
