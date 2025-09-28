@@ -392,4 +392,13 @@ public class HapiUtils {
                         ipV4Addr.getByte(2) & 0xFF,
                         ipV4Addr.getByte(3) & 0xFF);
     }
+
+    /**
+     * Converts given AccountID to string.
+     * @param accountID account id to convert
+     * @return string representation
+     */
+    public static String asAccountString(@NonNull final AccountID accountID) {
+        return String.format("%d.%d.%d", accountID.shardNum(), accountID.realmNum(), accountID.accountNum());
+    }
 }

@@ -2,11 +2,15 @@
 package com.hedera.node.app.blocks.impl.streaming;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.catchRuntimeException;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.reset;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -26,6 +30,7 @@ import java.time.Duration;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import org.hiero.block.api.BlockStreamPublishServiceInterface.BlockStreamPublishServiceClient;
 import org.hiero.block.api.PublishStreamRequest;
 import org.hiero.block.api.PublishStreamRequest.EndStream;
@@ -45,12 +50,15 @@ import org.mockito.junit.jupiter.MockitoExtension;
 class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
     private static final long ONCE_PER_DAY_MILLIS = Duration.ofHours(24).toMillis();
     private static final VarHandle isStreamingEnabledHandle;
+    private static final VarHandle connectionStateHandle;
 
     static {
         try {
             final Lookup lookup = MethodHandles.lookup();
             isStreamingEnabledHandle = MethodHandles.privateLookupIn(BlockNodeConnectionManager.class, lookup)
                     .findVarHandle(BlockNodeConnectionManager.class, "isStreamingEnabled", AtomicBoolean.class);
+            connectionStateHandle = MethodHandles.privateLookupIn(BlockNodeConnection.class, lookup)
+                    .findVarHandle(BlockNodeConnection.class, "connectionState", AtomicReference.class);
         } catch (final Exception e) {
             throw new RuntimeException(e);
         }
@@ -505,6 +513,39 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
     }
 
     @Test
+    void testSendRequest_errorWhileActive() {
+        openConnectionAndResetMocks();
+        connection.updateConnectionState(ConnectionState.ACTIVE);
+        doThrow(new RuntimeException("kaboom!")).when(requestPipeline).onNext(any());
+        final PublishStreamRequest request = createRequest(newBlockHeaderItem());
+
+        final RuntimeException e = catchRuntimeException(() -> connection.sendRequest(request));
+        assertThat(e).isInstanceOf(RuntimeException.class).hasMessage("kaboom!");
+
+        verify(metrics).recordRequestSendFailure();
+        verifyNoMoreInteractions(metrics);
+    }
+
+    @Test
+    void testSendRequest_errorWhileNotActive() {
+        openConnectionAndResetMocks();
+        doThrow(new RuntimeException("kaboom!")).when(requestPipeline).onNext(any());
+
+        final BlockNodeConnection spiedConnection = spy(connection);
+        doReturn(ConnectionState.ACTIVE, ConnectionState.CLOSING)
+                .when(spiedConnection)
+                .getConnectionState();
+        final PublishStreamRequest request = createRequest(newBlockHeaderItem());
+
+        spiedConnection.sendRequest(request);
+
+        verify(requestPipeline).onNext(any());
+        verify(spiedConnection, times(2)).getConnectionState();
+
+        verifyNoInteractions(metrics);
+    }
+
+    @Test
     void testClose() {
         openConnectionAndResetMocks();
         connection.updateConnectionState(ConnectionState.ACTIVE);
@@ -557,7 +598,33 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
     }
 
     @Test
-    void testOnError() {
+    void testClose_alreadyClosed() {
+        openConnectionAndResetMocks();
+        connection.updateConnectionState(ConnectionState.CLOSED);
+
+        connection.close(true);
+
+        verifyNoInteractions(connectionManager);
+        verifyNoInteractions(requestPipeline);
+        verifyNoInteractions(metrics);
+        verifyNoInteractions(bufferService);
+    }
+
+    @Test
+    void testClose_alreadyClosing() {
+        openConnectionAndResetMocks();
+        connection.updateConnectionState(ConnectionState.CLOSING);
+
+        connection.close(true);
+
+        verifyNoInteractions(connectionManager);
+        verifyNoInteractions(requestPipeline);
+        verifyNoInteractions(metrics);
+        verifyNoInteractions(bufferService);
+    }
+
+    @Test
+    void testOnError_activeConnection() {
         openConnectionAndResetMocks();
         connection.updateConnectionState(ConnectionState.ACTIVE);
 
@@ -574,6 +641,19 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         verifyNoMoreInteractions(metrics);
         verifyNoMoreInteractions(requestPipeline);
         verifyNoMoreInteractions(connectionManager);
+        verifyNoInteractions(bufferService);
+    }
+
+    @Test
+    void testOnError_terminalConnection() {
+        openConnectionAndResetMocks();
+        connection.updateConnectionState(ConnectionState.CLOSING);
+
+        connection.onError(new RuntimeException("oh bother"));
+
+        verifyNoInteractions(metrics);
+        verifyNoInteractions(requestPipeline);
+        verifyNoInteractions(connectionManager);
         verifyNoInteractions(bufferService);
     }
 
@@ -626,4 +706,11 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
     private AtomicBoolean isStreamingEnabled() {
         return (AtomicBoolean) isStreamingEnabledHandle.get(connectionManager);
     }
+
+    @SuppressWarnings("unchecked")
+    private AtomicReference<ConnectionState> connectionState() {
+        return (AtomicReference<ConnectionState>) connectionStateHandle.get(connection);
+    }
+
+    private static class TracedAtomicBoolean extends AtomicBoolean {}
 }
