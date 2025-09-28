@@ -21,6 +21,13 @@ public class HooksABI {
     public static final Function FN_ALLOW_POST =
             new Function("allowPost(" + HOOK_CTX_TUPLE + "," + PROPOSED_TRANSFERS_TUPLE + ")", "(bool)");
 
+    /** Encodes the given invocation and context using the provided function's ABI.
+     *
+     * @param invocation the hook invocation details
+     * @param ctx the hook context
+     * @param function the ABI function to use for encoding
+     * @return the encoded byte array
+     */
     public static byte[] encode(HookCallFactory.HookInvocation invocation, HookContext ctx, Function function) {
         final var context = Tuple.of(
                 invocation.ownerAddress(),

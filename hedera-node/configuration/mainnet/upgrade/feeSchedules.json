@@ -6,7 +6,7 @@
           "hederaFunctionality": "CryptoCreate",
           "fees": [
             {
-              "subType": "DEFAULT",
+              "subType": "DEFhAULT",
               "nodedata": {
                 "constant": 11461413665,
                 "bpt": 508982,

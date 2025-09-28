@@ -137,7 +137,9 @@ public class CustomFractionalFeeAssessor {
                 // If there are multiple payers, record the details in the result. This is needed to construct
                 // custom fee proposed transfers with hooks
                 if (reclaimResult.paidByPayer().size() > 1) {
-                    result.addMultiPayerNonNetFeeDeltas(denom, collector, reclaimResult.paidByPayer(), collectedAmount);
+                    //                    result.addMultiPayerNonNetFeeDeltas(denom, collector,
+                    // reclaimResult.paidByPayer(), collectedAmount);
+                    result.addMultiPayerNonNetPayerDeltas(denom, reclaimResult.paidByPayer());
                 }
 
                 final var finalEffPayerNums = filteredOriginalCredits.keySet();
@@ -261,7 +263,7 @@ public class CustomFractionalFeeAssessor {
                 if (toReclaimHere != 0) {
                     credits.put(account, creditAmount - toReclaimHere);
                     amountReclaimed += toReclaimHere;
-                    paidByPayer.put(account, toReclaimHere);
+                    paidByPayer.merge(account, toReclaimHere, Long::sum);
                 }
             } catch (final ArithmeticException e) {
                 throw new HandleException(CUSTOM_FEE_OUTSIDE_NUMERIC_RANGE);

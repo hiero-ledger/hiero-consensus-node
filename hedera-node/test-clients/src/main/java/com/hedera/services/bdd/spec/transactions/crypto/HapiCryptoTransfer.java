@@ -39,7 +39,6 @@ import com.hederahashgraph.api.proto.java.TransferList;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -493,9 +492,9 @@ public class HapiCryptoTransfer extends HapiBaseTransfer<HapiCryptoTransfer> {
     }
 
     private void injectAllowanceHooks(final CryptoTransferTransactionBody.Builder builder, final HapiSpec spec) {
-        final var fungibleResolved   = resolveByAllForms(spec, fungibleHooksByAccount);
-        final var nftSenderResolved  = resolveByAllForms(spec, nftSenderHooksByAccount);
-        final var nftReceiverResolved= resolveByAllForms(spec, nftReceiverHooksByAccount);
+        final var fungibleResolved = resolveByAllForms(spec, fungibleHooksByAccount);
+        final var nftSenderResolved = resolveByAllForms(spec, nftSenderHooksByAccount);
+        final var nftReceiverResolved = resolveByAllForms(spec, nftReceiverHooksByAccount);
 
         if (builder.hasTransfers() && !fungibleResolved.isEmpty()) {
             final var tl = builder.getTransfers().toBuilder();
@@ -546,19 +545,26 @@ public class HapiCryptoTransfer extends HapiBaseTransfer<HapiCryptoTransfer> {
         final var out = new java.util.HashMap<com.hederahashgraph.api.proto.java.AccountID, HookSpec>();
         for (var e : byName.entrySet()) {
             final var name = e.getKey();
-            final var hs   = e.getValue();
+            final var hs = e.getValue();
 
             // Numeric id (may throw if name is only an alias -> ignore)
-            try { out.put(asId(name, spec), hs); } catch (Throwable ignore) { }
+            try {
+                out.put(asId(name, spec), hs);
+            } catch (Throwable ignore) {
+            }
 
             // Key-lookup id (often key-alias)
-            try { out.put(asIdForKeyLookUp(name, spec), hs); } catch (Throwable ignore) { }
+            try {
+                out.put(asIdForKeyLookUp(name, spec), hs);
+            } catch (Throwable ignore) {
+            }
 
             // If registry can produce an alias AccountID (key/EVM), include it too
             try {
                 final var aliasId = spec.registry().keyAliasIdFor(spec, name);
                 if (aliasId != null) out.put(aliasId, hs);
-            } catch (Throwable ignore) { }
+            } catch (Throwable ignore) {
+            }
         }
         return out;
     }

@@ -58,7 +58,7 @@ public class AssessmentResult {
     fee assessor to update the balance changes with the custom fee. */
     private final List<AssessedCustomFee> assessedCustomFees;
     // For multi-payer non-net fees, we need to keep track of the individual parts paid by each payer,
-    private final Map<TokenID, Map<AccountID, Long>> aggregatedMultiPayerNonNetDeltas = new LinkedHashMap<>();
+    private final Map<TokenID, Map<AccountID, Long>> aggregatedMultiPayerNonNetDeltas;
 
     /**
      * Constructs an AssessmentResult object with the input token transfers and hbar transfers
@@ -82,6 +82,7 @@ public class AssessmentResult {
         hbarAdjustments = new LinkedHashMap<>();
         royaltiesPaid = new LinkedHashSet<>();
         assessedCustomFees = new ArrayList<>();
+        aggregatedMultiPayerNonNetDeltas = new LinkedHashMap<>();
     }
 
     /**
@@ -160,6 +161,12 @@ public class AssessmentResult {
         return aggregatedMultiPayerNonNetDeltas;
     }
 
+    public void addMultiPayerNonNetPayerDeltas(final TokenID token, final Map<AccountID, Long> paidByPayer) {
+        final var m = aggregatedMultiPayerNonNetDeltas.computeIfAbsent(token, __ -> new LinkedHashMap<>());
+        // paidByPayer contains positive amounts reclaimed from each payer; store as NEGATIVE debits.
+        paidByPayer.forEach((payer, amt) -> m.merge(payer, -Math.abs(amt), Math::addExact));
+    }
+
     /** Record a multi‑payer non‑net fractional fee: debit each payer, credit the collector. */
     public void addMultiPayerNonNetFeeDeltas(
             final TokenID token,
@@ -168,16 +175,9 @@ public class AssessmentResult {
             final long collectedAmount) {
         final var deltasForToken = aggregatedMultiPayerNonNetDeltas.computeIfAbsent(token, __ -> new LinkedHashMap<>());
         for (final var e : reclaimedByPayer.entrySet()) {
-            deltasForToken.merge(e.getKey(), -e.getValue(), Long::sum);
+            deltasForToken.merge(e.getKey(), -e.getValue(), Math::addExact);
         }
         deltasForToken.merge(collector, +collectedAmount, Long::sum);
-    }
-
-    public void addCustomFeeDelta(final TokenID token, final AccountID account, final long amount) {
-        if (amount == 0) return;
-        aggregatedMultiPayerNonNetDeltas
-                .computeIfAbsent(token, __ -> new LinkedHashMap<>())
-                .merge(account, amount, Long::sum);
     }
 
     /**

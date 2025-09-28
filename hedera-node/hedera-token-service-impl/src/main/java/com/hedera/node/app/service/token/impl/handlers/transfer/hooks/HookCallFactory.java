@@ -22,22 +22,26 @@ import com.hedera.node.app.service.token.impl.handlers.transfer.customfees.Asses
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import javax.inject.Inject;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
+/**
+ * Factory for creating {@link HookCalls} from a CryptoTransfer transaction to be dispatched to the EVM through
+ * the {@code HookDispatchHandler}.
+ * It encodes the direct transfers and custom fee transfers into tuples suitable for hook invocation.
+ * It collects pre-transaction and pre-post-transaction hook invocations for accounts involved in
+ * the transfers.
+ */
 public class HookCallFactory {
     private static final Logger log = LoggerFactory.getLogger(HookCallFactory.class);
 
     @Inject
-    public HookCallFactory() {
-    }
+    public HookCallFactory() {}
 
     public HookCalls from(
             HandleContext handleContext,
@@ -77,9 +81,9 @@ public class HookCallFactory {
             final List<AssessedCustomFee> assessedCustomFees,
             final Map<TokenID, Map<AccountID, Long>> multiPayerNonNetFeeDeltas) {
         if (assessedCustomFees.isEmpty()) {
-            return Tuple.of(new Tuple[]{}, new Tuple[]{});
+            return Tuple.of(new Tuple[] {}, new Tuple[] {});
         }
-        final Map<TokenID, Map<AccountID, Long>> deltas = new HashMap<>();
+        final Map<TokenID, Map<AccountID, Long>> deltas = new LinkedHashMap<>();
         for (final var fee : assessedCustomFees) {
             final var token = fee.hasTokenId() ? fee.tokenIdOrThrow() : AssessmentResult.HBAR_TOKEN_ID;
             final var map = deltas.computeIfAbsent(token, t -> new LinkedHashMap<>());
@@ -95,10 +99,9 @@ public class HookCallFactory {
         // Merge in aggregated multi-payer non-net deltas
         if (multiPayerNonNetFeeDeltas != null) {
             for (final var e : multiPayerNonNetFeeDeltas.entrySet()) {
+                final var payerDebits = e.getValue();
                 final var map = deltas.computeIfAbsent(e.getKey(), t -> new LinkedHashMap<>());
-                for (final var accDelta : e.getValue().entrySet()) {
-                    map.merge(accDelta.getKey(), accDelta.getValue(), Long::sum);
-                }
+                payerDebits.forEach((acct, delta) -> map.merge(acct, delta, Long::sum));
             }
         }
         // Construct TransferList + TokenTransferList[]
@@ -290,6 +293,5 @@ public class HookCallFactory {
         return asHeadlongAddress(asEvmAddress(tokenId.tokenNum()));
     }
 
-    public record HookInvocation(AccountID ownerId, long hookId, Address ownerAddress, Bytes calldata, long gasLimit) {
-    }
+    public record HookInvocation(AccountID ownerId, long hookId, Address ownerAddress, Bytes calldata, long gasLimit) {}
 }

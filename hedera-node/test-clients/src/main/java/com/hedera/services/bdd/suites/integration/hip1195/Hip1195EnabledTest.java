@@ -47,7 +47,6 @@ import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
 import com.hederahashgraph.api.proto.java.TokenSupplyType;
 import com.hederahashgraph.api.proto.java.TokenType;
 import edu.umd.cs.findbugs.annotations.NonNull;
-
 import java.util.List;
 import java.util.Map;
 import java.util.OptionalLong;
@@ -74,7 +73,6 @@ public class Hip1195EnabledTest {
         testLifecycle.doAdhoc(HOOK_CONTRACT.getInfo());
         testLifecycle.doAdhoc(HOOK_UPDATE_CONTRACT.getInfo());
     }
-
 
     @HapiTest
     final Stream<DynamicTest> authorizeHbarDebitPreOnlyHook() {
@@ -131,9 +129,7 @@ public class Hip1195EnabledTest {
     @HapiTest
     final Stream<DynamicTest> accessingWrongHookFails() {
         return hapiTest(
-                cryptoCreate("accountWithDifferentHooks")
-                        .withHooks(
-                                accountAllowanceHook(125L, HOOK_CONTRACT.name())),
+                cryptoCreate("accountWithDifferentHooks").withHooks(accountAllowanceHook(125L, HOOK_CONTRACT.name())),
                 cryptoCreate("testAccount")
                         .withHooks(
                                 accountAllowanceHook(123L, HOOK_CONTRACT.name()),
@@ -255,14 +251,14 @@ public class Hip1195EnabledTest {
 
         return hapiTest(
                 newKeyNamed(supplyKey),
-                cryptoCreate(alice) .withHooks(
-                        accountAllowanceHook(123L, HOOK_CONTRACT.name()))
+                cryptoCreate(alice)
+                        .withHooks(accountAllowanceHook(123L, HOOK_CONTRACT.name()))
                         .balance(10 * ONE_HUNDRED_HBARS),
-                cryptoCreate(amelie).withHooks(
-                        accountAllowanceHook(124L, HOOK_CONTRACT.name())),
+                cryptoCreate(amelie).withHooks(accountAllowanceHook(124L, HOOK_CONTRACT.name())),
                 cryptoCreate(usdcTreasury),
                 cryptoCreate(usdcCollector),
                 cryptoCreate(westWindTreasury),
+                cryptoCreate("receiverUsdc").maxAutomaticTokenAssociations(1),
                 tokenCreate(usdc)
                         .signedBy(DEFAULT_PAYER, usdcTreasury, usdcCollector)
                         .initialSupply(Long.MAX_VALUE)
@@ -284,11 +280,10 @@ public class Hip1195EnabledTest {
                         .fee(ONE_HBAR)
                         .via(txnFromTreasury),
                 cryptoTransfer(
-                        movingUnique(westWindArt, 1L).between(amelie, alice),
-                        moving(200, usdc).between(alice, amelie),
-                        movingHbar(10 * ONE_HUNDRED_HBARS)
-                                .between(alice, amelie))
-                        .withPreHookFor("alice", 124L, 25_000L, "")
+                                movingUnique(westWindArt, 1L).between(amelie, alice),
+                                moving(200, usdc).distributing(alice, amelie, "receiverUsdc"),
+                                movingHbar(10 * ONE_HUNDRED_HBARS).between(alice, amelie))
+                        .withPreHookFor("AMELIE", 124L, 25_000L, "")
                         .signedBy(amelie, alice)
                         .payingWith(amelie)
                         .via(txnFromAmelie)
