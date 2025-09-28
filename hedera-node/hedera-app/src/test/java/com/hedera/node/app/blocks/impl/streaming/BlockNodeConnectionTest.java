@@ -4,6 +4,7 @@ package com.hedera.node.app.blocks.impl.streaming;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchRuntimeException;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
@@ -367,6 +368,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         verify(metrics).recordResponseEndOfStreamReceived(Code.BEHIND);
         verify(metrics).recordConnectionClosed();
         verify(metrics).recordRequestEndStreamSent(EndStream.Code.TOO_FAR_BEHIND);
+        verify(metrics).recordRequestLatency(anyLong());
         verify(bufferService, times(1)).getEarliestAvailableBlockNumber();
         verify(bufferService, times(1)).getHighestAckedBlockNumber();
         verify(bufferService).getBlockState(11L);
@@ -492,6 +494,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         verify(requestPipeline).onNext(request);
         verify(metrics).recordRequestSent(RequestOneOfType.BLOCK_ITEMS);
         verify(metrics).recordBlockItemsSent(1);
+        verify(metrics).recordRequestLatency(anyLong());
         verifyNoMoreInteractions(metrics);
         verifyNoMoreInteractions(requestPipeline);
         verifyNoMoreInteractions(connectionManager);
