@@ -1878,4 +1878,9 @@ enum ResponseCodeEnum {
      * Cannot set both hook execution and approval on a transfer transaction.
      */
     CANNOT_SET_HOOKS_AND_APPROVAL = 520;
+
+    /**
+     * The attempted operation is invalid until all hooks for the target account are zero
+     */
+    TRANSACTION_REQUIRES_ZERO_HOOKS = 521;
 }
