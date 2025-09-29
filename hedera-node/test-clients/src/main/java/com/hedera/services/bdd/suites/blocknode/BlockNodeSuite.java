@@ -151,7 +151,6 @@ public class BlockNodeSuite {
                         spec -> LockSupport.parkNanos(Duration.ofSeconds(10).toNanos())));
     }
 
-    @Disabled
     @HapiTest
     @HapiBlockNode(
             networkSize = 1,
