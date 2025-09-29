@@ -92,7 +92,7 @@ public class GenesisPlatformStateCommand extends AbstractCommand {
                     .get();
             System.out.printf("Writing modified state to %s %n", outputDir.toAbsolutePath());
             writeSignedStateFilesToDirectory(
-                    platformContext, NO_NODE_ID, outputDir, reservedSignedState.get(), stateFacade);
+                    platformContext.getConfiguration(), NO_NODE_ID, outputDir, reservedSignedState.get(), stateFacade);
         }
 
         return 0;

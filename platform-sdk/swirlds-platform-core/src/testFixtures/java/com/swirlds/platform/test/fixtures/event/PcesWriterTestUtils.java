@@ -97,7 +97,7 @@ public class PcesWriterTestUtils {
             lastAncientIdentifier = Math.max(lastAncientIdentifier, event.getBirthRound());
         }
 
-        final PcesFileTracker pcesFiles = PcesFileReader.readFilesFromDisk(
+        final PcesFileTracker pcesFiles = PcesFileReader.readAndResolveEventFilesFromDisk(
                 platformContext.getConfiguration(), platformContext.getRecycleBin(), pcesDirectory, 0, false);
 
         // Verify that the events were written correctly
