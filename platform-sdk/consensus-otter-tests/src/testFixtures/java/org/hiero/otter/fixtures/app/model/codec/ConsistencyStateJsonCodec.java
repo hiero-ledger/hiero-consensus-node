@@ -43,15 +43,15 @@ public final class ConsistencyStateJsonCodec implements JsonCodec<ConsistencySta
         }
         try {
             // -- TEMP STATE FIELDS --------------------------------------
-            long temp_running_hash = 0;
+            long temp_running_checksum = 0;
             long temp_rounds_handled = 0;
 
             // -- EXTRACT VALUES FROM PARSE TREE ---------------------------------------------
 
             for (JSONParser.PairContext kvPair : root.pair()) {
                 switch (kvPair.STRING().getText()) {
-                    case "runningHash" /* [1] */:
-                        temp_running_hash = parseLong(kvPair.value());
+                    case "runningChecksum" /* [1] */:
+                        temp_running_checksum = parseLong(kvPair.value());
                         break;
                     case "roundsHandled" /* [2] */:
                         temp_rounds_handled = parseLong(kvPair.value());
@@ -66,7 +66,7 @@ public final class ConsistencyStateJsonCodec implements JsonCodec<ConsistencySta
                 }
             }
 
-            return new ConsistencyState(temp_running_hash, temp_rounds_handled);
+            return new ConsistencyState(temp_running_checksum, temp_rounds_handled);
         } catch (Exception ex) {
             throw new ParseException(ex);
         }
@@ -88,8 +88,8 @@ public final class ConsistencyStateJsonCodec implements JsonCodec<ConsistencySta
         final String childIndent = indent + INDENT;
         // collect field lines
         final List<String> fieldLines = new ArrayList<>();
-        // [1] - running_hash
-        if (data.runningHash() != 0) fieldLines.add(field("runningHash", data.runningHash()));
+        // [1] - running_checksum
+        if (data.runningChecksum() != 0) fieldLines.add(field("runningChecksum", data.runningChecksum()));
         // [2] - rounds_handled
         if (data.roundsHandled() != 0) fieldLines.add(field("roundsHandled", data.roundsHandled()));
 

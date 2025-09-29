@@ -22,8 +22,8 @@ public final class ConsistencyStateSchema implements Schema {
     /**
      * <b>(1)</b>
      */
-    public static final FieldDefinition RUNNING_HASH =
-            new FieldDefinition("running_hash", FieldType.UINT64, false, false, false, 1);
+    public static final FieldDefinition RUNNING_CHECKSUM =
+            new FieldDefinition("running_checksum", FieldType.UINT64, false, false, false, 1);
 
     /**
      * <b>(2)</b>
@@ -51,7 +51,7 @@ public final class ConsistencyStateSchema implements Schema {
      */
     public static FieldDefinition getField(final int fieldNumber) {
         return switch (fieldNumber) {
-            case 1 -> RUNNING_HASH;
+            case 1 -> RUNNING_CHECKSUM;
             case 2 -> ROUNDS_HANDLED;
             default -> null;
         };

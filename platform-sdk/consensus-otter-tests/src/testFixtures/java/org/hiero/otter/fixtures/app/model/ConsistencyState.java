@@ -27,7 +27,7 @@ public final class ConsistencyState {
     public static final ConsistencyState DEFAULT = newBuilder().build();
 
     /** Field <b>(1)</b>  */
-    private final long runningHash;
+    private final long runningChecksum;
     /** Field <b>(2)</b>  */
     private final long roundsHandled;
     /** Computed hash code, manual input ignored. */
@@ -40,34 +40,34 @@ public final class ConsistencyState {
     /**
      * Create a pre-populated ConsistencyState.
      *
-     * @param runningHash <b>(1)</b>
+     * @param runningChecksum <b>(1)</b>
      * @param roundsHandled <b>(2)</b>
      */
-    public ConsistencyState(long runningHash, long roundsHandled) {
+    public ConsistencyState(long runningChecksum, long roundsHandled) {
         this.$unknownFields = null;
-        this.runningHash = runningHash;
+        this.runningChecksum = runningChecksum;
         this.roundsHandled = roundsHandled;
     }
 
     /**
      * Create a pre-populated ConsistencyState.
      *
-     * @param runningHash <b>(1)</b>
+     * @param runningChecksum <b>(1)</b>
      * @param roundsHandled <b>(2)</b>
      */
-    public ConsistencyState(long runningHash, long roundsHandled, final List<UnknownField> $unknownFields) {
+    public ConsistencyState(long runningChecksum, long roundsHandled, final List<UnknownField> $unknownFields) {
         this.$unknownFields = $unknownFields == null ? null : Collections.unmodifiableList($unknownFields);
-        this.runningHash = runningHash;
+        this.runningChecksum = runningChecksum;
         this.roundsHandled = roundsHandled;
     }
 
     /**
      * Get field <b>(1)</b>
      *
-     * @return the value of the runningHash field
+     * @return the value of the runningChecksum field
      */
-    public long runningHash() {
-        return runningHash;
+    public long runningChecksum() {
+        return runningChecksum;
     }
 
     /**
@@ -117,8 +117,8 @@ public final class ConsistencyState {
 
         if ($protobufEncodedSize == -1) {
             int _size = 0;
-            // [1] - running_hash
-            _size += sizeOfLong(ConsistencyStateSchema.RUNNING_HASH, runningHash, true);
+            // [1] - running_checksum
+            _size += sizeOfLong(ConsistencyStateSchema.RUNNING_CHECKSUM, runningChecksum, true);
             // [2] - rounds_handled
             _size += sizeOfLong(ConsistencyStateSchema.ROUNDS_HANDLED, roundsHandled, true);
 
@@ -152,8 +152,8 @@ public final class ConsistencyState {
 
         if ($hashCode == -1) {
             int result = 1;
-            if (runningHash != DEFAULT.runningHash) {
-                result = 31 * result + Long.hashCode(runningHash);
+            if (runningChecksum != DEFAULT.runningChecksum) {
+                result = 31 * result + Long.hashCode(runningChecksum);
             }
             if (roundsHandled != DEFAULT.roundsHandled) {
                 result = 31 * result + Long.hashCode(roundsHandled);
@@ -192,7 +192,7 @@ public final class ConsistencyState {
         if ($hashCode != -1 && thatObj.$hashCode != -1 && $hashCode != thatObj.$hashCode) {
             return false;
         }
-        if (runningHash != thatObj.runningHash) {
+        if (runningChecksum != thatObj.runningChecksum) {
             return false;
         }
         if (roundsHandled != thatObj.roundsHandled) {
@@ -231,7 +231,7 @@ public final class ConsistencyState {
             $ufstr = sb.toString();
         }
         return "ConsistencyState["
-                + "runningHash=" + runningHash + ", "
+                + "runningChecksum=" + runningChecksum + ", "
                 + "roundsHandled=" + roundsHandled
                 + ($ufstr == null ? "" : (", " + $ufstr))
                 + "]";
@@ -244,7 +244,7 @@ public final class ConsistencyState {
      * @return a pre-populated builder
      */
     public Builder copyBuilder() {
-        return new Builder(runningHash, roundsHandled, $unknownFields);
+        return new Builder(runningChecksum, roundsHandled, $unknownFields);
     }
 
     /**
@@ -261,7 +261,7 @@ public final class ConsistencyState {
      * paths use the constructor directly.
      */
     public static final class Builder {
-        private long runningHash = 0;
+        private long runningChecksum = 0;
         private long roundsHandled = 0;
         private final List<UnknownField> $unknownFields;
 
@@ -275,24 +275,24 @@ public final class ConsistencyState {
         /**
          * Create a pre-populated Builder.
          *
-         * @param runningHash <b>(1)</b>
+         * @param runningChecksum <b>(1)</b>
          * @param roundsHandled <b>(2)</b>
          */
-        public Builder(long runningHash, long roundsHandled) {
+        public Builder(long runningChecksum, long roundsHandled) {
             this.$unknownFields = null;
-            this.runningHash = runningHash;
+            this.runningChecksum = runningChecksum;
             this.roundsHandled = roundsHandled;
         }
 
         /**
          * Create a pre-populated Builder.
          *
-         * @param runningHash <b>(1)</b>
+         * @param runningChecksum <b>(1)</b>
          * @param roundsHandled <b>(2)</b>
          */
-        public Builder(long runningHash, long roundsHandled, final List<UnknownField> $unknownFields) {
+        public Builder(long runningChecksum, long roundsHandled, final List<UnknownField> $unknownFields) {
             this.$unknownFields = $unknownFields == null ? null : Collections.unmodifiableList($unknownFields);
-            this.runningHash = runningHash;
+            this.runningChecksum = runningChecksum;
             this.roundsHandled = roundsHandled;
         }
 
@@ -302,17 +302,17 @@ public final class ConsistencyState {
          * @return new model record with data set
          */
         public ConsistencyState build() {
-            return new ConsistencyState(runningHash, roundsHandled);
+            return new ConsistencyState(runningChecksum, roundsHandled);
         }
 
         /**
          * <b>(1)</b>
          *
-         * @param runningHash value to set
+         * @param runningChecksum value to set
          * @return builder to continue building with
          */
-        public Builder runningHash(long runningHash) {
-            this.runningHash = runningHash;
+        public Builder runningChecksum(long runningChecksum) {
+            this.runningChecksum = runningChecksum;
             return this;
         }
 

@@ -1,15 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.app.services.consistency;
 
-import static java.util.Optional.ofNullable;
 import static org.hiero.base.utility.ByteUtils.byteArrayToLong;
-import static org.hiero.base.utility.NonCryptographicHashing.hash64;
-import static org.hiero.otter.fixtures.app.state.OtterStateId.CONSISTENCY_SINGLETON_STATE_ID;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.swirlds.state.lifecycle.Schema;
-import com.swirlds.state.spi.WritableSingletonState;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.function.Consumer;
@@ -18,7 +14,6 @@ import org.hiero.consensus.model.hashgraph.Round;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 import org.hiero.consensus.model.transaction.Transaction;
 import org.hiero.otter.fixtures.app.OtterService;
-import org.hiero.otter.fixtures.app.model.ConsistencyState;
 
 /**
  * A service that ensures the consistency of rounds and transactions sent by the platform to the execution layer for
@@ -43,23 +38,9 @@ public class ConsistencyService implements OtterService {
      */
     @Override
     public void onRound(@NonNull final WritableStates writableStates, @NonNull final Round round) {
-        final WritableSingletonState<ConsistencyState> writableSingletonState =
-                writableStates.getSingleton(CONSISTENCY_SINGLETON_STATE_ID.id());
-        final ConsistencyState consistencyState =
-                ofNullable(writableSingletonState.get()).orElse(ConsistencyState.DEFAULT);
-        final long oldStateRunningHash = consistencyState.runningHash();
-
-        // Update the running hash with the round number
-        final long newStateRunningHash = hash64(oldStateRunningHash, round.getRoundNum());
-
-        // Update the state with the data for this round.
-        writableSingletonState.put(consistencyState
-                .copyBuilder()
-                .roundsHandled(consistencyState.roundsHandled() + 1)
-                .runningHash(newStateRunningHash)
-                .build());
-
-        recordRound(round);
+        new WritableConsistencyStateStore(writableStates)
+                .accumulateRunningChecksum(round.getRoundNum())
+                .increaseRoundsHandled();
     }
 
     /**
@@ -72,18 +53,8 @@ public class ConsistencyService implements OtterService {
             final Event event,
             @NonNull final Transaction transaction,
             @NonNull final Consumer<ScopedSystemTransaction<StateSignatureTransaction>> callback) {
-        final WritableSingletonState<ConsistencyState> writableSingletonState =
-                writableStates.getSingleton(CONSISTENCY_SINGLETON_STATE_ID.id());
-        final ConsistencyState consistencyState =
-                ofNullable(writableSingletonState.get()).orElse(ConsistencyState.DEFAULT);
-        final long oldStateRunningHash = consistencyState.runningHash();
-
-        final long transactionContents = getTransactionContents(transaction);
-        final long newStateRunningHash = hash64(oldStateRunningHash, transactionContents);
-
-        // Update the state with the data for this round.
-        writableSingletonState.put(
-                consistencyState.copyBuilder().runningHash(newStateRunningHash).build());
+        final long transactionChecksum = getTransactionChecksum(transaction);
+        new WritableConsistencyStateStore(writableStates).accumulateRunningChecksum(transactionChecksum);
     }
 
     private void recordRound(@NonNull final Round round) {
@@ -105,7 +76,7 @@ public class ConsistencyService implements OtterService {
         // consensus transactions were previously sent to prehandle.
     }
 
-    private static long getTransactionContents(@NonNull final Transaction transaction) {
+    private static long getTransactionChecksum(@NonNull final Transaction transaction) {
         return byteArrayToLong(transaction.getApplicationTransaction().toByteArray(), 0);
     }
 

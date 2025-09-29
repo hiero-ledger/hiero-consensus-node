@@ -4,8 +4,10 @@ package org.hiero.otter.fixtures.app.services.consistency;
 import static org.hiero.otter.fixtures.app.state.OtterStateId.CONSISTENCY_SINGLETON_STATE_ID;
 
 import com.hedera.hapi.node.base.SemanticVersion;
+import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.lifecycle.StateDefinition;
+import com.swirlds.state.spi.WritableSingletonState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Set;
 import org.hiero.otter.fixtures.app.model.ConsistencyState;
@@ -35,5 +37,17 @@ public class V1ConsistencyStateSchema extends Schema {
     @SuppressWarnings("rawtypes")
     public Set<StateDefinition> statesToCreate() {
         return Set.of(StateDefinition.singleton(STATE_ID, STATE_KEY, ConsistencyState.PROTOBUF));
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void migrate(@NonNull final MigrationContext ctx) {
+        final WritableSingletonState<ConsistencyState> consistencyState =
+                ctx.newStates().getSingleton(STATE_ID);
+        if (consistencyState.get() == null) {
+            consistencyState.put(ConsistencyState.DEFAULT);
+        }
     }
 }

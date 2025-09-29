@@ -69,7 +69,7 @@ public final class ConsistencyStateProtoCodec implements Codec<ConsistencyState>
         }
         try {
             // -- TEMP STATE FIELDS --------------------------------------
-            long temp_running_hash = 0;
+            long temp_running_checksum = 0;
             long temp_rounds_handled = 0;
             List<UnknownField> $unknownFields = null;
 
@@ -99,9 +99,9 @@ public final class ConsistencyStateProtoCodec implements Codec<ConsistencyState>
 
                 // Given the wire type and the field type, parse the field
                 switch (tag) {
-                    case 8 /* type=0 [UINT64] field=1 [running_hash] */ -> {
+                    case 8 /* type=0 [UINT64] field=1 [running_checksum] */ -> {
                         final var value = readUint64(input);
-                        temp_running_hash = value;
+                        temp_running_checksum = value;
                     }
                     case 16 /* type=0 [UINT64] field=2 [rounds_handled] */ -> {
                         final var value = readUint64(input);
@@ -152,7 +152,7 @@ public final class ConsistencyStateProtoCodec implements Codec<ConsistencyState>
                 Collections.sort($unknownFields);
                 $initialSizeOfUnknownFieldsArray = Math.max($initialSizeOfUnknownFieldsArray, $unknownFields.size());
             }
-            return new ConsistencyState(temp_running_hash, temp_rounds_handled, $unknownFields);
+            return new ConsistencyState(temp_running_checksum, temp_rounds_handled, $unknownFields);
         } catch (final Exception anyException) {
             if (anyException instanceof ParseException parseException) {
                 throw parseException;
@@ -169,8 +169,8 @@ public final class ConsistencyStateProtoCodec implements Codec<ConsistencyState>
      * @throws IOException If there is a problem writing
      */
     public void write(@NonNull ConsistencyState data, @NonNull final WritableSequentialData out) throws IOException {
-        // [1] - running_hash
-        writeLong(out, ConsistencyStateSchema.RUNNING_HASH, data.runningHash(), true);
+        // [1] - running_checksum
+        writeLong(out, ConsistencyStateSchema.RUNNING_CHECKSUM, data.runningChecksum(), true);
         // [2] - rounds_handled
         writeLong(out, ConsistencyStateSchema.ROUNDS_HANDLED, data.roundsHandled(), true);
 
