@@ -19,6 +19,10 @@ import org.hiero.otter.fixtures.result.MultipleNodeLogResults;
 
 /**
  * Continuous assertions for {@link MultipleNodeLogResults}.
+ *
+ * <p>Please note: If two continuous assertions fail roughly at the same time, it is non-deterministic which one
+ * will report the failure first. This is even true when running a test in the Turtle environment.
+ * If deterministic behavior is required, please use regular assertions instead of continuous assertions.
  */
 @SuppressWarnings({"UnusedReturnValue", "unused"})
 public class MultipleNodeLogResultsContinuousAssert
@@ -124,8 +128,8 @@ public class MultipleNodeLogResultsContinuousAssert
 
         final LogSubscriber subscriber = logEntry -> switch (state) {
             case ACTIVE -> {
-                if (!suppressedNodeIds.contains(logEntry.nodeId())
-                        && !suppressedLogMarkers.contains(logEntry.marker())) {
+                if ((logEntry.nodeId() == null || !suppressedNodeIds.contains(logEntry.nodeId()))
+                        && (logEntry.marker() == null || !suppressedLogMarkers.contains(logEntry.marker()))) {
                     check.accept(logEntry);
                 }
                 yield CONTINUE;

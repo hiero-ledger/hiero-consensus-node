@@ -90,7 +90,7 @@ public class SingleNodeLogResultAssert extends AbstractAssert<SingleNodeLogResul
                 .filter(log -> log.level().intLevel() < level.intLevel())
                 .toList();
         if (!logs.isEmpty()) {
-            final String message = String.format("Expected to find no message with lever higher than '%s'", level);
+            final String message = String.format("Expected to find no message with level higher than '%s'", level);
             failWithMessage(message, logs);
         }
         return this;
@@ -117,7 +117,8 @@ public class SingleNodeLogResultAssert extends AbstractAssert<SingleNodeLogResul
         logStatements.append("\n****************\n");
         logStatements.append(" ->  Log messages found:\n");
         logStatements.append("****************\n");
-        logs.forEach(log -> logStatements.append(log.toString()));
+        // logStatements is used as a formatter String, thus we must escape '%'
+        logs.forEach(log -> logStatements.append(log.toString().replace("%", "%%")));
         logStatements.append("****************\n");
 
         failWithMessage(logStatements.toString());

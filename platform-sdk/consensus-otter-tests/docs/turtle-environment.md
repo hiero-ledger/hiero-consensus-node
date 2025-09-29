@@ -1,7 +1,5 @@
 # 🐢 Turtle Environment Guide
 
-[Home](../README.md) > Turtle Environment
-
 Deep dive into the Turtle simulated testing environment for fast, deterministic consensus testing.
 
 ## Table of Contents
@@ -11,6 +9,7 @@ Deep dive into the Turtle simulated testing environment for fast, deterministic 
 - [🌐 Network Simulation](#-network-simulation)
 - [⏱️ Time Management](#-time-management)
 - [🎲 Deterministic Testing](#-deterministic-testing)
+- [📝 Per-Node Logging](#-per-node-logging)
 
 ## 🎯 Overview
 
@@ -365,19 +364,43 @@ void testDeterministicBehavior(@NonNull final TestEnvironment env) throws Interr
     env.timeManager().waitFor(Duration.ofSeconds(30));
 
     // Results will be identical across runs
-    final long lastRound = network.getConsensusResults()
-        .results().get(0).lastRoundNum();
+    final long lastRound =
+            network.newConsensusResults().results().getFirst().lastRoundNum();
 
     // This assertion will always pass with seed=42
-    assertThat(lastRound).isEqualTo(35);
+    assertThat(lastRound).isEqualTo(46L);
 }
 ```
 
+## 📝 Per-Node Logging
+
+All Turtle nodes share one JVM, so log routing depends on the `nodeId` stored in Log4j2's
+`ThreadContext`. Enter node code paths inside a scope and let the helpers propagate the MDC:
+
+```java
+try (var scope = NodeLoggingContext.install(Long.toString(nodeId.id()))) {
+    scheduler = NodeLoggingContext.wrap(Executors.newSingleThreadScheduledExecutor(
+            new ContextAwareThreadFactory()));
+    scheduler.schedule(NodeLoggingContext.wrap(() -> logger.info("tick")), 1, TimeUnit.SECONDS);
+}
+```
+
+- Wrap every `ExecutorService` / `ScheduledExecutorService` with `NodeLoggingContext.wrap(...)`
+  before handing it to platform components or `CompletableFuture`.
+- When a framework forces the common fork-join pool, wrap the runnable/callable itself with
+  `NodeLoggingContext.wrap(...)` so the captured context is restored on execution.
+- Avoid direct `new Thread(...)`; if unavoidable, build it through `ContextAwareThreadFactory` to
+  apply the snapshot automatically.
+
+With propagation in place the routing appender emits `node-${ctx:nodeId}.log` files and the
+`node-unknown` fallback remains empty during normal operation.
+
 ## 🔗 Related Documentation
 
-|          Topic          |                                   Link                                   |
-|-------------------------|--------------------------------------------------------------------------|
-| **Environment Details** | [Turtle](turtle-environment.md) \| [Container](container-environment.md) |
-| **Test Development**    | [Writing Tests Guide](writing-tests.md)                                  |
-| **API Reference**       | [Assertions API](assertions-api.md)                                      |
-| **Configuration**       | [Configuration Guide](configuration.md)                                  |
+|                        Guide                         |        Description        |
+|------------------------------------------------------|---------------------------|
+| [🏁 Getting Started](getting-started.md)             | Setup and your first test |
+| [🏛️ Architecture](architecture.md)                  | Framework design overview |
+| [✍️ Writing Tests](writing-tests.md)                 | Test development guide    |
+| [🐢 Turtle Environment](turtle-environment.md)       | Simulated testing guide   |
+| [🐳 Container Environment](container-environment.md) | Docker-based testing      |

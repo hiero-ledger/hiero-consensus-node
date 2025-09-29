@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.precompile.schedule;
 
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.keys.KeyShape.ED25519;
@@ -22,6 +23,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.getEd25519PrivateKe
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepForSeconds;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
@@ -217,6 +219,7 @@ public class ContractSignScheduleTest {
                             .payingWith(SENDER)
                             .sigMapPrefixes(TrieSigMapGenerator.withNature(FULL_PREFIXES))
                             .gas(1_000_000),
+                    sleepForSeconds(1),
                     getScheduleInfo(SCHEDULE_E).isExecuted());
         }
 
@@ -268,6 +271,7 @@ public class ContractSignScheduleTest {
 
         @HapiTest
         @DisplayName("Sign schedule using ecdsa key")
+        @Tag(MATS)
         final Stream<DynamicTest> signScheduleWithContractEcdsaKey() {
             return hapiTest(
                     getScheduleInfo(SCHEDULE_G).isNotExecuted(),
@@ -279,6 +283,7 @@ public class ContractSignScheduleTest {
 
         @HapiTest
         @DisplayName("Sign schedule using ed key")
+        @Tag(MATS)
         final Stream<DynamicTest> signScheduleWithContractEdKey() {
             return hapiTest(
                     getScheduleInfo(SCHEDULE_H).isNotExecuted(),

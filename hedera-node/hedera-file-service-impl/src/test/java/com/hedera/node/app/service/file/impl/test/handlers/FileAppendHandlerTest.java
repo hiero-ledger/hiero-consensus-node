@@ -3,6 +3,7 @@ package com.hedera.node.app.service.file.impl.test.handlers;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.FILE_DELETED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_FILE_ID;
+import static com.hedera.node.app.service.file.impl.schemas.V0490FileSchema.FILES_STATE_ID;
 import static com.hedera.node.app.spi.fixtures.workflows.ExceptionConditions.responseCode;
 import static org.assertj.core.api.Assertions.assertThatNoException;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -37,6 +38,7 @@ import com.hedera.node.app.spi.fees.FeeCalculator;
 import com.hedera.node.app.spi.fees.FeeCalculatorFactory;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
+import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
@@ -48,7 +50,6 @@ import com.hedera.node.app.workflows.prehandle.PreHandleContextImpl;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.state.lifecycle.info.NodeInfo;
 import org.apache.commons.lang3.ArrayUtils;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -329,7 +330,7 @@ class FileAppendHandlerTest extends FileTestBase {
 
         given(handleContext.body()).willReturn(txBody);
         writableFileState = writableFileStateWithOneKey();
-        given(writableStates.<FileID, File>get(FILES)).willReturn(writableFileState);
+        given(writableStates.<FileID, File>get(FILES_STATE_ID)).willReturn(writableFileState);
         writableStore = new WritableFileStore(writableStates, writableEntityCounters);
         given(storeFactory.writableStore(WritableFileStore.class)).willReturn(writableStore);
 

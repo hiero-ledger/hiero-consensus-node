@@ -21,8 +21,8 @@ public record ContractsConfig(
         @ConfigProperty(defaultValue = "15000000") @NetworkProperty long maxGasPerTransaction,
         @ConfigProperty(defaultValue = "15000000") @NetworkProperty long maxGasPerSec,
         @ConfigProperty(defaultValue = "15000000") @NetworkProperty long maxGasPerSecBackend,
-        @ConfigProperty(defaultValue = "500000000") @NetworkProperty long maxOpsDuration,
-        @ConfigProperty(defaultValue = "1") @NetworkProperty int opsDurationThrottleBurstSeconds,
+        @ConfigProperty(defaultValue = "500000000") @NetworkProperty long opsDurationThrottleCapacity,
+        @ConfigProperty(defaultValue = "500000000") @NetworkProperty long opsDurationThrottleUnitsFreedPerSecond,
         @ConfigProperty(value = "maxKvPairs.aggregate", defaultValue = "500000000") @NetworkProperty
                 long maxKvPairsAggregate,
         @ConfigProperty(value = "maxKvPairs.individual", defaultValue = "16384000") @NetworkProperty
@@ -65,6 +65,9 @@ public record ContractsConfig(
         @ConfigProperty(value = "systemContract.scheduleService.scheduleNative.enabled", defaultValue = "true")
                 @NetworkProperty
                 boolean systemContractScheduleNativeEnabled,
+        @ConfigProperty(value = "systemContract.scheduleService.scheduleCall.enabled", defaultValue = "false")
+                @NetworkProperty
+                boolean systemContractScheduleCallEnabled,
         @ConfigProperty(value = "systemContract.accountService.isAuthorizedRawEnabled", defaultValue = "true")
                 @NetworkProperty
                 boolean systemContractAccountServiceIsAuthorizedRawEnabled,

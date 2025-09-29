@@ -24,7 +24,7 @@ public class ReconnectLearnerFactory {
     private final ThreadManager threadManager;
     private final PlatformContext platformContext;
     private final PlatformStateFacade platformStateFacade;
-    private final Function<VirtualMap, MerkleNodeState> stateRootFunction;
+    private final Function<VirtualMap, MerkleNodeState> createStateFromVirtualMap;
 
     /**
      * @param platformContext the platform context
@@ -33,7 +33,7 @@ public class ReconnectLearnerFactory {
      * @param reconnectSocketTimeout the socket timeout to use during the reconnect
      * @param statistics             reconnect metrics
      * @param platformStateFacade    the facade to access the platform state
-     * @param stateRootFunction      a function to instantiate the state root object from a Virtual Map
+     * @param createStateFromVirtualMap      a function to instantiate the state object from a Virtual Map
      */
     public ReconnectLearnerFactory(
             @NonNull final PlatformContext platformContext,
@@ -42,14 +42,14 @@ public class ReconnectLearnerFactory {
             @NonNull final Duration reconnectSocketTimeout,
             @NonNull final ReconnectMetrics statistics,
             @NonNull final PlatformStateFacade platformStateFacade,
-            @NonNull final Function<VirtualMap, MerkleNodeState> stateRootFunction) {
+            @NonNull final Function<VirtualMap, MerkleNodeState> createStateFromVirtualMap) {
         this.platformContext = Objects.requireNonNull(platformContext);
         this.threadManager = Objects.requireNonNull(threadManager);
         this.roster = Objects.requireNonNull(roster);
         this.reconnectSocketTimeout = Objects.requireNonNull(reconnectSocketTimeout);
         this.statistics = Objects.requireNonNull(statistics);
         this.platformStateFacade = Objects.requireNonNull(platformStateFacade);
-        this.stateRootFunction = Objects.requireNonNull(stateRootFunction);
+        this.createStateFromVirtualMap = Objects.requireNonNull(createStateFromVirtualMap);
     }
 
     /**
@@ -69,6 +69,6 @@ public class ReconnectLearnerFactory {
                 reconnectSocketTimeout,
                 statistics,
                 platformStateFacade,
-                stateRootFunction);
+                createStateFromVirtualMap);
     }
 }

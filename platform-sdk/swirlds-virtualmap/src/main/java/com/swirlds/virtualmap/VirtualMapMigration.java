@@ -43,8 +43,8 @@ public final class VirtualMapMigration {
             final int threadCount)
             throws InterruptedException {
 
-        final long firstLeafPath = source.getState().getFirstLeafPath();
-        final long lastLeafPath = source.getState().getLastLeafPath();
+        final long firstLeafPath = source.getMetadata().getFirstLeafPath();
+        final long lastLeafPath = source.getMetadata().getLastLeafPath();
         if (firstLeafPath == Path.INVALID_PATH || lastLeafPath == Path.INVALID_PATH) {
             return;
         }
@@ -131,8 +131,8 @@ public final class VirtualMapMigration {
             final int threadCount)
             throws InterruptedException {
 
-        final long firstLeafPath = source.getState().getFirstLeafPath();
-        final long lastLeafPath = source.getState().getLastLeafPath();
+        final long firstLeafPath = source.getMetadata().getFirstLeafPath();
+        final long lastLeafPath = source.getMetadata().getLastLeafPath();
         if (firstLeafPath == Path.INVALID_PATH || lastLeafPath == Path.INVALID_PATH) {
             return;
         }

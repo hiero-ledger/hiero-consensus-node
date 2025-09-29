@@ -2,8 +2,8 @@
 package com.hedera.node.app.cache;
 
 import com.hedera.node.app.records.impl.producers.BlockRecordWriterFactory;
+import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.config.ConfigProvider;
-import com.swirlds.state.lifecycle.info.NetworkInfo;
 import dagger.Module;
 import dagger.Provides;
 import edu.umd.cs.findbugs.annotations.NonNull;

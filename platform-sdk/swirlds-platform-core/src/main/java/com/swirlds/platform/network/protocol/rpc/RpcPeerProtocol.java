@@ -45,6 +45,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.concurrent.ThrowingRunnable;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
 
@@ -81,6 +82,8 @@ public class RpcPeerProtocol implements PeerProtocol, GossipRpcSender {
      * Helper class to handle ping logic
      */
     private final RpcPingHandler pingHandler;
+
+    private final boolean keepSendingEventsWhenUnhealthy;
 
     /**
      * State machine for rpc exchange process (mostly sync process)
@@ -199,6 +202,7 @@ public class RpcPeerProtocol implements PeerProtocol, GossipRpcSender {
         this.idleDispatchPollTimeoutMs = syncConfig.rpcIdleDispatchPollTimeout().toMillis();
         this.idleWritePollTimeoutMs = syncConfig.rpcIdleWritePollTimeout().toMillis();
         this.pingHandler = new RpcPingHandler(time, networkMetrics, remotePeerId, this);
+        this.keepSendingEventsWhenUnhealthy = syncConfig.keepSendingEventsWhenUnhealthy();
     }
 
     /**
@@ -276,13 +280,13 @@ public class RpcPeerProtocol implements PeerProtocol, GossipRpcSender {
         conversationFinishPending = -1L;
         syncMetrics.reportSyncPhase(remotePeerId, previousPhase);
         try {
-            executor.doParallel(
+            executor.doParallelWithHandler(
                     connection::disconnect,
-                    this::dispatchInputMessages,
+                    (ThrowingRunnable) this::dispatchInputMessages,
                     () -> readMessages(connection),
                     () -> writeMessages(connection));
         } catch (final ParallelExecutionException e) {
-            logger.error(NETWORK.getMarker(), "Failure during communication with node {}", remotePeerId, e);
+            logger.warn(NETWORK.getMarker(), "Failure during communication with node {}", remotePeerId, e);
         } finally {
             permitProvider.release();
             previousPhase = syncMetrics.reportSyncPhase(remotePeerId, SyncPhase.OUTSIDE_OF_RPC);
@@ -308,10 +312,11 @@ public class RpcPeerProtocol implements PeerProtocol, GossipRpcSender {
                     }
                     message.run();
                 }
-
                 // permitProvider health indicates that system is overloaded, and we are getting backpressure; we need
                 // to give up on spamming network and/or reading new messages and let things settle down
-                if (!rpcPeerHandler.checkForPeriodicActions(permitProvider.isHealthy())) {
+                final boolean wantToExit =
+                        gossipHalted.get() || (!permitProvider.isHealthy() && !keepSendingEventsWhenUnhealthy);
+                if (!rpcPeerHandler.checkForPeriodicActions(wantToExit, !permitProvider.isHealthy())) {
                     // handler told us we are ok to stop processing messages right now due to platform not being healthy
                     processMessages = false;
                 }

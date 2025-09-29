@@ -2,12 +2,15 @@
 package com.hedera.node.app.workflows.handle.record;
 
 import static com.hedera.node.app.records.BlockRecordService.EPOCH;
-import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCK_INFO_STATE_KEY;
-import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.RUNNING_HASHES_STATE_KEY;
+import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCKS_KEY;
+import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCKS_STATE_ID;
+import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.RUNNING_HASHES_KEY;
+import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.RUNNING_HASHES_STATE_ID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.when;
 
@@ -33,6 +36,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @SuppressWarnings({"rawtypes", "unchecked"})
 @ExtendWith(MockitoExtension.class)
 final class BlockRecordServiceTest {
+
     private static final Bytes GENESIS_HASH = Bytes.wrap(new byte[48]);
     private @Mock SchemaRegistry schemaRegistry;
     private @Mock MigrationContext migrationContext;
@@ -48,6 +52,7 @@ final class BlockRecordServiceTest {
 
     @Test
     void testRegisterSchemas() {
+        given(migrationContext.isGenesis()).willReturn(Boolean.TRUE);
         when(schemaRegistry.register(any())).then(invocation -> {
             Object[] args = invocation.getArguments();
             assertEquals(1, args.length);
@@ -55,13 +60,13 @@ final class BlockRecordServiceTest {
             if (schema instanceof V0490BlockRecordSchema) {
                 Set<StateDefinition> states = schema.statesToCreate();
                 assertEquals(2, states.size());
-                assertTrue(states.contains(StateDefinition.singleton("RUNNING_HASHES", RunningHashes.PROTOBUF)));
-                assertTrue(states.contains(StateDefinition.singleton("BLOCKS", BlockInfo.PROTOBUF)));
+                assertTrue(states.contains(StateDefinition.singleton(
+                        RUNNING_HASHES_STATE_ID, RUNNING_HASHES_KEY, RunningHashes.PROTOBUF)));
+                assertTrue(states.contains(StateDefinition.singleton(BLOCKS_STATE_ID, BLOCKS_KEY, BlockInfo.PROTOBUF)));
 
                 when(migrationContext.newStates()).thenReturn(writableStates);
-                when(migrationContext.previousVersion()).thenReturn(null);
-                when(writableStates.getSingleton(BLOCK_INFO_STATE_KEY)).thenReturn(blockInfoState);
-                when(writableStates.getSingleton(RUNNING_HASHES_STATE_KEY)).thenReturn(runningHashesState);
+                when(writableStates.getSingleton(BLOCKS_STATE_ID)).thenReturn(blockInfoState);
+                when(writableStates.getSingleton(RUNNING_HASHES_STATE_ID)).thenReturn(runningHashesState);
 
                 ArgumentCaptor<RunningHashes> runningHashesCapture = ArgumentCaptor.forClass(RunningHashes.class);
                 doNothing().when(runningHashesState).put(runningHashesCapture.capture());
@@ -72,7 +77,9 @@ final class BlockRecordServiceTest {
                 assertEquals(
                         new RunningHashes(GENESIS_HASH, Bytes.EMPTY, Bytes.EMPTY, Bytes.EMPTY),
                         runningHashesCapture.getValue());
-                assertEquals(new BlockInfo(-1, EPOCH, Bytes.EMPTY, EPOCH, true, EPOCH), blockInfoCapture.getValue());
+                assertEquals(
+                        new BlockInfo(-1, EPOCH, Bytes.EMPTY, EPOCH, true, EPOCH, EPOCH, EPOCH),
+                        blockInfoCapture.getValue());
             } else {
                 assertThat(schema).isInstanceOf(V0560BlockRecordSchema.class);
             }

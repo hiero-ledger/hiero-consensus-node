@@ -117,7 +117,6 @@ public class ReconnectBench extends VirtualMapBaseBench {
     @Setup
     public void setupBenchmark() {
         beforeTest("reconnect");
-        updateMerkleDbPath();
 
         final Random random = new Random(randomSeed);
 
@@ -158,8 +157,6 @@ public class ReconnectBench extends VirtualMapBaseBench {
     /** Restore the saved state from disk as a new test on-disk copy for each iteration. */
     @Setup(Level.Invocation)
     public void setupInvocation() {
-        updateMerkleDbPath();
-
         teacherMaps = new ArrayList<>(mapCount);
         learnerMaps = new ArrayList<>(mapCount);
         teacherMapCopies = new ArrayList<>(mapCount);

@@ -1,10 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.fixtures;
 
-import static com.hedera.node.app.ids.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_KEY;
-import static com.hedera.node.app.ids.schemas.V0590EntityIdSchema.ENTITY_COUNTS_KEY;
-import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_KEY;
-import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ALIASES_KEY;
+import static com.hedera.node.app.ids.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_ID;
+import static com.hedera.node.app.ids.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_LABEL;
+import static com.hedera.node.app.ids.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
+import static com.hedera.node.app.ids.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_LABEL;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_STATE_ID;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_STATE_LABEL;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ALIASES_STATE_ID;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ALIASES_STATE_LABEL;
 import static com.swirlds.platform.system.address.AddressBookUtils.endpointFor;
 import static com.swirlds.state.test.fixtures.merkle.TestSchema.CURRENT_VERSION;
 import static java.util.Objects.requireNonNull;
@@ -25,6 +29,8 @@ import com.hedera.node.app.info.NodeInfoImpl;
 import com.hedera.node.app.service.token.TokenService;
 import com.hedera.node.app.spi.fixtures.Scenarios;
 import com.hedera.node.app.spi.fixtures.TransactionFactory;
+import com.hedera.node.app.spi.info.NetworkInfo;
+import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.state.WorkingStateAccessor;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfigImpl;
@@ -48,8 +54,6 @@ import com.swirlds.platform.test.fixtures.state.TestHederaVirtualMapState;
 import com.swirlds.platform.test.fixtures.virtualmap.VirtualMapUtils;
 import com.swirlds.state.State;
 import com.swirlds.state.lifecycle.Service;
-import com.swirlds.state.lifecycle.info.NetworkInfo;
-import com.swirlds.state.lifecycle.info.NodeInfo;
 import com.swirlds.state.spi.ReadableStates;
 import com.swirlds.state.spi.WritableSingletonState;
 import com.swirlds.state.spi.WritableStates;
@@ -107,19 +111,19 @@ public class AppTestBase extends TestBase implements TransactionFactory, Scenari
     protected State state;
 
     protected void setupStandardStates() {
-        accountsState = new MapWritableKVState<>(TokenService.NAME, ACCOUNTS_KEY);
+        accountsState = new MapWritableKVState<>(ACCOUNTS_STATE_ID, ACCOUNTS_STATE_LABEL);
         accountsState.put(ALICE.accountID(), ALICE.account());
         accountsState.put(ERIN.accountID(), ERIN.account());
         accountsState.put(STAKING_REWARD_ACCOUNT.accountID(), STAKING_REWARD_ACCOUNT.account());
         accountsState.put(FUNDING_ACCOUNT.accountID(), FUNDING_ACCOUNT.account());
         accountsState.put(nodeSelfAccountId, nodeSelfAccount);
         accountsState.commit();
-        aliasesState = new MapWritableKVState<>(TokenService.NAME, ALIASES_KEY);
+        aliasesState = new MapWritableKVState<>(ALIASES_STATE_ID, ALIASES_STATE_LABEL);
 
         entityIdState =
-                new FunctionWritableSingletonState<>(EntityIdService.NAME, ENTITY_ID_STATE_KEY, () -> null, (a) -> {});
+                new FunctionWritableSingletonState<>(ENTITY_ID_STATE_ID, ENTITY_ID_STATE_LABEL, () -> null, (a) -> {});
         entityCountsState = new FunctionWritableSingletonState<>(
-                EntityIdService.NAME, ENTITY_COUNTS_KEY, () -> EntityCounts.DEFAULT, (a) -> {});
+                ENTITY_COUNTS_STATE_ID, ENTITY_COUNTS_STATE_LABEL, () -> EntityCounts.DEFAULT, (a) -> {});
         final var writableStates = MapWritableStates.builder()
                 .state(accountsState)
                 .state(aliasesState)
@@ -170,7 +174,8 @@ public class AppTestBase extends TestBase implements TransactionFactory, Scenari
             List.of(endpointFor("127.0.0.1", 50211), endpointFor("127.0.0.1", 23456)),
             Bytes.wrap("cert7"),
             List.of(endpointFor("127.0.0.1", 50211), endpointFor("127.0.0.1", 23456)),
-            false);
+            false,
+            null);
 
     /**
      * The gRPC system has extensive metrics. This object allows us to inspect them and make sure they are being set
@@ -222,25 +227,25 @@ public class AppTestBase extends TestBase implements TransactionFactory, Scenari
     }
 
     public static final class StateMutator {
+
         private final MapWritableStates writableStates;
 
         private StateMutator(@NonNull final MapWritableStates states) {
             this.writableStates = states;
         }
 
-        public <T> StateMutator withSingletonState(@NonNull final String stateKey, @NonNull final T value) {
-            writableStates.getSingleton(stateKey).put(value);
+        public <T> StateMutator withSingletonState(final int stateId, @NonNull final T value) {
+            writableStates.getSingleton(stateId).put(value);
             return this;
         }
 
-        public <K, V> StateMutator withKVState(
-                @NonNull final String stateKey, @NonNull final K key, @NonNull final V value) {
-            writableStates.get(stateKey).put(key, value);
+        public <K, V> StateMutator withKVState(final int stateId, @NonNull final K key, @NonNull final V value) {
+            writableStates.get(stateId).put(key, value);
             return this;
         }
 
-        public <T> StateMutator withQueueState(@NonNull final String stateKey, @NonNull final T value) {
-            writableStates.getQueue(stateKey).add(value);
+        public <T> StateMutator withQueueState(final int stateId, @NonNull final T value) {
+            writableStates.getQueue(stateId).add(value);
             return this;
         }
 
@@ -250,6 +255,7 @@ public class AppTestBase extends TestBase implements TransactionFactory, Scenari
     }
 
     public static final class TestAppBuilder {
+
         private SemanticVersion hapiVersion = CURRENT_VERSION;
         private Set<Service> services = new LinkedHashSet<>();
         private TestConfigBuilder configBuilder = HederaTestConfigBuilder.create();
@@ -260,7 +266,8 @@ public class AppTestBase extends TestBase implements TransactionFactory, Scenari
                 List.of(),
                 Bytes.EMPTY,
                 List.of(),
-                true);
+                true,
+                null);
         private Set<NodeInfo> nodes = new LinkedHashSet<>();
 
         private TestAppBuilder() {}
@@ -342,7 +349,8 @@ public class AppTestBase extends TestBase implements TransactionFactory, Scenari
                         List.of(endpointFor("127.0.0.1", 50211), endpointFor("127.0.0.4", 23456)),
                         Bytes.wrap("cert7"),
                         List.of(endpointFor("127.0.0.1", 50211), endpointFor("127.0.0.4", 23456)),
-                        true);
+                        true,
+                        null);
             } else {
                 realSelfNodeInfo = new NodeInfoImpl(
                         selfNodeInfo.nodeId(),
@@ -351,7 +359,8 @@ public class AppTestBase extends TestBase implements TransactionFactory, Scenari
                         selfNodeInfo.gossipEndpoints(),
                         selfNodeInfo.sigCertBytes(),
                         selfNodeInfo.hapiEndpoints(),
-                        selfNodeInfo.declineReward());
+                        selfNodeInfo.declineReward(),
+                        null);
             }
 
             final var workingStateAccessor = new WorkingStateAccessor();
@@ -501,7 +510,8 @@ public class AppTestBase extends TestBase implements TransactionFactory, Scenari
                         node.gossipEndpoint(),
                         node.gossipCaCertificate(),
                         node.serviceEndpoint(),
-                        node.declineReward());
+                        node.declineReward(),
+                        null);
                 nodeInfos.put(node.nodeId(), nodeInfo);
             }
             return nodeInfos;

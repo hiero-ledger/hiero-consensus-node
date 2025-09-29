@@ -2,12 +2,14 @@
 package com.hedera.node.app.tss;
 
 import static com.hedera.node.app.hapi.utils.CommonUtils.noThrowSha384HashOf;
+import static com.hedera.node.config.types.StreamMode.RECORDS;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.node.app.blocks.BlockHashSigner;
 import com.hedera.node.app.hints.HintsService;
 import com.hedera.node.app.history.HistoryService;
 import com.hedera.node.config.ConfigProvider;
+import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.TssConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -75,8 +77,12 @@ public class TssBlockHashSigner implements BlockHashSigner {
             @NonNull final HistoryService historyService,
             @NonNull final ConfigProvider configProvider) {
         final var tssConfig = configProvider.getConfiguration().getConfigData(TssConfig.class);
-        this.hintsService = tssConfig.hintsEnabled() ? hintsService : null;
-        this.historyService = tssConfig.historyEnabled() ? historyService : null;
+        final var streamMode = configProvider
+                .getConfiguration()
+                .getConfigData(BlockStreamConfig.class)
+                .streamMode();
+        this.hintsService = (tssConfig.hintsEnabled() && streamMode != RECORDS) ? hintsService : null;
+        this.historyService = (tssConfig.historyEnabled() && streamMode != RECORDS) ? historyService : null;
     }
 
     @Override

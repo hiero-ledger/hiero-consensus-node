@@ -33,7 +33,11 @@ public class RegularTimeManager extends AbstractTimeManager {
      * {@inheritDoc}
      */
     @Override
-    protected void advanceTime(@NonNull final Duration duration) throws InterruptedException {
-        Thread.sleep(duration);
+    protected void advanceTime(@NonNull final Duration duration) {
+        try {
+            Thread.sleep(duration);
+        } catch (final InterruptedException e) {
+            throw new AssertionError("Interrupted while advancing time", e);
+        }
     }
 }

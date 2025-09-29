@@ -50,14 +50,17 @@ import java.time.Duration;
  * @param fairMaxConcurrentSyncs             maximum number of concurrent syncs running after which we won't initiate
  *                                           any more outgoing syncs (but can accept incoming ones) if set &lt;= 0,
  *                                           disabled entire fair sync logic (syncs will always be initiated if no other
- *                                           reasons block them) if set &gt; 0 and &lt;= 1, this number is set as a ratio of
- *                                           total number of nodes in the network if &gt; 1, ceiling of that number is used
- *                                           as limit of concurrent syncs
+ *                                           reasons block them) if set &gt; 0 and &lt;= 1, this number is set as a
+ *                                           ratio of total number of nodes in the network if &gt; 1, ceiling of that
+ *                                           number is used as limit of concurrent syncs
  * @param fairMinimalRoundRobinSize          minimal number of synchronizations which happened in the past and are not
  *                                           currently running which has to be breached before sync against same peer
- *                                           can be considered if set &gt; 0 and &lt;= 1, this number is set as a ratio of
- *                                           total number of nodes in the network if &gt; 1, ceiling of that number is used
- *                                           as minimal round robin size
+ *                                           can be considered if set &gt; 0 and &lt;= 1, this number is set as a ratio
+ *                                           of total number of nodes in the network if &gt; 1, ceiling of that number
+ *                                           is used as minimal round robin size
+ * @param keepSendingEventsWhenUnhealthy     when enabled, instead of completely reducing number of syncs when system is
+ *                                           unhealthy, we will just stop receiving and processing remote events, while
+ *                                           we still continue sending our own events
  */
 @ConfigData("sync")
 public record SyncConfig(
@@ -79,4 +82,5 @@ public record SyncConfig(
         @ConfigProperty(defaultValue = "5ms") Duration rpcIdleWritePollTimeout,
         @ConfigProperty(defaultValue = "5ms") Duration rpcIdleDispatchPollTimeout,
         @ConfigProperty(defaultValue = "-1") double fairMaxConcurrentSyncs,
-        @ConfigProperty(defaultValue = "0.3") double fairMinimalRoundRobinSize) {}
+        @ConfigProperty(defaultValue = "0.3") double fairMinimalRoundRobinSize,
+        @ConfigProperty(defaultValue = "true") boolean keepSendingEventsWhenUnhealthy) {}

@@ -1080,3 +1080,9 @@ hedera-node/test-clients/*.bin
 hedera-state-validator/report.json
 hedera-state-validator/slack_report.json
 hedera-state-validator/validator.log
+
+### Snyk Files
+.dccache
+snyk-code.html
+snyk-code.json
+snyk/

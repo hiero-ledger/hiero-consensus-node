@@ -4,23 +4,33 @@ package org.hiero.otter.fixtures.internal;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.otter.fixtures.internal.helpers.Utils.createConfiguration;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import com.fasterxml.jackson.dataformat.yaml.YAMLGenerator.Feature;
+import com.swirlds.component.framework.schedulers.builders.TaskSchedulerConfiguration;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.config.PathsConfig_;
+import com.swirlds.platform.gossip.config.NetworkEndpoint;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 import org.hiero.otter.fixtures.NodeConfiguration;
 import org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle;
+import org.jetbrains.annotations.NotNull;
 
 /**
  * An abstract base class for node configurations that provides common functionality
- *
- * @param <T> the type of the configuration, allowing for method chaining
  */
-public abstract class AbstractNodeConfiguration<T extends AbstractNodeConfiguration<T>>
-        implements NodeConfiguration<T> {
+public abstract class AbstractNodeConfiguration implements NodeConfiguration {
+
+    private static final ObjectMapper OBJECT_MAPPER =
+            new ObjectMapper(new YAMLFactory().disable(Feature.WRITE_DOC_START_MARKER));
 
     protected final Map<String, String> overriddenProperties = new HashMap<>();
 
@@ -43,10 +53,10 @@ public abstract class AbstractNodeConfiguration<T extends AbstractNodeConfigurat
      */
     @Override
     @NonNull
-    public T set(@NonNull final String key, final boolean value) {
+    public NodeConfiguration set(@NonNull final String key, final boolean value) {
         throwIfNodeIsRunning();
         overriddenProperties.put(key, Boolean.toString(value));
-        return self();
+        return this;
     }
 
     /**
@@ -54,10 +64,10 @@ public abstract class AbstractNodeConfiguration<T extends AbstractNodeConfigurat
      */
     @Override
     @NonNull
-    public T set(@NonNull final String key, @NonNull final String value) {
+    public NodeConfiguration set(@NonNull final String key, @NonNull final String value) {
         throwIfNodeIsRunning();
         overriddenProperties.put(key, value);
-        return self();
+        return this;
     }
 
     /**
@@ -65,10 +75,10 @@ public abstract class AbstractNodeConfiguration<T extends AbstractNodeConfigurat
      */
     @Override
     @NonNull
-    public T set(@NonNull final String key, final int value) {
+    public NodeConfiguration set(@NonNull final String key, final int value) {
         throwIfNodeIsRunning();
         overriddenProperties.put(key, Integer.toString(value));
-        return self();
+        return this;
     }
 
     /**
@@ -76,10 +86,123 @@ public abstract class AbstractNodeConfiguration<T extends AbstractNodeConfigurat
      */
     @Override
     @NonNull
-    public T set(@NonNull final String key, @NonNull final Path path) {
+    public NodeConfiguration set(@NonNull final String key, final double value) {
+        throwIfNodeIsRunning();
+        overriddenProperties.put(key, Double.toString(value));
+        return this;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
+    public NodeConfiguration set(@NonNull final String key, final long value) {
+        throwIfNodeIsRunning();
+        overriddenProperties.put(key, Long.toString(value));
+        return this;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
+    public NodeConfiguration set(@NonNull final String key, @NonNull final Enum<?> value) {
+        throwIfNodeIsRunning();
+        overriddenProperties.put(key, value.toString());
+        return this;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
+    public NodeConfiguration set(@NonNull final String key, @NonNull final Duration value) {
+        throwIfNodeIsRunning();
+        overriddenProperties.put(key, value.toString());
+        return this;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
+    public NodeConfiguration setStrings(@NonNull final String key, @NonNull final List<String> values) {
+        throwIfNodeIsRunning();
+        overriddenProperties.put(key, String.join(",", values));
+        return this;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
+    public NodeConfiguration set(@NonNull final String key, @NonNull final Path path) {
         throwIfNodeIsRunning();
         overriddenProperties.put(key, path.toString());
-        return self();
+        return this;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
+    public NodeConfiguration setNetworkEndpoints(
+            @NotNull final String key, @NotNull final List<NetworkEndpoint> endpoints) {
+        throwIfNodeIsRunning();
+        final String value = endpoints.stream()
+                .map(AbstractNodeConfiguration::convertEndpoint)
+                .collect(Collectors.joining(","));
+        overriddenProperties.put(key, value);
+        return this;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
+    public NodeConfiguration set(@NonNull final String key, @NonNull final TaskSchedulerConfiguration configuration) {
+        throwIfNodeIsRunning();
+        final StringBuilder builder = new StringBuilder();
+        if (configuration.type() != null) {
+            builder.append(configuration.type()).append(" ");
+        } else {
+            builder.append("SEQUENTIAL ");
+        }
+        if (configuration.unhandledTaskCapacity() != null && configuration.unhandledTaskCapacity() > 0) {
+            builder.append(" CAPACITY(")
+                    .append(configuration.unhandledTaskCapacity())
+                    .append(") ");
+        }
+        if (Boolean.TRUE.equals(configuration.unhandledTaskMetricEnabled())) {
+            builder.append("UNHANDLED_TASK_METRIC ");
+        }
+        if (Boolean.TRUE.equals(configuration.busyFractionMetricEnabled())) {
+            builder.append("BUSY_FRACTION_METRIC ");
+        }
+        if (Boolean.TRUE.equals(configuration.flushingEnabled())) {
+            builder.append("FLUSHABLE ");
+        }
+        if (Boolean.TRUE.equals(configuration.squelchingEnabled())) {
+            builder.append("SQUELCHABLE");
+        }
+        overriddenProperties.put(key, builder.toString());
+        return this;
+    }
+
+    private static String convertEndpoint(@NonNull final NetworkEndpoint endpoint) {
+        try {
+            return OBJECT_MAPPER.writeValueAsString(endpoint).replaceAll("\"", "\\\"");
+        } catch (final JsonProcessingException e) {
+            // This should not happen as the list is expected to be serializable
+            throw new RuntimeException("Exception while serializing endpoints", e);
+        }
     }
 
     private void throwIfNodeIsRunning() {
@@ -96,11 +219,4 @@ public abstract class AbstractNodeConfiguration<T extends AbstractNodeConfigurat
     public Configuration current() {
         return createConfiguration(overriddenProperties);
     }
-
-    /**
-     * Returns the current instance of the configuration for method chaining.
-     *
-     * @return this instance
-     */
-    protected abstract T self();
 }

@@ -12,7 +12,7 @@ import org.hiero.otter.fixtures.internal.AbstractNodeConfiguration;
 /**
  * An implementation of {@link NodeConfiguration} for a container environment.
  */
-public class ContainerNodeConfiguration extends AbstractNodeConfiguration<ContainerNodeConfiguration> {
+public class ContainerNodeConfiguration extends AbstractNodeConfiguration {
 
     /**
      * Constructor for the {@link ContainerNodeConfiguration} class.
@@ -21,21 +21,16 @@ public class ContainerNodeConfiguration extends AbstractNodeConfiguration<Contai
      */
     public ContainerNodeConfiguration(@NonNull final Supplier<LifeCycle> lifecycleSupplier) {
         super(lifecycleSupplier);
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    protected ContainerNodeConfiguration self() {
-        return this;
+        overriddenProperties.put("event.eventsLogDir", "/opt/DockerApp/hgcapp");
     }
 
     /**
      * Returns the overridden properties for this node configuration.
+     *
+     * @return an unmodifiable map of overridden properties
      */
     @NonNull
-    public Map<String, String> overriddenProperties() {
+    Map<String, String> overriddenProperties() {
         return Collections.unmodifiableMap(overriddenProperties);
     }
 }

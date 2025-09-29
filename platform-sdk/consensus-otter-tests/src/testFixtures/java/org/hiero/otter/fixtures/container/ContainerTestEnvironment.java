@@ -37,6 +37,9 @@ public class ContainerTestEnvironment implements TestEnvironment {
      * Constructor for the {@link ContainerTestEnvironment} class.
      */
     public ContainerTestEnvironment() {
+
+        ContainerLogConfigBuilder.configure();
+
         final Path rootOutputDirectory = Path.of("build", "container");
         try {
             if (Files.exists(rootOutputDirectory)) {
@@ -44,8 +47,9 @@ public class ContainerTestEnvironment implements TestEnvironment {
             }
             Files.createDirectories(rootOutputDirectory);
         } catch (final IOException ex) {
-            fail("Failed to delete directory: {}", rootOutputDirectory, ex);
+            fail("Failed to prepare directory: " + rootOutputDirectory, ex);
         }
+
         network = new ContainerNetwork(timeManager, transactionGenerator, rootOutputDirectory);
     }
 
@@ -57,6 +61,15 @@ public class ContainerTestEnvironment implements TestEnvironment {
      */
     public static boolean supports(@NonNull final List<Capability> requiredCapabilities) {
         return CAPABILITIES.containsAll(requiredCapabilities);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
+    public Set<Capability> capabilities() {
+        return CAPABILITIES;
     }
 
     /**
@@ -90,7 +103,7 @@ public class ContainerTestEnvironment implements TestEnvironment {
      * {@inheritDoc}
      */
     @Override
-    public void destroy() throws InterruptedException {
+    public void destroy() {
         network.destroy();
     }
 }

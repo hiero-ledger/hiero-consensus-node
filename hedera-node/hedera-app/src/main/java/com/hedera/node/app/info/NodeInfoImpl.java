@@ -5,8 +5,8 @@ import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.hapi.node.state.addressbook.Node;
 import com.hedera.hapi.node.state.roster.RosterEntry;
+import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.state.lifecycle.info.NodeInfo;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
@@ -18,7 +18,8 @@ public record NodeInfoImpl(
         List<ServiceEndpoint> gossipEndpoints,
         @Nullable Bytes sigCertBytes,
         @NonNull List<ServiceEndpoint> hapiEndpoints,
-        boolean declineReward)
+        boolean declineReward,
+        @Nullable Bytes grpcCertHash)
         implements NodeInfo {
     @NonNull
     public static NodeInfo fromRosterWithCurrentMetadata(
@@ -30,7 +31,8 @@ public record NodeInfoImpl(
                 rosterEntry.gossipEndpoint(),
                 rosterEntry.gossipCaCertificate(),
                 node.serviceEndpoint(),
-                node.declineReward());
+                node.declineReward(),
+                node.grpcCertificateHash().length() > 0 ? node.grpcCertificateHash() : null);
     }
 
     @NonNull
@@ -43,6 +45,7 @@ public record NodeInfoImpl(
                 rosterEntry.gossipEndpoint(),
                 rosterEntry.gossipCaCertificate(),
                 List.of(),
-                true);
+                true,
+                null);
     }
 }

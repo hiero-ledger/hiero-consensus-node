@@ -3,6 +3,7 @@ package com.hedera.services.bdd.suites.contract.traceability;
 
 import static com.hedera.node.app.hapi.utils.EthSigsUtils.recoverAddressFromPubKey;
 import static com.hedera.services.bdd.junit.TestTags.ADHOC;
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.junit.hedera.NodeSelector.byNodeId;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asContract;
@@ -110,7 +111,6 @@ import com.hedera.services.bdd.suites.contract.Utils;
 import com.hedera.services.stream.proto.CallOperationType;
 import com.hedera.services.stream.proto.ContractAction;
 import com.hederahashgraph.api.proto.java.AccountID;
-import com.hederahashgraph.api.proto.java.ContractID;
 import com.hederahashgraph.api.proto.java.TokenID;
 import com.hederahashgraph.api.proto.java.TokenType;
 import com.hederahashgraph.api.proto.java.TransferList;
@@ -163,12 +163,14 @@ public class TraceabilitySuite {
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
         testLifecycle.doAdhoc(
-                withOpContext((spec, opLog) -> GLOBAL_WATCHER.set(new SidecarWatcher(spec.streamsLoc(byNodeId(0))))),
+                withOpContext(
+                        (spec, opLog) -> GLOBAL_WATCHER.set(new SidecarWatcher(spec.recordStreamsLoc(byNodeId(0))))),
                 overriding("contracts.enforceCreationThrottle", "false"));
     }
 
     @HapiTest
     @Order(1)
+    @Tag(MATS)
     final Stream<DynamicTest> traceabilityE2EScenario1() {
         return hapiTest(
                 uploadInitCode(TRACEABILITY),
@@ -3956,7 +3958,7 @@ public class TraceabilitySuite {
                                         .setCallType(CREATE)
                                         .setCallOperationType(CallOperationType.OP_CREATE)
                                         .setCallingAccount(TxnUtils.asId(GENESIS, spec))
-                                        .setGas(153184)
+                                        .setGas(2903184)
                                         .setRecipientContract(spec.registry().getContractId(contract))
                                         .setGasUsed(613)
                                         .setOutput(EMPTY)
@@ -3988,7 +3990,7 @@ public class TraceabilitySuite {
                         .via(CREATE_2_TXN)),
                 withOpContext((spec, opLog) -> {
                     final var parentId = spec.registry().getContractId(contract);
-                    final var childId = ContractID.newBuilder()
+                    final var childId = parentId.toBuilder()
                             .setContractNum(parentId.getContractNum() + 1L)
                             .build();
                     mirrorLiteralId.set(asEntityString(spec.shard(), spec.realm(), childId.getContractNum()));
@@ -4025,7 +4027,7 @@ public class TraceabilitySuite {
                                                     .setValue(tcValue)
                                                     .setRecipientContract(
                                                             spec.registry().getContractId(contract))
-                                                    .setGasUsed(80193)
+                                                    .setGasUsed(177393)
                                                     .setOutput(EMPTY)
                                                     .setInput(
                                                             encodeFunctionCall(
@@ -4087,7 +4089,7 @@ public class TraceabilitySuite {
                                             .setCallingAccount(spec.registry().getAccountID(GENESIS))
                                             .setRecipientContract(
                                                     spec.registry().getContractId(PRECOMPILE_CALLER))
-                                            .setGas(125628)
+                                            .setGas(2875628)
                                             .setGasUsed(942)
                                             .setOutput(EMPTY)
                                             .build())));
@@ -4102,6 +4104,7 @@ public class TraceabilitySuite {
                 withOpContext((spec, opLog) -> {
                     final byte[] expectedHash =
                             Hashing.sha256().hashBytes(toHash.getBytes()).asBytes();
+                    final var contractIdFactory = spec.contractIdFactory();
                     allRunFor(
                             spec,
                             expectContractActionSidecarFor(
@@ -4115,7 +4118,7 @@ public class TraceabilitySuite {
                                                     .setGas(78304)
                                                     .setRecipientContract(
                                                             spec.registry().getContractId(PRECOMPILE_CALLER))
-                                                    .setGasUsed(5330)
+                                                    .setGasUsed(7837)
                                                     .setInput(
                                                             encodeFunctionCall(
                                                                     PRECOMPILE_CALLER,
@@ -4136,10 +4139,7 @@ public class TraceabilitySuite {
                                                     .setGas(75902)
                                                     // SHA 256 precompile address is
                                                     // 0x02
-                                                    .setRecipientContract(
-                                                            ContractID.newBuilder()
-                                                                    .setContractNum(2)
-                                                                    .build())
+                                                    .setRecipientContract(contractIdFactory.apply(2L))
                                                     .setGasUsed(72)
                                                     .setInput(ByteStringUtils.wrapUnsafely(toHash.getBytes()))
                                                     .setOutput(ByteStringUtils.wrapUnsafely(expectedHash))
@@ -4153,11 +4153,8 @@ public class TraceabilitySuite {
                                                     .setGas(72555)
                                                     // HTS precompile address is
                                                     // 0x167
-                                                    .setRecipientContract(
-                                                            ContractID.newBuilder()
-                                                                    .setContractNum(359)
-                                                                    .build())
-                                                    .setGasUsed(100)
+                                                    .setRecipientContract(contractIdFactory.apply(359L))
+                                                    .setGasUsed(2607)
                                                     .setInput(
                                                             ByteStringUtils.wrapUnsafely(
                                                                     Function.parse("isToken" + "(address)")
@@ -4192,7 +4189,7 @@ public class TraceabilitySuite {
                                         .setCallType(CREATE)
                                         .setCallOperationType(CallOperationType.OP_CREATE)
                                         .setCallingAccount(TxnUtils.asId(GENESIS, spec))
-                                        .setGas(185276)
+                                        .setGas(2935276)
                                         .setRecipientContract(spec.registry().getContractId(REVERTING_CONTRACT))
                                         .setGasUsed(345)
                                         .setOutput(EMPTY)
@@ -4250,7 +4247,7 @@ public class TraceabilitySuite {
                                         .setCallType(CREATE)
                                         .setCallOperationType(CallOperationType.OP_CREATE)
                                         .setCallingAccount(TxnUtils.asId(GENESIS, spec))
-                                        .setGas(185276)
+                                        .setGas(2935276)
                                         .setGasUsed(201)
                                         .setRevertReason(EMPTY)
                                         .build())))),
@@ -4338,7 +4335,7 @@ public class TraceabilitySuite {
                                         .setCallType(CREATE)
                                         .setCallOperationType(CallOperationType.OP_CREATE)
                                         .setCallingAccount(TxnUtils.asId(GENESIS, spec))
-                                        .setGas(185276)
+                                        .setGas(2935276)
                                         .setRecipientContract(spec.registry().getContractId(REVERTING_CONTRACT))
                                         .setGasUsed(345)
                                         .setOutput(EMPTY)
@@ -4384,9 +4381,8 @@ public class TraceabilitySuite {
                                                                 .array()))
                                                 .setGas(960576)
                                                 .setGasUsed(960576)
-                                                .setRecipientContract(ContractID.newBuilder()
-                                                        .setContractNum(0)
-                                                        .build())
+                                                .setRecipientContract(
+                                                        spec.contractIdFactory().apply(0L))
                                                 .setOutput(EMPTY)
                                                 /*
                                                    For EVM v0.34 use this code block instead:
@@ -4400,6 +4396,7 @@ public class TraceabilitySuite {
 
     @HapiTest
     @Order(22)
+    @Tag(MATS)
     final Stream<DynamicTest> vanillaBytecodeSidecar() {
         final var EMPTY_CONSTRUCTOR_CONTRACT = "EmptyConstructor";
         final var vanillaBytecodeSidecar = "vanillaBytecodeSidecar";
@@ -4424,7 +4421,7 @@ public class TraceabilitySuite {
                                                             spec.registry().getAccountID(GENESIS))
                                                     .setRecipientContract(
                                                             spec.registry().getContractId(EMPTY_CONSTRUCTOR_CONTRACT))
-                                                    .setGas(195600)
+                                                    .setGas(2945600)
                                                     .setGasUsed(66)
                                                     .setOutput(EMPTY)
                                                     .build())));
@@ -4567,12 +4564,11 @@ public class TraceabilitySuite {
                                                     .setCallingContract(
                                                             spec.registry().getContractId(APPROVE_BY_DELEGATE))
                                                     .setRecipientContract(
-                                                            ContractID.newBuilder()
-                                                                    .setContractNum(
+                                                            spec.contractIdFactory()
+                                                                    .apply(
                                                                             spec.registry()
                                                                                     .getTokenID(tokenInQuestion)
-                                                                                    .getTokenNum())
-                                                                    .build())
+                                                                                    .getTokenNum()))
                                                     .setGas(958481)
                                                     .setGasUsed(943594)
                                                     .setInput(
@@ -4593,16 +4589,14 @@ public class TraceabilitySuite {
                                                     .setCallType(SYSTEM)
                                                     .setCallOperationType(CallOperationType.OP_DELEGATECALL)
                                                     .setCallingContract(
-                                                            ContractID.newBuilder()
-                                                                    .setContractNum(
+                                                            spec.contractIdFactory()
+                                                                    .apply(
                                                                             spec.registry()
                                                                                     .getTokenID(tokenInQuestion)
-                                                                                    .getTokenNum())
-                                                                    .build())
+                                                                                    .getTokenNum()))
                                                     .setRecipientContract(
-                                                            ContractID.newBuilder()
-                                                                    .setContractNum(359L)
-                                                                    .build())
+                                                            spec.contractIdFactory()
+                                                                    .apply(359L))
                                                     .setGas(940841)
                                                     .setGasUsed(940841)
                                                     .setInput(
@@ -4644,6 +4638,7 @@ public class TraceabilitySuite {
 
     @Order(25)
     @LeakyHapiTest(overrides = {"contracts.evm.version"})
+    @Tag(MATS)
     final Stream<DynamicTest> ethereumLazyCreateExportsExpectedSidecars() {
         final var RECIPIENT_KEY = "lazyAccountRecipient";
         final var RECIPIENT_KEY2 = "lazyAccountRecipient2";
@@ -4718,7 +4713,7 @@ public class TraceabilitySuite {
                                             .setCallOperationType(CallOperationType.OP_CALL)
                                             .setCallingAccount(ethSenderAccountReference.get())
                                             .setGas(1_979_000)
-                                            .setGasUsed(555_112)
+                                            .setGasUsed(554517)
                                             .setValue(valueToSend)
                                             .setRecipientAccount(lazyAccountIdReference.get())
                                             .setOutput(EMPTY)
@@ -4840,7 +4835,7 @@ public class TraceabilitySuite {
                                                     .setValue(tcValue)
                                                     .setRecipientContract(
                                                             spec.registry().getContractId(create2Factory))
-                                                    .setGasUsed(80193)
+                                                    .setGasUsed(177393)
                                                     .setOutput(EMPTY)
                                                     .setInput(
                                                             encodeFunctionCall(
@@ -4879,6 +4874,8 @@ public class TraceabilitySuite {
     }
 
     @Order(Integer.MAX_VALUE)
+    @HapiTest
+    @Tag(MATS)
     public final Stream<DynamicTest> assertSidecars() {
         return hapiTest(withOpContext(
                 (spec, opLog) -> requireNonNull(GLOBAL_WATCHER.get()).assertExpectations(spec)));

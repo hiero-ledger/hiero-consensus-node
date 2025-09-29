@@ -28,6 +28,7 @@ import com.hedera.node.app.service.token.impl.WritableAccountStore;
 import com.hedera.node.app.service.token.impl.validators.StakingValidator;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.ids.WritableEntityCounters;
+import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.validation.ExpiryValidator;
 import com.hedera.node.app.spi.workflows.record.DeleteCapableTransactionStreamBuilder;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
@@ -38,7 +39,6 @@ import com.hedera.node.config.data.NodesConfig;
 import com.hedera.node.config.data.StakingConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.state.lifecycle.info.NetworkInfo;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -310,6 +310,26 @@ public class TokenServiceApiImpl implements TokenServiceApi {
                 .firstContractStorageKey(firstKey)
                 .contractKvPairsNumber(newNumKvPairs)
                 .build());
+    }
+
+    @Override
+    public void updateLambdaStorageSlots(@NonNull final AccountID accountId, final int netChangeInSlotsUsed) {
+        requireNonNull(accountId);
+        final var account = accountStore.get(accountId);
+        if (account == null) {
+            throw new IllegalArgumentException("No account found for ID " + accountId);
+        }
+        final long newSlotsUsed = account.numberLambdaStorageSlots() + netChangeInSlotsUsed;
+        if (newSlotsUsed < 0) {
+            throw new IllegalArgumentException("Cannot change # of lambda storage slots (currently "
+                    + account.numberLambdaStorageSlots()
+                    + ") by "
+                    + netChangeInSlotsUsed
+                    + " for account "
+                    + accountId);
+        }
+        accountStore.put(
+                account.copyBuilder().numberLambdaStorageSlots(newSlotsUsed).build());
     }
 
     @Override

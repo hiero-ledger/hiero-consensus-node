@@ -5,6 +5,7 @@ module org.hiero.consensus.utility {
     exports org.hiero.consensus.exceptions;
     exports org.hiero.consensus.roster;
     exports org.hiero.consensus.event;
+    exports org.hiero.consensus.transaction;
 
     requires transitive com.hedera.node.hapi;
     requires transitive com.hedera.pbj.runtime;
@@ -16,6 +17,7 @@ module org.hiero.consensus.utility {
     requires com.swirlds.base;
     requires com.swirlds.common;
     requires com.swirlds.logging;
+    requires org.hiero.base.utility;
     requires org.bouncycastle.provider;
     requires static transitive com.github.spotbugs.annotations;
 }

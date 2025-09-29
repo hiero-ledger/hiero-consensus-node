@@ -13,6 +13,7 @@ import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.reset;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
@@ -21,6 +22,7 @@ import static org.mockito.Mockito.when;
 import com.hedera.node.app.blocks.impl.streaming.BlockNodeConnection.ConnectionState;
 import com.hedera.node.app.blocks.impl.streaming.BlockNodeConnectionManager.BlockNodeConnectionTask;
 import com.hedera.node.app.metrics.BlockStreamMetrics;
+import com.hedera.node.app.spi.fixtures.util.LogCaptor;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.internal.network.BlockNodeConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -41,6 +43,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.LockSupport;
+import org.apache.logging.log4j.LogManager;
 import org.hiero.block.api.PublishStreamRequest;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -62,9 +65,11 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     private static final VarHandle lastVerifiedBlockPerConnectionHandle;
     private static final VarHandle connectivityTaskConnectionHandle;
     private static final VarHandle isStreamingEnabledHandle;
+    private static final VarHandle nodeStatsHandle;
     private static final MethodHandle jumpToBlockIfNeededHandle;
     private static final MethodHandle processStreamingToBlockNodeHandle;
     private static final MethodHandle blockStreamWorkerLoopHandle;
+    private static final MethodHandle createNewGrpcClientHandle;
 
     static {
         try {
@@ -91,6 +96,8 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
                     .findVarHandle(BlockNodeConnectionTask.class, "connection", BlockNodeConnection.class);
             isStreamingEnabledHandle = MethodHandles.privateLookupIn(BlockNodeConnectionManager.class, lookup)
                     .findVarHandle(BlockNodeConnectionManager.class, "isStreamingEnabled", AtomicBoolean.class);
+            nodeStatsHandle = MethodHandles.privateLookupIn(BlockNodeConnectionManager.class, lookup)
+                    .findVarHandle(BlockNodeConnectionManager.class, "nodeStats", Map.class);
 
             final Method jumpToBlockIfNeeded =
                     BlockNodeConnectionManager.class.getDeclaredMethod("jumpToBlockIfNeeded");
@@ -106,6 +113,11 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
                     BlockNodeConnectionManager.class.getDeclaredMethod("blockStreamWorkerLoop");
             blockStreamWorkerLoop.setAccessible(true);
             blockStreamWorkerLoopHandle = lookup.unreflect(blockStreamWorkerLoop);
+
+            final Method createNewGrpcClientMethod =
+                    BlockNodeConnectionManager.class.getDeclaredMethod("createNewGrpcClient", BlockNodeConfig.class);
+            createNewGrpcClientMethod.setAccessible(true);
+            createNewGrpcClientHandle = lookup.unreflect(createNewGrpcClientMethod);
         } catch (final Exception e) {
             throw new RuntimeException(e);
         }
@@ -156,16 +168,17 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     @Test
     void testRescheduleAndSelectNode() {
         final BlockNodeConnection connection = mock(BlockNodeConnection.class);
+        final BlockNodeConfig nodeConfig = newBlockNodeConfig(8080, 1);
         final Duration delay = Duration.ofSeconds(1);
+        doReturn(nodeConfig).when(connection).getNodeConfig();
 
-        connectionManager.rescheduleAndSelectNewNode(connection, delay);
+        connectionManager.rescheduleConnection(connection, delay);
 
         // Verify task created to reconnect to the failing connection after a delay
         verify(executorService)
                 .schedule(any(BlockNodeConnectionTask.class), eq(delay.toMillis()), eq(TimeUnit.MILLISECONDS));
         // Verify task created to connect to a new node without delay
         verify(executorService).schedule(any(BlockNodeConnectionTask.class), eq(0L), eq(TimeUnit.MILLISECONDS));
-        verify(connection).updateConnectionState(ConnectionState.CONNECTING);
         verifyNoMoreInteractions(connection);
         verifyNoInteractions(bufferService);
         verifyNoInteractions(metrics);
@@ -175,11 +188,12 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     @Test
     void testScheduleConnectionAttempt() {
         final BlockNodeConnection connection = mock(BlockNodeConnection.class);
+        final BlockNodeConfig nodeConfig = newBlockNodeConfig(8080, 1);
+        doReturn(nodeConfig).when(connection).getNodeConfig();
 
-        connectionManager.scheduleConnectionAttempt(connection, Duration.ofSeconds(2), 100L);
+        connectionManager.scheduleConnectionAttempt(connection.getNodeConfig(), Duration.ofSeconds(2), 100L);
 
         verify(executorService).schedule(any(BlockNodeConnectionTask.class), eq(2_000L), eq(TimeUnit.MILLISECONDS));
-        verify(connection).updateConnectionState(ConnectionState.CONNECTING);
         verifyNoMoreInteractions(connection);
         verifyNoInteractions(bufferService);
         verifyNoInteractions(metrics);
@@ -189,11 +203,12 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     @Test
     void testScheduleConnectionAttempt_negativeDelay() {
         final BlockNodeConnection connection = mock(BlockNodeConnection.class);
+        final BlockNodeConfig nodeConfig = newBlockNodeConfig(8080, 1);
+        doReturn(nodeConfig).when(connection).getNodeConfig();
 
-        connectionManager.scheduleConnectionAttempt(connection, Duration.ofSeconds(-2), 100L);
+        connectionManager.scheduleConnectionAttempt(connection.getNodeConfig(), Duration.ofSeconds(-2), 100L);
 
         verify(executorService).schedule(any(BlockNodeConnectionTask.class), eq(0L), eq(TimeUnit.MILLISECONDS));
-        verify(connection).updateConnectionState(ConnectionState.CONNECTING);
         verifyNoInteractions(bufferService);
         verifyNoInteractions(metrics);
         verifyNoMoreInteractions(executorService);
@@ -202,18 +217,24 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
     @Test
     void testScheduleConnectionAttempt_failure() {
+        final var logCaptor = new LogCaptor(LogManager.getLogger(BlockNodeConnectionManager.class));
         final BlockNodeConnection connection = mock(BlockNodeConnection.class);
+        final BlockNodeConfig nodeConfig = newBlockNodeConfig(8080, 1);
+        doReturn(nodeConfig).when(connection).getNodeConfig();
         doThrow(new RuntimeException("what the..."))
                 .when(executorService)
                 .schedule(any(Runnable.class), anyLong(), any(TimeUnit.class));
 
-        connectionManager.scheduleConnectionAttempt(connection, Duration.ofSeconds(2), 100L);
+        connectionManager.scheduleConnectionAttempt(connection.getNodeConfig(), Duration.ofSeconds(2), 100L);
+
+        assertThat(logCaptor.errorLogs())
+                .anyMatch(msg -> msg.contains("Failed to schedule connection task for block node"));
 
         verify(executorService).schedule(any(BlockNodeConnectionTask.class), eq(2_000L), eq(TimeUnit.MILLISECONDS));
-        verify(connection).updateConnectionState(ConnectionState.CONNECTING);
-        verify(connection).close();
+        verify(metrics).recordConnectionClosed();
+
         verifyNoInteractions(bufferService);
-        verifyNoInteractions(metrics);
+        verifyNoMoreInteractions(metrics);
         verifyNoMoreInteractions(executorService);
         verifyNoMoreInteractions(connection);
     }
@@ -222,23 +243,25 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     void testShutdown() throws InterruptedException {
         final Map<BlockNodeConfig, BlockNodeConnection> connections = connections();
         // add some fake connections
-        final BlockNodeConfig node1Config = new BlockNodeConfig("localhost", 8080, 1);
+        final BlockNodeConfig node1Config = newBlockNodeConfig(8080, 1);
         final BlockNodeConnection node1Conn = mock(BlockNodeConnection.class);
-        final BlockNodeConfig node2Config = new BlockNodeConfig("localhost", 8081, 2);
+        final BlockNodeConfig node2Config = newBlockNodeConfig(8081, 2);
         final BlockNodeConnection node2Conn = mock(BlockNodeConnection.class);
-        final BlockNodeConfig node3Config = new BlockNodeConfig("localhost", 8082, 3);
+        final BlockNodeConfig node3Config = newBlockNodeConfig(8082, 3);
         final BlockNodeConnection node3Conn = mock(BlockNodeConnection.class);
         connections.put(node1Config, node1Conn);
         connections.put(node2Config, node2Conn);
         connections.put(node3Config, node3Conn);
 
         // introduce a failure on one of the connection closes to ensure the shutdown process does not fail prematurely
-        doThrow(new RuntimeException("oops, I did it again")).when(node2Conn).close();
+        doThrow(new RuntimeException("oops, I did it again")).when(node2Conn).close(true);
 
         final AtomicBoolean isActive = isActiveFlag();
         final Thread dummyWorkerThread = mock(Thread.class);
         final AtomicReference<Thread> workerThreadRef = workerThread();
         workerThreadRef.set(dummyWorkerThread);
+
+        isActive.set(true);
 
         try {
             connectionManager.shutdown();
@@ -248,19 +271,32 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
             workerThreadRef.set(null);
         }
 
+        final AtomicReference<BlockNodeConnection> activeConnRef = activeConnection();
+        assertThat(activeConnRef).hasNullValue();
+
         assertThat(connections).isEmpty();
         assertThat(isActive).isFalse();
 
-        verify(node1Conn).close();
-        verify(node2Conn).close();
-        verify(node3Conn).close();
+        final AtomicLong streamBlockNum = streamingBlockNumber();
+        assertThat(streamBlockNum).hasValue(-1);
+
+        final Map<BlockNodeConfig, BlockNodeStats> nodeStats = nodeStats();
+        assertThat(nodeStats).isEmpty();
+
+        // calling shutdown again should not fail
+        connectionManager.shutdown();
+
+        verify(node1Conn).close(true);
+        verify(node2Conn).close(true);
+        verify(node3Conn).close(true);
         verify(dummyWorkerThread).interrupt();
         verify(dummyWorkerThread).join();
+        verify(bufferService, times(2)).shutdown();
         verifyNoMoreInteractions(node1Conn);
         verifyNoMoreInteractions(node2Conn);
         verifyNoMoreInteractions(node3Conn);
         verifyNoInteractions(executorService);
-        verifyNoInteractions(bufferService);
+        verifyNoMoreInteractions(bufferService);
         verifyNoInteractions(metrics);
     }
 
@@ -268,6 +304,8 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     void testShutdown_withWorkerThreadInterrupt() throws InterruptedException {
         final AtomicBoolean isActive = isActiveFlag();
         final Thread dummyWorkerThread = mock(Thread.class);
+
+        isActive.set(true);
 
         doThrow(new InterruptedException("wakey wakey, eggs and bakey"))
                 .when(dummyWorkerThread)
@@ -288,8 +326,9 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
         verify(dummyWorkerThread).interrupt();
         verify(dummyWorkerThread).join();
+        verify(bufferService).shutdown();
         verifyNoInteractions(executorService);
-        verifyNoInteractions(bufferService);
+        verifyNoMoreInteractions(bufferService);
         verifyNoInteractions(metrics);
     }
 
@@ -298,10 +337,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         final AtomicBoolean isActive = isActiveFlag();
         isActive.set(true);
 
-        final Exception exception = catchException(() -> connectionManager.start());
-        assertThat(exception)
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessage("Connection manager already started");
+        connectionManager.start();
 
         verifyNoInteractions(executorService);
         verifyNoInteractions(bufferService);
@@ -340,11 +376,11 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
         final List<BlockNodeConfig> availableNodes = availableNodes();
         availableNodes.clear();
-        availableNodes.add(new BlockNodeConfig("localhost", 8080, 1));
-        availableNodes.add(new BlockNodeConfig("localhost", 8081, 1));
-        availableNodes.add(new BlockNodeConfig("localhost", 8082, 2));
-        availableNodes.add(new BlockNodeConfig("localhost", 8083, 3));
-        availableNodes.add(new BlockNodeConfig("localhost", 8084, 3));
+        availableNodes.add(newBlockNodeConfig(8080, 1));
+        availableNodes.add(newBlockNodeConfig(8081, 1));
+        availableNodes.add(newBlockNodeConfig(8082, 2));
+        availableNodes.add(newBlockNodeConfig(8083, 3));
+        availableNodes.add(newBlockNodeConfig(8084, 3));
 
         assertThat(workerThreadRef).hasNullValue(); // sanity check
 
@@ -363,7 +399,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
         // verify we are trying to connect to one of the priority 1 nodes
         assertThat(nodeConfig.priority()).isEqualTo(1);
-        assertThat(connection.getConnectionState()).isEqualTo(ConnectionState.CONNECTING);
+        assertThat(connection.getConnectionState()).isEqualTo(ConnectionState.UNINITIALIZED);
 
         verifyNoMoreInteractions(executorService);
         verifyNoMoreInteractions(bufferService);
@@ -390,12 +426,10 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         final List<BlockNodeConfig> availableNodes = availableNodes();
         availableNodes.clear();
 
-        final BlockNodeConfig node1Config = new BlockNodeConfig("localhost", 8080, 1);
+        final BlockNodeConfig node1Config = newBlockNodeConfig(8080, 1);
         final BlockNodeConnection node1Conn = mock(BlockNodeConnection.class);
-        doReturn(ConnectionState.CONNECTING).when(node1Conn).getConnectionState();
-        final BlockNodeConfig node2Config = new BlockNodeConfig("localhost", 8081, 2);
+        final BlockNodeConfig node2Config = newBlockNodeConfig(8081, 2);
         final BlockNodeConnection node2Conn = mock(BlockNodeConnection.class);
-        doReturn(ConnectionState.ACTIVE).when(node2Conn).getConnectionState();
 
         availableNodes.add(node1Config);
         availableNodes.add(node2Config);
@@ -417,10 +451,10 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         final List<BlockNodeConfig> availableNodes = availableNodes();
         final AtomicReference<BlockNodeConnection> activeConnection = activeConnection();
 
-        final BlockNodeConfig node1Config = new BlockNodeConfig("localhost", 8081, 1);
-        final BlockNodeConfig node2Config = new BlockNodeConfig("localhost", 8082, 2);
+        final BlockNodeConfig node1Config = newBlockNodeConfig(8081, 1);
+        final BlockNodeConfig node2Config = newBlockNodeConfig(8082, 2);
         final BlockNodeConnection node2Conn = mock(BlockNodeConnection.class);
-        final BlockNodeConfig node3Config = new BlockNodeConfig("localhost", 8083, 3);
+        final BlockNodeConfig node3Config = newBlockNodeConfig(8083, 3);
 
         connections.put(node2Config, node2Conn);
         availableNodes.add(node1Config);
@@ -443,7 +477,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
         // verify we are trying to connect to one of the priority 1 nodes
         assertThat(nodeConfig.priority()).isEqualTo(1);
-        assertThat(connection.getConnectionState()).isEqualTo(ConnectionState.CONNECTING);
+        assertThat(connection.getConnectionState()).isEqualTo(ConnectionState.UNINITIALIZED);
 
         verifyNoMoreInteractions(executorService);
         verifyNoInteractions(bufferService);
@@ -456,13 +490,11 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         final List<BlockNodeConfig> availableNodes = availableNodes();
         final AtomicReference<BlockNodeConnection> activeConnection = activeConnection();
 
-        final BlockNodeConfig node1Config = new BlockNodeConfig("localhost", 8080, 1);
+        final BlockNodeConfig node1Config = newBlockNodeConfig(8080, 1);
         final BlockNodeConnection node1Conn = mock(BlockNodeConnection.class);
-        doReturn(ConnectionState.PENDING).when(node1Conn).getConnectionState();
-        final BlockNodeConfig node2Config = new BlockNodeConfig("localhost", 8081, 2);
+        final BlockNodeConfig node2Config = newBlockNodeConfig(8081, 2);
         final BlockNodeConnection node2Conn = mock(BlockNodeConnection.class);
-        doReturn(ConnectionState.ACTIVE).when(node2Conn).getConnectionState();
-        final BlockNodeConfig node3Config = new BlockNodeConfig("localhost", 8082, 3);
+        final BlockNodeConfig node3Config = newBlockNodeConfig(8082, 3);
 
         connections.put(node1Config, node1Conn);
         connections.put(node2Config, node2Conn);
@@ -487,7 +519,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         // verify we are trying to connect to one of the priority 1 nodes
         assertThat(nodeConfig.priority()).isEqualTo(3);
         assertThat(nodeConfig.port()).isEqualTo(8082);
-        assertThat(connection.getConnectionState()).isEqualTo(ConnectionState.CONNECTING);
+        assertThat(connection.getConnectionState()).isEqualTo(ConnectionState.UNINITIALIZED);
 
         verifyNoMoreInteractions(executorService);
         verifyNoInteractions(bufferService);
@@ -500,14 +532,12 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         final List<BlockNodeConfig> availableNodes = availableNodes();
         final AtomicReference<BlockNodeConnection> activeConnection = activeConnection();
 
-        final BlockNodeConfig node1Config = new BlockNodeConfig("localhost", 8080, 1);
+        final BlockNodeConfig node1Config = newBlockNodeConfig(8080, 1);
         final BlockNodeConnection node1Conn = mock(BlockNodeConnection.class);
-        doReturn(ConnectionState.PENDING).when(node1Conn).getConnectionState();
-        final BlockNodeConfig node2Config = new BlockNodeConfig("localhost", 8081, 2);
+        final BlockNodeConfig node2Config = newBlockNodeConfig(8081, 2);
         final BlockNodeConnection node2Conn = mock(BlockNodeConnection.class);
-        doReturn(ConnectionState.ACTIVE).when(node2Conn).getConnectionState();
-        final BlockNodeConfig node3Config = new BlockNodeConfig("localhost", 8082, 2);
-        final BlockNodeConfig node4Config = new BlockNodeConfig("localhost", 8083, 3);
+        final BlockNodeConfig node3Config = newBlockNodeConfig(8082, 2);
+        final BlockNodeConfig node4Config = newBlockNodeConfig(8083, 3);
 
         connections.put(node1Config, node1Conn);
         connections.put(node2Config, node2Conn);
@@ -533,7 +563,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         // verify we are trying to connect to one of the priority 1 nodes
         assertThat(nodeConfig.priority()).isEqualTo(2);
         assertThat(nodeConfig.port()).isEqualTo(8082);
-        assertThat(connection.getConnectionState()).isEqualTo(ConnectionState.CONNECTING);
+        assertThat(connection.getConnectionState()).isEqualTo(ConnectionState.UNINITIALIZED);
 
         verifyNoMoreInteractions(executorService);
         verifyNoInteractions(bufferService);
@@ -555,9 +585,10 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         assertThat(streamingBlockNumber).hasValue(-1L);
         assertThat(jumpTargetBlock).hasValue(-1L);
 
+        verify(metrics).recordNoActiveConnection();
         verifyNoInteractions(executorService);
         verifyNoInteractions(bufferService);
-        verifyNoInteractions(metrics);
+        verifyNoMoreInteractions(metrics);
     }
 
     @Test
@@ -606,7 +637,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     void testUpdateLastVerifiedBlock_connDoesNotExist() {
         final Map<BlockNodeConfig, Long> lastVerifiedBlockPerConnection = lastVerifiedBlockPerConnection();
         lastVerifiedBlockPerConnection.clear(); // ensure nothing exists in the map
-        final BlockNodeConfig nodeConfig = new BlockNodeConfig("localhost", 8080, 1);
+        final BlockNodeConfig nodeConfig = newBlockNodeConfig(8080, 1);
 
         connectionManager.updateLastVerifiedBlock(nodeConfig, 100L);
 
@@ -622,7 +653,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     void testUpdateLastVerifiedBlock_connExists_verifiedNewer() {
         final Map<BlockNodeConfig, Long> lastVerifiedBlockPerConnection = lastVerifiedBlockPerConnection();
         lastVerifiedBlockPerConnection.clear();
-        final BlockNodeConfig nodeConfig = new BlockNodeConfig("localhost", 8080, 1);
+        final BlockNodeConfig nodeConfig = newBlockNodeConfig(8080, 1);
         lastVerifiedBlockPerConnection.put(nodeConfig, 99L);
 
         // signal a 'newer' block has been verified - newer meaning this block (100) is younger than the older block
@@ -641,7 +672,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     void testUpdateLastVerifiedBlock_connExists_verifiedOlder() {
         final Map<BlockNodeConfig, Long> lastVerifiedBlockPerConnection = lastVerifiedBlockPerConnection();
         lastVerifiedBlockPerConnection.clear();
-        final BlockNodeConfig nodeConfig = new BlockNodeConfig("localhost", 8080, 1);
+        final BlockNodeConfig nodeConfig = newBlockNodeConfig(8080, 1);
         lastVerifiedBlockPerConnection.put(nodeConfig, 100L);
 
         // signal an 'older' block has been verified - older meaning the block number being verified is less than the
@@ -690,12 +721,12 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         isActiveFlag().set(true);
         final AtomicReference<BlockNodeConnection> activeConnectionRef = activeConnection();
         final BlockNodeConnection activeConnection = mock(BlockNodeConnection.class);
-        final BlockNodeConfig activeConnectionConfig = new BlockNodeConfig("localhost", 8080, 1);
+        final BlockNodeConfig activeConnectionConfig = newBlockNodeConfig(8080, 1);
         doReturn(activeConnectionConfig).when(activeConnection).getNodeConfig();
         activeConnectionRef.set(activeConnection);
 
         final BlockNodeConnection newConnection = mock(BlockNodeConnection.class);
-        final BlockNodeConfig newConnectionConfig = new BlockNodeConfig("localhost", 8081, 2);
+        final BlockNodeConfig newConnectionConfig = newBlockNodeConfig(8081, 2);
         doReturn(newConnectionConfig).when(newConnection).getNodeConfig();
 
         connectionManager.new BlockNodeConnectionTask(newConnection, Duration.ofSeconds(1), null, false).run();
@@ -704,6 +735,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
         verify(activeConnection).getNodeConfig();
         verify(newConnection).getNodeConfig();
+        verify(newConnection).close(true);
 
         verifyNoMoreInteractions(activeConnection);
         verifyNoMoreInteractions(newConnection);
@@ -715,14 +747,15 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     @Test
     void testConnectionTask_higherPriorityConnectionExists_withForce() {
         isActiveFlag().set(true);
+
         final AtomicReference<BlockNodeConnection> activeConnectionRef = activeConnection();
         final BlockNodeConnection activeConnection = mock(BlockNodeConnection.class);
-        final BlockNodeConfig activeConnectionConfig = new BlockNodeConfig("localhost", 8080, 1);
+        final BlockNodeConfig activeConnectionConfig = newBlockNodeConfig(8080, 1);
         doReturn(activeConnectionConfig).when(activeConnection).getNodeConfig();
         activeConnectionRef.set(activeConnection);
 
         final BlockNodeConnection newConnection = mock(BlockNodeConnection.class);
-        final BlockNodeConfig newConnectionConfig = new BlockNodeConfig("localhost", 8081, 2);
+        final BlockNodeConfig newConnectionConfig = newBlockNodeConfig(8081, 2);
         doReturn(newConnectionConfig).when(newConnection).getNodeConfig();
 
         connectionManager.new BlockNodeConnectionTask(newConnection, Duration.ofSeconds(1), null, true).run();
@@ -730,17 +763,18 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         assertThat(activeConnectionRef).hasValue(newConnection);
 
         verify(activeConnection).getNodeConfig();
-        verify(activeConnection).close();
-        verify(newConnection).getNodeConfig();
-        verify(newConnection).createRequestObserver();
+        verify(activeConnection).close(true);
+        verify(newConnection, times(2)).getNodeConfig();
+        verify(newConnection).createRequestPipeline();
         verify(newConnection).updateConnectionState(ConnectionState.ACTIVE);
-        verify(bufferService).getLowestUnackedBlockNumber();
+        verify(bufferService).getLastBlockNumberProduced();
+        verify(metrics).recordActiveConnectionIp(anyLong());
 
         verifyNoMoreInteractions(activeConnection);
         verifyNoMoreInteractions(newConnection);
         verifyNoInteractions(executorService);
         verifyNoMoreInteractions(bufferService);
-        verifyNoInteractions(metrics);
+        verifyNoMoreInteractions(metrics);
     }
 
     @Test
@@ -749,13 +783,13 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         // takes its place as the active one
         final AtomicReference<BlockNodeConnection> activeConnectionRef = activeConnection();
         final BlockNodeConnection activeConnection = mock(BlockNodeConnection.class);
-        final BlockNodeConfig activeConnectionConfig = new BlockNodeConfig("localhost", 8080, 2);
+        final BlockNodeConfig activeConnectionConfig = newBlockNodeConfig(8080, 2);
         doReturn(activeConnectionConfig).when(activeConnection).getNodeConfig();
         activeConnectionRef.set(activeConnection);
         isActiveFlag().set(true);
 
         final BlockNodeConnection newConnection = mock(BlockNodeConnection.class);
-        final BlockNodeConfig newConnectionConfig = new BlockNodeConfig("localhost", 8081, 1);
+        final BlockNodeConfig newConnectionConfig = newBlockNodeConfig(8081, 1);
         doReturn(newConnectionConfig).when(newConnection).getNodeConfig();
 
         connectionManager.new BlockNodeConnectionTask(newConnection, Duration.ofSeconds(1), 30L, false).run();
@@ -765,16 +799,17 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         assertThat(activeConnectionRef).hasValue(newConnection);
 
         verify(activeConnection).getNodeConfig();
-        verify(activeConnection).close();
-        verify(newConnection).getNodeConfig();
-        verify(newConnection).createRequestObserver();
+        verify(activeConnection).close(true);
+        verify(newConnection, times(2)).getNodeConfig();
+        verify(newConnection).createRequestPipeline();
         verify(newConnection).updateConnectionState(ConnectionState.ACTIVE);
+        verify(metrics).recordActiveConnectionIp(anyLong());
 
         verifyNoMoreInteractions(activeConnection);
         verifyNoMoreInteractions(newConnection);
         verifyNoInteractions(executorService);
         verifyNoMoreInteractions(bufferService);
-        verifyNoInteractions(metrics);
+        verifyNoMoreInteractions(metrics);
     }
 
     @Test
@@ -798,23 +833,26 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         final AtomicReference<BlockNodeConnection> activeConnectionRef = activeConnection();
         activeConnectionRef.set(null);
 
-        doReturn(10L).when(bufferService).getLowestUnackedBlockNumber();
+        doReturn(10L).when(bufferService).getLastBlockNumberProduced();
 
+        final BlockNodeConfig newConnectionConfig = newBlockNodeConfig(8081, 1);
         final BlockNodeConnection newConnection = mock(BlockNodeConnection.class);
+        doReturn(newConnectionConfig).when(newConnection).getNodeConfig();
 
         connectionManager.new BlockNodeConnectionTask(newConnection, Duration.ofSeconds(1), null, false).run();
 
         assertThat(jumpTarget).hasValue(10L);
         assertThat(activeConnectionRef).hasValue(newConnection);
 
-        verify(newConnection).createRequestObserver();
+        verify(newConnection).createRequestPipeline();
         verify(newConnection).updateConnectionState(ConnectionState.ACTIVE);
-        verify(bufferService).getLowestUnackedBlockNumber();
+        verify(bufferService).getLastBlockNumberProduced();
+        verify(metrics).recordActiveConnectionIp(anyLong());
 
         verifyNoMoreInteractions(newConnection);
         verifyNoInteractions(executorService);
         verifyNoMoreInteractions(bufferService);
-        verifyNoInteractions(metrics);
+        verifyNoMoreInteractions(metrics);
     }
 
     @Test
@@ -822,15 +860,15 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         isActiveFlag().set(true);
         final AtomicReference<BlockNodeConnection> activeConnectionRef = activeConnection();
         final BlockNodeConnection activeConnection = mock(BlockNodeConnection.class);
-        final BlockNodeConfig activeConnectionConfig = new BlockNodeConfig("localhost", 8080, 2);
+        final BlockNodeConfig activeConnectionConfig = newBlockNodeConfig(8080, 2);
         doReturn(activeConnectionConfig).when(activeConnection).getNodeConfig();
         doThrow(new RuntimeException("why does this always happen to me"))
                 .when(activeConnection)
-                .close();
+                .close(true);
         activeConnectionRef.set(activeConnection);
 
         final BlockNodeConnection newConnection = mock(BlockNodeConnection.class);
-        final BlockNodeConfig newConnectionConfig = new BlockNodeConfig("localhost", 8081, 1);
+        final BlockNodeConfig newConnectionConfig = newBlockNodeConfig(8081, 1);
         doReturn(newConnectionConfig).when(newConnection).getNodeConfig();
 
         connectionManager.new BlockNodeConnectionTask(newConnection, Duration.ofSeconds(1), 30L, false).run();
@@ -840,16 +878,17 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         assertThat(activeConnectionRef).hasValue(newConnection);
 
         verify(activeConnection).getNodeConfig();
-        verify(activeConnection).close();
-        verify(newConnection).getNodeConfig();
-        verify(newConnection).createRequestObserver();
+        verify(activeConnection).close(true);
+        verify(newConnection, times(2)).getNodeConfig();
+        verify(newConnection).createRequestPipeline();
         verify(newConnection).updateConnectionState(ConnectionState.ACTIVE);
+        verify(metrics).recordActiveConnectionIp(anyLong());
 
         verifyNoMoreInteractions(activeConnection);
         verifyNoMoreInteractions(newConnection);
         verifyNoInteractions(executorService);
         verifyNoMoreInteractions(bufferService);
-        verifyNoInteractions(metrics);
+        verifyNoMoreInteractions(metrics);
     }
 
     @Test
@@ -859,20 +898,20 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         activeConnectionRef.set(null);
 
         final BlockNodeConnection connection = mock(BlockNodeConnection.class);
-        doThrow(new RuntimeException("are you seeing this?")).when(connection).createRequestObserver();
+        doThrow(new RuntimeException("are you seeing this?")).when(connection).createRequestPipeline();
 
         final BlockNodeConnectionTask task =
                 connectionManager.new BlockNodeConnectionTask(connection, Duration.ZERO, 10L, false);
 
         task.run();
 
-        verify(connection).createRequestObserver();
+        verify(connection).createRequestPipeline();
         verify(executorService).schedule(eq(task), anyLong(), eq(TimeUnit.MILLISECONDS));
-
+        verify(metrics).recordConnectionCreateFailure();
         verifyNoMoreInteractions(connection);
         verifyNoMoreInteractions(executorService);
         verifyNoInteractions(bufferService);
-        verifyNoInteractions(metrics);
+        verifyNoMoreInteractions(metrics);
     }
 
     @Test
@@ -882,20 +921,20 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         activeConnectionRef.set(null);
 
         final BlockNodeConnection connection = mock(BlockNodeConnection.class);
-        doThrow(new RuntimeException("are you seeing this?")).when(connection).createRequestObserver();
+        doThrow(new RuntimeException("are you seeing this?")).when(connection).createRequestPipeline();
 
         final BlockNodeConnectionTask task =
                 connectionManager.new BlockNodeConnectionTask(connection, Duration.ofSeconds(10), 10L, false);
 
         task.run();
 
-        verify(connection).createRequestObserver();
+        verify(connection).createRequestPipeline();
         verify(executorService).schedule(eq(task), anyLong(), eq(TimeUnit.MILLISECONDS));
-
+        verify(metrics).recordConnectionCreateFailure();
         verifyNoMoreInteractions(connection);
         verifyNoMoreInteractions(executorService);
         verifyNoInteractions(bufferService);
-        verifyNoInteractions(metrics);
+        verifyNoMoreInteractions(metrics);
     }
 
     @Test
@@ -905,10 +944,10 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         activeConnectionRef.set(null);
         final Map<BlockNodeConfig, BlockNodeConnection> connections = connections();
 
-        final BlockNodeConfig nodeConfig = new BlockNodeConfig("localhost", 8080, 1);
+        final BlockNodeConfig nodeConfig = newBlockNodeConfig(8080, 1);
         final BlockNodeConnection connection = mock(BlockNodeConnection.class);
         doReturn(nodeConfig).when(connection).getNodeConfig();
-        doThrow(new RuntimeException("are you seeing this?")).when(connection).createRequestObserver();
+        doThrow(new RuntimeException("are you seeing this?")).when(connection).createRequestPipeline();
         doThrow(new RuntimeException("welp, this is my life now"))
                 .when(executorService)
                 .schedule(any(Runnable.class), anyLong(), any(TimeUnit.class));
@@ -923,16 +962,15 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
         assertThat(connections).isEmpty(); // connection should be removed
 
-        verify(connection).createRequestObserver();
+        verify(connection).createRequestPipeline();
         verify(executorService).schedule(eq(task), anyLong(), eq(TimeUnit.MILLISECONDS));
-
         verify(connection).getNodeConfig();
-        verify(connection).close();
-
+        verify(connection).close(true);
+        verify(metrics).recordConnectionCreateFailure();
         verifyNoMoreInteractions(connection);
         verifyNoMoreInteractions(executorService);
         verifyNoInteractions(bufferService);
-        verifyNoInteractions(metrics);
+        verifyNoMoreInteractions(metrics);
     }
 
     @Test
@@ -969,15 +1007,18 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
     @Test
     void testProcessStreamingToBlockNode_missingBlock_latestBlockAfterCurrentStreaming() {
+        final BlockNodeConfig node1Config = newBlockNodeConfig(8080, 1);
+        final BlockNodeConfig node2Config = newBlockNodeConfig(8081, 2);
         final List<BlockNodeConfig> availableNodes = availableNodes();
         availableNodes.clear();
-        availableNodes.add(new BlockNodeConfig("localhost", 8080, 1));
-        availableNodes.add(new BlockNodeConfig("localhost", 8081, 2));
+        availableNodes.add(node1Config);
+        availableNodes.add(node2Config);
         final BlockNodeConnection connection = mock(BlockNodeConnection.class);
         final AtomicReference<BlockNodeConnection> activeConnectionRef = activeConnection();
         activeConnectionRef.set(connection);
         final AtomicLong currentStreamingBlock = streamingBlockNumber();
         currentStreamingBlock.set(10L);
+        doReturn(node1Config).when(connection).getNodeConfig();
         doReturn(null).when(bufferService).getBlockState(10L);
         doReturn(11L).when(bufferService).getLastBlockNumberProduced();
 
@@ -987,11 +1028,11 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
         verify(bufferService).getBlockState(10L);
         verify(bufferService).getLastBlockNumberProduced();
+        verify(connection).close(true);
         // one scheduled task to reconnect the existing connection later
         verify(executorService).schedule(any(BlockNodeConnectionTask.class), eq(30_000L), eq(TimeUnit.MILLISECONDS));
         // another task scheduled to connect to a new node immediately
         verify(executorService).schedule(any(BlockNodeConnectionTask.class), eq(0L), eq(TimeUnit.MILLISECONDS));
-        verify(connection).updateConnectionState(ConnectionState.CONNECTING);
 
         verifyNoMoreInteractions(connection);
         verifyNoMoreInteractions(bufferService);
@@ -1016,7 +1057,6 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         verify(bufferService).getBlockState(10L);
         verify(bufferService).getLastBlockNumberProduced();
 
-        verifyNoInteractions(connection);
         verifyNoMoreInteractions(bufferService);
         verifyNoInteractions(executorService);
         verifyNoInteractions(metrics);
@@ -1040,7 +1080,6 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         verify(bufferService).getBlockState(10L);
         verify(bufferService).getLastBlockNumberProduced();
 
-        verifyNoInteractions(connection);
         verifyNoMoreInteractions(bufferService);
         verifyNoInteractions(executorService);
         verifyNoInteractions(metrics);
@@ -1249,7 +1288,6 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         verify(connection).sendRequest(req1);
         verify(connection).sendRequest(req2);
 
-        verifyNoMoreInteractions(connection);
         verifyNoInteractions(executorService);
         verifyNoInteractions(metrics);
     }
@@ -1260,7 +1298,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         isStreamingEnabled.set(false);
         final BlockNodeConnection connection = mock(BlockNodeConnection.class);
 
-        connectionManager.rescheduleAndSelectNewNode(connection, Duration.ZERO);
+        connectionManager.rescheduleConnection(connection, Duration.ZERO);
 
         verifyNoInteractions(connection);
         verifyNoInteractions(bufferService);
@@ -1274,7 +1312,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         isStreamingEnabled.set(false);
         final BlockNodeConnection connection = mock(BlockNodeConnection.class);
 
-        connectionManager.scheduleConnectionAttempt(connection, Duration.ZERO, 10L);
+        connectionManager.scheduleConnectionAttempt(newBlockNodeConfig(8080, 1), Duration.ZERO, 10L);
 
         verifyNoInteractions(connection);
         verifyNoInteractions(bufferService);
@@ -1372,7 +1410,59 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         verifyNoInteractions(metrics);
     }
 
+    @Test
+    void testConnectionTask_MetricsIpFailsInvalidAddress() {
+        isActiveFlag().set(true);
+        final Map<BlockNodeConfig, BlockNodeConnection> connections = connections();
+        final List<BlockNodeConfig> availableNodes = availableNodes();
+
+        final BlockNodeConfig newConnectionConfig = new BlockNodeConfig("::1", 50211, 1);
+        final BlockNodeConnection newConnection = mock(BlockNodeConnection.class);
+        doReturn(newConnectionConfig).when(newConnection).getNodeConfig();
+
+        connections.put(newConnectionConfig, newConnection);
+        availableNodes.add(newConnectionConfig);
+
+        connectionManager.new BlockNodeConnectionTask(newConnection, Duration.ZERO, null, false).run();
+
+        verify(bufferService).getLastBlockNumberProduced();
+        verify(metrics).recordActiveConnectionIp(-1L);
+
+        verifyNoMoreInteractions(bufferService);
+        verifyNoMoreInteractions(metrics);
+    }
+
+    @Test
+    void testConnectionTask_MetricsIpFailsInvalidHost() {
+        isActiveFlag().set(true);
+        final Map<BlockNodeConfig, BlockNodeConnection> connections = connections();
+        final List<BlockNodeConfig> availableNodes = availableNodes();
+
+        final BlockNodeConfig newConnectionConfig = new BlockNodeConfig("invalid.hostname.for.test", 50211, 1);
+        final BlockNodeConnection newConnection = mock(BlockNodeConnection.class);
+        doReturn(newConnectionConfig).when(newConnection).getNodeConfig();
+
+        connections.put(newConnectionConfig, newConnection);
+        availableNodes.add(newConnectionConfig);
+
+        connectionManager.new BlockNodeConnectionTask(newConnection, Duration.ZERO, null, false).run();
+
+        verify(bufferService).getLastBlockNumberProduced();
+        verify(metrics).recordActiveConnectionIp(-1L);
+
+        verifyNoMoreInteractions(bufferService);
+        verifyNoMoreInteractions(metrics);
+    }
+
     // Utilities
+
+    private void invoke_createNewGrpcClient(final BlockNodeConfig config) {
+        try {
+            createNewGrpcClientHandle.invoke(connectionManager, config);
+        } catch (final Throwable t) {
+            throw new RuntimeException(t);
+        }
+    }
 
     private void invoke_blockStreamWorkerLoop() {
         try {
@@ -1407,6 +1497,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         return (AtomicBoolean) isStreamingEnabledHandle.get(connectionManager);
     }
 
+    @SuppressWarnings("unchecked")
     private Map<BlockNodeConfig, Long> lastVerifiedBlockPerConnection() {
         return (Map<BlockNodeConfig, Long>) lastVerifiedBlockPerConnectionHandle.get(connectionManager);
     }
@@ -1419,14 +1510,17 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         return (AtomicLong) jumpTargetHandle.get(connectionManager);
     }
 
+    @SuppressWarnings("unchecked")
     private AtomicReference<BlockNodeConnection> activeConnection() {
         return (AtomicReference<BlockNodeConnection>) activeConnectionRefHandle.get(connectionManager);
     }
 
+    @SuppressWarnings("unchecked")
     private List<BlockNodeConfig> availableNodes() {
         return (List<BlockNodeConfig>) availableNodesHandle.get(connectionManager);
     }
 
+    @SuppressWarnings("unchecked")
     private Map<BlockNodeConfig, BlockNodeConnection> connections() {
         return (Map<BlockNodeConfig, BlockNodeConnection>) connectionsHandle.get(connectionManager);
     }
@@ -1435,8 +1529,14 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         return (AtomicBoolean) isManagerActiveHandle.get(connectionManager);
     }
 
+    @SuppressWarnings("unchecked")
     private AtomicReference<Thread> workerThread() {
         return (AtomicReference<Thread>) workerThreadRefHandle.get(connectionManager);
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<BlockNodeConfig, BlockNodeStats> nodeStats() {
+        return (Map<BlockNodeConfig, BlockNodeStats>) nodeStatsHandle.get(connectionManager);
     }
 
     private void resetMocks() {

@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.suites.hip551.contracts;
 
 import static com.google.protobuf.ByteString.copyFromUtf8;
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.resultWith;
 import static com.hedera.services.bdd.spec.assertions.SomeFungibleTransfers.changingFungibleBalances;
@@ -80,6 +81,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.Tag;
 
 /**
  * This class tests the behavior of atomic batch operations
@@ -362,6 +364,7 @@ public class AtomicBatchContractKeysHtsTest {
     }
 
     @HapiTest
+    @Tag(MATS)
     public final Stream<DynamicTest> staticCallForBurnWithContractKey() {
         final AtomicReference<Address> vanillaTokenTokenAddress = new AtomicReference<>();
         return hapiTest(
@@ -865,6 +868,7 @@ public class AtomicBatchContractKeysHtsTest {
     }
 
     @HapiTest
+    @Tag(MATS)
     public final Stream<DynamicTest> callForDissociateWithContractKey() {
         final AtomicReference<Address> accountAddress = new AtomicReference<>();
         final AtomicReference<Address> vanillaTokenAddress = new AtomicReference<>();
