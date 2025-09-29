@@ -8,6 +8,7 @@ import static org.hiero.block.api.PublishStreamRequest.EndStream.Code.RESET;
 import static org.hiero.block.api.PublishStreamRequest.EndStream.Code.TOO_FAR_BEHIND;
 
 import com.hedera.node.app.metrics.BlockStreamMetrics;
+import com.hedera.node.app.util.LoggingUtilities;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockNodeConnectionConfig;
 import com.hedera.node.internal.network.BlockNodeConfig;
@@ -27,7 +28,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.ThreadContext;
 import org.hiero.block.api.BlockStreamPublishServiceInterface.BlockStreamPublishServiceClient;
 import org.hiero.block.api.PublishStreamRequest;
 import org.hiero.block.api.PublishStreamRequest.EndStream;
@@ -156,8 +156,8 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
      * Helper method to add current instance information for debug logging.
      */
     private void logWithContext(Level level, String message, Object... args) {
-        if (level.equals(DEBUG)) {
-            ThreadContext.put("connectionInfo", this.toString());
+        if (logger.isEnabled(level)) {
+            message = String.format("%s %s %s", LoggingUtilities.threadInfo(), this, message);
         }
         logger.atLevel(level).log(message, args);
     }
@@ -781,8 +781,8 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
 
     @Override
     public String toString() {
-        return connectionId + "/" + blockNodeConfig.address() + ":" + blockNodeConfig.port() + "/"
-                + getConnectionState();
+        return "[" + connectionId + "/" + blockNodeConfig.address() + ":" + blockNodeConfig.port() + "/"
+                + getConnectionState() + "]";
     }
 
     @Override

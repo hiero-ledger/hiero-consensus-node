@@ -14,6 +14,7 @@ import static org.apache.logging.log4j.Level.WARN;
 
 import com.hedera.node.app.blocks.impl.streaming.BlockNodeConnection.ConnectionState;
 import com.hedera.node.app.metrics.BlockStreamMetrics;
+import com.hedera.node.app.util.LoggingUtilities;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockNodeConnectionConfig;
 import com.hedera.node.config.data.BlockStreamConfig;
@@ -59,7 +60,6 @@ import javax.inject.Singleton;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.ThreadContext;
 import org.hiero.block.api.BlockStreamPublishServiceInterface.BlockStreamPublishServiceClient;
 import org.hiero.block.api.PublishStreamRequest;
 
@@ -219,8 +219,8 @@ public class BlockNodeConnectionManager {
      * Helper method to remove current instance information for debug logging.
      */
     private void logWithContext(Level level, String message, Object... args) {
-        if (level.equals(DEBUG)) {
-            ThreadContext.put("connectionInfo", null);
+        if (logger.isEnabled(level)) {
+            message = String.format("%s %s", LoggingUtilities.threadInfo(), message);
         }
         logger.atLevel(level).log(message, args);
     }
@@ -229,8 +229,8 @@ public class BlockNodeConnectionManager {
      * Helper method to add current connection information for debug logging.
      */
     private void logWithContext(Level level, String message, BlockNodeConnection connection, Object... args) {
-        if (level.equals(DEBUG)) {
-            ThreadContext.put("connectionInfo", connection.toString());
+        if (logger.isEnabled(level)) {
+            message = String.format("%s %s %s", LoggingUtilities.threadInfo(), connection.toString(), message);
         }
         logger.atLevel(level).log(message, args);
     }
@@ -939,8 +939,8 @@ public class BlockNodeConnectionManager {
          * Helper method to add current connection information for debug logging.
          */
         private void logWithContext(Level level, String message, Object... args) {
-            if (level.equals(DEBUG)) {
-                ThreadContext.put("connectionInfo", connection.toString());
+            if (logger.isEnabled(level)) {
+                message = String.format("%s %s %s", LoggingUtilities.threadInfo(), connection.toString(), message);
             }
             logger.atLevel(level).log(message, args);
         }
