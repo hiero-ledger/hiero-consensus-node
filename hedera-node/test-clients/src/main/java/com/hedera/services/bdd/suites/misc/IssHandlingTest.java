@@ -72,6 +72,7 @@ class IssHandlingTest implements LifecycleTest {
     final Stream<DynamicTest> simulateIss() {
         final AtomicReference<SemanticVersion> startVersion = new AtomicReference<>();
         final AtomicReference<List<String>> matchingLines = new AtomicReference<>(List.of());
+        final AtomicReference<List<String>> successfulPcesUploadingMatchingLines = new AtomicReference<>(List.of());
         final String endpoint = "http://" + HapiSpec.MINIO_CONTAINER.getHost() + ":"
                 + HapiSpec.MINIO_CONTAINER.getMappedPort(MINIO_ROOT_PORT);
         return hapiTest(
@@ -94,15 +95,15 @@ class IssHandlingTest implements LifecycleTest {
                                     Map.of(
                                             "ledger.transfers.maxLen",
                                             "5",
-                                            "s3Config.endpointUrl",
+                                            "s3IssConfig.endpointUrl",
                                             endpoint,
-                                            "s3Config.bucketName",
+                                            "s3IssConfig.bucketName",
                                             MINIO_BUCKET_NAME,
-                                            "s3Config.accessKey",
+                                            "s3IssConfig.accessKey",
                                             MINIO_ROOT_USER,
-                                            "s3Config.secretKey",
+                                            "s3IssConfig.secretKey",
                                             MINIO_ROOT_PASSWORD,
-                                            "s3Config.enabled",
+                                            "s3IssConfig.enabled",
                                             "true"));
                         }))),
                 assertHgcaaLogContains(
@@ -130,16 +131,42 @@ class IssHandlingTest implements LifecycleTest {
                                 Duration.ofSeconds(30))
                         .exposingLines(matchingLines),
                 assertHgcaaLogContains(
+                                NodeSelector.byNodeId(ISS_NODE_ID),
+                                "Successfully uploaded ISS Pces file",
+                                Duration.ofSeconds(30))
+                        .exposingLines(successfulPcesUploadingMatchingLines),
+                assertHgcaaLogContains(
                         NodeSelector.byNodeId(ISS_NODE_ID),
                         "Successfully uploaded ISS Record Stream file",
                         Duration.ofSeconds(30)),
                 doingContextual(spec -> verifyIssTransactionBytesInS3BucketISSBlocks(
                         matchingLines, endpoint, spec.registry().getBytes("issTransfer"))),
+                doingContextual(spec -> verifyIssPcesFilesInS3Bucket(successfulPcesUploadingMatchingLines, endpoint)),
                 // Submit a freeze
                 freezeOnly().startingIn(2).seconds(),
                 waitForFrozenNetwork(FREEZE_TIMEOUT, NodeSelector.exceptNodeIds(ISS_NODE_ID)),
                 // And do some more validations
                 new ParseableIssBlockStreamValidationOp());
+    }
+
+    private void verifyIssPcesFilesInS3Bucket(
+            final AtomicReference<List<String>> matchingLines, final String endpoint) {
+        if (!matchingLines.get().isEmpty()) {
+            try {
+                MinioClient minioClient = MinioClient.builder()
+                        .endpoint(endpoint)
+                        .credentials(MINIO_ROOT_USER, MINIO_ROOT_PASSWORD)
+                        .build();
+                final Set<String> allObjects = getAllObjects(minioClient);
+
+                // Extract the path from the log line "Successfully uploaded ISS Pces file {} to S3 at path: {}"
+                matchingLines.get().stream()
+                        .map(s -> s.split("path: ")[1].trim())
+                        .forEach(key -> assertTrue(allObjects.contains(key)));
+            } catch (Exception e) {
+                throw new RuntimeException("Failed to verify ISS Pces files are present in S3 bucket", e);
+            }
+        }
     }
 
     private void verifyIssTransactionBytesInS3BucketISSBlocks(

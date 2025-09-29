@@ -485,7 +485,14 @@ public class RecordBlockCache {
             pcesFiles.forEach(path -> {
                 final String key = Path.of(base).resolve(path.getFileName()).toString();
                 s3IssUploader.uploadFile(key, path, "application/octet-stream");
-                log.info("Successfully uploaded ISS pces file {} as {} to S3", path.getFileName(), key);
+                log.info(
+                        "Successfully uploaded ISS Pces file {} to S3 bucket {} at path: {}",
+                        path.getFileName(),
+                        configProvider
+                                .getConfiguration()
+                                .getConfigData(S3IssConfig.class)
+                                .bucketName(),
+                        key);
             });
 
         } catch (Exception e) {
