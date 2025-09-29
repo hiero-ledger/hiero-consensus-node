@@ -49,6 +49,7 @@ public class TipsetEventCreator implements EventCreator {
     private final TipsetTracker tipsetTracker;
     private final TipsetWeightCalculator tipsetWeightCalculator;
     private final ChildlessEventTracker childlessOtherEventTracker;
+    private final LatestEventTracker latestEventTracker;
     private final EventTransactionSupplier transactionSupplier;
     private EventWindow eventWindow;
 
@@ -88,6 +89,11 @@ public class TipsetEventCreator implements EventCreator {
     private final PbjStreamHasher eventHasher;
 
     /**
+     * Current QuiescenceCommand of the system
+     */
+    private QuiescenceCommand quiescenceCommand = QuiescenceCommand.DONT_QUIESCE;
+
+    /**
      * Create a new tipset event creator.
      *
      * @param configuration       the configuration for the event creator
@@ -122,6 +128,7 @@ public class TipsetEventCreator implements EventCreator {
         tipsetMetrics = new TipsetMetrics(metrics, roster);
         tipsetTracker = new TipsetTracker(time, selfId, roster);
         childlessOtherEventTracker = new ChildlessEventTracker();
+        latestEventTracker = new LatestEventTracker();
         tipsetWeightCalculator = new TipsetWeightCalculator(
                 configuration, time, roster, selfId, tipsetTracker, childlessOtherEventTracker);
         networkSize = roster.rosterEntries().size();
@@ -166,6 +173,7 @@ public class TipsetEventCreator implements EventCreator {
         } else {
             tipsetTracker.addPeerEvent(event);
             childlessOtherEventTracker.addEvent(event);
+            latestEventTracker.addEvent(event);
         }
     }
 
@@ -177,11 +185,12 @@ public class TipsetEventCreator implements EventCreator {
         this.eventWindow = Objects.requireNonNull(eventWindow);
         tipsetTracker.setEventWindow(eventWindow);
         childlessOtherEventTracker.pruneOldEvents(eventWindow);
+        latestEventTracker.pruneOldEvents(eventWindow);
     }
 
     @Override
     public void quiescenceCommand(@NonNull final QuiescenceCommand quiescenceCommand) {
-        throw new UnsupportedOperationException("Quiescence is not yet implemented");
+        this.quiescenceCommand = Objects.requireNonNull(quiescenceCommand);
     }
 
     /**
@@ -190,10 +199,24 @@ public class TipsetEventCreator implements EventCreator {
     @Nullable
     @Override
     public PlatformEvent maybeCreateEvent() {
-        final UnsignedEvent event = maybeCreateUnsignedEvent();
+        if (quiescenceCommand == QuiescenceCommand.QUIESCE) {
+            return null;
+        }
+        UnsignedEvent event = maybeCreateUnsignedEvent();
+        if (event == null && quiescenceCommand == QuiescenceCommand.BREAK_QUIESCENCE) {
+            event = maybeCreateQuiescenceBreakEvent();
+        }
         if (event != null) {
             lastSelfEvent = signEvent(event);
             return lastSelfEvent;
+        }
+        return null;
+    }
+
+    private UnsignedEvent maybeCreateQuiescenceBreakEvent() {
+        final PlatformEvent otherEvent = latestEventTracker.getRandomNonSelfEvent(selfId, random);
+        if (otherEvent != null) {
+            return buildAndProcessEvent(otherEvent);
         }
         return null;
     }
@@ -480,8 +503,7 @@ public class TipsetEventCreator implements EventCreator {
     @FunctionalInterface
     public interface HashSigner {
         /**
-         * @param hash
-         * 		the hash to sign
+         * @param hash the hash to sign
          * @return the signature for the hash provided
          */
         Signature sign(Hash hash);

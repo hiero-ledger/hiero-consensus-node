@@ -29,6 +29,7 @@ import org.hiero.consensus.event.creator.impl.rules.EventCreationRule;
 import org.hiero.consensus.event.creator.impl.rules.MaximumRateRule;
 import org.hiero.consensus.event.creator.impl.rules.PlatformHealthRule;
 import org.hiero.consensus.event.creator.impl.rules.PlatformStatusRule;
+import org.hiero.consensus.event.creator.impl.rules.QuiescenceRule;
 import org.hiero.consensus.event.creator.impl.rules.SyncLagRule;
 import org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreator;
 import org.hiero.consensus.model.event.PlatformEvent;
@@ -76,6 +77,11 @@ public class DefaultEventCreator implements EventCreatorModule {
      * How many rounds are we behind the median of the network when comparing latest consensus round reported by syncs
      */
     private double syncRoundLag;
+
+    /**
+     * Current QuiescenceCommand of the system
+     */
+    private QuiescenceCommand quiescenceCommand = QuiescenceCommand.DONT_QUIESCE;
 
     /**
      * Default constructor required by service loader.
@@ -138,6 +144,7 @@ public class DefaultEventCreator implements EventCreatorModule {
         rules.add(new PlatformStatusRule(this::getPlatformStatus, signatureTransactionCheck));
         rules.add(new PlatformHealthRule(config.maximumPermissibleUnhealthyDuration(), this::getUnhealthyDuration));
         rules.add(new SyncLagRule(config.maxAllowedSyncLag(), this::getSyncRoundLag));
+        rules.add(new QuiescenceRule(this::getQuiescenceCommand));
 
         eventCreationRules = AggregateEventCreationRules.of(rules);
         futureEventBuffer =
@@ -202,6 +209,7 @@ public class DefaultEventCreator implements EventCreatorModule {
      */
     @Override
     public void quiescenceCommand(@NonNull final QuiescenceCommand quiescenceCommand) {
+        this.quiescenceCommand = Objects.requireNonNull(quiescenceCommand);
         creator.quiescenceCommand(quiescenceCommand);
     }
 
@@ -262,9 +270,20 @@ public class DefaultEventCreator implements EventCreatorModule {
 
     /**
      * Get the lag behind the median of the network latest consensus round
-     * @return how many rounds are we behind the median of the network when comparing latest consensus round reported by syncs
+     *
+     * @return how many rounds are we behind the median of the network when comparing latest consensus round reported by
+     * syncs
      */
     public double getSyncRoundLag() {
         return syncRoundLag;
+    }
+
+    /**
+     * Get current quiescence command
+     *
+     * @return current QuiescenceCommand of the system
+     */
+    public QuiescenceCommand getQuiescenceCommand() {
+        return quiescenceCommand;
     }
 }
