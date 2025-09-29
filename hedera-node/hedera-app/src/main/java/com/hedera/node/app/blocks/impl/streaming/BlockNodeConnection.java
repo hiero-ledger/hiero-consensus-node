@@ -312,7 +312,6 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
      * notifying the connection manager and calling onComplete on the request pipeline.
      */
     public void handleStreamFailure() {
-        logger.debug("[{}] handleStreamFailure", this);
         closeAndReschedule(THIRTY_SECONDS, true);
     }
 
@@ -321,7 +320,6 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
      * notifying the connection manager without calling onComplete on the request pipeline.
      */
     public void handleStreamFailureWithoutOnComplete() {
-        logger.debug("[{}] handleStreamFailureWithoutOnComplete", this);
         closeAndReschedule(THIRTY_SECONDS, false);
     }
 
@@ -529,12 +527,6 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                         .latestBlockNumber(highestAckedBlockNumber))
                 .build();
 
-        logger.debug(
-                "[{}] Sending EndStream request with code {} (earliestBlockNumber={}, highestAckedBlockNumber={})",
-                this,
-                code,
-                earliestBlockNumber,
-                highestAckedBlockNumber);
         sendRequest(endStream);
         close(true);
     }
