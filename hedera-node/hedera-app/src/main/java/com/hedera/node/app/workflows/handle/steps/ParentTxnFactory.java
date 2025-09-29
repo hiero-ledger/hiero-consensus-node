@@ -190,9 +190,6 @@ public class ParentTxnFactory {
             log.error("Node {} submitted an unparseable transaction {}", creatorInfo.nodeId(), platformTxn);
             return null;
         }
-        if (txnInfo.functionality() == STATE_SIGNATURE_TRANSACTION) {
-            return null;
-        }
         final var tokenContext = new TokenContextImpl(
                 config, stack, consensusNow, new WritableEntityIdStore(stack.getWritableStates(EntityIdService.NAME)));
         return new ParentTxn(

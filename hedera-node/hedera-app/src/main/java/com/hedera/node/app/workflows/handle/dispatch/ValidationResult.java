@@ -146,6 +146,11 @@ public record ValidationResult(
         return new ValidationResult(creatorId, null, null, null, CAN_PAY_SERVICE_FEE, NO_DUPLICATE);
     }
 
+	public static ValidationResult newStateSigWaiver(@NonNull final AccountID CreatorId) {
+		requireNonNull(CreatorId);
+		return new ValidationResult(CreatorId, null, null, null, CAN_PAY_SERVICE_FEE, NO_DUPLICATE);
+	}
+
     /**
      * Returns true if no errors were found.
      */

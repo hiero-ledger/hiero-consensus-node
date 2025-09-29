@@ -36,6 +36,7 @@ import static com.hedera.hapi.node.base.HederaFunctionality.NODE_UPDATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.SCHEDULE_CREATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.SCHEDULE_DELETE;
 import static com.hedera.hapi.node.base.HederaFunctionality.SCHEDULE_SIGN;
+import static com.hedera.hapi.node.base.HederaFunctionality.STATE_SIGNATURE_TRANSACTION;
 import static com.hedera.hapi.node.base.HederaFunctionality.SYSTEM_DELETE;
 import static com.hedera.hapi.node.base.HederaFunctionality.SYSTEM_UNDELETE;
 import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_ACCOUNT_WIPE;
@@ -147,6 +148,7 @@ public class BlockTransactionalUnitTranslator {
                     put(SCHEDULE_CREATE, new ScheduleCreateTranslator());
                     put(SCHEDULE_DELETE, new ScheduleDeleteTranslator());
                     put(SCHEDULE_SIGN, new ScheduleSignTranslator());
+					put(STATE_SIGNATURE_TRANSACTION, NO_EXPLICIT_SIDE_EFFECTS_TRANSLATOR);
                     put(SYSTEM_DELETE, NO_EXPLICIT_SIDE_EFFECTS_TRANSLATOR);
                     put(SYSTEM_UNDELETE, NO_EXPLICIT_SIDE_EFFECTS_TRANSLATOR);
                     put(TOKEN_AIRDROP, new TokenAirdropTranslator());
