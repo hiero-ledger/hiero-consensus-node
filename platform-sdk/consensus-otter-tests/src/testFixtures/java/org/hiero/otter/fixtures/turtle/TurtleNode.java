@@ -176,7 +176,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
                     recycleBin,
                     version,
                     () -> OtterAppState.createGenesisState(
-                            roster(), metrics, version, otterApp.allServices()),
+                            platformContext.getConfiguration(), roster(), metrics, version, otterApp.allServices()),
                     OtterApp.APP_NAME,
                     OtterApp.SWIRLD_NAME,
                     selfId,

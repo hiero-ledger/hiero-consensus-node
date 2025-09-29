@@ -124,7 +124,7 @@ public class ConsensusNodeManager {
                 recycleBin,
                 version,
                 () -> OtterAppState.createGenesisState(
-                        genesisRoster, metrics, version, otterApp.allServices()),
+                        platformConfig, genesisRoster, metrics, version, otterApp.allServices()),
                 OtterApp.APP_NAME,
                 OtterApp.SWIRLD_NAME,
                 legacySelfId,
