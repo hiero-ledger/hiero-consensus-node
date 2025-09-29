@@ -115,13 +115,13 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
     @Account(tinybarBalance = ONE_BILLION_HBARS, stakedNodeId = 0)
     static SpecAccount NODE0_STAKER;
 
-    @Account(tinybarBalance = ONE_BILLION_HBARS, stakedNodeId = 1)
+    @Account(tinybarBalance = ONE_BILLION_HBARS / 100, stakedNodeId = 1)
     static SpecAccount NODE1_STAKER;
 
-    @Account(tinybarBalance = ONE_BILLION_HBARS, stakedNodeId = 2)
+    @Account(tinybarBalance = ONE_BILLION_HBARS / 100, stakedNodeId = 2)
     static SpecAccount NODE2_STAKER;
 
-    @Account(tinybarBalance = ONE_MILLION_HBARS, stakedNodeId = 3)
+    @Account(tinybarBalance = ONE_MILLION_HBARS / 100, stakedNodeId = 3)
     static SpecAccount NODE3_STAKER;
 
     @HapiTest
