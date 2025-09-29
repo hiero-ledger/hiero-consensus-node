@@ -296,7 +296,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
     private void endStreamAndReschedule(@NonNull final EndStream.Code code) {
         requireNonNull(code, "code must not be null");
         endTheStreamWith(code);
-        blockNodeConnectionManager.rescheduleConnection(this, BlockNodeConnection.THIRTY_SECONDS, null);
+        blockNodeConnectionManager.rescheduleConnection(this, THIRTY_SECONDS, null);
     }
 
     /**
@@ -348,7 +348,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                     "[{}] Block node has exceeded high latency threshold {} times consecutively.",
                     this,
                     result.consecutiveHighLatencyEvents());
-            endStreamAndReschedule(TIMEOUT, LONGER_RETRY_DELAY);
+            endStreamAndReschedule(TIMEOUT);
         }
     }
 
