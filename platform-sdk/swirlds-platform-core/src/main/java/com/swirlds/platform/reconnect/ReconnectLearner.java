@@ -194,9 +194,6 @@ public class ReconnectLearner {
         final ReconnectConfig reconnectConfig =
                 platformContext.getConfiguration().getConfigData(ReconnectConfig.class);
 
-        // Ensures the state is hashed by calling getHash, which hashes the state if it hasn't been hashed yet.
-        currentState.getRoot().getHash();
-
         final LearningSynchronizer synchronizer = new LearningSynchronizer(
                 threadManager,
                 in,

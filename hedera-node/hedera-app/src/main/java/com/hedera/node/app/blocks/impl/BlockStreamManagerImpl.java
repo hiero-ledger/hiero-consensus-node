@@ -419,6 +419,8 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         final boolean closesBlock = shouldCloseBlock(roundNum, freezeRoundNumber);
         if (closesBlock) {
             lifecycle.onCloseBlock(state);
+            // FUTURE WORK: the state should always be an instance of  VirtualMapState
+            // https://github.com/hiero-ledger/hiero-consensus-node/issues/21284
             if (state instanceof VirtualMapState hederaNewStateRoot) {
                 hederaNewStateRoot.commitSingletons();
             }
