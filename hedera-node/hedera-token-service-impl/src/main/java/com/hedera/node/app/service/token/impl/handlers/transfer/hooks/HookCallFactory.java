@@ -16,8 +16,8 @@ import com.hedera.hapi.node.base.TokenTransferList;
 import com.hedera.hapi.node.base.TransferList;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
-import com.hedera.hapi.node.transaction.AssessedCustomFee;
 import com.hedera.node.app.service.token.ReadableAccountStore;
+import com.hedera.node.app.service.token.impl.handlers.transfer.customfees.AssessedFeeWithMultiPayerDeltas;
 import com.hedera.node.app.service.token.impl.handlers.transfer.customfees.AssessmentResult;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -46,12 +46,11 @@ public class HookCallFactory {
     public HookCalls from(
             HandleContext handleContext,
             CryptoTransferTransactionBody userTxn,
-            List<AssessedCustomFee> assessedCustomFees,
-            final Map<TokenID, Map<AccountID, Long>> multiPayerNonNetFeeDeltas) {
+            List<AssessedFeeWithMultiPayerDeltas> assessedFeeWithMultiPayerDeltas) {
         final var accountStore = handleContext.storeFactory().readableStore(ReadableAccountStore.class);
         final var memo = handleContext.body().memo();
         final var txnFee = handleContext.body().transactionFee();
-        return getProposedTransfers(userTxn, accountStore, memo, txnFee, assessedCustomFees, multiPayerNonNetFeeDeltas);
+        return getProposedTransfers(userTxn, accountStore, memo, txnFee, assessedFeeWithMultiPayerDeltas);
     }
 
     private HookCalls getProposedTransfers(
@@ -59,8 +58,7 @@ public class HookCallFactory {
             final ReadableAccountStore accountStore,
             final String memo,
             final long txnFee,
-            final List<AssessedCustomFee> assessedCustomFees,
-            final Map<TokenID, Map<AccountID, Long>> multiPayerNonNetFeeDeltas) {
+            final List<AssessedFeeWithMultiPayerDeltas> assessedFeeWithMultiPayerDeltas) {
         final var preOnly = new ArrayList<HookInvocation>();
         final var prePost = new ArrayList<HookInvocation>();
 
@@ -71,20 +69,20 @@ public class HookCallFactory {
                 preOnly,
                 prePost);
 
-        final var customFeeTransfers = encodeCustomFees(accountStore, assessedCustomFees, multiPayerNonNetFeeDeltas);
+        final var customFeeTransfers = encodeCustomFees(accountStore, assessedFeeWithMultiPayerDeltas);
         return new HookCalls(
                 new HookContext(Tuple.of(directTransfers, customFeeTransfers), memo, txnFee), preOnly, prePost);
     }
 
     private Tuple encodeCustomFees(
             final ReadableAccountStore accountStore,
-            final List<AssessedCustomFee> assessedCustomFees,
-            final Map<TokenID, Map<AccountID, Long>> multiPayerNonNetFeeDeltas) {
-        if (assessedCustomFees.isEmpty()) {
+            final List<AssessedFeeWithMultiPayerDeltas> assessedFeeWithMultiPayerDeltas) {
+        if (assessedFeeWithMultiPayerDeltas.isEmpty()) {
             return Tuple.of(new Tuple[] {}, new Tuple[] {});
         }
         final Map<TokenID, Map<AccountID, Long>> deltas = new LinkedHashMap<>();
-        for (final var fee : assessedCustomFees) {
+        for (final var assessedFee : assessedFeeWithMultiPayerDeltas) {
+            final var fee = assessedFee.assessedCustomFee();
             final var token = fee.hasTokenId() ? fee.tokenIdOrThrow() : AssessmentResult.HBAR_TOKEN_ID;
             final var map = deltas.computeIfAbsent(token, t -> new LinkedHashMap<>());
 
@@ -94,14 +92,12 @@ public class HookCallFactory {
             if (fee.effectivePayerAccountId().size() == 1) {
                 final var payer = fee.effectivePayerAccountId().getFirst();
                 map.merge(payer, -fee.amount(), Long::sum);
-            }
-        }
-        // Merge in aggregated multi-payer non-net deltas
-        if (multiPayerNonNetFeeDeltas != null) {
-            for (final var e : multiPayerNonNetFeeDeltas.entrySet()) {
-                final var payerDebits = e.getValue();
-                final var map = deltas.computeIfAbsent(e.getKey(), t -> new LinkedHashMap<>());
-                payerDebits.forEach((acct, delta) -> map.merge(acct, delta, Long::sum));
+            } else if (assessedFee.multiPayerDeltas() != null) {
+                // Merge in aggregated multi-payer non-net deltas
+                for (final var e : assessedFee.multiPayerDeltas().entrySet()) {
+                    final var payerDebits = e.getValue();
+                    map.merge(e.getKey(), payerDebits, Long::sum);
+                }
             }
         }
         // Construct TransferList + TokenTransferList[]

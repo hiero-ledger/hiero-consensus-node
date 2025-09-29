@@ -26,6 +26,7 @@ import com.hedera.hapi.node.transaction.FixedCustomFee;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.ReadableTokenRelationStore;
 import com.hedera.node.app.service.token.ReadableTokenStore;
+import com.hedera.node.app.service.token.impl.handlers.transfer.customfees.AssessedFeeWithMultiPayerDeltas;
 import com.hedera.node.app.service.token.impl.handlers.transfer.customfees.AssessmentResult;
 import com.hedera.node.app.service.token.impl.handlers.transfer.customfees.CustomFeeAssessor;
 import com.hedera.node.app.service.token.impl.handlers.transfer.customfees.CustomFixedFeeAssessor;
@@ -39,11 +40,11 @@ import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.HashSet;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -96,7 +97,9 @@ public class CustomFeeAssessmentStep {
         final var readableStore = feeContext.readableStore(ReadableAccountStore.class);
         final var config = feeContext.configuration();
         final var result = assessFees(tokenStore, tokenRelStore, config, readableStore, AccountID::hasAlias);
-        return result.assessedCustomFees();
+        return result.assessedCustomFees().stream()
+                .map(AssessedFeeWithMultiPayerDeltas::assessedCustomFee)
+                .collect(Collectors.toList());
     }
 
     /**
@@ -140,9 +143,8 @@ public class CustomFeeAssessmentStep {
             // when dispatching crypto transfer for charging custom fees,
             // we still need to set the transfer as assessed
             customFeeAssessor.setTransactionFeesAsAssessed(payer, transactionFixedFee, assessmentResult);
-            result.assessedCustomFees.addAll(assessmentResult.getAssessedCustomFees());
+            result.assessedCustomFees.addAll(assessmentResult.getAssessedCustomFeesAndMultiPayerDeltas());
         }
-        transferContext.setMultiPayerNonNetTransferAdjustments(result.fractionalFeeMultiPayerDebits());
         result.assessedCustomFees().forEach(transferContext::addToAssessedCustomFee);
         customFeeAssessor.resetInitialNftChanges();
         return result.assessedTxns();
@@ -173,8 +175,7 @@ public class CustomFeeAssessmentStep {
         final var maxCustomFeeDepth = tokensConfig.maxCustomFeeDepth();
 
         // list of total assessed custom fees to be added to the record
-        final List<AssessedCustomFee> customFeesAssessed = new ArrayList<>();
-        final Map<TokenID, Map<AccountID, Long>> multiPayerFractionalAdjustments = new LinkedHashMap<>();
+        final List<AssessedFeeWithMultiPayerDeltas> customFeesAssessed = new ArrayList<>();
         // the transaction to be assessed
         var txnToAssess = op;
         // list of assessed transactions, to be fed into further steps
@@ -190,11 +191,10 @@ public class CustomFeeAssessmentStep {
             final var result = assessCustomFeesFrom(
                     hbarTransfers, tokenTransfers, tokenStore, tokenRelStore, accountStore, autoCreationTest);
             // when there are adjustments made to given transaction, need to re-build the transaction
-            if (!result.getAssessedCustomFees().isEmpty()) {
+            if (!result.getAssessedCustomFeesAndMultiPayerDeltas().isEmpty()) {
                 final var modifiedInputBody = changedInputTxn(txnToAssess, result);
                 assessedTxns.add(modifiedInputBody);
-                customFeesAssessed.addAll(result.getAssessedCustomFees());
-                multiPayerFractionalAdjustments.putAll(result.getAggregatedMultiPayerNonNetDeltas());
+                customFeesAssessed.addAll(result.getAssessedCustomFeesAndMultiPayerDeltas());
                 // build body from assessed custom fees to be fed to next level of assessment
                 txnToAssess = buildBodyFromAdjustments(result);
             } else {
@@ -225,7 +225,7 @@ public class CustomFeeAssessmentStep {
                     numUniqueAdjustmentsIn(assessedTxns) <= maxBalanceChanges,
                     CUSTOM_FEE_CHARGING_EXCEEDED_MAX_ACCOUNT_AMOUNTS);
         }
-        return new CustomFeeAssessmentResult(assessedTxns, customFeesAssessed, multiPayerFractionalAdjustments);
+        return new CustomFeeAssessmentResult(assessedTxns, customFeesAssessed);
     }
 
     private int numUniqueAdjustmentsIn(final List<CryptoTransferTransactionBody> assessedTxns) {
@@ -254,8 +254,7 @@ public class CustomFeeAssessmentStep {
      */
     public record CustomFeeAssessmentResult(
             List<CryptoTransferTransactionBody> assessedTxns,
-            List<AssessedCustomFee> assessedCustomFees,
-            Map<TokenID, Map<AccountID, Long>> fractionalFeeMultiPayerDebits) {}
+            List<AssessedFeeWithMultiPayerDeltas> assessedCustomFees) {}
 
     private CryptoTransferTransactionBody changedInputTxn(
             final CryptoTransferTransactionBody op, final AssessmentResult result) {

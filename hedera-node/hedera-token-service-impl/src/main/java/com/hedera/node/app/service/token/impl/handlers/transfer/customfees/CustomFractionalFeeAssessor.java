@@ -133,22 +133,20 @@ public class CustomFractionalFeeAssessor {
                 map.merge(collector, collectedAmount, AdjustmentUtils::addExactOrThrow);
                 result.getMutableInputBalanceAdjustments().put(denom, map);
 
-                // If there are multiple payers, record the details in the result. This is needed to construct
-                // custom fee proposed transfers with hooks
-                if (reclaimResult.paidByPayer().size() > 1) {
-                    result.addMultiPayerNonNetPayerDeltas(denom, reclaimResult.paidByPayer());
-                }
-
                 final var finalEffPayerNums = filteredOriginalCredits.keySet();
                 final var finalEffPayerNumsArray = new AccountID[finalEffPayerNums.size()];
 
                 // Add assessed custom fees to the result. This is needed to build transaction record
-                result.addAssessedCustomFee(AssessedCustomFee.newBuilder()
-                        .effectivePayerAccountId(finalEffPayerNums.toArray(finalEffPayerNumsArray))
-                        .feeCollectorAccountId(collector)
-                        .tokenId(denom)
-                        .amount(collectedAmount)
-                        .build());
+                // If there are multiple payers, record the details in the result. This is needed to construct
+                // custom fee proposed transfers with hooks
+                result.addAssessedCustomFeeWithMultiPayerDeltas(
+                        AssessedCustomFee.newBuilder()
+                                .effectivePayerAccountId(finalEffPayerNums.toArray(finalEffPayerNumsArray))
+                                .feeCollectorAccountId(collector)
+                                .tokenId(denom)
+                                .amount(collectedAmount)
+                                .build(),
+                        reclaimResult.paidByPayer());
             }
         }
     }
@@ -257,7 +255,7 @@ public class CustomFractionalFeeAssessor {
                 if (toReclaimHere != 0) {
                     credits.put(account, creditAmount - toReclaimHere);
                     amountReclaimed += toReclaimHere;
-                    paidByPayer.merge(account, toReclaimHere, Long::sum);
+                    paidByPayer.merge(account, -toReclaimHere, Math::addExact);
                 }
             } catch (final ArithmeticException e) {
                 throw new HandleException(CUSTOM_FEE_OUTSIDE_NUMERIC_RANGE);
@@ -274,14 +272,14 @@ public class CustomFractionalFeeAssessor {
                     credits.put(account, creditAmount - toReclaimHere);
                     amountReclaimed += toReclaimHere;
                     leftToReclaim -= toReclaimHere;
-                    paidByPayer.merge(account, toReclaimHere, Math::addExact);
+                    paidByPayer.merge(account, -toReclaimHere, Math::addExact);
                 }
                 if (leftToReclaim == 0) {
                     break;
                 }
             }
         }
-        final var unreclaimed = amountToReclaim - amountReclaimed;
+        final var unreclaimed = amount - amountReclaimed;
         return new ReclaimResult(unreclaimed, paidByPayer);
     }
 

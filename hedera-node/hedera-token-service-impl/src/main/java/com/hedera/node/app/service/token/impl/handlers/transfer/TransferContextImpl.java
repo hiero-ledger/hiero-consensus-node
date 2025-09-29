@@ -9,13 +9,13 @@ import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.TokenAssociation;
-import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.base.TransferList;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.hapi.node.transaction.AssessedCustomFee;
 import com.hedera.node.app.service.token.AliasUtils;
 import com.hedera.node.app.service.token.impl.WritableAccountStore;
+import com.hedera.node.app.service.token.impl.handlers.transfer.customfees.AssessedFeeWithMultiPayerDeltas;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -37,10 +37,9 @@ public class TransferContextImpl implements TransferContext {
     private int numLazyCreations;
     private final Map<Bytes, AccountID> resolutions = new LinkedHashMap<>();
     private final List<TokenAssociation> automaticAssociations = new ArrayList<>();
-    private final List<AssessedCustomFee> assessedCustomFees = new ArrayList<>();
+    private final List<AssessedFeeWithMultiPayerDeltas> assessedFeeWithMultiPayerDeltas = new ArrayList<>();
     private CryptoTransferTransactionBody syntheticBody = null;
     private final boolean enforceMonoServiceRestrictionsOnAutoCreationCustomFeePayments;
-    private Map<TokenID, Map<AccountID, Long>> multiPayerNonNetTransfers;
 
     /**
      * Create a new {@link TransferContextImpl} instance.
@@ -153,21 +152,24 @@ public class TransferContextImpl implements TransferContext {
         return automaticAssociations;
     }
 
-    public void addToAssessedCustomFee(AssessedCustomFee assessedCustomFee) {
-        assessedCustomFees.add(assessedCustomFee);
+    public void addToAssessedCustomFee(AssessedFeeWithMultiPayerDeltas assessedCustomFee) {
+        assessedFeeWithMultiPayerDeltas.add(assessedCustomFee);
     }
 
     @Override
-    public List<AssessedCustomFee> getAssessedCustomFees() {
-        return assessedCustomFees;
+    public List<AssessedCustomFee> getAssessedFeeWithMultiPayerDeltas() {
+        return assessedFeeWithMultiPayerDeltas.stream()
+                .map(AssessedFeeWithMultiPayerDeltas::assessedCustomFee)
+                .toList();
+    }
+
+    @Override
+    public List<AssessedFeeWithMultiPayerDeltas> getAssessedFeesWithMultiPayerDeltas() {
+        return assessedFeeWithMultiPayerDeltas;
     }
 
     public boolean isEnforceMonoServiceRestrictionsOnAutoCreationCustomFeePayments() {
         return enforceMonoServiceRestrictionsOnAutoCreationCustomFeePayments;
-    }
-
-    public void setMultiPayerNonNetTransferAdjustments(Map<TokenID, Map<AccountID, Long>> multiPayerNonNetTransfers) {
-        this.multiPayerNonNetTransfers = multiPayerNonNetTransfers;
     }
 
     @Override
@@ -198,9 +200,5 @@ public class TransferContextImpl implements TransferContext {
             }
             throw new HandleException(SPENDER_DOES_NOT_HAVE_ALLOWANCE);
         }
-    }
-
-    public Map<TokenID, Map<AccountID, Long>> getMultiPayerNonNetTransferAdjustments() {
-        return multiPayerNonNetTransfers;
     }
 }

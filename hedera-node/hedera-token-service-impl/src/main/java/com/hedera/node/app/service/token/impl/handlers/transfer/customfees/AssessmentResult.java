@@ -56,9 +56,7 @@ public class AssessmentResult {
     private final Map<AccountID, Long> immutableInputHbarAdjustments;
     /* And for each "assessable change" that can be charged a custom fee, delegate to our
     fee assessor to update the balance changes with the custom fee. */
-    private final List<AssessedCustomFee> assessedCustomFees;
-    // For multi-payer non-net fees, we need to keep track of the individual parts paid by each payer,
-    private final Map<TokenID, Map<AccountID, Long>> aggregatedMultiPayerNonNetDeltas;
+    private final List<AssessedFeeWithMultiPayerDeltas> assessedCustomFeesAndMultiPayerDeltas;
 
     /**
      * Constructs an AssessmentResult object with the input token transfers and hbar transfers
@@ -81,8 +79,7 @@ public class AssessmentResult {
         htsAdjustments = new LinkedHashMap<>();
         hbarAdjustments = new LinkedHashMap<>();
         royaltiesPaid = new LinkedHashSet<>();
-        assessedCustomFees = new ArrayList<>();
-        aggregatedMultiPayerNonNetDeltas = new LinkedHashMap<>();
+        assessedCustomFeesAndMultiPayerDeltas = new ArrayList<>();
     }
 
     /**
@@ -121,16 +118,28 @@ public class AssessmentResult {
      * Returns the assessed custom fees.
      * @return the assessed custom fees
      */
-    public List<AssessedCustomFee> getAssessedCustomFees() {
-        return assessedCustomFees;
+    public List<AssessedFeeWithMultiPayerDeltas> getAssessedCustomFeesAndMultiPayerDeltas() {
+        return assessedCustomFeesAndMultiPayerDeltas;
     }
 
     /**
      * Adds an assessed custom fee.
+     *
+     * @param assessedCustomFee the assessed custom fee
+     */
+    public void addAssessedCustomFeeWithMultiPayerDeltas(
+            final AssessedCustomFee assessedCustomFee, final Map<AccountID, Long> multiPayerDeltas) {
+        assessedCustomFeesAndMultiPayerDeltas.add(
+                new AssessedFeeWithMultiPayerDeltas(assessedCustomFee, multiPayerDeltas));
+    }
+
+    /**
+     * Adds an assessed custom fee. MultiPayerDeltas will be null, since it is applicable only for fractional fees.
+     *
      * @param assessedCustomFee the assessed custom fee
      */
     public void addAssessedCustomFee(final AssessedCustomFee assessedCustomFee) {
-        assessedCustomFees.add(assessedCustomFee);
+        assessedCustomFeesAndMultiPayerDeltas.add(new AssessedFeeWithMultiPayerDeltas(assessedCustomFee, null));
     }
 
     /**
@@ -157,28 +166,11 @@ public class AssessmentResult {
         return immutableInputHbarAdjustments;
     }
 
-    public Map<TokenID, Map<AccountID, Long>> getAggregatedMultiPayerNonNetDeltas() {
-        return aggregatedMultiPayerNonNetDeltas;
-    }
-
-    public void addMultiPayerNonNetPayerDeltas(final TokenID token, final Map<AccountID, Long> paidByPayer) {
-        final var m = aggregatedMultiPayerNonNetDeltas.computeIfAbsent(token, __ -> new LinkedHashMap<>());
-        // paidByPayer contains positive amounts reclaimed from each payer; store as NEGATIVE debits.
-        paidByPayer.forEach((payer, amt) -> m.merge(payer, -Math.abs(amt), Math::addExact));
-    }
-
-    /** Record a multi‑payer non‑net fractional fee: debit each payer, credit the collector. */
-    public void addMultiPayerNonNetFeeDeltas(
-            final TokenID token,
-            final AccountID collector,
-            final Map<AccountID, Long> reclaimedByPayer,
-            final long collectedAmount) {
-        final var deltasForToken = aggregatedMultiPayerNonNetDeltas.computeIfAbsent(token, __ -> new LinkedHashMap<>());
-        for (final var e : reclaimedByPayer.entrySet()) {
-            deltasForToken.merge(e.getKey(), -e.getValue(), Math::addExact);
-        }
-        deltasForToken.merge(collector, +collectedAmount, Long::sum);
-    }
+    //    public void addMultiPayerNonNetPayerDeltas(final TokenID token, final Map<AccountID, Long> paidByPayer) {
+    //        final var m = aggregatedMultiPayerNonNetDeltas.computeIfAbsent(token, __ -> new LinkedHashMap<>());
+    //        // paidByPayer contains positive amounts reclaimed from each payer; store as NEGATIVE debits.
+    //        paidByPayer.forEach((payer, amt) -> m.merge(payer, -Math.abs(amt), Math::addExact));
+    //    }
 
     /**
      * Builds a map of fungible token transfers from the given {@link TokenTransferList}.

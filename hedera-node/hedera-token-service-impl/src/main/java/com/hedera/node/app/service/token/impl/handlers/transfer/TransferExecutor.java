@@ -163,13 +163,10 @@ public class TransferExecutor extends BaseTokenHandler {
         HookCalls hookCalls = null;
 
         if (hasHooks) {
-            final var assessCustomFees = transferContext.getAssessedCustomFees();
+            final var assessedFeesWithMultiPayerDeltas = transferContext.getAssessedFeesWithMultiPayerDeltas();
             // Extract the HookCalls from the transaction bodies after custom fee assessment
             hookCalls = hookCallFactory.from(
-                    transferContext.getHandleContext(),
-                    replacedOp,
-                    assessCustomFees,
-                    transferContext.getMultiPayerNonNetTransferAdjustments());
+                    transferContext.getHandleContext(), replacedOp, assessedFeesWithMultiPayerDeltas);
             dispatchHookCalls(
                     hookCalls.context(),
                     hookCalls.preOnlyHooks(),
@@ -209,8 +206,8 @@ public class TransferExecutor extends BaseTokenHandler {
         if (!transferContext.getAutomaticAssociations().isEmpty()) {
             transferContext.getAutomaticAssociations().forEach(recordBuilder::addAutomaticTokenAssociation);
         }
-        if (!transferContext.getAssessedCustomFees().isEmpty()) {
-            recordBuilder.assessedCustomFees(transferContext.getAssessedCustomFees());
+        if (!transferContext.getAssessedFeeWithMultiPayerDeltas().isEmpty()) {
+            recordBuilder.assessedCustomFees(transferContext.getAssessedFeeWithMultiPayerDeltas());
         }
     }
 

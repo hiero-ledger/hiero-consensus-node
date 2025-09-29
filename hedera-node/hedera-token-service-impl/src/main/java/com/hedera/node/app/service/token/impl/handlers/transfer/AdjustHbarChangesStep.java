@@ -131,7 +131,7 @@ public class AdjustHbarChangesStep extends BaseTokenHandler implements TransferS
             final var currentBalance = account.tinybarBalance();
             final var newBalance = currentBalance + amount;
             if (newBalance < 0) {
-                final var assessedCustomFees = transferContext.getAssessedCustomFees();
+                final var assessedCustomFees = transferContext.getAssessedFeeWithMultiPayerDeltas();
                 // Whenever mono-service assessed a fixed fee to an account, it would
                 // update the "metadata" of that pending balance change to use
                 // INSUFFICIENT_SENDER_ACCOUNT_BALANCE_FOR_CUSTOM_FEE instead of
