@@ -189,7 +189,6 @@ public class BlockNodeSuite {
                         connectionDropTime::get,
                         Duration.ofMinutes(1),
                         Duration.ofSeconds(45),
-                        "onError invoked",
                         String.format("Selected block node localhost:%s for connection attempt", portNumbers.get(1)),
                         String.format(
                                 "/localhost:%s/PENDING] Connection state transitioned from UNINITIALIZED to PENDING",
