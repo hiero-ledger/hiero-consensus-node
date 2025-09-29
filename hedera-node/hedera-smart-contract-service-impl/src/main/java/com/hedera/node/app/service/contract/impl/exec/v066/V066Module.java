@@ -36,7 +36,6 @@ import com.hedera.node.app.service.contract.impl.exec.processors.CustomMessageCa
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.HederaSystemContract;
 import com.hedera.node.app.service.contract.impl.exec.utils.FrameBuilder;
 import com.hedera.node.app.service.contract.impl.exec.v038.Version038AddressChecks;
-import com.hedera.node.app.service.contract.impl.hevm.HederaEVM;
 import dagger.Binds;
 import dagger.Module;
 import dagger.Provides;
@@ -133,13 +132,12 @@ public interface V066Module {
 
         oneTimeEVMModuleInitialization();
 
-        // Use Cancun EVM with 0.50 custom operations and 0x00 chain id (set at runtime)
+        // Use Cancun EVM with 0.51 custom operations and 0x00 chain id (set at runtime)
         final var operationRegistry = new OperationRegistry();
         registerCancunOperations(operationRegistry, gasCalculator, BigInteger.ZERO);
         customOperations.forEach(operationRegistry::put);
         customOps.forEach(operationRegistry::put);
-        // Create a return a custom HederaEVM instance
-        return new HederaEVM(operationRegistry, gasCalculator, evmConfiguration, EvmSpecVersion.CANCUN);
+        return new EVM(operationRegistry, gasCalculator, evmConfiguration, EvmSpecVersion.CANCUN);
     }
 
     @Provides
