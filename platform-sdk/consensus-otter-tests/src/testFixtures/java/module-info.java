@@ -37,6 +37,7 @@ module org.hiero.otter.fixtures {
     requires com.github.dockerjava.api;
     requires io.grpc.protobuf;
     requires java.net.http;
+    requires org.antlr.antlr4.runtime;
     requires org.junit.jupiter.params;
     requires org.junit.platform.commons;
     requires static com.github.spotbugs.annotations;
@@ -57,4 +58,5 @@ module org.hiero.otter.fixtures {
     exports org.hiero.otter.fixtures.container.utils to
             org.hiero.consensus.otter.docker.app;
     exports org.hiero.otter.fixtures.network.utils;
+    exports org.hiero.otter.fixtures.app.state;
 }
