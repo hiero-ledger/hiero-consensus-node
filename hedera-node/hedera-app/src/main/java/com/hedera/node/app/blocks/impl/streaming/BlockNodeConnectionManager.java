@@ -357,11 +357,14 @@ public class BlockNodeConnectionManager {
      *
      * @param connection the connection to close and reschedule
      * @param delay the delay before attempting to reconnect
+     * @param blockNumber the block number to use once reconnected
+     * @param selectNewBlockNode whether to select a new block node to connect to while rescheduled
      */
     public void rescheduleConnection(
             @NonNull final BlockNodeConnection connection,
             @Nullable final Duration delay,
-            @Nullable final Long blockNumber) {
+            @Nullable final Long blockNumber,
+            final boolean selectNewBlockNode) {
         if (!isStreamingEnabled.get()) {
             return;
         }
@@ -370,7 +373,7 @@ public class BlockNodeConnectionManager {
         logger.warn("[{}] Closing and rescheduling connection for reconnect attempt", connection);
 
         // Handle cleanup and rescheduling
-        handleConnectionCleanupAndReschedule(connection, delay, blockNumber);
+        handleConnectionCleanupAndReschedule(connection, delay, blockNumber, selectNewBlockNode);
     }
 
     /**
@@ -378,7 +381,10 @@ public class BlockNodeConnectionManager {
      * This centralizes the retry and node selection logic.
      */
     private void handleConnectionCleanupAndReschedule(
-            @NonNull final BlockNodeConnection connection, @Nullable Duration delay, @Nullable final Long blockNumber) {
+            @NonNull final BlockNodeConnection connection,
+            @Nullable Duration delay,
+            @Nullable final Long blockNumber,
+            final boolean selectNewBlockNode) {
         // Remove from connections map and clear active reference
         removeConnectionAndClearActive(connection);
 
@@ -407,7 +413,7 @@ public class BlockNodeConnectionManager {
 
         scheduleConnectionAttempt(connection.getNodeConfig(), Duration.ofMillis(delayMs), blockNumber, false);
 
-        if (!isOnlyOneBlockNodeConfigured()) {
+        if (!isOnlyOneBlockNodeConfigured() && selectNewBlockNode) {
             // Immediately try to find and connect to the next available node
             selectNewBlockNodeForStreaming(false);
         }
@@ -782,7 +788,7 @@ public class BlockNodeConnectionManager {
                     latestBlockNumber);
 
             connection.close(true);
-            rescheduleConnection(connection, THIRTY_SECONDS, null);
+            rescheduleConnection(connection, THIRTY_SECONDS, null, true);
             return true;
         }
 
