@@ -50,7 +50,7 @@ public class ConsistencyService implements OtterService {
     @Override
     public void onTransaction(
             @NonNull final WritableStates writableStates,
-            final Event event,
+            @NonNull final Event event,
             @NonNull final Transaction transaction,
             @NonNull final Consumer<ScopedSystemTransaction<StateSignatureTransaction>> callback) {
         final long transactionChecksum = getTransactionChecksum(transaction);

@@ -27,7 +27,9 @@ import org.hiero.otter.fixtures.app.services.roster.RosterService;
 import org.hiero.otter.fixtures.app.state.OtterStateInitializer;
 
 /**
- * Simple application that can process all transactions required to run tests on Turtle
+ * The main entry point for the Otter application. This class is instantiated by the platform when the
+ * application is started. It creates the services that make up the application and routes events and rounds
+ * to those services.
  */
 @SuppressWarnings("removal")
 public class OtterApp implements ConsensusStateEventHandler<OtterAppState> {

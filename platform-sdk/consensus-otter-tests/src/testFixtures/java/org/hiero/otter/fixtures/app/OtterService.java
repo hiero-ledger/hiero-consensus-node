@@ -39,19 +39,35 @@ public interface OtterService {
      * for the whole round in this method. For actions on individual events, use {@link #onEvent(WritableStates, Event)}.
      * For actions on individual transactions, use {@link #onTransaction(WritableStates, Event, Transaction, Consumer)}.
      *
+     * @param writableStates the {@link WritableStates} to use to modify state
      * @param round
      */
     default void onRound(@NonNull final WritableStates writableStates, @NonNull final Round round) {
         // Default implementation does nothing
     }
 
+    /**
+     * Called when a new event has been received. The service should only do actions for the whole event in this method.
+     * For actions on individual transactions, use {@link #onTransaction(WritableStates, Event, Transaction, Consumer)}.
+     *
+     * @param writableStates the {@link WritableStates} to use to modify state
+     * @param event the event to handle
+     */
     default void onEvent(@NonNull final WritableStates writableStates, @NonNull final Event event) {
         // Default implementation does nothing
     }
 
+    /**
+     * Called when a new transaction has been received.
+     *
+     * @param writableStates the {@link WritableStates} to use to modify state
+     * @param event the event that contains the transaction
+     * @param transaction the transaction to handle
+     * @param callback a callback to pass any system transactions to be handled by the platform
+     */
     default void onTransaction(
             @NonNull final WritableStates writableStates,
-            final Event event,
+            @NonNull final Event event,
             @NonNull final Transaction transaction,
             @NonNull final Consumer<ScopedSystemTransaction<StateSignatureTransaction>> callback) {
         // Default implementation does nothing

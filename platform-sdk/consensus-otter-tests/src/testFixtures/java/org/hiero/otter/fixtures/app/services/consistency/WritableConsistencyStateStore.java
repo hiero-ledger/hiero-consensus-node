@@ -33,6 +33,7 @@ public class WritableConsistencyStateStore {
      * @param value the value to include in the running checksum
      * @return this store for chaining
      */
+    @NonNull
     public WritableConsistencyStateStore accumulateRunningChecksum(final long value) {
         final ConsistencyState consistencyState = requireNonNull(singletonState.get());
 
@@ -50,6 +51,7 @@ public class WritableConsistencyStateStore {
      *
      * @return this store for chaining
      */
+    @NonNull
     public WritableConsistencyStateStore increaseRoundsHandled() {
         final ConsistencyState consistencyState = requireNonNull(singletonState.get());
 

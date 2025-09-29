@@ -46,6 +46,9 @@ public class PlatformStateService implements OtterService {
         return new V0540PlatformStateSchema(config -> version);
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void onTransaction(
             @NonNull final WritableStates writableStates,
