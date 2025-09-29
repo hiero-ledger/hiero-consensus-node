@@ -13,11 +13,8 @@ import com.swirlds.config.api.ConfigProperty;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.sources.SimpleConfigSource;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
-import com.swirlds.platform.gossip.config.NetworkEndpoint;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.net.InetAddress;
-import java.net.UnknownHostException;
 import java.time.Duration;
 import java.util.List;
 import java.util.function.Supplier;
@@ -125,33 +122,10 @@ public class AbstractNodeConfigurationTest {
     @ValueSource(strings = {"foo,bar,baz", "single", ""})
     void testStringListProperty(final String value) {
         final List<String> list = value.isEmpty() ? List.of() : List.of(value.split(","));
-        subject.setStrings("myStringList", list);
+        subject.set("myStringList", list);
         final Configuration config = subject.current();
         final TestConfigData configData = config.getConfigData(TestConfigData.class);
         assertThat(configData.myStringList()).isEqualTo(list);
-    }
-
-    @ParameterizedTest
-    @MethodSource("networkEndpointListProvider")
-    void testNetworkEndpointListProperty(final List<NetworkEndpoint> endpoints) {
-        subject.setNetworkEndpoints("myEndpointList", endpoints);
-        final Configuration config = subject.current();
-        final TestConfigData configData = config.getConfigData(TestConfigData.class);
-        assertThat(configData.myEndpointList()).isEqualTo(endpoints);
-    }
-
-    private static Stream<Arguments> networkEndpointListProvider() throws UnknownHostException {
-        return Stream.of(
-                // Empty list
-                Arguments.of(List.of()),
-                // Single endpoint with node ID 42
-                Arguments.of(List.of(new NetworkEndpoint(42L, InetAddress.getByName("192.168.1.1"), 8080))),
-                // Multiple endpoints with various node IDs and ports
-                Arguments.of(List.of(
-                        new NetworkEndpoint(100L, InetAddress.getByName("172.16.0.1"), 8080),
-                        new NetworkEndpoint(200L, InetAddress.getByName("172.16.0.2"), 9090),
-                        new NetworkEndpoint(300L, InetAddress.getByName("172.16.0.3"), 7070),
-                        new NetworkEndpoint(999L, InetAddress.getByName("172.16.0.4"), 6060))));
     }
 
     @ParameterizedTest
@@ -272,6 +246,5 @@ public class AbstractNodeConfigurationTest {
             @ConfigProperty(defaultValue = "PT15M") Duration myDurationValue,
             @ConfigProperty(defaultValue = "") List<String> myStringList,
             @ConfigProperty(defaultValue = "") List<NodeId> myNodeIdList,
-            @ConfigProperty(defaultValue = "") List<NetworkEndpoint> myEndpointList,
             @ConfigProperty(defaultValue = "") TaskSchedulerConfiguration mySchedulerConfiguration) {}
 }
