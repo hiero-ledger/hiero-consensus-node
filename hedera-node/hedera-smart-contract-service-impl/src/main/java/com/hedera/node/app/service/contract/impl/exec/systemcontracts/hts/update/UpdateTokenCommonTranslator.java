@@ -12,9 +12,9 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.HtsCal
 import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethod;
 import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethodRegistry;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class UpdateTokenCommonTranslator extends AbstractCallTranslator<HtsCallAttempt> {
 

@@ -21,10 +21,10 @@ import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethod
 import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
 import com.hedera.node.config.data.ContractsConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 

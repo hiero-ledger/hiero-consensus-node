@@ -5,8 +5,8 @@ import static java.util.Objects.requireNonNull;
 
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import javax.inject.Singleton;
 
 /**
