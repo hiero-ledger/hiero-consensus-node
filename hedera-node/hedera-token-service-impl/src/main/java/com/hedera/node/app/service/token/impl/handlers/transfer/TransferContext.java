@@ -4,7 +4,7 @@ package com.hedera.node.app.service.token.impl.handlers.transfer;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.TokenAssociation;
 import com.hedera.hapi.node.transaction.AssessedCustomFee;
-import com.hedera.node.app.service.token.impl.handlers.transfer.customfees.AssessedFeeWithMultiPayerDeltas;
+import com.hedera.node.app.service.token.impl.handlers.transfer.customfees.AssessedFeeWithPayerDebits;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.util.List;
@@ -23,7 +23,6 @@ public interface TransferContext {
     /**
      * Looks up alias from accountID in form of alias and return the account ID with account number if found.
      * Return null otherwise.
-     *
      * @param aliasedId the account ID with the account number associated with alias
      * @return the account ID with account number if found, null otherwise
      */
@@ -33,42 +32,37 @@ public interface TransferContext {
      * Creates an account from the given alias. This is called when the account associated with alias
      * is not found in the account store.
      *
-     * @param alias the alias of the account
+     * @param alias                  the alias of the account
      * @param reqMaxAutoAssociations the maximum number of auto-associations allowed for the account
      */
     void createFromAlias(Bytes alias, int reqMaxAutoAssociations);
 
     /**
      * Returns the number of auto-creation of accounts in current transfer.
-     *
      * @return the number of auto-creation of accounts
      */
     int numOfAutoCreations();
 
     /**
      * Returns the number of lazy-creation of accounts in current transfer.
-     *
      * @return the number of lazy-creation of accounts
      */
     int numOfLazyCreations();
 
     /**
      * Returns the resolved accounts with alias and its account ID.
-     *
      * @return the resolved accounts with alias and its account ID
      */
     Map<Bytes, AccountID> resolutions();
 
     /**
      * Charges extra fee to the HAPI payer account in the current transfer context with the given amount.
-     *
      * @param amount the amount to charge
      */
     void chargeExtraFeeToHapiPayer(long amount);
 
     /**
      * Returns the handle context of the current transfer context.
-     *
      * @return the handle context of the current transfer context
      */
     HandleContext getHandleContext();
@@ -78,7 +72,6 @@ public interface TransferContext {
     /**
      * Adds the token association that is created by auto association to the list of automatic associations.
      * This information is needed while building the records at the end of the transaction handling.
-     *
      * @param newAssociation the token association that is created by auto association
      */
     void addToAutomaticAssociations(TokenAssociation newAssociation);
@@ -86,24 +79,23 @@ public interface TransferContext {
     /**
      * Adds the assessed custom fee to the list of assessed custom fees. This information is needed while building the
      * records at the end of the transaction handling.
-     *
      * @param assessedCustomFee the assessed custom fee
      */
-    void addToAssessedCustomFee(AssessedFeeWithMultiPayerDeltas assessedCustomFee);
+    void addToAssessedCustomFee(AssessedFeeWithPayerDebits assessedCustomFee);
 
     /**
      * Returns the custom fees assessed so far in this transfer context.
      *
      * @return the custom fees assessed so far in this transfer context
      */
-    List<AssessedCustomFee> getAssessedFeeWithMultiPayerDeltas();
+    List<AssessedCustomFee> getAssessedCustomFees();
 
     /**
      * Returns the custom fees with multi-payer deltas (for fractional fee) assessed so far in this transfer context.
      *
      * @return the custom fees assessed so far in this transfer context with multi-payer deltas for fractional fees
      */
-    List<AssessedFeeWithMultiPayerDeltas> getAssessedFeesWithMultiPayerDeltas();
+    List<AssessedFeeWithPayerDebits> getAssessedFeesWithPayerDebits();
 
     /**
      * Indicates if this transfer context enforces mono-service

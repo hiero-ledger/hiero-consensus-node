@@ -15,7 +15,7 @@ import com.hedera.hapi.node.state.token.Token;
 import com.hedera.hapi.node.transaction.AssessedCustomFee;
 import com.hedera.hapi.node.transaction.CustomFee;
 import com.hedera.hapi.node.transaction.FixedFee;
-import com.hedera.node.app.service.token.impl.handlers.transfer.customfees.AssessedFeeWithMultiPayerDeltas;
+import com.hedera.node.app.service.token.impl.handlers.transfer.customfees.AssessedFeeWithPayerDebits;
 import com.hedera.node.app.service.token.impl.handlers.transfer.customfees.AssessmentResult;
 import com.hedera.node.app.service.token.impl.handlers.transfer.customfees.CustomFixedFeeAssessor;
 import java.util.List;
@@ -67,9 +67,9 @@ public class CustomFixedFeeAssessorTest {
         final var feeMeta = withCustomToken(List.of(hbarFee), TokenType.FUNGIBLE_COMMON);
 
         subject.assessFixedFees(feeMeta, payer, result);
-        assertThat(result.getAssessedCustomFeesAndMultiPayerDeltas()).isNotEmpty();
-        assertThat(result.getAssessedCustomFeesAndMultiPayerDeltas())
-                .contains(new AssessedFeeWithMultiPayerDeltas(hbarAssessedFee, null));
+        assertThat(result.getAssessedFeesWithPayerDebits()).isNotEmpty();
+        assertThat(result.getAssessedFeesWithPayerDebits())
+                .contains(new AssessedFeeWithPayerDebits(hbarAssessedFee, null));
     }
 
     @Test
@@ -79,9 +79,9 @@ public class CustomFixedFeeAssessorTest {
         final var feeMeta = withCustomToken(List.of(hbarFee), TokenType.FUNGIBLE_COMMON);
 
         subject.assessFixedFees(feeMeta, payer, result);
-        assertThat(result.getAssessedCustomFeesAndMultiPayerDeltas()).isNotEmpty();
-        assertThat(result.getAssessedCustomFeesAndMultiPayerDeltas())
-                .contains(new AssessedFeeWithMultiPayerDeltas(htsAssessedFee, null));
+        assertThat(result.getAssessedFeesWithPayerDebits()).isNotEmpty();
+        assertThat(result.getAssessedFeesWithPayerDebits())
+                .contains(new AssessedFeeWithPayerDebits(htsAssessedFee, null));
     }
 
     @Test
@@ -91,7 +91,7 @@ public class CustomFixedFeeAssessorTest {
         final var feeMeta = withCustomToken(List.of(hbarFee), TokenType.FUNGIBLE_COMMON);
 
         subject.assessFixedFees(feeMeta, payer, result);
-        assertThat(result.getAssessedCustomFeesAndMultiPayerDeltas()).isEmpty();
+        assertThat(result.getAssessedFeesWithPayerDebits()).isEmpty();
     }
 
     @Test
@@ -101,7 +101,7 @@ public class CustomFixedFeeAssessorTest {
         final var feeMeta = withCustomToken(List.of(hbarFee), TokenType.FUNGIBLE_COMMON);
 
         subject.assessFixedFees(feeMeta, payer, result);
-        assertThat(result.getAssessedCustomFeesAndMultiPayerDeltas()).isEmpty();
+        assertThat(result.getAssessedFeesWithPayerDebits()).isEmpty();
     }
 
     @Test
@@ -111,7 +111,7 @@ public class CustomFixedFeeAssessorTest {
         final var feeMeta = withCustomToken(List.of(hbarFee), TokenType.FUNGIBLE_COMMON);
 
         subject.assessFixedFee(feeMeta, payer, hbarFee, result);
-        assertThat(result.getAssessedCustomFeesAndMultiPayerDeltas()).isEmpty();
+        assertThat(result.getAssessedFeesWithPayerDebits()).isEmpty();
     }
 
     public Token withCustomToken(List<CustomFee> customFees, TokenType tokenType) {

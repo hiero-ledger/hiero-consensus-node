@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.handlers.transfer.hooks;
 
+import edu.umd.cs.findbugs.annotations.NonNull;
+
 import java.util.List;
 
 /**
@@ -11,6 +13,6 @@ import java.util.List;
  * @param prePostHooks the list of pre-post hook invocations
  */
 public record HookCalls(
-        HookContext context,
-        List<HookCallFactory.HookInvocation> preOnlyHooks,
-        List<HookCallFactory.HookInvocation> prePostHooks) {}
+        @NonNull HookContext context,
+        @NonNull List<HookCallFactory.HookInvocation> preOnlyHooks,
+        @NonNull List<HookCallFactory.HookInvocation> prePostHooks) {}

@@ -110,7 +110,7 @@ public class AdjustFungibleTokenChangesStep extends BaseTokenHandler implements 
                 aggregatedFungibleTokenChanges,
                 tokenRelStore,
                 accountStore,
-                transferContext.getAssessedFeeWithMultiPayerDeltas());
+                transferContext.getAssessedCustomFees());
     }
 
     /**

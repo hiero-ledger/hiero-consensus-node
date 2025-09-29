@@ -139,7 +139,7 @@ public class CustomFractionalFeeAssessor {
                 // Add assessed custom fees to the result. This is needed to build transaction record
                 // If there are multiple payers, record the details in the result. This is needed to construct
                 // custom fee proposed transfers with hooks
-                result.addAssessedCustomFeeWithMultiPayerDeltas(
+                result.addAssessedFeeWithPayerDebits(
                         AssessedCustomFee.newBuilder()
                                 .effectivePayerAccountId(finalEffPayerNums.toArray(finalEffPayerNumsArray))
                                 .feeCollectorAccountId(collector)
@@ -283,5 +283,12 @@ public class CustomFractionalFeeAssessor {
         return new ReclaimResult(unreclaimed, paidByPayer);
     }
 
+    /**
+     * A record to hold the result of reclaim operation. It contains the unreclaimed amount
+     * and a map of amounts paid by each payer for fractional fee.
+     *
+     * @param unreclaimedAmount the amount that could not be reclaimed
+     * @param paidByPayer a map of amounts paid by each payer
+     */
     private record ReclaimResult(long unreclaimedAmount, Map<AccountID, Long> paidByPayer) {}
 }

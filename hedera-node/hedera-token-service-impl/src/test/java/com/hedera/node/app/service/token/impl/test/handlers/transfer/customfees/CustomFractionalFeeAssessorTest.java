@@ -29,7 +29,7 @@ import com.hedera.hapi.node.transaction.AssessedCustomFee;
 import com.hedera.hapi.node.transaction.CustomFee;
 import com.hedera.hapi.node.transaction.FixedFee;
 import com.hedera.hapi.node.transaction.FractionalFee;
-import com.hedera.node.app.service.token.impl.handlers.transfer.customfees.AssessedFeeWithMultiPayerDeltas;
+import com.hedera.node.app.service.token.impl.handlers.transfer.customfees.AssessedFeeWithPayerDebits;
 import com.hedera.node.app.service.token.impl.handlers.transfer.customfees.AssessmentResult;
 import com.hedera.node.app.service.token.impl.handlers.transfer.customfees.CustomFixedFeeAssessor;
 import com.hedera.node.app.service.token.impl.handlers.transfer.customfees.CustomFractionalFeeAssessor;
@@ -200,11 +200,11 @@ public class CustomFractionalFeeAssessorTest {
 
         verify(fixedFeeAssessor).assessFixedFee(token, payer, fixedFee, result);
 
-        assertThat(result.getAssessedCustomFeesAndMultiPayerDeltas()).isNotEmpty();
-        final var deltas = result.getAssessedCustomFeesAndMultiPayerDeltas();
-        assertThat(deltas).contains(new AssessedFeeWithMultiPayerDeltas(expectedAssessedFee1, null));
-        assertThat(result.getAssessedCustomFeesAndMultiPayerDeltas())
-                .contains(new AssessedFeeWithMultiPayerDeltas(expectedAssessedFee2, null));
+        assertThat(result.getAssessedFeesWithPayerDebits()).isNotEmpty();
+        final var deltas = result.getAssessedFeesWithPayerDebits();
+        assertThat(deltas).contains(new AssessedFeeWithPayerDebits(expectedAssessedFee1, null));
+        assertThat(result.getAssessedFeesWithPayerDebits())
+                .contains(new AssessedFeeWithPayerDebits(expectedAssessedFee2, null));
 
         assertThat(result.getRoyaltiesPaid()).isEmpty();
     }
@@ -247,9 +247,9 @@ public class CustomFractionalFeeAssessorTest {
 
         // This is not Net of transfers fee, so it is not assessed
         verify(fixedFeeAssessor, never()).assessFixedFee(token, payer, fixedFee, result);
-        assertThat(result.getAssessedCustomFeesAndMultiPayerDeltas()).hasSize(1);
-        assertThat(result.getAssessedCustomFeesAndMultiPayerDeltas())
-                .contains(new AssessedFeeWithMultiPayerDeltas(expectedAssessedFee1, null));
+        assertThat(result.getAssessedFeesWithPayerDebits()).hasSize(1);
+        assertThat(result.getAssessedFeesWithPayerDebits())
+                .contains(new AssessedFeeWithPayerDebits(expectedAssessedFee1, null));
 
         assertThat(result.getRoyaltiesPaid()).isEmpty();
     }
@@ -285,9 +285,9 @@ public class CustomFractionalFeeAssessorTest {
 
         // This is not Net of transfers fee, so it is not assessed
         verify(fixedFeeAssessor, never()).assessFixedFee(any(), any(), any(), any());
-        assertThat(result.getAssessedCustomFeesAndMultiPayerDeltas()).hasSize(1);
-        assertThat(result.getAssessedCustomFeesAndMultiPayerDeltas())
-                .contains(new AssessedFeeWithMultiPayerDeltas(expectedAssessedFee1, null));
+        assertThat(result.getAssessedFeesWithPayerDebits()).hasSize(1);
+        assertThat(result.getAssessedFeesWithPayerDebits())
+                .contains(new AssessedFeeWithPayerDebits(expectedAssessedFee1, null));
 
         assertThat(result.getRoyaltiesPaid()).isEmpty();
     }
@@ -308,7 +308,7 @@ public class CustomFractionalFeeAssessorTest {
 
         // This is not Net of transfers fee, so it is not assessed
         verify(fixedFeeAssessor, never()).assessFixedFee(any(), any(), any(), any());
-        assertThat(result.getAssessedCustomFeesAndMultiPayerDeltas()).isEmpty();
+        assertThat(result.getAssessedFeesWithPayerDebits()).isEmpty();
         assertThat(result.getRoyaltiesPaid()).isEmpty();
     }
 
@@ -331,7 +331,7 @@ public class CustomFractionalFeeAssessorTest {
 
         // This is not Net of transfers fee, so it is not assessed
         verify(fixedFeeAssessor, never()).assessFixedFee(any(), any(), any(), any());
-        assertThat(result.getAssessedCustomFeesAndMultiPayerDeltas()).isEmpty();
+        assertThat(result.getAssessedFeesWithPayerDebits()).isEmpty();
         assertThat(result.getRoyaltiesPaid()).isEmpty();
     }
 
@@ -353,7 +353,7 @@ public class CustomFractionalFeeAssessorTest {
 
         // This is not Net of transfers fee, so it is not assessed
         verify(fixedFeeAssessor, never()).assessFixedFee(any(), any(), any(), any());
-        assertThat(result.getAssessedCustomFeesAndMultiPayerDeltas()).isEmpty();
+        assertThat(result.getAssessedFeesWithPayerDebits()).isEmpty();
         assertThat(result.getRoyaltiesPaid()).isEmpty();
     }
 
@@ -475,11 +475,11 @@ public class CustomFractionalFeeAssessorTest {
 
         verify(fixedFeeAssessor, never()).assessFixedFee(any(), any(), any(), any());
 
-        assertThat(result.getAssessedCustomFeesAndMultiPayerDeltas()).isNotEmpty();
-        assertThat(result.getAssessedCustomFeesAndMultiPayerDeltas())
-                .contains(new AssessedFeeWithMultiPayerDeltas(expectedAssessedFee1, null));
-        assertThat(result.getAssessedCustomFeesAndMultiPayerDeltas())
-                .contains(new AssessedFeeWithMultiPayerDeltas(expectedAssessedFee2, null));
+        assertThat(result.getAssessedFeesWithPayerDebits()).isNotEmpty();
+        assertThat(result.getAssessedFeesWithPayerDebits())
+                .contains(new AssessedFeeWithPayerDebits(expectedAssessedFee1, null));
+        assertThat(result.getAssessedFeesWithPayerDebits())
+                .contains(new AssessedFeeWithPayerDebits(expectedAssessedFee2, null));
 
         assertThat(result.getRoyaltiesPaid()).isEmpty();
     }
@@ -502,7 +502,7 @@ public class CustomFractionalFeeAssessorTest {
         subject.assessFractionalFees(token, payer, result);
 
         verify(fixedFeeAssessor, never()).assessFixedFee(any(), any(), any(), any());
-        assertThat(result.getAssessedCustomFeesAndMultiPayerDeltas()).isEmpty();
+        assertThat(result.getAssessedFeesWithPayerDebits()).isEmpty();
         assertThat(result.getRoyaltiesPaid()).isEmpty();
     }
 

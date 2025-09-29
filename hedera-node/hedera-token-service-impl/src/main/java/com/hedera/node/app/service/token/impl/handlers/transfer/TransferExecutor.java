@@ -163,10 +163,10 @@ public class TransferExecutor extends BaseTokenHandler {
         HookCalls hookCalls = null;
 
         if (hasHooks) {
-            final var assessedFeesWithMultiPayerDeltas = transferContext.getAssessedFeesWithMultiPayerDeltas();
+            final var assessedFeesWithPayerDebits = transferContext.getAssessedFeesWithPayerDebits();
             // Extract the HookCalls from the transaction bodies after custom fee assessment
             hookCalls = hookCallFactory.from(
-                    transferContext.getHandleContext(), replacedOp, assessedFeesWithMultiPayerDeltas);
+                    transferContext.getHandleContext(), replacedOp, assessedFeesWithPayerDebits);
             dispatchHookCalls(
                     hookCalls.context(),
                     hookCalls.preOnlyHooks(),
@@ -206,8 +206,8 @@ public class TransferExecutor extends BaseTokenHandler {
         if (!transferContext.getAutomaticAssociations().isEmpty()) {
             transferContext.getAutomaticAssociations().forEach(recordBuilder::addAutomaticTokenAssociation);
         }
-        if (!transferContext.getAssessedFeeWithMultiPayerDeltas().isEmpty()) {
-            recordBuilder.assessedCustomFees(transferContext.getAssessedFeeWithMultiPayerDeltas());
+        if (!transferContext.getAssessedCustomFees().isEmpty()) {
+            recordBuilder.assessedCustomFees(transferContext.getAssessedCustomFees());
         }
     }
 
@@ -319,7 +319,14 @@ public class TransferExecutor extends BaseTokenHandler {
         final var ensureAliasExistence = new EnsureAliasesStep(op);
         ensureAliasExistence.doIn(transferContext);
     }
-
+    /**
+     * Dispatches hook calls to HookDispatchHandler by creating HookExecution messages.
+     *
+     * @param hookContext the context for the hooks
+     * @param hookInvocations the list of hook invocations to dispatch
+     * @param handleContext the handle context to use for dispatching
+     * @param function the ABI function to use for encoding
+     */
     private void dispatchHookCalls(
             final HookContext hookContext,
             final List<HookCallFactory.HookInvocation> hookInvocations,

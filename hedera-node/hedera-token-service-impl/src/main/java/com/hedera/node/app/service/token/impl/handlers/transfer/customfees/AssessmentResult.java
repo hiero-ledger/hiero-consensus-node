@@ -56,7 +56,7 @@ public class AssessmentResult {
     private final Map<AccountID, Long> immutableInputHbarAdjustments;
     /* And for each "assessable change" that can be charged a custom fee, delegate to our
     fee assessor to update the balance changes with the custom fee. */
-    private final List<AssessedFeeWithMultiPayerDeltas> assessedCustomFeesAndMultiPayerDeltas;
+    private final List<AssessedFeeWithPayerDebits> assessedFeesWithPayerDebits;
 
     /**
      * Constructs an AssessmentResult object with the input token transfers and hbar transfers
@@ -79,7 +79,7 @@ public class AssessmentResult {
         htsAdjustments = new LinkedHashMap<>();
         hbarAdjustments = new LinkedHashMap<>();
         royaltiesPaid = new LinkedHashSet<>();
-        assessedCustomFeesAndMultiPayerDeltas = new ArrayList<>();
+        assessedFeesWithPayerDebits = new ArrayList<>();
     }
 
     /**
@@ -118,28 +118,30 @@ public class AssessmentResult {
      * Returns the assessed custom fees.
      * @return the assessed custom fees
      */
-    public List<AssessedFeeWithMultiPayerDeltas> getAssessedCustomFeesAndMultiPayerDeltas() {
-        return assessedCustomFeesAndMultiPayerDeltas;
+    public List<AssessedFeeWithPayerDebits> getAssessedFeesWithPayerDebits() {
+        return assessedFeesWithPayerDebits;
     }
 
     /**
      * Adds an assessed custom fee.
      *
      * @param assessedCustomFee the assessed custom fee
+     * @param multiPayerDeltas the adjustments to the assessed fee's payer in a multi-payer fractional fee scenario
      */
-    public void addAssessedCustomFeeWithMultiPayerDeltas(
-            final AssessedCustomFee assessedCustomFee, final Map<AccountID, Long> multiPayerDeltas) {
-        assessedCustomFeesAndMultiPayerDeltas.add(
-                new AssessedFeeWithMultiPayerDeltas(assessedCustomFee, multiPayerDeltas));
+    public void addAssessedFeeWithPayerDebits(
+            @NonNull final AssessedCustomFee assessedCustomFee,
+            @NonNull final Map<AccountID, Long> multiPayerDeltas) {
+        assessedFeesWithPayerDebits.add(
+                new AssessedFeeWithPayerDebits(assessedCustomFee, multiPayerDeltas));
     }
 
     /**
-     * Adds an assessed custom fee. MultiPayerDeltas will be null, since it is applicable only for fractional fees.
+     * Adds an assessed custom fee. Payer debits will be null, since it is applicable only for fractional fees.
      *
      * @param assessedCustomFee the assessed custom fee
      */
-    public void addAssessedCustomFee(final AssessedCustomFee assessedCustomFee) {
-        assessedCustomFeesAndMultiPayerDeltas.add(new AssessedFeeWithMultiPayerDeltas(assessedCustomFee, null));
+    public void addAssessedCustomFee(@NonNull final AssessedCustomFee assessedCustomFee) {
+        assessedFeesWithPayerDebits.add(new AssessedFeeWithPayerDebits(assessedCustomFee, null));
     }
 
     /**
@@ -165,12 +167,6 @@ public class AssessmentResult {
     public Map<AccountID, Long> getImmutableInputHbarAdjustments() {
         return immutableInputHbarAdjustments;
     }
-
-    //    public void addMultiPayerNonNetPayerDeltas(final TokenID token, final Map<AccountID, Long> paidByPayer) {
-    //        final var m = aggregatedMultiPayerNonNetDeltas.computeIfAbsent(token, __ -> new LinkedHashMap<>());
-    //        // paidByPayer contains positive amounts reclaimed from each payer; store as NEGATIVE debits.
-    //        paidByPayer.forEach((payer, amt) -> m.merge(payer, -Math.abs(amt), Math::addExact));
-    //    }
 
     /**
      * Builds a map of fungible token transfers from the given {@link TokenTransferList}.

@@ -134,9 +134,9 @@ class CustomFeeAssessmentStepTest extends StepsBase {
         final var listOfOps = subject.assessCustomFees(transferContext);
         assertThat(listOfOps).hasSize(1);
         assertThat(listOfOps.get(0)).isEqualTo(body);
-        assertThat(transferContext.getAssessedFeeWithMultiPayerDeltas().size()).isEqualTo(1);
+        assertThat(transferContext.getAssessedCustomFees().size()).isEqualTo(1);
         assertThat(transferContext
-                        .getAssessedFeeWithMultiPayerDeltas()
+                        .getAssessedCustomFees()
                         .getFirst()
                         .amount())
                 .isEqualTo(amount);

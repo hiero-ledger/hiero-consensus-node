@@ -17,7 +17,7 @@ import com.hedera.hapi.node.base.TransferList;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.node.app.service.token.ReadableAccountStore;
-import com.hedera.node.app.service.token.impl.handlers.transfer.customfees.AssessedFeeWithMultiPayerDeltas;
+import com.hedera.node.app.service.token.impl.handlers.transfer.customfees.AssessedFeeWithPayerDebits;
 import com.hedera.node.app.service.token.impl.handlers.transfer.customfees.AssessmentResult;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -42,46 +42,70 @@ public class HookCallFactory {
 
     @Inject
     public HookCallFactory() {}
-
+    /**
+     * Creates {@link HookCalls} for a CryptoTransfer transaction, including both direct transfers and
+     * custom fee transfers, along with any pre-transaction and pre-post-transaction hook invocations.
+     *
+     * @param handleContext the transaction context
+     * @param userTxn the user transaction body
+     * @param assessedFeeWithPayerDebits the list of assessed fees with multi-payer deltas
+     * @return the created {@link HookCalls}
+     */
     public HookCalls from(
-            HandleContext handleContext,
+            @NonNull final HandleContext handleContext,
             CryptoTransferTransactionBody userTxn,
-            List<AssessedFeeWithMultiPayerDeltas> assessedFeeWithMultiPayerDeltas) {
+            List<AssessedFeeWithPayerDebits> assessedFeeWithPayerDebits) {
         final var accountStore = handleContext.storeFactory().readableStore(ReadableAccountStore.class);
         final var memo = handleContext.body().memo();
         final var txnFee = handleContext.body().transactionFee();
-        return getProposedTransfers(userTxn, accountStore, memo, txnFee, assessedFeeWithMultiPayerDeltas);
+        return getProposedTransfers(userTxn, accountStore, memo, txnFee, assessedFeeWithPayerDebits);
     }
-
+    /**
+     * Encodes the proposed transfers from the user transaction and assessed fees into tuples,
+     * collecting any hook invocations along the way.
+     *
+     * @param userTxn the user transaction body
+     * @param accountStore the account store for resolving account information
+     * @param memo the transaction memo
+     * @param txnFee the transaction fee
+     * @param assessedFeeWithPayerDebits the list of assessed fees with multi-payer debits
+     * @return the created {@link HookCalls}
+     */
     private HookCalls getProposedTransfers(
             final CryptoTransferTransactionBody userTxn,
             final ReadableAccountStore accountStore,
             final String memo,
             final long txnFee,
-            final List<AssessedFeeWithMultiPayerDeltas> assessedFeeWithMultiPayerDeltas) {
+            final List<AssessedFeeWithPayerDebits> assessedFeeWithPayerDebits) {
         final var preOnly = new ArrayList<HookInvocation>();
         final var prePost = new ArrayList<HookInvocation>();
-
+        // Encode direct transfers
         final var directTransfers = encodeTransfers(
                 userTxn.transfersOrElse(TransferList.DEFAULT),
                 userTxn.tokenTransfers(),
                 accountStore,
                 preOnly,
                 prePost);
-
-        final var customFeeTransfers = encodeCustomFees(accountStore, assessedFeeWithMultiPayerDeltas);
+        // Encode custom fee transfers
+        final var customFeeTransfers = encodeCustomFees(accountStore, assessedFeeWithPayerDebits);
         return new HookCalls(
                 new HookContext(Tuple.of(directTransfers, customFeeTransfers), memo, txnFee), preOnly, prePost);
     }
-
+    /**
+     * Encodes the custom fee transfers into tuples, aggregating amounts per account and token.
+     *
+     * @param accountStore the account store for resolving account information
+     * @param assessedFeeWithPayerDebits the list of assessed fees with multi-payer deltas
+     * @return a tuple containing the encoded HBAR transfers and token transfers
+     */
     private Tuple encodeCustomFees(
             final ReadableAccountStore accountStore,
-            final List<AssessedFeeWithMultiPayerDeltas> assessedFeeWithMultiPayerDeltas) {
-        if (assessedFeeWithMultiPayerDeltas.isEmpty()) {
+            final List<AssessedFeeWithPayerDebits> assessedFeeWithPayerDebits) {
+        if (assessedFeeWithPayerDebits.isEmpty()) {
             return Tuple.of(new Tuple[] {}, new Tuple[] {});
         }
         final Map<TokenID, Map<AccountID, Long>> deltas = new LinkedHashMap<>();
-        for (final var assessedFee : assessedFeeWithMultiPayerDeltas) {
+        for (final var assessedFee : assessedFeeWithPayerDebits) {
             final var fee = assessedFee.assessedCustomFee();
             final var token = fee.hasTokenId() ? fee.tokenIdOrThrow() : AssessmentResult.HBAR_TOKEN_ID;
             final var map = deltas.computeIfAbsent(token, t -> new LinkedHashMap<>());
@@ -119,7 +143,13 @@ public class HookCallFactory {
         // Reuse the normal encoder; used empty hook collector as custom fees don't introduce new hooks
         return encodeTransfers(hbarTransfers, tokenTransfers, accountStore, List.of(), List.of());
     }
-
+    /**
+     * Converts a map of AccountID to Long amounts into a list of AccountAmount,
+     * filtering out any entries with a zero amount.
+     *
+     * @param map the map of AccountID to Long amounts
+     * @return the list of AccountAmount
+     */
     private static List<AccountAmount> toAccountAmounts(final Map<AccountID, Long> map) {
         final var out = new ArrayList<AccountAmount>(map.size());
         for (final var e : map.entrySet()) {
