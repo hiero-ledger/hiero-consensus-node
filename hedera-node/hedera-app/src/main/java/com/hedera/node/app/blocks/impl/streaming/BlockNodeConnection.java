@@ -236,7 +236,11 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
             if (connectionState.compareAndSet(expectedCurrentState, newState)) {
                 logWithContext(DEBUG, "Connection state transitioned from {} to {}.", expectedCurrentState, newState);
             } else {
-                logWithContext(DEBUG, "Failed to transition state from {} to {} because current state does not match expected state.", expectedCurrentState, newState);
+                logWithContext(
+                        DEBUG,
+                        "Failed to transition state from {} to {} because current state does not match expected state.",
+                        expectedCurrentState,
+                        newState);
                 return false;
             }
         } else {
@@ -559,7 +563,8 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
         if (getConnectionState() == ConnectionState.ACTIVE && pipeline != null) {
             try {
                 if (logger.isDebugEnabled()) {
-                    logWithContext(DEBUG,
+                    logWithContext(
+                            DEBUG,
                             "Sending request to block node (type={}).",
                             request.request().kind());
                 } else if (logger.isTraceEnabled()) {

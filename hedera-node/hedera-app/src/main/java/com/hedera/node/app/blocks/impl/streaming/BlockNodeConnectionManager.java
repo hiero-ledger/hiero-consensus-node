@@ -427,7 +427,8 @@ public class BlockNodeConnectionManager {
             retryState.increment();
         }
 
-        logWithContext(DEBUG,
+        logWithContext(
+                DEBUG,
                 "Apply exponential backoff and reschedule in {} ms (attempt={}).",
                 connection,
                 delayMs,
@@ -1078,7 +1079,7 @@ public class BlockNodeConnectionManager {
                         DEBUG,
                         "Rescheduled connection attempt (delayMillis={}, backoff={}).",
                         jitteredDelayMs,
-                        currentBackoffDelay);
+                        currentBackoffDelayMs);
             } catch (final Exception e) {
                 logWithContext(DEBUG, "Failed to reschedule connection attempt. Removing from retry map.", e);
                 // If rescheduling fails, close the connection and remove it from the connection map. A periodic task

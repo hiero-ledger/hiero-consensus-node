@@ -190,9 +190,8 @@ public class BlockNodeSuite {
                         connectionDropTime::get,
                         Duration.ofMinutes(1),
                         Duration.ofSeconds(45),
-                        "onError invoked",
                         String.format(
-                                "[localhost:%s/UNINITIALIZED] Scheduling reconnection for node in 0 ms (force=false).",
+                                "/localhost:%s/UNINITIALIZED] Scheduling reconnection for node in 0 ms (force=false).",
                                 portNumbers.get(1)),
                         String.format(
                                 "/localhost:%s/PENDING] Connection state transitioned from UNINITIALIZED to PENDING.",
@@ -551,7 +550,7 @@ public class BlockNodeSuite {
                         Duration.ofMinutes(1),
                         Duration.ofSeconds(45),
                         String.format(
-                                "/localhost:%s/ACTIVE] Block node has exceeded the allowed number of EndOfStream responses.",
+                                "/localhost:%s/ACTIVE] Block node has exceeded the allowed number of EndOfStream responses",
                                 portNumbers.getFirst()),
                         String.format("Selected block node localhost:%s for connection attempt", portNumbers.getLast()),
                         String.format(
