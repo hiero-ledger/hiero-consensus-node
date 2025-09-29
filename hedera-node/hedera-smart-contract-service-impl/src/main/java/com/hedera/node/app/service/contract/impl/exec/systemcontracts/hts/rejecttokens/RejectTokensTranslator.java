@@ -21,7 +21,7 @@ import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethod
 import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
 import com.hedera.node.config.data.ContractsConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.HashMap;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Optional;
@@ -45,7 +45,7 @@ public class RejectTokensTranslator extends AbstractCallTranslator<HtsCallAttemp
             .withCategories(Category.REJECT);
 
     private final RejectTokensDecoder decoder;
-    private final Map<Function, DispatchGasCalculator> gasCalculators = new HashMap<>();
+    private final Map<Function, DispatchGasCalculator> gasCalculators = new ConcurrentHashMap<>();
 
     @Inject
     public RejectTokensTranslator(

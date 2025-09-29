@@ -5,7 +5,7 @@ import static java.util.Objects.requireNonNull;
 
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.HashMap;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.Map;
 import javax.inject.Singleton;
 
@@ -16,7 +16,7 @@ import javax.inject.Singleton;
  */
 @Singleton
 public class PrecompileOpsDurationMetric {
-    private final Map<String, CountAccumulateAverageMetricTriplet> precompileOpsDurations = new HashMap<>();
+    private final Map<String, CountAccumulateAverageMetricTriplet> precompileOpsDurations = new ConcurrentHashMap<>();
     private final Metrics metrics;
 
     public PrecompileOpsDurationMetric(@NonNull final Metrics metrics) {
