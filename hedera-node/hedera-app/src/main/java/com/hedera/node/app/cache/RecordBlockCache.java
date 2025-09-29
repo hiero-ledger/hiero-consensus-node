@@ -6,6 +6,9 @@ import static com.hedera.node.app.blocks.impl.streaming.FileBlockItemWriter.COMP
 import static com.hedera.node.app.blocks.impl.streaming.FileBlockItemWriter.longToFileName;
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.bucky.S3Client;
+import com.hedera.bucky.S3ClientInitializationException;
+import com.hedera.bucky.S3ResponseException;
 import com.hedera.hapi.block.stream.Block;
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.node.base.SemanticVersion;
@@ -19,9 +22,6 @@ import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.S3IssConfig;
 import com.hedera.node.config.types.StreamMode;
-import com.swirlds.common.s3.S3Client;
-import com.swirlds.common.s3.S3ClientInitializationException;
-import com.swirlds.common.s3.S3ResponseException;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;

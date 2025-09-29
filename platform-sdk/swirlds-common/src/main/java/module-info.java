@@ -92,8 +92,6 @@ module com.swirlds.common {
     opens com.swirlds.common.units to
             com.fasterxml.jackson.databind;
 
-    exports com.swirlds.common.s3;
-
     requires transitive com.swirlds.base;
     requires transitive com.swirlds.config.api;
     requires transitive com.swirlds.metrics.api;
@@ -109,7 +107,6 @@ module com.swirlds.common {
     requires com.hedera.pbj.runtime;
     requires com.swirlds.logging;
     requires java.desktop;
-    requires java.net.http;
     requires jdk.httpserver;
     requires jdk.management;
     requires org.apache.logging.log4j.core;
