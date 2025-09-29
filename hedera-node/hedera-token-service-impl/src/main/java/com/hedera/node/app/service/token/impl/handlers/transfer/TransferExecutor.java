@@ -70,6 +70,7 @@ public class TransferExecutor extends BaseTokenHandler {
 
     /**
      * Pre-handle for crypto transfer transaction.
+     *
      * @param context handle context
      * @param op transaction body
      * @throws PreCheckException if any error occurs during the process
@@ -180,19 +181,10 @@ public class TransferExecutor extends BaseTokenHandler {
         }
 
         for (final var t : txns) {
-            steps.add(new AssociateTokenRecipientsStep(t));
-
-            final var assessHbarTransfers = new AdjustHbarChangesStep(t, topLevelPayer);
-            steps.add(assessHbarTransfers);
-            final var assessFungibleTokenTransfers =
-                    new AdjustFungibleTokenChangesStep(t.tokenTransfers(), topLevelPayer);
-            steps.add(assessFungibleTokenTransfers);
-
-            final var changeNftOwners = new NFTOwnersChangeStep(t.tokenTransfers(), topLevelPayer);
-            steps.add(changeNftOwners);
-        }
-        for (final var step : steps) {
-            step.doIn(transferContext);
+            new AssociateTokenRecipientsStep(t).doIn(transferContext);
+            new AdjustHbarChangesStep(t, topLevelPayer).doIn(transferContext);
+            new AdjustFungibleTokenChangesStep(t.tokenTransfers(), topLevelPayer).doIn(transferContext);
+            new NFTOwnersChangeStep(t.tokenTransfers(), topLevelPayer).doIn(transferContext);
         }
         if (hasHooks) {
             // Dispatch post hook calls
@@ -319,6 +311,7 @@ public class TransferExecutor extends BaseTokenHandler {
         final var ensureAliasExistence = new EnsureAliasesStep(op);
         ensureAliasExistence.doIn(transferContext);
     }
+
     /**
      * Dispatches hook calls to HookDispatchHandler by creating HookExecution messages.
      *
@@ -361,13 +354,13 @@ public class TransferExecutor extends BaseTokenHandler {
     /**
      * As part of pre-handle, checks that HBAR or fungible token transfers in the transfer list are plausible.
      *
-     * @param transfers                The transfers to check
-     * @param ctx                      The context we gather signing keys into
-     * @param accountStore             The account store to use to look up accounts
-     * @param hbarTransfer             Whether this is a hbar transfer. When HIP-583 is implemented, we can remove
-     *                                 this argument.
+     * @param transfers The transfers to check
+     * @param ctx The context we gather signing keys into
+     * @param accountStore The account store to use to look up accounts
+     * @param hbarTransfer Whether this is a hbar transfer. When HIP-583 is implemented, we can remove
+     * this argument.
      * @param receiverKeyCheck Since in airdrops receiver key is optional to sign the transaction, add it to
-     *                         optional keys
+     * optional keys
      * @throws PreCheckException If the transaction is invalid
      */
     private void checkFungibleTokenTransfers(

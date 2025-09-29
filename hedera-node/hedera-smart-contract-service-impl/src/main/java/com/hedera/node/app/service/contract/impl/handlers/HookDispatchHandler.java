@@ -5,6 +5,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOKS_NOT_ENABLED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOK_ID_IN_USE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOK_NOT_FOUND;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_HOOK_ADMIN_KEY;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_HOOK_CALL;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK;
 import static com.hedera.node.app.service.contract.impl.utils.HookValidationUtils.validateHook;
@@ -44,8 +45,8 @@ public class HookDispatchHandler implements TransactionHandler {
         if (op.hasCreation()) {
             validateHook(op.creationOrThrow().details());
         } else if (op.hasExecution()) {
-            validateTrue(op.executionOrThrow().hasCall(), INVALID_TRANSACTION_BODY);
-            validateTrue(op.executionOrThrow().callOrThrow().hasHookId(), INVALID_TRANSACTION_BODY);
+            validateTrue(op.executionOrThrow().hasCall(), INVALID_HOOK_CALL);
+            validateTrue(op.executionOrThrow().callOrThrow().hasHookId(), INVALID_HOOK_CALL);
         }
     }
 

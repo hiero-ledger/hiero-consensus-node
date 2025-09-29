@@ -202,9 +202,12 @@ public class CustomFractionalFeeAssessorTest {
 
         assertThat(result.getAssessedFeesWithPayerDebits()).isNotEmpty();
         final var deltas = result.getAssessedFeesWithPayerDebits();
-        assertThat(deltas).contains(new AssessedFeeWithPayerDebits(expectedAssessedFee1, null));
-        assertThat(result.getAssessedFeesWithPayerDebits())
-                .contains(new AssessedFeeWithPayerDebits(expectedAssessedFee2, null));
+
+        final var assessedFees = deltas.stream()
+                .map(AssessedFeeWithPayerDebits::assessedCustomFee)
+                .toList();
+        assertThat(assessedFees).contains(expectedAssessedFee1);
+        assertThat(assessedFees).contains(expectedAssessedFee2);
 
         assertThat(result.getRoyaltiesPaid()).isEmpty();
     }
@@ -248,8 +251,10 @@ public class CustomFractionalFeeAssessorTest {
         // This is not Net of transfers fee, so it is not assessed
         verify(fixedFeeAssessor, never()).assessFixedFee(token, payer, fixedFee, result);
         assertThat(result.getAssessedFeesWithPayerDebits()).hasSize(1);
-        assertThat(result.getAssessedFeesWithPayerDebits())
-                .contains(new AssessedFeeWithPayerDebits(expectedAssessedFee1, null));
+        final var assessedFees = result.getAssessedFeesWithPayerDebits().stream()
+                .map(AssessedFeeWithPayerDebits::assessedCustomFee)
+                .toList();
+        assertThat(assessedFees).contains(expectedAssessedFee1);
 
         assertThat(result.getRoyaltiesPaid()).isEmpty();
     }
@@ -286,8 +291,10 @@ public class CustomFractionalFeeAssessorTest {
         // This is not Net of transfers fee, so it is not assessed
         verify(fixedFeeAssessor, never()).assessFixedFee(any(), any(), any(), any());
         assertThat(result.getAssessedFeesWithPayerDebits()).hasSize(1);
-        assertThat(result.getAssessedFeesWithPayerDebits())
-                .contains(new AssessedFeeWithPayerDebits(expectedAssessedFee1, null));
+        final var assessedFees = result.getAssessedFeesWithPayerDebits().stream()
+                .map(AssessedFeeWithPayerDebits::assessedCustomFee)
+                .toList();
+        assertThat(assessedFees).contains(expectedAssessedFee1);
 
         assertThat(result.getRoyaltiesPaid()).isEmpty();
     }
@@ -476,10 +483,12 @@ public class CustomFractionalFeeAssessorTest {
         verify(fixedFeeAssessor, never()).assessFixedFee(any(), any(), any(), any());
 
         assertThat(result.getAssessedFeesWithPayerDebits()).isNotEmpty();
-        assertThat(result.getAssessedFeesWithPayerDebits())
-                .contains(new AssessedFeeWithPayerDebits(expectedAssessedFee1, null));
-        assertThat(result.getAssessedFeesWithPayerDebits())
-                .contains(new AssessedFeeWithPayerDebits(expectedAssessedFee2, null));
+
+        final var assessedFees = result.getAssessedFeesWithPayerDebits().stream()
+                .map(AssessedFeeWithPayerDebits::assessedCustomFee)
+                .toList();
+        assertThat(assessedFees).contains(expectedAssessedFee1);
+        assertThat(assessedFees).contains(expectedAssessedFee2);
 
         assertThat(result.getRoyaltiesPaid()).isEmpty();
     }

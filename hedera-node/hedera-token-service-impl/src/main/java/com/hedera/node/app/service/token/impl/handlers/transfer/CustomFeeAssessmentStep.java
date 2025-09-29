@@ -44,7 +44,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
-import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -99,7 +98,7 @@ public class CustomFeeAssessmentStep {
         final var result = assessFees(tokenStore, tokenRelStore, config, readableStore, AccountID::hasAlias);
         return result.assessedCustomFees().stream()
                 .map(AssessedFeeWithPayerDebits::assessedCustomFee)
-                .collect(Collectors.toList());
+                .toList();
     }
 
     /**

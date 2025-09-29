@@ -137,9 +137,6 @@ public class HookCallFactory {
                         .transfers(toAccountAmounts(en.getValue()))
                         .build())
                 .toList();
-
-        log.info("XXXX Proposed customFees: HBAR {}, Tokens {}", hbarTransfers, tokenTransfers);
-
         // Reuse the normal encoder; used empty hook collector as custom fees don't introduce new hooks
         return encodeTransfers(hbarTransfers, tokenTransfers, accountStore, List.of(), List.of());
     }

@@ -39,6 +39,7 @@ import com.hederahashgraph.api.proto.java.TransferList;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -540,9 +541,8 @@ public class HapiCryptoTransfer extends HapiBaseTransfer<HapiCryptoTransfer> {
     }
 
     /** Map every known AccountID form for each name to the same HookSpec. */
-    private static Map<com.hederahashgraph.api.proto.java.AccountID, HookSpec> resolveByAllForms(
-            final HapiSpec spec, final Map<String, HookSpec> byName) {
-        final var out = new java.util.HashMap<com.hederahashgraph.api.proto.java.AccountID, HookSpec>();
+    private static Map<AccountID, HookSpec> resolveByAllForms(final HapiSpec spec, final Map<String, HookSpec> byName) {
+        final var out = new HashMap<AccountID, HookSpec>();
         for (var e : byName.entrySet()) {
             final var name = e.getKey();
             final var hs = e.getValue();
@@ -736,7 +736,7 @@ public class HapiCryptoTransfer extends HapiBaseTransfer<HapiCryptoTransfer> {
         }
     }
 
-    private static final class HookSpec {
+    public static final class HookSpec {
         final long hookId;
         final long gasLimit;
         final ByteString data;

@@ -16,6 +16,7 @@ import com.hedera.services.bdd.spec.fees.FeeCalculator;
 import com.hedera.services.bdd.spec.queries.contract.HapiGetContractInfo;
 import com.hedera.services.bdd.spec.queries.crypto.HapiGetAccountInfo;
 import com.hedera.services.bdd.spec.transactions.HapiBaseTransfer;
+import com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer;
 import com.hedera.services.bdd.spec.utilops.CustomSpecAssert;
 import com.hederahashgraph.api.proto.java.AccountID;
 import com.hederahashgraph.api.proto.java.CryptoTransferTransactionBody;
@@ -41,6 +42,8 @@ public class HapiTokenAirdrop extends HapiBaseTransfer<HapiTokenAirdrop> {
 
     @Nullable
     private IntConsumer numTokenAssociationsCreated = null;
+
+    private HapiCryptoTransfer.HookSpec hookSpec = null;
 
     public HapiTokenAirdrop(final TokenMovement... sources) {
         this.tokenAwareProviders = List.of(sources);
@@ -77,9 +80,58 @@ public class HapiTokenAirdrop extends HapiBaseTransfer<HapiTokenAirdrop> {
                             final var xfers = transfersAllFor(spec);
                             for (final TokenTransferList scopedXfers : xfers) {
                                 b.addTokenTransfers(scopedXfers);
+                                injectAllowanceHooks(b, spec);
                             }
                         });
         return builder -> builder.setTokenAirdrop(opBody);
+    }
+
+    private void injectAllowanceHooks(final TokenAirdropTransactionBody.Builder b, final HapiSpec spec) {
+        final var fungibleResolved = resolveByAllForms(spec, fungibleHooksByAccount);
+        final var nftSenderResolved = resolveByAllForms(spec, nftSenderHooksByAccount);
+        final var nftReceiverResolved = resolveByAllForms(spec, nftReceiverHooksByAccount);
+
+        if (builder.hasTransfers() && !fungibleResolved.isEmpty()) {
+            final var tl = builder.getTransfers().toBuilder();
+            for (int i = 0, n = tl.getAccountAmountsCount(); i < n; i++) {
+                final var aaB = tl.getAccountAmountsBuilder(i);
+                final var specHook = fungibleResolved.get(aaB.getAccountID());
+                if (specHook != null) {
+                    applyHookToAccountAmount(aaB, specHook);
+                }
+            }
+            builder.setTransfers(tl);
+        }
+
+        for (int i = 0, t = builder.getTokenTransfersCount(); i < t; i++) {
+            final var ttlB = builder.getTokenTransfersBuilder(i);
+
+            // Fungible AA entries
+            if (!fungibleResolved.isEmpty()) {
+                for (int j = 0, m = ttlB.getTransfersCount(); j < m; j++) {
+                    final var aaB = ttlB.getTransfersBuilder(j);
+                    final var specHook = fungibleResolved.get(aaB.getAccountID());
+                    if (specHook != null) {
+                        applyHookToAccountAmount(aaB, specHook);
+                    }
+                }
+            }
+
+            // NFT sender/receiver entries
+            if (!nftSenderResolved.isEmpty() || !nftReceiverResolved.isEmpty()) {
+                for (int j = 0, m = ttlB.getNftTransfersCount(); j < m; j++) {
+                    final var nftB = ttlB.getNftTransfersBuilder(j);
+
+                    final var sHook = nftSenderResolved.get(nftB.getSenderAccountID());
+                    if (sHook != null) applyHookToNftSender(nftB, sHook);
+
+                    final var rHook = nftReceiverResolved.get(nftB.getReceiverAccountID());
+                    if (rHook != null) applyHookToNftReceiver(nftB, rHook);
+                }
+            }
+
+            builder.setTokenTransfers(i, ttlB);
+        }
     }
 
     public HapiTokenAirdrop airdropObserver(@Nullable final IntConsumer numAirdropsCreated) {
@@ -89,6 +141,11 @@ public class HapiTokenAirdrop extends HapiBaseTransfer<HapiTokenAirdrop> {
 
     public HapiTokenAirdrop tokenAssociationsObserver(@Nullable final IntConsumer numTokenAssociationsCreated) {
         this.numTokenAssociationsCreated = numTokenAssociationsCreated;
+        return this;
+    }
+
+    public HapiTokenAirdrop withHook(HapiCryptoTransfer.HookSpec hookSpec) {
+        this.hookSpec = hookSpec;
         return this;
     }
 

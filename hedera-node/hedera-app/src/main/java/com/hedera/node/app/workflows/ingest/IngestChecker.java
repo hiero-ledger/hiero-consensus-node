@@ -16,6 +16,7 @@ import static com.hedera.hapi.node.base.HederaFunctionality.SYSTEM_UNDELETE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.BUSY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CREATING_SYSTEM_ENTITIES;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.DUPLICATE_TRANSACTION;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOKS_ARE_NOT_SUPPORTED_IN_AIRDROPS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOKS_NOT_ENABLED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_NODE_ACCOUNT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_SIGNATURE;
@@ -423,6 +424,24 @@ public final class IngestChecker {
                                                 || nftTransfer.hasPreTxReceiverAllowanceHook()
                                                 || nftTransfer.hasPrePostTxReceiverAllowanceHook(),
                                         HOOKS_NOT_ENABLED);
+                            }
+                        }
+                    }
+                    case TOKEN_AIRDROP -> {
+                        final var op = txInfo.txBody().tokenAirdropOrThrow();
+                        for (final var tokenTransfers : op.tokenTransfers()) {
+                            for (final var adjust : tokenTransfers.transfers()) {
+                                validateFalsePreCheck(
+                                        adjust.hasPreTxAllowanceHook() || adjust.hasPrePostTxAllowanceHook(),
+                                        HOOKS_ARE_NOT_SUPPORTED_IN_AIRDROPS);
+                            }
+                            for (final var nftTransfer : tokenTransfers.nftTransfers()) {
+                                validateFalsePreCheck(
+                                        nftTransfer.hasPreTxSenderAllowanceHook()
+                                                || nftTransfer.hasPrePostTxSenderAllowanceHook()
+                                                || nftTransfer.hasPreTxReceiverAllowanceHook()
+                                                || nftTransfer.hasPrePostTxReceiverAllowanceHook(),
+                                        HOOKS_ARE_NOT_SUPPORTED_IN_AIRDROPS);
                             }
                         }
                     }
