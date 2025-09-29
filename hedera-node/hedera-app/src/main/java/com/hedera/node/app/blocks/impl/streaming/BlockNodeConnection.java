@@ -281,7 +281,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
      */
     private void closeAndReschedule(@Nullable final Duration delay, final boolean callOnComplete) {
         close(callOnComplete);
-        blockNodeConnectionManager.rescheduleConnection(this, delay, null);
+        blockNodeConnectionManager.rescheduleConnection(this, delay, null, true);
     }
 
     /**
@@ -293,7 +293,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
     private void endStreamAndReschedule(@NonNull final EndStream.Code code) {
         requireNonNull(code, "code must not be null");
         endTheStreamWith(code);
-        blockNodeConnectionManager.rescheduleConnection(this, BlockNodeConnection.THIRTY_SECONDS, null);
+        blockNodeConnectionManager.rescheduleConnection(this, BlockNodeConnection.THIRTY_SECONDS, null, true);
     }
 
     /**
@@ -304,7 +304,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
      */
     private void closeAndRestart(final long blockNumber) {
         close(true);
-        blockNodeConnectionManager.rescheduleConnection(this, null, blockNumber);
+        blockNodeConnectionManager.rescheduleConnection(this, null, blockNumber, false);
     }
 
     /**
@@ -312,7 +312,6 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
      * notifying the connection manager and calling onComplete on the request pipeline.
      */
     public void handleStreamFailure() {
-        logger.debug("[{}] handleStreamFailure", this);
         closeAndReschedule(THIRTY_SECONDS, true);
     }
 
@@ -321,7 +320,6 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
      * notifying the connection manager without calling onComplete on the request pipeline.
      */
     public void handleStreamFailureWithoutOnComplete() {
-        logger.debug("[{}] handleStreamFailureWithoutOnComplete", this);
         closeAndReschedule(THIRTY_SECONDS, false);
     }
 
