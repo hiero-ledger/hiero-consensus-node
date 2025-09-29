@@ -173,13 +173,22 @@ public class SignedStateFilePath {
     public List<SavedStateInfo> getSavedStateFiles(
             final String mainClassName, final NodeId platformId, final String swirldName) {
 
+        final Path dir = getSignedStatesDirectoryForSwirld(mainClassName, platformId, swirldName);
+
+        return getSavedStateFiles(dir);
+    }
+
+    /**
+     * Looks for saved state files locally and returns a list of them sorted from newest to oldest
+     *
+     * @param dir the path for reading
+     * @return Information about saved states on disk, or null if none are found
+     */
+    public static List<SavedStateInfo> getSavedStateFiles(final Path dir) {
+        if (!exists(dir) || !isDirectory(dir)) {
+            return List.of();
+        }
         try {
-            final Path dir = getSignedStatesDirectoryForSwirld(mainClassName, platformId, swirldName);
-
-            if (!exists(dir) || !isDirectory(dir)) {
-                return List.of();
-            }
-
             try (final Stream<Path> list = Files.list(dir)) {
 
                 final List<Path> dirs = list.filter(Files::isDirectory).toList();
