@@ -898,7 +898,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         verify(connectionManager).recordEndOfStreamAndCheckLimit(nodeConfig);
         verify(metrics).recordEndOfStreamLimitExceeded();
         verify(connectionManager).updateLastVerifiedBlock(nodeConfig, 10L);
-        verify(connectionManager).rescheduleConnection(connection, Duration.ofMinutes(5), null);
+        verify(connectionManager).rescheduleConnection(connection, Duration.ofMinutes(5), null, true);
         verify(requestPipeline).onComplete();
         verify(connectionManager).jumpToBlock(-1L);
         verify(metrics).recordConnectionClosed();
@@ -922,7 +922,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         verify(connectionManager).updateLastVerifiedBlock(connection.getNodeConfig(), Long.MAX_VALUE);
         verify(requestPipeline).onComplete();
         verify(connectionManager).jumpToBlock(-1L);
-        verify(connectionManager).rescheduleConnection(connection, null, 0L);
+        verify(connectionManager).rescheduleConnection(connection, null, 0L, false);
         verify(metrics).recordConnectionClosed();
         verifyNoMoreInteractions(metrics);
         verifyNoMoreInteractions(requestPipeline);
@@ -945,7 +945,8 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         verify(requestPipeline).onComplete();
         verify(connectionManager).updateLastVerifiedBlock(connection.getNodeConfig(), Long.MAX_VALUE);
         verify(connectionManager).jumpToBlock(-1L);
-        verify(connectionManager).rescheduleConnection(connection, null, 0L); // Should restart at 0 for MAX_VALUE
+        verify(connectionManager)
+                .rescheduleConnection(connection, null, 0L, false); // Should restart at 0 for MAX_VALUE
         verify(bufferService).getBlockState(0L);
         verify(metrics).recordConnectionClosed();
         verifyNoMoreInteractions(metrics);
@@ -964,7 +965,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         assertThat(postState).isEqualTo(ConnectionState.CLOSED);
 
         // Should not call onComplete on the pipeline
-        verify(connectionManager).rescheduleConnection(connection, Duration.ofSeconds(30), null);
+        verify(connectionManager).rescheduleConnection(connection, Duration.ofSeconds(30), null, true);
         verify(connectionManager).jumpToBlock(-1L);
         verifyNoInteractions(requestPipeline);
         verifyNoMoreInteractions(connectionManager);
@@ -996,7 +997,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
 
         verify(metrics).recordConnectionOnError();
         verify(connectionManager).jumpToBlock(-1L);
-        verify(connectionManager).rescheduleConnection(connection, Duration.ofSeconds(30), null);
+        verify(connectionManager).rescheduleConnection(connection, Duration.ofSeconds(30), null, true);
         // Should call onComplete when callOnComplete=true (from handleStreamFailure)
         verify(requestPipeline).onComplete();
         verify(metrics).recordConnectionClosed();
@@ -1018,7 +1019,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
 
         verify(metrics).recordConnectionOnError();
         verify(connectionManager).jumpToBlock(-1L);
-        verify(connectionManager).rescheduleConnection(connection, Duration.ofSeconds(30), null);
+        verify(connectionManager).rescheduleConnection(connection, Duration.ofSeconds(30), null, true);
         verify(metrics).recordConnectionClosed();
 
         verifyNoMoreInteractions(metrics);
