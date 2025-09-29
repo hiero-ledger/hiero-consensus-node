@@ -18,7 +18,7 @@ import org.hiero.consensus.model.hashgraph.Round;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 import org.hiero.consensus.model.transaction.Transaction;
 import org.hiero.otter.fixtures.app.OtterService;
-import org.hiero.otter.fixtures.app.state.model.ConsistencyState;
+import org.hiero.otter.fixtures.app.model.ConsistencyState;
 
 /**
  * A service that ensures the consistency of rounds and transactions sent by the platform to the execution layer for

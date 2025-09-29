@@ -8,7 +8,7 @@ import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.lifecycle.StateDefinition;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Set;
-import org.hiero.otter.fixtures.app.state.model.ConsistencyState;
+import org.hiero.otter.fixtures.app.model.ConsistencyState;
 
 /**
  * Genesis schema for the Consistency service
