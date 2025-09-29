@@ -2,6 +2,7 @@
 package org.hiero.consensus.otter.docker.app.platform;
 
 import static com.swirlds.common.threading.manager.AdHocThreadManager.getStaticThreadManager;
+import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.getMetricsProvider;
 import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.initLogging;
 import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.setupGlobalMetrics;
@@ -56,6 +57,9 @@ public class ConsensusNodeManager {
 
     private static final Logger log = LogManager.getLogger(ConsensusNodeManager.class);
 
+    /** The instance of the Otter application used by this consensus node manager. */
+    private final OtterApp otterApp;
+
     /** The instance of the platform this consensus node manager runs. */
     private final Platform platform;
 
@@ -104,7 +108,7 @@ public class ConsensusNodeManager {
         final Metrics metrics = getMetricsProvider().createPlatformMetrics(legacySelfId);
         final PlatformStateFacade platformStateFacade = new PlatformStateFacade();
 
-        log.info("Creating node {} with version {}", selfId, version);
+        log.info(STARTUP.getMarker(), "Creating node {} with version {}", selfId, version);
 
         final Time time = Time.getCurrent();
         final FileSystemManager fileSystemManager = FileSystemManager.create(platformConfig);
@@ -114,10 +118,13 @@ public class ConsensusNodeManager {
         final PlatformContext platformContext = PlatformContext.create(
                 platformConfig, Time.getCurrent(), metrics, fileSystemManager, recycleBin, merkleCryptography);
 
+        otterApp = new OtterApp(version);
+
         final HashedReservedSignedState reservedState = loadInitialState(
                 recycleBin,
                 version,
-                () -> OtterAppState.createGenesisState(platformConfig, genesisRoster, metrics, version),
+                () -> OtterAppState.createGenesisState(
+                        platformConfig, genesisRoster, metrics, version, otterApp.allServices()),
                 OtterApp.APP_NAME,
                 OtterApp.SWIRLD_NAME,
                 legacySelfId,
@@ -125,8 +132,8 @@ public class ConsensusNodeManager {
                 platformContext,
                 OtterAppState::new);
         final ReservedSignedState initialState = reservedState.state();
-
         final MerkleNodeState state = initialState.get().getState();
+
         final RosterHistory rosterHistory = RosterUtils.createRosterHistory(state);
         executionCallback = new OtterExecutionLayer(metrics);
         final PlatformBuilder builder = PlatformBuilder.create(
@@ -134,7 +141,7 @@ public class ConsensusNodeManager {
                         OtterApp.SWIRLD_NAME,
                         version,
                         initialState,
-                        OtterApp.INSTANCE,
+                        otterApp,
                         legacySelfId,
                         selfId.toString(),
                         rosterHistory,
@@ -169,7 +176,7 @@ public class ConsensusNodeManager {
      * Starts the consensus node. Once complete, transactions can be submitted.
      */
     public void start() {
-        log.info("Starting node");
+        log.info(STARTUP.getMarker(), "Starting node");
         platform.start();
     }
 
@@ -231,6 +238,6 @@ public class ConsensusNodeManager {
         if (millisToSleepPerRound < 0) {
             throw new IllegalArgumentException("millisToSleepPerRound must be non-negative");
         }
-        OtterApp.INSTANCE.updateSyntheticBottleneck(millisToSleepPerRound);
+        otterApp.updateSyntheticBottleneck(millisToSleepPerRound);
     }
 }
