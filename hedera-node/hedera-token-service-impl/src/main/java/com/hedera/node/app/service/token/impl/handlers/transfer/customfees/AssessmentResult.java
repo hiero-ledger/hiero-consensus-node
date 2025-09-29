@@ -129,10 +129,8 @@ public class AssessmentResult {
      * @param multiPayerDeltas the adjustments to the assessed fee's payer in a multi-payer fractional fee scenario
      */
     public void addAssessedFeeWithPayerDebits(
-            @NonNull final AssessedCustomFee assessedCustomFee,
-            @NonNull final Map<AccountID, Long> multiPayerDeltas) {
-        assessedFeesWithPayerDebits.add(
-                new AssessedFeeWithPayerDebits(assessedCustomFee, multiPayerDeltas));
+            @NonNull final AssessedCustomFee assessedCustomFee, @NonNull final Map<AccountID, Long> multiPayerDeltas) {
+        assessedFeesWithPayerDebits.add(new AssessedFeeWithPayerDebits(assessedCustomFee, multiPayerDeltas));
     }
 
     /**

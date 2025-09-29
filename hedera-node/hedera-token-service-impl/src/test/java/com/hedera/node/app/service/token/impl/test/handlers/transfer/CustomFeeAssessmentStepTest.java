@@ -135,11 +135,7 @@ class CustomFeeAssessmentStepTest extends StepsBase {
         assertThat(listOfOps).hasSize(1);
         assertThat(listOfOps.get(0)).isEqualTo(body);
         assertThat(transferContext.getAssessedCustomFees().size()).isEqualTo(1);
-        assertThat(transferContext
-                        .getAssessedCustomFees()
-                        .getFirst()
-                        .amount())
-                .isEqualTo(amount);
+        assertThat(transferContext.getAssessedCustomFees().getFirst().amount()).isEqualTo(amount);
     }
 
     @Test

@@ -107,10 +107,7 @@ public class AdjustFungibleTokenChangesStep extends BaseTokenHandler implements 
 
         modifyAggregatedAllowances(allowanceTransfers, accountStore, transferContext);
         modifyAggregatedTokenBalances(
-                aggregatedFungibleTokenChanges,
-                tokenRelStore,
-                accountStore,
-                transferContext.getAssessedCustomFees());
+                aggregatedFungibleTokenChanges, tokenRelStore, accountStore, transferContext.getAssessedCustomFees());
     }
 
     /**

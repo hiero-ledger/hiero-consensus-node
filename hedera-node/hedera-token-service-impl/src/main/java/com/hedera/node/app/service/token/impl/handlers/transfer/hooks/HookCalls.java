@@ -2,7 +2,6 @@
 package com.hedera.node.app.service.token.impl.handlers.transfer.hooks;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
-
 import java.util.List;
 
 /**
