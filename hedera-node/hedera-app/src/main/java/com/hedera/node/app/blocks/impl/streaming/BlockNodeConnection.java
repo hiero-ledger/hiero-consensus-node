@@ -541,6 +541,12 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                         .latestBlockNumber(highestAckedBlockNumber))
                 .build();
 
+        logger.debug(
+                "[{}] Sending EndStream request with code {} (earliestBlockNumber={}, highestAckedBlockNumber={})",
+                this,
+                code,
+                earliestBlockNumber,
+                highestAckedBlockNumber);
         sendRequest(endStream);
         close(true);
     }
