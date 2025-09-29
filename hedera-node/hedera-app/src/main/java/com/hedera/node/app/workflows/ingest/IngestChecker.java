@@ -18,7 +18,6 @@ import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_AIRDROP;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.BUSY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CREATING_SYSTEM_ENTITIES;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.DUPLICATE_TRANSACTION;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOKS_ARE_NOT_SUPPORTED_IN_AIRDROPS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOKS_NOT_ENABLED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_NODE_ACCOUNT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_SIGNATURE;
@@ -38,6 +37,7 @@ import static org.hiero.consensus.model.status.PlatformStatus.ACTIVE;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.SignaturePair;
+import com.hedera.hapi.node.base.TokenTransferList;
 import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.base.TransferList;
 import com.hedera.hapi.node.state.token.Account;
@@ -414,59 +414,91 @@ public final class IngestChecker {
                                         && op.hookCreationDetails().isEmpty(),
                                 HOOKS_NOT_ENABLED);
                     }
-                    case CRYPTO_TRANSFER ->
-                        validateCryptoTransfer(txInfo.txBody().cryptoTransferOrThrow());
-                    case TOKEN_AIRDROP -> validateAirdrop(txInfo.txBody().tokenAirdropOrThrow());
+                    case CRYPTO_TRANSFER -> validateNoHooks(txInfo.txBody().cryptoTransferOrThrow());
+                    case TOKEN_AIRDROP -> validateNoHooks(txInfo.txBody().tokenAirdropOrThrow());
                     case SCHEDULE_CREATE -> {
                         final var op = txInfo.txBody().scheduleCreateOrThrow();
                         final var scheduledBody = op.scheduledTransactionBody();
-                        if (scheduledBody.hasCryptoTransfer()) {
-                            validateCryptoTransfer(scheduledBody.cryptoTransferOrThrow());
-                        }
-                        if (scheduledBody.hasTokenAirdrop()) {
-                            validateAirdrop(scheduledBody.tokenAirdropOrThrow());
+                        if (scheduledBody != null) {
+                            if (scheduledBody.hasCryptoCreateAccount()) {
+                                validateTruePreCheck(
+                                        scheduledBody
+                                                .cryptoCreateAccountOrThrow()
+                                                .hookCreationDetails()
+                                                .isEmpty(),
+                                        HOOKS_NOT_ENABLED);
+                            } else if (scheduledBody.hasContractCreateInstance()) {
+                                validateTruePreCheck(
+                                        scheduledBody
+                                                .contractCreateInstanceOrThrow()
+                                                .hookCreationDetails()
+                                                .isEmpty(),
+                                        HOOKS_NOT_ENABLED);
+                            } else if (scheduledBody.hasCryptoUpdateAccount()) {
+                                validateTruePreCheck(
+                                        scheduledBody
+                                                        .cryptoUpdateAccountOrThrow()
+                                                        .hookIdsToDelete()
+                                                        .isEmpty()
+                                                && scheduledBody
+                                                        .cryptoUpdateAccountOrThrow()
+                                                        .hookCreationDetails()
+                                                        .isEmpty(),
+                                        HOOKS_NOT_ENABLED);
+                            } else if (scheduledBody.hasContractUpdateInstance()) {
+                                validateTruePreCheck(
+                                        scheduledBody
+                                                        .contractUpdateInstanceOrThrow()
+                                                        .hookIdsToDelete()
+                                                        .isEmpty()
+                                                && scheduledBody
+                                                        .contractUpdateInstanceOrThrow()
+                                                        .hookCreationDetails()
+                                                        .isEmpty(),
+                                        HOOKS_NOT_ENABLED);
+                            } else if (scheduledBody.hasCryptoTransfer()) {
+                                validateNoHooks(scheduledBody.cryptoTransferOrThrow());
+                            } else if (scheduledBody.hasTokenAirdrop()) {
+                                validateNoHooks(scheduledBody.tokenAirdropOrThrow());
+                            }
                         }
                     }
                 }
             }
         }
     }
+
     /**
      * Validates that no allowance hooks are used in airdrops, as they are not supported.
      *
      * @param op the {@link TokenAirdropTransactionBody} to validate
      * @throws PreCheckException if any allowance hooks are used
      */
-    private static void validateAirdrop(final @NonNull TokenAirdropTransactionBody op) throws PreCheckException {
-        for (final var tokenTransfers : op.tokenTransfers()) {
-            for (final var adjust : tokenTransfers.transfers()) {
-                validateFalsePreCheck(
-                        adjust.hasPreTxAllowanceHook() || adjust.hasPrePostTxAllowanceHook(),
-                        HOOKS_ARE_NOT_SUPPORTED_IN_AIRDROPS);
-            }
-            for (final var nftTransfer : tokenTransfers.nftTransfers()) {
-                validateFalsePreCheck(
-                        nftTransfer.hasPreTxSenderAllowanceHook()
-                                || nftTransfer.hasPrePostTxSenderAllowanceHook()
-                                || nftTransfer.hasPreTxReceiverAllowanceHook()
-                                || nftTransfer.hasPrePostTxReceiverAllowanceHook(),
-                        HOOKS_ARE_NOT_SUPPORTED_IN_AIRDROPS);
-            }
-        }
+    private static void validateNoHooks(final @NonNull TokenAirdropTransactionBody op) throws PreCheckException {
+        validateNoHooks(op.tokenTransfers());
     }
+
     /**
      * Validates that no allowance hooks are used in crypto transfers, as they are not supported.
-     *
      * @param op the {@link CryptoTransferTransactionBody} to validate
      * @throws PreCheckException if any allowance hooks are used
      */
-    private static void validateCryptoTransfer(final @NonNull CryptoTransferTransactionBody op)
-            throws PreCheckException {
+    private static void validateNoHooks(final @NonNull CryptoTransferTransactionBody op) throws PreCheckException {
         for (final var adjust : op.transfersOrElse(TransferList.DEFAULT).accountAmounts()) {
             validateFalsePreCheck(
                     adjust.hasPreTxAllowanceHook() || adjust.hasPrePostTxAllowanceHook(), HOOKS_NOT_ENABLED);
         }
-        for (final var tokenTransfers : op.tokenTransfers()) {
+        validateNoHooks(op.tokenTransfers());
+    }
+
+    /**
+     * Validates that no allowance hooks are used in the given token transfers, as they are not supported.
+     * @param tokenTransferLists the token transfers to validate
+     * @throws PreCheckException if any allowance hooks are used
+     */
+    private static void validateNoHooks(@NonNull final List<TokenTransferList> tokenTransferLists)
+            throws PreCheckException {
+        for (final var tokenTransfers : tokenTransferLists) {
             for (final var adjust : tokenTransfers.transfers()) {
                 validateFalsePreCheck(
                         adjust.hasPreTxAllowanceHook() || adjust.hasPrePostTxAllowanceHook(), HOOKS_NOT_ENABLED);
