@@ -10,6 +10,7 @@ import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
@@ -192,11 +193,9 @@ public final class PcesUtilities {
      * @param configuration the configuration for this node
      * @param selfId          the ID of this node
      * @return the directory where event files are stored
-     * @throws IOException if an error occurs while creating the directory
      */
     @NonNull
-    public static Path getDatabaseDirectory(@NonNull final Configuration configuration, @NonNull final NodeId selfId)
-            throws IOException {
+    public static Path getDatabaseDirectory(@NonNull final Configuration configuration, @NonNull final NodeId selfId) {
 
         final StateCommonConfig stateConfig = configuration.getConfigData(StateCommonConfig.class);
         final PcesConfig preconsensusEventStreamConfig = configuration.getConfigData(PcesConfig.class);
@@ -207,7 +206,12 @@ public final class PcesUtilities {
                 .resolve(Long.toString(selfId.id()));
 
         if (!Files.exists(databaseDirectory)) {
-            Files.createDirectories(databaseDirectory);
+            try {
+
+                Files.createDirectories(databaseDirectory);
+            } catch (final IOException e) {
+                throw new UncheckedIOException(e);
+            }
         }
 
         return databaseDirectory;

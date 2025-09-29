@@ -95,7 +95,7 @@ class SignedStateFileReadWriteTest {
                 .setSoftwareVersion(platformVersion)
                 .build();
         final MerkleNodeState state = signedState.getState();
-        writeHashInfoFile(platformContext, testDirectory, state, stateFacade);
+        writeHashInfoFile(platformContext.getConfiguration(), testDirectory, state, stateFacade);
         final StateConfig stateConfig =
                 new TestConfigBuilder().getOrCreateConfig().getConfigData(StateConfig.class);
 

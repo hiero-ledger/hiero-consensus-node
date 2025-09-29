@@ -71,7 +71,7 @@ class PcesFileReaderTests {
                 .build()
                 .generate();
         final PlatformContext context = TestPlatformContexts.context(dataDir, fileSystemDirectory);
-        final PcesFileTracker fileTracker = PcesFileReader.readFilesFromDisk(
+        final PcesFileTracker fileTracker = PcesFileReader.readAndResolveEventFilesFromDisk(
                 context.getConfiguration(), context.getRecycleBin(), fileDirectory, 0, false);
 
         final List<PcesFile> expectedFiles = pcesFilesGeneratorResult.files();
@@ -97,7 +97,7 @@ class PcesFileReaderTests {
 
         final PlatformContext context = TestPlatformContexts.context(true, dataDir, fileSystemDirectory);
 
-        final PcesFileTracker fileTracker = PcesFileReader.readFilesFromDisk(
+        final PcesFileTracker fileTracker = PcesFileReader.readAndResolveEventFilesFromDisk(
                 context.getConfiguration(), context.getRecycleBin(), fileDirectory, 0, true);
         // Gaps are allowed. We should see all files except for the one that was skipped.
         assertIteratorEquality(expectedFiles.iterator(), fileTracker.getFileIterator(NO_LOWER_BOUND, 0));
@@ -116,7 +116,7 @@ class PcesFileReaderTests {
         // Gaps are not allowed.
         assertThrows(
                 IllegalStateException.class,
-                () -> PcesFileReader.readFilesFromDisk(
+                () -> PcesFileReader.readAndResolveEventFilesFromDisk(
                         platformContext.getConfiguration(), platformContext.getRecycleBin(), fileDirectory, 0, false));
     }
 
@@ -129,7 +129,7 @@ class PcesFileReaderTests {
         final List<PcesFile> expectedFiles = pcesFilesGeneratorResult.files();
 
         final PlatformContext context = TestPlatformContexts.context(dataDir, fileSystemDirectory);
-        final PcesFileTracker fileTracker = PcesFileReader.readFilesFromDisk(
+        final PcesFileTracker fileTracker = PcesFileReader.readAndResolveEventFilesFromDisk(
                 context.getConfiguration(), context.getRecycleBin(), fileDirectory, 0, false);
 
         // For this test, we want to iterate over files so that we are guaranteed to observe every event
@@ -181,7 +181,7 @@ class PcesFileReaderTests {
         final List<PcesFile> expectedFiles = pcesFilesGeneratorResult.files();
 
         final PlatformContext context = TestPlatformContexts.context(dataDir, fileSystemDirectory);
-        final PcesFileTracker fileTracker = PcesFileReader.readFilesFromDisk(
+        final PcesFileTracker fileTracker = PcesFileReader.readAndResolveEventFilesFromDisk(
                 context.getConfiguration(), context.getRecycleBin(), fileDirectory, 0, false);
 
         // For this test, we want to iterate over files so that we are guaranteed to observe every event
@@ -226,7 +226,7 @@ class PcesFileReaderTests {
         final List<PcesFile> expectedFiles = pcesFilesGeneratorResult.files();
 
         final PlatformContext context = TestPlatformContexts.context(dataDir, fileSystemDirectory);
-        final PcesFileTracker fileTracker = PcesFileReader.readFilesFromDisk(
+        final PcesFileTracker fileTracker = PcesFileReader.readAndResolveEventFilesFromDisk(
                 context.getConfiguration(), context.getRecycleBin(), fileDirectory, 0, false);
 
         // Request an ancient indicator higher than all files in the data store
@@ -242,7 +242,7 @@ class PcesFileReaderTests {
         final PlatformContext context = TestPlatformContexts.context(dataDir, fileSystemDirectory);
         assertThrows(
                 NoSuchFileException.class,
-                () -> PcesFileReader.readFilesFromDisk(
+                () -> PcesFileReader.readAndResolveEventFilesFromDisk(
                         context.getConfiguration(), context.getRecycleBin(), fileDirectory, 0, false));
     }
 
@@ -270,7 +270,7 @@ class PcesFileReaderTests {
         final PlatformContext platformContext =
                 TestPlatformContexts.context(false, recycleBinPath, dataDir, fileSystemDirectory);
         // Scenario 1: choose an origin that lands on the resultingUnbrokenOrigin exactly.
-        final PcesFileTracker fileTracker1 = PcesFileReader.readFilesFromDisk(
+        final PcesFileTracker fileTracker1 = PcesFileReader.readAndResolveEventFilesFromDisk(
                 platformContext.getConfiguration(),
                 platformContext.getRecycleBin(),
                 fileDirectory,
@@ -282,7 +282,7 @@ class PcesFileReaderTests {
 
         // Scenario 2: choose an origin that lands after the resultingUnbrokenOrigin.
         final long startingRound2 = pcesFilesGenerator.pointAfterUnbrokenOrigin();
-        final PcesFileTracker fileTracker2 = PcesFileReader.readFilesFromDisk(
+        final PcesFileTracker fileTracker2 = PcesFileReader.readAndResolveEventFilesFromDisk(
                 platformContext.getConfiguration(),
                 platformContext.getRecycleBin(),
                 fileDirectory,
@@ -296,7 +296,7 @@ class PcesFileReaderTests {
         // the files
         // after the origin to be deleted.
         final long startingRound3 = pcesFilesGenerator.pointBeforeUnbrokenOrigin();
-        final PcesFileTracker fileTracker3 = PcesFileReader.readFilesFromDisk(
+        final PcesFileTracker fileTracker3 = PcesFileReader.readAndResolveEventFilesFromDisk(
                 platformContext.getConfiguration(),
                 platformContext.getRecycleBin(),
                 fileDirectory,
@@ -314,7 +314,7 @@ class PcesFileReaderTests {
         // remaining
         // files to be deleted.
         final long startingRound4 = ORIGIN_RANGE.start() - 1;
-        final PcesFileTracker fileTracker4 = PcesFileReader.readFilesFromDisk(
+        final PcesFileTracker fileTracker4 = PcesFileReader.readAndResolveEventFilesFromDisk(
                 platformContext.getConfiguration(),
                 platformContext.getRecycleBin(),
                 fileDirectory,
@@ -351,7 +351,7 @@ class PcesFileReaderTests {
 
         // Scenario 1: choose an origin that lands on the resultingUnbrokenOrigin exactly.
         final long startingRound1 = pcesFilesGenerator.resultingUnbrokenOrigin();
-        final PcesFileTracker fileTracker1 = PcesFileReader.readFilesFromDisk(
+        final PcesFileTracker fileTracker1 = PcesFileReader.readAndResolveEventFilesFromDisk(
                 platformContext.getConfiguration(),
                 platformContext.getRecycleBin(),
                 fileDirectory,
@@ -363,7 +363,7 @@ class PcesFileReaderTests {
 
         // Scenario 2: choose an origin that lands after the resultingUnbrokenOrigin.
         final long startingRound2 = pcesFilesGenerator.pointAfterUnbrokenOrigin();
-        final PcesFileTracker fileTracker2 = PcesFileReader.readFilesFromDisk(
+        final PcesFileTracker fileTracker2 = PcesFileReader.readAndResolveEventFilesFromDisk(
                 platformContext.getConfiguration(),
                 platformContext.getRecycleBin(),
                 fileDirectory,
@@ -377,7 +377,7 @@ class PcesFileReaderTests {
         // the files
         // after the origin to be deleted.
         final long startingRound3 = pcesFilesGenerator.pointBeforeUnbrokenOrigin();
-        final PcesFileTracker fileTracker3 = PcesFileReader.readFilesFromDisk(
+        final PcesFileTracker fileTracker3 = PcesFileReader.readAndResolveEventFilesFromDisk(
                 platformContext.getConfiguration(),
                 platformContext.getRecycleBin(),
                 fileDirectory,
@@ -393,7 +393,7 @@ class PcesFileReaderTests {
         // remaining
         // files to be deleted.
         final long startingRound4 = ORIGIN_RANGE.start() - 1;
-        final PcesFileTracker fileTracker4 = PcesFileReader.readFilesFromDisk(
+        final PcesFileTracker fileTracker4 = PcesFileReader.readAndResolveEventFilesFromDisk(
                 platformContext.getConfiguration(),
                 platformContext.getRecycleBin(),
                 fileDirectory,
@@ -426,7 +426,7 @@ class PcesFileReaderTests {
                 TestPlatformContexts.context(false, recycleBinPath, dataDir, fileSystemDirectory);
         // Scenario 1: choose an origin that lands on the resultingUnbrokenOrigin exactly.
         final long startingRound1 = pcesFilesGenerator.resultingUnbrokenOrigin();
-        final PcesFileTracker fileTracker1 = PcesFileReader.readFilesFromDisk(
+        final PcesFileTracker fileTracker1 = PcesFileReader.readAndResolveEventFilesFromDisk(
                 platformContext.getConfiguration(),
                 platformContext.getRecycleBin(),
                 fileDirectory,
@@ -438,7 +438,7 @@ class PcesFileReaderTests {
 
         // Scenario 2: choose an origin that lands after the resultingUnbrokenOrigin.
         final long startingRound2 = pcesFilesGenerator.pointAfterUnbrokenOrigin();
-        final PcesFileTracker fileTracker2 = PcesFileReader.readFilesFromDisk(
+        final PcesFileTracker fileTracker2 = PcesFileReader.readAndResolveEventFilesFromDisk(
                 platformContext.getConfiguration(),
                 platformContext.getRecycleBin(),
                 fileDirectory,
@@ -452,7 +452,7 @@ class PcesFileReaderTests {
         // the files
         // after the origin to be deleted.
         final long startingRound3 = pcesFilesGenerator.pointBeforeUnbrokenOrigin();
-        final PcesFileTracker fileTracker3 = PcesFileReader.readFilesFromDisk(
+        final PcesFileTracker fileTracker3 = PcesFileReader.readAndResolveEventFilesFromDisk(
                 platformContext.getConfiguration(),
                 platformContext.getRecycleBin(),
                 fileDirectory,
@@ -470,7 +470,7 @@ class PcesFileReaderTests {
         // remaining
         // files to be deleted.
         final long startingRound4 = ORIGIN_RANGE.start() - 1;
-        final PcesFileTracker fileTracker4 = PcesFileReader.readFilesFromDisk(
+        final PcesFileTracker fileTracker4 = PcesFileReader.readAndResolveEventFilesFromDisk(
                 platformContext.getConfiguration(),
                 platformContext.getRecycleBin(),
                 fileDirectory,
@@ -504,7 +504,7 @@ class PcesFileReaderTests {
 
         // Scenario 1: choose an origin that lands on the resultingUnbrokenOrigin exactly.
         final long startingRound1 = pcesFilesGenerator.resultingUnbrokenOrigin();
-        final PcesFileTracker fileTracker1 = PcesFileReader.readFilesFromDisk(
+        final PcesFileTracker fileTracker1 = PcesFileReader.readAndResolveEventFilesFromDisk(
                 platformContext.getConfiguration(),
                 platformContext.getRecycleBin(),
                 fileDirectory,
@@ -516,7 +516,7 @@ class PcesFileReaderTests {
 
         // Scenario 2: choose an origin that lands after the resultingUnbrokenOrigin.
         final long startingRound2 = pcesFilesGenerator.pointAfterUnbrokenOrigin();
-        final PcesFileTracker fileTracker2 = PcesFileReader.readFilesFromDisk(
+        final PcesFileTracker fileTracker2 = PcesFileReader.readAndResolveEventFilesFromDisk(
                 platformContext.getConfiguration(),
                 platformContext.getRecycleBin(),
                 fileDirectory,
@@ -530,7 +530,7 @@ class PcesFileReaderTests {
         // the files
         // after the origin to be deleted.
         final long startingRound3 = pcesFilesGenerator.pointBeforeUnbrokenOrigin();
-        final PcesFileTracker fileTracker3 = PcesFileReader.readFilesFromDisk(
+        final PcesFileTracker fileTracker3 = PcesFileReader.readAndResolveEventFilesFromDisk(
                 platformContext.getConfiguration(),
                 platformContext.getRecycleBin(),
                 fileDirectory,
@@ -546,7 +546,7 @@ class PcesFileReaderTests {
         // remaining
         // files to be deleted.
         final long startingRound4 = ORIGIN_RANGE.start() - 1;
-        final PcesFileTracker fileTracker4 = PcesFileReader.readFilesFromDisk(
+        final PcesFileTracker fileTracker4 = PcesFileReader.readAndResolveEventFilesFromDisk(
                 platformContext.getConfiguration(),
                 platformContext.getRecycleBin(),
                 fileDirectory,

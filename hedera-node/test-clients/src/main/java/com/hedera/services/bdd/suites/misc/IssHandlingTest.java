@@ -94,15 +94,15 @@ class IssHandlingTest implements LifecycleTest {
                                     Map.of(
                                             "ledger.transfers.maxLen",
                                             "5",
-                                            "s3IssConfig.endpointUrl",
+                                            "s3Config.endpointUrl",
                                             endpoint,
-                                            "s3IssConfig.bucketName",
+                                            "s3Config.bucketName",
                                             MINIO_BUCKET_NAME,
-                                            "s3IssConfig.accessKey",
+                                            "s3Config.accessKey",
                                             MINIO_ROOT_USER,
-                                            "s3IssConfig.secretKey",
+                                            "s3Config.secretKey",
                                             MINIO_ROOT_PASSWORD,
-                                            "s3IssConfig.enabled",
+                                            "s3Config.enabled",
                                             "true"));
                         }))),
                 assertHgcaaLogContains(

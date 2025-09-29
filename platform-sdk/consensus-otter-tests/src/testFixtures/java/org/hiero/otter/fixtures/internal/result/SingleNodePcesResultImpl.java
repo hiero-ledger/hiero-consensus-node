@@ -52,7 +52,7 @@ public class SingleNodePcesResultImpl implements SingleNodePcesResult {
             @NonNull final Path pcesDirectory) {
         this.nodeId = requireNonNull(nodeId);
         try {
-            this.pcesFileTracker = PcesFileReader.readFilesFromDisk(
+            this.pcesFileTracker = PcesFileReader.readAndResolveEventFilesFromDisk(
                     configuration, new NoOpRecycleBin(), pcesDirectory, NO_LOWER_BOUND, true);
         } catch (final IOException e) {
             throw new UncheckedIOException("Error initializing SingleNodePcesResultImpl", e);
@@ -67,11 +67,7 @@ public class SingleNodePcesResultImpl implements SingleNodePcesResult {
      * @return the default PCES directory path
      */
     private static Path defaultPcesDirectory(final long nodeId, final Configuration configuration) {
-        try {
-            return getDatabaseDirectory(configuration, org.hiero.consensus.model.node.NodeId.of(nodeId));
-        } catch (final IOException e) {
-            throw new UncheckedIOException("Error resolving default PCES directory", e);
-        }
+        return getDatabaseDirectory(configuration, org.hiero.consensus.model.node.NodeId.of(nodeId));
     }
 
     /**

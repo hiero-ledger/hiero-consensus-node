@@ -656,10 +656,8 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
                 blockStreamManager().awaitFatalShutdown(SHUTDOWN_TIMEOUT);
 
                 // Upload the Record and Block files containing the ISS round
-                if (configProvider
-                        .getConfiguration()
-                        .getConfigData(S3IssConfig.class)
-                        .enabled()) {
+                final S3IssConfig s3Config = configProvider.getConfiguration().getConfigData(S3IssConfig.class);
+                if (s3Config.enabled()) {
                     logger.info("CATASTROPHIC_FAILURE - Uploading ISS context to S3");
                     daggerApp.recordBlockCache().uploadIssContextToS3();
                 }
