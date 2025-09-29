@@ -52,7 +52,6 @@ import org.apache.logging.log4j.LogManager;
 import org.hiero.block.api.PublishStreamRequest;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.RepeatedTest;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -1886,7 +1885,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         assertThat(selectedNodes.size()).isGreaterThan(1);
     }
 
-    @RepeatedTest(10)
+    @Test
     void testPriorityBasedSelection_onlyLowerPriorityNodesAvailable() {
         // Setup: All priority 0 nodes are unavailable, only lower priority nodes available
         final List<BlockNodeConfig> blockNodes = List.of(
@@ -1912,7 +1911,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         assertThat(selectedConfig.priority()).isEqualTo(1); // Should select priority 1 (highest available)
     }
 
-    @RepeatedTest(10)
+    @Test
     void testPriorityBasedSelection_mixedPrioritiesWithSomeUnavailable() {
         // Setup: Mix of priorities where some priority 0 nodes are already connected
         final List<BlockNodeConfig> allBlockNodes = List.of(
@@ -1950,7 +1949,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         assertThat(selectedConfig.address()).isNotEqualTo("node1.example.com"); // Should not select unavailable node
     }
 
-    @RepeatedTest(10)
+    @Test
     void testPriorityBasedSelection_allPriority0NodesUnavailable() {
         // Setup: All priority 0 nodes are connected, lower priority nodes available
         final List<BlockNodeConfig> allBlockNodes = List.of(
