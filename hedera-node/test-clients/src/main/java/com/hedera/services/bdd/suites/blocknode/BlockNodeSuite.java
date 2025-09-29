@@ -14,7 +14,6 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitForActive;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitForAny;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitUntilNextBlocks;
 import static com.hedera.services.bdd.suites.regression.system.LifecycleTest.restartAtNextConfigVersion;
-import static java.time.temporal.ChronoUnit.SECONDS;
 
 import com.hedera.services.bdd.HapiBlockNode;
 import com.hedera.services.bdd.HapiBlockNode.BlockNodeConfig;
@@ -140,8 +139,8 @@ public class BlockNodeSuite {
                 sourcingContextual(spec -> assertHgcaaLogContainsTimeframe(
                         byNodeId(0),
                         time::get,
-                        Duration.of(30, SECONDS),
-                        Duration.of(45, SECONDS),
+                        Duration.ofSeconds(30),
+                        Duration.ofSeconds(45),
                         String.format(
                                 "/localhost:%s/ACTIVE] Block node reported it is behind. Will restart stream at block 0.",
                                 portNumbers.getFirst()),
@@ -189,7 +188,8 @@ public class BlockNodeSuite {
                         byNodeId(0),
                         connectionDropTime::get,
                         Duration.ofMinutes(1),
-                        Duration.of(45, SECONDS),
+                        Duration.ofSeconds(45),
+                        "onError invoked",
                         String.format("Selected block node localhost:%s for connection attempt", portNumbers.get(1)),
                         String.format(
                                 "/localhost:%s/PENDING] Connection state transitioned from UNINITIALIZED to PENDING",
@@ -204,7 +204,7 @@ public class BlockNodeSuite {
                         byNodeId(0),
                         connectionDropTime::get,
                         Duration.ofMinutes(1),
-                        Duration.of(45, SECONDS),
+                        Duration.ofSeconds(45),
                         String.format(
                                 "/localhost:%s/PENDING] Connection state transitioned from UNINITIALIZED to PENDING",
                                 portNumbers.get(2)),
@@ -218,7 +218,7 @@ public class BlockNodeSuite {
                         byNodeId(0),
                         connectionDropTime::get,
                         Duration.ofMinutes(1),
-                        Duration.of(45, SECONDS),
+                        Duration.ofSeconds(45),
                         String.format(
                                 "/localhost:%s/PENDING] Connection state transitioned from UNINITIALIZED to PENDING",
                                 portNumbers.get(3)),
@@ -232,7 +232,7 @@ public class BlockNodeSuite {
                         byNodeId(0),
                         connectionDropTime::get,
                         Duration.ofMinutes(1),
-                        Duration.of(45, SECONDS),
+                        Duration.ofSeconds(45),
                         String.format(
                                 "/localhost:%s/PENDING] Connection state transitioned from UNINITIALIZED to PENDING",
                                 portNumbers.get(1)),
@@ -403,8 +403,8 @@ public class BlockNodeSuite {
                 sourcingContextual(spec -> assertHgcaaLogContainsTimeframe(
                         byNodeId(0),
                         connectionResetTime::get,
-                        Duration.of(30, SECONDS),
-                        Duration.of(15, SECONDS),
+                        Duration.ofSeconds(30),
+                        Duration.ofSeconds(15),
                         String.format(
                                 "/localhost:%s/ACTIVE] Scheduled periodic stream reset every PT10S",
                                 portNumbers.getFirst()))),
@@ -412,8 +412,8 @@ public class BlockNodeSuite {
                 sourcingContextual(spec -> assertHgcaaLogContainsTimeframe(
                         byNodeId(0),
                         connectionResetTime::get,
-                        Duration.of(60, SECONDS),
-                        Duration.of(15, SECONDS),
+                        Duration.ofSeconds(60),
+                        Duration.ofSeconds(15),
                         // Verify that the periodic reset is performed after the period and the connection is closed
                         String.format(
                                 "/localhost:%s/ACTIVE] Performing scheduled stream reset", portNumbers.getFirst()),
@@ -546,7 +546,7 @@ public class BlockNodeSuite {
                         byNodeId(0),
                         time::get,
                         Duration.ofMinutes(1),
-                        Duration.of(45, SECONDS),
+                        Duration.ofSeconds(45),
                         String.format(
                                 "/localhost:%s/ACTIVE] Block node has exceeded the allowed number of EndOfStream responses",
                                 portNumbers.getFirst()),
@@ -557,6 +557,47 @@ public class BlockNodeSuite {
                         String.format(
                                 "/localhost:%s/ACTIVE] Connection state transitioned from PENDING to ACTIVE",
                                 portNumbers.getLast()))),
+                waitUntilNextBlocks(5).withBackgroundTraffic(true));
+    }
+
+    @HapiTest
+    @HapiBlockNode(
+            networkSize = 1,
+            blockNodeConfigs = {@BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.SIMULATOR)},
+            subProcessNodeConfigs = {
+                @SubProcessNodeConfig(
+                        nodeId = 0,
+                        blockNodeIds = {0},
+                        blockNodePriorities = {0},
+                        applicationPropertiesOverrides = {
+                            "blockStream.streamMode",
+                            "BOTH",
+                            "blockStream.writerMode",
+                            "FILE_AND_GRPC"
+                        })
+            })
+    @Order(10)
+    final Stream<DynamicTest> node0StreamingExponentialBackoff() {
+        final AtomicReference<Instant> time = new AtomicReference<>();
+        return hapiTest(
+                waitUntilNextBlocks(1).withBackgroundTraffic(true),
+                doingContextual(spec -> time.set(Instant.now())),
+                blockNode(0).sendEndOfStreamImmediately(Code.BEHIND).withBlockNumber(5L),
+                waitUntilNextBlocks(1).withBackgroundTraffic(true),
+                blockNode(0).sendEndOfStreamImmediately(Code.BEHIND).withBlockNumber(8L),
+                waitUntilNextBlocks(1).withBackgroundTraffic(true),
+                blockNode(0).sendEndOfStreamImmediately(Code.BEHIND).withBlockNumber(11L),
+                waitUntilNextBlocks(1).withBackgroundTraffic(true),
+                blockNode(0).sendEndOfStreamImmediately(Code.BEHIND).withBlockNumber(14L),
+                sourcingContextual(spec -> assertHgcaaLogContainsTimeframe(
+                        byNodeId(0),
+                        time::get,
+                        Duration.ofMinutes(1),
+                        Duration.ofSeconds(45),
+                        "(attempt=0)",
+                        "(attempt=1)",
+                        "(attempt=2)",
+                        "(attempt=3)")),
                 waitUntilNextBlocks(5).withBackgroundTraffic(true));
     }
 }
