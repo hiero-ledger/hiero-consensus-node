@@ -1541,7 +1541,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         connections.put(nodeConfig, connection);
         activeConnectionRef.set(connection);
 
-        connectionManager.restartConnection(connection, 100L);
+        connectionManager.connectionResetsTheStream(connection);
 
         // Verify the active connection reference was cleared
         assertThat(activeConnectionRef).hasNullValue();
@@ -1587,11 +1587,11 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         doReturn(nodeConfig).when(connection).getNodeConfig();
 
         // Call rescheduleConnection which internally calls handleConnectionCleanupAndReschedule
-        manager.rescheduleConnection(connection, Duration.ofSeconds(5));
+        manager.rescheduleConnection(connection, Duration.ofSeconds(5), null);
 
-        // Verify that scheduleConnectionAttempt was called once with Duration.ZERO
+        // Verify that scheduleConnectionAttempt was called once with the 5-second delay
         // selectNewBlockNodeForStreaming is NOT called since there's only one node
-        verify(executorService).schedule(any(BlockNodeConnectionTask.class), eq(0L), eq(TimeUnit.MILLISECONDS));
+        verify(executorService).schedule(any(BlockNodeConnectionTask.class), eq(5000L), eq(TimeUnit.MILLISECONDS));
         verifyNoMoreInteractions(executorService);
     }
 
@@ -1686,6 +1686,9 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         final AtomicLong currentStreamingBlock = streamingBlockNumber();
         currentStreamingBlock.set(10L);
 
+        // Mock connection state to be ACTIVE so processStreamingToBlockNode proceeds
+        doReturn(ConnectionState.ACTIVE).when(connection).getConnectionState();
+
         // Make bufferService throw UncheckedIOException
         when(bufferService.getBlockState(10L))
                 .thenThrow(new java.io.UncheckedIOException("IO Error", new java.io.IOException("Test IO error")))
@@ -1730,6 +1733,9 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         // Start with an active connection so getBlockState gets called
         activeConnectionRef.set(connection);
 
+        // Mock connection state to be ACTIVE so processStreamingToBlockNode proceeds
+        doReturn(ConnectionState.ACTIVE).when(connection).getConnectionState();
+
         // Make bufferService throw UncheckedIOException on first call
         when(bufferService.getBlockState(10L))
                 .thenThrow(new java.io.UncheckedIOException("IO Error", new java.io.IOException("Test IO error")));
@@ -1773,6 +1779,9 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
         // Start with an active connection so getBlockState gets called
         activeConnectionRef.set(connection);
+
+        // Mock connection state to be ACTIVE so processStreamingToBlockNode proceeds
+        doReturn(ConnectionState.ACTIVE).when(connection).getConnectionState();
 
         // Make bufferService throw RuntimeException on first call
         when(bufferService.getBlockState(10L)).thenThrow(new RuntimeException("General error"));
@@ -2084,7 +2093,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
     private BlockNodeConnectionManager createConnectionManager(List<BlockNodeConfig> blockNodes) {
         // Create a custom config provider with the specified block nodes
-        final ConfigProvider configProvider = createConfigProvider();
+        final ConfigProvider configProvider = createConfigProvider(createDefaultConfigProvider());
 
         // Create the manager
         final BlockNodeConnectionManager manager =
