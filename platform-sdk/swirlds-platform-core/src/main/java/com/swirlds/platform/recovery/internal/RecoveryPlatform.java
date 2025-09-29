@@ -22,6 +22,7 @@ import org.hiero.base.crypto.Signature;
 import org.hiero.consensus.crypto.PlatformSigner;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.consensus.model.roster.AddressBook;
 import org.hiero.consensus.roster.RosterUtils;
 
@@ -96,6 +97,11 @@ public class RecoveryPlatform implements Platform, AutoCloseableNonThrowing {
                     "RecoveryPlatform was not loaded with signing keys, this operation is not supported");
         }
         return new PlatformSigner(keysAndCerts).sign(data);
+    }
+
+    @Override
+    public void quiescenceCommand(@NonNull final QuiescenceCommand quiescenceCommand) {
+        throw new UnsupportedOperationException("RecoveryPlatform does not support quiescence status changes");
     }
 
     /**

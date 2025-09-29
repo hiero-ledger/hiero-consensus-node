@@ -32,7 +32,7 @@ interface IHederaScheduleService_HIP1215 {
     /// arguments being passed to the function.
     /// @return responseCode The response code for the status of the request. SUCCESS is 22.
     /// @return scheduleAddress The address of the newly created schedule transaction.
-    function scheduleCallWithSender(address to, address sender, uint256 expirySecond, uint256 gasLimit, uint64 value, bytes memory callData)
+    function scheduleCallWithPayer(address to, address sender, uint256 expirySecond, uint256 gasLimit, uint64 value, bytes memory callData)
     external returns (int64 responseCode, address scheduleAddress);
 
     /// Allows for the creation of a schedule transaction to schedule any contract call for a given smart contract
@@ -49,7 +49,7 @@ interface IHederaScheduleService_HIP1215 {
     /// arguments being passed to the function.
     /// @return responseCode The response code for the status of the request. SUCCESS is 22.
     /// @return scheduleAddress The address of the newly created schedule transaction.
-    function executeCallOnSenderSignature(address to, address sender, uint256 expirySecond, uint256 gasLimit, uint64 value, bytes memory callData)
+    function executeCallOnPayerSignature(address to, address sender, uint256 expirySecond, uint256 gasLimit, uint64 value, bytes memory callData)
     external returns (int64 responseCode, address scheduleAddress);
 
     /// Delete the targeted schedule transaction.

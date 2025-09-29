@@ -31,11 +31,17 @@ import org.junit.jupiter.api.Tag;
 @HapiTestLifecycle
 public class HRCTokenClaimTest {
 
+    private static final String CLAIM_AIRDROP_FT = "claimAirdropFT";
+    private static final String CLAIM_AIRDROP_NFT = "claimAirdropNFT";
+
     @Account(name = "sender", tinybarBalance = 100_000_000_000L)
     static SpecAccount sender;
 
-    @Account(name = "receiver", tinybarBalance = 100_000_000_000L, maxAutoAssociations = 0)
-    static SpecAccount receiver;
+    @Account(name = "signingReceiver", tinybarBalance = 100_000_000_000L)
+    static SpecAccount signingReceiver;
+
+    @Account(name = "failsToSignReceiver", tinybarBalance = 100_000_000_000L)
+    static SpecAccount failsToSignReceiver;
 
     @FungibleToken(name = "token", initialSupply = 1_000_000L)
     static SpecFungibleToken token;
@@ -56,13 +62,13 @@ public class HRCTokenClaimTest {
     @Tag(MATS)
     public Stream<DynamicTest> canClaimAirdropOfFungibleToken() {
         return hapiTest(
-                receiver.getBalance().andAssert(balance -> balance.hasTokenBalance(token.name(), 0L)),
-                tokenAirdrop(moving(10L, token.name()).between(sender.name(), receiver.name()))
+                signingReceiver.getBalance().andAssert(balance -> balance.hasTokenBalance(token.name(), 0L)),
+                tokenAirdrop(moving(10L, token.name()).between(sender.name(), signingReceiver.name()))
                         .payingWith(sender.name()),
-                token.call(HRC904, "claimAirdropFT", sender)
-                        .payingWith(receiver)
-                        .with(call -> call.signingWith(receiver.name())),
-                receiver.getBalance().andAssert(balance -> balance.hasTokenBalance(token.name(), 10L)));
+                token.call(HRC904, CLAIM_AIRDROP_FT, sender)
+                        .payingWith(signingReceiver)
+                        .with(call -> call.signingWith(signingReceiver.name())),
+                signingReceiver.getBalance().andAssert(balance -> balance.hasTokenBalance(token.name(), 10L)));
     }
 
     @HapiTest
@@ -70,48 +76,48 @@ public class HRCTokenClaimTest {
     @Tag(MATS)
     public Stream<DynamicTest> canClaimAirdropOfNftToken() {
         return hapiTest(
-                receiver.getBalance().andAssert(balance -> balance.hasTokenBalance(nft.name(), 0L)),
-                tokenAirdrop(TokenMovement.movingUnique(nft.name(), 1L).between(sender.name(), receiver.name()))
+                signingReceiver.getBalance().andAssert(balance -> balance.hasTokenBalance(nft.name(), 0L)),
+                tokenAirdrop(TokenMovement.movingUnique(nft.name(), 1L).between(sender.name(), signingReceiver.name()))
                         .payingWith(sender.name()),
-                nft.call(HRC904, "claimAirdropNFT", sender, 1L)
-                        .payingWith(receiver)
-                        .with(call -> call.signingWith(receiver.name())),
-                receiver.getBalance().andAssert(balance -> balance.hasTokenBalance(nft.name(), 1L)));
+                nft.call(HRC904, CLAIM_AIRDROP_NFT, sender, 1L)
+                        .payingWith(signingReceiver)
+                        .with(call -> call.signingWith(signingReceiver.name())),
+                signingReceiver.getBalance().andAssert(balance -> balance.hasTokenBalance(nft.name(), 1L)));
     }
 
     @HapiTest
     @DisplayName("Cannot claim airdrop if not existing")
     public Stream<DynamicTest> cannotClaimAirdropWhenNotExisting() {
-        return hapiTest(token.call(HRC904, "claimAirdropFT", sender)
-                .payingWith(receiver)
-                .with(call -> call.signingWith(receiver.name()))
+        return hapiTest(token.call(HRC904, CLAIM_AIRDROP_FT, sender)
+                .payingWith(failsToSignReceiver)
+                .with(call -> call.signingWith(failsToSignReceiver.name()))
                 .andAssert(txn -> txn.hasKnownStatuses(SUCCESS, INVALID_PENDING_AIRDROP_ID)));
     }
 
     @HapiTest
     @DisplayName("Cannot claim airdrop if sender not existing")
     public Stream<DynamicTest> cannotClaimAirdropWhenSenderNotExisting() {
-        return hapiTest(token.call(HRC904, "claimAirdropFT", token)
-                .payingWith(receiver)
-                .with(call -> call.signingWith(receiver.name()))
+        return hapiTest(token.call(HRC904, CLAIM_AIRDROP_FT, token)
+                .payingWith(failsToSignReceiver)
+                .with(call -> call.signingWith(failsToSignReceiver.name()))
                 .andAssert(txn -> txn.hasKnownStatuses(SUCCESS, INVALID_PENDING_AIRDROP_ID)));
     }
 
     @HapiTest
     @DisplayName("Cannot claim nft airdrop if not existing")
     public Stream<DynamicTest> cannotClaimNftAirdropWhenNotExisting() {
-        return hapiTest(nft.call(HRC904, "claimAirdropNFT", sender, 1L)
-                .payingWith(receiver)
-                .with(call -> call.signingWith(receiver.name()))
+        return hapiTest(nft.call(HRC904, CLAIM_AIRDROP_NFT, sender, 1L)
+                .payingWith(failsToSignReceiver)
+                .with(call -> call.signingWith(failsToSignReceiver.name()))
                 .andAssert(txn -> txn.hasKnownStatuses(SUCCESS, INVALID_PENDING_AIRDROP_ID)));
     }
 
     @HapiTest
     @DisplayName("Cannot claim nft airdrop if sender not existing")
     public Stream<DynamicTest> cannotClaimNftAirdropWhenSenderNotExisting() {
-        return hapiTest(nft.call(HRC904, "claimAirdropNFT", nft, 1L)
-                .payingWith(receiver)
-                .with(call -> call.signingWith(receiver.name()))
+        return hapiTest(nft.call(HRC904, CLAIM_AIRDROP_NFT, nft, 1L)
+                .payingWith(failsToSignReceiver)
+                .with(call -> call.signingWith(failsToSignReceiver.name()))
                 .andAssert(txn -> txn.hasKnownStatuses(SUCCESS, INVALID_PENDING_AIRDROP_ID)));
     }
 }

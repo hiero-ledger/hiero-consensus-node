@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.state.lifecycle;
 
-import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.SemanticVersion;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
@@ -81,9 +80,5 @@ public final class HapiUtils {
             out.writeBoolean(true);
             out.writeNormalisedString(semVerPart);
         }
-    }
-
-    public static String asAccountString(final AccountID accountID) {
-        return String.format("%d.%d.%d", accountID.shardNum(), accountID.realmNum(), accountID.accountNum());
     }
 }
