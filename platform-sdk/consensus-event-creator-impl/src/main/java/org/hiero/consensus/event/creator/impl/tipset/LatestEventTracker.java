@@ -14,6 +14,10 @@ import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
 
+/**
+ * Keeps track of latest event for each of the creators.
+ */
+
 public class LatestEventTracker {
 
     private final Map<NodeId, PlatformEvent> latestEvents = new HashMap<>();
