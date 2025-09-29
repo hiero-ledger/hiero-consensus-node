@@ -1587,7 +1587,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         doReturn(nodeConfig).when(connection).getNodeConfig();
 
         // Call rescheduleConnection which internally calls handleConnectionCleanupAndReschedule
-        manager.rescheduleConnection(connection, Duration.ofSeconds(5), null);
+        manager.rescheduleConnection(connection, Duration.ofSeconds(5), null, true);
 
         // Verify that scheduleConnectionAttempt was called once with the 5-second delay
         // selectNewBlockNodeForStreaming is NOT called since there's only one node
