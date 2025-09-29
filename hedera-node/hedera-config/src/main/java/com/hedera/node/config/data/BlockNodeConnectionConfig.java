@@ -14,9 +14,10 @@ import java.time.Duration;
  * @param maxEndOfStreamsAllowed the limit of EndOfStream responses allowed within a time frame
  * @param endOfStreamTimeFrame the time frame in seconds to check for EndOfStream responses
  * @param endOfStreamScheduleDelay the delay in seconds to schedule connections after the limit is reached
+ * @param streamResetPeriod the period in hours to periodically reset the stream, once a day should be enough
+ * @param protocolExpBackoffTimeframeReset if a connection has not been rescheduled during the timeframe, reset the exponential backoff
  * @param highLatencyThresholdMs threshold in milliseconds above which a block acknowledgement is considered high latency
  * @param highLatencyEventsBeforeSwitching number of consecutive high-latency events before considering switching nodes
- * @param streamResetPeriod the period in hours to periodically reset the stream, once a day should be enough
  */
 @ConfigData("blockNode")
 public record BlockNodeConnectionConfig(
@@ -26,6 +27,7 @@ public record BlockNodeConnectionConfig(
         @ConfigProperty(defaultValue = "5") @NodeProperty int maxEndOfStreamsAllowed,
         @ConfigProperty(defaultValue = "30s") @NodeProperty Duration endOfStreamTimeFrame,
         @ConfigProperty(defaultValue = "30s") @NodeProperty Duration endOfStreamScheduleDelay,
+        @ConfigProperty(defaultValue = "24h") @NodeProperty Duration streamResetPeriod,
+        @ConfigProperty(defaultValue = "30s") @NodeProperty Duration protocolExpBackoffTimeframeReset,
         @ConfigProperty(defaultValue = "1000") @NodeProperty long highLatencyThresholdMs,
-        @ConfigProperty(defaultValue = "5") @NodeProperty int highLatencyEventsBeforeSwitching,
-        @ConfigProperty(defaultValue = "24h") @NodeProperty Duration streamResetPeriod) {}
+        @ConfigProperty(defaultValue = "5") @NodeProperty int highLatencyEventsBeforeSwitching) {}
