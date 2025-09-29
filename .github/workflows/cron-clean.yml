@@ -11,7 +11,7 @@ on:
 
 jobs:
   performance-tests-start:
-    runs-on: hiero-network-node-linux-small-scheduler
+    runs-on: hiero-citr-linux-small
 
     steps:
       - name: Harden the runner (Audit all outbound calls)
@@ -37,8 +37,8 @@ jobs:
           proxy: hashgraph.teleport.sh:443
           token: gh-citr-performance-svcs-bot
 
-      - name: Authorize Teleport K8S Access
-        id: auth-k8s
+      - name: Authorize Teleport K8S Access to Dallas Cluster
+        id: auth-k8s-dal
         uses: teleport-actions/auth-k8s@677da98eaa78a5e649d4c5b4012750af4c28af73 # v2.0.3
         with:
           proxy: hashgraph.teleport.sh:443
@@ -49,7 +49,28 @@ jobs:
       - name: List SSH Resources
         run: tsh -i "${{ steps.auth-ssh.outputs.identity-file }}" ls
 
-      - name: Call clean
+      - name: Call clean Dal
+        run: |
+          set +e
+          set +x
+
+          for namespace in `kubectl get namespaces | awk '{print $1}' | grep -E 'solo[\-].*[\-]n[0-9]'`
+          do
+            echo "Cleaning ${namespace}"
+            sh "${GITHUB_WORKSPACE}"/.github/workflows/support/citr/cronClean.sh ${namespace}
+          done
+          exit 0
+
+      - name: Authorize Teleport K8S Access to Chicago Cluster
+        id: auth-k8s-chi
+        uses: teleport-actions/auth-k8s@677da98eaa78a5e649d4c5b4012750af4c28af73 # v2.0.3
+        with:
+          proxy: hashgraph.teleport.sh:443
+          token: gh-citr-performance-svcs-bot
+          kubernetes-cluster: k8s.pft.chi.lat.ope.eng.hashgraph.io
+          certificate-ttl: 20h
+
+      - name: Call clean Chi
         run: |
           set +e
           set +x

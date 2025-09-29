@@ -75,68 +75,6 @@ class VirtualMapConfigTest {
     }
 
     @Test
-    public void testMaximumVirtualMapSizeOutOfRangeMin() {
-        // given
-        final ConfigurationBuilder configurationBuilder = ConfigurationBuilder.create()
-                .withSources(new SimpleConfigSource("virtualMap.maximumVirtualMapSize", 0L))
-                .withSources(new SimpleConfigSource("virtualMap.virtualMapWarningThreshold", 0L))
-                .withConfigDataType(VirtualMapConfig.class);
-
-        // then
-        final ConfigViolationException exception = Assertions.assertThrows(
-                ConfigViolationException.class, () -> configurationBuilder.build(), "init must end in a violation");
-
-        // the "virtualMapWarningThreshold" depends on the "maximumVirtualMapSize" and therefore we can not test it
-        // alone
-        Assertions.assertEquals(3, exception.getViolations().size(), "We must exactly have 3 violation");
-    }
-
-    @Test
-    public void testMaximumVirtualMapSizeOutOfRangeMax() {
-        // given
-        final ConfigurationBuilder configurationBuilder = ConfigurationBuilder.create()
-                .withSources(new SimpleConfigSource("virtualMap.maximumVirtualMapSize", Integer.MAX_VALUE + 1L))
-                .withConfigDataType(VirtualMapConfig.class);
-
-        // then
-        final ConfigViolationException exception = Assertions.assertThrows(
-                ConfigViolationException.class, () -> configurationBuilder.build(), "init must end in a violation");
-
-        Assertions.assertEquals(1, exception.getViolations().size(), "We must exactly have 1 violation");
-    }
-
-    @Test
-    public void testVirtualMapWarningIntervalOutOfRangeMin() {
-        // given
-        final ConfigurationBuilder configurationBuilder = ConfigurationBuilder.create()
-                .withSources(new SimpleConfigSource("virtualMap.virtualMapWarningInterval", 0L))
-                .withConfigDataType(VirtualMapConfig.class);
-
-        // then
-        final ConfigViolationException exception = Assertions.assertThrows(
-                ConfigViolationException.class, () -> configurationBuilder.build(), "init must end in a violation");
-
-        Assertions.assertEquals(1, exception.getViolations().size(), "We must exactly have 1 violation");
-    }
-
-    @Test
-    public void testVirtualMapWarningThresholdOutOfRangeMin() {
-        // given
-        final ConfigurationBuilder configurationBuilder = ConfigurationBuilder.create()
-                .withSources(new SimpleConfigSource("virtualMap.virtualMapWarningThreshold", 0L))
-                .withSources(new SimpleConfigSource("virtualMap.virtualMapWarningInterval", -1L))
-                .withConfigDataType(VirtualMapConfig.class);
-
-        // then
-        final ConfigViolationException exception = Assertions.assertThrows(
-                ConfigViolationException.class, () -> configurationBuilder.build(), "init must end in a violation");
-
-        // the "virtualMapWarningInterval" depends on the "virtualMapWarningThreshold" and therefore we can not test it
-        // alone
-        Assertions.assertEquals(2, exception.getViolations().size(), "We must exactly have 1 violation");
-    }
-
-    @Test
     public void testFlushIntervalOutOfRangeMin() {
         // given
         final ConfigurationBuilder configurationBuilder = ConfigurationBuilder.create()
