@@ -51,7 +51,6 @@ import org.hiero.otter.fixtures.NodeConfiguration;
 import org.hiero.otter.fixtures.app.OtterApp;
 import org.hiero.otter.fixtures.app.OtterAppState;
 import org.hiero.otter.fixtures.app.OtterExecutionLayer;
-import org.hiero.otter.fixtures.app.state.OtterStateInitializer;
 import org.hiero.otter.fixtures.internal.AbstractNode;
 import org.hiero.otter.fixtures.internal.result.NodeResultsCollector;
 import org.hiero.otter.fixtures.internal.result.SingleNodeMarkerFileResultImpl;
@@ -171,7 +170,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
                     .withUncaughtExceptionHandler((t, e) -> fail("Unexpected exception in wiring framework", e))
                     .build();
 
-            final OtterApp otterApp = new OtterApp();
+            final OtterApp otterApp = new OtterApp(version);
 
             final HashedReservedSignedState reservedState = loadInitialState(
                     recycleBin,
@@ -187,13 +186,6 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
 
             final ReservedSignedState initialState = reservedState.state();
             final State state = initialState.get().getState();
-
-            // In a genesis state, this will already have been done.
-            // For state loaded from disk, we must register the app-specific services.
-            if (!platformStateFacade.isGenesisStateOf(state)) {
-                OtterStateInitializer.initOtterAppState(
-                        currentConfiguration, (OtterAppState) state, version, otterApp.appServices());
-            }
 
             final RosterHistory rosterHistory = RosterUtils.createRosterHistory(state);
             final String eventStreamLoc = selfId.toString();

@@ -2,6 +2,7 @@
 package org.hiero.consensus.otter.docker.app.platform;
 
 import static com.swirlds.common.threading.manager.AdHocThreadManager.getStaticThreadManager;
+import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.getMetricsProvider;
 import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.initLogging;
 import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.setupGlobalMetrics;
@@ -46,7 +47,6 @@ import org.hiero.consensus.roster.RosterUtils;
 import org.hiero.otter.fixtures.app.OtterApp;
 import org.hiero.otter.fixtures.app.OtterAppState;
 import org.hiero.otter.fixtures.app.OtterExecutionLayer;
-import org.hiero.otter.fixtures.app.state.OtterStateInitializer;
 
 /**
  * Manages the lifecycle and operations of a consensus node within a container-based network. This class initializes the
@@ -108,7 +108,7 @@ public class ConsensusNodeManager {
         final Metrics metrics = getMetricsProvider().createPlatformMetrics(legacySelfId);
         final PlatformStateFacade platformStateFacade = new PlatformStateFacade();
 
-        log.info("Creating node {} with version {}", selfId, version);
+        log.info(STARTUP.getMarker(), "Creating node {} with version {}", selfId, version);
 
         final Time time = Time.getCurrent();
         final FileSystemManager fileSystemManager = FileSystemManager.create(platformConfig);
@@ -118,7 +118,7 @@ public class ConsensusNodeManager {
         final PlatformContext platformContext = PlatformContext.create(
                 platformConfig, Time.getCurrent(), metrics, fileSystemManager, recycleBin, merkleCryptography);
 
-        otterApp = new OtterApp();
+        otterApp = new OtterApp(version);
 
         final HashedReservedSignedState reservedState = loadInitialState(
                 recycleBin,
@@ -133,13 +133,6 @@ public class ConsensusNodeManager {
                 OtterAppState::new);
         final ReservedSignedState initialState = reservedState.state();
         final MerkleNodeState state = initialState.get().getState();
-
-        // In a genesis state, this will already have been done.
-        // For state loaded from disk, we must register the app-specific services.
-        if (!platformStateFacade.isGenesisStateOf(state)) {
-            OtterStateInitializer.initOtterAppState(
-                    platformConfig, (OtterAppState) state, version, otterApp.appServices());
-        }
 
         final RosterHistory rosterHistory = RosterUtils.createRosterHistory(state);
         executionCallback = new OtterExecutionLayer(metrics);
@@ -183,7 +176,7 @@ public class ConsensusNodeManager {
      * Starts the consensus node. Once complete, transactions can be submitted.
      */
     public void start() {
-        log.info("Starting node");
+        log.info(STARTUP.getMarker(), "Starting node");
         platform.start();
     }
 

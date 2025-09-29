@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.app;
 
+import static java.util.Objects.requireNonNull;
+
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.swirlds.common.context.PlatformContext;
@@ -22,6 +24,7 @@ import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 import org.hiero.otter.fixtures.app.services.consistency.ConsistencyService;
 import org.hiero.otter.fixtures.app.services.platform.PlatformStateService;
 import org.hiero.otter.fixtures.app.services.roster.RosterService;
+import org.hiero.otter.fixtures.app.state.OtterStateInitializer;
 
 /**
  * Simple application that can process all transactions required to run tests on Turtle
@@ -32,6 +35,7 @@ public class OtterApp implements ConsensusStateEventHandler<OtterAppState> {
     public static final String APP_NAME = "org.hiero.otter.fixtures.app.OtterApp";
     public static final String SWIRLD_NAME = "123";
 
+    private final SemanticVersion version;
     private final List<OtterService> allServices;
     private final List<OtterService> appServices;
 
@@ -48,8 +52,11 @@ public class OtterApp implements ConsensusStateEventHandler<OtterAppState> {
 
     /**
      * Create the app and its services.
+     *
+     * @param version the software version to set in the state
      */
-    public OtterApp() {
+    public OtterApp(@NonNull final SemanticVersion version) {
+        this.version = requireNonNull(version);
         this.appServices = List.of(consistencyService);
         this.allServices = List.of(consistencyService, new PlatformStateService(), new RosterService());
     }
@@ -149,6 +156,11 @@ public class OtterApp implements ConsensusStateEventHandler<OtterAppState> {
             @NonNull final Platform platform,
             @NonNull final InitTrigger trigger,
             @Nullable final SemanticVersion previousVersion) {
+        if (state.getReadableStates(ConsistencyService.NAME).isEmpty()) {
+            OtterStateInitializer.initOtterAppState(
+                    platform.getContext().getConfiguration(), state, version, appServices);
+        }
+
         consistencyService.initialize();
     }
 
