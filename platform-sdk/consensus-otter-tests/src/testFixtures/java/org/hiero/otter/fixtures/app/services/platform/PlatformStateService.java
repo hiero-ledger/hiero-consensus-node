@@ -50,7 +50,7 @@ public class PlatformStateService implements OtterService {
      * {@inheritDoc}
      */
     @Override
-    public void onTransaction(
+    public void handleTransaction(
             @NonNull final WritableStates writableStates,
             @NonNull final Event event,
             @NonNull final Transaction transaction,

@@ -21,6 +21,7 @@ import org.hiero.consensus.model.hashgraph.Round;
 import org.hiero.consensus.model.roster.AddressBook;
 import org.hiero.consensus.model.transaction.ConsensusTransaction;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
+import org.hiero.consensus.model.transaction.Transaction;
 import org.hiero.otter.fixtures.app.services.consistency.ConsistencyService;
 import org.hiero.otter.fixtures.app.services.platform.PlatformStateService;
 import org.hiero.otter.fixtures.app.services.roster.RosterService;
@@ -91,7 +92,16 @@ public class OtterApp implements ConsensusStateEventHandler<OtterAppState> {
             @NonNull final Event event,
             @NonNull final OtterAppState state,
             @NonNull final Consumer<ScopedSystemTransaction<StateSignatureTransaction>> callback) {
-        consistencyService.recordPreHandleTransactions(event);
+        for (final OtterService service : allServices) {
+            service.preHandleEvent(event);
+        }
+        for (final Iterator<Transaction> transactionIterator = event.transactionIterator();
+                transactionIterator.hasNext(); ) {
+            final Transaction transaction = transactionIterator.next();
+            for (final OtterService service : allServices) {
+                service.preHandleTransaction(event, transaction, callback);
+            }
+        }
     }
 
     /**
@@ -103,19 +113,19 @@ public class OtterApp implements ConsensusStateEventHandler<OtterAppState> {
             @NonNull final OtterAppState state,
             @NonNull final Consumer<ScopedSystemTransaction<StateSignatureTransaction>> callback) {
         for (final OtterService service : allServices) {
-            service.onRound(state.getWritableStates(service.name()), round);
+            service.handleRound(state.getWritableStates(service.name()), round);
         }
 
         for (final ConsensusEvent consensusEvent : round) {
             for (final OtterService service : allServices) {
-                service.onEvent(state.getWritableStates(service.name()), consensusEvent);
+                service.handleEvent(state.getWritableStates(service.name()), consensusEvent);
             }
             for (final Iterator<ConsensusTransaction> transactionIterator =
                             consensusEvent.consensusTransactionIterator();
                     transactionIterator.hasNext(); ) {
                 final ConsensusTransaction transaction = transactionIterator.next();
                 for (final OtterService service : allServices) {
-                    service.onTransaction(
+                    service.handleTransaction(
                             state.getWritableStates(service.name()), consensusEvent, transaction, callback);
                 }
             }

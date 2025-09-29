@@ -47,12 +47,12 @@ public class WritableConsistencyStateStore {
     }
 
     /**
-     * Increases the number of rounds handled by 1.
+     * Increments the number of rounds handled.
      *
      * @return this store for chaining
      */
     @NonNull
-    public WritableConsistencyStateStore increaseRoundsHandled() {
+    public WritableConsistencyStateStore incrementRoundsHandled() {
         final ConsistencyState consistencyState = requireNonNull(singletonState.get());
 
         final long roundsHandled = consistencyState.roundsHandled() + 1;
