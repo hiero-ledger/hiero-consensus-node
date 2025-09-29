@@ -190,9 +190,7 @@ public class BlockNodeSuite {
                         connectionDropTime::get,
                         Duration.ofMinutes(1),
                         Duration.ofSeconds(45),
-                        String.format(
-                                "/localhost:%s/UNINITIALIZED] Scheduling reconnection for node in 0 ms (force=false).",
-                                portNumbers.get(1)),
+                        String.format("Selected block node localhost:%s for connection attempt", portNumbers.get(1)),
                         String.format(
                                 "/localhost:%s/PENDING] Connection state transitioned from UNINITIALIZED to PENDING.",
                                 portNumbers.get(1)),
@@ -584,13 +582,13 @@ public class BlockNodeSuite {
         return hapiTest(
                 waitUntilNextBlocks(1).withBackgroundTraffic(true),
                 doingContextual(spec -> time.set(Instant.now())),
-                blockNode(0).sendEndOfStreamImmediately(Code.BEHIND).withBlockNumber(5L),
+                blockNode(0).sendEndOfStreamImmediately(Code.BEHIND).withBlockNumber(1L),
                 waitUntilNextBlocks(1).withBackgroundTraffic(true),
-                blockNode(0).sendEndOfStreamImmediately(Code.BEHIND).withBlockNumber(8L),
+                blockNode(0).sendEndOfStreamImmediately(Code.BEHIND).withBlockNumber(2L),
                 waitUntilNextBlocks(1).withBackgroundTraffic(true),
-                blockNode(0).sendEndOfStreamImmediately(Code.BEHIND).withBlockNumber(11L),
+                blockNode(0).sendEndOfStreamImmediately(Code.BEHIND).withBlockNumber(3L),
                 waitUntilNextBlocks(1).withBackgroundTraffic(true),
-                blockNode(0).sendEndOfStreamImmediately(Code.BEHIND).withBlockNumber(14L),
+                blockNode(0).sendEndOfStreamImmediately(Code.BEHIND).withBlockNumber(4L),
                 sourcingContextual(spec -> assertHgcaaLogContainsTimeframe(
                         byNodeId(0),
                         time::get,

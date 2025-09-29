@@ -298,7 +298,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
      */
     private void closeAndReschedule(@Nullable final Duration delay, final boolean callOnComplete) {
         close(callOnComplete);
-        blockNodeConnectionManager.rescheduleConnection(this, delay, null);
+        blockNodeConnectionManager.rescheduleConnection(this, delay, null, true);
     }
 
     /**
@@ -310,7 +310,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
     private void endStreamAndReschedule(@NonNull final EndStream.Code code) {
         requireNonNull(code, "code must not be null");
         endTheStreamWith(code);
-        blockNodeConnectionManager.rescheduleConnection(this, BlockNodeConnection.THIRTY_SECONDS, null);
+        blockNodeConnectionManager.rescheduleConnection(this, BlockNodeConnection.THIRTY_SECONDS, null, true);
     }
 
     /**
@@ -321,7 +321,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
      */
     private void closeAndRestart(final long blockNumber) {
         close(true);
-        blockNodeConnectionManager.rescheduleConnection(this, null, blockNumber);
+        blockNodeConnectionManager.rescheduleConnection(this, null, blockNumber, false);
     }
 
     /**
