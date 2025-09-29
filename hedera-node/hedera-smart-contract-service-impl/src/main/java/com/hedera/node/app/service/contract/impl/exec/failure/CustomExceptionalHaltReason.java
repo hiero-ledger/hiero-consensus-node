@@ -6,7 +6,7 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Collections;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.HashMap;
 import java.util.Map;
 import org.apache.tuweni.bytes.Bytes;
 import org.hyperledger.besu.evm.frame.ExceptionalHaltReason;
@@ -45,7 +45,7 @@ public enum CustomExceptionalHaltReason implements ExceptionalHaltReason {
     private static final Map<ExceptionalHaltReason, ResponseCodeEnum> HALT_REASON_TO_STATUS;
 
     static {
-        Map<ExceptionalHaltReason, ResponseCodeEnum> map = new ConcurrentHashMap<>();
+        Map<ExceptionalHaltReason, ResponseCodeEnum> map = new HashMap<>();
         map.put(SELF_DESTRUCT_TO_SELF, ResponseCodeEnum.OBTAINER_SAME_CONTRACT_ID);
         map.put(INVALID_SOLIDITY_ADDRESS, ResponseCodeEnum.INVALID_SOLIDITY_ADDRESS);
         map.put(INVALID_ALIAS_KEY, ResponseCodeEnum.INVALID_ALIAS_KEY);
