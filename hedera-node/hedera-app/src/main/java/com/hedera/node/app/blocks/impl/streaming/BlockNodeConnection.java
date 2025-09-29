@@ -127,7 +127,9 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
      * Helper method to add current instance information for debug logging.
      */
     private void logWithContext(Level level, String message, Object... args) {
-        ThreadContext.put("connectionInfo", this.toString());
+        if (level.equals(DEBUG)) {
+            ThreadContext.put("connectionInfo", this.toString());
+        }
         logger.atLevel(level).log(message, args);
     }
 

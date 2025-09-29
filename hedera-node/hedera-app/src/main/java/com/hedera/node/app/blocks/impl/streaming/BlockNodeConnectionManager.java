@@ -186,7 +186,9 @@ public class BlockNodeConnectionManager {
      * Helper method to remove current instance information for debug logging.
      */
     private void logWithContext(Level level, String message, Object... args) {
-        ThreadContext.put("connectionInfo", null);
+        if (level.equals(DEBUG)) {
+            ThreadContext.put("connectionInfo", null);
+        }
         logger.atLevel(level).log(message, args);
     }
 
@@ -194,7 +196,9 @@ public class BlockNodeConnectionManager {
      * Helper method to add current connection information for debug logging.
      */
     private void logWithContext(Level level, String message, BlockNodeConnection connection, Object... args) {
-        ThreadContext.put("connectionInfo", connection.toString());
+        if (level.equals(DEBUG)) {
+            ThreadContext.put("connectionInfo", connection.toString());
+        }
         logger.atLevel(level).log(message, args);
     }
 
@@ -877,7 +881,9 @@ public class BlockNodeConnectionManager {
          * Helper method to add current connection information for debug logging.
          */
         private void logWithContext(Level level, String message, Object... args) {
-            ThreadContext.put("connectionInfo", connection.toString());
+            if (level.equals(DEBUG)) {
+                ThreadContext.put("connectionInfo", connection.toString());
+            }
             logger.atLevel(level).log(message, args);
         }
 
