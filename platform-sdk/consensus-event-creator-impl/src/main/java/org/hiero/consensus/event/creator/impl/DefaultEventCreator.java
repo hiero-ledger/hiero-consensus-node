@@ -62,11 +62,6 @@ public class DefaultEventCreator implements EventCreatorModule {
     private PhaseTimer<EventCreationStatus> phase;
 
     /**
-     * The current platform status.
-     */
-    private PlatformStatus platformStatus;
-
-    /**
      * The duration that the system has been unhealthy.
      */
     private Duration unhealthyDuration = Duration.ZERO;
@@ -78,10 +73,9 @@ public class DefaultEventCreator implements EventCreatorModule {
      */
     private double syncRoundLag;
 
-    /**
-     * Current QuiescenceCommand of the system
-     */
-    private QuiescenceCommand quiescenceCommand = QuiescenceCommand.DONT_QUIESCE;
+    private QuiescenceRule quiescenceRule;
+
+    private PlatformStatusRule platformStatusRule;
 
     /**
      * Default constructor required by service loader.
@@ -139,12 +133,14 @@ public class DefaultEventCreator implements EventCreatorModule {
 
         final EventCreationConfig config = configuration.getConfigData(EventCreationConfig.class);
 
+        platformStatusRule = new PlatformStatusRule(signatureTransactionCheck);
+        quiescenceRule = new QuiescenceRule();
         final List<EventCreationRule> rules = new ArrayList<>();
         rules.add(new MaximumRateRule(configuration, time));
-        rules.add(new PlatformStatusRule(this::getPlatformStatus, signatureTransactionCheck));
+        rules.add(platformStatusRule);
         rules.add(new PlatformHealthRule(config.maximumPermissibleUnhealthyDuration(), this::getUnhealthyDuration));
         rules.add(new SyncLagRule(config.maxAllowedSyncLag(), this::getSyncRoundLag));
-        rules.add(new QuiescenceRule(this::getQuiescenceCommand));
+        rules.add(quiescenceRule);
 
         eventCreationRules = AggregateEventCreationRules.of(rules);
         futureEventBuffer =
@@ -209,7 +205,8 @@ public class DefaultEventCreator implements EventCreatorModule {
      */
     @Override
     public void quiescenceCommand(@NonNull final QuiescenceCommand quiescenceCommand) {
-        this.quiescenceCommand = Objects.requireNonNull(quiescenceCommand);
+        Objects.requireNonNull(quiescenceCommand);
+        quiescenceRule.quiescenceCommand(quiescenceCommand);
         creator.quiescenceCommand(quiescenceCommand);
     }
 
@@ -230,7 +227,7 @@ public class DefaultEventCreator implements EventCreatorModule {
      */
     @Override
     public void updatePlatformStatus(@NonNull final PlatformStatus platformStatus) {
-        this.platformStatus = Objects.requireNonNull(platformStatus);
+        this.platformStatusRule.setPlatformStatus(Objects.requireNonNull(platformStatus));
     }
 
     /**
@@ -250,16 +247,6 @@ public class DefaultEventCreator implements EventCreatorModule {
     }
 
     /**
-     * Get the current platform status.
-     *
-     * @return the current platform status
-     */
-    @NonNull
-    private PlatformStatus getPlatformStatus() {
-        return platformStatus;
-    }
-
-    /**
      * Get the duration that the system has been unhealthy.
      *
      * @return the duration that the system has been unhealthy
@@ -276,14 +263,5 @@ public class DefaultEventCreator implements EventCreatorModule {
      */
     public double getSyncRoundLag() {
         return syncRoundLag;
-    }
-
-    /**
-     * Get current quiescence command
-     *
-     * @return current QuiescenceCommand of the system
-     */
-    public QuiescenceCommand getQuiescenceCommand() {
-        return quiescenceCommand;
     }
 }
