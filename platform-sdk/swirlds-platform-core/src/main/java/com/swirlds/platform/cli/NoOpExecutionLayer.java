@@ -8,6 +8,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.util.List;
 import org.hiero.consensus.model.status.PlatformStatus;
+import org.hiero.consensus.model.transaction.TimestampedTransaction;
 
 /**
  * A no-op implementation of the {@link ExecutionLayer} interface.
@@ -22,7 +23,7 @@ public class NoOpExecutionLayer implements ExecutionLayer {
 
     @NonNull
     @Override
-    public List<Bytes> getTransactionsForEvent() {
+    public List<TimestampedTransaction> getTimestampedTransactionsForEvent() {
         return List.of();
     }
 

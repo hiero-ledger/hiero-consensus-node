@@ -47,6 +47,7 @@ import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
 import org.hiero.consensus.model.test.fixtures.transaction.TestingTransactions;
 import org.hiero.consensus.model.transaction.EventTransactionSupplier;
+import org.hiero.consensus.model.transaction.TimestampedTransaction;
 import org.hiero.consensus.model.transaction.TransactionWrapper;
 import org.junit.jupiter.api.Assertions;
 
@@ -149,7 +150,7 @@ public class TipsetEventCreatorTestUtils {
     public static void validateNewEventAndMaybeAdvanceCreatorScore(
             @NonNull final Map<EventDescriptorWrapper, PlatformEvent> allEvents,
             @NonNull final PlatformEvent newEvent,
-            @NonNull final List<Bytes> expectedTransactions,
+            @NonNull final List<TimestampedTransaction> expectedTransactions,
             @NonNull final SimulatedNode simulatedNode,
             final boolean slowNode) {
 
@@ -209,7 +210,7 @@ public class TipsetEventCreatorTestUtils {
                 .toList();
         // We should see the expected transactions
         IntStream.range(0, expectedTransactions.size()).forEach(i -> {
-            final Bytes expected = expectedTransactions.get(i);
+            final Bytes expected = expectedTransactions.get(i).transaction();
             final Bytes actual = convertedTransactions.get(i);
             assertEquals(expected, actual, "Transaction " + i + " mismatch");
         });
@@ -269,12 +270,13 @@ public class TipsetEventCreatorTestUtils {
      * @return a list of bytes for each transaction
      */
     @NonNull
-    static List<Bytes> generateTransactions(@NonNull final Random random, final int number) {
+    static List<TimestampedTransaction> generateTransactions(@NonNull final Random random, final int number) {
         if (number <= 0) {
             throw new IllegalArgumentException("number must be greater than 0");
         }
         return IntStream.range(0, number)
                 .mapToObj(i -> TestingTransactions.generateRandomTransaction(random))
+                .map(b-> new TimestampedTransaction(b, Instant.now()))
                 .toList();
     }
 
@@ -282,7 +284,7 @@ public class TipsetEventCreatorTestUtils {
      * Generate a small number of random transactions.
      */
     @NonNull
-    public static List<Bytes> generateRandomTransactions(@NonNull final Random random) {
+    public static List<TimestampedTransaction> generateRandomTransactions(@NonNull final Random random) {
         return generateTransactions(random, random.nextInt(1, 10));
     }
 

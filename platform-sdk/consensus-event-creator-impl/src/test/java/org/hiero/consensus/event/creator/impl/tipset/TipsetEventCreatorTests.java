@@ -38,6 +38,7 @@ import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.test.fixtures.hashgraph.EventWindowBuilder;
+import org.hiero.consensus.model.transaction.TimestampedTransaction;
 import org.hiero.junit.extensions.ParamName;
 import org.hiero.junit.extensions.ParamSource;
 import org.hiero.junit.extensions.ParameterCombinationExtension;
@@ -78,7 +79,7 @@ class TipsetEventCreatorTests {
 
         final FakeTime time = new FakeTime();
 
-        final AtomicReference<List<Bytes>> transactionSupplier = new AtomicReference<>();
+        final AtomicReference<List<TimestampedTransaction>> transactionSupplier = new AtomicReference<>();
 
         final Map<NodeId, SimulatedNode> nodes = buildSimulatedNodes(random, time, roster, transactionSupplier::get);
 
@@ -141,7 +142,7 @@ class TipsetEventCreatorTests {
 
         final FakeTime time = new FakeTime();
 
-        final AtomicReference<List<Bytes>> transactionSupplier = new AtomicReference<>();
+        final AtomicReference<List<TimestampedTransaction>> transactionSupplier = new AtomicReference<>();
 
         final Map<NodeId, SimulatedNode> nodes = buildSimulatedNodes(random, time, roster, transactionSupplier::get);
 
@@ -214,7 +215,7 @@ class TipsetEventCreatorTests {
 
         final FakeTime time = new FakeTime();
 
-        final AtomicReference<List<Bytes>> transactionSupplier = new AtomicReference<>();
+        final AtomicReference<List<TimestampedTransaction>> transactionSupplier = new AtomicReference<>();
 
         final Map<NodeId, SimulatedNode> nodes = buildSimulatedNodes(random, time, roster, transactionSupplier::get);
 
@@ -299,7 +300,7 @@ class TipsetEventCreatorTests {
 
         final FakeTime time = new FakeTime();
 
-        final AtomicReference<List<Bytes>> transactionSupplier = new AtomicReference<>();
+        final AtomicReference<List<TimestampedTransaction>> transactionSupplier = new AtomicReference<>();
 
         final Map<NodeId, SimulatedNode> nodes = buildSimulatedNodes(random, time, roster, transactionSupplier::get);
 
@@ -383,7 +384,7 @@ class TipsetEventCreatorTests {
 
         final FakeTime time = new FakeTime();
 
-        final AtomicReference<List<Bytes>> transactionSupplier = new AtomicReference<>();
+        final AtomicReference<List<TimestampedTransaction>> transactionSupplier = new AtomicReference<>();
 
         final Map<NodeId, SimulatedNode> nodes = buildSimulatedNodes(random, time, roster, transactionSupplier::get);
 
@@ -488,7 +489,7 @@ class TipsetEventCreatorTests {
 
         final FakeTime time = new FakeTime();
 
-        final AtomicReference<List<Bytes>> transactionSupplier = new AtomicReference<>();
+        final AtomicReference<List<TimestampedTransaction>> transactionSupplier = new AtomicReference<>();
 
         final Map<NodeId, SimulatedNode> nodes = buildSimulatedNodes(random, time, roster, transactionSupplier::get);
 
@@ -599,7 +600,7 @@ class TipsetEventCreatorTests {
 
         final FakeTime time = new FakeTime();
 
-        final AtomicReference<List<Bytes>> transactionSupplier = new AtomicReference<>();
+        final AtomicReference<List<TimestampedTransaction>> transactionSupplier = new AtomicReference<>();
 
         final Map<NodeId, SimulatedNode> nodes = buildSimulatedNodes(random, time, roster, transactionSupplier::get);
 
@@ -855,7 +856,7 @@ class TipsetEventCreatorTests {
 
         final FakeTime time = new FakeTime();
 
-        final AtomicReference<List<Bytes>> transactionSupplier = new AtomicReference<>();
+        final AtomicReference<List<TimestampedTransaction>> transactionSupplier = new AtomicReference<>();
 
         final Map<NodeId, SimulatedNode> nodes = buildSimulatedNodes(random, time, roster, transactionSupplier::get);
 

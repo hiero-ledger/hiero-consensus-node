@@ -3,12 +3,14 @@ package org.hiero.otter.fixtures.app;
 
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.base.time.Time;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.builder.ExecutionLayer;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.util.List;
 import org.hiero.consensus.model.status.PlatformStatus;
+import org.hiero.consensus.model.transaction.TimestampedTransaction;
 import org.hiero.consensus.transaction.TransactionPoolNexus;
 import org.hiero.otter.fixtures.TransactionFactory;
 
@@ -23,7 +25,7 @@ public class OtterExecutionLayer implements ExecutionLayer {
     private final TransactionPoolNexus transactionPool;
 
     public OtterExecutionLayer(@NonNull final Metrics metrics) {
-        transactionPool = new TransactionPoolNexus(getTransactionLimits(), TX_QUEUE_SIZE, metrics);
+        transactionPool = new TransactionPoolNexus(getTransactionLimits(), TX_QUEUE_SIZE, metrics, Time.getCurrent());
     }
 
     @Override
@@ -43,8 +45,8 @@ public class OtterExecutionLayer implements ExecutionLayer {
 
     @NonNull
     @Override
-    public List<Bytes> getTransactionsForEvent() {
-        return transactionPool.getTransactionsForEvent();
+    public List<TimestampedTransaction> getTimestampedTransactionsForEvent() {
+        return transactionPool.getTimestampedTransactionsForEvent();
     }
 
     @Override
