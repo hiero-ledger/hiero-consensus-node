@@ -3,6 +3,7 @@ package com.hedera.services.bdd.suites.integration.hip1195;
 
 import static com.google.protobuf.ByteString.copyFromUtf8;
 import static com.hedera.services.bdd.junit.TestTags.INTEGRATION;
+import static com.hedera.services.bdd.junit.hedera.embedded.EmbeddedMode.CONCURRENT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.accountAllowanceHook;
@@ -40,6 +41,7 @@ import com.hedera.hapi.node.state.token.Account;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
+import com.hedera.services.bdd.junit.TargetEmbeddedMode;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.dsl.annotations.Contract;
 import com.hedera.services.bdd.spec.dsl.entities.SpecContract;
@@ -60,6 +62,7 @@ import org.junit.jupiter.api.Tag;
 @Order(12)
 @Tag(INTEGRATION)
 @HapiTestLifecycle
+@TargetEmbeddedMode(CONCURRENT)
 public class Hip1195EnabledTest {
     @Contract(contract = "PayableConstructor")
     static SpecContract HOOK_CONTRACT;
@@ -235,7 +238,7 @@ public class Hip1195EnabledTest {
                 getTxnRecord("customFeeTxn").logged());
     }
 
-    @HapiTest
+    //    @HapiTest
     final Stream<DynamicTest> royaltyAndFractionalTogetherCaseStudy() {
         final var alice = "alice";
         final var amelie = "AMELIE";

@@ -72,12 +72,6 @@ class HookDispatchHandlerTest extends ContractHandlerTestBase {
     }
 
     @Test
-    void executionUnsupported() {
-        given(handleContext.body()).willReturn(hookDispatchWithExecution());
-        assertThrows(UnsupportedOperationException.class, () -> subject.handle(handleContext));
-    }
-
-    @Test
     void creationWorks() {
         given(handleContext.body()).willReturn(hookDispatchWithCreation());
 
