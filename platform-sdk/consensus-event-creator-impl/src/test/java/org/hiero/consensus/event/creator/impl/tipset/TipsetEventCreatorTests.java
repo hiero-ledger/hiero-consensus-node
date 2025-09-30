@@ -438,6 +438,11 @@ class TipsetEventCreatorTests {
                         assertNotEquals(
                                 event.getSelfParent().creator(),
                                 event.getOtherParents().getFirst().creator());
+
+                        // we allow creation of only one break quiescence event
+                        assertNull(eventCreator.maybeCreateEvent());
+                        assertNull(eventCreator.maybeCreateEvent());
+
                         eventCreator.quiescenceCommand(QuiescenceCommand.DONT_QUIESCE);
                         breakQuiescence = true;
                     } else {

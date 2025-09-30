@@ -94,6 +94,11 @@ public class TipsetEventCreator implements EventCreator {
     private QuiescenceCommand quiescenceCommand = QuiescenceCommand.DONT_QUIESCE;
 
     /**
+     * We want to allow creation of only one event to break quiescence until normal events starts flowing through
+     */
+    private boolean breakQuiescenceEventCreated;
+
+    /**
      * Create a new tipset event creator.
      *
      * @param configuration       the configuration for the event creator
@@ -203,8 +208,11 @@ public class TipsetEventCreator implements EventCreator {
             return null;
         }
         UnsignedEvent event = maybeCreateUnsignedEvent();
-        if (event == null && quiescenceCommand == QuiescenceCommand.BREAK_QUIESCENCE) {
+        if (event != null) {
+            breakQuiescenceEventCreated = false;
+        } else if (quiescenceCommand == QuiescenceCommand.BREAK_QUIESCENCE && !breakQuiescenceEventCreated) {
             event = createQuiescenceBreakEvent();
+            breakQuiescenceEventCreated = true;
         }
         if (event != null) {
             lastSelfEvent = signEvent(event);
