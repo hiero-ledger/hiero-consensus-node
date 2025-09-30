@@ -602,8 +602,9 @@ public class StateChangesValidator implements BlockStreamValidator {
                         if (construction.hasTargetProof()) {
                             logger.info("Verifying chain of trust for #{}", construction.constructionId());
                             assertTrue(
+                                    // TODO
                                     historyLibrary.verifyChainOfTrust(
-                                            construction.targetProofOrThrow().proof()),
+                                            construction.targetProofOrThrow().proof().wrapsProof()),
                                     "Chain of trust verification failed for " + construction);
                         }
                     }

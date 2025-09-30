@@ -7,6 +7,7 @@ import static java.util.stream.Collectors.groupingBy;
 import static java.util.stream.Collectors.summingLong;
 import static java.util.stream.Collectors.toMap;
 
+import com.hedera.hapi.block.stream.ChainOfTrustProof;
 import com.hedera.hapi.node.state.history.History;
 import com.hedera.hapi.node.state.history.HistoryProof;
 import com.hedera.hapi.node.state.history.HistoryProofConstruction;
@@ -294,7 +295,7 @@ public class ProofControllerImpl implements ProofController {
             if (historyStore.getActiveConstruction().constructionId() == construction.constructionId()) {
                 proofConsumer.accept(proof);
                 if (ledgerId == null) {
-                    final var ledgerId = concat(proof.sourceAddressBookHash(), library.snarkVerificationKey());
+                    final var ledgerId = proof.sourceAddressBookHash();
                     historyStore.setLedgerId(ledgerId);
                     log.info("Set ledger id to {}", ledgerId);
                 }
@@ -428,7 +429,8 @@ public class ProofControllerImpl implements ProofController {
         final Bytes sourceProof;
         final Map<Long, Bytes> sourceProofKeys;
         if (construction.hasSourceProof()) {
-            sourceProof = construction.sourceProofOrThrow().proof();
+            // TODO
+            sourceProof = construction.sourceProofOrThrow().proof().wrapsProof();
             sourceProofKeys = proofKeyMapFrom(construction.sourceProofOrThrow());
         } else {
             sourceProof = null;
@@ -481,11 +483,14 @@ public class ProofControllerImpl implements ProofController {
                                     verifyingSignatures,
                                     targetMetadataHash);
                             log.info("Finished chain-of-trust proof for construction #{}", inProgressId);
+                            final var chainOfTrustProof = ChainOfTrustProof.newBuilder()
+                                    .wrapsProof(proof)
+                                    .build();
                             final var metadataProof = HistoryProof.newBuilder()
                                     .sourceAddressBookHash(sourceHash)
                                     .targetProofKeys(proofKeyList)
                                     .targetHistory(new History(targetHash, targetMetadata))
-                                    .proof(proof)
+                                    .proof(chainOfTrustProof)
                                     .build();
                             submissions
                                     .submitProofVote(inProgressId, metadataProof)

@@ -17,6 +17,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 
+import com.hedera.hapi.block.stream.ChainOfTrustProof;
 import com.hedera.hapi.node.state.history.History;
 import com.hedera.hapi.node.state.history.HistoryProof;
 import com.hedera.hapi.node.state.history.HistoryProofConstruction;
@@ -50,7 +51,8 @@ class ProofControllerImplTest {
     private static final long CONSTRUCTION_ID = 123L;
     private static final Bytes METADATA = Bytes.wrap("M");
     private static final Bytes LEDGER_ID = Bytes.wrap("LID");
-    private static final Bytes PROOF = Bytes.wrap("P");
+    private static final ChainOfTrustProof PROOF =
+            ChainOfTrustProof.newBuilder().wrapsProof(Bytes.wrap("P")).build();
     private static final Bytes SIGNATURE = Bytes.wrap("S");
     private static final Instant CONSENSUS_NOW = Instant.ofEpochSecond(1_234_567L, 890);
     private static final SchnorrKeyPair PROOF_KEY_PAIR = new SchnorrKeyPair(Bytes.EMPTY, Bytes.EMPTY);
@@ -273,7 +275,7 @@ class ProofControllerImplTest {
 
         given(library.hashAddressBook(any(), any())).willReturn(Bytes.EMPTY);
         given(library.proveChainOfTrust(any(), any(), any(), any(), any(), any(), any(), any()))
-                .willReturn(PROOF);
+                .willReturn(PROOF.wrapsProof());
         given(submissions.submitProofVote(
                         eq(CONSTRUCTION_ID), argThat(v -> v.proof().equals(PROOF))))
                 .willReturn(CompletableFuture.completedFuture(null));
@@ -312,8 +314,9 @@ class ProofControllerImplTest {
         verifyNoMoreInteractions(store);
 
         final long otherNodeId = 99L;
-        final var otherProof =
-                HistoryProof.newBuilder().proof(Bytes.wrap("OOPS")).build();
+        final var otherProof = HistoryProof.newBuilder()
+                .proof(ChainOfTrustProof.newBuilder().wrapsProof(Bytes.wrap("OOPS")))
+                .build();
         final var otherVote = HistoryProofVote.newBuilder().proof(otherProof).build();
         given(weights.sourceWeightOf(otherNodeId)).willReturn(3L);
         subject.addProofVote(otherNodeId, otherVote, store);
@@ -334,7 +337,6 @@ class ProofControllerImplTest {
 
     @Test
     void votingWorksAsExpectedWithUnknownLedgerId() {
-        given(library.snarkVerificationKey()).willReturn(Bytes.EMPTY);
         setupWith(SCHEDULED_ASSEMBLY_CONSTRUCTION_WITH_SOURCE_PROOF, List.of(), List.of(), Map.of(), null);
         subject.advanceConstruction(CONSENSUS_NOW, METADATA, store, true);
 

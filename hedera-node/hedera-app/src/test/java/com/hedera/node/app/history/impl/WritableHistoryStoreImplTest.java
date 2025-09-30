@@ -15,6 +15,7 @@ import static java.util.Objects.requireNonNull;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.BDDMockito.given;
 
+import com.hedera.hapi.block.stream.ChainOfTrustProof;
 import com.hedera.hapi.node.state.history.ConstructionNodeId;
 import com.hedera.hapi.node.state.history.History;
 import com.hedera.hapi.node.state.history.HistoryProof;
@@ -278,7 +279,8 @@ class WritableHistoryStoreImplTest {
                 HistoryProofConstruction.newBuilder().constructionId(456L).build());
 
         final var bookHash = Bytes.wrap("DOODLE");
-        final var proof = new HistoryProof(bookHash, List.of(ProofKey.DEFAULT), History.DEFAULT, Bytes.EMPTY);
+        final var proof =
+                new HistoryProof(bookHash, List.of(ProofKey.DEFAULT), History.DEFAULT, ChainOfTrustProof.DEFAULT);
         subject.completeProof(456L, proof);
 
         final var construction = this.<HistoryProofConstruction>getSingleton(NEXT_PROOF_CONSTRUCTION_STATE_ID);

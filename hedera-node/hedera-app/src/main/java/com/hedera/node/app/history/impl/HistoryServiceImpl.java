@@ -130,7 +130,8 @@ public class HistoryServiceImpl implements HistoryService, Consumer<HistoryProof
             throw new IllegalArgumentException(
                     "Metadata '" + metadata + "' does not match proof (for '" + targetMetadata + "')");
         }
-        return historyProof.proof();
+        // TODO
+        return historyProof.proof().wrapsProof();
     }
 
     @Override
