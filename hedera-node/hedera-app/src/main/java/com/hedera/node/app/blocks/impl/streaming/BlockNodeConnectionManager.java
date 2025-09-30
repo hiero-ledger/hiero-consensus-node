@@ -209,9 +209,9 @@ public class BlockNodeConnectionManager {
     }
 
     /**
-     * Configuration property: threshold in milliseconds above which a block acknowledgement is considered high latency.
+     * Configuration property: threshold above which a block acknowledgement is considered high latency.
      */
-    private final long highLatencyThresholdMs;
+    private final Duration highLatencyThreshold;
     /**
      * Configuration property: number of consecutive high latency events before considering switching nodes.
      */
@@ -241,7 +241,7 @@ public class BlockNodeConnectionManager {
         this.maxEndOfStreamsAllowed = blockNodeConnectionConfig.maxEndOfStreamsAllowed();
         this.endOfStreamTimeFrame = blockNodeConnectionConfig.endOfStreamTimeFrame();
         this.endOfStreamScheduleDelay = blockNodeConnectionConfig.endOfStreamScheduleDelay();
-        this.highLatencyThresholdMs = blockNodeConnectionConfig.highLatencyThresholdMs();
+        this.highLatencyThreshold = blockNodeConnectionConfig.highLatencyThreshold();
         this.highLatencyEventsBeforeSwitching = blockNodeConnectionConfig.highLatencyEventsBeforeSwitching();
 
         isStreamingEnabled.set(isStreamingEnabled());
@@ -1205,7 +1205,7 @@ public class BlockNodeConnectionManager {
 
         final BlockNodeStats stats = nodeStats.computeIfAbsent(blockNodeConfig, k -> new BlockNodeStats());
         final BlockNodeStats.HighLatencyResult result = stats.recordAcknowledgementAndEvaluate(
-                blockNumber, timestamp, highLatencyThresholdMs, highLatencyEventsBeforeSwitching);
+                blockNumber, timestamp, highLatencyThreshold, highLatencyEventsBeforeSwitching);
 
         // Update metrics
         blockStreamMetrics.recordAcknowledgementLatency(result.latencyMs());

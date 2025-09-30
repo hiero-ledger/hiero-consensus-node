@@ -155,10 +155,10 @@ public class BlockNodeSuite {
     @HapiBlockNode(
             networkSize = 1,
             blockNodeConfigs = {
-                @BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.REAL),
-                @BlockNodeConfig(nodeId = 1, mode = BlockNodeMode.REAL),
-                @BlockNodeConfig(nodeId = 2, mode = BlockNodeMode.REAL),
-                @BlockNodeConfig(nodeId = 3, mode = BlockNodeMode.REAL)
+                @BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.SIMULATOR),
+                @BlockNodeConfig(nodeId = 1, mode = BlockNodeMode.SIMULATOR),
+                @BlockNodeConfig(nodeId = 2, mode = BlockNodeMode.SIMULATOR),
+                @BlockNodeConfig(nodeId = 3, mode = BlockNodeMode.SIMULATOR)
             },
             subProcessNodeConfigs = {
                 @SubProcessNodeConfig(

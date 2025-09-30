@@ -95,14 +95,14 @@ public class BlockNodeStats {
      *
      * @param blockNumber the acknowledged block number
      * @param acknowledgedTime the time the acknowledgement was received
-     * @param highLatencyThresholdMs threshold above which latency is considered high
+     * @param highLatencyThreshold threshold above which latency is considered high
      * @param eventsBeforeSwitching the number of consecutive high-latency events that triggers a switch
      * @return a result describing the evaluation: latency (ms), consecutive count, and whether the threshold was exceeded enough to switch
      */
     public HighLatencyResult recordAcknowledgementAndEvaluate(
             final long blockNumber,
             @NonNull final Instant acknowledgedTime,
-            final long highLatencyThresholdMs,
+            final Duration highLatencyThreshold,
             final int eventsBeforeSwitching) {
         requireNonNull(acknowledgedTime, "acknowledgedTime must not be null");
 
@@ -117,7 +117,7 @@ public class BlockNodeStats {
         }
 
         final long latencyMs = Duration.between(sendTime, acknowledgedTime).toMillis();
-        final boolean isHighLatency = latencyMs > highLatencyThresholdMs;
+        final boolean isHighLatency = latencyMs > highLatencyThreshold.toMillis();
         int consecutiveCount;
         boolean shouldSwitch = false;
 
