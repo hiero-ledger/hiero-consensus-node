@@ -14,6 +14,7 @@ import static org.apache.logging.log4j.Level.WARN;
 
 import com.hedera.node.app.blocks.impl.streaming.BlockNodeConnection.ConnectionState;
 import com.hedera.node.app.metrics.BlockStreamMetrics;
+import com.hedera.node.app.util.LoggingUtilities;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockNodeConnectionConfig;
 import com.hedera.node.config.data.BlockStreamConfig;
@@ -59,7 +60,6 @@ import javax.inject.Singleton;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.ThreadContext;
 import org.hiero.block.api.BlockStreamPublishServiceInterface.BlockStreamPublishServiceClient;
 import org.hiero.block.api.PublishStreamRequest;
 
@@ -219,7 +219,9 @@ public class BlockNodeConnectionManager {
      * Helper method to remove current instance information for debug logging.
      */
     private void logWithContext(Level level, String message, Object... args) {
-        ThreadContext.put("connectionInfo", null);
+        if (logger.isEnabled(level)) {
+            message = String.format("%s %s", LoggingUtilities.threadInfo(), message);
+        }
         logger.atLevel(level).log(message, args);
     }
 
@@ -227,7 +229,9 @@ public class BlockNodeConnectionManager {
      * Helper method to add current connection information for debug logging.
      */
     private void logWithContext(Level level, String message, BlockNodeConnection connection, Object... args) {
-        ThreadContext.put("connectionInfo", connection.toString());
+        if (logger.isEnabled(level)) {
+            message = String.format("%s %s %s", LoggingUtilities.threadInfo(), connection.toString(), message);
+        }
         logger.atLevel(level).log(message, args);
     }
 
@@ -431,7 +435,8 @@ public class BlockNodeConnectionManager {
 
         logWithContext(
                 DEBUG,
-                "Apply exponential backoff and reschedule in {} ms (attempt={})",
+                "Apply exponential backoff and reschedule in {} ms (attempt={}).",
+                connection,
                 delayMs,
                 retryAttempt);
 
@@ -798,10 +803,10 @@ public class BlockNodeConnectionManager {
                     sleep(workerLoopSleepDuration());
                 }
             } catch (final UncheckedIOException e) {
-                logWithContext(DEBUG, "UncheckedIOException caught in block stream worker loop", e);
+                logWithContext(DEBUG, "UncheckedIOException caught in block stream worker loop ({}).", e.getMessage());
                 connection.handleStreamFailureWithoutOnComplete();
             } catch (final Exception e) {
-                logWithContext(DEBUG, "Exception caught in block stream worker loop", e);
+                logWithContext(DEBUG, "Exception caught in block stream worker loop ({}).", e.getMessage());
                 connection.handleStreamFailure();
             }
         }
@@ -934,7 +939,9 @@ public class BlockNodeConnectionManager {
          * Helper method to add current connection information for debug logging.
          */
         private void logWithContext(Level level, String message, Object... args) {
-            ThreadContext.put("connectionInfo", connection.toString());
+            if (logger.isEnabled(level)) {
+                message = String.format("%s %s %s", LoggingUtilities.threadInfo(), connection.toString(), message);
+            }
             logger.atLevel(level).log(message, args);
         }
 

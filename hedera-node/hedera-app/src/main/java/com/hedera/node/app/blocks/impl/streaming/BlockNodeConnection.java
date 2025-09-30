@@ -8,6 +8,7 @@ import static org.hiero.block.api.PublishStreamRequest.EndStream.Code.RESET;
 import static org.hiero.block.api.PublishStreamRequest.EndStream.Code.TOO_FAR_BEHIND;
 
 import com.hedera.node.app.metrics.BlockStreamMetrics;
+import com.hedera.node.app.util.LoggingUtilities;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockNodeConnectionConfig;
 import com.hedera.node.internal.network.BlockNodeConfig;
@@ -27,7 +28,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.ThreadContext;
 import org.hiero.block.api.BlockStreamPublishServiceInterface.BlockStreamPublishServiceClient;
 import org.hiero.block.api.PublishStreamRequest;
 import org.hiero.block.api.PublishStreamRequest.EndStream;
@@ -156,7 +156,9 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
      * Helper method to add current instance information for debug logging.
      */
     private void logWithContext(Level level, String message, Object... args) {
-        ThreadContext.put("connectionInfo", this.toString());
+        if (logger.isEnabled(level)) {
+            message = String.format("%s %s %s", LoggingUtilities.threadInfo(), this, message);
+        }
         logger.atLevel(level).log(message, args);
     }
 
@@ -202,7 +204,6 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
             final Pipeline<? super PublishStreamRequest> pipeline =
                     blockStreamPublishServiceClient.publishBlockStream(this);
             requestPipelineRef.set(pipeline);
-
             logWithContext(DEBUG, "Request pipeline initialized.");
             updateConnectionState(ConnectionState.PENDING);
             blockStreamMetrics.recordConnectionOpened();
@@ -235,7 +236,11 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
             if (connectionState.compareAndSet(expectedCurrentState, newState)) {
                 logWithContext(DEBUG, "Connection state transitioned from {} to {}.", expectedCurrentState, newState);
             } else {
-                logWithContext(WARN, "Failed to transition state from {} to {} because current state does not match expected state", expectedCurrentState, newState);
+                logWithContext(
+                        DEBUG,
+                        "Failed to transition state from {} to {} because current state does not match expected state.",
+                        expectedCurrentState,
+                        newState);
                 return false;
             }
         } else {
@@ -324,6 +329,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
      * notifying the connection manager and calling onComplete on the request pipeline.
      */
     public void handleStreamFailure() {
+        logWithContext(DEBUG, "Handling failed stream.");
         closeAndReschedule(THIRTY_SECONDS, true);
     }
 
@@ -332,6 +338,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
      * notifying the connection manager without calling onComplete on the request pipeline.
      */
     public void handleStreamFailureWithoutOnComplete() {
+        logWithContext(DEBUG, "Handling failed stream without onComplete.");
         closeAndReschedule(THIRTY_SECONDS, false);
     }
 
@@ -536,7 +543,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
 
         logWithContext(
                 DEBUG,
-                "[{}] Sending EndStream request with code {} (earliestBlockNumber={}, highestAckedBlockNumber={})",
+                "Sending EndStream (code={}, earliestBlock={}, latestAcked={}).",
                 code,
                 earliestBlockNumber,
                 highestAckedBlockNumber);
@@ -556,9 +563,9 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
         if (getConnectionState() == ConnectionState.ACTIVE && pipeline != null) {
             try {
                 if (logger.isDebugEnabled()) {
-                    logger.debug(
-                            "[{}] Sending request to block node (type={})",
-                            this,
+                    logWithContext(
+                            DEBUG,
+                            "Sending request to block node (type={}).",
                             request.request().kind());
                 } else if (logger.isTraceEnabled()) {
                     /*
@@ -610,7 +617,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
         }
 
         if (!updateConnectionState(connState, ConnectionState.CLOSING)) {
-            logWithContext(DEBUG, "State changed while trying to close connection; aborting close attempt");
+            logWithContext(DEBUG, "State changed while trying to close connection. Aborting close attempt.");
             return;
         }
 
@@ -641,14 +648,12 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                 if (state == ConnectionState.CLOSING && callOnComplete) {
                     pipeline.onComplete();
                     logWithContext(DEBUG, "Request pipeline successfully closed.");
-                } else {
-                    logWithContext(DEBUG, "Request pipeline closed without onComplete - connection is not active.");
                 }
             } catch (final Exception e) {
                 logWithContext(DEBUG, "Error while completing request pipeline.", e);
             }
             // Clear the pipeline reference to prevent further use
-            logWithContext(DEBUG, "Request pipeline removed");
+            logWithContext(DEBUG, "Request pipeline removed.", this);
             requestPipelineRef.compareAndSet(pipeline, null);
         }
     }
@@ -735,9 +740,9 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
             blockStreamMetrics.recordConnectionOnError();
 
             if (error instanceof final GrpcException grpcException) {
-                logWithContext(DEBUG, "Error received (grpcStatus={})", grpcException.status(), grpcException);
+                logWithContext(DEBUG, "Error received (grpcStatus={}).", grpcException.status(), grpcException);
             } else {
-                logWithContext(DEBUG, "Error received", error);
+                logWithContext(DEBUG, "Error received.", error);
             }
 
             handleStreamFailure();
@@ -776,8 +781,8 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
 
     @Override
     public String toString() {
-        return connectionId + "/" + blockNodeConfig.address() + ":" + blockNodeConfig.port() + "/"
-                + getConnectionState();
+        return "[" + connectionId + "/" + blockNodeConfig.address() + ":" + blockNodeConfig.port() + "/"
+                + getConnectionState() + "]";
     }
 
     @Override
