@@ -2,6 +2,7 @@
 package com.swirlds.demo.consistency;
 
 import static com.swirlds.platform.state.service.PlatformStateFacade.DEFAULT_PLATFORM_STATE_FACADE;
+import static com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer.CONFIGURATION;
 import static org.assertj.core.api.AssertionsForInterfaceTypes.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
@@ -14,9 +15,13 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.config.api.Configuration;
+import com.swirlds.merkledb.MerkleDbDataSourceBuilder;
+import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer;
+import com.swirlds.virtualmap.VirtualMap;
+import com.swirlds.virtualmap.datasource.VirtualDataSourceBuilder;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -55,9 +60,13 @@ public class ConsistencyTestingToolStateTest {
 
     @BeforeAll
     static void initState() {
-        state = new ConsistencyTestingToolState();
+        final MerkleDbConfig merkleDbConfig = CONFIGURATION.getConfigData(MerkleDbConfig.class);
+        final VirtualDataSourceBuilder dsBuilder =
+                new MerkleDbDataSourceBuilder(CONFIGURATION, 1_000_000, merkleDbConfig.hashesRamToDiskThreshold());
+        final VirtualMap virtualMap = new VirtualMap("ConsistencyTestingToolStateTest", dsBuilder, CONFIGURATION);
+        state = new ConsistencyTestingToolState(virtualMap);
         stateLifecycle = new ConsistencyTestingToolConsensusStateEventHandler(DEFAULT_PLATFORM_STATE_FACADE);
-        TestingAppStateInitializer.DEFAULT.initConsensusModuleStates(state);
+        TestingAppStateInitializer.initConsensusModuleStates(state);
     }
 
     @BeforeEach
