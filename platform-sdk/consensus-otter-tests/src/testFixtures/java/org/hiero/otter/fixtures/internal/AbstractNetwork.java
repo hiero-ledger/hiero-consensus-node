@@ -161,8 +161,8 @@ public abstract class AbstractNetwork implements Network {
     }
 
     /**
-     * Creates a new node with the given ID and keys and certificates. This is a factory method that must be
-     * implemented by subclasses to create nodes specific to the environment.
+     * Creates a new node with the given ID and keys and certificates. This is a factory method that must be implemented
+     * by subclasses to create nodes specific to the environment.
      *
      * @param nodeId the ID of the node to create
      * @param keysAndCerts the keys and certificates for the node
@@ -412,7 +412,7 @@ public abstract class AbstractNetwork implements Network {
 
         log.info("Sending freeze transaction...");
         final byte[] freezeTransaction = TransactionFactory.createFreezeTransaction(
-                        timeManager().now().plus(FREEZE_DELAY))
+                        random.nextLong(), timeManager().now().plus(FREEZE_DELAY))
                 .toByteArray();
         nodes().stream()
                 .filter(Node::isActive)

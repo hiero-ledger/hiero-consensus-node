@@ -56,7 +56,7 @@ public class AssessmentResult {
     private final Map<AccountID, Long> immutableInputHbarAdjustments;
     /* And for each "assessable change" that can be charged a custom fee, delegate to our
     fee assessor to update the balance changes with the custom fee. */
-    private final List<AssessedCustomFee> assessedCustomFees;
+    private final List<AssessedFeeWithPayerDebits> assessedFeesWithPayerDebits;
 
     /**
      * Constructs an AssessmentResult object with the input token transfers and hbar transfers
@@ -79,7 +79,7 @@ public class AssessmentResult {
         htsAdjustments = new LinkedHashMap<>();
         hbarAdjustments = new LinkedHashMap<>();
         royaltiesPaid = new LinkedHashSet<>();
-        assessedCustomFees = new ArrayList<>();
+        assessedFeesWithPayerDebits = new ArrayList<>();
     }
 
     /**
@@ -118,16 +118,28 @@ public class AssessmentResult {
      * Returns the assessed custom fees.
      * @return the assessed custom fees
      */
-    public List<AssessedCustomFee> getAssessedCustomFees() {
-        return assessedCustomFees;
+    public List<AssessedFeeWithPayerDebits> getAssessedFeesWithPayerDebits() {
+        return assessedFeesWithPayerDebits;
     }
 
     /**
      * Adds an assessed custom fee.
+     *
+     * @param assessedCustomFee the assessed custom fee
+     * @param multiPayerDeltas the adjustments to the assessed fee's payer in a multi-payer fractional fee scenario
+     */
+    public void addAssessedFeeWithPayerDebits(
+            @NonNull final AssessedCustomFee assessedCustomFee, @NonNull final Map<AccountID, Long> multiPayerDeltas) {
+        assessedFeesWithPayerDebits.add(new AssessedFeeWithPayerDebits(assessedCustomFee, multiPayerDeltas));
+    }
+
+    /**
+     * Adds an assessed custom fee. Payer debits will be null, since it is applicable only for fractional fees.
+     *
      * @param assessedCustomFee the assessed custom fee
      */
-    public void addAssessedCustomFee(final AssessedCustomFee assessedCustomFee) {
-        assessedCustomFees.add(assessedCustomFee);
+    public void addAssessedCustomFee(@NonNull final AssessedCustomFee assessedCustomFee) {
+        assessedFeesWithPayerDebits.add(new AssessedFeeWithPayerDebits(assessedCustomFee, null));
     }
 
     /**

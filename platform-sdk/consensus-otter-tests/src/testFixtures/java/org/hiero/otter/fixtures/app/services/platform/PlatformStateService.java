@@ -11,12 +11,10 @@ import com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema;
 import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.io.IOException;
 import java.util.function.Consumer;
 import org.hiero.base.utility.CommonUtils;
 import org.hiero.consensus.model.event.Event;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
-import org.hiero.consensus.model.transaction.Transaction;
 import org.hiero.otter.fixtures.app.OtterFreezeTransaction;
 import org.hiero.otter.fixtures.app.OtterService;
 import org.hiero.otter.fixtures.app.OtterTransaction;
@@ -50,24 +48,18 @@ public class PlatformStateService implements OtterService {
      * {@inheritDoc}
      */
     @Override
-    public void onTransaction(
+    public void handleTransaction(
             @NonNull final WritableStates writableStates,
             @NonNull final Event event,
-            @NonNull final Transaction transaction,
+            @NonNull final OtterTransaction transaction,
             @NonNull final Consumer<ScopedSystemTransaction<StateSignatureTransaction>> callback) {
-        try {
-            final OtterTransaction otterTransaction = OtterTransaction.parseFrom(
-                    transaction.getApplicationTransaction().toInputStream());
-            switch (otterTransaction.getDataCase()) {
-                case FREEZETRANSACTION -> handleFreeze(writableStates, otterTransaction.getFreezeTransaction());
-                case STATESIGNATURETRANSACTION ->
-                    handleStateSignature(event, otterTransaction.getStateSignatureTransaction(), callback);
-                case EMPTYTRANSACTION, DATA_NOT_SET -> {
-                    // No action needed for empty transactions
-                }
+        switch (transaction.getDataCase()) {
+            case FREEZETRANSACTION -> handleFreeze(writableStates, transaction.getFreezeTransaction());
+            case STATESIGNATURETRANSACTION ->
+                handleStateSignature(event, transaction.getStateSignatureTransaction(), callback);
+            case EMPTYTRANSACTION, DATA_NOT_SET -> {
+                // No action needed for empty transactions
             }
-        } catch (final IOException e) {
-            throw new RuntimeException(e);
         }
     }
 

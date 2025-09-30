@@ -40,6 +40,7 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Objects;
+import java.util.Random;
 import java.util.function.Consumer;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
@@ -190,7 +191,8 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
             final RosterHistory rosterHistory = RosterUtils.createRosterHistory(state);
             final String eventStreamLoc = selfId.toString();
 
-            this.executionLayer = new OtterExecutionLayer(platformContext.getMetrics());
+            this.executionLayer =
+                    new OtterExecutionLayer(new Random(randotron.nextLong()), platformContext.getMetrics());
 
             final PlatformBuilder platformBuilder = PlatformBuilder.create(
                             OtterApp.APP_NAME,
