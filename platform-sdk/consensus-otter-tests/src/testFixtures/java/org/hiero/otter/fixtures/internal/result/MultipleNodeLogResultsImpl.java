@@ -79,7 +79,7 @@ public class MultipleNodeLogResultsImpl implements MultipleNodeLogResults {
     public MultipleNodeLogResults suppressingNode(@NonNull final NodeId nodeId) {
         requireNonNull(nodeId, "nodeId cannot be null");
         final List<SingleNodeLogResult> filteredResults = results.stream()
-                .filter(res -> Objects.equals(res.nodeId(), nodeId))
+                .filter(result -> !Objects.equals(result.nodeId(), nodeId))
                 .toList();
 
         return new MultipleNodeLogResultsImpl(filteredResults);
