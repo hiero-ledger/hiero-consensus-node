@@ -3,16 +3,16 @@ package com.hedera.statevalidation.reporting;
 
 public class VirtualMapReport {
 
-    StorageReport pathToHashReport = new StorageReport();
+    StorageReport idToHashChunkReport = new StorageReport();
     StorageReport pathToKeyValueReport = new StorageReport();
     StorageReport objectKeyToPathReport = new StorageReport();
 
     public StorageReport pathToHashReport() {
-        return pathToHashReport;
+        return idToHashChunkReport;
     }
 
-    public void setPathToHashReport(final StorageReport pathToHashReport) {
-        this.pathToHashReport = pathToHashReport;
+    public void setIdToHashChunkReport(final StorageReport idToHashChunkReport) {
+        this.idToHashChunkReport = idToHashChunkReport;
     }
 
     public StorageReport pathToKeyValueReport() {
@@ -37,7 +37,7 @@ public class VirtualMapReport {
         StringBuilder sb = new StringBuilder();
 
         sb.append("Path-to-Hash Storage:\n");
-        sb.append(pathToHashReport.toString());
+        sb.append(idToHashChunkReport.toString());
 
         sb.append("\nPath-to-KeyValue Storage:\n");
         sb.append(pathToKeyValueReport.toString());

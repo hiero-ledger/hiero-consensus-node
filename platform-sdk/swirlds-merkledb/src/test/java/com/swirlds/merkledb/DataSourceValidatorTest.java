@@ -36,7 +36,7 @@ class DataSourceValidatorTest {
     @Test
     void testValidateValidDataSource() throws IOException {
         MerkleDbDataSourceTest.createAndApplyDataSource(
-                tempDir, "createAndCheckInternalNodeHashes", TestType.long_fixed, count, 0, dataSource -> {
+                tempDir, "createAndCheckInternalNodeHashes", TestType.long_fixed, count, dataSource -> {
                     // check db count
                     MerkleDbTestUtils.assertSomeDatabasesStillOpen(1L);
 
@@ -58,7 +58,7 @@ class DataSourceValidatorTest {
     @Test
     void testValidateInvalidDataSource() throws IOException {
         MerkleDbDataSourceTest.createAndApplyDataSource(
-                tempDir, "createAndCheckInternalNodeHashes", TestType.long_fixed, count, 0, dataSource -> {
+                tempDir, "createAndCheckInternalNodeHashes", TestType.long_fixed, count, dataSource -> {
                     // check db count
                     MerkleDbTestUtils.assertSomeDatabasesStillOpen(1L);
                     final var validator = new DataSourceValidator(dataSource);

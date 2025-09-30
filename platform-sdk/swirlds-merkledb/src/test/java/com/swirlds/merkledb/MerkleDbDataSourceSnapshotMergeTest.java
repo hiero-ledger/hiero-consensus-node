@@ -61,15 +61,13 @@ class MerkleDbDataSourceSnapshotMergeTest {
     @ParameterizedTest
     @MethodSource("provideParameters")
     @Disabled
-    void createMergeSnapshotReadBack(
-            final TestType testType, final int hashesRamToDiskThreshold, final boolean preferDiskBasedIndexes)
-            throws Exception {
+    void createMergeSnapshotReadBack(final TestType testType, final boolean preferDiskBasedIndexes) throws Exception {
         // Keep track of direct memory used already, so we can check if we leek over and above what we started with
         final long directMemoryUsedAtStart = getDirectMemoryUsedBytes();
         // run test in background thread
         final ExecutorService executorService = Executors.newSingleThreadExecutor();
         final var future = executorService.submit(() -> {
-            createMergeSnapshotReadBackImpl(testType, hashesRamToDiskThreshold, preferDiskBasedIndexes);
+            createMergeSnapshotReadBackImpl(testType, preferDiskBasedIndexes);
             return null;
         });
         future.get(10, TimeUnit.MINUTES);
@@ -86,12 +84,12 @@ class MerkleDbDataSourceSnapshotMergeTest {
     }
 
     void createMergeSnapshotReadBackImpl(
-            final TestType testType, final int hashesRamToDiskThreshold, final boolean preferDiskBasedIndexes)
+            final TestType testType, final boolean preferDiskBasedIndexes)
             throws IOException, InterruptedException {
         final Path storeDir = Files.createTempDirectory("createMergeSnapshotReadBackImpl");
         final String tableName = "mergeSnapshotReadBack";
         final MerkleDbDataSource dataSource = testType.dataType()
-                .createDataSource(storeDir, tableName, COUNT, hashesRamToDiskThreshold, false, preferDiskBasedIndexes);
+                .createDataSource(storeDir, tableName, COUNT, false, preferDiskBasedIndexes);
         final ExecutorService exec = Executors.newCachedThreadPool();
         try {
             // create some internal and leaf nodes in batches
@@ -174,11 +172,11 @@ class MerkleDbDataSourceSnapshotMergeTest {
                     }
                 } else { // thread 1 initiates compaction and waits for its completion
                     dataSource.compactionCoordinator.compactIfNotRunningYet(
-                            "hashStoreDisk", dataSource.newHashStoreDiskCompactor());
+                            "idToHashChunk", dataSource.newHashChunkStoreCompactor());
                     dataSource.compactionCoordinator.compactIfNotRunningYet(
                             "objectKeyToPath", dataSource.newKeyToPathCompactor());
                     dataSource.compactionCoordinator.compactIfNotRunningYet(
-                            "pathToKeyValue", dataSource.newPathToKeyValueCompactor());
+                            "pathToKeyValue", dataSource.newKeyValueStoreCompactor());
 
                     assertEventuallyTrue(
                             () -> {

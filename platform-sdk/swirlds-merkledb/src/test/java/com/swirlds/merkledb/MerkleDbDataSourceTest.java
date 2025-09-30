@@ -102,16 +102,15 @@ class MerkleDbDataSourceTest {
     // Tests
 
     @ParameterizedTest
-    @MethodSource("provideParameters")
-    void createAndCheckInternalNodeHashes(final TestType testType, final int hashesRamToDiskThreshold)
-            throws IOException, InterruptedException {
+    @EnumSource(TestType.class)
+    void createAndCheckInternalNodeHashes(final TestType testType) throws IOException {
 
         final String tableName = "createAndCheckInternalNodeHashes";
         // check db count
         MerkleDbTestUtils.assertAllDatabasesClosed();
         // create db
         final int count = 10_000;
-        createAndApplyDataSource(testDirectory, tableName, testType, count, hashesRamToDiskThreshold, dataSource -> {
+        createAndApplyDataSource(testDirectory, tableName, testType, count, dataSource -> {
             // check db count
             MerkleDbTestUtils.assertSomeDatabasesStillOpen(1L);
 
@@ -145,18 +144,6 @@ class MerkleDbDataSourceTest {
                     Duration.ofSeconds(1),
                     "Database should have been deleted by close()");
         });
-    }
-
-    private static Stream<Arguments> provideParameters() {
-        final ArrayList<Arguments> arguments = new ArrayList<>(TestType.values().length * 3);
-        final int[] ramDiskSplitOptions = new int[] {0, COUNT / 2, Integer.MAX_VALUE};
-        for (final TestType testType : TestType.values()) {
-            for (final int ramDiskSplit : ramDiskSplitOptions) {
-                arguments.add(Arguments.of(testType, ramDiskSplit, false));
-                arguments.add(Arguments.of(testType, ramDiskSplit, true));
-            }
-        }
-        return arguments.stream();
     }
 
     @ParameterizedTest
@@ -446,7 +433,7 @@ class MerkleDbDataSourceTest {
         final Path originalDbPath = testDirectory.resolve("merkledb-snapshotRestoreIndex-" + testType);
         final int[] deltas = {-10, 0, 10};
         for (int delta : deltas) {
-            createAndApplyDataSource(originalDbPath, tableName, testType, count + Math.abs(delta), 0, dataSource -> {
+            createAndApplyDataSource(originalDbPath, tableName, testType, count + Math.abs(delta), dataSource -> {
                 // create some records
                 dataSource.saveRecords(
                         count - 1,
@@ -475,7 +462,7 @@ class MerkleDbDataSourceTest {
                 final MerkleDbPaths snapshotPaths = new MerkleDbPaths(snapshotDbPath);
                 // Delete all indices
                 Files.delete(snapshotPaths.pathToDiskLocationLeafNodesFile);
-                Files.delete(snapshotPaths.pathToDiskLocationInternalNodesFile);
+                Files.delete(snapshotPaths.idToDiskLocationHashChunksFile);
                 // There is no way to use MerkleDbPaths to get bucket index file path
                 Files.deleteIfExists(snapshotPaths.keyToPathDirectory.resolve(tableName + "_bucket_index.ll"));
 
@@ -532,33 +519,11 @@ class MerkleDbDataSourceTest {
     }
 
     @Test
-    void canConstructWithOnDiskInternalHashStore() {
-        final long finiteInMemHashThreshold = 1_000_000;
-        assertDoesNotThrow(
-                () -> createAndApplyDataSource(
-                        testDirectory,
-                        "test9",
-                        TestType.long_fixed,
-                        1000,
-                        finiteInMemHashThreshold,
-                        MerkleDbDataSource::close),
-                "Should be possible to instantiate data source using on-disk internal hash store");
-    }
-
-    @Test
-    void canConstructWithNoRamInternalHashStore() {
-        assertDoesNotThrow(
-                () -> createAndApplyDataSource(
-                        testDirectory, "test10", TestType.long_fixed, 1000, 0, MerkleDbDataSource::close),
-                "Should be possible to instantiate data source with no in-memory internal hash store");
-    }
-
-    @Test
     void canConstructStandardStoreWithMergingDisabled() {
         assertDoesNotThrow(
                 () -> TestType.long_fixed
                         .dataType()
-                        .createDataSource(testDirectory, "testDB", 1000, Long.MAX_VALUE, false, false)
+                        .createDataSource(testDirectory, "testDB", 1000, false, false)
                         .close(),
                 "Should be possible to instantiate data source with merging disabled");
         // check db count
@@ -571,7 +536,7 @@ class MerkleDbDataSourceTest {
         final String tableName = "vm";
         final Path originalDbPath =
                 testDirectory.resolve("merkledb-dirtyDeletedLeavesBetweenFlushesOnReconnect-" + testType);
-        createAndApplyDataSource(originalDbPath, tableName, testType, 100, 0, dataSource -> {
+        createAndApplyDataSource(originalDbPath, tableName, testType, 100, dataSource -> {
             final List<Bytes> keys = new ArrayList<>(31);
             for (int i = 0; i < 31; i++) {
                 keys.add(testType.dataType().createVirtualLongKey(i));
@@ -672,7 +637,7 @@ class MerkleDbDataSourceTest {
         final String dbName = "db";
         final TestType testType = TestType.long_fixed;
         final Path originalDbPath = testDirectory.resolve("testRestoreSnapshotNoSomeValues");
-        createAndApplyDataSource(originalDbPath, dbName, testType, 0, 0, dataSource -> {
+        createAndApplyDataSource(originalDbPath, dbName, testType, 0, dataSource -> {
             // Create a snapshot. Initial capacity and hashes threshold are zeroes, this simulates
             // old (pre-0.67) snapshots
             final Path snapshotDbPath = testDirectory.resolve("testRestoreSnapshotNoSomeValues-snapshot");
@@ -680,13 +645,11 @@ class MerkleDbDataSourceTest {
             dataSource.close();
 
             final int initialCapacity = 1111;
-            final long hashesRamToDiskThreshold = 8192;
 
             // Restore
             final MerkleDbDataSource snapshot = testType.dataType()
-                    .createDataSource(snapshotDbPath, dbName, initialCapacity, hashesRamToDiskThreshold, false, false);
+                    .createDataSource(snapshotDbPath, dbName, initialCapacity, false, false);
             assertEquals(initialCapacity, snapshot.getInitialCapacity());
-            assertEquals(hashesRamToDiskThreshold, snapshot.getHashesRamToDiskThreshold());
             snapshot.close();
         });
     }
@@ -699,7 +662,7 @@ class MerkleDbDataSourceTest {
         final Path originalDbPath = testDirectory.resolve("merkledb-testRebuildHDHMIndex-" + testType);
         final Path snapshotDbPath1 = testDirectory.resolve("merkledb-testRebuildHDHMIndex_SNAPSHOT1");
         final Path snapshotDbPath2 = testDirectory.resolve("merkledb-testRebuildHDHMIndex_SNAPSHOT2");
-        createAndApplyDataSource(originalDbPath, label, testType, 100, 0, dataSource -> {
+        createAndApplyDataSource(originalDbPath, label, testType, 100, dataSource -> {
             // Flush 1: leaf path range is [8,16]
             dataSource.saveRecords(
                     8,
@@ -806,7 +769,7 @@ class MerkleDbDataSourceTest {
     @EnumSource(TestType.class)
     void closeWhileFlushingTest(final TestType testType) throws IOException, InterruptedException {
         final Path dbPath = testDirectory.resolve("merkledb-closeWhileFlushingTest-" + testType);
-        final MerkleDbDataSource dataSource = testType.dataType().createDataSource(dbPath, "vm", 1000, 0, false, false);
+        final MerkleDbDataSource dataSource = testType.dataType().createDataSource(dbPath, "vm", 1000, false, false);
 
         final int count = 20;
         final List<Bytes> keys = new ArrayList<>(count);
@@ -867,19 +830,8 @@ class MerkleDbDataSourceTest {
             final int size,
             CheckedConsumer<MerkleDbDataSource, Exception> dataSourceConsumer)
             throws IOException {
-        createAndApplyDataSource(testDirectory, name, testType, size, Long.MAX_VALUE, dataSourceConsumer);
-    }
-
-    public static void createAndApplyDataSource(
-            final Path testDirectory,
-            final String name,
-            final TestType testType,
-            final int size,
-            final long hashesRamToDiskThreshold,
-            CheckedConsumer<MerkleDbDataSource, Exception> dataSourceConsumer)
-            throws IOException {
         final MerkleDbDataSource dataSource =
-                testType.dataType().createDataSource(testDirectory, name, size, hashesRamToDiskThreshold, false, false);
+                testType.dataType().createDataSource(testDirectory, name, size, false, false);
         try {
             dataSourceConsumer.accept(dataSource);
         } catch (Throwable e) {

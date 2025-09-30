@@ -98,7 +98,6 @@ public class MerkleDbDataSourceBuilder implements VirtualDataSourceBuilder {
                     configuration,
                     label,
                     initialCapacity,
-                    hashesRamToDiskThreshold,
                     dbCompactionEnabled,
                     false);
         } catch (final IOException ex) {
@@ -131,7 +130,6 @@ public class MerkleDbDataSourceBuilder implements VirtualDataSourceBuilder {
         }
         final String label = merkleDbDataSource.getTableName();
         final long initialCapacity = merkleDbDataSource.getInitialCapacity();
-        final long hashesRamToDiskThreshold = merkleDbDataSource.getHashesRamToDiskThreshold();
         try {
             final Path dataSourceDir = newDataSourceDir(label);
             snapshotDataSource(merkleDbDataSource, dataSourceDir);
@@ -140,7 +138,6 @@ public class MerkleDbDataSourceBuilder implements VirtualDataSourceBuilder {
                     configuration,
                     label,
                     initialCapacity,
-                    hashesRamToDiskThreshold,
                     compactionEnabled,
                     offlineUse);
         } catch (final IOException z) {
@@ -196,17 +193,14 @@ public class MerkleDbDataSourceBuilder implements VirtualDataSourceBuilder {
                             snapshotDir.resolve("tables").resolve(label + "-" + tableId);
                     if (Files.isDirectory(legacySnapshotDataSourceDir)) {
                         hardLinkTree(legacySnapshotDataSourceDir, dataSourceDir);
-                        // Load initial capacity and hashes RAM/disk threshold from legacy MerkleDb database config
+                        // Load initial capacity from legacy MerkleDb database config
                         final long initialCapacity =
                                 tableMetadata.getTableConfig().getInitialCapacity();
-                        final long hashesRamToDiskThreshold =
-                                tableMetadata.getTableConfig().getHashesRamToDiskThreshold();
                         return new MerkleDbDataSource(
                                 dataSourceDir,
                                 configuration,
                                 label,
                                 initialCapacity,
-                                hashesRamToDiskThreshold,
                                 true,
                                 false);
                     } else {

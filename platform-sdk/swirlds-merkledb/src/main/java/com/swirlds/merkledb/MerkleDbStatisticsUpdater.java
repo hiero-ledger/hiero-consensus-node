@@ -69,15 +69,12 @@ public class MerkleDbStatisticsUpdater {
      * @return hashes store file size, Mb
      */
     int updateHashesStoreFileStats(final MerkleDbDataSource dataSource) {
-        if (dataSource.getHashStoreDisk() != null) {
-            final LongSummaryStatistics internalHashesFileSizeStats =
-                    dataSource.getHashStoreDisk().getFilesSizeStatistics();
-            statistics.setHashesStoreFileCount((int) internalHashesFileSizeStats.getCount());
-            final int fileSizeInMb = (int) (internalHashesFileSizeStats.getSum() * BYTES_TO_MEBIBYTES);
-            statistics.setHashesStoreFileSizeMb(fileSizeInMb);
-            return fileSizeInMb;
-        }
-        return 0;
+        final LongSummaryStatistics internalHashesFileSizeStats =
+                dataSource.getHashChunkStore().getFilesSizeStatistics();
+        statistics.setHashesStoreFileCount((int) internalHashesFileSizeStats.getCount());
+        final int fileSizeInMb = (int) (internalHashesFileSizeStats.getSum() * BYTES_TO_MEBIBYTES);
+        statistics.setHashesStoreFileSizeMb(fileSizeInMb);
+        return fileSizeInMb;
     }
 
     /**
@@ -124,15 +121,11 @@ public class MerkleDbStatisticsUpdater {
      */
     void updateOffHeapStats(final MerkleDbDataSource dataSource) {
         int totalOffHeapMemoryConsumption = updateOffHeapStat(
-                        dataSource.getPathToDiskLocationInternalNodes(), statistics::setOffHeapHashesIndexMb)
+                        dataSource.getIdToDiskLocationHashChunks(), statistics::setOffHeapHashesIndexMb)
                 + updateOffHeapStat(dataSource.getPathToDiskLocationLeafNodes(), statistics::setOffHeapLeavesIndexMb);
         if (dataSource.getKeyToPath() != null) {
             totalOffHeapMemoryConsumption += updateOffHeapStat(
                     (OffHeapUser) dataSource.getKeyToPath(), statistics::setOffHeapObjectKeyBucketsIndexMb);
-        }
-        if (dataSource.getHashStoreRam() != null) {
-            totalOffHeapMemoryConsumption +=
-                    updateOffHeapStat((OffHeapUser) dataSource.getHashStoreRam(), statistics::setOffHeapHashesListMb);
         }
         statistics.setOffHeapDataSourceMb(totalOffHeapMemoryConsumption);
     }

@@ -24,6 +24,7 @@ import com.swirlds.merkledb.files.DataFileReader;
 import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.snapshot.DeserializedSignedState;
 import com.swirlds.virtualmap.VirtualMap;
+import com.swirlds.virtualmap.datasource.VirtualHashChunk;
 import com.swirlds.virtualmap.datasource.VirtualHashRecord;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import java.io.ByteArrayOutputStream;
@@ -77,10 +78,10 @@ public class StateAnalyzer {
         updateReport(
                 virtualMap.getLabel(),
                 report,
-                new MemoryIndexDiskKeyValueStoreW<>(vds.getHashStoreDisk()).getFileCollection(),
-                vds.getPathToDiskLocationInternalNodes().size(),
-                VirtualMapReport::setPathToHashReport,
-                VirtualHashRecord::parseFrom);
+                new MemoryIndexDiskKeyValueStoreW<>(vds.getHashChunkStore()).getFileCollection(),
+                vds.getIdToDiskLocationHashChunks().size(),
+                VirtualMapReport::setIdToHashChunkReport,
+                VirtualHashChunk::parseFrom);
         System.out.println("[Report] Duplicates for path to hash storage:\n" + report);
     }
 

@@ -64,7 +64,7 @@ public class CloseFlushTest {
         for (int j = 0; j < 100; j++) {
             final Path storeDir = tmpFileDir.resolve("closeFlushTest-" + j);
             final VirtualDataSource dataSource =
-                    TestType.long_fixed.dataType().createDataSource(storeDir, "closeFlushTest", count, 0, false, true);
+                    TestType.long_fixed.dataType().createDataSource(storeDir, "closeFlushTest", count, false, true);
             // Create a custom data source builder, which creates a custom data source to capture
             // all exceptions happened in saveRecords()
             final VirtualDataSourceBuilder builder = new CustomDataSourceBuilder(dataSource, exception, CONFIGURATION);

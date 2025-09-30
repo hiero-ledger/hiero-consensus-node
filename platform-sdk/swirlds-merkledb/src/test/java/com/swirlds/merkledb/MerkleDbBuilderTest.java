@@ -110,7 +110,6 @@ class MerkleDbBuilderTest {
             assertTrue(dataSource instanceof MerkleDbDataSource);
             MerkleDbDataSource merkleDbDataSource = (MerkleDbDataSource) dataSource;
             assertEquals(initialCapacity, merkleDbDataSource.getInitialCapacity());
-            assertEquals(hashesRamToDiskThreshold, merkleDbDataSource.getHashesRamToDiskThreshold());
         } finally {
             if (dataSource != null) {
                 dataSource.close();
@@ -167,7 +166,6 @@ class MerkleDbBuilderTest {
                 assertNotNull(restored);
                 assertTrue(restored instanceof MerkleDbDataSource);
                 final MerkleDbDataSource merkleDbRestored = (MerkleDbDataSource) restored;
-                assertEquals(hashesRamToDiskThreshold, merkleDbRestored.getHashesRamToDiskThreshold());
             } finally {
                 restored.close();
             }

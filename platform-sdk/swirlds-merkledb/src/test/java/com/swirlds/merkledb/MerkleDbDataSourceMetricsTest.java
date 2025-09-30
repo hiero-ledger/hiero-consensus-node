@@ -35,7 +35,6 @@ class MerkleDbDataSourceMetricsTest {
     public static final String TABLE_NAME = "test";
     // default number of longs per chunk
     private static final int COUNT = 1_048_576;
-    private static final int HASHES_RAM_THRESHOLD = COUNT / 2;
     private static Path testDirectory;
     private MerkleDbDataSource dataSource;
     private Metrics metrics;
@@ -52,7 +51,7 @@ class MerkleDbDataSourceMetricsTest {
         // check db count
         MerkleDbTestUtils.assertAllDatabasesClosed();
         // create db
-        dataSource = createDataSource(testDirectory, TABLE_NAME, long_fixed, COUNT * 10, HASHES_RAM_THRESHOLD);
+        dataSource = createDataSource(testDirectory, TABLE_NAME, long_fixed, COUNT * 10);
 
         metrics = createMetrics();
         dataSource.registerMetrics(metrics);
@@ -91,9 +90,6 @@ class MerkleDbDataSourceMetricsTest {
         // one 8 MB memory chunk
         final int expectedHashesIndexSize = 8;
         assertMetricValue("ds_offheap_hashesIndexMb_" + TABLE_NAME, expectedHashesIndexSize);
-        final int hashListBucketSize =
-                CONFIGURATION.getConfigData(MerkleDbConfig.class).hashStoreRamBufferSize();
-        final int expectedHashListBuckets = (HASHES_RAM_THRESHOLD + hashListBucketSize - 1) / hashListBucketSize;
         assertMetricValue("ds_offheap_dataSourceMb_" + TABLE_NAME, expectedHashesIndexSize);
         assertNoMemoryForLeafAndKeyToPathLists();
     }
@@ -187,9 +183,8 @@ class MerkleDbDataSourceMetricsTest {
             final Path testDirectory,
             final String name,
             final TestType testType,
-            final int size,
-            final long hashesRamToDiskThreshold)
+            final int size)
             throws IOException {
-        return testType.dataType().createDataSource(testDirectory, name, size, hashesRamToDiskThreshold, false, false);
+        return testType.dataType().createDataSource(testDirectory, name, size, false, false);
     }
 }

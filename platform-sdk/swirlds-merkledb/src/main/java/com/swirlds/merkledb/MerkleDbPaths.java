@@ -10,10 +10,15 @@ public class MerkleDbPaths {
 
     public final Path storageDir;
     public final Path metadataFile;
+    @Deprecated
     public final Path pathToDiskLocationInternalNodesFile;
+    public final Path idToDiskLocationHashChunksFile;
     public final Path pathToDiskLocationLeafNodesFile;
+    @Deprecated
     public final Path hashStoreRamFile;
+    @Deprecated
     public final Path hashStoreDiskDirectory;
+    public final Path hashChunkDirectory;
     public final Path keyToPathDirectory;
     public final Path pathToKeyValueDirectory;
 
@@ -27,9 +32,11 @@ public class MerkleDbPaths {
         this.storageDir = storageDir;
         metadataFile = storageDir.resolve("table_metadata.pbj");
         pathToDiskLocationInternalNodesFile = storageDir.resolve("pathToDiskLocationInternalNodes.ll");
+        idToDiskLocationHashChunksFile = storageDir.resolve("pathToDiskLocationHashChunks.ll");
         pathToDiskLocationLeafNodesFile = storageDir.resolve("pathToDiskLocationLeafNodes.ll");
         hashStoreRamFile = storageDir.resolve("internalHashStoreRam.hl");
         hashStoreDiskDirectory = storageDir.resolve("internalHashStoreDisk");
+        hashChunkDirectory = storageDir.resolve("pathToHashChunk");
         keyToPathDirectory = storageDir.resolve("objectKeyToPath");
         pathToKeyValueDirectory = storageDir.resolve("pathToHashKeyValue");
     }

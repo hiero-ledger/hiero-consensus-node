@@ -38,7 +38,7 @@ public class DataFileCompactor {
 
     private static final Logger logger = LogManager.getLogger(DataFileCompactor.class);
 
-    public static final String HASH_STORE_DISK = "HashStoreDisk";
+    public static final String ID_TO_HASH_CHUNK = "IdToHashChunk";
     public static final String OBJECT_KEY_TO_PATH = "ObjectKeyToPath";
     public static final String PATH_TO_KEY_VALUE = "PathToKeyValue";
 

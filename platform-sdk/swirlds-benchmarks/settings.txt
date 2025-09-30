@@ -9,5 +9,4 @@ benchmark.csvAppend,                           true
 virtualMap.flushInterval,                      20
 virtualMap.preferredFlushQueueSize,            1
 virtualMap.flushThrottleStepSize,              500ms
-merkleDb.hashesRamToDiskThreshold,             8388608
 
