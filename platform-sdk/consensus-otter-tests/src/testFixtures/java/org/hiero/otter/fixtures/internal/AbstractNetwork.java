@@ -412,8 +412,7 @@ public abstract class AbstractNetwork implements Network {
 
         log.info("Sending freeze transaction...");
         final byte[] freezeTransaction = TransactionFactory.createFreezeTransaction(
-                        random.nextLong(),
-                        timeManager().now().plus(FREEZE_DELAY))
+                        random.nextLong(), timeManager().now().plus(FREEZE_DELAY))
                 .toByteArray();
         nodes().stream()
                 .filter(Node::isActive)

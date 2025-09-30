@@ -108,7 +108,10 @@ public class OtterApp implements ConsensusStateEventHandler<OtterAppState> {
                     service.preHandleTransaction(event, transaction, callback);
                 }
             } catch (final IOException ex) {
-                log.error("Unable to parse OtterTransaction created by node {}", event.getCreatorId().id(), ex);
+                log.error(
+                        "Unable to parse OtterTransaction created by node {}",
+                        event.getCreatorId().id(),
+                        ex);
             }
         }
     }
@@ -130,17 +133,21 @@ public class OtterApp implements ConsensusStateEventHandler<OtterAppState> {
                 service.handleEvent(state.getWritableStates(service.name()), consensusEvent);
             }
             for (final Iterator<ConsensusTransaction> transactionIterator =
-                    consensusEvent.consensusTransactionIterator();
+                            consensusEvent.consensusTransactionIterator();
                     transactionIterator.hasNext(); ) {
                 try {
-                    final OtterTransaction transaction = OtterTransaction.parseFrom(
-                            transactionIterator.next().getApplicationTransaction().toInputStream());
+                    final OtterTransaction transaction = OtterTransaction.parseFrom(transactionIterator
+                            .next()
+                            .getApplicationTransaction()
+                            .toInputStream());
                     for (final OtterService service : allServices) {
                         service.handleTransaction(
                                 state.getWritableStates(service.name()), consensusEvent, transaction, callback);
                     }
                 } catch (final IOException ex) {
-                    log.error("Unable to parse OtterTransaction created by node {}", consensusEvent.getCreatorId().id(),
+                    log.error(
+                            "Unable to parse OtterTransaction created by node {}",
+                            consensusEvent.getCreatorId().id(),
                             ex);
                 }
             }

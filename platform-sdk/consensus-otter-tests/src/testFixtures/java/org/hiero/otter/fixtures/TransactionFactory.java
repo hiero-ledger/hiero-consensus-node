@@ -57,7 +57,8 @@ public class TransactionFactory {
      * @param innerTxn the StateSignatureTransaction
      * @return a TurtleTransaction with the specified inner transaction
      */
-    public static OtterTransaction createStateSignatureTransaction(final long nonce, @NonNull final StateSignatureTransaction innerTxn) {
+    public static OtterTransaction createStateSignatureTransaction(
+            final long nonce, @NonNull final StateSignatureTransaction innerTxn) {
         final com.hedera.hapi.platform.event.legacy.StateSignatureTransaction legacyInnerTxn =
                 com.hedera.hapi.platform.event.legacy.StateSignatureTransaction.newBuilder()
                         .setRound(innerTxn.round())

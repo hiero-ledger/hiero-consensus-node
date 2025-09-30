@@ -56,7 +56,7 @@ public class PlatformStateService implements OtterService {
         switch (transaction.getDataCase()) {
             case FREEZETRANSACTION -> handleFreeze(writableStates, transaction.getFreezeTransaction());
             case STATESIGNATURETRANSACTION ->
-                    handleStateSignature(event, transaction.getStateSignatureTransaction(), callback);
+                handleStateSignature(event, transaction.getStateSignatureTransaction(), callback);
             case EMPTYTRANSACTION, DATA_NOT_SET -> {
                 // No action needed for empty transactions
             }
