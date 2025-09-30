@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.turtle;
 
+import static org.hiero.otter.fixtures.internal.InstrumentedClasses.INSTRUMENTED_EVENT_CREATOR;
+
 import com.swirlds.base.time.Time;
 import com.swirlds.common.test.fixtures.Randotron;
 import com.swirlds.platform.config.ModuleConfig_;
@@ -42,10 +44,7 @@ public class InstrumentedTurtleNode extends TurtleNode implements InstrumentedNo
             @NonNull final TurtleLogging logging,
             @NonNull final Path outputDirectory) {
         super(randotron, time, selfId, keysAndCerts, network, logging, outputDirectory);
-        configuration()
-                .set(
-                        ModuleConfig_.EVENT_CREATOR_MODULE,
-                        "org.hiero.consensus.event.creator.instrumented.InstrumentedEventCreator");
+        configuration().set(ModuleConfig_.EVENT_CREATOR_MODULE, INSTRUMENTED_EVENT_CREATOR);
     }
 
     /**

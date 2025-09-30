@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.event.creator.instrumented;
 
+import static com.swirlds.logging.legacy.LogMarker.DEMO_INFO;
+import static com.swirlds.logging.legacy.LogMarker.STARTUP;
+
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.base.time.Time;
 import com.swirlds.config.api.Configuration;
@@ -42,7 +45,7 @@ public class InstrumentedEventCreator implements EventCreatorModule {
     public InstrumentedEventCreator() {
         delegate = new DefaultEventCreator();
 
-        log.info("InstrumentedEventCreator created");
+        log.info(STARTUP.getMarker(), "InstrumentedEventCreator created");
     }
 
     /**
@@ -75,7 +78,7 @@ public class InstrumentedEventCreator implements EventCreatorModule {
     }
 
     private void onPing(@NonNull final String message) {
-        log.info("Ping message received: {}", message);
+        log.info(DEMO_INFO.getMarker(), "Ping message received: {}", message);
     }
 
     /**
