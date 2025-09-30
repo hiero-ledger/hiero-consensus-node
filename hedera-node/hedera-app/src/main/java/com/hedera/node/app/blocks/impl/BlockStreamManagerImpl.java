@@ -29,8 +29,6 @@ import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.blockstream.BlockStreamInfo;
 import com.hedera.hapi.platform.state.PlatformState;
-import com.hedera.node.app.HederaStateRoot;
-import com.hedera.node.app.HederaVirtualMapState;
 import com.hedera.node.app.blocks.BlockHashSigner;
 import com.hedera.node.app.blocks.BlockItemWriter;
 import com.hedera.node.app.blocks.BlockStreamManager;
@@ -61,6 +59,7 @@ import com.swirlds.platform.state.service.ReadablePlatformStateStore;
 import com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema;
 import com.swirlds.platform.system.state.notifications.StateHashedNotification;
 import com.swirlds.state.State;
+import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.spi.CommittableWritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -420,13 +419,10 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         final boolean closesBlock = shouldCloseBlock(roundNum, freezeRoundNumber);
         if (closesBlock) {
             lifecycle.onCloseBlock(state);
-            if (state instanceof HederaVirtualMapState hederaNewStateRoot) {
+            // FUTURE WORK: the state should always be an instance of  VirtualMapState
+            // https://github.com/hiero-ledger/hiero-consensus-node/issues/21284
+            if (state instanceof VirtualMapState hederaNewStateRoot) {
                 hederaNewStateRoot.commitSingletons();
-            } else if (state instanceof HederaStateRoot hederaStateRoot) {
-                // Non production case (testing tools)
-                // Otherwise assume it is a MerkleStateRoot
-                // This branch should be removed once the MerkleStateRoot is removed
-                hederaStateRoot.commitSingletons();
             }
             // Flush all boundary state changes besides the BlockStreamInfo
 
