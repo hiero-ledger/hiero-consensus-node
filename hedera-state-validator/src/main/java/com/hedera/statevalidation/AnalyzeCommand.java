@@ -74,8 +74,7 @@ public class AnalyzeCommand implements Runnable {
             }
         }
 
-        // use logger?
-        System.out.println(report);
+        log.info(report);
 
         log.debug(
                 "Writing JSON report to [{}]",
