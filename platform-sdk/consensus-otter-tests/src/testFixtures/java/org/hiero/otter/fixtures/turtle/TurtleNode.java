@@ -190,7 +190,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
             final RosterHistory rosterHistory = RosterUtils.createRosterHistory(state);
             final String eventStreamLoc = selfId.toString();
 
-            this.executionLayer = new OtterExecutionLayer(platformContext.getMetrics());
+            this.executionLayer = new OtterExecutionLayer(randotron, platformContext.getMetrics());
 
             final PlatformBuilder platformBuilder = PlatformBuilder.create(
                             OtterApp.APP_NAME,

@@ -49,7 +49,7 @@ public interface OtterService {
     /**
      * Called when a new event has been received. The service should only do actions for the whole event in this method.
      * For actions on individual transactions, use
-     * {@link #handleTransaction(WritableStates, Event, Transaction, Consumer)}.
+     * {@link #handleTransaction(WritableStates, Event, OtterTransaction, Consumer)}.
      *
      * @param writableStates the {@link WritableStates} to use to modify state
      * @param event the event to handle
@@ -69,7 +69,7 @@ public interface OtterService {
     default void handleTransaction(
             @NonNull final WritableStates writableStates,
             @NonNull final Event event,
-            @NonNull final Transaction transaction,
+            @NonNull final OtterTransaction transaction,
             @NonNull final Consumer<ScopedSystemTransaction<StateSignatureTransaction>> callback) {
         // Default implementation does nothing
     }
@@ -77,7 +77,7 @@ public interface OtterService {
     /**
      * Called when an event is being pre-handled. This is called before any transactions in the event are pre-handled.
      * The service should only do actions for the whole event in this method. For actions on individual transactions,
-     * use {@link #preHandleTransaction(Event, Transaction, Consumer)}.
+     * use {@link #preHandleTransaction(Event, OtterTransaction, Consumer)}.
      *
      * @param event the event being pre-handled
      */
@@ -94,7 +94,7 @@ public interface OtterService {
      */
     default void preHandleTransaction(
             @NonNull final Event event,
-            @NonNull final Transaction transaction,
+            @NonNull final OtterTransaction transaction,
             @NonNull final Consumer<ScopedSystemTransaction<StateSignatureTransaction>> callback) {
         // Default implementation does nothing
     }
