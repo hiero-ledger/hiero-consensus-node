@@ -55,11 +55,6 @@ public record MigrationContextImpl(
     }
 
     @Override
-    public SemanticVersion getDefaultVersion() {
-        return SemanticVersion.DEFAULT;
-    }
-
-    @Override
     public Comparator<SemanticVersion> getVersionComparator() {
         return SEMANTIC_VERSION_COMPARATOR;
     }

@@ -117,11 +117,6 @@ public class GenesisMigrationContext implements MigrationContext<SemanticVersion
     }
 
     @Override
-    public SemanticVersion getDefaultVersion() {
-        return null;
-    }
-
-    @Override
     public Comparator<SemanticVersion> getVersionComparator() {
         return SEMANTIC_VERSION_COMPARATOR;
     }

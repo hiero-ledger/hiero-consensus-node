@@ -88,6 +88,7 @@ import com.hedera.node.config.data.NodesConfig;
 import com.hedera.node.config.data.SchedulingConfig;
 import com.hedera.node.config.data.StakingConfig;
 import com.hedera.node.config.types.StreamMode;
+import com.hedera.node.internal.network.Network;
 import com.hedera.node.internal.network.NodeMetadata;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
@@ -156,7 +157,7 @@ public class SystemTransactions {
     private final BlockStreamManager blockStreamManager;
     private final ExchangeRateManager exchangeRateManager;
     private final HederaRecordCache recordCache;
-    private final StartupNetworks startupNetworks;
+    private final StartupNetworks<Network> startupNetworks;
     private final StakePeriodChanges stakePeriodChanges;
     private final ImmediateStateChangeListener immediateStateChangeListener;
 

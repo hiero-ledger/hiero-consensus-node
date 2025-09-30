@@ -3,10 +3,10 @@ package com.hedera.node.app.fixtures.state;
 
 import static com.hedera.hapi.util.HapiUtils.SEMANTIC_VERSION_COMPARATOR;
 import static com.hedera.node.app.fixtures.AppTestBase.DEFAULT_CONFIG;
+import static com.hedera.node.app.spi.fixtures.TestSchema.CURRENT_VERSION;
 import static com.hedera.node.app.state.merkle.SchemaApplicationType.MIGRATION;
 import static com.hedera.node.app.state.merkle.SchemaApplicationType.RESTART;
 import static com.hedera.node.app.state.merkle.SchemaApplicationType.STATE_DEFINITIONS;
-import static com.swirlds.state.test.fixtures.merkle.TestSchema.CURRENT_VERSION;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.SemanticVersion;
@@ -218,11 +218,6 @@ public class FakeSchemaRegistry implements SchemaRegistry<SemanticVersion> {
             @Override
             public Map<String, Object> sharedValues() {
                 return sharedValues;
-            }
-
-            @Override
-            public SemanticVersion getDefaultVersion() {
-                return SemanticVersion.DEFAULT;
             }
 
             @Override

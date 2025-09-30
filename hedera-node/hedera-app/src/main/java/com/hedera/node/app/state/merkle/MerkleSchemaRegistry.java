@@ -237,7 +237,7 @@ public class MerkleSchemaRegistry implements SchemaRegistry<SemanticVersion> {
                         return;
                     }
                     logger.info("  Ensuring {} has state {}", serviceName, stateKey);
-                    final var md = new StateMetadata<>(serviceName, schema, def);
+                    final var md = new StateMetadata<>(serviceName, def);
                     stateRoot.initializeState(md);
                 });
 

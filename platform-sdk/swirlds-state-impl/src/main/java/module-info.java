@@ -19,6 +19,5 @@ module com.swirlds.state.impl {
     requires com.hedera.node.hapi;
     requires com.swirlds.merkledb;
     requires org.apache.logging.log4j;
-    requires org.json;
     requires static transitive com.github.spotbugs.annotations;
 }

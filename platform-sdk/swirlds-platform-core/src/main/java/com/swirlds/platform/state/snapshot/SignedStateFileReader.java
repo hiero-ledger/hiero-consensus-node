@@ -167,7 +167,7 @@ public final class SignedStateFileReader {
         schema.statesToCreate().stream()
                 .sorted(Comparator.comparing(StateDefinition::stateKey))
                 .forEach(def -> {
-                    final var md = new StateMetadata<>(name, schema, def);
+                    final var md = new StateMetadata<>(name, def);
                     if (def.singleton() || def.onDisk()) {
                         state.initializeState(md);
                     } else {

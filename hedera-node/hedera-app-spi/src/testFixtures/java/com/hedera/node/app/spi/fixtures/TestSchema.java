@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.state.test.fixtures.merkle;
+package com.hedera.node.app.spi.fixtures;
 
 import static com.hedera.hapi.util.HapiUtils.SEMANTIC_VERSION_COMPARATOR;
 
@@ -19,7 +19,7 @@ import java.util.Set;
  */
 public class TestSchema extends Schema<SemanticVersion> {
 
-    public static final SemanticVersion CURRENT_VERSION = new SemanticVersion(0, 47, 0, "SNAPSHOT", "");
+    public static final SemanticVersion CURRENT_VERSION = new SemanticVersion(0, 67, 0, "SNAPSHOT", "");
     private final Runnable onMigrate;
     private final Runnable onRestart;
     private final Set<StateDefinition> statesToCreate;

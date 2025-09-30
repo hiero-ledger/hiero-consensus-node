@@ -381,7 +381,7 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
     private List<StateChanges.Builder> migrationStateChanges;
 
     @Nullable
-    private StartupNetworks startupNetworks;
+    private StartupNetworks<Network> startupNetworks;
 
     @Nullable
     private Supplier<Network> genesisNetworkSupplier;
@@ -1060,7 +1060,7 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
     /**
      * Returns the startup networks.
      */
-    public @NonNull StartupNetworks startupNetworks() {
+    public @NonNull StartupNetworks<Network> startupNetworks() {
         return requireNonNull(startupNetworks);
     }
 

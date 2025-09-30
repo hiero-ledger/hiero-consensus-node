@@ -49,7 +49,7 @@ import org.hiero.consensus.roster.RosterRetriever;
  * A {@link StartupNetworks} implementation that loads {@link Network} information from a
  * working directory on disk.
  */
-public class DiskStartupNetworks implements StartupNetworks {
+public class DiskStartupNetworks implements StartupNetworks<Network> {
     private static final Logger log = LogManager.getLogger(DiskStartupNetworks.class);
 
     public static final String ARCHIVE = ".archive";

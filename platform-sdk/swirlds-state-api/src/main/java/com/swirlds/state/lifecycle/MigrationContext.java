@@ -62,7 +62,7 @@ public interface MigrationContext<V> {
      * Returns the startup networks in use.
      */
     @NonNull
-    StartupNetworks startupNetworks();
+    <N> StartupNetworks<N> startupNetworks();
 
     /**
      * Copies and releases the underlying on-disk state for the given ID. If this is not called
@@ -92,16 +92,8 @@ public interface MigrationContext<V> {
      * Returns whether this is a genesis migration.
      */
     default boolean isGenesis() {
-        return previousVersion() == null || previousVersion() == getDefaultVersion();
+        return previousVersion() == null;
     }
-
-    /**
-     * Returns the default version of the schema being managed within the migration context.
-     * This is typically used to determine the base version to be applied or referenced.
-     *
-     * @return the default version of the schema
-     */
-    V getDefaultVersion();
 
     /**
      * Provides a comparator for comparing versions of type {@code V}.

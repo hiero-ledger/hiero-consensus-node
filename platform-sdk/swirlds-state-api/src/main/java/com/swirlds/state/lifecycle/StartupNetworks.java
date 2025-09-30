@@ -1,32 +1,33 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.state.lifecycle;
 
-import com.hedera.node.internal.network.Network;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Optional;
 
 /**
- * Encapsulates the {@link Network} information that may or may not be present on disk
+ * Encapsulates the {@code Network} information that may or may not be present on disk
  * when starting a node.
+ *
+ * @param <T> the type of network information
  */
-public interface StartupNetworks {
+public interface StartupNetworks<T> {
     /**
      * Called by a node that finds itself with a completely empty state.
      *
      * @return the network information that should be used to populate the node's genesis state
      */
-    Network genesisNetworkOrThrow(@NonNull Configuration platformConfig);
+    T genesisNetworkOrThrow(@NonNull Configuration platformConfig);
 
     /**
-     * Called by a node at a restart boundary to check if there is an override {@link Network}
+     * Called by a node at a restart boundary to check if there is an override {@code Network}
      * that applies to the current round. This permits transplanting the state of one network
      * onto another nt network with a different roster and TSS keys.
      *
      * @param roundNumber the round number to check for an override
      * @param platformConfig the current node's configuration
      */
-    Optional<Network> overrideNetworkFor(long roundNumber, Configuration platformConfig);
+    Optional<T> overrideNetworkFor(long roundNumber, Configuration platformConfig);
 
     /**
      * Called by a node after applying override network details to the state from a given round.
@@ -49,5 +50,5 @@ public interface StartupNetworks {
      * @throws UnsupportedOperationException if these startup assets do not support migration to the roster proposal
      */
     @Deprecated
-    Network migrationNetworkOrThrow(final Configuration platformConfig);
+    T migrationNetworkOrThrow(final Configuration platformConfig);
 }

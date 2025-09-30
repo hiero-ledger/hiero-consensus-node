@@ -3,7 +3,6 @@ package com.swirlds.state.lifecycle;
 
 import static org.hiero.base.utility.CommonUtils.getNormalisedStringBytes;
 
-import com.hedera.hapi.node.base.SemanticVersion;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
 import org.hiero.base.utility.NonCryptographicHashing;
@@ -15,77 +14,17 @@ import org.hiero.base.utility.NonCryptographicHashing;
  * @param <V> The type of the state value
  */
 public final class StateMetadata<K, V> {
-    // The application framework reuses the same merkle nodes for different types of encoded data.
-    // When written to saved state, the type of data is determined with a "class ID", which is just
-    // a long. When a saved state is deserialized, the platform will read the "class ID" and then
-    // lookup in ConstructableRegistry the associated class to use for parsing the data.
-    //
-    // We generate class IDs dynamically based on the StateMetadata. The algorithm used for generating
-    // this class ID cannot change in the future, otherwise state already in the saved state file
-    // will not be retrievable!
-    private static final String ON_DISK_KEY_CLASS_ID_SUFFIX = "OnDiskKey";
-    private static final String ON_DISK_KEY_SERIALIZER_CLASS_ID_SUFFIX = "OnDiskKeySerializer";
-    private static final String ON_DISK_VALUE_CLASS_ID_SUFFIX = "OnDiskValue";
-    private static final String ON_DISK_VALUE_SERIALIZER_CLASS_ID_SUFFIX = "OnDiskValueSerializer";
-    private static final String IN_MEMORY_VALUE_CLASS_ID_SUFFIX = "InMemoryValue";
-    private static final String SINGLETON_CLASS_ID_SUFFIX = "SingletonLeaf";
-    private static final String QUEUE_NODE_CLASS_ID_SUFFIX = "QueueNode";
-
     private final String serviceName;
-    private final Schema<SemanticVersion> schema;
     private final StateDefinition<K, V> stateDefinition;
-    private final long onDiskKeyClassId;
-    private final long onDiskKeySerializerClassId;
-    private final long onDiskValueClassId;
-    private final long onDiskValueSerializerClassId;
-    private final long inMemoryValueClassId;
-    private final long singletonClassId;
-    private final long queueNodeClassId;
-
     /**
      * Create an instance.
      *
      * @param serviceName The name of the service
-     * @param schema The {@link Schema} that defined the state
      * @param stateDefinition The {@link StateDefinition}
      */
-    public StateMetadata(
-            @NonNull String serviceName,
-            @NonNull Schema<SemanticVersion> schema,
-            @NonNull StateDefinition<K, V> stateDefinition) {
+    public StateMetadata(@NonNull String serviceName, @NonNull StateDefinition<K, V> stateDefinition) {
         this.serviceName = validateServiceName(serviceName);
-        this.schema = schema;
         this.stateDefinition = stateDefinition;
-
-        final var stateKey = stateDefinition.stateKey();
-        final var version = schema.getVersion();
-        this.onDiskKeyClassId = computeClassId(serviceName, stateKey, version, ON_DISK_KEY_CLASS_ID_SUFFIX);
-        this.onDiskKeySerializerClassId =
-                computeClassId(serviceName, stateKey, version, ON_DISK_KEY_SERIALIZER_CLASS_ID_SUFFIX);
-        this.onDiskValueClassId = computeClassId(serviceName, stateKey, version, ON_DISK_VALUE_CLASS_ID_SUFFIX);
-        this.onDiskValueSerializerClassId =
-                computeClassId(serviceName, stateKey, version, ON_DISK_VALUE_SERIALIZER_CLASS_ID_SUFFIX);
-        this.inMemoryValueClassId = computeClassId(serviceName, stateKey, version, IN_MEMORY_VALUE_CLASS_ID_SUFFIX);
-        this.singletonClassId = computeClassId(serviceName, stateKey, version, SINGLETON_CLASS_ID_SUFFIX);
-        this.queueNodeClassId = computeClassId(serviceName, stateKey, version, QUEUE_NODE_CLASS_ID_SUFFIX);
-    }
-
-    /**
-     * Given the inputs, compute the corresponding class ID.
-     *
-     * @param extra An extra string to bake into the class id
-     * @return the class id
-     */
-    public static long computeClassId(
-            @NonNull final String serviceName,
-            @NonNull final String stateKey,
-            @NonNull final SemanticVersion version,
-            @NonNull final String extra) {
-        // NOTE: Once this is live on any network, the formula used to generate this key can NEVER
-        // BE CHANGED or you won't ever be able to deserialize an exising state! If we get away from
-        // this formula, we will need to hardcode known classId that had been previously generated.
-        final var ver = "v" + version.major() + "." + version.minor() + "." + version.patch();
-        return hashString(serviceName + ":" + stateKey + ":" + ver + ":" + extra);
     }
 
     // Will be moved to `NonCryptographicHashing` with
@@ -247,39 +186,7 @@ public final class StateMetadata<K, V> {
         return serviceName;
     }
 
-    public Schema<SemanticVersion> schema() {
-        return schema;
-    }
-
     public @NonNull StateDefinition<K, V> stateDefinition() {
         return stateDefinition;
-    }
-
-    public long onDiskKeyClassId() {
-        return onDiskKeyClassId;
-    }
-
-    public long onDiskKeySerializerClassId() {
-        return onDiskKeySerializerClassId;
-    }
-
-    public long onDiskValueClassId() {
-        return onDiskValueClassId;
-    }
-
-    public long onDiskValueSerializerClassId() {
-        return onDiskValueSerializerClassId;
-    }
-
-    public long inMemoryValueClassId() {
-        return inMemoryValueClassId;
-    }
-
-    public long singletonClassId() {
-        return singletonClassId;
-    }
-
-    public long queueNodeClassId() {
-        return queueNodeClassId;
     }
 }

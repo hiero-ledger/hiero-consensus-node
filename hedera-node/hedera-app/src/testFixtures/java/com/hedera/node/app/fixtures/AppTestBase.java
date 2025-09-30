@@ -9,8 +9,8 @@ import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.AC
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_STATE_LABEL;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ALIASES_STATE_ID;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ALIASES_STATE_LABEL;
+import static com.hedera.node.app.spi.fixtures.TestSchema.CURRENT_VERSION;
 import static com.swirlds.platform.system.address.AddressBookUtils.endpointFor;
-import static com.swirlds.state.test.fixtures.merkle.TestSchema.CURRENT_VERSION;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.consensus.roster.RosterRetriever.buildRoster;
 

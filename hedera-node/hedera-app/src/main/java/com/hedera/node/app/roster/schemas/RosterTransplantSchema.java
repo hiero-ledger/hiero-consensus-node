@@ -5,12 +5,15 @@ import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.toList;
 import static java.util.stream.Collectors.toMap;
 
+import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.node.app.roster.RosterService;
 import com.hedera.node.config.data.NetworkAdminConfig;
+import com.hedera.node.internal.network.Network;
 import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.lifecycle.Schema;
+import com.swirlds.state.lifecycle.StartupNetworks;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -39,12 +42,12 @@ public interface RosterTransplantSchema {
      * @param rosterStoreFactory the factory to use to create the writable roster store
      */
     default boolean restart(
-            @NonNull final MigrationContext ctx,
+            @NonNull final MigrationContext<SemanticVersion> ctx,
             @NonNull final BiConsumer<Roster, Roster> onAdopt,
             @NonNull final Function<WritableStates, WritableRosterStore> rosterStoreFactory) {
         requireNonNull(ctx);
         final long roundNumber = ctx.roundNumber();
-        final var startupNetworks = ctx.startupNetworks();
+        final StartupNetworks<Network> startupNetworks = ctx.startupNetworks();
         final var overrideNetwork = startupNetworks.overrideNetworkFor(roundNumber, ctx.platformConfig());
         overrideNetwork.ifPresent(network -> {
             final long activeRoundNumber = roundNumber + 1;
