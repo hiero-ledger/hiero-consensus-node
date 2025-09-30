@@ -58,14 +58,12 @@ public class LatestEventTracker {
     }
 
     /**
-     * Get random event from any creator except ourselves
+     * Get random event from any creator
      *
-     * @param selfId our own node id
-     * @return event from other creator or null if nothing is available
+     * @return event from any creator or null if nothing is available
      */
-    public PlatformEvent getRandomNonSelfEvent(@NonNull final NodeId selfId, @NonNull final SecureRandom random) {
+    public PlatformEvent getRandomEvent(@NonNull final SecureRandom random) {
         final List<NodeId> creators = new ArrayList<>(latestEvents.keySet());
-        creators.remove(selfId);
         if (creators.isEmpty()) {
             return null;
         }

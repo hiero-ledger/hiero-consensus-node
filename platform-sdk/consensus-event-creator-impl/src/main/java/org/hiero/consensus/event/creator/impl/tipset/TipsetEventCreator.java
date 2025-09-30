@@ -204,7 +204,7 @@ public class TipsetEventCreator implements EventCreator {
         }
         UnsignedEvent event = maybeCreateUnsignedEvent();
         if (event == null && quiescenceCommand == QuiescenceCommand.BREAK_QUIESCENCE) {
-            event = maybeCreateQuiescenceBreakEvent();
+            event = createQuiescenceBreakEvent();
         }
         if (event != null) {
             lastSelfEvent = signEvent(event);
@@ -213,12 +213,12 @@ public class TipsetEventCreator implements EventCreator {
         return null;
     }
 
-    private UnsignedEvent maybeCreateQuiescenceBreakEvent() {
-        final PlatformEvent otherEvent = latestEventTracker.getRandomNonSelfEvent(selfId, random);
-        if (otherEvent != null) {
-            return buildAndProcessEvent(otherEvent);
-        }
-        return null;
+    private UnsignedEvent createQuiescenceBreakEvent() {
+        // this will return only non-self events, as we are adding only non-self events to event tracker in
+        // registerEvent
+        final PlatformEvent otherEvent = latestEventTracker.getRandomEvent(random);
+
+        return buildAndProcessEvent(otherEvent);
     }
 
     @Nullable

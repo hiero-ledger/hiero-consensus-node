@@ -40,7 +40,6 @@ import java.util.stream.IntStream;
 import org.hiero.consensus.event.creator.impl.EventCreator;
 import org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreator.HashSigner;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
-import org.hiero.consensus.model.event.NonDeterministicGeneration;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
@@ -144,7 +143,7 @@ public class TipsetEventCreatorTestUtils {
      * @param simulatedNode            the node that produced the event. This object is changed after invoking this
      *                                 method.
      * @param slowNode                 an specific mode of validation
-     * @param forgiveNotAdvancingScore
+     * @param forgiveNotAdvancingScore if set to true, test will ignore not advancing score when validating events
      */
     public static void validateNewEventAndMaybeAdvanceCreatorScore(
             @NonNull final Map<EventDescriptorWrapper, PlatformEvent> allEvents,
@@ -155,12 +154,8 @@ public class TipsetEventCreatorTestUtils {
             final boolean forgiveNotAdvancingScore) {
 
         final PlatformEvent selfParent = allEvents.get(newEvent.getSelfParent());
-        final long selfParentGeneration =
-                selfParent == null ? NonDeterministicGeneration.GENERATION_UNDEFINED : selfParent.getNGen();
         final PlatformEvent otherParent =
                 allEvents.get(newEvent.getOtherParents().stream().findFirst().orElse(null));
-        final long otherParentGeneration =
-                otherParent == null ? NonDeterministicGeneration.GENERATION_UNDEFINED : otherParent.getNGen();
 
         if (selfParent == null) {
             // The only legal time to have a null self parent is genesis.

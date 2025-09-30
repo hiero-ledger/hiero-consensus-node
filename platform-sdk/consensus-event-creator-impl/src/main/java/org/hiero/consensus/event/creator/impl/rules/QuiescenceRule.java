@@ -4,32 +4,37 @@ package org.hiero.consensus.event.creator.impl.rules;
 import static org.hiero.consensus.event.creator.impl.EventCreationStatus.QUIESCENCE;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.Objects;
-import java.util.function.Supplier;
 import org.hiero.consensus.event.creator.impl.EventCreationStatus;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 
 public class QuiescenceRule implements EventCreationRule {
 
-    private final Supplier<QuiescenceCommand> quiescenceCommandSupplier;
+    /**
+     * Current QuiescenceCommand of the system
+     */
+    private QuiescenceCommand quiescenceCommand = QuiescenceCommand.DONT_QUIESCE;
 
     /**
      * Constructor.
-     *
-     * @param quiescenceCommandSupplier provides the current quiescence status
      */
-    public QuiescenceRule(@NonNull final Supplier<QuiescenceCommand> quiescenceCommandSupplier) {
-        this.quiescenceCommandSupplier = Objects.requireNonNull(quiescenceCommandSupplier);
-    }
+    public QuiescenceRule() {}
 
     /**
      * {@inheritDoc}
      */
     @Override
     public boolean isEventCreationPermitted() {
-        final QuiescenceCommand currentStatus = quiescenceCommandSupplier.get();
 
-        return currentStatus != QuiescenceCommand.QUIESCE;
+        return quiescenceCommand != QuiescenceCommand.QUIESCE;
+    }
+
+    /**
+     * Informs rule about current quiescence command
+     *
+     * @param quiescenceCommand current command to set
+     */
+    public void quiescenceCommand(@NonNull final QuiescenceCommand quiescenceCommand) {
+        this.quiescenceCommand = quiescenceCommand;
     }
 
     /**
