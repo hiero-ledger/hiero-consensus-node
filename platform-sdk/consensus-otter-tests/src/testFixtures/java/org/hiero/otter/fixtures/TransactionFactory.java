@@ -26,7 +26,8 @@ public class TransactionFactory {
      * @return an empty transaction
      */
     public static OtterTransaction createEmptyTransaction(final int nonce) {
-        final EmptyTransaction emptyTransaction = EmptyTransaction.newBuilder().setNonce(nonce).build();
+        final EmptyTransaction emptyTransaction =
+                EmptyTransaction.newBuilder().setNonce(nonce).build();
         return OtterTransaction.newBuilder()
                 .setEmptyTransaction(emptyTransaction)
                 .build();
