@@ -3738,7 +3738,7 @@
           },
           "disableTextWrap": false,
           "editorMode": "builder",
-          "expr": "avg_over_time(blockStream_connSend_publishStreamRequestLatency{type=\"mean\"}[1m])",
+          "expr": "avg_over_time(blockStream_connSend_requestSendLatency{type=\"mean\"}[1m])",
           "fullMetaSearch": false,
           "hide": false,
           "includeNullMetadata": true,

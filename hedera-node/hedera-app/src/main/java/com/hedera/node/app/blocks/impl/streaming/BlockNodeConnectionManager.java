@@ -1170,13 +1170,13 @@ public class BlockNodeConnectionManager {
     }
 
     /**
-     * Records when a block was sent to a block node. This enables latency measurement upon acknowledgement.
+     * Records when a block proof was sent to a block node. This enables latency measurement upon acknowledgement.
      *
      * @param blockNodeConfig the target block node configuration
-     * @param blockNumber the block number sent
+     * @param blockNumber the block number of the sent proof
      * @param timestamp the timestamp when the block was sent
      */
-    public void recordBlockSent(
+    public void recordBlockProofSent(
             @NonNull final BlockNodeConfig blockNodeConfig, final long blockNumber, @NonNull final Instant timestamp) {
         if (!isStreamingEnabled.get()) {
             return;
@@ -1184,7 +1184,7 @@ public class BlockNodeConnectionManager {
         requireNonNull(blockNodeConfig, "blockNodeConfig must not be null");
 
         final BlockNodeStats stats = nodeStats.computeIfAbsent(blockNodeConfig, k -> new BlockNodeStats());
-        stats.recordBlockSent(blockNumber, timestamp);
+        stats.recordBlockProofSent(blockNumber, timestamp);
     }
 
     /**

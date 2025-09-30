@@ -28,7 +28,7 @@ public class BlockNodeStats {
      * Map for tracking the timestamps when blocks are sent to the block node.
      * The key is the block number and the value is the timestamp when the block was sent.
      */
-    private final Map<Long, Instant> blockSendTimestamps = new ConcurrentHashMap<>();
+    private final Map<Long, Instant> blockProofSendTimestamps = new ConcurrentHashMap<>();
 
     /**
      * Counter for tracking consecutive high-latency events.
@@ -78,14 +78,14 @@ public class BlockNodeStats {
     }
 
     /**
-     * Records the time when a block was sent to a block node.
+     * Records the time when a block proof was sent to a block node.
      *
-     * @param blockNumber the block number sent
+     * @param blockNumber the block number of the sent proof
      * @param timestamp the time the block was sent
      */
-    public void recordBlockSent(final long blockNumber, @NonNull final Instant timestamp) {
+    public void recordBlockProofSent(final long blockNumber, @NonNull final Instant timestamp) {
         requireNonNull(timestamp, "timestamp must not be null");
-        blockSendTimestamps.put(blockNumber, timestamp);
+        blockProofSendTimestamps.put(blockNumber, timestamp);
     }
 
     /**
@@ -106,10 +106,10 @@ public class BlockNodeStats {
             final int eventsBeforeSwitching) {
         requireNonNull(acknowledgedTime, "acknowledgedTime must not be null");
 
-        final Instant sendTime = blockSendTimestamps.get(blockNumber);
+        final Instant sendTime = blockProofSendTimestamps.get(blockNumber);
 
         // Prune the map of all entries with block numbers less than or equal to the acknowledged block number.
-        blockSendTimestamps.keySet().removeIf(key -> key <= blockNumber);
+        blockProofSendTimestamps.keySet().removeIf(key -> key <= blockNumber);
 
         if (sendTime == null) {
             // No sent timestamp found; treat as no-op for high-latency accounting

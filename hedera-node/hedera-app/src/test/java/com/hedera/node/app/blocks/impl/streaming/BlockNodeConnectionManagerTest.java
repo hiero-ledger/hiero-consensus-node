@@ -1541,7 +1541,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         final BlockNodeConfig nodeConfig = newBlockNodeConfig(8080, 1);
         final Instant ackedTime = Instant.now();
 
-        connectionManager.recordBlockSent(nodeConfig, 1L, ackedTime);
+        connectionManager.recordBlockProofSent(nodeConfig, 1L, ackedTime);
         connectionManager.recordBlockAckAndCheckLatency(nodeConfig, 1L, ackedTime.plusMillis(1000));
 
         verify(metrics).recordAcknowledgementLatency(1000);
