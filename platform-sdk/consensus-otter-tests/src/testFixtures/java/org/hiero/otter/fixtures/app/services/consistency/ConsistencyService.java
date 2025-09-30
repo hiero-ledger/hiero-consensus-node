@@ -25,9 +25,10 @@ import org.hiero.otter.fixtures.app.OtterTransaction;
  * <ol>
  *     <li>Consensus rounds increase in number monotonically</li>
  *     <li>Consensus rounds are received only once</li>
- *     <li>Differences in rounds or transactions sent to {@link #recordRound(Round)} on different nodes will cause an ISS</li>
- *     <li>Consensus transactions were previous received in preHandle</li>
- *     <li>After a restart, any rounds that reach consensus in PCES replay exactly match the rounds calculated previously.</li>
+ *     <li>Differences in rounds or transactions recorded in the {@link ConsistencyServiceRoundHistory} on different nodes will cause an ISS</li>
+ *     <li>Transactions are pre-handled only once</li>
+ *     <li>Consensus transactions were previously received in pre-handle</li>
+ *     <li>After a restart, any rounds that reach consensus during PCES replay exactly match the rounds calculated previously.</li>
  * </ol>
  */
 public class ConsistencyService implements OtterService {
@@ -40,8 +41,15 @@ public class ConsistencyService implements OtterService {
     /** A set of transaction nonce values seen in pre-handle that have not yet been handled. */
     private final Set<Long> transactionsAwaitingHandle = ConcurrentHashMap.newKeySet();
 
+    /** A history of all rounds and transaction nonce values contained within. */
+    private final ConsistencyServiceRoundHistory roundHistory = new ConsistencyServiceRoundHistory();
+
+    public void initialize() {
+        // Init roundHistory here
+    }
+
     /**
-     * Records the contents of all rounds, even empty ones. This method calculates a running hash that includes the
+     * Records the contents of all rounds, even empty ones. This method calculates a running checksum that includes the
      * round number and all transactions and stores the number of rounds handled in the state.
      *
      * @param writableStates the writable states used to modify the consistency state
@@ -49,14 +57,14 @@ public class ConsistencyService implements OtterService {
      */
     @Override
     public void handleRound(@NonNull final WritableStates writableStates, @NonNull final Round round) {
-        new WritableConsistencyStateStore(writableStates)
+        final WritableConsistencyStateStore store = new WritableConsistencyStateStore(writableStates)
                 .accumulateRunningChecksum(round.getRoundNum())
                 .incrementRoundsHandled();
+        roundHistory.processRound(ConsistencyServiceRound.fromRound(round, store.getRunningChecksum()));
     }
 
     /**
-     * This method updates the running hash that includes the contents of all
-     * transactions.
+     * This method updates the running hash that includes the contents of all transactions.
      */
     @Override
     public void handleTransaction(
@@ -67,13 +75,13 @@ public class ConsistencyService implements OtterService {
         final long transactionNonce = transaction.getNonce();
         new WritableConsistencyStateStore(writableStates).accumulateRunningChecksum(transactionNonce);
         if (!transactionsAwaitingHandle.remove(transactionNonce)) {
-            log.error(EXCEPTION.getMarker(), "Transaction {} was not prehandled.", transactionNonce);
+            log.error(EXCEPTION.getMarker(), "Transaction {} was not pre-handled.", transactionNonce);
         }
     }
 
     /**
-     * This method records the checksum of all transactions that are pre-handled, so that we can verify
-     * that all consensus transactions were previously pre-handled.
+     * This method records the checksum of all transactions that are pre-handled, so that we can verify that all
+     * consensus transactions were previously pre-handled.
      *
      * @param event the event that contains the transaction
      * @param transaction the transaction being pre-handled
@@ -88,25 +96,6 @@ public class ConsistencyService implements OtterService {
         if (!transactionsAwaitingHandle.add(transactionNonce)) {
             log.error(EXCEPTION.getMarker(), "Transaction {} was pre-handled more than once.", transactionNonce);
         }
-    }
-
-    private void recordRound(@NonNull final Round round) {
-        // FUTURE WORK: Write the round data to in-memory structure and disk. Write to in-memory structure
-        // so we can verify that rounds increase monotonically (no rounds are repeated or skipped). Write to
-        // disk so that we can verify that the same rounds reach consensus after a restart during PCES replay.
-
-        // FUTURE WORK: Compare the round to rounds previous recorded in memory and do basic validations, like
-        // checking that the round number is one greater than the previous round number, and that all transactions
-        // were previously received in prehandle.
-    }
-
-    public void initialize() {
-        // FUTURE WORK: Read round data from disk (written in recordRound()) into in-memory structure.
-    }
-
-    public void recordPreHandleTransactions(@NonNull final Event event) {
-        // FUTURE WORK: Record the prehandle transactions so that we can verify all
-        // consensus transactions were previously sent to prehandle.
     }
 
     /**
