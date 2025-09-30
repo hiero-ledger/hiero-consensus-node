@@ -663,10 +663,25 @@ public class RepeatableHip1064Tests {
                 waitUntilStartOfNextStakingPeriod(1),
                 nodeUpdate("0").declineReward(false),
                 sleepForBlockPeriod(),
-                // Hack to make nodes appear active
                 mutateSingleton(TokenService.NAME, NODE_REWARDS_STATE_ID, (NodeRewards nodeRewards) -> nodeRewards
                         .copyBuilder()
-                        .nodeActivities(List.of())
+                        .nodeActivities(List.of(
+                                NodeActivity.newBuilder()
+                                        .nodeId(0)
+                                        .numMissedJudgeRounds(0)
+                                        .build(),
+                                NodeActivity.newBuilder()
+                                        .nodeId(1)
+                                        .numMissedJudgeRounds(0)
+                                        .build(),
+                                NodeActivity.newBuilder()
+                                        .nodeId(2)
+                                        .numMissedJudgeRounds(0)
+                                        .build(),
+                                NodeActivity.newBuilder()
+                                        .nodeId(3)
+                                        .numMissedJudgeRounds(0)
+                                        .build()))
                         .build()),
                 cryptoTransfer(tinyBarsFromTo(GENESIS, NODE_REWARD, ONE_MILLION_HBARS)),
                 // Move into a new staking period
@@ -686,7 +701,8 @@ public class RepeatableHip1064Tests {
                                     rewardPayment.orElseThrow().body().cryptoTransferOrThrow();
                             final var hasNodeRewardDebit =
                                     requireNonNull(rewardPaymentTx.transfers()).accountAmounts().stream()
-                                            .anyMatch(aa -> aa.amount() < 0);
+                                            .anyMatch(aa -> aa.amount() < 0
+                                                    && aa.accountIDOrThrow().accountNumOrThrow() == 801L);
                             assertTrue(hasNodeRewardDebit, "Node rewards payment should be present in the block");
                             final var nodeStakeUpdate = findFirst(b, NODE_STAKE_UPDATE);
                             assertTrue(nodeStakeUpdate.isPresent(), "Node stake update should be present in the block");

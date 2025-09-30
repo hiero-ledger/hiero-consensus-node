@@ -114,7 +114,7 @@ public class TestingAppStateInitializer {
      * @param state the state to initialize
      * @return a list of builders for the states that were initialized. Currently, returns an empty list.
      */
-    public List<Builder> initStates(@NonNull final MerkleNodeState state) {
+    public List<Builder> initConsensusModuleStates(@NonNull final MerkleNodeState state) {
         List<Builder> list = new ArrayList<>();
         list.addAll(initPlatformState(state));
         list.addAll(initRosterState(state));

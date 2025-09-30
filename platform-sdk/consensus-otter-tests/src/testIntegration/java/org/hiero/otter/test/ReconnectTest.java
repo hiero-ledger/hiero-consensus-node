@@ -60,7 +60,7 @@ public class ReconnectTest {
         network.start();
 
         // Wait for thirty seconds
-        timeManager.waitFor(Duration.ofSeconds(30L));
+        timeManager.waitFor(Duration.ofSeconds(5L));
 
         // Shutdown the node for a period of time so that it falls behind.
         nodeToReconnect.killImmediately();
