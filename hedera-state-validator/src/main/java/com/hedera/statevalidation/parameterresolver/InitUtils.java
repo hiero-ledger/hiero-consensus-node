@@ -214,7 +214,8 @@ public class InitUtils {
                                 new HintsLibraryImpl(),
                                 bootstrapConfig
                                         .getConfigData(BlockStreamConfig.class)
-                                        .blockPeriod()),
+                                        .blockPeriod(),
+                                bootstrapConfig.getConfigData(TssConfig.class)),
                         new RosterService(
                                 roster -> true,
                                 (r, b) -> {},

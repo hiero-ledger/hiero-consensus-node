@@ -472,7 +472,8 @@ class WritableHintsStoreImplTest {
                                 library,
                                 DEFAULT_CONFIG
                                         .getConfigData(BlockStreamConfig.class)
-                                        .blockPeriod()))
+                                        .blockPeriod(),
+                                DEFAULT_CONFIG.getConfigData(TssConfig.class)))
                 .forEach(servicesRegistry::register);
         final var migrator = new FakeServiceMigrator();
         final var bootstrapConfig = new BootstrapConfigProviderImpl().getConfiguration();

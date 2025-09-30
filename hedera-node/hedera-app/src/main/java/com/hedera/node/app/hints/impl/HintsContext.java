@@ -9,6 +9,7 @@ import com.hedera.hapi.node.state.hints.HintsConstruction;
 import com.hedera.hapi.node.state.hints.NodePartyId;
 import com.hedera.hapi.services.auxiliary.hints.HintsPartialSignatureTransactionBody;
 import com.hedera.node.app.hints.HintsLibrary;
+import com.hedera.node.config.data.TssConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -27,8 +28,6 @@ import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import com.hedera.node.config.ConfigProvider;
-import com.hedera.node.config.data.TssConfig;
 
 /**
  * The hinTS context that can be used to request hinTS signatures using the latest
@@ -58,10 +57,9 @@ public class HintsContext {
     private long schemeId;
 
     @Inject
-    public HintsContext(@NonNull final HintsLibrary library, @NonNull final ConfigProvider configProvider) {
+    public HintsContext(@NonNull final HintsLibrary library, @NonNull final TssConfig tssConfig) {
         this.library = requireNonNull(library);
-        requireNonNull(configProvider);
-        this.tssConfig = configProvider.getConfiguration().getConfigData(TssConfig.class);
+        this.tssConfig = requireNonNull(tssConfig);
     }
 
     /**

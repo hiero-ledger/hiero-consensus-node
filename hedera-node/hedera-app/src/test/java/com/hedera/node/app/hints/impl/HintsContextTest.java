@@ -9,8 +9,6 @@ import com.hedera.hapi.node.state.hints.HintsScheme;
 import com.hedera.hapi.node.state.hints.NodePartyId;
 import com.hedera.hapi.node.state.hints.PreprocessedKeys;
 import com.hedera.node.app.hints.HintsLibrary;
-import com.hedera.node.config.ConfigProvider;
-import com.hedera.node.config.VersionedConfiguration;
 import com.hedera.node.config.data.TssConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.time.Duration;
@@ -46,18 +44,14 @@ class HintsContextTest {
     private Bytes signature;
 
     private HintsContext subject;
+
+    @Mock
     private TssConfig strictHalfConfig;
-    @Mock
-    private ConfigProvider configProvider;
-    @Mock
-    private VersionedConfiguration versionedConfiguration;
 
     @BeforeEach
     void setUp() {
         strictHalfConfig = defaultConfig(2, true);
-        given(configProvider.getConfiguration()).willReturn(versionedConfiguration);
-        given(versionedConfiguration.getConfigData(TssConfig.class)).willReturn(strictHalfConfig);
-        subject = new HintsContext(library, configProvider);
+        subject = new HintsContext(library, strictHalfConfig);
     }
 
     private static TssConfig defaultConfig(final int divisor, final boolean strict) {
@@ -133,8 +127,7 @@ class HintsContextTest {
                 .willReturn(aggregateSignature);
 
         final var geConfig = defaultConfig(2, false);
-        given(versionedConfiguration.getConfigData(TssConfig.class)).willReturn(geConfig);
-        final var geSubject = new HintsContext(library, configProvider);
+        final var geSubject = new HintsContext(library, geConfig);
         geSubject.setConstruction(equalConstruction);
 
         final var signing = geSubject.newSigning(BLOCK_HASH, () -> {});
@@ -160,8 +153,7 @@ class HintsContextTest {
                 .willReturn(aggregateSignature);
 
         final var strictConfig = defaultConfig(2, true);
-        given(versionedConfiguration.getConfigData(TssConfig.class)).willReturn(strictConfig);
-        final var s = new HintsContext(library, configProvider);
+        final var s = new HintsContext(library, strictConfig);
         s.setConstruction(construction);
 
         final var signing = s.newSigning(BLOCK_HASH, () -> {});

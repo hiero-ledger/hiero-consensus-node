@@ -33,7 +33,8 @@ public class FakeHintsService implements HintsService {
                 pendingHintsSubmissions::offer,
                 appContext,
                 new HintsLibraryImpl(),
-                bootstrapConfig.getConfigData(BlockStreamConfig.class).blockPeriod());
+                bootstrapConfig.getConfigData(BlockStreamConfig.class).blockPeriod(),
+                bootstrapConfig.getConfigData(TssConfig.class));
     }
 
     @Override
