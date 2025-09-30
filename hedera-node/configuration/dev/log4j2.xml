@@ -3,7 +3,7 @@
 <Configuration status="WARN" monitorInterval="600">
   <Appenders>
     <Console name="Console" target="SYSTEM_OUT">
-      <PatternLayout pattern="%d{yyyy-MM-dd HH:mm:ss.SSS} %-5p %-4L %c{1} -%equals{%level}{DEBUG}{ [%t-%T]%notEmpty{ [%X{connectionInfo}]}} %m{nolookups}%n"/>
+      <PatternLayout pattern="%d{yyyy-MM-dd HH:mm:ss.SSS} %-5p %-4L %c{1} - %m{nolookups}%n"/>
     </Console>
 
     <RollingFile name="GrpcAccessLog" fileName="output/grpc-access.log" filePattern="output/grpc-access.log-%i.log">
@@ -17,7 +17,7 @@
     <RollingFile name="RollingFile" fileName="output/hgcaa.log"
       filePattern="output/hgcaa-%i.log">
       <PatternLayout>
-        <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} %-5p %-4L %c{1} -%equals{%level}{DEBUG}{ [%t-%T]%notEmpty{ [%X{connectionInfo}]}} %m{nolookups}%n</pattern>
+        <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} %-5p %-4L %c{1} - %m{nolookups}%n</pattern>
       </PatternLayout>
       <Policies>
         <SizeBasedTriggeringPolicy size="100 MB"/>
