@@ -221,8 +221,8 @@ public class BlockNodeConnectionManager {
     private void logWithContext(Level level, String message, Object... args) {
         if (logger.isEnabled(level)) {
             message = String.format("%s %s", LoggingUtilities.threadInfo(), message);
+            logger.atLevel(level).log(message, args);
         }
-        logger.atLevel(level).log(message, args);
     }
 
     /**
@@ -231,8 +231,8 @@ public class BlockNodeConnectionManager {
     private void logWithContext(Level level, String message, BlockNodeConnection connection, Object... args) {
         if (logger.isEnabled(level)) {
             message = String.format("%s %s %s", LoggingUtilities.threadInfo(), connection.toString(), message);
+            logger.atLevel(level).log(message, args);
         }
-        logger.atLevel(level).log(message, args);
     }
 
     /**
@@ -941,8 +941,8 @@ public class BlockNodeConnectionManager {
         private void logWithContext(Level level, String message, Object... args) {
             if (logger.isEnabled(level)) {
                 message = String.format("%s %s %s", LoggingUtilities.threadInfo(), connection.toString(), message);
+                logger.atLevel(level).log(message, args);
             }
-            logger.atLevel(level).log(message, args);
         }
 
         BlockNodeConnectionTask(
