@@ -30,6 +30,7 @@ public class OtterExecutionLayer implements ExecutionLayer {
     /**
      * Constructs a new OtterExecutionLayer.
      *
+     * @param random the source of randomness for populating signature transaction nonce values.
      * @param metrics the metrics system to use
      */
     public OtterExecutionLayer(@NonNull final Random random, @NonNull final Metrics metrics) {
@@ -37,6 +38,9 @@ public class OtterExecutionLayer implements ExecutionLayer {
         transactionPool = new TransactionPoolNexus(getTransactionLimits(), TX_QUEUE_SIZE, metrics);
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void submitStateSignature(@NonNull final StateSignatureTransaction transaction) {
         transactionPool.submitPriorityTransaction(
@@ -53,22 +57,34 @@ public class OtterExecutionLayer implements ExecutionLayer {
         return transactionPool.submitApplicationTransaction(Bytes.wrap(transaction));
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @NonNull
     @Override
     public List<Bytes> getTransactionsForEvent() {
         return transactionPool.getTransactionsForEvent();
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public boolean hasBufferedSignatureTransactions() {
         return transactionPool.hasBufferedSignatureTransactions();
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void newPlatformStatus(@NonNull final PlatformStatus platformStatus) {
         transactionPool.updatePlatformStatus(platformStatus);
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void reportUnhealthyDuration(@NonNull final Duration duration) {
         transactionPool.reportUnhealthyDuration(duration);

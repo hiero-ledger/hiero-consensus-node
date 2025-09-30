@@ -37,11 +37,12 @@ public class ConsistencyService implements OtterService {
     /** The name of this service. */
     public static final String NAME = "ConsistencyStateService";
 
+    /** A set of transaction nonce values seen in pre-handle that have not yet been handled. */
     private final Set<Long> transactionsAwaitingHandle = ConcurrentHashMap.newKeySet();
 
     /**
      * Records the contents of all rounds, even empty ones. This method calculates a running hash that includes the
-     * round number and all transactions, and stores the number of rounds handled in state.
+     * round number and all transactions and stores the number of rounds handled in the state.
      *
      * @param writableStates the writable states used to modify the consistency state
      * @param round the round to handle
