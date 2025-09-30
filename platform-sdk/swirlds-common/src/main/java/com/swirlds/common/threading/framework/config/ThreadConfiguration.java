@@ -117,8 +117,11 @@ public class ThreadConfiguration extends AbstractThreadConfiguration<ThreadConfi
     public ThreadFactory buildFactory() {
         enableThreadNumbering();
 
+        final ContextSnapshot snapshot = captureContextSnapshot();
+
         final java.util.concurrent.ThreadFactory factory = (final Runnable r) -> {
-            final Thread thread = getThreadManager().createThread(getThreadGroup(), r);
+            final Runnable contextAwareRunnable = wrapRunnableWithSnapshot(r, snapshot);
+            final Thread thread = getThreadManager().createThread(getThreadGroup(), contextAwareRunnable);
             configureThread(thread);
             return thread;
         };

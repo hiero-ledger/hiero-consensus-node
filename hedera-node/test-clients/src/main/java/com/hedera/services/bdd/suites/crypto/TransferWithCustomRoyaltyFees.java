@@ -4,6 +4,7 @@ package com.hedera.services.bdd.suites.crypto;
 import static com.hedera.node.app.hapi.utils.EthSigsUtils.recoverAddressFromPubKey;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asEvmAddress;
 import static com.hedera.services.bdd.junit.TestTags.CRYPTO;
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountDetailsAsserts.accountDetailsWith;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
@@ -558,6 +559,7 @@ public class TransferWithCustomRoyaltyFees {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> transferNonFungibleWithRoyaltyHtsFee2TokenFees() {
         return hapiTest(
                 newKeyNamed(NFT_KEY),
@@ -909,6 +911,7 @@ public class TransferWithCustomRoyaltyFees {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> transferNonFungibleWithRoyaltyAllCollectorsExempt() {
         return hapiTest(
                 newKeyNamed(NFT_KEY),
@@ -1269,6 +1272,7 @@ public class TransferWithCustomRoyaltyFees {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> transferNonFungibleWithHollowAccountAndRoyaltyFallbackHbarFee() {
         return hapiTest(flattened(
                 newKeyNamed(NFT_KEY),
@@ -1442,6 +1446,7 @@ public class TransferWithCustomRoyaltyFees {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> transferRoyaltyFeeLongZeroAddressFungibleSenderIds() {
         final var bufferAccount = "account2";
         final var fungibleToken = "fungibleToken";
@@ -1593,6 +1598,7 @@ public class TransferWithCustomRoyaltyFees {
      * fees.
      */
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> biDirectionalAirdropsCannotTriggerRoyaltyPayments() {
         return hapiTest(
                 newKeyNamed(NFT_KEY),

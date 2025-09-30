@@ -4,11 +4,8 @@ package com.swirlds.platform.test.fixtures.state;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.pbj.runtime.Codec;
-import com.swirlds.common.merkle.MerkleNode;
-import com.swirlds.common.utility.Labeled;
 import com.swirlds.state.lifecycle.StateDefinition;
 import com.swirlds.state.lifecycle.StateMetadata;
-import com.swirlds.state.merkle.MerkleStateRoot;
 import com.swirlds.state.test.fixtures.StateTestBase;
 import com.swirlds.state.test.fixtures.merkle.TestSchema;
 import com.swirlds.virtualmap.VirtualMap;
@@ -69,26 +66,6 @@ public class MerkleTestBase extends com.swirlds.state.test.fixtures.merkle.Merkl
                 FIRST_SERVICE,
                 new TestSchema(1),
                 StateDefinition.queue(STEAM_STATE_ID, STEAM_STATE_KEY, ProtoBytes.PROTOBUF));
-    }
-
-    /**
-     * Looks within the merkle tree for a node with the given label. This is useful for tests that
-     * need to verify some change actually happened in the merkle tree.
-     * @deprecated This method is only required for the testing of MerkleStateRoot class and will be removed together with that class.
-     */
-    @Deprecated
-    protected MerkleNode getNodeForLabel(MerkleStateRoot stateRoot, String label) {
-        // This is not idea, as it requires white-box testing -- knowing the
-        // internal details of the MerkleStateRoot. But lacking a getter
-        // (which I don't want to add), this is what I'm left with!
-        for (int i = 0, n = stateRoot.getNumberOfChildren(); i < n; i++) {
-            final MerkleNode child = stateRoot.getChild(i);
-            if (child instanceof Labeled labeled && label.equals(labeled.getLabel())) {
-                return child;
-            }
-        }
-
-        return null;
     }
 
     /** A convenience method for adding a singleton state to a virtual map */
