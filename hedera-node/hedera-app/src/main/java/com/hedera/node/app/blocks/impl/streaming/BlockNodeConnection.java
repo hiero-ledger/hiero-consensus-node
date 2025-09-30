@@ -158,8 +158,8 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
     private void logWithContext(Level level, String message, Object... args) {
         if (logger.isEnabled(level)) {
             message = String.format("%s %s %s", LoggingUtilities.threadInfo(), this, message);
+            logger.atLevel(level).log(message, args);
         }
-        logger.atLevel(level).log(message, args);
     }
 
     /**
