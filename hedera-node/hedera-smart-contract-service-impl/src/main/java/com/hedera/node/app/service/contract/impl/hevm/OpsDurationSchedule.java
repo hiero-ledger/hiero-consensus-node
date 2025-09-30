@@ -20,10 +20,12 @@ public record OpsDurationSchedule(
         /* Denominator for all above multipliers (to be able to configure fractional multipliers) */
         long multipliersDenominator) {
 
+    private static final OpsDurationSchedule EMPTY = new OpsDurationSchedule(new long[256], 0, 0, 0, 0, 1);
+
     private static final long DEFAULT_MULTIPLIERS_DENOMINATOR = 100;
 
     public static OpsDurationSchedule empty() {
-        return new OpsDurationSchedule(new long[256], 0, 0, 0, 0, 1);
+        return EMPTY;
     }
 
     public static OpsDurationSchedule fromConfig(@NonNull final OpsDurationConfig opsDurationConfig) {
