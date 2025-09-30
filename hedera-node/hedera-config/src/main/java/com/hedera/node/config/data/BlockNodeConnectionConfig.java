@@ -4,6 +4,7 @@ package com.hedera.node.config.data;
 import com.hedera.node.config.NodeProperty;
 import com.swirlds.config.api.ConfigData;
 import com.swirlds.config.api.ConfigProperty;
+import com.swirlds.config.api.validation.annotation.Min;
 import java.time.Duration;
 
 /**
@@ -16,6 +17,8 @@ import java.time.Duration;
  * @param endOfStreamScheduleDelay the delay in seconds to schedule connections after the limit is reached
  * @param streamResetPeriod the period in hours to periodically reset the stream, once a day should be enough
  * @param protocolExpBackoffTimeframeReset if a connection has not been rescheduled during the timeframe, reset the exponential backoff
+ * @param maxBackoffDelay the maximum backoff delay for exponential backoff
+ * @param grpcOverallTimeout single timeout configuration for gRPC Client construction, connectTimeout, readTimeout and pollWaitTime in ms
  */
 @ConfigData("blockNode")
 public record BlockNodeConnectionConfig(
@@ -26,4 +29,6 @@ public record BlockNodeConnectionConfig(
         @ConfigProperty(defaultValue = "30s") @NodeProperty Duration endOfStreamTimeFrame,
         @ConfigProperty(defaultValue = "30s") @NodeProperty Duration endOfStreamScheduleDelay,
         @ConfigProperty(defaultValue = "24h") @NodeProperty Duration streamResetPeriod,
-        @ConfigProperty(defaultValue = "30s") @NodeProperty Duration protocolExpBackoffTimeframeReset) {}
+        @ConfigProperty(defaultValue = "30s") @NodeProperty Duration protocolExpBackoffTimeframeReset,
+        @ConfigProperty(defaultValue = "10s") @NodeProperty Duration maxBackoffDelay,
+        @ConfigProperty(defaultValue = "30000") @Min(10000) @NodeProperty int grpcOverallTimeout) {}
