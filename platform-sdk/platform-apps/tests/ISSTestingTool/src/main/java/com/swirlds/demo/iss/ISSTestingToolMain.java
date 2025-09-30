@@ -112,7 +112,7 @@ public class ISSTestingToolMain extends DefaultSwirldMain<ISSTestingToolState> {
      */
     @Override
     public Function<VirtualMap, ISSTestingToolState> stateRootFromVirtualMap() {
-        throw new UnsupportedOperationException();
+        return (virtualMap) -> newStateRoot();
     }
 
     @Override

@@ -3,29 +3,30 @@ package com.swirlds.demo.migration;
 
 import static com.swirlds.base.units.UnitConstants.NANOSECONDS_TO_SECONDS;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
+import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.getGlobalMetrics;
 import static com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer.registerMerkleStateRootClassIds;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.fcqueue.FCQueueStatistics;
+import com.swirlds.config.api.Configuration;
+import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.logging.legacy.payload.ApplicationFinishedPayload;
-import com.swirlds.merkle.map.MerkleMapMetrics;
+import com.swirlds.merkledb.MerkleDbDataSourceBuilder;
+import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.platform.ParameterProvider;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.system.DefaultSwirldMain;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer;
 import com.swirlds.virtualmap.VirtualMap;
+import com.swirlds.virtualmap.datasource.VirtualDataSourceBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.security.SignatureException;
 import java.util.List;
 import java.util.function.Function;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.base.constructable.ClassConstructorPair;
-import org.hiero.base.constructable.ConstructableRegistry;
-import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.roster.RosterUtils;
 
@@ -39,17 +40,9 @@ public class MigrationTestingToolMain extends DefaultSwirldMain<MigrationTesting
     private static final Logger logger = LogManager.getLogger(MigrationTestingToolMain.class);
 
     static {
-        try {
-            logger.info(STARTUP.getMarker(), "Registering MigrationTestingToolState with ConstructableRegistry");
-            ConstructableRegistry constructableRegistry = ConstructableRegistry.getInstance();
-            constructableRegistry.registerConstructable(
-                    new ClassConstructorPair(MigrationTestingToolState.class, MigrationTestingToolState::new));
-            registerMerkleStateRootClassIds();
-            logger.info(STARTUP.getMarker(), "MigrationTestingToolState is registered with ConstructableRegistry");
-        } catch (ConstructableRegistryException e) {
-            logger.error(STARTUP.getMarker(), "Failed to register MigrationTestingToolState", e);
-            throw new RuntimeException(e);
-        }
+        logger.info(STARTUP.getMarker(), "Registering MerkleStateRoot Class Ids with ConstructableRegistry...");
+        registerMerkleStateRootClassIds();
+        logger.info(STARTUP.getMarker(), " MerkleStateRoot Class Ids are registered with the ConstructableRegistry!");
     }
 
     private long seed;
@@ -89,9 +82,6 @@ public class MigrationTestingToolMain extends DefaultSwirldMain<MigrationTesting
         transPerSecToCreate = parameters.length >= 3 ? Integer.parseInt(parameters[2]) : transPerSecToCreate;
 
         generator = new TransactionGenerator(seed);
-
-        // Initialize application statistics
-        initAppStats();
     }
 
     /**
@@ -129,12 +119,6 @@ public class MigrationTestingToolMain extends DefaultSwirldMain<MigrationTesting
         }
     }
 
-    private void initAppStats() {
-        // Register Platform data structure statistics
-        FCQueueStatistics.register(platform.getContext().getMetrics());
-        MerkleMapMetrics.register(platform.getContext().getMetrics());
-    }
-
     private void createTransactions() {
         final long now = System.nanoTime();
         final double tps = (double) transPerSecToCreate
@@ -170,20 +154,21 @@ public class MigrationTestingToolMain extends DefaultSwirldMain<MigrationTesting
     @NonNull
     @Override
     public MigrationTestingToolState newStateRoot() {
-        final MigrationTestingToolState state = new MigrationTestingToolState();
+        final MigrationTestingToolState state = new MigrationTestingToolState(createVirtualMap());
         TestingAppStateInitializer.DEFAULT.initConsensusModuleStates(state);
         return state;
     }
 
     /**
      * {@inheritDoc}
-     * <p>
-     * FUTURE WORK: https://github.com/hiero-ledger/hiero-consensus-node/issues/19002
-     * </p>
      */
     @Override
     public Function<VirtualMap, MigrationTestingToolState> stateRootFromVirtualMap() {
-        throw new UnsupportedOperationException();
+        return (virtualMap) -> {
+            final MigrationTestingToolState state = new MigrationTestingToolState(virtualMap);
+            TestingAppStateInitializer.DEFAULT.initConsensusModuleStates(state);
+            return state;
+        };
     }
 
     @Override
@@ -203,8 +188,25 @@ public class MigrationTestingToolMain extends DefaultSwirldMain<MigrationTesting
     /**
      * {@inheritDoc}
      */
+    @NonNull
     @Override
     public SemanticVersion getSemanticVersion() {
         return semanticVersion;
+    }
+
+    /**
+     * Create a virtual map for the case of genesis state initialization via {@link MigrationTestingToolMain#newStateRoot()}
+     *
+     * @return pre-configured empty Virtual Map with metrics
+     */
+    private static VirtualMap createVirtualMap() {
+        final Configuration configuration =
+                ConfigurationBuilder.create().autoDiscoverExtensions().build();
+        final MerkleDbConfig merkleDbConfig = configuration.getConfigData(MerkleDbConfig.class);
+        final VirtualDataSourceBuilder dsBuilder =
+                new MerkleDbDataSourceBuilder(configuration, 1_000_000, merkleDbConfig.hashesRamToDiskThreshold());
+        final VirtualMap virtualMap = new VirtualMap("virtualMap-MTT", dsBuilder, configuration);
+        virtualMap.registerMetrics(getGlobalMetrics());
+        return virtualMap;
     }
 }

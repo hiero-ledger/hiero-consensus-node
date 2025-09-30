@@ -139,7 +139,7 @@ public class StatsDemoMain extends DefaultSwirldMain<StatsDemoState> {
      */
     @Override
     public Function<VirtualMap, StatsDemoState> stateRootFromVirtualMap() {
-        throw new UnsupportedOperationException();
+        return (virtualMap) -> newStateRoot();
     }
 
     @NonNull
