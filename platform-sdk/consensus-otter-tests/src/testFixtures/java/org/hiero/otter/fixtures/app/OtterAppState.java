@@ -41,6 +41,7 @@ public class OtterAppState extends VirtualMapState<OtterAppState> implements Mer
     /**
      * Creates an initialized {@code TurtleAppState}.
      *
+     * @param configuration the configuration used during initialization
      * @param roster        the initial roster stored in the state
      * @param metrics       the metrics to be registered with virtual map
      * @param version       the software version to set in the state
