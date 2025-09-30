@@ -27,6 +27,8 @@ import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import com.hedera.node.config.ConfigProvider;
+import com.hedera.node.config.data.TssConfig;
 
 /**
  * The hinTS context that can be used to request hinTS signatures using the latest
@@ -42,6 +44,7 @@ public class HintsContext {
     private final ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
 
     private final HintsLibrary library;
+    private final TssConfig tssConfig;
 
     @Nullable
     private Bytes crs;
@@ -55,8 +58,10 @@ public class HintsContext {
     private long schemeId;
 
     @Inject
-    public HintsContext(@NonNull final HintsLibrary library) {
+    public HintsContext(@NonNull final HintsLibrary library, @NonNull final ConfigProvider configProvider) {
         this.library = requireNonNull(library);
+        requireNonNull(configProvider);
+        this.tssConfig = configProvider.getConfiguration().getConfigData(TssConfig.class);
     }
 
     /**
@@ -174,9 +179,14 @@ public class HintsContext {
             totalWeight += nodePartyId.partyWeight();
             nodeWeights.put(nodePartyId.nodeId(), nodePartyId.partyWeight());
         }
+        final int divisor = tssConfig.signingThresholdDivisor();
+        if (divisor <= 0) {
+            throw new IllegalArgumentException("signingThresholdDivisor must be > 0");
+        }
+        final long threshold = totalWeight / divisor;
         return new Signing(
                 blockHash,
-                totalWeight / 2,
+                threshold,
                 preprocessedKeys.aggregationKey(),
                 requireNonNull(nodePartyIds),
                 nodeWeights,
@@ -276,7 +286,10 @@ public class HintsContext {
             signatures.put(partyId, signature);
             final var weight = nodeWeights.getOrDefault(nodeId, 0L);
             final var totalWeight = weightOfSignatures.addAndGet(weight);
-            if (totalWeight > thresholdWeight && completed.compareAndSet(false, true)) {
+            final boolean reachedThreshold = tssConfig.strictSigningThreshold()
+                    ? (totalWeight > thresholdWeight)
+                    : (totalWeight >= thresholdWeight);
+            if (reachedThreshold && completed.compareAndSet(false, true)) {
                 final var aggregatedSignature =
                         library.aggregateSignatures(crs, aggregationKey, verificationKey, signatures);
                 future.complete(aggregatedSignature);

@@ -24,4 +24,8 @@ public record TssConfig(
         @ConfigProperty(defaultValue = "false") @NetworkProperty boolean historyEnabled,
         // Must be true if enabling TSS while also using an override network,
         // to give express consent for breaking the address book chain of trust
-        @ConfigProperty(defaultValue = "false") @NetworkProperty boolean forceHandoffs) {}
+        @ConfigProperty(defaultValue = "false") @NetworkProperty boolean forceHandoffs,
+        // Denominator used to compute signing threshold: totalWeight / signingThresholdDivisor
+        @ConfigProperty(defaultValue = "2") @Min(1) @NetworkProperty int signingThresholdDivisor,
+        // If true, require strictly greater than threshold; if false, allow greater-than-or-equal
+        @ConfigProperty(defaultValue = "true") @NetworkProperty boolean strictSigningThreshold) {}

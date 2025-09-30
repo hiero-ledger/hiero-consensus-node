@@ -9,7 +9,11 @@ import com.hedera.hapi.node.state.hints.HintsScheme;
 import com.hedera.hapi.node.state.hints.NodePartyId;
 import com.hedera.hapi.node.state.hints.PreprocessedKeys;
 import com.hedera.node.app.hints.HintsLibrary;
+import com.hedera.node.config.ConfigProvider;
+import com.hedera.node.config.VersionedConfiguration;
+import com.hedera.node.config.data.TssConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
@@ -42,10 +46,35 @@ class HintsContextTest {
     private Bytes signature;
 
     private HintsContext subject;
+    private TssConfig strictHalfConfig;
+    @Mock
+    private ConfigProvider configProvider;
+    @Mock
+    private VersionedConfiguration versionedConfiguration;
 
     @BeforeEach
     void setUp() {
-        subject = new HintsContext(library);
+        strictHalfConfig = defaultConfig(2, true);
+        given(configProvider.getConfiguration()).willReturn(versionedConfiguration);
+        given(versionedConfiguration.getConfigData(TssConfig.class)).willReturn(strictHalfConfig);
+        subject = new HintsContext(library, configProvider);
+    }
+
+    private static TssConfig defaultConfig(final int divisor, final boolean strict) {
+        return new TssConfig(
+                Duration.ofSeconds(60),
+                Duration.ofSeconds(300),
+                Duration.ofSeconds(60),
+                Duration.ofSeconds(300),
+                Duration.ofSeconds(10),
+                Duration.ofSeconds(5),
+                "data/keys/tss",
+                (short) 512,
+                false,
+                false,
+                false,
+                divisor,
+                strict);
     }
 
     @Test
@@ -85,6 +114,65 @@ class HintsContextTest {
         signing.incorporateValid(CRS, C_NODE_PARTY_ID.nodeId(), signature);
         assertFalse(future.isDone());
         signing.incorporateValid(CRS, D_NODE_PARTY_ID.nodeId(), signature);
+        assertTrue(future.isDone());
+        assertEquals(aggregateSignature, future.join());
+    }
+
+    @Test
+    void greaterOrEqualComparisonAllowsExactThreshold() {
+        final var equalWeightA = new NodePartyId(11L, 1, 5L);
+        final var equalWeightB = new NodePartyId(12L, 2, 5L);
+        final var equalConstruction = HintsConstruction.newBuilder()
+                .constructionId(2L)
+                .hintsScheme(new HintsScheme(PREPROCESSED_KEYS, List.of(equalWeightA, equalWeightB)))
+                .build();
+
+        final Map<Integer, Bytes> expectedSignatures = Map.of(equalWeightA.partyId(), signature);
+        final var aggregateSignature = Bytes.wrap("AS2");
+        given(library.aggregateSignatures(CRS, AGGREGATION_KEY, VERIFICATION_KEY, expectedSignatures))
+                .willReturn(aggregateSignature);
+
+        final var geConfig = defaultConfig(2, false);
+        given(versionedConfiguration.getConfigData(TssConfig.class)).willReturn(geConfig);
+        final var geSubject = new HintsContext(library, configProvider);
+        geSubject.setConstruction(equalConstruction);
+
+        final var signing = geSubject.newSigning(BLOCK_HASH, () -> {});
+        final var future = signing.future();
+
+        signing.incorporateValid(CRS, equalWeightA.nodeId(), signature);
+        assertTrue(future.isDone());
+        assertEquals(aggregateSignature, future.join());
+    }
+
+    @Test
+    void strictComparisonRequiresGreaterThanThreshold() {
+        final var a = new NodePartyId(21L, 1, 5L);
+        final var b = new NodePartyId(22L, 2, 5L);
+        final var construction = HintsConstruction.newBuilder()
+                .constructionId(3L)
+                .hintsScheme(new HintsScheme(PREPROCESSED_KEYS, List.of(a, b)))
+                .build();
+
+        final Map<Integer, Bytes> expectedSignatures = Map.of(a.partyId(), signature, b.partyId(), signature);
+        final var aggregateSignature = Bytes.wrap("AS3");
+        given(library.aggregateSignatures(CRS, AGGREGATION_KEY, VERIFICATION_KEY, expectedSignatures))
+                .willReturn(aggregateSignature);
+
+        final var strictConfig = defaultConfig(2, true);
+        given(versionedConfiguration.getConfigData(TssConfig.class)).willReturn(strictConfig);
+        final var s = new HintsContext(library, configProvider);
+        s.setConstruction(construction);
+
+        final var signing = s.newSigning(BLOCK_HASH, () -> {});
+        final var future = signing.future();
+
+        // Exactly half: should NOT complete when strict
+        signing.incorporateValid(CRS, a.nodeId(), signature);
+        assertFalse(future.isDone());
+
+        // One more: now it should complete
+        signing.incorporateValid(CRS, b.nodeId(), signature);
         assertTrue(future.isDone());
         assertEquals(aggregateSignature, future.join());
     }
