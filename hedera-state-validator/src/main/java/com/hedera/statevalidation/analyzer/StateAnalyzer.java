@@ -9,7 +9,6 @@ import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.statevalidation.merkledb.reflect.MemoryIndexDiskKeyValueStoreW;
 import com.hedera.statevalidation.reporting.Report;
 import com.hedera.statevalidation.reporting.StorageReport;
-import com.hedera.statevalidation.reporting.VirtualMapReport;
 import com.hedera.statevalidation.validators.Utils.LongCountArray;
 import com.swirlds.merkledb.KeyRange;
 import com.swirlds.merkledb.MerkleDbDataSource;
@@ -43,7 +42,7 @@ public final class StateAnalyzer {
                 report,
                 new MemoryIndexDiskKeyValueStoreW<>(vds.getPathToKeyValue()).getFileCollection(),
                 vds.getPathToDiskLocationLeafNodes().size(),
-                VirtualMapReport::setPathToKeyValueReport,
+                Report::setPathToKeyValueReport,
                 VirtualLeafBytes::parseFrom);
     }
 
@@ -52,7 +51,7 @@ public final class StateAnalyzer {
                 report,
                 new MemoryIndexDiskKeyValueStoreW<>(vds.getHashStoreDisk()).getFileCollection(),
                 vds.getPathToDiskLocationInternalNodes().size(),
-                VirtualMapReport::setPathToHashReport,
+                Report::setPathToHashReport,
                 VirtualHashRecord::parseFrom);
     }
 
@@ -60,13 +59,13 @@ public final class StateAnalyzer {
             @NonNull final Report report,
             @NonNull final DataFileCollection dataFileCollection,
             long indexSize,
-            @NonNull final BiConsumer<VirtualMapReport, StorageReport> vmReportUpdater,
+            @NonNull final BiConsumer<Report, StorageReport> vmReportUpdater,
             @NonNull final Function<ReadableSequentialData, ?> deserializer) {
         final StorageReport storageReport = createStoreReport(dataFileCollection, indexSize, deserializer);
         final KeyRange validKeyRange = dataFileCollection.getValidKeyRange();
         storageReport.setMinPath(validKeyRange.getMinValidKey());
         storageReport.setMaxPath(validKeyRange.getMaxValidKey());
-        vmReportUpdater.accept(report.getVmReport(), storageReport);
+        vmReportUpdater.accept(report, storageReport);
     }
 
     private static StorageReport createStoreReport(

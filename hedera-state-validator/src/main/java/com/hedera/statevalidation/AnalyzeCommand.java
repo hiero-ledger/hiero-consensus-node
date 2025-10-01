@@ -6,9 +6,7 @@ import static com.hedera.statevalidation.analyzer.StateAnalyzer.analyzePathToKey
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.statevalidation.parameterresolver.StateResolver;
-import com.hedera.statevalidation.reporting.JsonHelper;
 import com.hedera.statevalidation.reporting.Report;
-import com.hedera.statevalidation.reporting.ReportingFactory;
 import com.swirlds.merkledb.MerkleDbDataSource;
 import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.snapshot.DeserializedSignedState;
@@ -53,8 +51,7 @@ public class AnalyzeCommand implements Runnable {
         }
         final MerkleDbDataSource vds = (MerkleDbDataSource) virtualMap.getDataSource();
         requireNonNull(vds);
-        final Report report = ReportingFactory.getInstance().report();
-        requireNonNull(report);
+        final Report report = new Report();
 
         // Check flags to pick the branch to run
         boolean anyFlagSet = analyzePathToKeyValueStorage || analyzePathToHashStorage;
@@ -75,11 +72,5 @@ public class AnalyzeCommand implements Runnable {
         }
 
         log.info(report);
-
-        log.debug(
-                "Writing JSON report to [{}]",
-                Constants.REPORT_FILE.toAbsolutePath().toString());
-
-        JsonHelper.writeReport(ReportingFactory.getInstance().report(), Constants.REPORT_FILE);
     }
 }

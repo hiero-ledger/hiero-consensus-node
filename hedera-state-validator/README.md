@@ -52,7 +52,7 @@ of a corrupted state.
 
 ## Analyze
 
-[AnalyzeCommand](src/main/java/com/hedera/statevalidation/AnalyzeCommand.java) allows you to analyze the state and generate detailed metrics about storage efficiency, including duplicate percentage, item counts, file counts, wasted space in bytes, and total space usage. These metrics are displayed in the console and also saved to a `report.json` file.
+[AnalyzeCommand](src/main/java/com/hedera/statevalidation/AnalyzeCommand.java) allows you to analyze the state and generate detailed metrics about storage efficiency, including duplicate percentage, item counts, file counts, wasted space in bytes, and total space usage. These metrics are displayed in the console and also saved to a `state-analysis.log` file.
 
 ### Usage
 
@@ -81,37 +81,27 @@ The analysis generates comprehensive storage reports that include:
 - **Duplicate Items**: Number of items that appear multiple times
 - **Path Range**: Minimum and maximum path values in the storage
 
-The results are displayed in the console and saved to a `report.json` file.
+The results are displayed in the console and saved to a `state-analysis.log` file.
 
 ### Sample Output
 
 ```terminaloutput
-REPORT SUMMARY
-=============
-Node: null
-Round Number: 0
-Number of Accounts: 0
+Report for node: 0
 
-STATE REPORT
-============
-Root Hash: null
-Calculated Hash: null
-
-VIRTUAL MAP REPORT
-============
 Path-to-Hash Storage:
-  Path Range: 0 to 1484
+  Path Range: 0 to 1482
   Size: 0 MB
   Files: 1
   Items: 0
   Waste: 0.00%
 
 Path-to-KeyValue Storage:
-  Path Range: 742 to 1484
+  Path Range: 741 to 1482
   Size: 0 MB
   Files: 1
-  Items: 743
+  Items: 742
   Waste: 0.00%
+
 ```
 
 ## Export

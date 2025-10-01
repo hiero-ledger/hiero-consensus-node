@@ -4,14 +4,12 @@ package com.hedera.statevalidation.reporting;
 import static com.hedera.statevalidation.validators.Constants.NODE_NAME;
 
 public class Report {
+
     private String nodeName = NODE_NAME;
 
-    @InvariantProperty
-    private long roundNumber;
+    private StorageReport pathToHashReport;
 
-    private long numberOfAccounts;
-    private StateReport stateReport = new StateReport();
-    private VirtualMapReport vmReport = new VirtualMapReport();
+    private StorageReport pathToKeyValueReport;
 
     public String getNodeName() {
         return nodeName;
@@ -21,52 +19,37 @@ public class Report {
         this.nodeName = nodeName;
     }
 
-    public long getRoundNumber() {
-        return roundNumber;
+    public StorageReport pathToHashReport() {
+        return pathToHashReport;
     }
 
-    public void setRoundNumber(final long roundNumber) {
-        this.roundNumber = roundNumber;
+    public void setPathToHashReport(final StorageReport pathToHashReport) {
+        this.pathToHashReport = pathToHashReport;
     }
 
-    public long getNumberOfAccounts() {
-        return numberOfAccounts;
+    public StorageReport pathToKeyValueReport() {
+        return pathToKeyValueReport;
     }
 
-    public void setNumberOfAccounts(final long numberOfAccounts) {
-        this.numberOfAccounts = numberOfAccounts;
-    }
-
-    public StateReport getStateReport() {
-        return stateReport;
-    }
-
-    public void setStateReport(final StateReport stateReport) {
-        this.stateReport = stateReport;
-    }
-
-    public VirtualMapReport getVmReport() {
-        return vmReport;
-    }
-
-    public void setVmReport(final VirtualMapReport vmReport) {
-        this.vmReport = vmReport;
+    public void setPathToKeyValueReport(final StorageReport pathToKeyValueReport) {
+        this.pathToKeyValueReport = pathToKeyValueReport;
     }
 
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder();
-        sb.append("REPORT SUMMARY\n");
-        sb.append("=============\n");
-        sb.append(String.format("Node: %s\n", nodeName));
-        sb.append(String.format("Round Number: %d\n", roundNumber));
-        sb.append(String.format("Number of Accounts: %d\n", numberOfAccounts));
+        sb.append(String.format("Report for node: %s\n\n", nodeName));
 
-        sb.append("\nSTATE REPORT\n");
-        sb.append(stateReport.toString());
+        if (pathToHashReport != null) {
+            sb.append("Path-to-Hash Storage:\n");
+            sb.append(pathToHashReport);
+            sb.append("\n");
+        }
 
-        sb.append("\nVIRTUAL MAP REPORT\n");
-        sb.append(vmReport.toString());
+        if (pathToKeyValueReport != null) {
+            sb.append("Path-to-KeyValue Storage:\n");
+            sb.append(pathToKeyValueReport);
+        }
 
         return sb.toString();
     }
