@@ -154,9 +154,7 @@ public class MigrationTestingToolMain extends DefaultSwirldMain<MigrationTesting
     @NonNull
     @Override
     public MigrationTestingToolState newStateRoot() {
-        final MigrationTestingToolState state = new MigrationTestingToolState(createVirtualMap());
-        TestingAppStateInitializer.DEFAULT.initConsensusModuleStates(state);
-        return state;
+        return createMigrationTestingToolState(createVirtualMap());
     }
 
     /**
@@ -164,11 +162,20 @@ public class MigrationTestingToolMain extends DefaultSwirldMain<MigrationTesting
      */
     @Override
     public Function<VirtualMap, MigrationTestingToolState> stateRootFromVirtualMap() {
-        return (virtualMap) -> {
-            final MigrationTestingToolState state = new MigrationTestingToolState(virtualMap);
-            TestingAppStateInitializer.DEFAULT.initConsensusModuleStates(state);
-            return state;
-        };
+        return this::createMigrationTestingToolState;
+    }
+
+    /**
+     * Creates a new MigrationTestingToolState with the given VirtualMap and initializes
+     * the consensus module states.
+     *
+     * @param virtualMap the virtual map to use for the state
+     * @return a new initialized MigrationTestingToolState
+     */
+    private MigrationTestingToolState createMigrationTestingToolState(@NonNull final VirtualMap virtualMap) {
+        final MigrationTestingToolState state = new MigrationTestingToolState(virtualMap);
+        TestingAppStateInitializer.DEFAULT.initConsensusModuleStates(state);
+        return state;
     }
 
     @Override
@@ -205,7 +212,7 @@ public class MigrationTestingToolMain extends DefaultSwirldMain<MigrationTesting
         final MerkleDbConfig merkleDbConfig = configuration.getConfigData(MerkleDbConfig.class);
         final VirtualDataSourceBuilder dsBuilder =
                 new MerkleDbDataSourceBuilder(configuration, 1_000_000, merkleDbConfig.hashesRamToDiskThreshold());
-        final VirtualMap virtualMap = new VirtualMap("virtualMap-MTT", dsBuilder, configuration);
+        final VirtualMap virtualMap = new VirtualMap("MigrationTestingTool", dsBuilder, configuration);
         virtualMap.registerMetrics(getGlobalMetrics());
         return virtualMap;
     }
