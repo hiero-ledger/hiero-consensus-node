@@ -32,12 +32,13 @@ public class OtterExecutionLayer implements ExecutionLayer {
     /**
      * Constructs a new OtterExecutionLayer.
      *
-     * @param random the source of randomness for populating signature transaction nonce values.
+     * @param random  the source of randomness for populating signature transaction nonce values.
      * @param metrics the metrics system to use
+     * @param time    the source of time to use
      */
-    public OtterExecutionLayer(@NonNull final Random random, @NonNull final Metrics metrics) {
+    public OtterExecutionLayer(@NonNull final Random random, @NonNull final Metrics metrics, @NonNull final Time time) {
         this.random = requireNonNull(random);
-        transactionPool = new TransactionPoolNexus(getTransactionLimits(), TX_QUEUE_SIZE, metrics, Time.getCurrent());
+        transactionPool = new TransactionPoolNexus(getTransactionLimits(), TX_QUEUE_SIZE, metrics, time);
     }
 
     /**
