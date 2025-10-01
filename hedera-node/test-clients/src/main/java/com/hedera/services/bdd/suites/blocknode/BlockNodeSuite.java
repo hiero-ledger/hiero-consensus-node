@@ -628,9 +628,7 @@ public class BlockNodeSuite {
                         time::get,
                         Duration.ofSeconds(20),
                         Duration.ofSeconds(20),
-                        String.format(
-                                "/localhost:%s/ACTIVE] BlockAcknowledgement received for block",
-                                portNumbers.getFirst()))),
+                        String.format("/localhost:%s/ACTIVE] Acknowledging blocks", portNumbers.getFirst()))),
                 blockNode(0).sendEndOfStreamImmediately(Code.BEHIND).withBlockNumber(Long.MAX_VALUE),
                 sourcingContextual(spec -> assertHgcaaLogContainsTimeframe(
                         byNodeId(0),
@@ -651,7 +649,7 @@ public class BlockNodeSuite {
                         Duration.ofSeconds(20),
                         Duration.ofSeconds(20),
                         String.format(
-                                "/localhost:%s/ACTIVE] Received SkipBlock response for block 9223372036854775807, but we are not streaming that block so it will be ignored",
+                                "/localhost:%s/ACTIVE] Received SkipBlock response for block 9223372036854775807, but we are streaming block",
                                 portNumbers.getFirst()))),
                 blockNode(0).sendResendBlockImmediately(Long.MAX_VALUE),
                 sourcingContextual(spec -> assertHgcaaLogContainsTimeframe(
