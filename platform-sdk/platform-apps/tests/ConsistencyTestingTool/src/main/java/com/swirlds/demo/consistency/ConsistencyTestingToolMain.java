@@ -86,9 +86,7 @@ public class ConsistencyTestingToolMain extends DefaultSwirldMain<ConsistencyTes
     @Override
     @NonNull
     public ConsistencyTestingToolState newStateRoot() {
-        final ConsistencyTestingToolState state = new ConsistencyTestingToolState(createVirtualMap());
-        TestingAppStateInitializer.initConsensusModuleStates(state);
-        return state;
+        return createConsistencyTestingToolState(createVirtualMap());
     }
 
     /**
@@ -96,11 +94,20 @@ public class ConsistencyTestingToolMain extends DefaultSwirldMain<ConsistencyTes
      */
     @Override
     public Function<VirtualMap, ConsistencyTestingToolState> stateRootFromVirtualMap() {
-        return (virtualMap) -> {
-            final ConsistencyTestingToolState state = new ConsistencyTestingToolState(virtualMap);
-            TestingAppStateInitializer.initConsensusModuleStates(state);
-            return state;
-        };
+        return this::createConsistencyTestingToolState;
+    }
+
+    /**
+     * Creates a new ConsistencyTestingToolState with the given VirtualMap and initializes
+     * the consensus module states.
+     *
+     * @param virtualMap the virtual map to use for the state
+     * @return a new initialized ConsistencyTestingToolState
+     */
+    private ConsistencyTestingToolState createConsistencyTestingToolState(@NonNull final VirtualMap virtualMap) {
+        final ConsistencyTestingToolState state = new ConsistencyTestingToolState(virtualMap);
+        TestingAppStateInitializer.initConsensusModuleStates(state);
+        return state;
     }
 
     /**

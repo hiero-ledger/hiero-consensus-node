@@ -8,7 +8,7 @@ import com.swirlds.state.lifecycle.StateDefinition;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Set;
 
-public class V0670ConsistencyTestingToolSchema extends Schema {
+public class V0680ConsistencyTestingToolSchema extends Schema {
 
     public static final String CONSISTENCY_SERVICE_NAME = "ConsistencyTestingToolService";
 
@@ -23,9 +23,9 @@ public class V0670ConsistencyTestingToolSchema extends Schema {
      * The version of the schema.
      */
     private static final SemanticVersion VERSION =
-            SemanticVersion.newBuilder().major(0).minor(67).patch(0).build();
+            SemanticVersion.newBuilder().major(0).minor(68).patch(0).build();
 
-    public V0670ConsistencyTestingToolSchema() {
+    public V0680ConsistencyTestingToolSchema() {
         super(VERSION);
     }
 

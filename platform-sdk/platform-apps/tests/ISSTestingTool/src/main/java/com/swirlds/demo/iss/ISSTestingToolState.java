@@ -11,11 +11,11 @@ package com.swirlds.demo.iss;
  * DISTRIBUTING THIS SOFTWARE OR ITS DERIVATIVES.
  */
 
-import static com.swirlds.demo.iss.V0670ISSTestingToolSchema.GENESIS_TIMESTAMP_STATE_ID;
-import static com.swirlds.demo.iss.V0670ISSTestingToolSchema.ISS_SERVICE_NAME;
-import static com.swirlds.demo.iss.V0670ISSTestingToolSchema.PLANNED_ISS_LIST_STATE_ID;
-import static com.swirlds.demo.iss.V0670ISSTestingToolSchema.PLANNED_LOG_ERROR_LIST_STATE_ID;
-import static com.swirlds.demo.iss.V0670ISSTestingToolSchema.RUNNING_SUM_STATE_ID;
+import static com.swirlds.demo.iss.V0680ISSTestingToolSchema.GENESIS_TIMESTAMP_STATE_ID;
+import static com.swirlds.demo.iss.V0680ISSTestingToolSchema.ISS_SERVICE_NAME;
+import static com.swirlds.demo.iss.V0680ISSTestingToolSchema.PLANNED_ISS_LIST_STATE_ID;
+import static com.swirlds.demo.iss.V0680ISSTestingToolSchema.PLANNED_LOG_ERROR_LIST_STATE_ID;
+import static com.swirlds.demo.iss.V0680ISSTestingToolSchema.RUNNING_SUM_STATE_ID;
 import static com.swirlds.platform.state.service.PlatformStateFacade.DEFAULT_PLATFORM_STATE_FACADE;
 import static com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer.registerMerkleStateRootClassIds;
 
@@ -110,7 +110,7 @@ public class ISSTestingToolState extends VirtualMapState<ISSTestingToolState> im
                 platformContext.getMerkleCryptography(),
                 () -> DEFAULT_PLATFORM_STATE_FACADE.roundOf(this));
 
-        final var schema = new V0670ISSTestingToolSchema();
+        final var schema = new V0680ISSTestingToolSchema();
         schema.statesToCreate().stream()
                 .sorted(Comparator.comparing(StateDefinition::stateId))
                 .forEach(def -> {

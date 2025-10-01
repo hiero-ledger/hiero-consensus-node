@@ -92,9 +92,7 @@ public class ISSTestingToolMain extends DefaultSwirldMain<ISSTestingToolState> {
     @Override
     @NonNull
     public ISSTestingToolState newStateRoot() {
-        final ISSTestingToolState state = new ISSTestingToolState(createVirtualMap());
-        TestingAppStateInitializer.initConsensusModuleStates(state);
-        return state;
+        return createISSTestingToolState(createVirtualMap());
     }
 
     /**
@@ -102,11 +100,20 @@ public class ISSTestingToolMain extends DefaultSwirldMain<ISSTestingToolState> {
      */
     @Override
     public Function<VirtualMap, ISSTestingToolState> stateRootFromVirtualMap() {
-        return (virtualMap) -> {
-            final ISSTestingToolState state = new ISSTestingToolState(virtualMap);
-            TestingAppStateInitializer.initConsensusModuleStates(state);
-            return state;
-        };
+        return this::createISSTestingToolState;
+    }
+
+    /**
+     * Creates a new ISSTestingToolState with the given VirtualMap and initializes
+     * the consensus module states.
+     *
+     * @param virtualMap the virtual map to use for the state
+     * @return a new initialized ISSTestingToolState
+     */
+    private ISSTestingToolState createISSTestingToolState(@NonNull final VirtualMap virtualMap) {
+        final ISSTestingToolState state = new ISSTestingToolState(virtualMap);
+        TestingAppStateInitializer.initConsensusModuleStates(state);
+        return state;
     }
 
     @Override

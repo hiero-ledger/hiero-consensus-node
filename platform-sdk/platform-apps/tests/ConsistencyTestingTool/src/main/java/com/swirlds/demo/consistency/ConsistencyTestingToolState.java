@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.demo.consistency;
 
-import static com.swirlds.demo.consistency.V0670ConsistencyTestingToolSchema.CONSISTENCY_SERVICE_NAME;
-import static com.swirlds.demo.consistency.V0670ConsistencyTestingToolSchema.ROUND_HANDLED_STATE_ID;
-import static com.swirlds.demo.consistency.V0670ConsistencyTestingToolSchema.STATE_LONG_STATE_ID;
+import static com.swirlds.demo.consistency.V0680ConsistencyTestingToolSchema.CONSISTENCY_SERVICE_NAME;
+import static com.swirlds.demo.consistency.V0680ConsistencyTestingToolSchema.ROUND_HANDLED_STATE_ID;
+import static com.swirlds.demo.consistency.V0680ConsistencyTestingToolSchema.STATE_LONG_STATE_ID;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static org.hiero.base.utility.ByteUtils.byteArrayToLong;
@@ -115,7 +115,7 @@ public class ConsistencyTestingToolState extends VirtualMapState<ConsistencyTest
      * Initialize the state
      */
     void initState(Path logFilePath) {
-        final var schema = new V0670ConsistencyTestingToolSchema();
+        final var schema = new V0680ConsistencyTestingToolSchema();
         schema.statesToCreate().stream()
                 .sorted(Comparator.comparing(StateDefinition::stateId))
                 .forEach(def -> {

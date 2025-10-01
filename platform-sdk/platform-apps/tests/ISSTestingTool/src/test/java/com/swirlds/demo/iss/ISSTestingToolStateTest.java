@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.demo.iss;
 
-import static com.swirlds.demo.iss.V0670ISSTestingToolSchema.ISS_SERVICE_NAME;
-import static com.swirlds.demo.iss.V0670ISSTestingToolSchema.RUNNING_SUM_STATE_ID;
+import static com.swirlds.demo.iss.V0680ISSTestingToolSchema.ISS_SERVICE_NAME;
+import static com.swirlds.demo.iss.V0680ISSTestingToolSchema.RUNNING_SUM_STATE_ID;
 import static com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer.CONFIGURATION;
 import static org.assertj.core.api.AssertionsForInterfaceTypes.assertThat;
 import static org.mockito.Mockito.mock;
@@ -59,7 +59,7 @@ class ISSTestingToolStateTest {
         final VirtualMap virtualMap = new VirtualMap("ISSTestingToolStateTest", dsBuilder, CONFIGURATION);
         state = new ISSTestingToolState(virtualMap);
 
-        final var schema = new V0670ISSTestingToolSchema();
+        final var schema = new V0680ISSTestingToolSchema();
         schema.statesToCreate().stream()
                 .sorted(Comparator.comparing(StateDefinition::stateId))
                 .forEach(def -> {
