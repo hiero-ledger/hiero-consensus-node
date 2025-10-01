@@ -99,6 +99,7 @@ import com.hederahashgraph.api.proto.java.EthereumTransactionBody;
 import com.hederahashgraph.api.proto.java.HederaFunctionality;
 import com.hederahashgraph.api.proto.java.PendingAirdropId;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
+import com.hederahashgraph.api.proto.java.TokenAirdropTransactionBody;
 import com.hederahashgraph.api.proto.java.TokenReference;
 import com.hederahashgraph.api.proto.java.TokenType;
 import com.hederahashgraph.api.proto.java.TopicID;
@@ -191,6 +192,11 @@ public class TxnVerbs {
 
     public static HapiTokenAirdrop tokenAirdrop(TokenMovement... sources) {
         return new HapiTokenAirdrop(sources);
+    }
+
+    public static HapiTokenAirdrop tokenAirdrop(
+            @NonNull final BiConsumer<HapiSpec, TokenAirdropTransactionBody.Builder> explicitDef) {
+        return new HapiTokenAirdrop(explicitDef);
     }
 
     public static HapiCryptoUpdate cryptoUpdateAliased(final String alias) {

@@ -36,6 +36,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Random;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Executor;
 import org.apache.logging.log4j.LogManager;
@@ -135,7 +136,7 @@ public class ConsensusNodeManager {
         final MerkleNodeState state = initialState.get().getState();
 
         final RosterHistory rosterHistory = RosterUtils.createRosterHistory(state);
-        executionCallback = new OtterExecutionLayer(metrics);
+        executionCallback = new OtterExecutionLayer(new Random(), metrics);
         final PlatformBuilder builder = PlatformBuilder.create(
                         OtterApp.APP_NAME,
                         OtterApp.SWIRLD_NAME,

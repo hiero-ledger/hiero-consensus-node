@@ -32,7 +32,6 @@ of a corrupted state.
 - [`account`](/src/main/java/com/hedera/statevalidation/validators/servicesstate/AccountValidator.java) - Ensures all accounts have a positive balance, calculates the total HBAR supply,
   and verifies it totals exactly 50 billion HBAR.
 - [`tokenRelations`](/src/main/java/com/hedera/statevalidation/validators/servicesstate/TokenRelationsIntegrity.java) - Verifies that the accounts and tokens for every token relationship exist.
-- [`compaction`](/src/main/java/com/hedera/statevalidation/validators/merkledb/Compaction.java) - Not a validation per se, but it allows for the compaction of state files.
 
 ## Introspect
 
@@ -148,6 +147,19 @@ Notes:
 - If you export a single state in the `unsorted` mode, keep in mind that the object count per file—though consistent across multiple runs—is likely to be uneven.
 - Order of entries is consistent across runs and ordered by path, unless `-Dsorted=true` is specified.
 - In case of `-Dsorted=true`, the data is sorted by the **byte representation of the key**, which doesn't always map to natural ordering. For example, varint encoding does not preserve numerical ordering under lexicographical byte comparison, particularly when values cross boundaries that affect the number of bytes or the leading byte values. However, it will produce a stable ordering across different versions of the state, which is critically important for differential testing.
+
+## Compact
+
+[CompactionCommand](src/main/java/com/hedera/statevalidation/CompactionCommand.java) allows you to perform compaction of state files.
+
+### Usage
+
+1. Download the state files.
+2. Run the following command to execute the compaction:
+
+   ```shell
+   java -jar ./validator-<version>.jar {path-to-state-round} compact
+   ```
 
 ## Updating State with a Block Stream
 

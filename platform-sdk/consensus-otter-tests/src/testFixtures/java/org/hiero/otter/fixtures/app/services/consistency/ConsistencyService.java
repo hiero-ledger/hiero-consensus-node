@@ -1,19 +1,23 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.app.services.consistency;
 
-import static org.hiero.base.utility.ByteUtils.byteArrayToLong;
+import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.event.Event;
 import org.hiero.consensus.model.hashgraph.Round;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
-import org.hiero.consensus.model.transaction.Transaction;
 import org.hiero.otter.fixtures.app.OtterService;
+import org.hiero.otter.fixtures.app.OtterTransaction;
 
 /**
  * A service that ensures the consistency of rounds and transactions sent by the platform to the execution layer for
@@ -27,20 +31,27 @@ import org.hiero.otter.fixtures.app.OtterService;
  * </ol>
  */
 public class ConsistencyService implements OtterService {
+
+    private static final Logger log = LogManager.getLogger();
+
+    /** The name of this service. */
     public static final String NAME = "ConsistencyStateService";
+
+    /** A set of transaction nonce values seen in pre-handle that have not yet been handled. */
+    private final Set<Long> transactionsAwaitingHandle = ConcurrentHashMap.newKeySet();
 
     /**
      * Records the contents of all rounds, even empty ones. This method calculates a running hash that includes the
-     * round number and all transactions, and stores the number of rounds handled in state.
+     * round number and all transactions and stores the number of rounds handled in the state.
      *
      * @param writableStates the writable states used to modify the consistency state
      * @param round the round to handle
      */
     @Override
-    public void onRound(@NonNull final WritableStates writableStates, @NonNull final Round round) {
+    public void handleRound(@NonNull final WritableStates writableStates, @NonNull final Round round) {
         new WritableConsistencyStateStore(writableStates)
                 .accumulateRunningChecksum(round.getRoundNum())
-                .increaseRoundsHandled();
+                .incrementRoundsHandled();
     }
 
     /**
@@ -48,13 +59,35 @@ public class ConsistencyService implements OtterService {
      * transactions.
      */
     @Override
-    public void onTransaction(
+    public void handleTransaction(
             @NonNull final WritableStates writableStates,
             @NonNull final Event event,
-            @NonNull final Transaction transaction,
+            @NonNull final OtterTransaction transaction,
             @NonNull final Consumer<ScopedSystemTransaction<StateSignatureTransaction>> callback) {
-        final long transactionChecksum = getTransactionChecksum(transaction);
-        new WritableConsistencyStateStore(writableStates).accumulateRunningChecksum(transactionChecksum);
+        final long transactionNonce = transaction.getNonce();
+        new WritableConsistencyStateStore(writableStates).accumulateRunningChecksum(transactionNonce);
+        if (!transactionsAwaitingHandle.remove(transactionNonce)) {
+            log.error(EXCEPTION.getMarker(), "Transaction {} was not prehandled.", transactionNonce);
+        }
+    }
+
+    /**
+     * This method records the checksum of all transactions that are pre-handled, so that we can verify
+     * that all consensus transactions were previously pre-handled.
+     *
+     * @param event the event that contains the transaction
+     * @param transaction the transaction being pre-handled
+     * @param callback a callback to pass any system transactions to be handled by the platform
+     */
+    @Override
+    public void preHandleTransaction(
+            @NonNull final Event event,
+            @NonNull final OtterTransaction transaction,
+            @NonNull final Consumer<ScopedSystemTransaction<StateSignatureTransaction>> callback) {
+        final long transactionNonce = transaction.getNonce();
+        if (!transactionsAwaitingHandle.add(transactionNonce)) {
+            log.error(EXCEPTION.getMarker(), "Transaction {} was pre-handled more than once.", transactionNonce);
+        }
     }
 
     private void recordRound(@NonNull final Round round) {
@@ -74,10 +107,6 @@ public class ConsistencyService implements OtterService {
     public void recordPreHandleTransactions(@NonNull final Event event) {
         // FUTURE WORK: Record the prehandle transactions so that we can verify all
         // consensus transactions were previously sent to prehandle.
-    }
-
-    private static long getTransactionChecksum(@NonNull final Transaction transaction) {
-        return byteArrayToLong(transaction.getApplicationTransaction().toByteArray(), 0);
     }
 
     /**
