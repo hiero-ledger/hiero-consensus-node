@@ -13,7 +13,8 @@ import picocli.CommandLine.Parameters;
         subcommands = {
             ValidateCommand.class,
             IntrospectCommand.class,
-            ExportCommand.class, SortedExportCommand.class,
+            ExportCommand.class,
+            SortedExportCommand.class,
             CompactionCommand.class,
             ApplyBlocksCommand.class
         },
