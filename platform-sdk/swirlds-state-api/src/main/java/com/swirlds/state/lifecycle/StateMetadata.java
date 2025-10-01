@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.state.lifecycle;
 
+import static java.util.Objects.requireNonNull;
 import static org.hiero.base.utility.CommonUtils.getNormalisedStringBytes;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.Objects;
 import org.hiero.base.utility.NonCryptographicHashing;
 
 /**
@@ -23,6 +23,7 @@ public final class StateMetadata<K, V> {
      * @param stateDefinition The {@link StateDefinition}
      */
     public StateMetadata(@NonNull String serviceName, @NonNull StateDefinition<K, V> stateDefinition) {
+        requireNonNull(stateDefinition, "stateDefinition must not be null");
         this.serviceName = validateServiceName(serviceName);
         this.stateDefinition = stateDefinition;
     }
@@ -79,7 +80,7 @@ public final class StateMetadata<K, V> {
      */
     @NonNull
     public static String validateServiceName(@NonNull final String serviceName) {
-        if (Objects.requireNonNull(serviceName).isEmpty()) {
+        if (requireNonNull(serviceName).isEmpty()) {
             throw new IllegalArgumentException("The service name must have characters");
         }
 
@@ -96,7 +97,7 @@ public final class StateMetadata<K, V> {
      */
     @NonNull
     public static String validateStateKey(@NonNull final String stateKey) {
-        if (Objects.requireNonNull(stateKey).isEmpty()) {
+        if (requireNonNull(stateKey).isEmpty()) {
             throw new IllegalArgumentException("The state key must have characters");
         }
 
@@ -113,7 +114,7 @@ public final class StateMetadata<K, V> {
      */
     @NonNull
     public static String validateIdentifier(@NonNull final String stateKey) {
-        if (Objects.requireNonNull(stateKey).isEmpty()) {
+        if (requireNonNull(stateKey).isEmpty()) {
             throw new IllegalArgumentException("The identifier must have characters");
         }
 
@@ -136,7 +137,7 @@ public final class StateMetadata<K, V> {
      * @return the computed label
      */
     public static String computeLabel(@NonNull final String serviceName, @NonNull final String stateKey) {
-        return Objects.requireNonNull(serviceName) + "." + Objects.requireNonNull(stateKey);
+        return requireNonNull(serviceName) + "." + requireNonNull(stateKey);
     }
 
     /**
@@ -148,7 +149,7 @@ public final class StateMetadata<K, V> {
      * @return the computed label
      */
     public static String computeLabel(@NonNull final String serviceName, final int stateId) {
-        return Objects.requireNonNull(serviceName) + "." + stateId;
+        return requireNonNull(serviceName) + "." + stateId;
     }
 
     /**

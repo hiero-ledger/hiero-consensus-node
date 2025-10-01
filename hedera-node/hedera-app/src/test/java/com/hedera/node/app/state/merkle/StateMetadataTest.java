@@ -5,9 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThatThrownBy;
 
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
-import com.hedera.node.app.spi.fixtures.TestSchema;
 import com.swirlds.platform.test.fixtures.state.MerkleTestBase;
-import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.lifecycle.StateDefinition;
 import com.swirlds.state.lifecycle.StateMetadata;
 import org.junit.jupiter.api.BeforeEach;
@@ -18,13 +16,11 @@ import org.junit.jupiter.params.provider.MethodSource;
 
 class StateMetadataTest extends MerkleTestBase {
 
-    private Schema schema;
     private StateDefinition<ProtoBytes, ProtoBytes> def;
 
     @BeforeEach
     void setUp() {
         setupFruitVirtualMap();
-        schema = new TestSchema(1);
         def = fruitMetadata.stateDefinition();
     }
 
@@ -33,13 +29,6 @@ class StateMetadataTest extends MerkleTestBase {
     void nullServiceNameThrows() {
         //noinspection DataFlowIssue
         assertThatThrownBy(() -> new StateMetadata<>(null, def));
-    }
-
-    @Test
-    @DisplayName("Null schema throws in the constructor")
-    void nullSchemaThrows() {
-        //noinspection DataFlowIssue
-        assertThatThrownBy(() -> new StateMetadata<>(FIRST_SERVICE, def));
     }
 
     @Test
