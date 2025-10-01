@@ -5,7 +5,6 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.history.ConstructionNodeId;
-import com.hedera.hapi.node.state.history.HistoryProof;
 import com.hedera.hapi.node.state.history.HistoryProofConstruction;
 import com.hedera.hapi.node.state.history.HistoryProofVote;
 import com.hedera.hapi.node.state.history.ProofKeySet;
@@ -20,7 +19,6 @@ import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.lifecycle.StateDefinition;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Set;
-import java.util.function.Consumer;
 
 /**
  * Registers the states needed for the {@link HistoryService}; these are,
@@ -74,11 +72,11 @@ public class V059HistorySchema extends Schema {
     public static final String PROOF_VOTES_KEY = "PROOF_VOTES";
     public static final int PROOF_VOTES_STATE_ID = StateKey.KeyOneOfType.HISTORYSERVICE_I_PROOF_VOTES.protoOrdinal();
 
-    private final Consumer<HistoryProof> proofConsumer;
+    private final HistoryService historyService;
 
-    public V059HistorySchema(@NonNull final Consumer<HistoryProof> proofConsumer) {
+    public V059HistorySchema(@NonNull final HistoryService historyService) {
         super(VERSION);
-        this.proofConsumer = requireNonNull(proofConsumer);
+        this.historyService = requireNonNull(historyService);
     }
 
     @Override
@@ -130,7 +128,7 @@ public class V059HistorySchema extends Schema {
                 requireNonNull(states.<HistoryProofConstruction>getSingleton(ACTIVE_PROOF_CONSTRUCTION_STATE_ID)
                         .get());
         if (activeConstruction.hasTargetProof()) {
-            proofConsumer.accept(activeConstruction.targetProofOrThrow());
+            historyService.setLatestHistoryProof(activeConstruction.targetProofOrThrow());
         }
     }
 }

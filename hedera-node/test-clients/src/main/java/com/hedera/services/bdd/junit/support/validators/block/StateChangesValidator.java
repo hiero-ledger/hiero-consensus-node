@@ -4,6 +4,10 @@ package com.hedera.services.bdd.junit.support.validators.block;
 import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_ACTIVE_HINTS_CONSTRUCTION;
 import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_ACTIVE_PROOF_CONSTRUCTION;
 import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_FILES;
+import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_LEDGER_ID;
+import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_PROOF_KEY_SETS;
+import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_ROSTERS;
+import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_ROSTER_STATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.HINTS_PARTIAL_SIGNATURE;
 import static com.hedera.hapi.util.HapiUtils.asInstant;
 import static com.hedera.node.app.blocks.impl.BlockImplUtils.combine;
@@ -11,11 +15,11 @@ import static com.hedera.node.app.blocks.impl.BlockStreamManagerImpl.NULL_HASH;
 import static com.hedera.node.app.hapi.utils.CommonUtils.noThrowSha384HashOf;
 import static com.hedera.node.app.hapi.utils.CommonUtils.sha384DigestOrThrow;
 import static com.hedera.node.app.ids.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
+import static com.hedera.node.app.roster.RosterTransitionWeights.moreThanTwoThirdsOfTotal;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.APPLICATION_PROPERTIES;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.DATA_CONFIG_DIR;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.SAVED_STATES_DIR;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.SWIRLDS_LOG;
-import static com.hedera.services.bdd.junit.hedera.ExternalPath.WORKING_DIR;
 import static com.hedera.services.bdd.junit.hedera.NodeSelector.byNodeId;
 import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.STATE_METADATA_FILE;
 import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.workingDirFor;
@@ -26,7 +30,9 @@ import static com.hedera.services.bdd.spec.HapiPropertySource.getConfigShard;
 import static com.hedera.services.bdd.spec.TargetNetworkType.SUBPROCESS_NETWORK;
 import static com.swirlds.platform.system.InitTrigger.GENESIS;
 import static java.util.Objects.requireNonNull;
+import static java.util.stream.Collectors.toMap;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.hapi.block.stream.Block;
@@ -45,9 +51,15 @@ import com.hedera.hapi.node.state.entity.EntityCounts;
 import com.hedera.hapi.node.state.hints.HintsConstruction;
 import com.hedera.hapi.node.state.hints.PreprocessedKeys;
 import com.hedera.hapi.node.state.history.HistoryProofConstruction;
+import com.hedera.hapi.node.state.history.ProofKey;
+import com.hedera.hapi.node.state.history.ProofKeySet;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.hapi.node.state.primitives.ProtoLong;
 import com.hedera.hapi.node.state.primitives.ProtoString;
+import com.hedera.hapi.node.state.roster.Roster;
+import com.hedera.hapi.node.state.roster.RosterEntry;
+import com.hedera.hapi.node.state.roster.RosterState;
+import com.hedera.hapi.platform.state.NodeId;
 import com.hedera.node.app.ServicesMain;
 import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.blocks.StreamingTreeHasher;
@@ -59,6 +71,7 @@ import com.hedera.node.app.history.HistoryLibrary;
 import com.hedera.node.app.history.impl.HistoryLibraryImpl;
 import com.hedera.node.app.ids.EntityIdService;
 import com.hedera.node.app.info.DiskStartupNetworks;
+import com.hedera.node.app.roster.RosterTransitionWeights;
 import com.hedera.node.config.data.VersionConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNetwork;
@@ -120,7 +133,6 @@ public class StateChangesValidator implements BlockStreamValidator {
     private static final double PROOF_VERIFICATION_PROB = 0.05;
 
     private static final Pattern NUMBER_PATTERN = Pattern.compile("\\d+");
-    private static final Pattern CHILD_STATE_PATTERN = Pattern.compile("\\s+\\d+ \\w+\\s+(\\S+)\\s+.+\\s+(.+)");
 
     private final long hintsThresholdDenominator;
     private final Hash genesisStateHash;
@@ -134,6 +146,13 @@ public class StateChangesValidator implements BlockStreamValidator {
     private MerkleNodeState state;
 
     @Nullable
+    private Bytes ledgerId;
+    @Nullable
+    private RosterState rosterState;
+    @Nullable
+    private Map<Long, Long> activeWeights;
+
+    @Nullable
     private final HintsLibrary hintsLibrary;
 
     @Nullable
@@ -142,6 +161,8 @@ public class StateChangesValidator implements BlockStreamValidator {
     private final Map<Bytes, Set<Long>> signers = new HashMap<>();
     private final Map<Bytes, Long> blockNumbers = new HashMap<>();
     private final Map<Long, PreprocessedKeys> preprocessedKeys = new HashMap<>();
+    private final Map<Long, Bytes> proofKeys = new HashMap<>();
+    private final Map<Bytes, Roster> rosters = new HashMap<>();
 
     public enum HintsEnabled {
         YES,
@@ -163,7 +184,6 @@ public class StateChangesValidator implements BlockStreamValidator {
         final var validator = new StateChangesValidator(
                 Bytes.fromHex(
                         "525279ce448629033053af7fd64e1439f415c0acb5ad6819b73363807122847b2d68ded6d47db36b59920474093f0651"),
-                node0Dir,
                 node0Dir.resolve("output/swirlds.log"),
                 node0Dir.resolve("data/config/application.properties"),
                 node0Dir.resolve("data/config"),
@@ -221,7 +241,6 @@ public class StateChangesValidator implements BlockStreamValidator {
             final int crsSize = spec.startupProperties().getInteger("tss.initialCrsParties");
             return new StateChangesValidator(
                     rootHash,
-                    node0.getExternalPath(WORKING_DIR),
                     node0.getExternalPath(SWIRLDS_LOG),
                     node0.getExternalPath(APPLICATION_PROPERTIES),
                     node0.getExternalPath(DATA_CONFIG_DIR),
@@ -240,7 +259,6 @@ public class StateChangesValidator implements BlockStreamValidator {
 
     public StateChangesValidator(
             @NonNull final Bytes expectedRootHash,
-            @NonNull final Path pathToNode0,
             @NonNull final Path pathToNode0SwirldsLog,
             @NonNull final Path pathToOverrideProperties,
             @NonNull final Path pathToUpgradeSysFilesLoc,
@@ -596,16 +614,45 @@ public class StateChangesValidator implements BlockStreamValidator {
                     final var singleton = singletonPutFor(stateChange.singletonUpdateOrThrow());
                     singletonState.put(singleton);
                     stateChangesSummary.countSingletonPut(serviceName, stateId);
-                    if (historyLibrary != null
-                            && stateChange.stateId() == STATE_ID_ACTIVE_PROOF_CONSTRUCTION.protoOrdinal()) {
-                        final var construction = (HistoryProofConstruction) singleton;
-                        if (construction.hasTargetProof()) {
-                            logger.info("Verifying chain of trust for #{}", construction.constructionId());
-                            assertTrue(
-                                    // TODO
-                                    historyLibrary.verifyChainOfTrust(
-                                            construction.targetProofOrThrow().proof().wrapsProof()),
-                                    "Chain of trust verification failed for " + construction);
+                    if (historyLibrary != null) {
+                        if (stateChange.stateId() == STATE_ID_ACTIVE_PROOF_CONSTRUCTION.protoOrdinal()) {
+                            final var construction = (HistoryProofConstruction) singleton;
+                            if (construction.hasTargetProof()) {
+                                final var targetProof = construction.targetProofOrThrow();
+                                final long constructionId = construction.constructionId();
+                                assertTrue(targetProof.hasChainOfTrustProof(), "Chain-of-trust proof not set for construction #" + constructionId);
+                                assertNotNull(ledgerId, "Ledger id still missing but target proof set in construction #" + constructionId);
+                                logger.info("Verifying chain of trust for #{}", constructionId);
+                                switch (targetProof.chainOfTrustProofOrThrow().proof().kind()) {
+                                    case UNSET -> Assertions.fail("Chain-of-trust proof is unset");
+                                    case NODE_SIGNATURES -> {
+                                        syncActiveRosterWeights();
+                                        requireNonNull(activeWeights);
+                                        final var history = targetProof.targetHistoryOrThrow();
+                                        // Signatures are over (addressBookHash || verificationKey)
+                                        final var message = history.addressBookHash().append(history.metadata());
+                                        long signingWeight = 0;
+                                        final var signatures = targetProof.chainOfTrustProofOrThrow().nodeSignaturesOrThrow().nodeSignatures();
+                                        for (final var signature : signatures) {
+                                            final long nodeId = signature.nodeId();
+                                            assertTrue(historyLibrary.verifySchnorr(signature.signature(), message, proofKeys.get(nodeId)),
+                                                    "Invalid signature for node" + nodeId + " in chain-of-trust proof for construction #" + constructionId);
+                                            signingWeight += activeWeights.getOrDefault(signature.nodeId(), 0L);
+                                        }
+                                        final long threshold = moreThanTwoThirdsOfTotal(activeWeights);
+                                        assertTrue(signingWeight >= threshold,
+                                                "Insufficient weight in chain-of-trust proof for " + construction + " (expected >= " + threshold + ", got " + signingWeight + ")");
+                                    }
+                                    case WRAPS_PROOF -> assertTrue(
+                                            historyLibrary.verifyChainOfTrust(
+                                                    targetProof.chainOfTrustProofOrThrow().wrapsProofOrThrow()),
+                                            "WRAPS chain-of-trust verification failed for " + construction);
+                                }
+                            }
+                        } else if (stateChange.stateId() == STATE_ID_LEDGER_ID.protoOrdinal()) {
+                            ledgerId = ((ProtoBytes) singleton).value();
+                        } else if (stateChange.stateId() == STATE_ID_ROSTER_STATE.protoOrdinal()) {
+                            rosterState = (RosterState) singleton;
                         }
                     }
                 }
@@ -618,6 +665,11 @@ public class StateChangesValidator implements BlockStreamValidator {
                             .computeIfAbsent(stateName, k -> new HashSet<>())
                             .add(key);
                     stateChangesSummary.countMapUpdate(serviceName, stateId);
+                    if (stateId == STATE_ID_ROSTERS.protoOrdinal()) {
+                        rosters.put(((ProtoBytes) key).value(), (Roster) value);
+                    } else if (stateId == STATE_ID_PROOF_KEY_SETS.protoOrdinal()) {
+                        proofKeys.put(((NodeId) key).id(), ((ProofKeySet) value).key());
+                    }
                 }
                 case MAP_DELETE -> {
                     final var mapState = writableStates.get(stateId);
@@ -629,6 +681,11 @@ public class StateChangesValidator implements BlockStreamValidator {
                         maybeTrackedKeys.remove(keyToRemove);
                     }
                     stateChangesSummary.countMapDelete(serviceName, stateId);
+                    if (stateId == STATE_ID_ROSTERS.protoOrdinal()) {
+                        rosters.remove(((ProtoBytes) keyToRemove).value());
+                    } else if (stateId == STATE_ID_PROOF_KEY_SETS.protoOrdinal()) {
+                        proofKeys.remove(((NodeId) keyToRemove).id());
+                    }
                 }
                 case QUEUE_PUSH -> {
                     final var queueState = writableStates.getQueue(stateId);
@@ -650,6 +707,15 @@ public class StateChangesValidator implements BlockStreamValidator {
             lastService = serviceName;
             lastWritableStates = (CommittableWritableStates) writableStates;
         }
+    }
+
+    /**
+     * Rebuilds the active roster's weights from the latest state changes.
+     */
+    private void syncActiveRosterWeights() {
+        requireNonNull(rosterState);
+        final var activeRoster = rosters.get(rosterState.roundRosterPairs().getFirst().activeRosterHash());
+        activeWeights = activeRoster.rosterEntries().stream().collect(toMap(RosterEntry::nodeId, RosterEntry::weight));
     }
 
     /**

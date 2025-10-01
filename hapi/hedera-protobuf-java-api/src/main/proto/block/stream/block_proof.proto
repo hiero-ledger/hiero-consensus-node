@@ -269,11 +269,11 @@ message MerkleSiblingHash {
 
 /**
  * Proof that some data belongs to the network's chain of trust, starting from
- * the genesis network whose address book hash formed the ledger id.
- * <p>
- * In the current system, this data is always a hinTS verification key.
+ * the genesis network whose address book hash formed the ledger id. (In the
+ * current system, this data is always a hinTS verification key.)
  */
 message ChainOfTrustProof {
+  oneof proof {
     /**
      * If there is not yet a SNARK proving the chain of trust from ledger id to
      * the hinTS verification key, the explicit list of Schnorr signatures on
@@ -286,6 +286,7 @@ message ChainOfTrustProof {
      * the ledger id to this hinTS verification key.
      */
     bytes wraps_proof = 2;
+  }
 }
 
 /**

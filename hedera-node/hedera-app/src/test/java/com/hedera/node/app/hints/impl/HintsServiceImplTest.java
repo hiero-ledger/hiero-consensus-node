@@ -3,6 +3,7 @@ package com.hedera.node.app.hints.impl;
 
 import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -95,6 +96,13 @@ class HintsServiceImplTest {
     }
 
     @Test
+    void delegatesActiveConstruction() {
+        given(context.activeConstruction()).willReturn(HintsConstruction.DEFAULT);
+
+        assertSame(HintsConstruction.DEFAULT, subject.activeConstruction());
+    }
+
+    @Test
     void doesNothingAtBootstrapIfTheConstructionIsComplete() {
         given(activeRosters.phase()).willReturn(ActiveRosters.Phase.BOOTSTRAP);
         final var construction =
@@ -114,7 +122,7 @@ class HintsServiceImplTest {
         given(hintsStore.getOrCreateConstruction(activeRosters, CONSENSUS_NOW, tssConfig))
                 .willReturn(construction);
         given(component.controllers()).willReturn(controllers);
-        given(controllers.getOrCreateFor(activeRosters, construction, hintsStore))
+        given(controllers.getOrCreateFor(activeRosters, construction, hintsStore, HintsConstruction.DEFAULT))
                 .willReturn(controller);
 
         subject.reconcile(activeRosters, hintsStore, CONSENSUS_NOW, tssConfig, true);

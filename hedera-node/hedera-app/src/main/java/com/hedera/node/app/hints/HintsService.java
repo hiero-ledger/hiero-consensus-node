@@ -2,8 +2,12 @@
 package com.hedera.node.app.hints;
 
 import static java.util.Objects.requireNonNull;
+import static java.util.stream.Collectors.toMap;
 
+import com.hedera.hapi.node.state.hints.HintsConstruction;
+import com.hedera.hapi.node.state.hints.NodePartyId;
 import com.hedera.hapi.node.state.roster.Roster;
+import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.node.app.blocks.BlockHashSigner;
 import com.hedera.node.app.hints.handlers.HintsHandlers;
 import com.hedera.node.app.hints.impl.HintsController;
@@ -18,6 +22,8 @@ import com.swirlds.state.lifecycle.Service;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
+import java.util.SortedMap;
+import java.util.TreeMap;
 
 /**
  * Orchestrates the hinTS algorithms for,
@@ -70,6 +76,12 @@ public interface HintsService extends Service, BlockHashSigner {
      */
     @NonNull
     Bytes activeVerificationKeyOrThrow();
+
+    /**
+     * Returns the active construction, or null if none is active (at genesis).
+     */
+    @Nullable
+    HintsConstruction activeConstruction();
 
     /**
      * Sets the current roster for the network.
@@ -187,5 +199,18 @@ public interface HintsService extends Service, BlockHashSigner {
             return candidate;
         }
         return Integer.highestOneBit(candidate) << 1;
+    }
+
+    /**
+     * Returns the node weights in use for the given hinTS construction, if it is non-null with a complete scheme.
+     * @param construction the construction
+     * @return the node weights
+     */
+    static @Nullable SortedMap<Long, Long> maybeWeightsFrom(@Nullable final HintsConstruction construction) {
+        if (construction == null || !construction.hasHintsScheme()) {
+            return null;
+        }
+        return construction.hintsSchemeOrThrow().nodePartyIds().stream()
+                .collect(toMap(NodePartyId::nodeId, NodePartyId::partyWeight, (a, b) -> a, TreeMap::new));
     }
 }

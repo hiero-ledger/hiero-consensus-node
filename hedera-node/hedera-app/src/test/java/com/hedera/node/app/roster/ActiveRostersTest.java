@@ -66,7 +66,7 @@ class ActiveRostersTest {
         assertEquals(A_ROSTER_HASH, activeRosters.targetRosterHash());
         assertSame(A_ROSTER, activeRosters.findRelatedRoster(A_ROSTER_HASH));
         assertSame(A_ROSTER, activeRosters.targetRoster());
-        final var weights = activeRosters.transitionWeights();
+        final var weights = activeRosters.transitionWeights(null);
         assertEquals(A_ROSTER_WEIGHTS, weights.sourceNodeWeights());
         assertEquals(A_ROSTER_WEIGHTS, weights.targetNodeWeights());
         assertEquals(A_ROSTER_STRONG_MINORITY_WEIGHT, weights.sourceWeightThreshold());
@@ -99,7 +99,7 @@ class ActiveRostersTest {
         assertThrows(IllegalStateException.class, activeRosters::sourceRosterHash);
         assertThrows(IllegalStateException.class, activeRosters::targetRosterHash);
         assertSame(A_ROSTER, activeRosters.findRelatedRoster(A_ROSTER_HASH));
-        assertThrows(IllegalStateException.class, activeRosters::transitionWeights);
+        assertThrows(IllegalStateException.class, () -> activeRosters.transitionWeights(null));
         assertThrows(IllegalStateException.class, activeRosters::removedNodeIds);
     }
 
@@ -120,7 +120,7 @@ class ActiveRostersTest {
         assertEquals(B_ROSTER_HASH, activeRosters.targetRosterHash());
         assertSame(A_ROSTER, activeRosters.findRelatedRoster(A_ROSTER_HASH));
         assertSame(B_ROSTER, activeRosters.targetRoster());
-        final var weights = activeRosters.transitionWeights();
+        final var weights = activeRosters.transitionWeights(null);
         assertEquals(A_ROSTER_WEIGHTS, weights.sourceNodeWeights());
         assertEquals(B_ROSTER_WEIGHTS, weights.targetNodeWeights());
         assertEquals(A_ROSTER_STRONG_MINORITY_WEIGHT, weights.sourceWeightThreshold());

@@ -101,8 +101,6 @@ public class V060HintsSchema extends Schema {
                         .nextContributingNodeId(0L)
                         .crs(initialCrs)
                         .build());
-            } else if (crsState.stage() == COMPLETED) {
-                signingContext.setCrs(crsState.crs());
             }
             final var activeConstruction = states.<HintsConstruction>getSingleton(ACTIVE_HINTS_CONSTRUCTION_STATE_ID)
                     .get();

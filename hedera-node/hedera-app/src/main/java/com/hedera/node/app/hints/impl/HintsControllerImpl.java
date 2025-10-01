@@ -272,8 +272,7 @@ public class HintsControllerImpl implements HintsController {
                         .contributionEndTime((Timestamp) null)
                         .build();
                 hintsStore.setCrsState(updatedState);
-                log.info("CRS construction complete");
-                context.setCrs(crs);
+                log.info("Finished constructing CRS");
             }
         }
     }

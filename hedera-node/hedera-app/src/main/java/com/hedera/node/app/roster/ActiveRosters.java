@@ -166,13 +166,14 @@ public class ActiveRosters {
      * Assuming the {@link RosterService} is in a transition phase, returns the transition weights
      * from the source roster to the target roster.
      *
+     * @param sourceWeights the source weights, if they are not to be derived from the source roster
      * @throws IllegalStateException if the {@link RosterService} is in a handoff phase
      */
-    public RosterTransitionWeights transitionWeights() {
+    public RosterTransitionWeights transitionWeights(@Nullable final SortedMap<Long, Long> sourceWeights) {
         return switch (phase) {
             case BOOTSTRAP, TRANSITION ->
                 new RosterTransitionWeights(
-                        weightsFrom(lookup.apply(sourceRosterHash)), weightsFrom(lookup.apply(targetRosterHash)));
+                        sourceWeights != null ? sourceWeights : weightsFrom(lookup.apply(sourceRosterHash)), weightsFrom(lookup.apply(targetRosterHash)));
             case HANDOFF -> throw new IllegalStateException("No target roster in handoff phase");
         };
     }

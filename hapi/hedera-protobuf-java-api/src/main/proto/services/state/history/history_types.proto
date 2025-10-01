@@ -91,7 +91,7 @@ message HistoryProof {
    * history's metadata. Maybe replaced from a NodeSignatures list
    * with a recursive proof when one becomes available.
    */
-  com.hedera.hapi.block.stream.ChainOfTrustProof proof = 4;
+  com.hedera.hapi.block.stream.ChainOfTrustProof chain_of_trust_proof = 4;
 }
 
 /**

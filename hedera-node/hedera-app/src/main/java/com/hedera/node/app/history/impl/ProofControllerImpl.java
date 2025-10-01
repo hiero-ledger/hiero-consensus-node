@@ -15,6 +15,7 @@ import com.hedera.hapi.node.state.history.HistoryProofVote;
 import com.hedera.hapi.node.state.history.HistorySignature;
 import com.hedera.hapi.node.state.history.ProofKey;
 import com.hedera.node.app.history.HistoryLibrary;
+import com.hedera.node.app.history.HistoryService;
 import com.hedera.node.app.history.ReadableHistoryStore.HistorySignaturePublication;
 import com.hedera.node.app.history.ReadableHistoryStore.ProofKeyPublication;
 import com.hedera.node.app.history.WritableHistoryStore;
@@ -75,9 +76,9 @@ public class ProofControllerImpl implements ProofController {
     private final Executor executor;
     private final SchnorrKeyPair schnorrKeyPair;
     private final HistoryLibrary library;
+    private final HistoryService historyService;
     private final HistorySubmissions submissions;
     private final RosterTransitionWeights weights;
-    private final Consumer<HistoryProof> proofConsumer;
     private final Map<Long, HistoryProofVote> votes = new TreeMap<>();
     private final Map<Long, Bytes> targetProofKeys = new TreeMap<>();
     private final Set<Long> signingNodeIds = new HashSet<>();
@@ -146,7 +147,7 @@ public class ProofControllerImpl implements ProofController {
             @NonNull final List<ProofKeyPublication> keyPublications,
             @NonNull final List<HistorySignaturePublication> signaturePublications,
             @NonNull final Map<Long, HistoryProofVote> votes,
-            @NonNull final Consumer<HistoryProof> proofConsumer) {
+            @NonNull final HistoryService historyService) {
         this.selfId = selfId;
         this.ledgerId = ledgerId;
         this.executor = requireNonNull(executor);
@@ -154,7 +155,7 @@ public class ProofControllerImpl implements ProofController {
         this.submissions = requireNonNull(submissions);
         this.weights = requireNonNull(weights);
         this.construction = requireNonNull(construction);
-        this.proofConsumer = requireNonNull(proofConsumer);
+        this.historyService = requireNonNull(historyService);
         this.schnorrKeyPair = requireNonNull(schnorrKeyPair);
         this.votes.putAll(requireNonNull(votes));
         if (!construction.hasTargetProof()) {
@@ -293,12 +294,7 @@ public class ProofControllerImpl implements ProofController {
             construction = historyStore.completeProof(construction.constructionId(), proof);
             log.info("{} (#{})", PROOF_COMPLETE_MSG, construction.constructionId());
             if (historyStore.getActiveConstruction().constructionId() == construction.constructionId()) {
-                proofConsumer.accept(proof);
-                if (ledgerId == null) {
-                    final var ledgerId = proof.sourceAddressBookHash();
-                    historyStore.setLedgerId(ledgerId);
-                    log.info("Set ledger id to {}", ledgerId);
-                }
+                historyService.onFinished(historyStore, construction);
             }
         });
     }
@@ -430,7 +426,7 @@ public class ProofControllerImpl implements ProofController {
         final Map<Long, Bytes> sourceProofKeys;
         if (construction.hasSourceProof()) {
             // TODO
-            sourceProof = construction.sourceProofOrThrow().proof().wrapsProof();
+            sourceProof = construction.sourceProofOrThrow().chainOfTrustProofOrThrow().wrapsProofOrThrow();
             sourceProofKeys = proofKeyMapFrom(construction.sourceProofOrThrow());
         } else {
             sourceProof = null;
@@ -490,7 +486,7 @@ public class ProofControllerImpl implements ProofController {
                                     .sourceAddressBookHash(sourceHash)
                                     .targetProofKeys(proofKeyList)
                                     .targetHistory(new History(targetHash, targetMetadata))
-                                    .proof(chainOfTrustProof)
+                                    .chainOfTrustProof(chainOfTrustProof)
                                     .build();
                             submissions
                                     .submitProofVote(inProgressId, metadataProof)

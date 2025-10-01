@@ -1,6 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.junit.hedera.embedded.fakes;
 
+import com.hedera.hapi.block.stream.ChainOfTrustProof;
+import com.hedera.hapi.node.state.hints.HintsConstruction;
+import com.hedera.hapi.node.state.history.HistoryProof;
+import com.hedera.hapi.node.state.history.HistoryProofConstruction;
 import com.hedera.node.app.history.HistoryService;
 import com.hedera.node.app.history.WritableHistoryStore;
 import com.hedera.node.app.history.handlers.HistoryHandlers;
@@ -45,14 +49,15 @@ public class FakeHistoryService implements HistoryService {
             @NonNull final WritableHistoryStore historyStore,
             @NonNull final Instant now,
             @NonNull final TssConfig tssConfig,
-            final boolean isActive) {
-        delegate.reconcile(activeRosters, currentMetadata, historyStore, now, tssConfig, isActive);
+            final boolean isActive,
+            @Nullable final HintsConstruction activeConstruction) {
+        delegate.reconcile(activeRosters, currentMetadata, historyStore, now, tssConfig, isActive, activeConstruction);
     }
 
     @NonNull
     @Override
-    public Bytes getCurrentProof(@NonNull final Bytes metadata) {
-        return delegate.getCurrentProof(metadata);
+    public ChainOfTrustProof getCurrentChainOfTrustProof(@NonNull final Bytes metadata) {
+        return delegate.getCurrentChainOfTrustProof(metadata);
     }
 
     @Override
@@ -68,5 +73,15 @@ public class FakeHistoryService implements HistoryService {
     @Override
     public void onFinishedConstruction(@Nullable OnProofFinished cb) {
         delegate.onFinishedConstruction(cb);
+    }
+
+    @Override
+    public void setLatestHistoryProof(@NonNull HistoryProof historyProof) {
+        delegate.setLatestHistoryProof(historyProof);
+    }
+
+    @Override
+    public void onFinished(@NonNull WritableHistoryStore historyStore, @NonNull HistoryProofConstruction construction) {
+        delegate.onFinished(historyStore, construction);
     }
 }

@@ -103,6 +103,11 @@ public class HintsServiceImpl implements HintsService, OnHintsFinished {
     }
 
     @Override
+    public @Nullable HintsConstruction activeConstruction() {
+        return component.signingContext().activeConstruction();
+    }
+
+    @Override
     public void manageRosterAdoption(
             @NonNull final WritableHintsStore hintsStore,
             @NonNull final Roster previousRoster,
@@ -136,7 +141,7 @@ public class HintsServiceImpl implements HintsService, OnHintsFinished {
                 final var construction = hintsStore.getOrCreateConstruction(activeRosters, now, tssConfig);
                 if (!construction.hasHintsScheme()) {
                     final var controller =
-                            component.controllers().getOrCreateFor(activeRosters, construction, hintsStore);
+                            component.controllers().getOrCreateFor(activeRosters, construction, hintsStore, activeConstruction());
                     controller.advanceConstruction(now, hintsStore, isActive);
                 }
             }

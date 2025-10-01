@@ -27,6 +27,7 @@ import com.hedera.hapi.block.stream.input.RoundHeader;
 import com.hedera.hapi.block.stream.output.StateChanges;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
+import com.hedera.hapi.node.state.hints.HintsConstruction;
 import com.hedera.hapi.node.transaction.ExchangeRateSet;
 import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
@@ -902,7 +903,12 @@ public class HandleWorkflow {
         if (tssConfig.historyEnabled()) {
             historyService.onFinishedConstruction((historyStore, construction) -> {
                 if (historyStore.getActiveConstruction().constructionId() == construction.constructionId()) {
-                    // History service has no other action to take on finishing the genesis construction
+                    // We just finished the genesis proof, so we use it immediately and set the ledger id
+                    final var proof = construction.targetProofOrThrow();
+                    historyService.setLatestHistoryProof(proof);
+                    final var ledgerId = proof.sourceAddressBookHash();
+                    historyStore.setLedgerId(ledgerId);
+                    logger.info("Set ledger id to {}", ledgerId);
                     return;
                 }
                 final var rosterStore = new ReadableRosterStoreImpl(state.getReadableStates(RosterService.NAME));
@@ -979,7 +985,8 @@ public class HandleWorkflow {
                                 historyStore,
                                 blockStreamManager.lastUsedConsensusTime(),
                                 tssConfig,
-                                isActive));
+                                isActive,
+                                tssConfig.hintsEnabled() ? hintsService.activeConstruction() : null));
             }
         }
     }
