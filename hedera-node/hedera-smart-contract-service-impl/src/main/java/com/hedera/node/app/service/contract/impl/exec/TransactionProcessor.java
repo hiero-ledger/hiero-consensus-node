@@ -126,7 +126,7 @@ public class TransactionProcessor {
             @NonNull final OpsDurationCounter opsDurationCounter,
             @NonNull final InvolvedParties parties) {
         final var gasCharges = transaction.isHookDispatch()
-                ? new GasCharges(0, 0)
+                ? GasCharges.NONE
                 : gasCharging.chargeForGas(parties.sender(), parties.relayer(), context, updater, transaction);
         final var initialFrame = frameBuilder.buildInitialFrameWith(
                 transaction,
