@@ -86,7 +86,6 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.base.constructable.ClassConstructorPair;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.RuntimeConstructable;
 import org.hiero.base.crypto.CryptographyProvider;
@@ -317,11 +316,6 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
 
         // --- Build required infrastructure to load the initial state, then initialize the States API ---
         BootstrapUtils.setupConstructableRegistryWithConfiguration(platformConfig);
-        // FUTURE WORK: remove this registration once the MerkleStateRoot is removed
-        ConstructableRegistry.getInstance()
-                .registerConstructable(new ClassConstructorPair(
-                        HederaStateRoot.class,
-                        () -> new HederaStateRoot(platformConfig, metrics, time, merkleCryptography)));
         final var fileSystemManager = FileSystemManager.create(platformConfig);
         final var recycleBin =
                 RecycleBin.create(metrics, platformConfig, getStaticThreadManager(), time, fileSystemManager, selfId);

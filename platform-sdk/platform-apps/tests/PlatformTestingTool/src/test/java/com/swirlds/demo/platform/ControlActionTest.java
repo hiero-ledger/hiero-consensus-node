@@ -1,20 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.demo.platform;
 
-import static com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer.CONFIGURATION;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import com.swirlds.base.time.Time;
-import com.swirlds.common.merkle.crypto.MerkleCryptographyFactory;
-import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.common.test.fixtures.io.InputOutputStream;
 import com.swirlds.demo.platform.actions.QuorumResult;
 import com.swirlds.demo.platform.fs.stresstest.proto.ControlType;
-import com.swirlds.platform.test.fixtures.state.TestMerkleStateRoot;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.concurrent.atomic.AtomicReferenceArray;
-import org.hiero.base.constructable.ClassConstructorPair;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
 import org.junit.jupiter.api.BeforeAll;
@@ -26,13 +20,6 @@ public class ControlActionTest {
         final ConstructableRegistry registry = ConstructableRegistry.getInstance();
         registry.registerConstructables("com.swirlds");
         registry.registerConstructables("org.hiero");
-        registry.registerConstructable(new ClassConstructorPair(
-                TestMerkleStateRoot.class,
-                () -> new TestMerkleStateRoot(
-                        CONFIGURATION,
-                        new NoOpMetrics(),
-                        Time.getCurrent(),
-                        MerkleCryptographyFactory.create(CONFIGURATION))));
     }
 
     @Test

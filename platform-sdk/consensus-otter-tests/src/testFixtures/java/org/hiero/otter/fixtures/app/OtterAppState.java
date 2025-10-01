@@ -2,7 +2,6 @@
 package org.hiero.otter.fixtures.app;
 
 import static com.swirlds.platform.state.service.PlatformStateFacade.DEFAULT_PLATFORM_STATE_FACADE;
-import static com.swirlds.platform.test.fixtures.config.ConfigUtils.CONFIGURATION;
 import static org.hiero.otter.fixtures.app.state.OtterStateInitializer.initOtterAppState;
 
 import com.hedera.hapi.node.base.SemanticVersion;

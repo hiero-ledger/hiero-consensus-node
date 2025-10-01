@@ -311,8 +311,6 @@ class StateFileManagerTests {
                     PlatformContext platformContext =
                             TestPlatformContextBuilder.create().build();
                     Configuration configuration = platformContext.getConfiguration();
-                    // Restore to a new MerkleDb instance
-                    MerkleDb.resetDefaultInstancePath();
                     final SignedState stateFromDisk = assertDoesNotThrow(
                             () -> SignedStateFileReader.readStateFile(
                                             savedStateInfo.stateFile(),

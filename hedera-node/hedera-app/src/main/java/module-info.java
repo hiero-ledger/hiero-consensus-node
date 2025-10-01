@@ -126,8 +126,6 @@ module com.hedera.node.app {
     exports com.hedera.node.app.roster.schemas;
     exports com.hedera.node.app.ids.schemas;
     exports com.hedera.node.app.hints.schemas;
-    exports com.hedera.node.app.constructable.constructors to
-            org.hiero.base.utility;
 
     provides com.swirlds.config.api.ConfigurationExtension with
             com.hedera.node.app.config.ServicesConfigExtension;

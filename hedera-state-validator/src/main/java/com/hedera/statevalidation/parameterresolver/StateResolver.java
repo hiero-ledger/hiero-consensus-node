@@ -7,7 +7,6 @@ import static com.hedera.statevalidation.parameterresolver.InitUtils.initService
 import static com.hedera.statevalidation.parameterresolver.InitUtils.initServiceRegistry;
 import static com.swirlds.platform.state.snapshot.SignedStateFileReader.readStateFile;
 
-import com.hedera.node.app.HederaStateRoot;
 import com.hedera.node.app.HederaVirtualMapState;
 import com.hedera.node.app.roster.RosterService;
 import com.hedera.node.app.services.ServicesRegistryImpl;
@@ -33,7 +32,6 @@ import com.swirlds.virtualmap.constructable.ConstructableUtils;
 import java.io.IOException;
 import java.nio.file.Path;
 import org.hiero.base.concurrent.ExecutorFactory;
-import org.hiero.base.constructable.ClassConstructorPair;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.base.crypto.config.CryptoConfig;
@@ -79,9 +77,9 @@ public class StateResolver implements ParameterResolver {
                 Path.of(Constants.STATE_DIR, "SignedState.swh").toAbsolutePath(),
                 virtualMap -> new HederaVirtualMapState(
                         virtualMap,
-                        platformContext.getConfiguration(),
-                        platformContext.getMetrics(),
-                        platformContext.getTime()),
+                        PLATFORM_CONTEXT.getConfiguration(),
+                        PLATFORM_CONTEXT.getMetrics(),
+                        PLATFORM_CONTEXT.getTime()),
                 platformStateFacade,
                 PLATFORM_CONTEXT);
 

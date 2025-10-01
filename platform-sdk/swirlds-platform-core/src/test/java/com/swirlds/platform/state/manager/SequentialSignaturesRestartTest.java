@@ -8,8 +8,6 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.merkle.crypto.MerkleCryptographyFactory;
-import com.swirlds.common.merkle.crypto.MerkleCryptographyFactory;
 import com.swirlds.common.test.fixtures.WeightGenerators;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.platform.components.state.output.StateHasEnoughSignaturesConsumer;
@@ -87,10 +85,7 @@ public class SequentialSignaturesRestartTest extends AbstractStateSignatureColle
                 .setRoster(roster)
                 .setRound(firstRound)
                 .useSignatureSupplierFromRoster()
-                .setState(new TestVirtualMapState(platformContext.getConfiguration(),
-                        platformContext.getMetrics(),
-                        platformContext.getTime(),
-                        MerkleCryptographyFactory.create(platformContext.getConfiguration())))
+                .setState(new TestVirtualMapState())
                 .build();
 
         signedStates.put(firstRound, stateFromDisk);

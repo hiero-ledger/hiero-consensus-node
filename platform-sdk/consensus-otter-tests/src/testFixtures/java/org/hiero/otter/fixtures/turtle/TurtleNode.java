@@ -166,29 +166,30 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
                     .withRecycleBin(recycleBin)
                     .build();
 
-        model = WiringModelBuilder.create(platformContext.getMetrics(), time)
-                .withDeterministicModeEnabled(true)
-                .withUncaughtExceptionHandler((t, e) -> fail("Unexpected exception in wiring framework", e))
-                .build();
+            model = WiringModelBuilder.create(platformContext.getMetrics(), time)
+                    .withDeterministicModeEnabled(true)
+                    .withUncaughtExceptionHandler((t, e) -> fail("Unexpected exception in wiring framework", e))
+                    .build();
 
-        final OtterApp otterApp = new OtterApp(version);
+            final OtterApp otterApp = new OtterApp(version);
 
-        final HashedReservedSignedState reservedState = loadInitialState(
-                recycleBin,
-                version,
-                () -> OtterAppState.createGenesisState(currentConfiguration, metrics, time, roster, version, otterApp.allServices()),
-                OtterApp.APP_NAME,
-                OtterApp.SWIRLD_NAME,
-                legacyNodeId,
-                platformStateFacade,
-                platformContext,
-                virtualMap -> new OtterAppState(virtualMap, currentConfiguration, metrics, time));
+            final HashedReservedSignedState reservedState = loadInitialState(
+                    recycleBin,
+                    version,
+                    () -> OtterAppState.createGenesisState(
+                            currentConfiguration, metrics, time, roster(), version, otterApp.allServices()),
+                    OtterApp.APP_NAME,
+                    OtterApp.SWIRLD_NAME,
+                    selfId,
+                    platformStateFacade,
+                    platformContext,
+                    virtualMap -> new OtterAppState(virtualMap, currentConfiguration, metrics, time));
 
-        final ReservedSignedState initialState = reservedState.state();
-        final State state = initialState.get().getState();
+            final ReservedSignedState initialState = reservedState.state();
+            final State state = initialState.get().getState();
 
-        final RosterHistory rosterHistory = RosterUtils.createRosterHistory(state);
-        final String eventStreamLoc = selfId.toString();
+            final RosterHistory rosterHistory = RosterUtils.createRosterHistory(state);
+            final String eventStreamLoc = selfId.toString();
 
             this.executionLayer =
                     new OtterExecutionLayer(new Random(randotron.nextLong()), platformContext.getMetrics());

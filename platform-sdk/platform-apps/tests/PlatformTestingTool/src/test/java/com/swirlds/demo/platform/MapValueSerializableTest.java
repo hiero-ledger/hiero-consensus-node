@@ -7,15 +7,12 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.swirlds.base.time.Time;
 import com.swirlds.common.io.streams.MerkleDataInputStream;
 import com.swirlds.common.io.streams.MerkleDataOutputStream;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.crypto.MerkleCryptography;
-import com.swirlds.common.merkle.crypto.MerkleCryptographyFactory;
 import com.swirlds.common.merkle.utility.Keyed;
 import com.swirlds.common.merkle.utility.MerkleLong;
-import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.common.test.fixtures.merkle.TestMerkleCryptoFactory;
 import com.swirlds.demo.merkle.map.FCMFamily;
 import com.swirlds.demo.merkle.map.MapValueData;
@@ -28,7 +25,6 @@ import com.swirlds.merkle.test.fixtures.map.lifecycle.ExpectedValue;
 import com.swirlds.merkle.test.fixtures.map.pta.MapKey;
 import com.swirlds.merkle.test.fixtures.map.pta.MapValue;
 import com.swirlds.merkle.test.fixtures.map.pta.TransactionRecord;
-import com.swirlds.platform.test.fixtures.state.TestMerkleStateRoot;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
@@ -46,7 +42,6 @@ import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.PriorityBlockingQueue;
-import org.hiero.base.constructable.ClassConstructorPair;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.base.crypto.Hash;
@@ -72,13 +67,6 @@ class MapValueSerializableTest {
         final ConstructableRegistry registry = ConstructableRegistry.getInstance();
         registry.registerConstructables("com.swirlds");
         registry.registerConstructables("org.hiero");
-        registry.registerConstructable(new ClassConstructorPair(
-                TestMerkleStateRoot.class,
-                () -> new TestMerkleStateRoot(
-                        CONFIGURATION,
-                        new NoOpMetrics(),
-                        Time.getCurrent(),
-                        MerkleCryptographyFactory.create(CONFIGURATION))));
         cryptography = TestMerkleCryptoFactory.getInstance();
     }
 

@@ -150,7 +150,12 @@ public final class EventRecoveryWorkflow {
 
         final DeserializedSignedState deserializedSignedState = SignedStateFileReader.readStateFile(
                 signedStateFile,
-                v -> hederaApp.stateRootFromVirtualMap().apply(v),
+                v -> hederaApp
+                        .stateRootFromVirtualMap(
+                                platformContext.getConfiguration(),
+                                platformContext.getMetrics(),
+                                platformContext.getTime())
+                        .apply(v),
                 platformStateFacade,
                 platformContext);
         try (final ReservedSignedState initialState = deserializedSignedState.reservedSignedState()) {

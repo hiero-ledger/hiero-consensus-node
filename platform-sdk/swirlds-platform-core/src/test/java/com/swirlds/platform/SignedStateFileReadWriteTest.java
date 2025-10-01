@@ -5,7 +5,6 @@ import static com.swirlds.common.io.utility.FileUtils.throwIfFileExists;
 import static com.swirlds.common.merkle.utility.MerkleTreeSnapshotReader.SIGNED_STATE_FILE_NAME;
 import static com.swirlds.platform.StateFileManagerTests.hashState;
 import static com.swirlds.platform.StateFileManagerTests.makeImmutable;
-import static com.swirlds.platform.StateFileManagerTests.hashState;
 import static com.swirlds.platform.state.snapshot.SignedStateFileReader.readStateFile;
 import static com.swirlds.platform.state.snapshot.SignedStateFileUtils.CURRENT_ROSTER_FILE_NAME;
 import static com.swirlds.platform.state.snapshot.SignedStateFileUtils.HASH_INFO_FILE_NAME;

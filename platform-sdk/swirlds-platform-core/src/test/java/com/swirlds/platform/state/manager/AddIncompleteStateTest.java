@@ -10,8 +10,6 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.merkle.crypto.MerkleCryptographyFactory;
-import com.swirlds.common.merkle.crypto.MerkleCryptographyFactory;
 import com.swirlds.common.test.fixtures.WeightGenerators;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.platform.components.state.output.StateHasEnoughSignaturesConsumer;
@@ -102,10 +100,7 @@ class AddIncompleteStateTest extends AbstractStateSignatureCollectorTest {
                 .setRoster(roster)
                 .setRound(firstRound)
                 .setSignatures(signatures)
-                .setState(new TestVirtualMapState(platformContext.getConfiguration(),
-                        platformContext.getMetrics(),
-                        platformContext.getTime(),
-                        MerkleCryptographyFactory.create(platformContext.getConfiguration())))
+                .setState(new TestVirtualMapState())
                 .build();
 
         changeStateHashRandomly(stateFromDisk);

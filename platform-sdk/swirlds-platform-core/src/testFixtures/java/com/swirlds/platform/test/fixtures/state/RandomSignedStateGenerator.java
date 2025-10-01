@@ -20,7 +20,6 @@ import com.swirlds.base.utility.Pair;
 import com.swirlds.common.Reservable;
 import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.common.test.fixtures.WeightGenerators;
-import com.swirlds.common.test.fixtures.merkle.TestMerkleCryptoFactory;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
@@ -153,7 +152,8 @@ public class RandomSignedStateGenerator {
         if (state == null) {
             final String virtualMapLabel =
                     "vm-" + RandomSignedStateGenerator.class.getSimpleName() + "-" + java.util.UUID.randomUUID();
-            stateInstance = TestVirtualMapState.createInstanceWithVirtualMapLabel(virtualMapLabel, CONFIGURATION, new NoOpMetrics(), Time.getCurrent());
+            stateInstance = TestVirtualMapState.createInstanceWithVirtualMapLabel(
+                    virtualMapLabel, CONFIGURATION, new NoOpMetrics(), Time.getCurrent());
         } else {
             stateInstance = state;
         }
