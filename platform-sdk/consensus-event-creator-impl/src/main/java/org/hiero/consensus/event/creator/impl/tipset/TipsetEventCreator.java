@@ -458,7 +458,8 @@ public class TipsetEventCreator implements EventCreator {
      */
     @NonNull
     private Instant calculateNewEventCreationTime(
-            @Nullable final PlatformEvent selfParent, @Nullable final PlatformEvent otherParent,
+            @Nullable final PlatformEvent selfParent,
+            @Nullable final PlatformEvent otherParent,
             @NonNull final List<TimestampedTransaction> transactions) {
         final Instant maxReceivedTime = Stream.of(
                         Stream.of(selfParent, otherParent)

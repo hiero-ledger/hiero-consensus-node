@@ -24,7 +24,8 @@ public abstract class DefaultSwirldMain<T extends MerkleNodeState> implements Sw
     private final TransactionPoolNexus transactionPool;
 
     public DefaultSwirldMain() {
-        this.transactionPool = new TransactionPoolNexus(getTransactionLimits(), TX_QUEUE_SIZE, new NoOpMetrics(), Time.getCurrent());
+        this.transactionPool =
+                new TransactionPoolNexus(getTransactionLimits(), TX_QUEUE_SIZE, new NoOpMetrics(), Time.getCurrent());
     }
 
     @Override

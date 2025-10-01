@@ -2,7 +2,6 @@
 package com.swirlds.platform.cli;
 
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
-import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.platform.builder.ExecutionLayer;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;

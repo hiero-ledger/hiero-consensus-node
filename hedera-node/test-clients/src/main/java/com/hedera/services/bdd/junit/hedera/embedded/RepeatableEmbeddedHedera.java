@@ -181,8 +181,10 @@ public class RepeatableEmbeddedHedera extends AbstractEmbeddedHedera implements 
     public void handleNextRoundIfPresent() {
         final List<TimestampedTransaction> bufferedTransactions = hedera.getTransactionsForEvent();
         if (!bufferedTransactions.isEmpty()) {
-            platform.lastCreatedEvent =
-                    new FakeEvent(defaultNodeId, time.now(), createAppPayloadWrapper(bufferedTransactions.getFirst().transaction()));
+            platform.lastCreatedEvent = new FakeEvent(
+                    defaultNodeId,
+                    time.now(),
+                    createAppPayloadWrapper(bufferedTransactions.getFirst().transaction()));
         }
         if (platform.lastCreatedEvent != null) {
             hedera.onPreHandle(platform.lastCreatedEvent, state, preHandleStateSignatureCallback);

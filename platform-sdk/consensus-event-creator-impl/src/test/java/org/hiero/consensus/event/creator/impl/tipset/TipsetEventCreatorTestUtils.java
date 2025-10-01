@@ -276,7 +276,7 @@ public class TipsetEventCreatorTestUtils {
         }
         return IntStream.range(0, number)
                 .mapToObj(i -> TestingTransactions.generateRandomTransaction(random))
-                .map(b-> new TimestampedTransaction(b, Instant.now()))
+                .map(b -> new TimestampedTransaction(b, Instant.now()))
                 .toList();
     }
 

@@ -78,8 +78,10 @@ class TransactionPoolNexusTest {
         assertEquals(numCreated, firstBatch.size());
 
         // loop through the transactions and make sure the size does not exceed what we expect
-        final long firstBatchBytesLength =
-                firstBatch.stream().map(TimestampedTransaction::transaction).map(Bytes::length).reduce(0L, Long::sum);
+        final long firstBatchBytesLength = firstBatch.stream()
+                .map(TimestampedTransaction::transaction)
+                .map(Bytes::length)
+                .reduce(0L, Long::sum);
         assertTrue(
                 firstBatchBytesLength <= MAX_TX_BYTES_PER_EVENT,
                 "Total number of bytes in the batch (" + firstBatchBytesLength + ") exceeds max allowed ("
