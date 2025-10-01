@@ -7,10 +7,10 @@ import java.time.Instant;
 import java.util.Objects;
 
 /**
- * A transaction along with the timestamp when it was received by the transaction pool.
+ * A transaction along with the timestamp when it was received.
  *
  * @param transaction the transaction data
- * @param receivedTime the time when this transaction was received by the transaction pool
+ * @param receivedTime the time when this transaction was received
  */
 public record TimestampedTransaction(
         @NonNull Bytes transaction,

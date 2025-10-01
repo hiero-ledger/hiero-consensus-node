@@ -53,6 +53,8 @@ public class TipsetEventCreator implements EventCreator {
     private final ChildlessEventTracker childlessOtherEventTracker;
     private final EventTransactionSupplier transactionSupplier;
     private EventWindow eventWindow;
+    /** The wall-clock time when the event window was last updated */
+    private Instant lastEventWindowUpdate;
 
     /**
      * The address book for the current network.
@@ -132,6 +134,7 @@ public class TipsetEventCreator implements EventCreator {
         noParentFoundLogger = new RateLimitedLogger(logger, time, Duration.ofMinutes(1));
 
         eventWindow = EventWindow.getGenesisEventWindow();
+        lastEventWindowUpdate = time.now();
         eventHasher = new PbjStreamHasher();
     }
 
@@ -393,14 +396,14 @@ public class TipsetEventCreator implements EventCreator {
      */
     @NonNull
     private UnsignedEvent assembleEventObject(@Nullable final PlatformEvent otherParent) {
-        final List<TimestampedTransaction> timestampedTransactions = transactionSupplier.getTransactionsForEvent();
+        final List<TimestampedTransaction> transactions = transactionSupplier.getTransactionsForEvent();
         final UnsignedEvent event = new UnsignedEvent(
                 selfId,
                 lastSelfEvent == null ? null : lastSelfEvent.getDescriptor(),
                 otherParent == null ? Collections.emptyList() : Collections.singletonList(otherParent.getDescriptor()),
                 eventWindow.newEventBirthRound(),
-                calculateNewEventCreationTime(lastSelfEvent, otherParent),//TODO change time
-                timestampedTransactions.stream().map(TimestampedTransaction::transaction).toList(),
+                calculateNewEventCreationTime(lastSelfEvent, otherParent, transactions),//TODO change time
+                transactions.stream().map(TimestampedTransaction::transaction).toList(),
                 random.nextLong(0, roster.rosterEntries().size() + 1));
         eventHasher.hashUnsignedEvent(event);
 
@@ -447,13 +450,15 @@ public class TipsetEventCreator implements EventCreator {
      * Regardless of whatever the host computer's clock says, the event creation time must always advance from self
      * parent to child.
      *
-     * @param selfParent  the self parent
-     * @param otherParent the other parent
+     * @param selfParent   the self parent
+     * @param otherParent  the other parent
+     * @param transactions the transactions to be included in the new event
      * @return the creation time for the new event
      */
     @NonNull
     private Instant calculateNewEventCreationTime(
-            @Nullable final PlatformEvent selfParent, @Nullable final PlatformEvent otherParent) {
+            @Nullable final PlatformEvent selfParent, @Nullable final PlatformEvent otherParent,
+            @NonNull List<TimestampedTransaction> transactions) {
         // Get the max received time of the parents
         final Instant maxParentReceivedTime = Stream.of(selfParent, otherParent)
                 .filter(Objects::nonNull)
