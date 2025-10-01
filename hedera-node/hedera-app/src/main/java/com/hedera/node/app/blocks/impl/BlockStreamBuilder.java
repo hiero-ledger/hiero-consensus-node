@@ -1309,6 +1309,11 @@ public class BlockStreamBuilder
     }
 
     @Override
+    public EvmTransactionResult getEvmTransactionResult() {
+        return requireNonNull(evmTransactionResult);
+    }
+
+    @Override
     public void nullOutSideEffectFields() {
         serialNumbers.clear();
         if (!tokenTransferLists.isEmpty()) {

@@ -18,6 +18,7 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.contract.ContractCreateTransactionBody;
 import com.hedera.node.app.service.contract.impl.exec.gas.CustomGasCharging;
+import com.hedera.node.app.service.contract.impl.exec.gas.GasCharges;
 import com.hedera.node.app.service.contract.impl.exec.processors.CustomMessageCallProcessor;
 import com.hedera.node.app.service.contract.impl.exec.utils.FrameBuilder;
 import com.hedera.node.app.service.contract.impl.exec.utils.OpsDurationCounter;
@@ -124,8 +125,9 @@ public class TransactionProcessor {
             @NonNull final Configuration config,
             @NonNull final OpsDurationCounter opsDurationCounter,
             @NonNull final InvolvedParties parties) {
-        final var gasCharges =
-                gasCharging.chargeForGas(parties.sender(), parties.relayer(), context, updater, transaction);
+        final var gasCharges = transaction.isHookDispatch()
+                ? new GasCharges(0, 0)
+                : gasCharging.chargeForGas(parties.sender(), parties.relayer(), context, updater, transaction);
         final var initialFrame = frameBuilder.buildInitialFrameWith(
                 transaction,
                 updater,
@@ -143,13 +145,15 @@ public class TransactionProcessor {
                 transaction.gasLimit(), parties.senderId(), initialFrame, tracer, messageCall, contractCreation);
 
         // Maybe refund some of the charged fees before committing
-        gasCharging.maybeRefundGiven(
-                transaction.unusedGas(result.gasUsed()),
-                gasCharges.relayerAllowanceUsed(),
-                parties.sender(),
-                parties.relayer(),
-                context,
-                updater);
+        if (!transaction.isHookDispatch()) {
+            gasCharging.maybeRefundGiven(
+                    transaction.unusedGas(result.gasUsed()),
+                    gasCharges.relayerAllowanceUsed(),
+                    parties.sender(),
+                    parties.relayer(),
+                    context,
+                    updater);
+        }
         initialFrame.getSelfDestructs().forEach(updater::deleteAccount);
 
         // Tries to commit and return the original result; returns a fees-only result on resource exhaustion

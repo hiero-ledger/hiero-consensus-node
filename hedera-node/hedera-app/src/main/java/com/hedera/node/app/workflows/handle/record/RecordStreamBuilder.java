@@ -1123,6 +1123,18 @@ public class RecordStreamBuilder
         return this;
     }
 
+    @Override
+    public EvmTransactionResult getEvmTransactionResult() {
+        requireNonNull(contractFunctionResult);
+        return new EvmTransactionResult(
+                contractFunctionResult.senderId(),
+                contractFunctionResult.contractID(),
+                contractFunctionResult.contractCallResult(),
+                contractFunctionResult.errorMessage(),
+                contractFunctionResult.gasUsed(),
+                null);
+    }
+
     /**
      * Sets the contractStateChanges which are part of sidecar records.
      *

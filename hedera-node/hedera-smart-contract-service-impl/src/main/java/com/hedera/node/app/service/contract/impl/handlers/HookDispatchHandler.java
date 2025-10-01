@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.handlers;
 
-import static com.hedera.hapi.node.base.HederaFunctionality.HOOK_DISPATCH;
+import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CALL;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOKS_NOT_ENABLED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOK_ID_IN_USE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOK_NOT_FOUND;
@@ -70,7 +70,8 @@ public class HookDispatchHandler extends AbstractContractTransactionHandler impl
     @Override
     @NonNull
     public Fees calculateFees(@NonNull final FeeContext feeContext) {
-        return super.calculateFees(feeContext);
+        // All charges are upfront in CryptoTransfer, so no fees here
+        return Fees.FREE;
     }
 
     @Override
@@ -118,7 +119,7 @@ public class HookDispatchHandler extends AbstractContractTransactionHandler impl
                         new HookEvmFrameStateFactory(ops, nativeOps, codeFactory, evmHookStore, hookKey);
 
                 // Create the transaction-scoped component using the hook-aware strategy
-                final var component = getTransactionComponent(context, HOOK_DISPATCH, evmFrameStates);
+                final var component = getTransactionComponent(context, CONTRACT_CALL, evmFrameStates);
 
                 // Run transaction and write record as usual
                 final var outcome = component.contextTransactionProcessor().call();
@@ -134,6 +135,6 @@ public class HookDispatchHandler extends AbstractContractTransactionHandler impl
             @NonNull final SmartContractFeeBuilder usageEstimator,
             @NonNull final TransactionBody txBody,
             @NonNull final SigValueObj sigValObj) {
-        return usageEstimator.getContractCallTxFeeMatrices(txBody, sigValObj);
+        return FeeData.getDefaultInstance();
     }
 }
