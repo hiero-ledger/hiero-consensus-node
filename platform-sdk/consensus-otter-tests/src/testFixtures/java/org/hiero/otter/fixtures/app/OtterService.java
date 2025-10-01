@@ -43,7 +43,10 @@ public interface OtterService {
      * @param selfId the ID of this node
      * @param configuration the configuration to use
      */
-    default void initialize(@NonNull final InitTrigger trigger, @NonNull final NodeId selfId, @NonNull final Configuration configuration) {
+    default void initialize(
+            @NonNull final InitTrigger trigger,
+            @NonNull final NodeId selfId,
+            @NonNull final Configuration configuration) {
         // Default implementation does nothing
     }
 

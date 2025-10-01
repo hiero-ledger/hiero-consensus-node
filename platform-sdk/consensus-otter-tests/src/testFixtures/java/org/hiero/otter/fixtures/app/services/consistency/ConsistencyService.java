@@ -60,8 +60,11 @@ public class ConsistencyService implements OtterService {
     /**
      * {@inheritDoc}
      */
-    public void initialize(@NonNull final InitTrigger trigger, @NonNull final NodeId selfId, @NonNull final Configuration configuration) {
-        if (trigger != InitTrigger.RESTART) {
+    public void initialize(
+            @NonNull final InitTrigger trigger,
+            @NonNull final NodeId selfId,
+            @NonNull final Configuration configuration) {
+        if (trigger != InitTrigger.GENESIS && trigger != InitTrigger.RESTART) {
             return;
         }
         final StateCommonConfig stateConfig = configuration.getConfigData(StateCommonConfig.class);

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.app.services.consistency;
 
 import com.swirlds.config.api.ConfigData;
@@ -12,5 +13,4 @@ import com.swirlds.config.api.ConfigProperty;
 @ConfigData("consistencyTestingTool")
 public record ConsistencyServiceConfig(
         @ConfigProperty(defaultValue = "consistency-test") String historyFileDirectory,
-        @ConfigProperty(defaultValue = "ConsistencyTestLog.csv") String historyFileName) {
-}
+        @ConfigProperty(defaultValue = "ConsistencyTestLog.csv") String historyFileName) {}
