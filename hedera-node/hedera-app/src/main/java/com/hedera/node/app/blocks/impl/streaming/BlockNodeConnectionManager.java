@@ -1206,10 +1206,16 @@ public class BlockNodeConnectionManager {
         final BlockNodeStats stats = nodeStats.computeIfAbsent(blockNodeConfig, k -> new BlockNodeStats());
         final BlockNodeStats.HighLatencyResult result = stats.recordAcknowledgementAndEvaluate(
                 blockNumber, timestamp, highLatencyThreshold, highLatencyEventsBeforeSwitching);
+        final long latencyMs = result.latencyMs();
 
         // Update metrics
-        blockStreamMetrics.recordAcknowledgementLatency(result.latencyMs());
+        blockStreamMetrics.recordAcknowledgementLatency(latencyMs);
         if (result.isHighLatency()) {
+            logger.debug(
+                    "[{}] A high latency event ({}ms) has occurred. A total of {} consecutive events",
+                    blockNodeConfig,
+                    latencyMs,
+                    result.consecutiveHighLatencyEvents());
             blockStreamMetrics.recordHighLatencyEvent();
         }
 
