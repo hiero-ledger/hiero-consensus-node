@@ -194,6 +194,11 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
         }
     }
 
+    /**
+     * Retrieves the round number associated with this state.
+     *
+     * @return the round number as a long value
+     */
     protected abstract long getRound();
 
     /**

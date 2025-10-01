@@ -111,6 +111,9 @@ public class ConsistencyTestingToolState extends MerkleStateRoot<ConsistencyTest
         transactionHandlingHistory.init(logFilePath);
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     protected long getRound() {
         return DEFAULT_PLATFORM_STATE_FACADE.roundOf(this);

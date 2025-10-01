@@ -59,6 +59,9 @@ public class StatsDemoState extends MerkleStateRoot<StatsDemoState> implements M
         super(sourceState);
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     protected long getRound() {
         return DEFAULT_PLATFORM_STATE_FACADE.roundOf(this);

@@ -88,6 +88,9 @@ public class MigrationTestingToolState extends MerkleStateRoot<MigrationTestingT
         this.setImmutable(false);
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     protected long getRound() {
         return DEFAULT_PLATFORM_STATE_FACADE.roundOf(this);

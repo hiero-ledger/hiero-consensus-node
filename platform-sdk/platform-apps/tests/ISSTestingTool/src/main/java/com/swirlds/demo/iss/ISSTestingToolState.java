@@ -188,6 +188,9 @@ public class ISSTestingToolState extends MerkleStateRoot<ISSTestingToolState> im
         return new ISSTestingToolState(this);
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     protected long getRound() {
         return DEFAULT_PLATFORM_STATE_FACADE.roundOf(this);

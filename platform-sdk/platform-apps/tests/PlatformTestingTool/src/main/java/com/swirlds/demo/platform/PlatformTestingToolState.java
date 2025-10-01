@@ -141,6 +141,9 @@ public class PlatformTestingToolState extends MerkleStateRoot<PlatformTestingToo
     static AtomicLong totalTransactionSignatureCount = new AtomicLong(0);
     static AtomicLong expectedInvalidSignatureCount = new AtomicLong(0);
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     protected long getRound() {
         return DEFAULT_PLATFORM_STATE_FACADE.roundOf(this);

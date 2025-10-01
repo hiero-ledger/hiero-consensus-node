@@ -114,7 +114,7 @@ public class ConsistencyTestingToolMain extends DefaultSwirldMain<ConsistencyTes
      */
     @Override
     public Function<VirtualMap, ConsistencyTestingToolState> stateRootFromVirtualMap(
-            @NonNull Configuration configuration, @NonNull Metrics metrics, @NonNull Time time) {
+            @NonNull final Configuration configuration, @NonNull final Metrics metrics, @NonNull final Time time) {
         throw new UnsupportedOperationException();
     }
 
