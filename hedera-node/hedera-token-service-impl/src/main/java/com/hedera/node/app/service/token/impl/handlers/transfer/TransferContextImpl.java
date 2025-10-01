@@ -15,9 +15,9 @@ import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.hapi.node.transaction.AssessedCustomFee;
 import com.hedera.node.app.service.token.AliasUtils;
 import com.hedera.node.app.service.token.impl.WritableAccountStore;
+import com.hedera.node.app.service.token.impl.handlers.transfer.customfees.AssessedFeeWithPayerDebits;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
-import com.hedera.node.config.data.TokensConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -36,9 +36,8 @@ public class TransferContextImpl implements TransferContext {
     private int numAutoCreations;
     private int numLazyCreations;
     private final Map<Bytes, AccountID> resolutions = new LinkedHashMap<>();
-    private final TokensConfig tokensConfig;
     private final List<TokenAssociation> automaticAssociations = new ArrayList<>();
-    private final List<AssessedCustomFee> assessedCustomFees = new ArrayList<>();
+    private final List<AssessedFeeWithPayerDebits> assessedFeeWithPayerDebits = new ArrayList<>();
     private CryptoTransferTransactionBody syntheticBody = null;
     private final boolean enforceMonoServiceRestrictionsOnAutoCreationCustomFeePayments;
 
@@ -61,7 +60,6 @@ public class TransferContextImpl implements TransferContext {
         this.context = context;
         this.accountStore = context.storeFactory().writableStore(WritableAccountStore.class);
         this.autoAccountCreator = new AutoAccountCreator(context);
-        this.tokensConfig = context.configuration().getConfigData(TokensConfig.class);
         this.enforceMonoServiceRestrictionsOnAutoCreationCustomFeePayments =
                 enforceMonoServiceRestrictionsOnAutoCreationCustomFeePayments;
     }
@@ -83,7 +81,6 @@ public class TransferContextImpl implements TransferContext {
         this.syntheticBody = syntheticBody;
         this.accountStore = context.storeFactory().writableStore(WritableAccountStore.class);
         this.autoAccountCreator = new AutoAccountCreator(context);
-        this.tokensConfig = context.configuration().getConfigData(TokensConfig.class);
         this.enforceMonoServiceRestrictionsOnAutoCreationCustomFeePayments =
                 enforceMonoServiceRestrictionsOnAutoCreationCustomFeePayments;
     }
@@ -155,13 +152,20 @@ public class TransferContextImpl implements TransferContext {
         return automaticAssociations;
     }
 
-    public void addToAssessedCustomFee(AssessedCustomFee assessedCustomFee) {
-        assessedCustomFees.add(assessedCustomFee);
+    public void addToAssessedCustomFee(AssessedFeeWithPayerDebits assessedCustomFee) {
+        assessedFeeWithPayerDebits.add(assessedCustomFee);
     }
 
     @Override
     public List<AssessedCustomFee> getAssessedCustomFees() {
-        return assessedCustomFees;
+        return new ArrayList<>(assessedFeeWithPayerDebits.stream()
+                .map(AssessedFeeWithPayerDebits::assessedCustomFee)
+                .toList());
+    }
+
+    @Override
+    public List<AssessedFeeWithPayerDebits> getAssessedFeesWithPayerDebits() {
+        return assessedFeeWithPayerDebits;
     }
 
     public boolean isEnforceMonoServiceRestrictionsOnAutoCreationCustomFeePayments() {

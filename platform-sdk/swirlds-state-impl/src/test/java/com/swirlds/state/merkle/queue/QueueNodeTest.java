@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.swirlds.state.lifecycle.StateMetadata;
 import com.swirlds.state.test.fixtures.merkle.MerkleTestBase;
+import com.swirlds.state.test.fixtures.merkle.queue.QueueNode;
 import org.junit.jupiter.api.Test;
 
 @Deprecated
