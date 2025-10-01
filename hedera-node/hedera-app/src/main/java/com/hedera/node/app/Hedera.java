@@ -1148,8 +1148,8 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
     }
 
     @Override
-    public @NonNull List<TimestampedTransaction> getTimestampedTransactionsForEvent() {
-        return transactionPool.getTimestampedTransactionsForEvent();
+    public @NonNull List<TimestampedTransaction> getTransactionsForEvent() {
+        return transactionPool.getTransactionsForEvent();
     }
 
     @Override

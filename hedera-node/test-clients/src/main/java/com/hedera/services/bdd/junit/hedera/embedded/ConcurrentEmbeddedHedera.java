@@ -207,7 +207,7 @@ class ConcurrentEmbeddedHedera extends AbstractEmbeddedHedera implements Embedde
                 final List<FakeEvent> newEvents = new ArrayList<>();
                 queue.drainTo(newEvents);
                 // Also create events from transactions that were submitted to the hedera node
-                hedera.getTimestampedTransactionsForEvent().stream()
+                hedera.getTransactionsForEvent().stream()
                         .map(TimestampedTransaction::transaction)
                         .map(TransactionWrapperUtils::createAppPayloadWrapper)
                         .map(t -> new FakeEvent(defaultNodeId, now(), t))

@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.model.transaction;
 
-import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 
@@ -19,5 +18,5 @@ public interface EventTransactionSupplier {
      * @return a list with 0 or more timestamped transactions
      */
     @NonNull
-    List<TimestampedTransaction> getTimestampedTransactionsForEvent();
+    List<TimestampedTransaction> getTransactionsForEvent();
 }

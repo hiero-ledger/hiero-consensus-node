@@ -23,7 +23,7 @@ public class NoOpExecutionLayer implements ExecutionLayer {
 
     @NonNull
     @Override
-    public List<TimestampedTransaction> getTimestampedTransactionsForEvent() {
+    public List<TimestampedTransaction> getTransactionsForEvent() {
         return List.of();
     }
 

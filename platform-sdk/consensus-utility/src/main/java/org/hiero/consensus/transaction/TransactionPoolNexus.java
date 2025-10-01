@@ -229,7 +229,7 @@ public class TransactionPoolNexus implements EventTransactionSupplier {
      */
     @NonNull
     @Override
-    public synchronized List<TimestampedTransaction> getTimestampedTransactionsForEvent() {
+    public synchronized List<TimestampedTransaction> getTransactionsForEvent() {
         // Early return due to no transactions waiting
         if (bufferedTransactions.isEmpty() && priorityBufferedTransactions.isEmpty()) {
             return Collections.emptyList();

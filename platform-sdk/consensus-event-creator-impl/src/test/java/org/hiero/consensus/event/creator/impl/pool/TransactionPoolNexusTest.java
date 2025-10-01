@@ -73,7 +73,7 @@ class TransactionPoolNexusTest {
         // get the transactions
         // this should happen in two batches, the first will all of the random size transactions created in the loop
         // above, followed by a second batch that should be just the single large transaction submitted last
-        final List<TimestampedTransaction> firstBatch = nexus.getTimestampedTransactionsForEvent();
+        final List<TimestampedTransaction> firstBatch = nexus.getTransactionsForEvent();
         assertNotNull(firstBatch);
         assertEquals(numCreated, firstBatch.size());
 
@@ -86,13 +86,13 @@ class TransactionPoolNexusTest {
                         + MAX_TX_BYTES_PER_EVENT + ")");
 
         // get the second batch; it should be just the final transaction
-        final List<TimestampedTransaction> secondBatch = nexus.getTimestampedTransactionsForEvent();
+        final List<TimestampedTransaction> secondBatch = nexus.getTransactionsForEvent();
         assertNotNull(secondBatch);
         assertEquals(1, secondBatch.size());
         assertEquals(TX_MAX_BYTES, secondBatch.getFirst().transaction().length());
 
         // and just for fun, make sure there aren't any more batches
-        final List<TimestampedTransaction> thirdBatch = nexus.getTimestampedTransactionsForEvent();
+        final List<TimestampedTransaction> thirdBatch = nexus.getTransactionsForEvent();
         assertNotNull(thirdBatch);
         assertTrue(thirdBatch.isEmpty());
     }

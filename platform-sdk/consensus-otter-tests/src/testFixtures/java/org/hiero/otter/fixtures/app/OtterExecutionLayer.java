@@ -45,8 +45,8 @@ public class OtterExecutionLayer implements ExecutionLayer {
 
     @NonNull
     @Override
-    public List<TimestampedTransaction> getTimestampedTransactionsForEvent() {
-        return transactionPool.getTimestampedTransactionsForEvent();
+    public List<TimestampedTransaction> getTransactionsForEvent() {
+        return transactionPool.getTransactionsForEvent();
     }
 
     @Override

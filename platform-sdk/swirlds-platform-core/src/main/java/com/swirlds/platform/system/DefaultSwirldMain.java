@@ -2,7 +2,6 @@
 package com.swirlds.platform.system;
 
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
-import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.platform.state.MerkleNodeState;
@@ -35,8 +34,8 @@ public abstract class DefaultSwirldMain<T extends MerkleNodeState> implements Sw
 
     @NonNull
     @Override
-    public List<TimestampedTransaction> getTimestampedTransactionsForEvent() {
-        return transactionPool.getTimestampedTransactionsForEvent();
+    public List<TimestampedTransaction> getTransactionsForEvent() {
+        return transactionPool.getTransactionsForEvent();
     }
 
     @Override

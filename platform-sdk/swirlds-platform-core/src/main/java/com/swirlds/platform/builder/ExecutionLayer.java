@@ -17,7 +17,7 @@ public interface ExecutionLayer extends EventTransactionSupplier, SignatureTrans
     TransactionLimits DEFAULT_TRANSACTION_LIMITS = new TransactionLimits(133120, 245760);
 
     /**
-     * Submits a state signature to execution. This signature should be returned by {@link #getTimestampedTransactionsForEvent()}
+     * Submits a state signature to execution. This signature should be returned by {@link #getTransactionsForEvent()}
      * in the future.
      * <p>
      * NOTE: This method will be removed once state management moves to the execution layer.

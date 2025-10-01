@@ -43,7 +43,6 @@ import com.hedera.node.app.tss.TssBlockHashSigner;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.internal.network.Network;
 import com.hedera.node.internal.network.NodeMetadata;
-import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.filesystem.FileSystemManager;
@@ -192,8 +191,8 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
     }
 
     @Override
-    public @NonNull List<TimestampedTransaction> getTimestampedTransactionsForEvent() {
-        return hederaOrThrow().getTimestampedTransactionsForEvent();
+    public @NonNull List<TimestampedTransaction> getTransactionsForEvent() {
+        return hederaOrThrow().getTransactionsForEvent();
     }
 
     @Override

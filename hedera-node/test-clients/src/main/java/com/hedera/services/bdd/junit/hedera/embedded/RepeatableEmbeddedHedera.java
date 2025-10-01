@@ -179,7 +179,7 @@ public class RepeatableEmbeddedHedera extends AbstractEmbeddedHedera implements 
      * Executes the transaction in the last-created event within its own round.
      */
     public void handleNextRoundIfPresent() {
-        final List<TimestampedTransaction> bufferedTransactions = hedera.getTimestampedTransactionsForEvent();
+        final List<TimestampedTransaction> bufferedTransactions = hedera.getTransactionsForEvent();
         if (!bufferedTransactions.isEmpty()) {
             platform.lastCreatedEvent =
                     new FakeEvent(defaultNodeId, time.now(), createAppPayloadWrapper(bufferedTransactions.getFirst().transaction()));

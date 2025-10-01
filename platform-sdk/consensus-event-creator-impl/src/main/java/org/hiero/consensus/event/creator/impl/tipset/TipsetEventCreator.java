@@ -393,7 +393,7 @@ public class TipsetEventCreator implements EventCreator {
      */
     @NonNull
     private UnsignedEvent assembleEventObject(@Nullable final PlatformEvent otherParent) {
-        final List<TimestampedTransaction> timestampedTransactions = transactionSupplier.getTimestampedTransactionsForEvent();
+        final List<TimestampedTransaction> timestampedTransactions = transactionSupplier.getTransactionsForEvent();
         final UnsignedEvent event = new UnsignedEvent(
                 selfId,
                 lastSelfEvent == null ? null : lastSelfEvent.getDescriptor(),
