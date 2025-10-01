@@ -55,7 +55,7 @@ public record OpsDurationSchedule(
                 && precompileGasBasedDurationMultiplier == that.precompileGasBasedDurationMultiplier
                 && systemContractGasBasedDurationMultiplier == that.systemContractGasBasedDurationMultiplier
                 && accountLazyCreationOpsDurationMultiplier == that.accountLazyCreationOpsDurationMultiplier
-                && opsDurationByOpCode == that.opsDurationByOpCode;
+                && opsDurationByOpCode.equals(that.opsDurationByOpCode);
     }
 
     @Override
