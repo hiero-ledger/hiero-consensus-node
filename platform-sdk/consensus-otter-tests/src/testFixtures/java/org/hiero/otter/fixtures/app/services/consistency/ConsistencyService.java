@@ -25,6 +25,7 @@ import org.hiero.consensus.model.hashgraph.ConsensusConstants;
 import org.hiero.consensus.model.hashgraph.Round;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
+import org.hiero.otter.fixtures.app.OtterAppState;
 import org.hiero.otter.fixtures.app.OtterService;
 import org.hiero.otter.fixtures.app.OtterTransaction;
 import org.jetbrains.annotations.NotNull;
@@ -63,25 +64,28 @@ public class ConsistencyService implements OtterService {
     public void initialize(
             @NonNull final InitTrigger trigger,
             @NonNull final NodeId selfId,
-            @NonNull final Configuration configuration) {
+            @NonNull final Configuration configuration,
+            @NonNull final OtterAppState state) {
         if (trigger != InitTrigger.GENESIS && trigger != InitTrigger.RESTART) {
             return;
         }
         final StateCommonConfig stateConfig = configuration.getConfigData(StateCommonConfig.class);
-        final ConsistencyServiceConfig testingToolConfig = configuration.getConfigData(ConsistencyServiceConfig.class);
+        final ConsistencyServiceConfig consistencyServiceConfig =
+                configuration.getConfigData(ConsistencyServiceConfig.class);
 
-        final Path logFileDirectory = stateConfig
+        final Path historyFileDirectory = stateConfig
                 .savedStateDirectory()
-                .resolve(testingToolConfig.historyFileDirectory())
+                .resolve(consistencyServiceConfig.historyFileDirectory())
                 .resolve(Long.toString(selfId.id()));
         try {
-            Files.createDirectories(logFileDirectory);
+            Files.createDirectories(historyFileDirectory);
         } catch (final IOException e) {
+            log.error(EXCEPTION.getMarker(), "Unable to create log file directory", e);
             throw new UncheckedIOException("unable to set up file system for consistency data", e);
         }
 
-        final Path logFilePath = logFileDirectory.resolve(testingToolConfig.historyFileName());
-        roundHistory.init(logFilePath);
+        final Path historyFilePath = historyFileDirectory.resolve(consistencyServiceConfig.historyFileName());
+        roundHistory.init(historyFilePath);
     }
 
     /**

@@ -15,6 +15,7 @@ import static org.junit.jupiter.api.Assertions.fail;
 
 import com.google.protobuf.ByteString;
 import com.google.protobuf.ProtocolStringList;
+import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import io.grpc.ManagedChannel;
@@ -38,6 +39,7 @@ import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.otter.fixtures.KeysAndCertsConverter;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.ProtobufConverter;
+import org.hiero.otter.fixtures.app.services.consistency.ConsistencyServiceConfig;
 import org.hiero.otter.fixtures.container.proto.ContainerControlServiceGrpc;
 import org.hiero.otter.fixtures.container.proto.EventMessage;
 import org.hiero.otter.fixtures.container.proto.InitRequest;
@@ -372,21 +374,9 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
     void destroy() {
         try {
             // copy logs from container to the local filesystem
-            final Path logPath = Path.of("build", "container", NODE_IDENTIFIER_FORMAT.formatted(selfId.id()), "output");
-            Files.createDirectories(logPath.resolve("swirlds-hashstream"));
-
-            container.copyFileFromContainer(
-                    CONTAINER_APP_WORKING_DIR + "/output/swirlds.log",
-                    logPath.resolve("swirlds.log").toString());
-            container.copyFileFromContainer(
-                    CONTAINER_APP_WORKING_DIR + "/output/swirlds-hashstream/swirlds-hashstream.log",
-                    logPath.resolve("swirlds-hashstream/swirlds-hashstream.log").toString());
-
-            container.copyFileFromContainer(
-                    CONTAINER_APP_WORKING_DIR + "/data/saved/consistency-test/" + selfId.id()
-                            + "/ConsistencyTestLog.csv",
-                    logPath.resolve("ConsistencyTestLog.csv").toString());
-
+            final Path localOutputDirectory = getLocalOutputDirectory(selfId);
+            downloadConsensusLogs(localOutputDirectory);
+            downloadConsistencyServiceFiles(localOutputDirectory);
         } catch (final IOException e) {
             throw new UncheckedIOException("Failed to copy logs from container", e);
         }
@@ -400,6 +390,40 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
         resultsCollector.destroy();
         platformStatus = null;
         lifeCycle = DESTROYED;
+    }
+
+    private Path getLocalOutputDirectory(@NonNull final NodeId selfId) {
+        return Path.of("build", "container", NODE_IDENTIFIER_FORMAT.formatted(selfId.id()), "output");
+    }
+
+    private void downloadConsensusLogs(@NonNull final Path localOutputDirectory) throws IOException {
+        final Path hashStreamDir = localOutputDirectory.resolve("swirlds-hashstream");
+        Files.createDirectories(hashStreamDir);
+
+        container.copyFileFromContainer(
+                CONTAINER_APP_WORKING_DIR + "/output/swirlds.log",
+                localOutputDirectory.resolve("swirlds.log").toString());
+        container.copyFileFromContainer(
+                CONTAINER_APP_WORKING_DIR + "/output/swirlds-hashstream/swirlds-hashstream.log",
+                hashStreamDir.resolve("swirlds-hashstream.log").toString());
+    }
+
+    private void downloadConsistencyServiceFiles(@NonNull final Path localOutputDirectory) {
+        final StateCommonConfig stateConfig = nodeConfiguration.current().getConfigData(StateCommonConfig.class);
+        final ConsistencyServiceConfig consistencyServiceConfig =
+                nodeConfiguration.current().getConfigData(ConsistencyServiceConfig.class);
+
+        final Path historyFileDirectory = stateConfig
+                .savedStateDirectory()
+                .resolve(consistencyServiceConfig.historyFileDirectory())
+                .resolve(Long.toString(selfId.id()));
+
+        final Path historyFilePath = historyFileDirectory.resolve(consistencyServiceConfig.historyFileName());
+        container.copyFileFromContainer(
+                CONTAINER_APP_WORKING_DIR + historyFilePath,
+                localOutputDirectory
+                        .resolve(consistencyServiceConfig.historyFileName())
+                        .toString());
     }
 
     /**

@@ -42,11 +42,13 @@ public interface OtterService {
      * @param trigger the trigger that caused the initialization
      * @param selfId the ID of this node
      * @param configuration the configuration to use
+     * @param state the current state at the time of initialization
      */
     default void initialize(
             @NonNull final InitTrigger trigger,
             @NonNull final NodeId selfId,
-            @NonNull final Configuration configuration) {
+            @NonNull final Configuration configuration,
+            @NonNull final OtterAppState state) {
         // Default implementation does nothing
     }
 

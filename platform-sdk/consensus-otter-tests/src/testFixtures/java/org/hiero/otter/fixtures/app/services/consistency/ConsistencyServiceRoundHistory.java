@@ -59,11 +59,6 @@ public class ConsistencyServiceRoundHistory implements Closeable {
      */
     private BufferedWriter writer;
 
-    /**
-     * The round number of the previous round handled
-     */
-    private long previousRoundHandled;
-
     @Nullable
     private ConsistencyServiceRoundBuilder roundBuilder;
 
@@ -194,7 +189,6 @@ public class ConsistencyServiceRoundHistory implements Closeable {
      */
     public void onRoundStart(@NonNull final Round round, final long stateChecksum) {
         requireNonNull(round);
-
         roundBuilder = new ConsistencyServiceRoundBuilder(round.getRoundNum(), stateChecksum);
     }
 
@@ -231,6 +225,9 @@ public class ConsistencyServiceRoundHistory implements Closeable {
         }
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public void close() {
         try {
             writer.close();
