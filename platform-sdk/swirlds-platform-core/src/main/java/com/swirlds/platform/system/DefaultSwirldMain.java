@@ -35,12 +35,6 @@ public abstract class DefaultSwirldMain<T extends MerkleNodeState> implements Sw
 
     @NonNull
     @Override
-    public List<Bytes> getTransactionsForEvent() {
-        return transactionPool.getTransactionsForEvent();
-    }
-
-    @NonNull
-    @Override
     public List<TimestampedTransaction> getTimestampedTransactionsForEvent() {
         return transactionPool.getTimestampedTransactionsForEvent();
     }

@@ -34,6 +34,7 @@ import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.consensus.model.transaction.EventTransactionSupplier;
+import org.hiero.consensus.model.transaction.TimestampedTransaction;
 import org.hiero.consensus.roster.RosterUtils;
 
 /**
@@ -392,13 +393,14 @@ public class TipsetEventCreator implements EventCreator {
      */
     @NonNull
     private UnsignedEvent assembleEventObject(@Nullable final PlatformEvent otherParent) {
+        final List<TimestampedTransaction> timestampedTransactions = transactionSupplier.getTimestampedTransactionsForEvent();
         final UnsignedEvent event = new UnsignedEvent(
                 selfId,
                 lastSelfEvent == null ? null : lastSelfEvent.getDescriptor(),
                 otherParent == null ? Collections.emptyList() : Collections.singletonList(otherParent.getDescriptor()),
                 eventWindow.newEventBirthRound(),
-                calculateNewEventCreationTime(lastSelfEvent, otherParent),
-                transactionSupplier.getTransactionsForEvent(),
+                calculateNewEventCreationTime(lastSelfEvent, otherParent),//TODO change time
+                timestampedTransactions.stream().map(TimestampedTransaction::transaction).toList(),
                 random.nextLong(0, roster.rosterEntries().size() + 1));
         eventHasher.hashUnsignedEvent(event);
 

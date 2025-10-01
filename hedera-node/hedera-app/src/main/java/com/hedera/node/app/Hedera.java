@@ -1147,12 +1147,6 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
         transactionPool.submitPriorityTransaction(encodeSystemTransaction(stateSignatureTransaction));
     }
 
-    @NonNull
-    @Override
-    public List<Bytes> getTransactionsForEvent() {
-        return transactionPool.getTransactionsForEvent();
-    }
-
     @Override
     public @NonNull List<TimestampedTransaction> getTimestampedTransactionsForEvent() {
         return transactionPool.getTimestampedTransactionsForEvent();

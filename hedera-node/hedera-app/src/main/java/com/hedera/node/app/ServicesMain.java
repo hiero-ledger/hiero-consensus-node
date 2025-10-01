@@ -192,11 +192,6 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
     }
 
     @Override
-    public @NonNull List<Bytes> getTransactionsForEvent() {
-        return hederaOrThrow().getTransactionsForEvent();
-    }
-
-    @Override
     public @NonNull List<TimestampedTransaction> getTimestampedTransactionsForEvent() {
         return hederaOrThrow().getTimestampedTransactionsForEvent();
     }

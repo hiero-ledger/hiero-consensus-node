@@ -11,6 +11,7 @@ import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.common.test.fixtures.Randotron;
 import java.util.List;
 import org.hiero.consensus.model.status.PlatformStatus;
+import org.hiero.consensus.model.transaction.TimestampedTransaction;
 import org.hiero.consensus.transaction.TransactionLimits;
 import org.hiero.consensus.transaction.TransactionPoolNexus;
 import org.junit.jupiter.api.BeforeEach;
@@ -72,26 +73,26 @@ class TransactionPoolNexusTest {
         // get the transactions
         // this should happen in two batches, the first will all of the random size transactions created in the loop
         // above, followed by a second batch that should be just the single large transaction submitted last
-        final List<Bytes> firstBatch = nexus.getTransactionsForEvent();
+        final List<TimestampedTransaction> firstBatch = nexus.getTimestampedTransactionsForEvent();
         assertNotNull(firstBatch);
         assertEquals(numCreated, firstBatch.size());
 
         // loop through the transactions and make sure the size does not exceed what we expect
         final long firstBatchBytesLength =
-                firstBatch.stream().map(Bytes::length).reduce(0L, Long::sum);
+                firstBatch.stream().map(TimestampedTransaction::transaction).map(Bytes::length).reduce(0L, Long::sum);
         assertTrue(
                 firstBatchBytesLength <= MAX_TX_BYTES_PER_EVENT,
                 "Total number of bytes in the batch (" + firstBatchBytesLength + ") exceeds max allowed ("
                         + MAX_TX_BYTES_PER_EVENT + ")");
 
         // get the second batch; it should be just the final transaction
-        final List<Bytes> secondBatch = nexus.getTransactionsForEvent();
+        final List<TimestampedTransaction> secondBatch = nexus.getTimestampedTransactionsForEvent();
         assertNotNull(secondBatch);
         assertEquals(1, secondBatch.size());
-        assertEquals(TX_MAX_BYTES, secondBatch.getFirst().length());
+        assertEquals(TX_MAX_BYTES, secondBatch.getFirst().transaction().length());
 
         // and just for fun, make sure there aren't any more batches
-        final List<Bytes> thirdBatch = nexus.getTransactionsForEvent();
+        final List<TimestampedTransaction> thirdBatch = nexus.getTimestampedTransactionsForEvent();
         assertNotNull(thirdBatch);
         assertTrue(thirdBatch.isEmpty());
     }
