@@ -1,19 +1,18 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.statevalidation;
 
-import static org.junit.platform.engine.discovery.DiscoverySelectors.selectPackage;
+import static com.hedera.statevalidation.validators.merkledb.ValidateLeafIndex.LEAF;
+import static com.hedera.statevalidation.validators.merkledb.ValidateLeafIndexHalfDiskHashMap.HDHM;
+import static com.hedera.statevalidation.validators.servicesstate.AccountValidator.ACCOUNT;
 
-import com.hedera.statevalidation.listener.LoggingTestExecutionListener;
-import com.hedera.statevalidation.listener.ReportingListener;
-import com.hedera.statevalidation.listener.SummaryGeneratingListener;
+import com.hedera.statevalidation.listener.LoggingTestExecutionListenerPoc;
+import com.hedera.statevalidation.listener.SummaryGeneratingListenerPoc;
+import com.hedera.statevalidation.reporting.JsonHelper;
+import com.hedera.statevalidation.reporting.ReportingFactory;
+import com.hedera.statevalidation.validators.ValidationEngine;
 import java.util.concurrent.Callable;
-import org.junit.platform.launcher.Launcher;
-import org.junit.platform.launcher.LauncherDiscoveryRequest;
-import org.junit.platform.launcher.LauncherSession;
-import org.junit.platform.launcher.TagFilter;
-import org.junit.platform.launcher.TestPlan;
-import org.junit.platform.launcher.core.LauncherDiscoveryRequestBuilder;
-import org.junit.platform.launcher.core.LauncherFactory;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.ParentCommand;
@@ -31,6 +30,8 @@ import picocli.CommandLine.ParentCommand;
         description = "Validates the state of a Mainnet Hedera node")
 public class ValidateCommand implements Callable<Integer> {
 
+    private static final Logger log = LogManager.getLogger(ValidateCommand.class);
+
     @ParentCommand
     private StateOperatorCommand parent;
 
@@ -39,37 +40,30 @@ public class ValidateCommand implements Callable<Integer> {
             description =
                     "Tag to run: [stateAnalyzer, internal, leaf, hdhm, account, tokenRelations, rehash, files, compaction, entityIds]")
     private String[] tags = {
-        "stateAnalyzer",
-        "internal",
-        "leaf",
-        "hdhm",
-        "account",
-        "tokenRelations",
-        "rehash",
-        "files",
-        "compaction",
-        "entityIds"
+        "stateAnalyzer", "internal", LEAF, HDHM, ACCOUNT, "tokenRelations", "rehash", "files", "compaction", "entityIds"
     };
 
     @Override
     public Integer call() {
         System.setProperty("state.dir", parent.getStateDir().getAbsolutePath());
 
-        LauncherDiscoveryRequest request = LauncherDiscoveryRequestBuilder.request()
-                .selectors(selectPackage("com.hedera.statevalidation.validators"))
-                .filters(TagFilter.includeTags(tags))
-                .build();
+        try {
+            SummaryGeneratingListenerPoc summaryGeneratingListener = new SummaryGeneratingListenerPoc();
+            ValidationEngine engine = new ValidationEngine();
+            engine.addListener(new LoggingTestExecutionListenerPoc());
+            engine.addListener(summaryGeneratingListener);
+            engine.execute(tags);
 
-        TestPlan testPlan;
-        SummaryGeneratingListener summaryGeneratingListener = new SummaryGeneratingListener();
-        try (LauncherSession session = LauncherFactory.openSession()) {
-            Launcher launcher = session.getLauncher();
-            launcher.registerTestExecutionListeners(
-                    new ReportingListener(), summaryGeneratingListener, new LoggingTestExecutionListener());
-            testPlan = launcher.discover(request);
-            launcher.execute(testPlan);
+            // Code from ReportingListener can be inlined,
+            // as anyway it was called after all validations, from `testPlanExecutionFinished`
+            log.info(
+                    "Writing JSON report to [{}]",
+                    Constants.REPORT_FILE.toAbsolutePath().toString());
+            JsonHelper.writeReport(ReportingFactory.getInstance().report(), Constants.REPORT_FILE);
+
+            return summaryGeneratingListener.isFailed() ? 1 : 0;
+        } catch (Exception e) {
+            return 1;
         }
-
-        return summaryGeneratingListener.isFailed() ? 1 : 0;
     }
 }

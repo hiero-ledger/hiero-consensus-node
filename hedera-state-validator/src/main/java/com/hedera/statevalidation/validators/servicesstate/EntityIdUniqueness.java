@@ -56,6 +56,9 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
+/**
+ * This validation could be built on top of ValidateLeafIndex.
+ */
 @ExtendWith({StateResolver.class, ReportResolver.class, SlackReportGenerator.class})
 @Tag("entityIds")
 public class EntityIdUniqueness {

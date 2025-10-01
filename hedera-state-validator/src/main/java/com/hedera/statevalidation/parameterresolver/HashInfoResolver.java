@@ -13,6 +13,7 @@ import org.junit.jupiter.api.extension.ParameterContext;
 import org.junit.jupiter.api.extension.ParameterResolutionException;
 import org.junit.jupiter.api.extension.ParameterResolver;
 
+// Used only in Rehash
 public class HashInfoResolver implements ParameterResolver {
     public static final String FILE_NAME = "hashInfo.txt";
     private static HashInfo hashInfo;
