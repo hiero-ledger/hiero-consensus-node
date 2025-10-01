@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.test.exec.operations;
 
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.CODE_FACTORY;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.assertSameResult;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.BDDMockito.given;
@@ -15,6 +16,7 @@ import org.apache.tuweni.bytes.Bytes;
 import org.apache.tuweni.bytes.Bytes32;
 import org.apache.tuweni.bytes.MutableBytes;
 import org.apache.tuweni.units.bigints.UInt256;
+import org.hyperledger.besu.collections.undo.UndoScalar;
 import org.hyperledger.besu.collections.undo.UndoSet;
 import org.hyperledger.besu.collections.undo.UndoTable;
 import org.hyperledger.besu.datatypes.Address;
@@ -55,7 +57,7 @@ class CustomCreate2OperationTest extends CreateOperationTestBase {
 
     @BeforeEach
     void setUp() {
-        subject = new CustomCreate2Operation(gasCalculator, featureFlags);
+        subject = new CustomCreate2Operation(gasCalculator, featureFlags, CODE_FACTORY);
     }
 
     @Test
@@ -67,7 +69,7 @@ class CustomCreate2OperationTest extends CreateOperationTestBase {
     @Test
     void failsWhenPendingContractIsHollowAccountAndLazyCreationDisabled() {
         givenSpawnPrereqs(4);
-        given(gasCalculator.create2OperationGasCost(frame)).willReturn(GAS_COST);
+        givenGasCostPrereqs();
         given(frame.getStackItem(0)).willReturn(Bytes.ofUnsignedLong(VALUE));
         given(frame.readMemory(anyLong(), anyLong())).willReturn(INITCODE);
         given(frame.readMutableMemory(anyLong(), anyLong())).willReturn(MUTABLE_INITCODE);
@@ -88,7 +90,7 @@ class CustomCreate2OperationTest extends CreateOperationTestBase {
             throws NoSuchFieldException, IllegalAccessException {
         final var frameCaptor = ArgumentCaptor.forClass(MessageFrame.class);
         givenSpawnPrereqs(4);
-        given(gasCalculator.create2OperationGasCost(frame)).willReturn(GAS_COST);
+        givenGasCostPrereqs();
         given(frame.getStackItem(0)).willReturn(Bytes.ofUnsignedLong(VALUE));
         given(frame.readMemory(anyLong(), anyLong())).willReturn(INITCODE);
         given(frame.readMutableMemory(anyLong(), anyLong())).willReturn(MUTABLE_INITCODE);
@@ -100,6 +102,7 @@ class CustomCreate2OperationTest extends CreateOperationTestBase {
         given(txValues.messageFrameStack()).willReturn(messageFrameStack);
         given(txValues.warmedUpAddresses()).willReturn(warmedUpAddresses);
         given(txValues.maxStackSize()).willReturn(1024);
+        given(txValues.gasRefunds()).willReturn(new UndoScalar<>(1L));
         given(undoTable.mark()).willReturn(1L);
 
         final Field worldUdaterField = MessageFrame.class.getDeclaredField("worldUpdater");

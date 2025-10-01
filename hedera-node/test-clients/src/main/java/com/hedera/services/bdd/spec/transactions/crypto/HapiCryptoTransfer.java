@@ -493,19 +493,9 @@ public class HapiCryptoTransfer extends HapiBaseTransfer<HapiCryptoTransfer> {
     }
 
     private void injectAllowanceHooks(final CryptoTransferTransactionBody.Builder builder, final HapiSpec spec) {
-        // Pre-resolve all names to AccountID only once
-        final var fungibleResolved = new HashMap<AccountID, HookSpec>();
-        final var nftSenderResolved = new HashMap<AccountID, HookSpec>();
-        final var nftReceiverResolved = new HashMap<AccountID, HookSpec>();
-        for (var e : fungibleHooksByAccount.entrySet()) {
-            fungibleResolved.put(asIdForKeyLookUp(e.getKey(), spec), e.getValue());
-        }
-        for (var e : nftSenderHooksByAccount.entrySet()) {
-            nftSenderResolved.put(asIdForKeyLookUp(e.getKey(), spec), e.getValue());
-        }
-        for (var e : nftReceiverHooksByAccount.entrySet()) {
-            nftReceiverResolved.put(asIdForKeyLookUp(e.getKey(), spec), e.getValue());
-        }
+        final var fungibleResolved = resolveByAllForms(spec, fungibleHooksByAccount);
+        final var nftSenderResolved = resolveByAllForms(spec, nftSenderHooksByAccount);
+        final var nftReceiverResolved = resolveByAllForms(spec, nftReceiverHooksByAccount);
 
         if (builder.hasTransfers() && !fungibleResolved.isEmpty()) {
             final var tl = builder.getTransfers().toBuilder();
@@ -519,11 +509,10 @@ public class HapiCryptoTransfer extends HapiBaseTransfer<HapiCryptoTransfer> {
             builder.setTransfers(tl);
         }
 
-        // ---- Token transfers (fungible + NFTs) ----
         for (int i = 0, t = builder.getTokenTransfersCount(); i < t; i++) {
             final var ttlB = builder.getTokenTransfersBuilder(i);
 
-            // Fungible AccountAmount entries
+            // Fungible AA entries
             if (!fungibleResolved.isEmpty()) {
                 for (int j = 0, m = ttlB.getTransfersCount(); j < m; j++) {
                     final var aaB = ttlB.getTransfersBuilder(j);
@@ -534,24 +523,50 @@ public class HapiCryptoTransfer extends HapiBaseTransfer<HapiCryptoTransfer> {
                 }
             }
 
-            // NFT sender/receiver hooks
+            // NFT sender/receiver entries
             if (!nftSenderResolved.isEmpty() || !nftReceiverResolved.isEmpty()) {
                 for (int j = 0, m = ttlB.getNftTransfersCount(); j < m; j++) {
                     final var nftB = ttlB.getNftTransfersBuilder(j);
 
                     final var sHook = nftSenderResolved.get(nftB.getSenderAccountID());
-                    if (sHook != null) {
-                        applyHookToNftSender(nftB, sHook);
-                    }
+                    if (sHook != null) applyHookToNftSender(nftB, sHook);
+
                     final var rHook = nftReceiverResolved.get(nftB.getReceiverAccountID());
-                    if (rHook != null) {
-                        applyHookToNftReceiver(nftB, rHook);
-                    }
+                    if (rHook != null) applyHookToNftReceiver(nftB, rHook);
                 }
             }
 
             builder.setTokenTransfers(i, ttlB);
         }
+    }
+
+    /** Map every known AccountID form for each name to the same HookSpec. */
+    private static Map<AccountID, HookSpec> resolveByAllForms(final HapiSpec spec, final Map<String, HookSpec> byName) {
+        final var out = new HashMap<AccountID, HookSpec>();
+        for (var e : byName.entrySet()) {
+            final var name = e.getKey();
+            final var hs = e.getValue();
+
+            // Numeric id (may throw if name is only an alias -> ignore)
+            try {
+                out.put(asId(name, spec), hs);
+            } catch (Throwable ignore) {
+            }
+
+            // Key-lookup id (often key-alias)
+            try {
+                out.put(asIdForKeyLookUp(name, spec), hs);
+            } catch (Throwable ignore) {
+            }
+
+            // If registry can produce an alias AccountID (key/EVM), include it too
+            try {
+                final var aliasId = spec.registry().keyAliasIdFor(spec, name);
+                if (aliasId != null) out.put(aliasId, hs);
+            } catch (Throwable ignore) {
+            }
+        }
+        return out;
     }
 
     private static void applyHookToAccountAmount(final AccountAmount.Builder aaB, final HookSpec spec) {
@@ -721,7 +736,7 @@ public class HapiCryptoTransfer extends HapiBaseTransfer<HapiCryptoTransfer> {
         }
     }
 
-    private static final class HookSpec {
+    public static final class HookSpec {
         final long hookId;
         final long gasLimit;
         final ByteString data;

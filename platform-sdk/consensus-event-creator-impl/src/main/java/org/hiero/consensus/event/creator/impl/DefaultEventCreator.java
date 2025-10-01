@@ -29,12 +29,14 @@ import org.hiero.consensus.event.creator.impl.rules.EventCreationRule;
 import org.hiero.consensus.event.creator.impl.rules.MaximumRateRule;
 import org.hiero.consensus.event.creator.impl.rules.PlatformHealthRule;
 import org.hiero.consensus.event.creator.impl.rules.PlatformStatusRule;
+import org.hiero.consensus.event.creator.impl.rules.QuiescenceRule;
 import org.hiero.consensus.event.creator.impl.rules.SyncLagRule;
 import org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreator;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.model.transaction.EventTransactionSupplier;
 import org.hiero.consensus.model.transaction.SignatureTransactionCheck;
@@ -60,11 +62,6 @@ public class DefaultEventCreator implements EventCreatorModule {
     private PhaseTimer<EventCreationStatus> phase;
 
     /**
-     * The current platform status.
-     */
-    private PlatformStatus platformStatus;
-
-    /**
      * The duration that the system has been unhealthy.
      */
     private Duration unhealthyDuration = Duration.ZERO;
@@ -75,6 +72,10 @@ public class DefaultEventCreator implements EventCreatorModule {
      * How many rounds are we behind the median of the network when comparing latest consensus round reported by syncs
      */
     private double syncRoundLag;
+
+    private QuiescenceRule quiescenceRule;
+
+    private PlatformStatusRule platformStatusRule;
 
     /**
      * Default constructor required by service loader.
@@ -132,11 +133,14 @@ public class DefaultEventCreator implements EventCreatorModule {
 
         final EventCreationConfig config = configuration.getConfigData(EventCreationConfig.class);
 
+        platformStatusRule = new PlatformStatusRule(signatureTransactionCheck);
+        quiescenceRule = new QuiescenceRule();
         final List<EventCreationRule> rules = new ArrayList<>();
         rules.add(new MaximumRateRule(configuration, time));
-        rules.add(new PlatformStatusRule(this::getPlatformStatus, signatureTransactionCheck));
+        rules.add(platformStatusRule);
         rules.add(new PlatformHealthRule(config.maximumPermissibleUnhealthyDuration(), this::getUnhealthyDuration));
         rules.add(new SyncLagRule(config.maxAllowedSyncLag(), this::getSyncRoundLag));
+        rules.add(quiescenceRule);
 
         eventCreationRules = AggregateEventCreationRules.of(rules);
         futureEventBuffer =
@@ -200,6 +204,16 @@ public class DefaultEventCreator implements EventCreatorModule {
      * {@inheritDoc}
      */
     @Override
+    public void quiescenceCommand(@NonNull final QuiescenceCommand quiescenceCommand) {
+        Objects.requireNonNull(quiescenceCommand);
+        quiescenceRule.quiescenceCommand(quiescenceCommand);
+        creator.quiescenceCommand(quiescenceCommand);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
     public void clear() {
         creator.clear();
         phase.activatePhase(IDLE);
@@ -213,7 +227,7 @@ public class DefaultEventCreator implements EventCreatorModule {
      */
     @Override
     public void updatePlatformStatus(@NonNull final PlatformStatus platformStatus) {
-        this.platformStatus = Objects.requireNonNull(platformStatus);
+        this.platformStatusRule.setPlatformStatus(Objects.requireNonNull(platformStatus));
     }
 
     /**
@@ -233,16 +247,6 @@ public class DefaultEventCreator implements EventCreatorModule {
     }
 
     /**
-     * Get the current platform status.
-     *
-     * @return the current platform status
-     */
-    @NonNull
-    private PlatformStatus getPlatformStatus() {
-        return platformStatus;
-    }
-
-    /**
      * Get the duration that the system has been unhealthy.
      *
      * @return the duration that the system has been unhealthy
@@ -253,7 +257,9 @@ public class DefaultEventCreator implements EventCreatorModule {
 
     /**
      * Get the lag behind the median of the network latest consensus round
-     * @return how many rounds are we behind the median of the network when comparing latest consensus round reported by syncs
+     *
+     * @return how many rounds are we behind the median of the network when comparing latest consensus round reported by
+     * syncs
      */
     public double getSyncRoundLag() {
         return syncRoundLag;
