@@ -37,7 +37,6 @@ import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.otter.fixtures.KeysAndCertsConverter;
 import org.hiero.otter.fixtures.Node;
-import org.hiero.otter.fixtures.NodeConfiguration;
 import org.hiero.otter.fixtures.ProtobufConverter;
 import org.hiero.otter.fixtures.container.proto.ContainerControlServiceGrpc;
 import org.hiero.otter.fixtures.container.proto.EventMessage;
@@ -213,6 +212,8 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
             final KillImmediatelyRequest request = KillImmediatelyRequest.getDefaultInstance();
             // Unary call – will throw if server returns an error.
             containerControlBlockingStub.withDeadlineAfter(timeout).killImmediately(request);
+
+            log.info("Node {} has been killed", selfId);
         } catch (final Exception e) {
             fail("Failed to kill node %d immediately".formatted(selfId.id()), e);
         }
@@ -268,7 +269,7 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
      */
     @Override
     @NonNull
-    public NodeConfiguration configuration() {
+    public ContainerNodeConfiguration configuration() {
         return nodeConfiguration;
     }
 

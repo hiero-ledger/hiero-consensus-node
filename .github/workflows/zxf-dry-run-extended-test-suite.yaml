@@ -58,16 +58,68 @@ defaults:
     shell: bash
 
 jobs:
-  extended-test-suite:
-    name: Execute eXtended Test Suite
+  xts-timing-sensitive-tests:
+    name: XTS Timing Sensitive Tests
     if: ${{ inputs.enable-extended-test-suite == true }}
     uses: ./.github/workflows/node-zxc-compile-application-code.yaml
     with:
-      custom-job-label: "Dry-Run: Execute eXtended Test Suite"
+      custom-job-label: "XTS Timing Sensitive"
       enable-timing-sensitive-tests: true
+      enable-network-log-capture: true
+      ref: ${{ inputs.commit_sha }}
+    secrets:
+      access-token: ${{ secrets.GITHUB_TOKEN }}
+      gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
+      gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
+
+  xts-time-consuming-tests:
+    name: XTS Time Consuming Tests
+    if: ${{ inputs.enable-extended-test-suite == true }}
+    uses: ./.github/workflows/node-zxc-compile-application-code.yaml
+    with:
+      custom-job-label: "XTS Time Consuming"
       enable-time-consuming-tests: true
+      enable-network-log-capture: true
+      ref: ${{ inputs.commit_sha }}
+    secrets:
+      access-token: ${{ secrets.GITHUB_TOKEN }}
+      gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
+      gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
+
+  xts-hammer-tests:
+    name: XTS Hammer Tests
+    if: ${{ inputs.enable-extended-test-suite == true }}
+    uses: ./.github/workflows/node-zxc-compile-application-code.yaml
+    with:
+      custom-job-label: "XTS Hammer Tests"
       enable-hammer-tests: true
+      enable-network-log-capture: true
+      ref: ${{ inputs.commit_sha }}
+    secrets:
+      access-token: ${{ secrets.GITHUB_TOKEN }}
+      gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
+      gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
+
+  xts-hapi-time-consuming-tests:
+    name: XTS HAPI Tests (Time Consuming)
+    if: ${{ inputs.enable-extended-test-suite == true }}
+    uses: ./.github/workflows/node-zxc-compile-application-code.yaml
+    with:
+      custom-job-label: "XTS HAPI Time Consuming"
       enable-hapi-tests-time-consuming: true
+      enable-network-log-capture: true
+      ref: ${{ inputs.commit_sha }}
+    secrets:
+      access-token: ${{ secrets.GITHUB_TOKEN }}
+      gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
+      gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
+
+  xts-hapi-block-node-comms-tests:
+    name: XTS HAPI Tests (Block Node Communication)
+    if: ${{ inputs.enable-extended-test-suite == true }}
+    uses: ./.github/workflows/node-zxc-compile-application-code.yaml
+    with:
+      custom-job-label: "XTS HAPI Block Node Comms"
       enable-hapi-tests-bn-communication: true
       enable-network-log-capture: true
       ref: ${{ inputs.commit_sha }}

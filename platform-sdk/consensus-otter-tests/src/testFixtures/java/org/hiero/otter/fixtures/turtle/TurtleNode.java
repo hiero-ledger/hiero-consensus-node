@@ -39,6 +39,8 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Objects;
+import java.util.Random;
 import java.util.function.Consumer;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
@@ -169,30 +171,35 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
                     .withUncaughtExceptionHandler((t, e) -> fail("Unexpected exception in wiring framework", e))
                     .build();
 
+            final OtterApp otterApp = new OtterApp(version);
+
             final HashedReservedSignedState reservedState = loadInitialState(
                     recycleBin,
                     version,
-                    () -> OtterAppState.createGenesisState(currentConfiguration, roster(), metrics, version),
+                    () -> OtterAppState.createGenesisState(
+                            currentConfiguration, roster(), metrics, version, otterApp.allServices()),
                     OtterApp.APP_NAME,
                     OtterApp.SWIRLD_NAME,
                     selfId,
                     platformStateFacade,
                     platformContext,
                     OtterAppState::new);
-            final ReservedSignedState initialState = reservedState.state();
 
+            final ReservedSignedState initialState = reservedState.state();
             final State state = initialState.get().getState();
+
             final RosterHistory rosterHistory = RosterUtils.createRosterHistory(state);
             final String eventStreamLoc = selfId.toString();
 
-            this.executionLayer = new OtterExecutionLayer(platformContext.getMetrics());
+            this.executionLayer =
+                    new OtterExecutionLayer(new Random(randotron.nextLong()), platformContext.getMetrics());
 
             final PlatformBuilder platformBuilder = PlatformBuilder.create(
                             OtterApp.APP_NAME,
                             OtterApp.SWIRLD_NAME,
                             version,
                             initialState,
-                            OtterApp.INSTANCE,
+                            otterApp,
                             selfId,
                             eventStreamLoc,
                             rosterHistory,
@@ -226,7 +233,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
                             wrapConsumerWithNodeContext(resultsCollector::addConsensusRounds));
 
             platformComponent
-                    .statusStateMachineWiring()
+                    .platformMonitorWiring()
                     .getOutputWire()
                     .solderTo(
                             "nodePlatformStatusCollector",
@@ -234,7 +241,9 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
                             wrapConsumerWithNodeContext(this::handlePlatformStatusChange));
 
             InMemorySubscriptionManager.INSTANCE.subscribe(logEntry -> {
-                resultsCollector.addLogEntry(logEntry);
+                if (Objects.equals(logEntry.nodeId(), selfId)) {
+                    resultsCollector.addLogEntry(logEntry);
+                }
                 return lifeCycle == DESTROYED ? UNSUBSCRIBE : CONTINUE;
             });
 
@@ -249,19 +258,18 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
     @Override
     protected void doKillImmediately(@NonNull final Duration timeout) {
         try (final LoggingContextScope ignored = installNodeContext()) {
-            if (lifeCycle == RUNNING) {
-                markerFileObserver.stopObserving();
-                assert platform != null; // platform must be initialized if lifeCycle is STARTED
-                try {
+            markerFileObserver.stopObserving();
+            try {
+                if (platform != null) {
                     platform.destroy();
-                } catch (final InterruptedException e) {
-                    throw new AssertionError("Unexpected interruption during platform shutdown", e);
                 }
-                platformStatus = null;
-                platform = null;
-                platformComponent = null;
-                model = null;
+            } catch (final InterruptedException e) {
+                throw new AssertionError("Unexpected interruption during platform shutdown", e);
             }
+            platformStatus = null;
+            platform = null;
+            platformComponent = null;
+            model = null;
             lifeCycle = SHUTDOWN;
         }
     }
