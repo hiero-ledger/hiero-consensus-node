@@ -99,6 +99,9 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
     @Nullable
     private PlatformComponents platformComponent;
 
+    @Nullable
+    private OtterApp otterApp;
+
     /**
      * Constructor of {@link TurtleNode}.
      *
@@ -171,7 +174,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
                     .withUncaughtExceptionHandler((t, e) -> fail("Unexpected exception in wiring framework", e))
                     .build();
 
-            final OtterApp otterApp = new OtterApp(version);
+            otterApp = new OtterApp(version);
 
             final HashedReservedSignedState reservedState = loadInitialState(
                     recycleBin,
@@ -388,6 +391,9 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
 
         try (final LoggingContextScope ignored = installNodeContext()) {
             resultsCollector.destroy();
+            if (otterApp != null) {
+                otterApp.destroy();
+            }
             lifeCycle = DESTROYED;
 
             logging.removeNodeLogging(selfId);

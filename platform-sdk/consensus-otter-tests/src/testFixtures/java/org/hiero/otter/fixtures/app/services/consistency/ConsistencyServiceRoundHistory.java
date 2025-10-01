@@ -3,8 +3,10 @@ package org.hiero.otter.fixtures.app.services.consistency;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
+import static java.util.Objects.requireNonNull;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.Closeable;
@@ -17,10 +19,10 @@ import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.otter.fixtures.app.OtterTransaction;
 
 /**
  * Object representing the entire history of rounds handled by the Consistency Service.
@@ -61,6 +63,9 @@ public class ConsistencyServiceRoundHistory implements Closeable {
      */
     private long previousRoundHandled;
 
+    @Nullable
+    private ConsistencyServiceRoundBuilder roundBuilder;
+
     /**
      * Constructor
      */
@@ -77,7 +82,7 @@ public class ConsistencyServiceRoundHistory implements Closeable {
      * @param logFilePath the location of the log file
      */
     public void init(@NonNull final Path logFilePath) {
-        this.logFilePath = Objects.requireNonNull(logFilePath);
+        this.logFilePath = requireNonNull(logFilePath);
 
         log.info(STARTUP.getMarker(), "Consistency testing tool log path: {}", logFilePath);
 
@@ -104,7 +109,7 @@ public class ConsistencyServiceRoundHistory implements Closeable {
         try (final FileReader in = new FileReader(logFilePath.toFile());
                 final BufferedReader reader = new BufferedReader(in)) {
             reader.lines().forEach(line -> {
-                final ConsistencyServiceRound parsedRound = ConsistencyServiceRound.fromString(line);
+                final ConsistencyServiceRound parsedRound = ConsistencyServiceRound.fromCSVString(line);
 
                 if (parsedRound == null) {
                     log.warn(STARTUP.getMarker(), "Failed to parse line from log file: {}", line);
@@ -141,8 +146,8 @@ public class ConsistencyServiceRoundHistory implements Closeable {
     private void compareWithHistoricalRound(
             @NonNull final ConsistencyServiceRound newRound, @NonNull final ConsistencyServiceRound historicalRound) {
 
-        Objects.requireNonNull(newRound);
-        Objects.requireNonNull(historicalRound);
+        requireNonNull(newRound);
+        requireNonNull(historicalRound);
 
         if (!newRound.equals(historicalRound)) {
             final String error = "Round " + newRound.roundNumber() + " with transaction nonce values "
@@ -170,6 +175,8 @@ public class ConsistencyServiceRoundHistory implements Closeable {
             return;
         }
 
+        // TODO: I don't think this check should be here.
+
         final long newRoundNumber = newRound.roundNumber();
 
         // make sure round numbers always increase
@@ -187,10 +194,10 @@ public class ConsistencyServiceRoundHistory implements Closeable {
      * @param round the round to write to the log file
      */
     private void writeRoundToLog(final @NonNull ConsistencyServiceRound round) {
-        Objects.requireNonNull(round);
+        requireNonNull(round);
 
         try {
-            writer.write(round.toString());
+            writer.write(round.toCSVString());
             writer.flush();
         } catch (final IOException e) {
             throw new UncheckedIOException("Failed to write round `%s` to log".formatted(round.roundNumber()), e);
@@ -198,27 +205,47 @@ public class ConsistencyServiceRoundHistory implements Closeable {
     }
 
     /**
-     * Process a round
+     * Setup a new builder for the given round
+     *
+     * @param round the round to process
+     * @param stateChecksum the checksum of the state at the beginning of the round
+     */
+    public void onRoundStart(@NonNull final ConsistencyServiceRound round, final long stateChecksum) {
+        requireNonNull(round);
+
+        roundBuilder = new ConsistencyServiceRoundBuilder(round.roundNumber(), stateChecksum);
+    }
+
+    /**
+     * Adds the transaction to the builder for the current round
+     *
+     * @param transaction the transaction to process
+     */
+    public void onTransaction(@NonNull final OtterTransaction transaction) {
+        assert roundBuilder != null;
+        roundBuilder.addTransaction(transaction);
+    }
+
+    /**
+     * Finalize the current round
      * <p>
      * If the input round already exists in the history, this method checks that all transactions are identical to the
      * corresponding historical round
      * <p>
      * If the input round doesn't already exist in the history, this method adds it to the history
-     *
-     * @param round the round to process
      */
-    public void processRound(@NonNull final ConsistencyServiceRound round) {
-        Objects.requireNonNull(round);
-
-        final ConsistencyServiceRound historicalRound = roundHistory.get(round.roundNumber());
+    public void onRoundComplete() {
+        assert roundBuilder != null;
+        final ConsistencyServiceRound currentRound = roundBuilder.build();
+        final ConsistencyServiceRound historicalRound = roundHistory.get(currentRound.roundNumber());
 
         if (historicalRound == null) {
             // round doesn't already appear in the history, so record it
-            addRoundToHistory(round);
-            writeRoundToLog(round);
+            addRoundToHistory(currentRound);
+            writeRoundToLog(currentRound);
         } else {
             // if we found a round with the same round number in the round history, make sure the rounds are identical
-            compareWithHistoricalRound(round, historicalRound);
+            compareWithHistoricalRound(currentRound, historicalRound);
         }
     }
 

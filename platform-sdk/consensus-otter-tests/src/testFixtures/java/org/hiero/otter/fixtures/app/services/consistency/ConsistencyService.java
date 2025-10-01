@@ -5,9 +5,15 @@ import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
+import com.swirlds.common.config.StateCommonConfig;
+import com.swirlds.config.api.Configuration;
 import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
@@ -15,6 +21,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.event.Event;
 import org.hiero.consensus.model.hashgraph.Round;
+import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 import org.hiero.otter.fixtures.app.OtterService;
 import org.hiero.otter.fixtures.app.OtterTransaction;
@@ -44,8 +51,33 @@ public class ConsistencyService implements OtterService {
     /** A history of all rounds and transaction nonce values contained within. */
     private final ConsistencyServiceRoundHistory roundHistory = new ConsistencyServiceRoundHistory();
 
-    public void initialize() {
-        // Init roundHistory here
+    /**
+     * {@inheritDoc}
+     */
+    public void initialize(@NonNull final NodeId selfId, @NonNull final Configuration configuration) {
+        final StateCommonConfig stateConfig = configuration.getConfigData(StateCommonConfig.class);
+        final ConsistencyServiceConfig testingToolConfig = configuration.getConfigData(ConsistencyServiceConfig.class);
+
+        final Path logFileDirectory = stateConfig
+                .savedStateDirectory()
+                .resolve(testingToolConfig.logfileDirectory())
+                .resolve(Long.toString(selfId.id()));
+        try {
+            Files.createDirectories(logFileDirectory);
+        } catch (final IOException e) {
+            throw new UncheckedIOException("unable to set up file system for consistency data", e);
+        }
+
+        final Path logFilePath = logFileDirectory.resolve("ConsistencyTestLog.csv");
+        roundHistory.init(logFilePath);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void destroy() {
+        roundHistory.close();
     }
 
     /**
@@ -56,11 +88,11 @@ public class ConsistencyService implements OtterService {
      * @param round the round to handle
      */
     @Override
-    public void handleRound(@NonNull final WritableStates writableStates, @NonNull final Round round) {
+    public void onRoundStart(@NonNull final WritableStates writableStates, @NonNull final Round round) {
         final WritableConsistencyStateStore store = new WritableConsistencyStateStore(writableStates)
                 .accumulateRunningChecksum(round.getRoundNum())
                 .incrementRoundsHandled();
-        roundHistory.processRound(ConsistencyServiceRound.fromRound(round, store.getRunningChecksum()));
+        roundHistory.onRoundStart(ConsistencyServiceRound.fromRound(round, store.getRunningChecksum()));
     }
 
     /**
