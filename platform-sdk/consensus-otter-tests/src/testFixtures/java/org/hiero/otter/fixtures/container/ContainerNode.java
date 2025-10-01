@@ -376,7 +376,7 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
         try {
             // copy logs from container to the local filesystem
             final Path outputPath = Path.of("build", "container", NODE_IDENTIFIER_FORMAT.formatted(selfId.id()));
-            Files.createDirectories(outputPath.resolve("swirlds-hashstream"));
+            Files.createDirectories(outputPath.resolve("output/swirlds-hashstream"));
             Files.createDirectories(outputPath.resolve("data/stats"));
 
             container.copyFileFromContainer(
@@ -389,7 +389,7 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
                     CONTAINER_APP_WORKING_DIR + METRICS_PATH.formatted(selfId.id()),
                     outputPath.resolve(METRICS_PATH.formatted(selfId.id())).toString());
         } catch (final IOException e) {
-            throw new UncheckedIOException("Failed to copy logs from container", e);
+            throw new UncheckedIOException("Failed to copy files from container", e);
         }
 
         if (lifeCycle == RUNNING) {
