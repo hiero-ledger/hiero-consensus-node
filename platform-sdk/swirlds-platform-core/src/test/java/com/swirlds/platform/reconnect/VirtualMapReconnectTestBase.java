@@ -54,16 +54,16 @@ public abstract class VirtualMapReconnectTestBase {
             .getOrCreateConfig()
             .getConfigData(ReconnectConfig.class);
 
-    protected abstract VirtualDataSourceBuilder createBuilder(String postfix) throws IOException;
+    protected abstract VirtualDataSourceBuilder createBuilder() throws IOException;
 
     @BeforeEach
     void setupEach() throws Exception {
         // Some tests set custom default VirtualMap settings, e.g. StreamEventParserTest calls
         // Browser.populateSettingsCommon(). These custom settings can't be used to run VM reconnect
         // tests. As a workaround, set default settings here explicitly
-        final VirtualDataSourceBuilder teacherDataSourceBuilder = createBuilder("Teacher");
+        final VirtualDataSourceBuilder teacherDataSourceBuilder = createBuilder();
         teacherBuilder = new BrokenBuilder(teacherDataSourceBuilder);
-        final VirtualDataSourceBuilder learnerDataSourceBuilder = createBuilder("Learner");
+        final VirtualDataSourceBuilder learnerDataSourceBuilder = createBuilder();
         learnerBuilder = new BrokenBuilder(learnerDataSourceBuilder);
         teacherMap = new VirtualMap("Test", teacherBuilder, CONFIGURATION);
         learnerMap = new VirtualMap("Test", learnerBuilder, CONFIGURATION);
@@ -169,9 +169,10 @@ public abstract class VirtualMapReconnectTestBase {
 
         @Override
         public BreakableDataSource copy(
-                final VirtualDataSource snapshotMe, final boolean makeCopyActive, final boolean offlineUse) {
+                final VirtualDataSource snapshotMe, final boolean compactionEnabled, final boolean offlineUse) {
             final var breakableSnapshot = (BreakableDataSource) snapshotMe;
-            return new BreakableDataSource(this, delegate.copy(breakableSnapshot.delegate, makeCopyActive, offlineUse));
+            return new BreakableDataSource(
+                    this, delegate.copy(breakableSnapshot.delegate, compactionEnabled, offlineUse));
         }
 
         @Override

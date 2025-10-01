@@ -3,6 +3,7 @@ package com.swirlds.platform.test.fixtures.state;
 
 import static com.swirlds.platform.test.fixtures.PlatformStateUtils.randomPlatformState;
 import static com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer.CONFIGURATION;
+import static com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer.CONFIGURATION;
 
 import com.swirlds.base.time.Time;
 import com.swirlds.common.merkle.crypto.MerkleCryptographyFactory;
@@ -21,11 +22,10 @@ public class SignedStateUtils {
 
     public static SignedState randomSignedState(Random random) {
         TestPlatformStateFacade platformStateFacade = new TestPlatformStateFacade();
-        MerkleNodeState root = new TestMerkleStateRoot(
-                CONFIGURATION,
+        MerkleNodeState root = new TestVirtualMapState(CONFIGURATION,
                 new NoOpMetrics(),
                 Time.getCurrent(),
-                MerkleCryptographyFactory.create(CONFIGURATION)); // FUTURE WORK: use TestHederaVirtualMapState
+                MerkleCryptographyFactory.create(CONFIGURATION));
         TestingAppStateInitializer.DEFAULT.initPlatformState(root);
         randomPlatformState(random, root, platformStateFacade);
         boolean shouldSaveToDisk = random.nextBoolean();

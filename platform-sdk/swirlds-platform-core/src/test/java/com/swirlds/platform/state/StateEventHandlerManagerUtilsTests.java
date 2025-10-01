@@ -12,7 +12,7 @@ import com.swirlds.base.time.Time;
 import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
 import com.swirlds.platform.metrics.StateMetrics;
-import com.swirlds.platform.test.fixtures.state.TestHederaVirtualMapState;
+import com.swirlds.platform.test.fixtures.state.TestVirtualMapState;
 import com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer;
 import com.swirlds.state.State;
 import org.junit.jupiter.api.AfterEach;
@@ -24,7 +24,7 @@ public class StateEventHandlerManagerUtilsTests {
     void testFastCopyIsMutable() {
         final String virtualMapLabel =
                 "vm-" + StateEventHandlerManagerUtilsTests.class.getSimpleName() + "-" + java.util.UUID.randomUUID();
-        final MerkleNodeState state = TestHederaVirtualMapState.createInstanceWithVirtualMapLabel(
+        final MerkleNodeState state = TestVirtualMapState.createInstanceWithVirtualMapLabel(
                 virtualMapLabel, CONFIGURATION, new NoOpMetrics(), Time.getCurrent());
         TestingAppStateInitializer.DEFAULT.initPlatformState(state);
         state.getRoot().reserve();

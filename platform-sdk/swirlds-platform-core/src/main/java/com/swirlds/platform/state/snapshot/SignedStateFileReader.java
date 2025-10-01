@@ -155,7 +155,7 @@ public final class SignedStateFileReader {
      */
     public static void registerServiceStates(@NonNull final MerkleNodeState state) {
         registerServiceState(state, new V0540PlatformStateSchema(), PlatformStateService.NAME);
-        registerServiceState(state, new V0540RosterBaseSchema(), RosterStateId.NAME);
+        registerServiceState(state, new V0540RosterBaseSchema(), RosterStateId.SERVICE_NAME);
     }
 
     private static void registerServiceState(
@@ -165,22 +165,7 @@ public final class SignedStateFileReader {
                 .forEach(def -> {
                     final var md = new StateMetadata<>(name, schema, def);
                     if (def.singleton() || def.onDisk()) {
-                        try {
-                            // Production case
-                            // Attempt to initialize the state if it is a VirtualMapState
-                            state.initializeState(md);
-                        } catch (UnsupportedOperationException e) {
-                            // Non production case (testing tools)
-                            // Otherwise assume it is a MerkleStateRoot
-
-                            // This branch should be removed once the MerkleStateRoot is removed along with
-                            // putServiceStateIfAbsent method in the MerkleNodeState interface
-                            state.putServiceStateIfAbsent(md, () -> {
-                                throw new IllegalStateException(
-                                        "State nodes " + md.stateDefinition().stateKey() + " for service " + name
-                                                + " are supposed to exist in the state snapshot already.");
-                            });
-                        }
+                        state.initializeState(md);
                     } else {
                         throw new IllegalStateException(
                                 "Only singletons and onDisk virtual maps are supported as stub states");
@@ -202,6 +187,6 @@ public final class SignedStateFileReader {
     public static void unregisterServiceStates(@NonNull final SignedState signedState) {
         final MerkleNodeState state = signedState.getState();
         state.unregisterService(PlatformStateService.NAME);
-        state.unregisterService(RosterStateId.NAME);
+        state.unregisterService(RosterStateId.SERVICE_NAME);
     }
 }

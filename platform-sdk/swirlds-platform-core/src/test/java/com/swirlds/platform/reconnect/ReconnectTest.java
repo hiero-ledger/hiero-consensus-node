@@ -15,25 +15,26 @@ import com.swirlds.base.utility.Pair;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.merkle.crypto.MerkleCryptographyFactory;
 import com.swirlds.common.metrics.noop.NoOpMetrics;
+import com.swirlds.common.merkle.crypto.MerkleCryptographyFactory;
+import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.common.test.fixtures.WeightGenerators;
 import com.swirlds.common.test.fixtures.merkle.util.PairedStreams;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
-import com.swirlds.merkledb.MerkleDb;
 import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
 import com.swirlds.platform.metrics.ReconnectMetrics;
 import com.swirlds.platform.network.Connection;
 import com.swirlds.platform.network.SocketConnection;
 import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.service.PlatformStateFacade;
+import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.state.signed.SignedStateValidator;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
-import com.swirlds.platform.test.fixtures.state.TestHederaVirtualMapState;
-import com.swirlds.platform.test.fixtures.state.TestMerkleStateRoot;
 import com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade;
+import com.swirlds.platform.test.fixtures.state.TestVirtualMapState;
 import java.io.IOException;
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
@@ -77,7 +78,6 @@ final class ReconnectTest {
         registry.registerConstructables("com.swirlds.platform.state.signed");
         registry.registerConstructables("com.swirlds.platform.system");
         registry.registerConstructables("com.swirlds.state.merkle");
-        registerMerkleStateRootClassIds();
     }
 
     @AfterAll
@@ -94,8 +94,6 @@ final class ReconnectTest {
         final ReconnectMetrics reconnectMetrics = mock(ReconnectMetrics.class);
 
         for (int index = 1; index <= numberOfReconnects; index++) {
-            MerkleDb.resetDefaultInstancePath();
-
             executeReconnect(reconnectMetrics);
             verify(reconnectMetrics, times(index)).incrementReceiverStartTimes();
             verify(reconnectMetrics, times(index)).incrementSenderStartTimes();
@@ -117,14 +115,12 @@ final class ReconnectTest {
                 .withWeightGenerator((l, i) -> WeightGenerators.balancedNodeWeights(numNodes, weightPerNode * numNodes))
                 .build();
 
+        MerkleNodeState stateCopy = null;
         try (final PairedStreams pairedStreams = new PairedStreams()) {
             final Pair<SignedState, TestPlatformStateFacade> signedStateFacadePair = new RandomSignedStateGenerator()
                     .setRoster(roster)
                     .setSigningNodeIds(nodeIds)
-                    .setCalculateHash(true)
-                    // FUTURE WORK: remove setState call use TestHederaVirtualMapState
-                    .setState(new TestMerkleStateRoot(
-                            CONFIGURATION,
+                    .setState(new TestVirtualMapState(CONFIGURATION,
                             new NoOpMetrics(),
                             Time.getCurrent(),
                             MerkleCryptographyFactory.create(CONFIGURATION)))
@@ -132,11 +128,12 @@ final class ReconnectTest {
             final SignedState signedState = signedStateFacadePair.left();
             final PlatformStateFacade platformStateFacade = signedStateFacadePair.right();
 
+            stateCopy = signedState.getState().copy();
             // hash the underlying VM
             signedState.getState().getRoot().getHash();
 
             final ReconnectLearner receiver = buildReceiver(
-                    signedState.getState(),
+                    stateCopy,
                     new DummyConnection(
                             platformContext, pairedStreams.getLearnerInput(), pairedStreams.getLearnerOutput()),
                     reconnectMetrics,
@@ -157,8 +154,13 @@ final class ReconnectTest {
             });
 
             thread.start();
-            receiver.execute(mock(SignedStateValidator.class));
+            final ReservedSignedState receivedState = receiver.execute(mock(SignedStateValidator.class));
+            receivedState.get().getState().release();
             thread.join();
+        } finally {
+            if (stateCopy != null) {
+                stateCopy.release();
+            }
         }
     }
 
@@ -206,6 +208,6 @@ final class ReconnectTest {
                 reconnectMetrics,
                 platformStateFacade,
                 virtualMap ->
-                        new TestHederaVirtualMapState(virtualMap, CONFIGURATION, new NoOpMetrics(), Time.getCurrent()));
+                        new TestVirtualMapState(virtualMap, CONFIGURATION, new NoOpMetrics(), Time.getCurrent()));
     }
 }

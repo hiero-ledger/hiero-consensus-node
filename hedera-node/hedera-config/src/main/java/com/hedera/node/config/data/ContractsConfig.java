@@ -21,8 +21,8 @@ public record ContractsConfig(
         @ConfigProperty(defaultValue = "15000000") @NetworkProperty long maxGasPerTransaction,
         @ConfigProperty(defaultValue = "15000000") @NetworkProperty long maxGasPerSec,
         @ConfigProperty(defaultValue = "15000000") @NetworkProperty long maxGasPerSecBackend,
-        @ConfigProperty(defaultValue = "500000000") @NetworkProperty long maxOpsDuration,
-        @ConfigProperty(defaultValue = "1") @NetworkProperty int opsDurationThrottleBurstSeconds,
+        @ConfigProperty(defaultValue = "500000000") @NetworkProperty long opsDurationThrottleCapacity,
+        @ConfigProperty(defaultValue = "500000000") @NetworkProperty long opsDurationThrottleUnitsFreedPerSecond,
         @ConfigProperty(value = "maxKvPairs.aggregate", defaultValue = "500000000") @NetworkProperty
                 long maxKvPairsAggregate,
         @ConfigProperty(value = "maxKvPairs.individual", defaultValue = "16384000") @NetworkProperty
@@ -98,6 +98,8 @@ public record ContractsConfig(
         @ConfigProperty(value = "evm.nonExtantContractsFail", defaultValue = "0") @NetworkProperty
                 Set<Long> evmNonExtantContractsFail,
         @ConfigProperty(value = "evm.version", defaultValue = "v0.51") @NetworkProperty String evmVersion,
+        @ConfigProperty(value = "evm.nativeLibVerification.halt.enabled", defaultValue = "false") @NetworkProperty
+                boolean nativeLibVerificationHaltEnabled,
         @ConfigProperty(value = "metrics.smartContract.primary.enabled", defaultValue = "true") @NetworkProperty
                 boolean metricsSmartContractPrimaryEnabled,
         @ConfigProperty(value = "metrics.smartContract.secondary.enabled", defaultValue = "true") @NetworkProperty

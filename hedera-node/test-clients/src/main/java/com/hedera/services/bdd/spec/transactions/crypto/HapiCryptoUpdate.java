@@ -95,11 +95,30 @@ public class HapiCryptoUpdate extends HapiTxnOp<HapiCryptoUpdate> {
         return this;
     }
 
+    @SafeVarargs
+    public final HapiCryptoUpdate withHooks(final Function<HapiSpec, HookCreationDetails>... hooks) {
+        if (this.hookFactories.isEmpty()) {
+            this.hookFactories = new ArrayList<>();
+        }
+        for (final var hook : hooks) {
+            hookFactories.add(hook);
+        }
+        return this;
+    }
+
     public HapiCryptoUpdate removingHook(final long hookId) {
         if (this.hookIdsToDelete.isEmpty()) {
             this.hookIdsToDelete = new ArrayList<>();
         }
         this.hookIdsToDelete.add(hookId);
+        return this;
+    }
+
+    public HapiCryptoUpdate removingHooks(final Long... hookIds) {
+        if (this.hookIdsToDelete.isEmpty()) {
+            this.hookIdsToDelete = new ArrayList<>();
+        }
+        this.hookIdsToDelete.addAll(List.of(hookIds));
         return this;
     }
 

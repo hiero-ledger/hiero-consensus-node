@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.state.lifecycle;
 
-import static com.swirlds.state.lifecycle.HapiUtils.SEMANTIC_VERSION_COMPARATOR;
+import static com.hedera.hapi.util.HapiUtils.SEMANTIC_VERSION_COMPARATOR;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.swirlds.config.api.Configuration;
@@ -65,13 +65,13 @@ public interface MigrationContext {
     StartupNetworks startupNetworks();
 
     /**
-     * Copies and releases the underlying on-disk state for the given key. If this is not called
+     * Copies and releases the underlying on-disk state for the given ID. If this is not called
      * periodically during a large migration, the underlying {@code VirtualMap} will grow too large
      * and apply extreme backpressure during transaction handling post-migration.
      *
-     * @param stateKey the key of the state to copy and release
+     * @param stateId the ID of the state to copy and release
      */
-    void copyAndReleaseOnDiskState(String stateKey);
+    void copyAndReleaseOnDiskState(int stateId);
 
     /**
      * Provides the previous version of the schema. This is useful to know if this is genesis restart

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.precompile.token;
 
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.dsl.entities.SpecContract.VARIANT_16C;
@@ -63,6 +64,7 @@ public class UpdateTokenMetadataTest {
 
         @HapiTest
         @DisplayName("use updateMetadataForNFTs to correctly update metadata for 1 NFT")
+        @Tag(MATS)
         public Stream<DynamicTest> usingUpdateMetadataForNFTsWorksForSingleNFT() {
             final int serialNumber = 1;
             return hapiTest(
@@ -89,6 +91,7 @@ public class UpdateTokenMetadataTest {
 
         @HapiTest
         @DisplayName("use updateMetadataForNFTs with empty metadata to update multiple NFTs")
+        @Tag(MATS)
         public Stream<DynamicTest> usingUpdateMetadataForNFTsWorksWithEmptyMetadata() {
             final long[] serialNumbers = new long[] {4, 5};
             return hapiTest(

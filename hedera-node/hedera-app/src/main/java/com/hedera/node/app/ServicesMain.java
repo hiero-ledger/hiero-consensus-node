@@ -74,6 +74,7 @@ import com.swirlds.platform.util.BootstrapUtils;
 import com.swirlds.state.State;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.time.Duration;
 import java.time.InstantSource;
 import java.util.List;
 import java.util.Optional;
@@ -194,6 +195,11 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
     @Override
     public @NonNull List<Bytes> getTransactionsForEvent() {
         return hederaOrThrow().getTransactionsForEvent();
+    }
+
+    @Override
+    public void reportUnhealthyDuration(@NonNull final Duration duration) {
+        hederaOrThrow().reportUnhealthyDuration(duration);
     }
 
     @Override
@@ -321,12 +327,7 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
                 RecycleBin.create(metrics, platformConfig, getStaticThreadManager(), time, fileSystemManager, selfId);
         ConsensusStateEventHandler<MerkleNodeState> consensusStateEventHandler = hedera.newConsensusStateEvenHandler();
         final PlatformContext platformContext = PlatformContext.create(
-                platformConfig,
-                Time.getCurrent(),
-                metrics,
-                FileSystemManager.create(platformConfig),
-                recycleBin,
-                merkleCryptography);
+                platformConfig, Time.getCurrent(), metrics, fileSystemManager, recycleBin, merkleCryptography);
         final Optional<AddressBook> maybeDiskAddressBook = loadLegacyAddressBook();
         final HashedReservedSignedState reservedState = loadInitialState(
                 recycleBin,

@@ -16,7 +16,6 @@ import com.swirlds.common.merkle.crypto.MerkleCryptographyFactory;
 import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.common.test.fixtures.Randotron;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
-import com.swirlds.merkledb.MerkleDb;
 import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
 import com.swirlds.platform.crypto.SignatureVerifier;
 import com.swirlds.platform.state.signed.SignedState;
@@ -24,7 +23,7 @@ import com.swirlds.platform.state.signed.SignedStateInvalidException;
 import com.swirlds.platform.state.signed.SignedStateValidationData;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterEntryBuilder;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
-import com.swirlds.platform.test.fixtures.state.TestMerkleStateRoot;
+import com.swirlds.platform.test.fixtures.state.TestVirtualMapState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -42,7 +41,6 @@ import org.hiero.base.crypto.SignatureType;
 import org.hiero.base.utility.test.fixtures.RandomUtils;
 import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
@@ -245,11 +243,6 @@ class DefaultSignedStateValidatorTests {
         return new Roster(rosterEntries);
     }
 
-    @BeforeEach
-    void setUp() {
-        MerkleDb.resetDefaultInstancePath();
-    }
-
     @AfterEach
     void tearDown() {
         RandomSignedStateGenerator.releaseAllBuiltSignedStates();
@@ -325,8 +318,7 @@ class DefaultSignedStateValidatorTests {
      * @return the signed state
      */
     private SignedState stateSignedByNodes(final List<Node> signingNodes) {
-
-        final Hash stateHash = randomHash();
+        final TestVirtualMapState state = new TestVirtualMapState();
 
         final SignatureVerifier signatureVerifier = (data, signature, key) -> {
             // a signature with a 0 byte is always invalid
@@ -334,21 +326,16 @@ class DefaultSignedStateValidatorTests {
             if (signature.getByte(0) == 0) {
                 return false;
             }
+            final Hash stateHash = state.getHash();
             final Hash hash = new Hash(data, stateHash.getDigestType());
 
             return hash.equals(stateHash);
         };
 
         return new RandomSignedStateGenerator()
-                // FUTURE WORK: remove setState call use TestHederaVirtualMapState
-                .setState(new TestMerkleStateRoot(
-                        CONFIGURATION,
-                        new NoOpMetrics(),
-                        Time.getCurrent(),
-                        MerkleCryptographyFactory.create(CONFIGURATION)))
+                .setState(state)
                 .setRound(ROUND)
                 .setRoster(roster)
-                .setStateHash(stateHash)
                 .setSignatures(nodeSigs(signingNodes))
                 .setSignatureVerifier(signatureVerifier)
                 .build();

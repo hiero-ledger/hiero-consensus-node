@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.handle.record;
 
+import static com.hedera.hapi.util.HapiUtils.asAccountString;
 import static com.hedera.node.app.records.BlockRecordService.EPOCH;
 import static com.hedera.node.app.records.BlockRecordService.NAME;
 import static com.hedera.node.app.records.RecordTestData.BLOCK_NUM;
@@ -10,12 +11,13 @@ import static com.hedera.node.app.records.RecordTestData.STARTING_RUNNING_HASH_O
 import static com.hedera.node.app.records.RecordTestData.TEST_BLOCKS;
 import static com.hedera.node.app.records.RecordTestData.USER_PUBLIC_KEY;
 import static com.hedera.node.app.records.impl.producers.formats.v6.RecordStreamV6Verifier.validateRecordStreamFiles;
-import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCK_INFO_STATE_KEY;
-import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.RUNNING_HASHES_STATE_KEY;
+import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCKS_STATE_ID;
+import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCKS_STATE_LABEL;
+import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.RUNNING_HASHES_STATE_ID;
+import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.RUNNING_HASHES_STATE_LABEL;
 import static com.swirlds.platform.state.service.PlatformStateService.PLATFORM_STATE_SERVICE;
 import static com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema.UNINITIALIZED_PLATFORM_STATE;
 import static com.swirlds.platform.test.fixtures.config.ConfigUtils.CONFIGURATION;
-import static com.swirlds.state.lifecycle.HapiUtils.asAccountString;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 
@@ -36,14 +38,13 @@ import com.hedera.node.app.records.impl.producers.StreamFileProducerConcurrent;
 import com.hedera.node.app.records.impl.producers.StreamFileProducerSingleThreaded;
 import com.hedera.node.app.records.impl.producers.formats.BlockRecordWriterFactoryImpl;
 import com.hedera.node.app.records.impl.producers.formats.v6.BlockRecordFormatV6;
-import com.hedera.node.app.records.schemas.V0490BlockRecordSchema;
 import com.hedera.node.config.data.BlockRecordStreamConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.platform.state.service.PlatformStateService;
 import com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema;
-import com.swirlds.platform.test.fixtures.state.TestHederaVirtualMapState;
+import com.swirlds.platform.test.fixtures.state.TestVirtualMapState;
 import com.swirlds.platform.test.fixtures.virtualmap.VirtualMapUtils;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.ReadableStates;
@@ -71,6 +72,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 @SuppressWarnings({"DataFlowIssue"})
 final class BlockRecordManagerTest extends AppTestBase {
+
     private static final Timestamp CONSENSUS_TIME =
             Timestamp.newBuilder().seconds(1_234_567L).nanos(13579).build();
     /**
@@ -117,13 +119,13 @@ final class BlockRecordManagerTest extends AppTestBase {
         // Preload the specific state we want to test with
         app.stateMutator(BlockRecordService.NAME)
                 .withSingletonState(
-                        RUNNING_HASHES_STATE_KEY, new RunningHashes(STARTING_RUNNING_HASH_OBJ.hash(), null, null, null))
+                        RUNNING_HASHES_STATE_ID, new RunningHashes(STARTING_RUNNING_HASH_OBJ.hash(), null, null, null))
                 .withSingletonState(
-                        BLOCK_INFO_STATE_KEY,
+                        BLOCKS_STATE_ID,
                         new BlockInfo(-1, EPOCH, STARTING_RUNNING_HASH_OBJ.hash(), null, false, EPOCH, EPOCH, EPOCH))
                 .commit();
         app.stateMutator(PlatformStateService.NAME)
-                .withSingletonState(V0540PlatformStateSchema.PLATFORM_STATE_KEY, UNINITIALIZED_PLATFORM_STATE)
+                .withSingletonState(V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID, UNINITIALIZED_PLATFORM_STATE)
                 .commit();
 
         blockRecordWriterFactory = new BlockRecordWriterFactoryImpl(app.configProvider(), NODE_INFO, SIGNER, fs);
@@ -150,7 +152,7 @@ final class BlockRecordManagerTest extends AppTestBase {
             STARTING_BLOCK = BLOCK_NUM;
             app.stateMutator(NAME)
                     .withSingletonState(
-                            BLOCK_INFO_STATE_KEY,
+                            BLOCKS_STATE_ID,
                             new BlockInfo(
                                     STARTING_BLOCK - 1,
                                     new Timestamp(
@@ -239,7 +241,7 @@ final class BlockRecordManagerTest extends AppTestBase {
         // setup initial block info, pretend that previous block was 2 seconds before first test transaction
         app.stateMutator(NAME)
                 .withSingletonState(
-                        BLOCK_INFO_STATE_KEY,
+                        BLOCKS_STATE_ID,
                         new BlockInfo(
                                 BLOCK_NUM - 1,
                                 new Timestamp(
@@ -436,17 +438,16 @@ final class BlockRecordManagerTest extends AppTestBase {
         final var virtualMapLabel =
                 "vm-" + BlockRecordManagerTest.class.getSimpleName() + "-" + java.util.UUID.randomUUID();
         final var virtualMap = VirtualMapUtils.createVirtualMap(virtualMapLabel);
-        return new TestHederaVirtualMapState(virtualMap, CONFIGURATION, new NoOpMetrics(), Time.getCurrent()) {
+        return new TestVirtualMapState(virtualMap, CONFIGURATION, new NoOpMetrics(), Time.getCurrent()) {
             @NonNull
             @Override
             public ReadableStates getReadableStates(@NonNull final String serviceName) {
                 return new MapReadableStates(Map.of(
-                        V0490BlockRecordSchema.BLOCK_INFO_STATE_KEY,
+                        BLOCKS_STATE_ID,
+                        new FunctionReadableSingletonState<>(BLOCKS_STATE_ID, BLOCKS_STATE_LABEL, () -> blockInfo),
+                        RUNNING_HASHES_STATE_ID,
                         new FunctionReadableSingletonState<>(
-                                BlockRecordService.NAME, V0490BlockRecordSchema.BLOCK_INFO_STATE_KEY, () -> blockInfo),
-                        RUNNING_HASHES_STATE_KEY,
-                        new FunctionReadableSingletonState<>(
-                                BlockRecordService.NAME, RUNNING_HASHES_STATE_KEY, () -> RunningHashes.DEFAULT)));
+                                RUNNING_HASHES_STATE_ID, RUNNING_HASHES_STATE_LABEL, () -> RunningHashes.DEFAULT)));
             }
         };
     }

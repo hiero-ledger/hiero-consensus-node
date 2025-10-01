@@ -20,7 +20,7 @@ import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.system.status.StatusActionSubmitter;
-import com.swirlds.platform.wiring.PlatformWiring;
+import com.swirlds.platform.wiring.PlatformComponents;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -38,7 +38,7 @@ import org.hiero.consensus.roster.RosterHistory;
  * This record contains core utilities and basic objects needed to build a platform. It should not contain any platform
  * components.
  *
- * @param platformWiring                         the wiring for this platform
+ * @param platformComponents                         the wiring for this platform
  * @param platformContext                        the context for this platform
  * @param model                                  the wiring model for this platform
  * @param keysAndCerts                           an object holding all the public/private key pairs and the CSPRNG state
@@ -88,7 +88,7 @@ import org.hiero.consensus.roster.RosterHistory;
  * @param createStateFromVirtualMap              a function to instantiate the state object from a Virtual Map
  */
 public record PlatformBuildingBlocks(
-        @NonNull PlatformWiring platformWiring,
+        @NonNull PlatformComponents platformComponents,
         @NonNull PlatformContext platformContext,
         @NonNull WiringModel model,
         @NonNull KeysAndCerts keysAndCerts,
@@ -121,7 +121,7 @@ public record PlatformBuildingBlocks(
         @NonNull Function<VirtualMap, MerkleNodeState> createStateFromVirtualMap) {
 
     public PlatformBuildingBlocks {
-        requireNonNull(platformWiring);
+        requireNonNull(platformComponents);
         requireNonNull(platformContext);
         requireNonNull(model);
         requireNonNull(keysAndCerts);

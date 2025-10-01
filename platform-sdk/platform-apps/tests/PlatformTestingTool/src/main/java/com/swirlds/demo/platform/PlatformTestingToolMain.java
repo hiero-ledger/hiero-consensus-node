@@ -868,7 +868,7 @@ public class PlatformTestingToolMain extends DefaultSwirldMain<PlatformTestingTo
     @NonNull
     public PlatformTestingToolState newStateRoot() {
         final PlatformTestingToolState state = new PlatformTestingToolState();
-        TestingAppStateInitializer.DEFAULT.initStates(state);
+        TestingAppStateInitializer.DEFAULT.initConsensusModuleStates(state);
         return state;
     }
 

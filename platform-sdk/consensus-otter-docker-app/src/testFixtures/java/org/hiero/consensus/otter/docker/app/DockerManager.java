@@ -9,7 +9,6 @@ import static org.hiero.otter.fixtures.container.utils.ContainerConstants.getJav
 import static org.hiero.otter.fixtures.container.utils.ContainerConstants.getNodeCommunicationDebugPort;
 
 import com.google.protobuf.Empty;
-import com.hedera.hapi.platform.state.NodeId;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import io.grpc.stub.StreamObserver;
 import java.io.IOException;
@@ -20,11 +19,12 @@ import java.nio.file.WatchEvent;
 import java.nio.file.WatchKey;
 import java.nio.file.WatchService;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.concurrent.TimeUnit;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.otter.docker.app.platform.NodeCommunicationService;
-import org.hiero.otter.fixtures.ProtobufConverter;
 import org.hiero.otter.fixtures.container.proto.ContainerControlServiceGrpc;
 import org.hiero.otter.fixtures.container.proto.InitRequest;
 import org.hiero.otter.fixtures.container.proto.KillImmediatelyRequest;
@@ -79,7 +79,7 @@ public final class DockerManager extends ContainerControlServiceGrpc.ContainerCo
     public synchronized void init(
             @NonNull final InitRequest request, @NonNull final StreamObserver<Empty> responseObserver) {
         log.info("Init request received");
-        final NodeId requestSelfId = ProtobufConverter.toPbj(request.getSelfId());
+        final NodeId requestSelfId = NodeId.of(request.getSelfId().getId());
         if (attemptingToChangeSelfId(requestSelfId)) {
             log.error(
                     "Node ID cannot be changed after initialization. Current ID: {}, requested ID: {}",
@@ -143,18 +143,25 @@ public final class DockerManager extends ContainerControlServiceGrpc.ContainerCo
      * @throws InterruptedException if the thread is interrupted while waiting
      */
     private boolean waitForStartedMarkerFile() throws IOException, InterruptedException {
+        final Instant deadline = Instant.now().plus(MAX_MARKER_FILE_WAIT_TIME);
         try (final WatchService watchService = FileSystems.getDefault().newWatchService()) {
             Path.of(CONTAINER_APP_WORKING_DIR).register(watchService, ENTRY_CREATE);
-            final WatchKey watchKey = watchService.poll(MAX_MARKER_FILE_WAIT_TIME.toMillis(), TimeUnit.MILLISECONDS);
-            if (watchKey == null) {
-                return false;
-            }
-            for (final WatchEvent<?> event : watchKey.pollEvents()) {
-                if (event.kind() == ENTRY_CREATE
-                        && STARTED_MARKER_FILE_NAME.equals(event.context().toString())) {
-                    log.info("Node Communication Service marker file found at {}", STARTED_MARKER_FILE);
-                    Files.delete(STARTED_MARKER_FILE);
-                    return true;
+            while (Instant.now().isBefore(deadline)) {
+                final Duration timeLeft = Duration.between(Instant.now(), deadline);
+                final WatchKey watchKey = watchService.poll(timeLeft.toMillis(), TimeUnit.MILLISECONDS);
+                if (watchKey == null) {
+                    return false;
+                }
+                for (final WatchEvent<?> event : watchKey.pollEvents()) {
+                    if (event.kind() == ENTRY_CREATE
+                            && STARTED_MARKER_FILE_NAME.equals(event.context().toString())) {
+                        log.info("Node Communication Service marker file found at {}", STARTED_MARKER_FILE);
+                        Files.delete(STARTED_MARKER_FILE);
+                        return true;
+                    }
+                }
+                if (!watchKey.reset()) {
+                    return false;
                 }
             }
             return false;

@@ -130,7 +130,7 @@ public class StatsDemoMain extends DefaultSwirldMain<StatsDemoState> {
     @Override
     public StatsDemoState newStateRoot() {
         final StatsDemoState state = new StatsDemoState();
-        TestingAppStateInitializer.DEFAULT.initStates(state);
+        TestingAppStateInitializer.DEFAULT.initConsensusModuleStates(state);
         return state;
     }
 

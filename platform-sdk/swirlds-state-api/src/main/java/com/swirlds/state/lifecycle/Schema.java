@@ -2,6 +2,7 @@
 package com.swirlds.state.lifecycle;
 
 import com.hedera.hapi.node.base.SemanticVersion;
+import com.hedera.hapi.util.HapiUtils;
 import com.hedera.pbj.runtime.Codec;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.state.spi.ReadableKVState;
@@ -87,13 +88,13 @@ public abstract class Schema implements Comparable<Schema> {
     }
 
     /**
-     * The {@link Set} of state keys of all states that should be removed <b>AFTER</b> {@link
+     * The {@link Set} of state IDs of all states that should be removed <b>AFTER</b> {@link
      * #migrate(MigrationContext)}.
      *
      * @return the set of states to remove
      */
     @NonNull
-    public Set<String> statesToRemove() {
+    public Set<Integer> statesToRemove() {
         return Collections.emptySet();
     }
 

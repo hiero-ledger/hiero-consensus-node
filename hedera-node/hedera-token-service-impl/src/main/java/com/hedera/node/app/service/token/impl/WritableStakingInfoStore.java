@@ -36,7 +36,7 @@ public class WritableStakingInfoStore extends ReadableStakingInfoStoreImpl {
         super(states, entityCounters);
         requireNonNull(states);
 
-        this.stakingInfoState = states.get(V0490TokenSchema.STAKING_INFO_KEY);
+        this.stakingInfoState = states.get(V0490TokenSchema.STAKING_INFOS_STATE_ID);
         this.entityCounters = requireNonNull(entityCounters);
     }
 

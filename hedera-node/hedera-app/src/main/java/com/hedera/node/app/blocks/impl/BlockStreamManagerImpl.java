@@ -12,7 +12,7 @@ import static com.hedera.node.app.blocks.impl.BlockImplUtils.combine;
 import static com.hedera.node.app.blocks.impl.streaming.FileBlockItemWriter.blockDirFor;
 import static com.hedera.node.app.blocks.impl.streaming.FileBlockItemWriter.cleanUpPendingBlock;
 import static com.hedera.node.app.blocks.impl.streaming.FileBlockItemWriter.loadContiguousPendingBlocks;
-import static com.hedera.node.app.blocks.schemas.V0560BlockStreamSchema.BLOCK_STREAM_INFO_KEY;
+import static com.hedera.node.app.blocks.schemas.V0560BlockStreamSchema.BLOCK_STREAM_INFO_STATE_ID;
 import static com.hedera.node.app.hapi.utils.CommonUtils.sha384DigestOrThrow;
 import static com.hedera.node.app.records.BlockRecordService.EPOCH;
 import static com.hedera.node.app.records.impl.BlockRecordInfoUtils.HASH_SIZE;
@@ -29,8 +29,6 @@ import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.blockstream.BlockStreamInfo;
 import com.hedera.hapi.platform.state.PlatformState;
-import com.hedera.node.app.HederaStateRoot;
-import com.hedera.node.app.HederaVirtualMapState;
 import com.hedera.node.app.blocks.BlockHashSigner;
 import com.hedera.node.app.blocks.BlockItemWriter;
 import com.hedera.node.app.blocks.BlockStreamManager;
@@ -61,6 +59,7 @@ import com.swirlds.platform.state.service.ReadablePlatformStateStore;
 import com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema;
 import com.swirlds.platform.system.state.notifications.StateHashedNotification;
 import com.swirlds.state.State;
+import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.spi.CommittableWritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -96,6 +95,7 @@ import org.hiero.consensus.model.hashgraph.Round;
 
 @Singleton
 public class BlockStreamManagerImpl implements BlockStreamManager {
+
     private static final Logger log = LogManager.getLogger(BlockStreamManagerImpl.class);
     public static final Bytes NULL_HASH = Bytes.wrap(new byte[HASH_SIZE]);
 
@@ -302,7 +302,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             blockNumber = blockStreamInfo.blockNumber() + 1;
             if (hintsEnabled && !hasCheckedForPendingBlocks) {
                 final var hasBeenFrozen = requireNonNull(state.getReadableStates(PlatformStateService.NAME)
-                                .<PlatformState>getSingleton(V0540PlatformStateSchema.PLATFORM_STATE_KEY)
+                                .<PlatformState>getSingleton(V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID)
                                 .get())
                         .hasLastFrozenTime();
                 if (hasBeenFrozen) {
@@ -419,13 +419,10 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         final boolean closesBlock = shouldCloseBlock(roundNum, freezeRoundNumber);
         if (closesBlock) {
             lifecycle.onCloseBlock(state);
-            if (state instanceof HederaVirtualMapState hederaNewStateRoot) {
+            // FUTURE WORK: the state should always be an instance of  VirtualMapState
+            // https://github.com/hiero-ledger/hiero-consensus-node/issues/21284
+            if (state instanceof VirtualMapState hederaNewStateRoot) {
                 hederaNewStateRoot.commitSingletons();
-            } else if (state instanceof HederaStateRoot hederaStateRoot) {
-                // Non production case (testing tools)
-                // Otherwise assume it is a MerkleStateRoot
-                // This branch should be removed once the MerkleStateRoot is removed
-                hederaStateRoot.commitSingletons();
             }
             // Flush all boundary state changes besides the BlockStreamInfo
 
@@ -450,7 +447,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
 
             // Put this block hash context in state via the block stream info
             final var writableState = state.getWritableStates(BlockStreamService.NAME);
-            final var blockStreamInfoState = writableState.<BlockStreamInfo>getSingleton(BLOCK_STREAM_INFO_KEY);
+            final var blockStreamInfoState = writableState.<BlockStreamInfo>getSingleton(BLOCK_STREAM_INFO_STATE_ID);
             blockStreamInfoState.put(new BlockStreamInfo(
                     blockNumber,
                     blockTimestamp(),
@@ -673,8 +670,8 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     }
 
     private @NonNull BlockStreamInfo blockStreamInfoFrom(@NonNull final State state) {
-        final var blockStreamInfoState =
-                state.getReadableStates(BlockStreamService.NAME).<BlockStreamInfo>getSingleton(BLOCK_STREAM_INFO_KEY);
+        final var blockStreamInfoState = state.getReadableStates(BlockStreamService.NAME)
+                .<BlockStreamInfo>getSingleton(BLOCK_STREAM_INFO_STATE_ID);
         return requireNonNull(blockStreamInfoState.get());
     }
 

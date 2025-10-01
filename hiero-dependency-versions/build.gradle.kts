@@ -16,7 +16,7 @@ dependencies {
 }
 
 val autoService = "1.1.1"
-val besu = "24.3.3"
+val besu = "25.2.2"
 val bouncycastle = "1.81"
 val dagger = "2.56.2"
 val eclipseCollections = "13.0.0"
@@ -29,6 +29,7 @@ val log4j = "2.25.0"
 val mockito = "5.18.0"
 val pbj = "0.11.15" // ATTENTION: keep in sync with plugin version in 'hapi/hapi/build.gradle.kts'
 val protobuf = "4.31.1"
+val blockNodeProtobufSources = "0.17.1"
 val testContainers = "1.21.3"
 val tuweni = "2.4.2"
 val webcompare = "2.1.8"
@@ -112,7 +113,7 @@ dependencies.constraints {
     }
     api("org.hyperledger.besu:besu-datatypes:$besu") { because("org.hyperledger.besu.datatypes") }
     api("org.hyperledger.besu:evm:$besu") { because("org.hyperledger.besu.evm") }
-    api("org.hyperledger.besu:secp256k1:0.8.2") {
+    api("org.hyperledger.besu:secp256k1:1.3.0") {
         because("org.hyperledger.besu.nativelib.secp256k1")
     }
     api("org.jetbrains:annotations:26.0.2") { because("org.jetbrains.annotations") }
@@ -120,6 +121,7 @@ dependencies.constraints {
     api("org.junit.jupiter:junit-jupiter-api:$junit5") { because("org.junit.jupiter.api") }
     api("org.junit.jupiter:junit-jupiter-engine:$junit5") { because("org.junit.jupiter.engine") }
     api("org.junit-pioneer:junit-pioneer:2.3.0") { because("org.junitpioneer") }
+    api("org.junit:junit-bom:$junit5")
     api("org.mockito:mockito-core:$mockito") { because("org.mockito") }
     api("org.mockito:mockito-junit-jupiter:$mockito") { because("org.mockito.junit.jupiter") }
     api("org.opentest4j:opentest4j:1.3.0") { because("org.opentest4j") }
@@ -159,5 +161,8 @@ dependencies.constraints {
     }
     api("com.hedera.cryptography:hedera-cryptography-hinTS:$hederaCryptography") {
         because("com.hedera.cryptography.hints")
+    }
+    api("org.hiero.block:block-node-protobuf-sources:$blockNodeProtobufSources") {
+        because("External block node protobuf sources")
     }
 }
