@@ -189,7 +189,6 @@ public class BlockNodeSuite {
                         connectionDropTime::get,
                         Duration.ofMinutes(1),
                         Duration.ofSeconds(45),
-                        "onError invoked",
                         String.format("Selected block node localhost:%s for connection attempt", portNumbers.get(1)),
                         String.format(
                                 "/localhost:%s/PENDING] Connection state transitioned from UNINITIALIZED to PENDING",
@@ -582,13 +581,13 @@ public class BlockNodeSuite {
         return hapiTest(
                 waitUntilNextBlocks(1).withBackgroundTraffic(true),
                 doingContextual(spec -> time.set(Instant.now())),
-                blockNode(0).sendEndOfStreamImmediately(Code.BEHIND).withBlockNumber(5L),
+                blockNode(0).sendEndOfStreamImmediately(Code.BEHIND).withBlockNumber(1L),
                 waitUntilNextBlocks(1).withBackgroundTraffic(true),
-                blockNode(0).sendEndOfStreamImmediately(Code.BEHIND).withBlockNumber(8L),
+                blockNode(0).sendEndOfStreamImmediately(Code.BEHIND).withBlockNumber(2L),
                 waitUntilNextBlocks(1).withBackgroundTraffic(true),
-                blockNode(0).sendEndOfStreamImmediately(Code.BEHIND).withBlockNumber(11L),
+                blockNode(0).sendEndOfStreamImmediately(Code.BEHIND).withBlockNumber(3L),
                 waitUntilNextBlocks(1).withBackgroundTraffic(true),
-                blockNode(0).sendEndOfStreamImmediately(Code.BEHIND).withBlockNumber(14L),
+                blockNode(0).sendEndOfStreamImmediately(Code.BEHIND).withBlockNumber(4L),
                 sourcingContextual(spec -> assertHgcaaLogContainsTimeframe(
                         byNodeId(0),
                         time::get,
@@ -599,5 +598,72 @@ public class BlockNodeSuite {
                         "(attempt=2)",
                         "(attempt=3)")),
                 waitUntilNextBlocks(5).withBackgroundTraffic(true));
+    }
+
+    @HapiTest
+    @HapiBlockNode(
+            networkSize = 1,
+            blockNodeConfigs = {@BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.SIMULATOR)},
+            subProcessNodeConfigs = {
+                @SubProcessNodeConfig(
+                        nodeId = 0,
+                        blockNodeIds = {0},
+                        blockNodePriorities = {0},
+                        applicationPropertiesOverrides = {
+                            "blockStream.streamMode", "BOTH",
+                            "blockStream.writerMode", "FILE_AND_GRPC"
+                        })
+            })
+    @Order(11)
+    final Stream<DynamicTest> testCNReactionToPublishStreamResponses() {
+        final AtomicReference<Instant> time = new AtomicReference<>();
+        final List<Integer> portNumbers = new ArrayList<>();
+        return hapiTest(
+                doingContextual(spec -> portNumbers.add(spec.getBlockNodePortById(0))),
+                doingContextual(spec -> time.set(Instant.now())),
+                waitUntilNextBlocks(1).withBackgroundTraffic(true),
+                sourcingContextual(spec -> assertHgcaaLogContainsTimeframe(
+                        byNodeId(0),
+                        time::get,
+                        Duration.ofSeconds(20),
+                        Duration.ofSeconds(20),
+                        String.format(
+                                "/localhost:%s/ACTIVE] BlockAcknowledgement received for block",
+                                portNumbers.getFirst()))),
+                blockNode(0).sendEndOfStreamImmediately(Code.BEHIND).withBlockNumber(Long.MAX_VALUE),
+                sourcingContextual(spec -> assertHgcaaLogContainsTimeframe(
+                        byNodeId(0),
+                        time::get,
+                        Duration.ofSeconds(20),
+                        Duration.ofSeconds(20),
+                        String.format(
+                                "/localhost:%s/ACTIVE] Received EndOfStream response (block=9223372036854775807, responseCode=BEHIND)",
+                                portNumbers.getFirst()),
+                        String.format(
+                                "/localhost:%s/ACTIVE] Block node reported it is behind. Will restart stream at block 0.",
+                                portNumbers.getFirst()))),
+                waitUntilNextBlocks(1).withBackgroundTraffic(true),
+                blockNode(0).sendSkipBlockImmediately(Long.MAX_VALUE),
+                sourcingContextual(spec -> assertHgcaaLogContainsTimeframe(
+                        byNodeId(0),
+                        time::get,
+                        Duration.ofSeconds(20),
+                        Duration.ofSeconds(20),
+                        String.format(
+                                "/localhost:%s/ACTIVE] Received SkipBlock response for block 9223372036854775807, but we are not streaming that block so it will be ignored",
+                                portNumbers.getFirst()))),
+                blockNode(0).sendResendBlockImmediately(Long.MAX_VALUE),
+                sourcingContextual(spec -> assertHgcaaLogContainsTimeframe(
+                        byNodeId(0),
+                        time::get,
+                        Duration.ofSeconds(20),
+                        Duration.ofSeconds(20),
+                        String.format(
+                                "/localhost:%s/ACTIVE] Received ResendBlock response for block 9223372036854775807",
+                                portNumbers.getFirst()),
+                        String.format(
+                                "/localhost:%s/ACTIVE] Block node requested a ResendBlock for block 9223372036854775807 but that block does not exist on this consensus node. Closing connection and will retry later",
+                                portNumbers.getFirst()))),
+                assertHgcaaLogDoesNotContain(byNodeId(0), "ERROR", Duration.ofSeconds(5)));
     }
 }

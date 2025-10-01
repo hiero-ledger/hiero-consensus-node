@@ -55,8 +55,7 @@ public final class LogConfigHelper {
             STATE_TO_DISK,
             DEMO_INFO,
             TESTING_EXCEPTIONS_ACCEPTABLE_RECONNECT,
-            MERKLE_DB,
-            STATE_HASH);
+            MERKLE_DB);
 
     private static final Set<LogMarker> IGNORED_CONSOLE_MARKERS = Set.of(STARTUP, MERKLE_DB, VIRTUAL_MERKLE_STATS);
 

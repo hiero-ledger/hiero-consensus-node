@@ -2,6 +2,7 @@
 package com.swirlds.state.lifecycle;
 
 import com.hedera.hapi.node.base.SemanticVersion;
+import com.hedera.hapi.util.HapiUtils;
 import com.hedera.pbj.runtime.Codec;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.state.spi.ReadableKVState;

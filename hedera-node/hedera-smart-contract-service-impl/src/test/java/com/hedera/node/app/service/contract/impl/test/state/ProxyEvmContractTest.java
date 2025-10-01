@@ -2,6 +2,7 @@
 package com.hedera.node.app.service.contract.impl.test.state;
 
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.has.hbarallowance.HbarAllowanceTranslator.HBAR_ALLOWANCE_PROXY;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.CODE_FACTORY;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.pbjToBesuHash;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.pbjToTuweniBytes;
 import static org.junit.jupiter.api.Assertions.*;
@@ -18,7 +19,6 @@ import org.apache.tuweni.bytes.Bytes32;
 import org.apache.tuweni.units.bigints.UInt256;
 import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.datatypes.Wei;
-import org.hyperledger.besu.evm.code.CodeFactory;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -47,7 +47,7 @@ class ProxyEvmContractTest {
 
     @BeforeEach
     void setUp() {
-        subject = new ProxyEvmContract(ACCOUNT_ID, hederaState);
+        subject = new ProxyEvmContract(ACCOUNT_ID, hederaState, CODE_FACTORY);
     }
 
     @Test
@@ -110,7 +110,9 @@ class ProxyEvmContractTest {
     void returnsEvmCode() {
         final var code = pbjToTuweniBytes(SOME_PRETEND_CODE);
         given(hederaState.getCode(CONTRACT_ID)).willReturn(code);
-        assertEquals(CodeFactory.createCode(code, 0, false), subject.getEvmCode(org.apache.tuweni.bytes.Bytes.EMPTY));
+        assertEquals(
+                CODE_FACTORY.createCode(code, false),
+                subject.getEvmCode(org.apache.tuweni.bytes.Bytes.EMPTY, CODE_FACTORY));
     }
 
     @Test
@@ -118,14 +120,14 @@ class ProxyEvmContractTest {
         final var code = pbjToTuweniBytes(SOME_PRETEND_CODE);
         given(hederaState.getCode(CONTRACT_ID)).willReturn(code);
         assertEquals(
-                CodeFactory.createCode(code, 0, false),
-                subject.getEvmCode(org.apache.tuweni.bytes.Bytes.wrap(HBAR_ALLOWANCE_PROXY.selector())));
+                CODE_FACTORY.createCode(code, false),
+                subject.getEvmCode(org.apache.tuweni.bytes.Bytes.wrap(HBAR_ALLOWANCE_PROXY.selector()), CODE_FACTORY));
     }
 
     @Test
     void returnsCodeHash() {
         final var hash = pbjToBesuHash(SOME_PRETEND_CODE_HASH);
-        given(hederaState.getCodeHash(CONTRACT_ID)).willReturn(hash);
+        given(hederaState.getCodeHash(CONTRACT_ID, CODE_FACTORY)).willReturn(hash);
         assertEquals(hash, subject.getCodeHash());
     }
 

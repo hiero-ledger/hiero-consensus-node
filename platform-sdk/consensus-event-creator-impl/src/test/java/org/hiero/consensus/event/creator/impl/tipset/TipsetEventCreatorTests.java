@@ -36,6 +36,7 @@ import org.hiero.consensus.model.event.NonDeterministicGeneration;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.consensus.model.test.fixtures.hashgraph.EventWindowBuilder;
 import org.hiero.consensus.model.transaction.TimestampedTransaction;
 import org.hiero.junit.extensions.ParamName;
@@ -50,11 +51,13 @@ import org.junit.jupiter.api.extension.ExtendWith;
 class TipsetEventCreatorTests {
 
     /**
-     * This test simulates the creation and propagation of events in a small network of simulated nodes (networkSize = 10).
-     * It iterates 100 times, and within each iteration, it cycles through all nodes in the roster in order.
-     * For each node, it potentially advances a simulated clock (if advancingClock is true), generates random transactions, triggers the node to create a new event, distributes this event to other nodes, and then validates the newly created event.
-     * The test asserts that every node is always able to create an event and, if the clock is advancing, that the event's creation time matches the simulated current time.
-     * The ancientMode parameter is used to assign a birthround or a generation at the time the event is being created.
+     * This test simulates the creation and propagation of events in a small network of simulated nodes (networkSize =
+     * 10). It iterates 100 times, and within each iteration, it cycles through all nodes in the roster in order. For
+     * each node, it potentially advances a simulated clock (if advancingClock is true), generates random transactions,
+     * triggers the node to create a new event, distributes this event to other nodes, and then validates the newly
+     * created event. The test asserts that every node is always able to create an event and, if the clock is advancing,
+     * that the event's creation time matches the simulated current time. The ancientMode parameter is used to assign a
+     * birthround or a generation at the time the event is being created.
      *
      * @param advancingClock {@link TipsetEventCreatorTestUtils#booleanValues()}
      */
@@ -103,20 +106,22 @@ class TipsetEventCreatorTests {
                 assignNGenAndDistributeEvent(nodes, events, event);
 
                 validateNewEventAndMaybeAdvanceCreatorScore(
-                        events, event, transactionSupplier.get(), nodes.get(nodeId), false);
+                        events, event, transactionSupplier.get(), nodes.get(nodeId), false, false);
             }
         }
     }
 
     /**
-     * This test simulates the creation and propagation of events in a small network of simulated nodes (networkSize = 10).
-     * It iterates 100 times, and within each iteration, it cycles through all nodes in randomized order.
-     * For each node, it potentially advances a simulated clock (if advancingClock is true), generates random transactions, triggers the node to create a new event, distributes this event to other nodes, and then validates the newly created event.
-     * The test asserts that every node is always able to create an event and, if the clock is advancing, that the event's creation time matches the simulated current time.
-     * The ancientMode parameter is used to assign a birthround or a generation at the time the event is being created.
+     * This test simulates the creation and propagation of events in a small network of simulated nodes (networkSize =
+     * 10). It iterates 100 times, and within each iteration, it cycles through all nodes in randomized order. For each
+     * node, it potentially advances a simulated clock (if advancingClock is true), generates random transactions,
+     * triggers the node to create a new event, distributes this event to other nodes, and then validates the newly
+     * created event. The test asserts that every node is always able to create an event and, if the clock is advancing,
+     * that the event's creation time matches the simulated current time. The ancientMode parameter is used to assign a
+     * birthround or a generation at the time the event is being created.
      *
      * @param advancingClock {@link TipsetEventCreatorTestUtils#booleanValues()}
-     * @param random  {@link RandomUtils#getRandomPrintSeed()}
+     * @param random         {@link RandomUtils#getRandomPrintSeed()}
      */
     @TestTemplate
     @ExtendWith(ParameterCombinationExtension.class)
@@ -176,7 +181,7 @@ class TipsetEventCreatorTests {
                 assignNGenAndDistributeEvent(nodes, events, event);
 
                 validateNewEventAndMaybeAdvanceCreatorScore(
-                        events, event, transactionSupplier.get(), nodes.get(nodeId), false);
+                        events, event, transactionSupplier.get(), nodes.get(nodeId), false, false);
             }
 
             assertTrue(atLeastOneEventCreated);
@@ -189,7 +194,7 @@ class TipsetEventCreatorTests {
      * but should not fail if we have cleared the vent creator.
      *
      * @param advancingClock {@link TipsetEventCreatorTestUtils#booleanValues()}
-     * @param random  {@link RandomUtils#getRandomPrintSeed()}
+     * @param random         {@link RandomUtils#getRandomPrintSeed()}
      */
     @TestTemplate
     @ExtendWith(ParameterCombinationExtension.class)
@@ -250,7 +255,7 @@ class TipsetEventCreatorTests {
                     assignNGenAndDistributeEvent(nodes, events, event);
 
                     validateNewEventAndMaybeAdvanceCreatorScore(
-                            events, event, transactionSupplier.get(), nodes.get(nodeId), false);
+                            events, event, transactionSupplier.get(), nodes.get(nodeId), false, false);
                 }
 
                 assertTrue(atLeastOneEventCreated);
@@ -274,7 +279,7 @@ class TipsetEventCreatorTests {
      * unable to create another event without first receiving an event from another node.
      *
      * @param advancingClock {@link TipsetEventCreatorTestUtils#booleanValues()}
-     * @param random  {@link RandomUtils#getRandomPrintSeed()}
+     * @param random         {@link RandomUtils#getRandomPrintSeed()}
      */
     @TestTemplate
     @ExtendWith(ParameterCombinationExtension.class)
@@ -332,7 +337,7 @@ class TipsetEventCreatorTests {
                     assignNGenAndDistributeEvent(nodes, events, event);
 
                     validateNewEventAndMaybeAdvanceCreatorScore(
-                            events, event, transactionSupplier.get(), nodes.get(nodeId), false);
+                            events, event, transactionSupplier.get(), nodes.get(nodeId), false, false);
 
                     // At best, we can create a genesis event and one event per node in the network.
                     // We are unlikely to create this many, but we definitely shouldn't be able to go beyond this.
@@ -340,6 +345,104 @@ class TipsetEventCreatorTests {
                     count++;
                 }
             }
+        }
+    }
+
+    /**
+     * This test simulates the creation and propagation of events in a small network of simulated nodes (networkSize =
+     * 10). It iterates 100 times, and within each iteration, it cycles through all nodes in randomized order. For each
+     * node, it potentially advances a simulated clock (if advancingClock is true), generates random transactions,
+     * triggers the node to create a new event, distributes this event to other nodes, and then validates the newly
+     * created event. The test asserts that every node is always able to create an event and, if the clock is advancing,
+     * that the event's creation time matches the simulated current time. The ancientMode parameter is used to assign a
+     * birthround or a generation at the time the event is being created. Additionally, if event cannot be created due
+     * to eligible parent constraints, it forces the break quiescence event to be generated, to check that it is
+     * possible in case we need that.
+     *
+     * @param advancingClock {@link TipsetEventCreatorTestUtils#booleanValues()}
+     * @param random         {@link RandomUtils#getRandomPrintSeed()}
+     */
+    @TestTemplate
+    @ExtendWith(ParameterCombinationExtension.class)
+    @UseParameterSources({
+        @ParamSource(
+                param = "advancingClock",
+                fullyQualifiedClass = "org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreatorTestUtils",
+                method = "booleanValues"),
+        @ParamSource(
+                param = "random",
+                fullyQualifiedClass = "org.hiero.base.utility.test.fixtures.RandomUtils",
+                method = "getRandomPrintSeed")
+    })
+    @DisplayName("Create many events including breaking quiescence")
+    void createManyEventsAndBreakQuiescenceTest(
+            @ParamName("advancingClock") final boolean advancingClock, @ParamName("random") final Random random) {
+
+        final int networkSize = 10;
+
+        final Roster roster =
+                RandomRosterBuilder.create(random).withSize(networkSize).build();
+
+        final FakeTime time = new FakeTime();
+
+        final AtomicReference<List<Bytes>> transactionSupplier = new AtomicReference<>();
+
+        final Map<NodeId, SimulatedNode> nodes = buildSimulatedNodes(random, time, roster, transactionSupplier::get);
+
+        final Map<EventDescriptorWrapper, PlatformEvent> events = new HashMap<>();
+
+        for (int eventIndex = 0; eventIndex < 100; eventIndex++) {
+
+            final List<RosterEntry> addresses = new ArrayList<>(roster.rosterEntries());
+            Collections.shuffle(addresses, random);
+
+            boolean atLeastOneEventCreated = false;
+
+            for (final RosterEntry address : addresses) {
+                if (advancingClock) {
+                    time.tick(Duration.ofMillis(10));
+                }
+
+                transactionSupplier.set(generateRandomTransactions(random));
+
+                final NodeId nodeId = NodeId.of(address.nodeId());
+                final EventCreator eventCreator = nodes.get(nodeId).eventCreator();
+
+                PlatformEvent event = eventCreator.maybeCreateEvent();
+                boolean breakQuiescence = false;
+
+                // It's possible a node may not be able to create an event. But we are guaranteed
+                // to be able to create at least one event per cycle.
+                if (event == null) {
+                    // if we are enough advanced through the hashgraph and failed to create event advancing the score
+                    // let's try to pretend we are breaking quiescence and force creation of event anyway
+                    if (eventIndex > 20) {
+                        eventCreator.quiescenceCommand(QuiescenceCommand.BREAK_QUIESCENCE);
+                        event = eventCreator.maybeCreateEvent();
+                        assertNotNull(event);
+
+                        // we allow creation of only one break quiescence event
+                        assertNull(eventCreator.maybeCreateEvent());
+                        assertNull(eventCreator.maybeCreateEvent());
+
+                        eventCreator.quiescenceCommand(QuiescenceCommand.DONT_QUIESCE);
+                        breakQuiescence = true;
+                    } else {
+                        continue;
+                    }
+                }
+                atLeastOneEventCreated = true;
+
+                assignNGenAndDistributeEvent(nodes, events, event);
+
+                if (advancingClock) {
+                    assertEquals(event.getTimeCreated(), time.now());
+                }
+                validateNewEventAndMaybeAdvanceCreatorScore(
+                        events, event, transactionSupplier.get(), nodes.get(nodeId), false, breakQuiescence);
+            }
+
+            assertTrue(atLeastOneEventCreated);
         }
     }
 
@@ -431,7 +534,7 @@ class TipsetEventCreatorTests {
                 assignNGenAndDistributeEvent(nodes, allEvents, newEvent);
 
                 validateNewEventAndMaybeAdvanceCreatorScore(
-                        allEvents, newEvent, transactionSupplier.get(), nodes.get(nodeId), false);
+                        allEvents, newEvent, transactionSupplier.get(), nodes.get(nodeId), false, false);
             }
 
             assertTrue(atLeastOneEventCreated);
@@ -450,7 +553,7 @@ class TipsetEventCreatorTests {
      * that they do not get transitive tipset score improvements by using it.
      *
      * @param advancingClock {@link TipsetEventCreatorTestUtils#booleanValues()}
-     * @param random  {@link RandomUtils#getRandomPrintSeed()}
+     * @param random         {@link RandomUtils#getRandomPrintSeed()}
      */
     @TestTemplate
     @ExtendWith(ParameterCombinationExtension.class)
@@ -556,7 +659,7 @@ class TipsetEventCreatorTests {
                 }
 
                 validateNewEventAndMaybeAdvanceCreatorScore(
-                        allEvents, newEvent, transactionSupplier.get(), nodes.get(nodeId), true);
+                        allEvents, newEvent, transactionSupplier.get(), nodes.get(nodeId), true, false);
             }
 
             assertTrue(atLeastOneEventCreated);
@@ -570,11 +673,11 @@ class TipsetEventCreatorTests {
     }
 
     /**
-     *  This test evaluates the corner case of 1 node network.
-     *  it should be impossible for a node to be unable to create an event.
+     * This test evaluates the corner case of 1 node network. it should be impossible for a node to be unable to create
+     * an event.
      *
      * @param advancingClock {@link TipsetEventCreatorTestUtils#booleanValues()}
-     * @param random  {@link RandomUtils#getRandomPrintSeed()}
+     * @param random         {@link RandomUtils#getRandomPrintSeed()}
      */
     @TestTemplate
     @ExtendWith(ParameterCombinationExtension.class)
@@ -630,7 +733,8 @@ class TipsetEventCreatorTests {
      * There was once a bug that could cause event creation to become frozen. This was because we weren't properly
      * including the advancement weight of the self parent when considering the theoretical advancement weight of a new
      * event.
-     * @param random  {@link RandomUtils#getRandomPrintSeed()}
+     *
+     * @param random {@link RandomUtils#getRandomPrintSeed()}
      */
     @TestTemplate
     @ExtendWith(ParameterCombinationExtension.class)
@@ -715,7 +819,7 @@ class TipsetEventCreatorTests {
     /**
      * Event from nodes not in the address book should not be used as parents for creating new events.
      *
-     * @param random  {@link RandomUtils#getRandomPrintSeed()}
+     * @param random {@link RandomUtils#getRandomPrintSeed()}
      */
     @TestTemplate
     @ExtendWith(ParameterCombinationExtension.class)
@@ -792,7 +896,8 @@ class TipsetEventCreatorTests {
     /**
      * There was once a bug where it was possible to create a self event that was stale at the moment of its creation
      * time. This test verifies that this is no longer possible.
-     * @param random  {@link RandomUtils#getRandomPrintSeed()}
+     *
+     * @param random {@link RandomUtils#getRandomPrintSeed()}
      */
     @TestTemplate
     @ExtendWith(ParameterCombinationExtension.class)
@@ -829,8 +934,9 @@ class TipsetEventCreatorTests {
     /**
      * Checks that birth round on events is being set if the setting for using birth round is set.
      * <p>
-     * @param advancingClock  {@link TipsetEventCreatorTestUtils#booleanValues()}
-     * @param random  {@link RandomUtils#getRandomPrintSeed()}
+     *
+     * @param advancingClock {@link TipsetEventCreatorTestUtils#booleanValues()}
+     * @param random         {@link RandomUtils#getRandomPrintSeed()}
      */
     @TestTemplate
     @ExtendWith(ParameterCombinationExtension.class)
@@ -952,7 +1058,7 @@ class TipsetEventCreatorTests {
      * This test verifies that an event recently created by the event creator is not overwritten when it learns of a
      * self event for the first time from the intake pipeline.
      *
-     * @param random  {@link RandomUtils#getRandomPrintSeed()}
+     * @param random {@link RandomUtils#getRandomPrintSeed()}
      */
     @TestTemplate
     @ExtendWith(ParameterCombinationExtension.class)
@@ -998,7 +1104,7 @@ class TipsetEventCreatorTests {
     /**
      * This test verifies that the event creator assigns the propper creationTime for an event
      *
-     * @param random  {@link RandomUtils#getRandomPrintSeed()}
+     * @param random {@link RandomUtils#getRandomPrintSeed()}
      */
     @TestTemplate
     @ExtendWith(ParameterCombinationExtension.class)
@@ -1044,7 +1150,8 @@ class TipsetEventCreatorTests {
 
     /**
      * This test verifies that the event creator assigns the coin value correctly for a new event.
-     * @param random  {@link RandomUtils#getRandomPrintSeed()}
+     *
+     * @param random {@link RandomUtils#getRandomPrintSeed()}
      */
     @TestTemplate
     @ExtendWith(ParameterCombinationExtension.class)
@@ -1070,5 +1177,37 @@ class TipsetEventCreatorTests {
         assertTrue(
                 event.getEventCore().coin() <= networkSize,
                 "The maximum coin value should be equal to the network size");
+    }
+
+    /**
+     * Let's make sure that we are not creating events when quiescencing
+     *
+     * @param random {@link RandomUtils#getRandomPrintSeed()}
+     */
+    @TestTemplate
+    @ExtendWith(ParameterCombinationExtension.class)
+    @UseParameterSources({
+        @ParamSource(
+                param = "random",
+                fullyQualifiedClass = "org.hiero.base.utility.test.fixtures.RandomUtils",
+                method = "getRandomPrintSeed")
+    })
+    @DisplayName("no events when quiescencing")
+    void quiescenceTest(@ParamName("random") final Random random) {
+
+        // Common test set up. We initialize a network to make it easier to create events.
+        final int networkSize = random.nextInt(1, 100);
+        final Roster roster =
+                RandomRosterBuilder.create(random).withSize(networkSize).build();
+        final EventCreator eventCreator =
+                buildEventCreator(random, new FakeTime(), roster, NodeId.of(0), Collections::emptyList);
+
+        eventCreator.quiescenceCommand(QuiescenceCommand.QUIESCE);
+        var event = eventCreator.maybeCreateEvent(); // the self-parent
+        assertNull(event, "An event should have not been created");
+
+        eventCreator.quiescenceCommand(QuiescenceCommand.DONT_QUIESCE);
+        event = eventCreator.maybeCreateEvent(); // the self-parent
+        assertNotNull(event, "An event should have been created when switched back to active");
     }
 }
