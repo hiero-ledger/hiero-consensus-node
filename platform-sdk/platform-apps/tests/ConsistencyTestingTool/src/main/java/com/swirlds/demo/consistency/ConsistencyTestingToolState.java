@@ -9,7 +9,6 @@ import static org.hiero.base.utility.ByteUtils.byteArrayToLong;
 import static org.hiero.base.utility.NonCryptographicHashing.hash64;
 
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
-import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.hedera.pbj.runtime.ParseException;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.merkle.MerkleNode;
@@ -17,7 +16,6 @@ import com.swirlds.common.merkle.crypto.MerkleCryptographyFactory;
 import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.state.MerkleNodeState;
-import com.swirlds.platform.state.PlatformStateAccessor;
 import com.swirlds.state.test.fixtures.merkle.MerkleStateRoot;
 import com.swirlds.state.test.fixtures.merkle.singleton.StringLeaf;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -115,8 +113,7 @@ public class ConsistencyTestingToolState extends MerkleStateRoot<ConsistencyTest
 
     @Override
     protected long getRound() {
-        final ConsensusSnapshot consensusSnapshot = DEFAULT_PLATFORM_STATE_FACADE.consensusSnapshotOf(this);
-        return consensusSnapshot == null ? PlatformStateAccessor.GENESIS_ROUND : consensusSnapshot.round();
+        return DEFAULT_PLATFORM_STATE_FACADE.roundOf(this);
     }
 
     /**

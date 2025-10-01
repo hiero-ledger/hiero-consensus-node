@@ -4,7 +4,6 @@ package com.swirlds.demo.migration;
 import static com.swirlds.platform.state.service.PlatformStateFacade.DEFAULT_PLATFORM_STATE_FACADE;
 import static com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer.CONFIGURATION;
 
-import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.crypto.MerkleCryptographyFactory;
@@ -15,7 +14,6 @@ import com.swirlds.merkle.map.MerkleMap;
 import com.swirlds.merkledb.MerkleDbDataSourceBuilder;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.platform.state.MerkleNodeState;
-import com.swirlds.platform.state.PlatformStateAccessor;
 import com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer;
 import com.swirlds.state.test.fixtures.merkle.MerkleStateRoot;
 import com.swirlds.virtualmap.VirtualMap;
@@ -92,8 +90,7 @@ public class MigrationTestingToolState extends MerkleStateRoot<MigrationTestingT
 
     @Override
     protected long getRound() {
-        final ConsensusSnapshot consensusSnapshot = DEFAULT_PLATFORM_STATE_FACADE.consensusSnapshotOf(this);
-        return consensusSnapshot == null ? PlatformStateAccessor.GENESIS_ROUND : consensusSnapshot.round();
+        return DEFAULT_PLATFORM_STATE_FACADE.roundOf(this);
     }
 
     /**

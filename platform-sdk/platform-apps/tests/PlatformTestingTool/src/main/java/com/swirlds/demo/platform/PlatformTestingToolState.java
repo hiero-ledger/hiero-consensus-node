@@ -8,7 +8,6 @@ import static org.hiero.base.io.streams.SerializableStreamConstants.NULL_CLASS_I
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.hedera.hapi.node.state.roster.Roster;
-import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.crypto.MerkleCryptographyFactory;
@@ -28,7 +27,6 @@ import com.swirlds.demo.platform.nft.NftLedger;
 import com.swirlds.demo.platform.nft.ReferenceNftLedger;
 import com.swirlds.merkle.test.fixtures.map.pta.MapKey;
 import com.swirlds.platform.state.MerkleNodeState;
-import com.swirlds.platform.state.PlatformStateAccessor;
 import com.swirlds.state.test.fixtures.merkle.MerkleStateRoot;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -145,8 +143,7 @@ public class PlatformTestingToolState extends MerkleStateRoot<PlatformTestingToo
 
     @Override
     protected long getRound() {
-        final ConsensusSnapshot consensusSnapshot = DEFAULT_PLATFORM_STATE_FACADE.consensusSnapshotOf(this);
-        return consensusSnapshot == null ? PlatformStateAccessor.GENESIS_ROUND : consensusSnapshot.round();
+        return DEFAULT_PLATFORM_STATE_FACADE.roundOf(this);
     }
 
     /**

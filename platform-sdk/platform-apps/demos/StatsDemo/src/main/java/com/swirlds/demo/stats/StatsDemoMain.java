@@ -142,7 +142,7 @@ public class StatsDemoMain extends DefaultSwirldMain<StatsDemoState> {
      */
     @Override
     public Function<VirtualMap, StatsDemoState> stateRootFromVirtualMap(
-            @NonNull Configuration configuration, @NonNull Metrics metrics, @NonNull Time time) {
+            @NonNull final Configuration configuration, @NonNull final Metrics metrics, @NonNull final Time time) {
         throw new UnsupportedOperationException();
     }
 
