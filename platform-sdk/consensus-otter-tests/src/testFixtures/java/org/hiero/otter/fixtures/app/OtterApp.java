@@ -151,6 +151,14 @@ public class OtterApp implements ConsensusStateEventHandler<OtterAppState> {
                             ex);
                 }
             }
+
+            for (final OtterService service : allServices) {
+                service.onEventComplete(consensusEvent);
+            }
+        }
+
+        for (final OtterService service : allServices) {
+            service.onRoundComplete(round);
         }
 
         state.commitState();

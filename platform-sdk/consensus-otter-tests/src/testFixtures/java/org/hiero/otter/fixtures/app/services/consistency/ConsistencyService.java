@@ -20,11 +20,13 @@ import java.util.function.Consumer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.event.Event;
+import org.hiero.consensus.model.hashgraph.ConsensusConstants;
 import org.hiero.consensus.model.hashgraph.Round;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 import org.hiero.otter.fixtures.app.OtterService;
 import org.hiero.otter.fixtures.app.OtterTransaction;
+import org.jetbrains.annotations.NotNull;
 
 /**
  * A service that ensures the consistency of rounds and transactions sent by the platform to the execution layer for
@@ -51,6 +53,9 @@ public class ConsistencyService implements OtterService {
     /** A history of all rounds and transaction nonce values contained within. */
     private final ConsistencyServiceRoundHistory roundHistory = new ConsistencyServiceRoundHistory();
 
+    /** The round number of the previous round handled. */
+    private long previousRoundHandled = ConsensusConstants.ROUND_UNDEFINED;
+
     /**
      * {@inheritDoc}
      */
@@ -60,7 +65,7 @@ public class ConsistencyService implements OtterService {
 
         final Path logFileDirectory = stateConfig
                 .savedStateDirectory()
-                .resolve(testingToolConfig.logfileDirectory())
+                .resolve(testingToolConfig.historyFileDirectory())
                 .resolve(Long.toString(selfId.id()));
         try {
             Files.createDirectories(logFileDirectory);
@@ -68,7 +73,7 @@ public class ConsistencyService implements OtterService {
             throw new UncheckedIOException("unable to set up file system for consistency data", e);
         }
 
-        final Path logFilePath = logFileDirectory.resolve("ConsistencyTestLog.csv");
+        final Path logFilePath = logFileDirectory.resolve(testingToolConfig.historyFileName());
         roundHistory.init(logFilePath);
     }
 
@@ -89,10 +94,29 @@ public class ConsistencyService implements OtterService {
      */
     @Override
     public void onRoundStart(@NonNull final WritableStates writableStates, @NonNull final Round round) {
+        verifyRoundIncreases(round);
+
         final WritableConsistencyStateStore store = new WritableConsistencyStateStore(writableStates)
                 .accumulateRunningChecksum(round.getRoundNum())
                 .incrementRoundsHandled();
-        roundHistory.onRoundStart(ConsistencyServiceRound.fromRound(round, store.getRunningChecksum()));
+        roundHistory.onRoundStart(round, store.getRunningChecksum());
+    }
+
+    private void verifyRoundIncreases(@NonNull final Round round) {
+        if (previousRoundHandled == ConsensusConstants.ROUND_UNDEFINED) {
+            previousRoundHandled = round.getRoundNum();
+            return;
+        }
+
+        final long newRoundNumber = round.getRoundNum();
+
+        // make sure round numbers always increase
+        if (newRoundNumber <= previousRoundHandled) {
+            final String error = "Round " + newRoundNumber + " is not greater than round " + previousRoundHandled;
+            log.error(EXCEPTION.getMarker(), error);
+        }
+
+        previousRoundHandled = round.getRoundNum();
     }
 
     /**
@@ -109,6 +133,7 @@ public class ConsistencyService implements OtterService {
         if (!transactionsAwaitingHandle.remove(transactionNonce)) {
             log.error(EXCEPTION.getMarker(), "Transaction {} was not pre-handled.", transactionNonce);
         }
+        roundHistory.onTransaction(transaction);
     }
 
     /**
@@ -128,6 +153,14 @@ public class ConsistencyService implements OtterService {
         if (!transactionsAwaitingHandle.add(transactionNonce)) {
             log.error(EXCEPTION.getMarker(), "Transaction {} was pre-handled more than once.", transactionNonce);
         }
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void onRoundComplete(@NotNull final Round round) {
+        roundHistory.onRoundComplete();
     }
 
     /**

@@ -37,6 +37,11 @@ testModuleInfo {
     runtimeOnly("io.grpc.netty.shaded")
 }
 
+testFixturesModuleInfo {
+    annotationProcessor("com.swirlds.config.processor")
+}
+
+
 testIntegrationModuleInfo {
     requires("com.swirlds.common.test.fixtures")
     requires("com.swirlds.logging")

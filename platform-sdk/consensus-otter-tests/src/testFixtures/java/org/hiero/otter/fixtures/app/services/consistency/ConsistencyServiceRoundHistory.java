@@ -22,6 +22,7 @@ import java.util.Map;
 import java.util.Set;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.model.hashgraph.Round;
 import org.hiero.otter.fixtures.app.OtterTransaction;
 
 /**
@@ -166,26 +167,7 @@ public class ConsistencyServiceRoundHistory implements Closeable {
      */
     private void addRoundToHistory(@NonNull final ConsistencyServiceRound newRound) {
         roundHistory.put(newRound.roundNumber(), newRound);
-
         newRound.transactionNonceList().forEach(this::addNonce);
-
-        if (roundHistory.size() <= 1) {
-            previousRoundHandled = newRound.roundNumber();
-            // only 1 round is in the history, so no additional checks are necessary
-            return;
-        }
-
-        // TODO: I don't think this check should be here.
-
-        final long newRoundNumber = newRound.roundNumber();
-
-        // make sure round numbers always increase
-        if (newRoundNumber <= previousRoundHandled) {
-            final String error = "Round " + newRoundNumber + " is not greater than round " + previousRoundHandled;
-            log.error(EXCEPTION.getMarker(), error);
-        }
-
-        previousRoundHandled = newRound.roundNumber();
     }
 
     /**
@@ -210,10 +192,10 @@ public class ConsistencyServiceRoundHistory implements Closeable {
      * @param round the round to process
      * @param stateChecksum the checksum of the state at the beginning of the round
      */
-    public void onRoundStart(@NonNull final ConsistencyServiceRound round, final long stateChecksum) {
+    public void onRoundStart(@NonNull final Round round, final long stateChecksum) {
         requireNonNull(round);
 
-        roundBuilder = new ConsistencyServiceRoundBuilder(round.roundNumber(), stateChecksum);
+        roundBuilder = new ConsistencyServiceRoundBuilder(round.getRoundNum(), stateChecksum);
     }
 
     /**

@@ -56,7 +56,7 @@ public interface OtterService {
     /**
      * Called when a new round of consensus has been received. The service should only do actions for the whole round in
      * this method. For actions on individual events, use {@link #onEventStart(WritableStates, Event)}. For actions on
-     * individual transactions, use {@link #handleTransaction(WritableStates, Event, Transaction, Consumer)}.
+     * individual transactions, use {@link #handleTransaction(WritableStates, Event, OtterTransaction, Consumer)} .
      *
      * @param writableStates the {@link WritableStates} to use to modify state
      * @param round the round to handle

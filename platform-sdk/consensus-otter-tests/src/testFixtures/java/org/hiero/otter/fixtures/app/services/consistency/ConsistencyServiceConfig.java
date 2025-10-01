@@ -10,5 +10,6 @@ import com.swirlds.config.api.ConfigProperty;
  */
 @ConfigData("consistencyTestingTool")
 public record ConsistencyServiceConfig(
-        @ConfigProperty(defaultValue = "consistency-test") String logfileDirectory) {
+        @ConfigProperty(defaultValue = "consistency-test") String historyFileDirectory,
+        @ConfigProperty(defaultValue = "ConsistencyTestLog.csv") String historyFileName) {
 }
