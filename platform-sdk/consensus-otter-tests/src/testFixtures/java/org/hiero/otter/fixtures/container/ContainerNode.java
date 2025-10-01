@@ -381,6 +381,12 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
             container.copyFileFromContainer(
                     CONTAINER_APP_WORKING_DIR + "/output/swirlds-hashstream/swirlds-hashstream.log",
                     logPath.resolve("swirlds-hashstream/swirlds-hashstream.log").toString());
+
+            container.copyFileFromContainer(
+                    CONTAINER_APP_WORKING_DIR + "/data/saved/consistency-test/" + selfId.id() + "/ConsistencyTestLog.csv",
+                    logPath.resolve("ConsistencyTestLog.csv").toString()
+            );
+
         } catch (final IOException e) {
             throw new UncheckedIOException("Failed to copy logs from container", e);
         }

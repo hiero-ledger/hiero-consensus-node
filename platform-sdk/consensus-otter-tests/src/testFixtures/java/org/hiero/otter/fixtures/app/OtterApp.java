@@ -205,7 +205,7 @@ public class OtterApp implements ConsensusStateEventHandler<OtterAppState> {
         }
 
         for (final OtterService service : allServices) {
-            service.initialize(platform.getSelfId(), configuration);
+            service.initialize(trigger, platform.getSelfId(), configuration);
         }
     }
 

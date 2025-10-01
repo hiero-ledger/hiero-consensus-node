@@ -4,6 +4,7 @@ package org.hiero.otter.fixtures.app;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.swirlds.config.api.Configuration;
+import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -12,7 +13,6 @@ import org.hiero.consensus.model.event.Event;
 import org.hiero.consensus.model.hashgraph.Round;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
-import org.hiero.consensus.model.transaction.Transaction;
 
 /**
  * This interface defines a service of the Otter application.
@@ -39,10 +39,11 @@ public interface OtterService {
     /**
      * Called when the service is initialized. This is called once when the application starts up.
      *
+     * @param trigger the trigger that caused the initialization
      * @param selfId the ID of this node
      * @param configuration the configuration to use
      */
-    default void initialize(@NonNull final NodeId selfId, @NonNull final Configuration configuration) {
+    default void initialize(@NonNull final InitTrigger trigger, @NonNull final NodeId selfId, @NonNull final Configuration configuration) {
         // Default implementation does nothing
     }
 

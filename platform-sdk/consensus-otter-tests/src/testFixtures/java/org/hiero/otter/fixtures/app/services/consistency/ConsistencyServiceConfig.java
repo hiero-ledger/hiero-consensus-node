@@ -6,7 +6,8 @@ import com.swirlds.config.api.ConfigProperty;
 /**
  * Configuration for the Consistency Service
  *
- * @param logfileDirectory the directory where the consistency log files will be stored
+ * @param historyFileDirectory the directory where the history file will be stored
+ * @param historyFileName      the name of the history file
  */
 @ConfigData("consistencyTestingTool")
 public record ConsistencyServiceConfig(

@@ -7,6 +7,7 @@ import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.config.api.Configuration;
+import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -59,7 +60,10 @@ public class ConsistencyService implements OtterService {
     /**
      * {@inheritDoc}
      */
-    public void initialize(@NonNull final NodeId selfId, @NonNull final Configuration configuration) {
+    public void initialize(@NonNull final InitTrigger trigger, @NonNull final NodeId selfId, @NonNull final Configuration configuration) {
+        if (trigger != InitTrigger.RESTART) {
+            return;
+        }
         final StateCommonConfig stateConfig = configuration.getConfigData(StateCommonConfig.class);
         final ConsistencyServiceConfig testingToolConfig = configuration.getConfigData(ConsistencyServiceConfig.class);
 
