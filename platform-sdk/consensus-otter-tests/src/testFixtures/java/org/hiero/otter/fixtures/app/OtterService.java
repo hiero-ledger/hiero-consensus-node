@@ -35,25 +35,26 @@ public interface OtterService {
     Schema genesisSchema(@NonNull SemanticVersion version);
 
     /**
-     * Called when a new round of consensus has been received. The service should only do actions
-     * for the whole round in this method. For actions on individual events, use {@link #onEvent(WritableStates, Event)}.
-     * For actions on individual transactions, use {@link #onTransaction(WritableStates, Event, Transaction, Consumer)}.
+     * Called when a new round of consensus has been received. The service should only do actions for the whole round in
+     * this method. For actions on individual events, use {@link #handleEvent(WritableStates, Event)}. For actions on
+     * individual transactions, use {@link #handleTransaction(WritableStates, Event, Transaction, Consumer)}.
      *
      * @param writableStates the {@link WritableStates} to use to modify state
-     * @param round
+     * @param round the round to handle
      */
-    default void onRound(@NonNull final WritableStates writableStates, @NonNull final Round round) {
+    default void handleRound(@NonNull final WritableStates writableStates, @NonNull final Round round) {
         // Default implementation does nothing
     }
 
     /**
      * Called when a new event has been received. The service should only do actions for the whole event in this method.
-     * For actions on individual transactions, use {@link #onTransaction(WritableStates, Event, Transaction, Consumer)}.
+     * For actions on individual transactions, use
+     * {@link #handleTransaction(WritableStates, Event, OtterTransaction, Consumer)}.
      *
      * @param writableStates the {@link WritableStates} to use to modify state
      * @param event the event to handle
      */
-    default void onEvent(@NonNull final WritableStates writableStates, @NonNull final Event event) {
+    default void handleEvent(@NonNull final WritableStates writableStates, @NonNull final Event event) {
         // Default implementation does nothing
     }
 
@@ -65,10 +66,35 @@ public interface OtterService {
      * @param transaction the transaction to handle
      * @param callback a callback to pass any system transactions to be handled by the platform
      */
-    default void onTransaction(
+    default void handleTransaction(
             @NonNull final WritableStates writableStates,
             @NonNull final Event event,
-            @NonNull final Transaction transaction,
+            @NonNull final OtterTransaction transaction,
+            @NonNull final Consumer<ScopedSystemTransaction<StateSignatureTransaction>> callback) {
+        // Default implementation does nothing
+    }
+
+    /**
+     * Called when an event is being pre-handled. This is called before any transactions in the event are pre-handled.
+     * The service should only do actions for the whole event in this method. For actions on individual transactions,
+     * use {@link #preHandleTransaction(Event, OtterTransaction, Consumer)}.
+     *
+     * @param event the event being pre-handled
+     */
+    default void preHandleEvent(@NonNull final Event event) {
+        // Default implementation does nothing
+    }
+
+    /**
+     * Called when a transaction is being pre-handled.
+     *
+     * @param event the event that contains the transaction
+     * @param transaction the transaction being pre-handled
+     * @param callback a callback to pass any system transactions to be handled by the platform
+     */
+    default void preHandleTransaction(
+            @NonNull final Event event,
+            @NonNull final OtterTransaction transaction,
             @NonNull final Consumer<ScopedSystemTransaction<StateSignatureTransaction>> callback) {
         // Default implementation does nothing
     }
