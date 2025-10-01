@@ -10,6 +10,7 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hss.HssCal
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.HtsCallAttempt;
 import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethodRegistry;
 import com.hedera.node.app.service.contract.impl.handlers.ContractHandlers;
+import com.hedera.node.app.service.contract.impl.nativelibverification.NativeLibVerifier;
 import com.hedera.node.app.spi.ids.EntityIdFactory;
 import com.hedera.node.app.spi.signatures.SignatureVerifier;
 import dagger.BindsInstance;
@@ -55,7 +56,8 @@ public interface ContractServiceComponent {
                 @BindsInstance ContractMetrics contractMetrics,
                 @BindsInstance SystemContractMethodRegistry systemContractMethodRegistry,
                 @BindsInstance @CustomOps Set<Operation> customOps,
-                @BindsInstance EntityIdFactory entityIdFactory);
+                @BindsInstance EntityIdFactory entityIdFactory,
+                @BindsInstance NativeLibVerifier nativeLibVerifier);
     }
 
     /**
@@ -67,6 +69,11 @@ public interface ContractServiceComponent {
      * @return contract metrics collection, instance
      */
     ContractMetrics contractMetrics();
+
+    /**
+     * @return the current instant source
+     */
+    NativeLibVerifier nativeLibVerifier();
 
     /**
      * @return method registry for system contracts

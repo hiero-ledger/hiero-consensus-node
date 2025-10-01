@@ -15,7 +15,7 @@ import picocli.CommandLine.Parameters;
             AnalyzeCommand.class,
             IntrospectCommand.class,
             ExportCommand.class,
-            ApplyBlocksCommand.class
+           CompactionCommand.class, ApplyBlocksCommand.class
         },
         description = "CLI tool with validation and introspection modes")
 public class StateOperatorCommand implements Runnable {
@@ -32,7 +32,7 @@ public class StateOperatorCommand implements Runnable {
     @Override
     public void run() {
         // This runs if no subcommand is provided
-        System.out.println("Specify a subcommand (validate/analyze/introspect/export/apply-blocks).");
+        System.out.println("Specify a subcommand (validate/analyze/introspect/export/compact/apply-blocks).");
         CommandLine.usage(this, System.out);
     }
 
