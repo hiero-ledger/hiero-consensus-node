@@ -14,10 +14,6 @@ import com.swirlds.state.lifecycle.StateDefinition;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Set;
 
-/**
- * Defines the entity ID service schema for v0.59.0, registering the ENTITY_COUNTS singleton
- * with per-entity-type counts and initializing it at genesis.
- */
 public class V0590EntityIdSchema extends Schema<SemanticVersion> {
 
     /**

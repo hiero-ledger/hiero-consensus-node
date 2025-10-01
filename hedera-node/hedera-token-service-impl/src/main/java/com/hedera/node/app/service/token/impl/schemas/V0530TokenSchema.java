@@ -14,10 +14,6 @@ import com.swirlds.state.lifecycle.StateDefinition;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Set;
 
-/**
- * Defines the token service schema for v0.53.0, introducing the on-disk state that
- * stores pending airdrops keyed by PendingAirdropId.
- */
 public class V0530TokenSchema extends Schema<SemanticVersion> {
 
     private static final long MAX_PENDING_AIRDROPS = 1_000_000L;

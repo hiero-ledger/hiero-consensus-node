@@ -17,10 +17,6 @@ import com.swirlds.state.lifecycle.StateDefinition;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Set;
 
-/**
- * Defines the block record schema for v0.49.0, registering the RunningHashes and
- * BlockInfo singletons and bootstrapping them at genesis.
- */
 public class V0490BlockRecordSchema extends Schema<SemanticVersion> {
 
     /** {@link RunningHashes} state */

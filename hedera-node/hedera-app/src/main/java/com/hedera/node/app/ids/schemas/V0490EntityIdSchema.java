@@ -18,10 +18,6 @@ import java.util.Set;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-/**
- * Defines the entity ID service schema for v0.49.0, registering the ENTITY_ID singleton
- * and initializing it from configuration on genesis.
- */
 public class V0490EntityIdSchema extends Schema<SemanticVersion> {
 
     private static final Logger log = LogManager.getLogger(V0490EntityIdSchema.class);

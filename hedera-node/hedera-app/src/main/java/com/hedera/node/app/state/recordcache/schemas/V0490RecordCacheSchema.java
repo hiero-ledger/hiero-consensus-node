@@ -13,10 +13,6 @@ import com.swirlds.state.lifecycle.StateDefinition;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Set;
 
-/**
- * Defines the record cache schema for v0.49.0, registering the transaction receipts
- * queue used to persist recent transaction outcomes.
- */
 public class V0490RecordCacheSchema extends Schema<SemanticVersion> {
 
     public static final String TRANSACTION_RECEIPTS_KEY = "TRANSACTION_RECEIPTS";

@@ -15,10 +15,6 @@ import com.swirlds.state.lifecycle.StateDefinition;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Set;
 
-/**
- * Defines the fee service schema for v0.49.0, registering the midnight exchange rates singleton
- * and initializing it from bootstrap configuration at genesis.
- */
 public class V0490FeeSchema extends Schema<SemanticVersion> {
 
     public static final String MIDNIGHT_RATES_KEY = "MIDNIGHT_RATES";

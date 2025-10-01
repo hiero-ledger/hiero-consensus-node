@@ -10,10 +10,6 @@ import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.lifecycle.Schema;
 import edu.umd.cs.findbugs.annotations.NonNull;
 
-/**
- * Supports the v0.56.0 migration by surfacing shared block record information on restart
- * for consumption by other schemas (e.g., the new block stream state).
- */
 public class V0560BlockRecordSchema extends Schema<SemanticVersion> {
     /**
      * The version of the schema.

@@ -22,10 +22,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 
-/**
- * Defines the token service schema for v0.61.0, registering the NodeRewards singleton
- * and providing utilities to dispatch synthetic node reward transfers.
- */
 public class V0610TokenSchema extends Schema<SemanticVersion> {
 
     public static final String NODE_REWARDS_KEY = "NODE_REWARDS";

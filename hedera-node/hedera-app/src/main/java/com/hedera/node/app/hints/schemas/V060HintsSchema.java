@@ -28,10 +28,6 @@ import java.util.Set;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-/**
- * Defines the hinTS schema for v0.60.0, registering CRS state and CRS publications, and
- * ensuring related singletons are initialized and wired into the signing context on restart.
- */
 public class V060HintsSchema extends Schema<SemanticVersion> {
 
     private static final SemanticVersion VERSION =

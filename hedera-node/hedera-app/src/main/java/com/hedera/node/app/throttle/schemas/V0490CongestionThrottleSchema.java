@@ -15,10 +15,6 @@ import java.util.Set;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-/**
- * Defines the congestion throttle schema for v0.49.0, registering throttle usage snapshots
- * and congestion level starts singletons and initializing them at genesis.
- */
 public class V0490CongestionThrottleSchema extends Schema<SemanticVersion> {
 
     private static final Logger log = LogManager.getLogger(V0490CongestionThrottleSchema.class);
