@@ -1,21 +1,30 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.handlers;
 
+import static com.hedera.hapi.node.base.HederaFunctionality.HOOK_DISPATCH;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOKS_NOT_ENABLED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOK_ID_IN_USE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOK_NOT_FOUND;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_HOOK_ADMIN_KEY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_HOOK_CALL;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK;
 import static com.hedera.node.app.service.contract.impl.utils.HookValidationUtils.validateHook;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.HookId;
+import com.hedera.node.app.hapi.utils.fee.SigValueObj;
+import com.hedera.node.app.hapi.utils.fee.SmartContractFeeBuilder;
+import com.hedera.node.app.service.contract.impl.ContractServiceComponent;
+import com.hedera.node.app.service.contract.impl.exec.TransactionComponent;
+import com.hedera.node.app.service.contract.impl.records.ContractCallStreamBuilder;
+import com.hedera.node.app.service.contract.impl.state.EvmFrameStates;
+import com.hedera.node.app.service.contract.impl.state.HookEvmFrameStateFactory;
 import com.hedera.node.app.service.contract.impl.state.WritableEvmHookStore;
 import com.hedera.node.app.service.token.records.HookDispatchStreamBuilder;
+import com.hedera.node.app.spi.fees.FeeContext;
+import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
@@ -23,13 +32,21 @@ import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
 import com.hedera.node.config.data.HooksConfig;
+import com.hederahashgraph.api.proto.java.FeeData;
+import com.hederahashgraph.api.proto.java.TransactionBody;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import javax.inject.Inject;
+import org.hyperledger.besu.evm.gascalculator.GasCalculator;
 
-public class HookDispatchHandler implements TransactionHandler {
+import javax.inject.Inject;
+import javax.inject.Provider;
+
+public class HookDispatchHandler extends AbstractContractTransactionHandler implements TransactionHandler {
+
     @Inject
-    public HookDispatchHandler() {
-        // Dagger2
+    public HookDispatchHandler( @NonNull final Provider<TransactionComponent.Factory> provider,
+                                @NonNull final GasCalculator gasCalculator,
+                                @NonNull final ContractServiceComponent component) {
+        super(provider, gasCalculator, component);
     }
 
     @Override
@@ -48,6 +65,12 @@ public class HookDispatchHandler implements TransactionHandler {
             validateTrue(op.executionOrThrow().hasCall(), INVALID_HOOK_CALL);
             validateTrue(op.executionOrThrow().callOrThrow().hasHookId(), INVALID_HOOK_CALL);
         }
+    }
+
+    @Override
+    @NonNull
+    public Fees calculateFees(@NonNull final FeeContext feeContext) {
+        return super.calculateFees(feeContext);
     }
 
     @Override
@@ -85,14 +108,29 @@ public class HookDispatchHandler implements TransactionHandler {
             case EXECUTION -> {
                 final var execution = op.executionOrThrow();
                 final var call = execution.callOrThrow();
-                final var hookKey = new HookId(execution.hookEntityId(), call.hookIdOrThrow());
+                final var hookKey = new HookId(execution.hookEntityIdOrThrow(), call.hookIdOrThrow());
 
-                final var hook = evmHookStore.getEvmHook(new HookId(
-                        execution.hookEntityId(), execution.callOrThrow().hookIdOrThrow()));
+                final var hook = evmHookStore.getEvmHook(hookKey);
                 validateTrue(hook != null, HOOK_NOT_FOUND);
-                // TODO: Remove this check in next PR and add proper logic to handle executing hooks
-                validateTrue(hookKey.hookId() % 2 == 0, REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK);
+
+                // Build the strategy that will produce a HookEvmFrameStateFactory for this transaction
+                final EvmFrameStates evmFrameStates = (ops, nativeOps, codeFactory) ->
+                        new HookEvmFrameStateFactory(ops, nativeOps, codeFactory, evmHookStore, hookKey);
+
+                // Create the transaction-scoped component using the hook-aware strategy
+                final var component = getTransactionComponent(context, HOOK_DISPATCH, evmFrameStates);
+
+                // Run transaction and write record as usual
+                final var outcome = component.contextTransactionProcessor().call();
+                final var streamBuilder = context.savepointStack().getBaseBuilder(ContractCallStreamBuilder.class);
+                outcome.addCallDetailsTo(streamBuilder, context);
             }
         }
+    }
+
+    @NonNull
+    @Override
+    protected FeeData getFeeMatrices(@NonNull final SmartContractFeeBuilder usageEstimator, @NonNull final TransactionBody txBody, @NonNull final SigValueObj sigValObj) {
+        return usageEstimator.getContractCallTxFeeMatrices(txBody, sigValObj);
     }
 }

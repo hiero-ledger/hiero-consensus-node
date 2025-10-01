@@ -34,6 +34,7 @@ import com.hedera.node.app.service.contract.impl.infra.EthTxSigsCache;
 import com.hedera.node.app.service.contract.impl.infra.EthereumCallDataHydration;
 import com.hedera.node.app.service.contract.impl.records.ContractOperationStreamBuilder;
 import com.hedera.node.app.service.contract.impl.state.EvmFrameStateFactory;
+import com.hedera.node.app.service.contract.impl.state.EvmFrameStates;
 import com.hedera.node.app.service.contract.impl.state.ScopedEvmFrameStateFactory;
 import com.hedera.node.app.service.file.ReadableFileStore;
 import com.hedera.node.app.spi.info.NetworkInfo;
@@ -50,6 +51,8 @@ import dagger.Module;
 import dagger.Provides;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import org.hyperledger.besu.evm.code.CodeFactory;
+
 import java.time.Instant;
 import java.util.Map;
 
@@ -211,10 +214,6 @@ public interface TransactionModule {
 
     @Binds
     @TransactionScope
-    EvmFrameStateFactory bindEvmFrameStateFactory(ScopedEvmFrameStateFactory factory);
-
-    @Binds
-    @TransactionScope
     HederaOperations bindHederaOperations(HandleHederaOperations handleExtWorldScope);
 
     @Binds
@@ -229,4 +228,18 @@ public interface TransactionModule {
     @Binds
     @TransactionScope
     HederaEvmBlocks bindHederaEvmBlocks(HandleContextHevmBlocks handleContextHevmBlocks);
+
+    @Provides
+    @TransactionScope
+    static EvmFrameStateFactory provideEvmFrameStateFactory(
+            @NonNull final EvmFrameStates evmFrameStates,
+            @NonNull final CodeFactory codeFactory,
+            @NonNull final HederaOperations operations,
+            @NonNull final HederaNativeOperations nativeOperations) {
+        // If this EVM tx is for a hook, the factory returned here will
+        // create "hook-aware" EvmFrameState's that e.g. return the executing
+        // hook contract's bytecode from address 0x16d
+        // Produces the concrete factory for *this* transaction
+        return evmFrameStates.from(operations, nativeOperations, codeFactory);
+    }
 }

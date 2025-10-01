@@ -25,12 +25,16 @@ public class HtsSystemContract extends AbstractNativeSystemContract implements H
     public static final String HTS_SYSTEM_CONTRACT_NAME = "HTS";
     public static final String HTS_167_EVM_ADDRESS = "0x167";
     public static final String HTS_16C_EVM_ADDRESS = "0x16C";
+    public static final String HTS_HOOKS_16D_EVM_ADDRESS = "0x16D";
     // The system contract ID always uses shard 0 and realm 0 so we cannot use ConversionUtils methods for this
     public static final ContractID HTS_167_CONTRACT_ID = ContractID.newBuilder()
             .contractNum(numberOfLongZero(Address.fromHexString(HTS_167_EVM_ADDRESS)))
             .build();
     public static final ContractID HTS_16C_CONTRACT_ID = ContractID.newBuilder()
             .contractNum(numberOfLongZero(Address.fromHexString(HTS_16C_EVM_ADDRESS)))
+            .build();
+    public static final ContractID HTS_HOOKS_16D_CONTRACT_ID = ContractID.newBuilder()
+            .contractNum(numberOfLongZero(Address.fromHexString(HTS_HOOKS_16D_EVM_ADDRESS)))
             .build();
 
     @Inject
