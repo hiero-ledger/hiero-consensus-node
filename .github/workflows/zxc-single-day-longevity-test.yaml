@@ -64,7 +64,7 @@ env:
   GRAFANA_SYSADM_CHI: https://grafana.lat.ope.eng.hashgraph.io/d/rYdddlPWk/node-exporter-single-node?orgId=1&timezone=utc&var-datasource=P631E2BA859A814B3&var-job=performance-chicago-node-exporter
 
   #Release version from jFrog
-  NLG_VERSION: 0.6.3
+  NLG_VERSION: 0.7.0
 
 jobs:
   longevity-tests-start:
@@ -90,14 +90,14 @@ jobs:
         id: set-k8s-cluster
         run: |
           K8S_CLUSTER="k8s.pft.dal.lat.ope.eng.hashgraph.io"
-          grafana_url=${{ env.GRAFANA_SYSADM_DAL }}
+          grafana_url="${{ env.GRAFANA_SYSADM_DAL }}"
           if [[ "${{ inputs.test-asset }}" =~ ^AdHoc(SD)?[0-9]+$ ]]; then
             K8S_CLUSTER="k8s.pft.chi.lat.ope.eng.hashgraph.io"
-            grafana_url=${{ env.GRAFANA_SYSADM_CHI }}
+            grafana_url="${{ env.GRAFANA_SYSADM_CHI }}"
           fi
           echo "kubernetes-cluster=${K8S_CLUSTER}" >> "${GITHUB_OUTPUT}"
           echo "kubernetes-cluster=${K8S_CLUSTER}" >> "${GITHUB_STEP_SUMMARY}"
-          echo "grafana_url=${grafana_url}" >> "${GITHUB_ENV}"
+          echo "grafana-url=${grafana_url}" >> "${GITHUB_OUTPUT}"
 
       - name: Install KubeCtl
         uses: step-security/setup-kubectl@2edbf6aff97d814e9dc52827498ac51fe972e6d0 # v4.0.0
@@ -383,7 +383,7 @@ jobs:
           start_date=$(date +%Y-%m-%dT%T)
           echo "NAME                                                  STATUS    NODE                                     GRAFANA"
           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods -o=custom-columns=NAME:.metadata.name,STATUS:.status.phase,NODE:.spec.nodeName | grep -v -w STATUS |\
-          awk "{print \$0\" ${grafana_url}&var-nodename=\"\$3\"&from=${start_date}\"}"
+          awk "{print \$0\" ${{ steps.set-k8s-cluster.outputs.grafana-url }}&var-nodename=\"\$3\"&from=${start_date}\"}"
 
       - name: Start Longevity test
         run: |
