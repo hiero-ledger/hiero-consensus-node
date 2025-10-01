@@ -181,6 +181,7 @@ public class TipsetEventCreator implements EventCreator {
     @Override
     public void setEventWindow(@NonNull final EventWindow eventWindow) {
         this.eventWindow = Objects.requireNonNull(eventWindow);
+        this.lastReceivedEventWindow = time.now();
         tipsetTracker.setEventWindow(eventWindow);
         childlessOtherEventTracker.pruneOldEvents(eventWindow);
     }
