@@ -3,7 +3,6 @@ package com.hedera.node.app.blocks.impl.streaming;
 
 import static java.util.Objects.requireNonNull;
 import static org.apache.logging.log4j.Level.DEBUG;
-import static org.apache.logging.log4j.Level.INFO;
 import static org.apache.logging.log4j.Level.TRACE;
 import static org.apache.logging.log4j.Level.WARN;
 import static org.hiero.block.api.PublishStreamRequest.EndStream.Code.RESET;
@@ -361,9 +360,8 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                 blockNodeConfig, acknowledgedBlockNumber, Instant.now());
         if (result.shouldSwitch() && !blockNodeConnectionManager.isOnlyOneBlockNodeConfigured()) {
             logWithContext(
-                    INFO,
-                    "[{}] Block node has exceeded high latency threshold {} times consecutively.",
-                    this,
+                    DEBUG,
+                    "Block node has exceeded high latency threshold {} times consecutively.",
                     result.consecutiveHighLatencyEvents());
             endStreamAndReschedule(TIMEOUT);
         }
