@@ -19,6 +19,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.Function;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -54,7 +55,7 @@ public class TipsetEventCreator implements EventCreator {
     private final EventTransactionSupplier transactionSupplier;
     private EventWindow eventWindow;
     /** The wall-clock time when the event window was last updated */
-    private Instant lastEventWindowUpdate;
+    private Instant lastReceivedEventWindow;
 
     /**
      * The address book for the current network.
@@ -134,7 +135,7 @@ public class TipsetEventCreator implements EventCreator {
         noParentFoundLogger = new RateLimitedLogger(logger, time, Duration.ofMinutes(1));
 
         eventWindow = EventWindow.getGenesisEventWindow();
-        lastEventWindowUpdate = time.now();
+        lastReceivedEventWindow = time.now();
         eventHasher = new PbjStreamHasher();
     }
 
@@ -402,7 +403,7 @@ public class TipsetEventCreator implements EventCreator {
                 lastSelfEvent == null ? null : lastSelfEvent.getDescriptor(),
                 otherParent == null ? Collections.emptyList() : Collections.singletonList(otherParent.getDescriptor()),
                 eventWindow.newEventBirthRound(),
-                calculateNewEventCreationTime(lastSelfEvent, otherParent, transactions),//TODO change time
+                calculateNewEventCreationTime(lastSelfEvent, otherParent, transactions),
                 transactions.stream().map(TimestampedTransaction::transaction).toList(),
                 random.nextLong(0, roster.rosterEntries().size() + 1));
         eventHasher.hashUnsignedEvent(event);
@@ -458,22 +459,26 @@ public class TipsetEventCreator implements EventCreator {
     @NonNull
     private Instant calculateNewEventCreationTime(
             @Nullable final PlatformEvent selfParent, @Nullable final PlatformEvent otherParent,
-            @NonNull List<TimestampedTransaction> transactions) {
-        // Get the max received time of the parents
-        final Instant maxParentReceivedTime = Stream.of(selfParent, otherParent)
-                .filter(Objects::nonNull)
-                .map(PlatformEvent::getTimeReceived)
+            @NonNull final List<TimestampedTransaction> transactions) {
+        final Instant maxReceivedTime = Stream.of(
+                        Stream.of(selfParent, otherParent)
+                                .filter(Objects::nonNull)
+                                .map(PlatformEvent::getTimeReceived),
+                        transactions.stream().map(TimestampedTransaction::receivedTime),
+                        Stream.of(lastReceivedEventWindow))
+                // flatten the stream of streams
+                .flatMap(Function.identity())
                 .max(Instant::compareTo)
                 // if it's a genesis event, just use the current time
                 .orElse(time.now());
 
         // This is a fallback in case the system clock malfunctions for some reason.
         // We must ensure the new event is after its self parent, otherwise it will be rejected by the network.
-        if (selfParent != null && !maxParentReceivedTime.isAfter(selfParent.getTimeCreated())) {
+        if (selfParent != null && !maxReceivedTime.isAfter(selfParent.getTimeCreated())) {
             return selfParent.getTimeCreated().plus(Duration.ofNanos(1));
         }
 
-        return maxParentReceivedTime;
+        return maxReceivedTime;
     }
 
     /**
