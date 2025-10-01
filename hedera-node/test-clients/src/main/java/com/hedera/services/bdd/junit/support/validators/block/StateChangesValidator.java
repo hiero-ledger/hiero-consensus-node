@@ -562,12 +562,7 @@ public class StateChangesValidator implements BlockStreamValidator {
         }
         if (hintsLibrary != null) {
             final var signature = proof.blockSignature();
-            final Bytes vk;
-            if (proof.hasSchemeId()) {
-                vk = requireNonNull(preprocessedKeys.get(proof.schemeId())).verificationKey();
-            } else {
-                vk = proof.verificationKeyOrThrow();
-            }
+            final var vk = proof.verificationKey();
             final boolean valid = hintsLibrary.verifyAggregate(signature, provenHash, vk, 1, hintsThresholdDenominator);
             if (!valid) {
                 Assertions.fail(() -> "Invalid signature in proof (start round #" + firstRound + ") - " + proof);

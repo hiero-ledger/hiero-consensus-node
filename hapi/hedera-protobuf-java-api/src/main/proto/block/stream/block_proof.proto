@@ -213,26 +213,17 @@ message BlockProof {
      */
     repeated MerkleSiblingHash sibling_hashes = 5;
 
-    oneof verification_reference {
-        /**
-         * The id of the hinTS scheme this signature verifies under.
-         */
-        uint64 scheme_id = 6;
-
-        /**
-         * The explicit hinTS key this signature verifies under; useful when
-         * the verifier can easily check whether a chain-of-trust proof
-         * exists for a key, but does does not have any context of the
-         * latest hinTS schemes published in the block stream.
-         */
-        bytes verification_key = 7;
-    }
+    /**
+     * The hinTS key that this signature verifies under; a stream consumer should
+     * only use this key after first checking the chain of trust proof.
+     */
+    bytes verification_key = 6;
 
     /**
      * Proof the hinTS verification key is in the chain of trust extending
      * from the network's ledger id.
      */
-    ChainOfTrustProof verification_key_proof = 8;
+    ChainOfTrustProof verification_key_proof = 7;
 }
 
 /**
