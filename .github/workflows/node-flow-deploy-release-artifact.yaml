@@ -77,8 +77,6 @@ jobs:
       new-version: ${{ needs.prepare-tag-release.outputs.version }}
       trigger-env-deploy: none
       release-profile: ${{ needs.prepare-tag-release.outputs.prerelease == 'true' && 'PrereleaseChannel' || 'MavenCentral' }}
-      ref: ${{ github.ref }}
-      ref-name: ${{ github.ref_name }}
     secrets:
       access-token: ${{ secrets.GITHUB_TOKEN }}
       bucket-name: ${{ secrets.RELEASE_ARTIFACT_BUCKET_NAME }}
@@ -162,8 +160,6 @@ jobs:
       version-policy: branch-commit
       trigger-env-deploy: integration
       release-profile: DevelopCommit
-      ref: ${{ inputs.ref }}
-      ref-name: ${{ inputs.ref-name }}
       dry-run-enabled: ${{ inputs.dry-run-enabled }}
     secrets:
       access-token: ${{ secrets.GITHUB_TOKEN }}
