@@ -127,12 +127,17 @@ public class TipsetEventCreatorTestUtils {
     }
 
     /**
-     * Validates that @code newEvent satisfies: - if it has a null self-parent, is only during genesis scenario - if it
-     * has a null other-parent, is only during genesis scenario - the event is contained in allEvents - NGen should be
-     * max of parents plus one - Parent's birthround or generation is never higher than event's. - There is a minimum
-     * gap of 1-nanosecond between Event's timeCreated and selfparent's ( timeCreated + transactionCount) - Except for
-     * genesis scenario, new event must have a positive advancement score. - Application Transactions of the event
-     * matches @code expectedTransactions
+     * Validates that @code newEvent satisfies:
+     * <ul>
+     * <li>if it has a null self-parent, is only during genesis scenario</li>
+     * <li>if it has a null other-parent, is only during genesis scenario</li>
+     * <li> the event is contained in allEvents</li>
+     * <li> NGen should be max of parents plus one</li>
+     * <li> Parent's birthround or generation is never higher than event's.</li>
+     * <li> There is a minimum gap of 1-nanosecond between Event's timeCreated and selfparent's ( timeCreated + transactionCount)</li>
+     * <li> Except for genesis scenario, new event must have a positive advancement score.</li>
+     * <li> Application Transactions of the event matches @code expectedTransactions</li>
+     * </ul>
      * <p>
      * This method produces a side effect of advancing the last AdvancementWeight of the simulatedNode
      *
@@ -170,13 +175,15 @@ public class TipsetEventCreatorTestUtils {
         }
 
         if (otherParent == null) {
-            if (slowNode) {
-                // During the slow node test, we intentionally don't distribute an event that ends up in the
-                // events map. So it's possible for this map to contain two events at this point in time.
-                assertTrue(allEvents.size() == 1 || allEvents.size() == 2);
-            } else {
-                // The only legal time to have no other-parent is at genesis before other events are received.
-                assertEquals(1, allEvents.size());
+            if (!forgiveNotAdvancingScore) {
+                if (slowNode) {
+                    // During the slow node test, we intentionally don't distribute an event that ends up in the
+                    // events map. So it's possible for this map to contain two events at this point in time.
+                    assertTrue(allEvents.size() == 1 || allEvents.size() == 2);
+                } else {
+                    // The only legal time to have no other-parent is at genesis before other events are received.
+                    assertEquals(1, allEvents.size());
+                }
             }
             assertTrue(allEvents.containsKey(newEvent.getDescriptor()));
         }

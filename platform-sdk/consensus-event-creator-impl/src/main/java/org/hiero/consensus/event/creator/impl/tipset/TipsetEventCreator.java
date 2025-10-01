@@ -49,7 +49,6 @@ public class TipsetEventCreator implements EventCreator {
     private final TipsetTracker tipsetTracker;
     private final TipsetWeightCalculator tipsetWeightCalculator;
     private final ChildlessEventTracker childlessOtherEventTracker;
-    private final LatestEventTracker latestEventTracker;
     private final EventTransactionSupplier transactionSupplier;
     private EventWindow eventWindow;
 
@@ -133,7 +132,6 @@ public class TipsetEventCreator implements EventCreator {
         tipsetMetrics = new TipsetMetrics(metrics, roster);
         tipsetTracker = new TipsetTracker(time, selfId, roster);
         childlessOtherEventTracker = new ChildlessEventTracker();
-        latestEventTracker = new LatestEventTracker();
         tipsetWeightCalculator = new TipsetWeightCalculator(
                 configuration, time, roster, selfId, tipsetTracker, childlessOtherEventTracker);
         networkSize = roster.rosterEntries().size();
@@ -178,7 +176,6 @@ public class TipsetEventCreator implements EventCreator {
         } else {
             tipsetTracker.addPeerEvent(event);
             childlessOtherEventTracker.addEvent(event);
-            latestEventTracker.addEvent(event);
         }
     }
 
@@ -190,7 +187,6 @@ public class TipsetEventCreator implements EventCreator {
         this.eventWindow = Objects.requireNonNull(eventWindow);
         tipsetTracker.setEventWindow(eventWindow);
         childlessOtherEventTracker.pruneOldEvents(eventWindow);
-        latestEventTracker.pruneOldEvents(eventWindow);
     }
 
     @Override
@@ -221,12 +217,13 @@ public class TipsetEventCreator implements EventCreator {
         return null;
     }
 
+    /**
+     * For simplicity, we will always create an event based only on single self parent; this is a special rare case
+     * and it will unblock the network
+     * @return new event based only on self parent
+     */
     private UnsignedEvent createQuiescenceBreakEvent() {
-        // this will return only non-self events, as we are adding only non-self events to event tracker in
-        // registerEvent
-        final PlatformEvent otherEvent = latestEventTracker.getRandomEvent(random);
-
-        return buildAndProcessEvent(otherEvent);
+        return buildAndProcessEvent(null);
     }
 
     @Nullable

@@ -13,7 +13,6 @@ import static org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreatorTe
 import static org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreatorTestUtils.validateNewEventAndMaybeAdvanceCreatorScore;
 import static org.hiero.consensus.model.hashgraph.ConsensusConstants.ROUND_FIRST;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -435,9 +434,6 @@ class TipsetEventCreatorTests {
                         eventCreator.quiescenceCommand(QuiescenceCommand.BREAK_QUIESCENCE);
                         event = eventCreator.maybeCreateEvent();
                         assertNotNull(event);
-                        assertNotEquals(
-                                event.getSelfParent().creator(),
-                                event.getOtherParents().getFirst().creator());
 
                         // we allow creation of only one break quiescence event
                         assertNull(eventCreator.maybeCreateEvent());
