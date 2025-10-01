@@ -5,7 +5,6 @@ import com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperatio
 import com.hedera.node.app.service.contract.impl.exec.scope.HederaOperations;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
-import javax.inject.Inject;
 import org.hyperledger.besu.evm.code.CodeFactory;
 
 /**

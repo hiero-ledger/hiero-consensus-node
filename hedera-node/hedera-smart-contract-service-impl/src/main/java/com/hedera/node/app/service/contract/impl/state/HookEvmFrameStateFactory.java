@@ -5,9 +5,8 @@ import com.hedera.hapi.node.base.HookId;
 import com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations;
 import com.hedera.node.app.service.contract.impl.exec.scope.HederaOperations;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import org.hyperledger.besu.evm.code.CodeFactory;
-
 import java.util.Objects;
+import org.hyperledger.besu.evm.code.CodeFactory;
 
 /**
  * A factory for {@link EvmFrameState} instances that are scoped to the current state of the world in
@@ -35,6 +34,7 @@ public class HookEvmFrameStateFactory implements EvmFrameStateFactory {
 
     @Override
     public EvmFrameState get() {
-        return new HookEvmFrameState(hederaNativeOperations, hederaOperations.getStore(), codeFactory, evmHookStore, hookId);
+        return new HookEvmFrameState(
+                hederaNativeOperations, hederaOperations.getStore(), codeFactory, evmHookStore, hookId);
     }
 }

@@ -10,7 +10,6 @@ import com.hedera.node.app.spi.workflows.HandleContext;
 import dagger.BindsInstance;
 import dagger.Subcomponent;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import org.hyperledger.besu.evm.code.CodeFactory;
 
 @Subcomponent(modules = {TransactionModule.class})
 @TransactionScope

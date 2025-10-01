@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.state;
 
 import com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations;

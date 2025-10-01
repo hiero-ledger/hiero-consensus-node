@@ -18,19 +18,14 @@ import com.hedera.hapi.node.hooks.HookExecution;
 import com.hedera.hapi.node.state.hooks.EvmHookState;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.contract.impl.ContractServiceComponent;
-import com.hedera.node.app.service.contract.impl.exec.ContextTransactionProcessor;
 import com.hedera.node.app.service.contract.impl.exec.TransactionComponent;
-import com.hedera.node.app.service.contract.impl.exec.scope.HederaOperations;
 import com.hedera.node.app.service.contract.impl.handlers.HookDispatchHandler;
-import com.hedera.node.app.service.contract.impl.records.ContractCallStreamBuilder;
-import com.hedera.node.app.service.contract.impl.state.RootProxyWorldUpdater;
 import com.hedera.node.app.service.contract.impl.state.WritableEvmHookStore;
 import com.hedera.node.app.service.token.records.HookDispatchStreamBuilder;
 import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.app.spi.validation.AttributeValidator;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
-import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.swirlds.config.api.Configuration;
 import org.hyperledger.besu.evm.gascalculator.GasCalculator;
@@ -76,7 +71,8 @@ class HookDispatchHandlerTest extends ContractHandlerTestBase {
             .withValue("hooks.hooksEnabled", true)
             .getOrCreateConfig();
 
-    private HookDispatchHandler subject = new HookDispatchHandler(() -> factory, gasCalculator, contractServiceComponent);
+    private HookDispatchHandler subject =
+            new HookDispatchHandler(() -> factory, gasCalculator, contractServiceComponent);
 
     @BeforeEach
     void setUp() {

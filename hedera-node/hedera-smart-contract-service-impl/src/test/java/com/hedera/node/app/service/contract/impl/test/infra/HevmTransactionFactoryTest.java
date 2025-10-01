@@ -160,7 +160,8 @@ class HevmTransactionFactoryTest {
                 tokenServiceApi,
                 ethereumSignatures,
                 context,
-                entityIdFactory);
+                entityIdFactory,
+                null);
     }
 
     @Test
@@ -806,7 +807,8 @@ class HevmTransactionFactoryTest {
                 tokenServiceApi,
                 ethereumSignatures,
                 context,
-                entityIdFactory);
+                entityIdFactory,
+                null);
     }
 
     private void givenInsteadFailedHydrationSubject() {
@@ -826,7 +828,8 @@ class HevmTransactionFactoryTest {
                 tokenServiceApi,
                 ethereumSignatures,
                 context,
-                entityIdFactory);
+                entityIdFactory,
+                null);
     }
 
     private void givenInsteadHydratedEthTxWithWrongChainId(@NonNull final EthTxData ethTxData) {
@@ -846,7 +849,8 @@ class HevmTransactionFactoryTest {
                 tokenServiceApi,
                 ethereumSignatures,
                 context,
-                entityIdFactory);
+                entityIdFactory,
+                null);
     }
 
     private void givenInsteadHydratedEthTxWithRightChainId(@NonNull final EthTxData ethTxData) {
@@ -866,6 +870,7 @@ class HevmTransactionFactoryTest {
                 tokenServiceApi,
                 ethereumSignatures,
                 context,
-                entityIdFactory);
+                entityIdFactory,
+                null);
     }
 }

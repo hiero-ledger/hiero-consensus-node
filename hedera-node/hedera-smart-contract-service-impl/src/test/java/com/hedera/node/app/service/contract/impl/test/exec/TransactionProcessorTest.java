@@ -191,6 +191,7 @@ class TransactionProcessorTest {
                 USER_OFFERED_GAS_PRICE,
                 MAX_GAS_ALLOWANCE,
                 null,
+                null,
                 null);
         given(messageCallProcessor.isImplicitCreationEnabled()).willReturn(true);
         assertAbortsWith(invalidCreation, INVALID_CONTRACT_ID);
@@ -212,6 +213,7 @@ class TransactionProcessorTest {
                 GAS_LIMIT,
                 USER_OFFERED_GAS_PRICE,
                 MAX_GAS_ALLOWANCE,
+                null,
                 null,
                 null);
         given(messageCallProcessor.isImplicitCreationEnabled()).willReturn(true);
@@ -266,6 +268,7 @@ class TransactionProcessorTest {
                 GAS_LIMIT,
                 USER_OFFERED_GAS_PRICE,
                 MAX_GAS_ALLOWANCE,
+                null,
                 null,
                 null);
         given(messageCallProcessor.isImplicitCreationEnabled()).willReturn(true);
@@ -323,6 +326,7 @@ class TransactionProcessorTest {
                 USER_OFFERED_GAS_PRICE,
                 MAX_GAS_ALLOWANCE,
                 null,
+                null,
                 null);
         given(messageCallProcessor.isImplicitCreationEnabled()).willReturn(true);
         final var context = wellKnownContextWith(blocks, tinybarValues, systemContractGasCalculator);
@@ -375,6 +379,7 @@ class TransactionProcessorTest {
                 USER_OFFERED_GAS_PRICE,
                 MAX_GAS_ALLOWANCE,
                 null,
+                null,
                 null);
         final var context = wellKnownContextWith(blocks, tinybarValues, systemContractGasCalculator);
         given(worldUpdater.getHederaAccount(SENDER_ID)).willReturn(null);
@@ -399,6 +404,7 @@ class TransactionProcessorTest {
                 GAS_LIMIT,
                 USER_OFFERED_GAS_PRICE,
                 MAX_GAS_ALLOWANCE,
+                null,
                 null,
                 null);
         final var context = wellKnownContextWith(blocks, tinybarValues, systemContractGasCalculator);

@@ -12,7 +12,6 @@ import com.hedera.node.app.hapi.utils.fee.SmartContractFeeBuilder;
 import com.hedera.node.app.service.contract.impl.ContractServiceComponent;
 import com.hedera.node.app.service.contract.impl.exec.TransactionComponent;
 import com.hedera.node.app.service.contract.impl.exec.TransactionComponent.Factory;
-import com.hedera.node.app.service.contract.impl.state.EvmFrameStateFactory;
 import com.hedera.node.app.service.contract.impl.state.EvmFrameStates;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
@@ -22,8 +21,6 @@ import com.hedera.node.app.spi.workflows.TransactionHandler;
 import com.hederahashgraph.api.proto.java.FeeData;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import javax.inject.Provider;
-
-import org.hyperledger.besu.evm.code.CodeFactory;
 import org.hyperledger.besu.evm.gascalculator.GasCalculator;
 
 /**
@@ -83,8 +80,7 @@ public abstract class AbstractContractTransactionHandler implements TransactionH
     }
 
     protected @NonNull TransactionComponent getTransactionComponent(
-            @NonNull final HandleContext context,
-            @NonNull final HederaFunctionality functionality) {
+            @NonNull final HandleContext context, @NonNull final HederaFunctionality functionality) {
         // Non-hook calls use the default strategy
         return provider.get().create(context, functionality, EvmFrameStates.DEFAULT);
     }

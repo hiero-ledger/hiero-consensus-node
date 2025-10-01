@@ -567,6 +567,7 @@ public class TestHelpers {
             0L,
             0L,
             ContractCreateTransactionBody.DEFAULT,
+            null,
             null);
     public static final HederaEvmTransaction HEVM_Exception = new HederaEvmTransaction(
             SENDER_ID,
@@ -580,7 +581,8 @@ public class TestHelpers {
             0L,
             0L,
             null,
-            new HandleException(ResponseCodeEnum.INVALID_CONTRACT_ID));
+            new HandleException(ResponseCodeEnum.INVALID_CONTRACT_ID),
+            null);
 
     public static final HederaEvmTransaction HEVM_OversizeException = new HederaEvmTransaction(
             SENDER_ID,
@@ -594,7 +596,8 @@ public class TestHelpers {
             0L,
             0L,
             null,
-            new HandleException(ResponseCodeEnum.TRANSACTION_OVERSIZE));
+            new HandleException(ResponseCodeEnum.TRANSACTION_OVERSIZE),
+            null);
 
     public static final HederaEvmTransactionResult SUCCESS_RESULT = explicitSuccessFrom(
             GAS_LIMIT / 2,
@@ -822,6 +825,7 @@ public class TestHelpers {
                 userGasPrice,
                 maxGasAllowance,
                 null,
+                null,
                 null);
     }
 
@@ -851,6 +855,7 @@ public class TestHelpers {
                 userGasPrice,
                 maxGasAllowance,
                 ContractCreateTransactionBody.DEFAULT,
+                null,
                 null);
     }
 

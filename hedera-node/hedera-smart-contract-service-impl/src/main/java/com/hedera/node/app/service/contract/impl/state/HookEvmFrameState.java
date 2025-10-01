@@ -1,4 +1,8 @@
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.state;
+
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.HtsSystemContract.HTS_HOOKS_16D_CONTRACT_ID;
+import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.HookId;
@@ -6,9 +10,6 @@ import com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperatio
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.apache.tuweni.bytes.Bytes;
 import org.hyperledger.besu.evm.code.CodeFactory;
-
-import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.HtsSystemContract.HTS_HOOKS_16D_CONTRACT_ID;
-import static java.util.Objects.requireNonNull;
 
 /**
  * EVM frame state used during hook execution. For address 0x16d, it returns
@@ -25,11 +26,12 @@ public class HookEvmFrameState extends DispatchingEvmFrameState {
      * @param nativeOperations the Hedera native operation
      * @param contractStateStore the contract store that manages the key/value states
      */
-    public HookEvmFrameState(@NonNull final HederaNativeOperations nativeOperations,
-                             @NonNull final ContractStateStore contractStateStore,
-                             @NonNull final CodeFactory codeFactory,
-                             @NonNull final WritableEvmHookStore evmHookStore,
-                             @NonNull final HookId hookId) {
+    public HookEvmFrameState(
+            @NonNull final HederaNativeOperations nativeOperations,
+            @NonNull final ContractStateStore contractStateStore,
+            @NonNull final CodeFactory codeFactory,
+            @NonNull final WritableEvmHookStore evmHookStore,
+            @NonNull final HookId hookId) {
         super(nativeOperations, contractStateStore, codeFactory);
         this.evmHookStore = evmHookStore;
         this.hookId = hookId;
@@ -51,4 +53,3 @@ public class HookEvmFrameState extends DispatchingEvmFrameState {
         return HTS_HOOKS_16D_CONTRACT_ID.equals(contractID);
     }
 }
-

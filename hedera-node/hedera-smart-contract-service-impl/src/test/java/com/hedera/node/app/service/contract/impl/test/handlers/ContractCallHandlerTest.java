@@ -27,6 +27,7 @@ import com.hedera.node.app.service.contract.impl.exec.scope.HederaOperations;
 import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethodRegistry;
 import com.hedera.node.app.service.contract.impl.handlers.ContractCallHandler;
 import com.hedera.node.app.service.contract.impl.records.ContractCallStreamBuilder;
+import com.hedera.node.app.service.contract.impl.state.EvmFrameStates;
 import com.hedera.node.app.service.contract.impl.state.RootProxyWorldUpdater;
 import com.hedera.node.app.spi.fees.FeeCalculator;
 import com.hedera.node.app.spi.fees.FeeCalculatorFactory;
@@ -87,6 +88,9 @@ class ContractCallHandlerTest extends ContractHandlerTestBase {
     @Mock
     private ContractsConfig contractsConfig;
 
+    @Mock
+    private EvmFrameStates evmFrameStates;
+
     private final SystemContractMethodRegistry systemContractMethodRegistry = new SystemContractMethodRegistry();
 
     private final Metrics metrics = new NoOpMetrics();
@@ -104,7 +108,8 @@ class ContractCallHandlerTest extends ContractHandlerTestBase {
 
     @Test
     void delegatesToCreatedComponentAndExposesSuccess() {
-        given(factory.create(context, HederaFunctionality.CONTRACT_CALL)).willReturn(component);
+        given(factory.create(context, HederaFunctionality.CONTRACT_CALL, evmFrameStates))
+                .willReturn(component);
         given(component.contextTransactionProcessor()).willReturn(processor);
         given(context.savepointStack()).willReturn(stack);
         given(stack.getBaseBuilder(ContractCallStreamBuilder.class)).willReturn(recordBuilder);
@@ -134,7 +139,8 @@ class ContractCallHandlerTest extends ContractHandlerTestBase {
 
     @Test
     void delegatesToCreatedComponentAndThrowsOnFailure() {
-        given(factory.create(context, HederaFunctionality.CONTRACT_CALL)).willReturn(component);
+        given(factory.create(context, HederaFunctionality.CONTRACT_CALL, evmFrameStates))
+                .willReturn(component);
         given(component.contextTransactionProcessor()).willReturn(processor);
         given(component.hederaOperations()).willReturn(hederaOperations);
         given(context.savepointStack()).willReturn(stack);

@@ -35,7 +35,6 @@ import com.hedera.node.app.service.contract.impl.infra.EthereumCallDataHydration
 import com.hedera.node.app.service.contract.impl.records.ContractOperationStreamBuilder;
 import com.hedera.node.app.service.contract.impl.state.EvmFrameStateFactory;
 import com.hedera.node.app.service.contract.impl.state.EvmFrameStates;
-import com.hedera.node.app.service.contract.impl.state.ScopedEvmFrameStateFactory;
 import com.hedera.node.app.service.file.ReadableFileStore;
 import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.validation.AttributeValidator;
@@ -51,10 +50,9 @@ import dagger.Module;
 import dagger.Provides;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import org.hyperledger.besu.evm.code.CodeFactory;
-
 import java.time.Instant;
 import java.util.Map;
+import org.hyperledger.besu.evm.code.CodeFactory;
 
 @Module(includes = {TransactionConfigModule.class, TransactionInitialStateModule.class})
 public interface TransactionModule {

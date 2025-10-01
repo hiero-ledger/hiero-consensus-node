@@ -35,17 +35,17 @@ import com.hedera.node.config.data.HooksConfig;
 import com.hederahashgraph.api.proto.java.FeeData;
 import com.hederahashgraph.api.proto.java.TransactionBody;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import org.hyperledger.besu.evm.gascalculator.GasCalculator;
-
 import javax.inject.Inject;
 import javax.inject.Provider;
+import org.hyperledger.besu.evm.gascalculator.GasCalculator;
 
 public class HookDispatchHandler extends AbstractContractTransactionHandler implements TransactionHandler {
 
     @Inject
-    public HookDispatchHandler( @NonNull final Provider<TransactionComponent.Factory> provider,
-                                @NonNull final GasCalculator gasCalculator,
-                                @NonNull final ContractServiceComponent component) {
+    public HookDispatchHandler(
+            @NonNull final Provider<TransactionComponent.Factory> provider,
+            @NonNull final GasCalculator gasCalculator,
+            @NonNull final ContractServiceComponent component) {
         super(provider, gasCalculator, component);
     }
 
@@ -130,7 +130,10 @@ public class HookDispatchHandler extends AbstractContractTransactionHandler impl
 
     @NonNull
     @Override
-    protected FeeData getFeeMatrices(@NonNull final SmartContractFeeBuilder usageEstimator, @NonNull final TransactionBody txBody, @NonNull final SigValueObj sigValObj) {
+    protected FeeData getFeeMatrices(
+            @NonNull final SmartContractFeeBuilder usageEstimator,
+            @NonNull final TransactionBody txBody,
+            @NonNull final SigValueObj sigValObj) {
         return usageEstimator.getContractCallTxFeeMatrices(txBody, sigValObj);
     }
 }

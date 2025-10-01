@@ -71,10 +71,7 @@ import com.hedera.node.config.data.LedgerConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-
 import javax.inject.Inject;
-
-import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.evm.gascalculator.GasCalculator;
 
 @TransactionScope
@@ -278,7 +275,8 @@ public class HevmTransactionFactory {
 
         final var gasPrice =
                 switch (body.data().kind()) {
-                    case CONTRACT_CREATE_INSTANCE -> body.contractCreateInstanceOrThrow().gas();
+                    case CONTRACT_CREATE_INSTANCE ->
+                        body.contractCreateInstanceOrThrow().gas();
                     case CONTRACT_CALL -> body.contractCallOrThrow().gas();
                     case ETHEREUM_TRANSACTION -> {
                         final var ethTxData = assertValidEthTx(body.ethereumTransactionOrThrow());
@@ -317,7 +315,8 @@ public class HevmTransactionFactory {
 
     private void assertValidCall(@NonNull final ContractCallTransactionBody body) {
         final var minGasLimit = Math.max(
-                ContractServiceImpl.INTRINSIC_GAS_LOWER_BOUND, gasCalculator.transactionIntrinsicGasCost(EMPTY, false));
+                ContractServiceImpl.INTRINSIC_GAS_LOWER_BOUND,
+                gasCalculator.transactionIntrinsicGasCost(EMPTY, false, 0L));
         validateTrue(body.gas() >= minGasLimit, INSUFFICIENT_GAS);
         validateTrue(body.amount() >= 0, CONTRACT_NEGATIVE_VALUE);
         validateTrue(body.gas() <= getMaxGasLimit(contractsConfig), MAX_GAS_LIMIT_EXCEEDED);
@@ -339,9 +338,9 @@ public class HevmTransactionFactory {
 
         final var entityId = execution.hookEntityIdOrThrow();
 
-        final var account = entityId.hasAccountId() ?
-                accountStore.getAccountById(entityId.accountIdOrThrow()) :
-                accountStore.getContractById(entityId.contractIdOrThrow());
+        final var account = entityId.hasAccountId()
+                ? accountStore.getAccountById(entityId.accountIdOrThrow())
+                : accountStore.getContractById(entityId.contractIdOrThrow());
         validateTrue(account != null, INVALID_ACCOUNT_ID);
         validateTrue(!account.deleted(), ACCOUNT_DELETED);
     }
