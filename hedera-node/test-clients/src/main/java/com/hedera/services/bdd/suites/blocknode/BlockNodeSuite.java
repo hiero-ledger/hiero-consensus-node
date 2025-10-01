@@ -614,7 +614,8 @@ public class BlockNodeSuite {
                         blockNodePriorities = {0, 1},
                         applicationPropertiesOverrides = {
                             "blockStream.streamMode", "BOTH",
-                            "blockStream.writerMode", "FILE_AND_GRPC"
+                            "blockStream.writerMode", "FILE_AND_GRPC",
+                            "blockNode.highLatencyThreshold", "1s"
                         })
             })
     @Order(11)
@@ -655,7 +656,7 @@ public class BlockNodeSuite {
                             "blockStream.writerMode", "FILE_AND_GRPC"
                         })
             })
-    @Order(11)
+    @Order(12)
     final Stream<DynamicTest> testCNReactionToPublishStreamResponses() {
         final AtomicReference<Instant> time = new AtomicReference<>();
         final List<Integer> portNumbers = new ArrayList<>();

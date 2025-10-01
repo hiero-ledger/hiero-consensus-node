@@ -1877,9 +1877,9 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         final Instant ackedTime = Instant.now();
 
         connectionManager.recordBlockProofSent(nodeConfig, 1L, ackedTime);
-        connectionManager.recordBlockAckAndCheckLatency(nodeConfig, 1L, ackedTime.plusMillis(1000));
+        connectionManager.recordBlockAckAndCheckLatency(nodeConfig, 1L, ackedTime.plusMillis(30001));
 
-        verify(metrics).recordAcknowledgementLatency(1000);
+        verify(metrics).recordAcknowledgementLatency(30001);
         verify(metrics).recordHighLatencyEvent();
         verifyNoMoreInteractions(metrics);
     }
@@ -1890,7 +1890,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         isStreamingEnabled.set(false);
         final BlockNodeConfig nodeConfig = newBlockNodeConfig(8080, 1);
 
-        final boolean limitExceeded = connectionManager.recordEndOfStreamAndCheckLimit(nodeConfig);
+        final boolean limitExceeded = connectionManager.recordEndOfStreamAndCheckLimit(nodeConfig, Instant.now());
 
         assertThat(limitExceeded).isFalse();
     }
@@ -1899,7 +1899,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     void testRecordEndOfStreamAndCheckLimit_withinLimit() {
         final BlockNodeConfig nodeConfig = newBlockNodeConfig(8080, 1);
 
-        final boolean limitExceeded = connectionManager.recordEndOfStreamAndCheckLimit(nodeConfig);
+        final boolean limitExceeded = connectionManager.recordEndOfStreamAndCheckLimit(nodeConfig, Instant.now());
 
         assertThat(limitExceeded).isFalse();
     }
@@ -1911,9 +1911,9 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         // Record multiple EndOfStream events to exceed the limit
         // The default maxEndOfStreamsAllowed is 5
         for (int i = 0; i < 5; i++) {
-            connectionManager.recordEndOfStreamAndCheckLimit(nodeConfig);
+            connectionManager.recordEndOfStreamAndCheckLimit(nodeConfig, Instant.now());
         }
-        final boolean limitExceeded = connectionManager.recordEndOfStreamAndCheckLimit(nodeConfig);
+        final boolean limitExceeded = connectionManager.recordEndOfStreamAndCheckLimit(nodeConfig, Instant.now());
 
         assertThat(limitExceeded).isTrue();
     }
@@ -2091,14 +2091,6 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     }
 
     // Utilities
-
-    private void invoke_createNewGrpcClient(final BlockNodeConfig config) {
-        try {
-            createNewGrpcClientHandle.invoke(connectionManager, config);
-        } catch (final Throwable t) {
-            throw new RuntimeException(t);
-        }
-    }
 
     private BlockNodeConnectionManager createConnectionManager(List<BlockNodeConfig> blockNodes) {
         // Create a custom config provider with the specified block nodes

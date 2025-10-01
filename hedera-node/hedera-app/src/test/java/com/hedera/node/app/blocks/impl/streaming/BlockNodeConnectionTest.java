@@ -266,6 +266,9 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
 
         when(connectionManager.currentStreamingBlockNumber()).thenReturn(10L);
         when(bufferService.getLastBlockNumberProduced()).thenReturn(10L);
+        when(connectionManager.recordBlockAckAndCheckLatency(eq(connection.getNodeConfig()), eq(10L), any()))
+                .thenReturn(latencyResult);
+        when(latencyResult.shouldSwitch()).thenReturn(false);
 
         connection.updateConnectionState(ConnectionState.ACTIVE);
         connection.onNext(response);
@@ -904,15 +907,16 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
     void testOnNext_endOfStream_rateLimitExceeded() {
         openConnectionAndResetMocks();
         connection.updateConnectionState(ConnectionState.ACTIVE);
-
         final PublishStreamResponse response = createEndOfStreamResponse(Code.ERROR, 10L);
-        when(connectionManager.recordEndOfStreamAndCheckLimit(nodeConfig)).thenReturn(true);
+
+        when(connectionManager.recordEndOfStreamAndCheckLimit(eq(nodeConfig), any()))
+                .thenReturn(true);
         when(connectionManager.getEndOfStreamScheduleDelay()).thenReturn(Duration.ofMinutes(5));
 
         connection.onNext(response);
 
         verify(metrics).recordResponseEndOfStreamReceived(Code.ERROR);
-        verify(connectionManager).recordEndOfStreamAndCheckLimit(nodeConfig);
+        verify(connectionManager).recordEndOfStreamAndCheckLimit(eq(nodeConfig), any());
         verify(metrics).recordEndOfStreamLimitExceeded();
         verify(connectionManager).updateLastVerifiedBlock(nodeConfig, 10L);
         verify(connectionManager).rescheduleConnection(connection, Duration.ofMinutes(5), null, true);
