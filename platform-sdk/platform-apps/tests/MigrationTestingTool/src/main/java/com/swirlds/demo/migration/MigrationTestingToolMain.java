@@ -171,7 +171,7 @@ public class MigrationTestingToolMain extends DefaultSwirldMain<MigrationTesting
     @Override
     public MigrationTestingToolState newStateRoot() {
         final MigrationTestingToolState state = new MigrationTestingToolState();
-        TestingAppStateInitializer.DEFAULT.initStates(state);
+        TestingAppStateInitializer.DEFAULT.initConsensusModuleStates(state);
         return state;
     }
 

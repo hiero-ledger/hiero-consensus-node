@@ -12,6 +12,7 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.Abs
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.CallTranslator;
 import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethodRegistry;
 import com.hedera.node.app.service.contract.impl.handlers.ContractHandlers;
+import com.hedera.node.app.service.contract.impl.nativelibverification.NativeLibVerifier;
 import com.hedera.node.app.service.contract.impl.schemas.V0490ContractSchema;
 import com.hedera.node.app.service.contract.impl.schemas.V065ContractSchema;
 import com.hedera.node.app.spi.AppContext;
@@ -68,6 +69,7 @@ public class ContractServiceImpl implements ContractService {
                 () -> appContext.configSupplier().get().getConfigData(ContractsConfig.class);
         final var systemContractMethodRegistry = new SystemContractMethodRegistry();
         final var contractMetrics = new ContractMetrics(metrics, contractsConfigSupplier, systemContractMethodRegistry);
+        final var nativeLibVerifier = new NativeLibVerifier(contractsConfigSupplier);
 
         this.component = DaggerContractServiceComponent.factory()
                 .create(
@@ -80,7 +82,8 @@ public class ContractServiceImpl implements ContractService {
                         contractMetrics,
                         systemContractMethodRegistry,
                         customOps,
-                        appContext.idFactory());
+                        appContext.idFactory(),
+                        nativeLibVerifier);
     }
 
     @Override
@@ -105,6 +108,15 @@ public class ContractServiceImpl implements ContractService {
      */
     public ContractHandlers handlers() {
         return component.handlers();
+    }
+
+    /**
+     * Returns the {@link NativeLibVerifier} instance used to verify the native libraries required by the Hedera smart
+     * contract service.
+     * @return the {@link NativeLibVerifier} instance
+     */
+    public NativeLibVerifier nativeLibVerifier() {
+        return component.nativeLibVerifier();
     }
 
     private @NonNull List<CallTranslator<? extends AbstractCallAttempt<?>>> allCallTranslators() {

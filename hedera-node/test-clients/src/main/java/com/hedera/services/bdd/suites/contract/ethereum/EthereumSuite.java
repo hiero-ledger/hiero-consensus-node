@@ -92,6 +92,7 @@ import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
 import static org.hiero.base.utility.CommonUtils.unhex;
 import static org.hyperledger.besu.datatypes.Address.contractAddress;
 import static org.hyperledger.besu.datatypes.Address.fromHexString;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.esaulpaugh.headlong.abi.Address;
@@ -103,6 +104,8 @@ import com.hedera.node.app.hapi.utils.ethereum.EthTxData.EthTransactionType;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts;
+import com.hedera.services.bdd.spec.dsl.annotations.Contract;
+import com.hedera.services.bdd.spec.dsl.entities.SpecContract;
 import com.hedera.services.bdd.spec.keys.SigControl;
 import com.hedera.services.bdd.spec.queries.meta.HapiGetTxnRecord;
 import com.hedera.services.bdd.spec.transactions.TxnUtils;
@@ -1303,5 +1306,26 @@ public class EthereumSuite {
                         .gasLimit(2_000_000L * -1)
                         .via(PAY_TXN)
                         .hasPrecheck(INVALID_ETHEREUM_TRANSACTION));
+    }
+
+    // Ensuring that the BLS12 precompile is not working before the Pectra support
+    @HapiTest
+    final Stream<DynamicTest> tryBlsPrecompile(@Contract(contract = "PectraTest") SpecContract contract) {
+        return hapiTest(
+                newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
+                cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, ONE_HUNDRED_HBARS)),
+                contract.getInfo(),
+                cryptoCreate(RELAYER).balance(6 * ONE_MILLION_HBARS),
+                ethereumCall(contract.name(), "callBls12")
+                        .payingWith(RELAYER)
+                        .type(EthTransactionType.EIP1559)
+                        .via("bls12"),
+                getTxnRecord("bls12")
+                        .exposingTo(record -> assertArrayEquals(
+                                record.getContractCallResult()
+                                        .getContractCallResult()
+                                        .substring(32)
+                                        .toByteArray(),
+                                new byte[32])));
     }
 }
