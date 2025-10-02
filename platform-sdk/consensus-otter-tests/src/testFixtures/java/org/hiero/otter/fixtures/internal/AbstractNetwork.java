@@ -99,14 +99,14 @@ public abstract class AbstractNetwork implements Network {
     private static final Duration DEFAULT_TIMEOUT = Duration.ofMinutes(2L);
 
     private final Random random;
-    private final Map<NodeId, PartitionImpl> partitions = new HashMap<>();
+    private final Map<NodeId, PartitionImpl> networkPartitions = new HashMap<>();
     private final Topology topology;
 
     protected State state = State.INIT;
     protected WeightGenerator weightGenerator = WeightGenerators.GAUSSIAN;
 
     @Nullable
-    private PartitionImpl remainingPartition;
+    private PartitionImpl remainingNetworkPartition;
 
     private NodeId nextNodeId = NodeId.FIRST_NODE_ID;
 
@@ -290,7 +290,7 @@ public abstract class AbstractNetwork implements Network {
      */
     @Override
     @NonNull
-    public Partition createPartition(@NonNull final Collection<Node> partitionNodes) {
+    public Partition createNetworkPartition(@NonNull final Collection<Node> partitionNodes) {
         if (partitionNodes.isEmpty()) {
             throw new IllegalArgumentException("Cannot create a partition with no nodes.");
         }
@@ -300,18 +300,18 @@ public abstract class AbstractNetwork implements Network {
             throw new IllegalArgumentException("Cannot create a partition with all nodes.");
         }
         for (final Node node : partitionNodes) {
-            final PartitionImpl oldPartition = partitions.put(node.selfId(), partition);
+            final PartitionImpl oldPartition = networkPartitions.put(node.selfId(), partition);
             if (oldPartition != null) {
                 oldPartition.nodes.remove(node);
             }
         }
-        if (remainingPartition == null) {
+        if (remainingNetworkPartition == null) {
             final List<Node> remainingNodes = allNodes.stream()
                     .filter(node -> !partitionNodes.contains(node))
                     .toList();
-            remainingPartition = new PartitionImpl(remainingNodes);
+            remainingNetworkPartition = new PartitionImpl(remainingNodes);
             for (final Node node : remainingNodes) {
-                partitions.put(node.selfId(), remainingPartition);
+                networkPartitions.put(node.selfId(), remainingNetworkPartition);
             }
         }
         updateConnections();
@@ -323,19 +323,19 @@ public abstract class AbstractNetwork implements Network {
      */
     @Override
     public void removePartition(@NonNull final Partition partition) {
-        final Set<Partition> allPartitions = partitions();
+        final Set<Partition> allPartitions = networkPartitions();
         if (!allPartitions.contains(partition)) {
             throw new IllegalArgumentException("Partition does not exist in the network: " + partition);
         }
         if (allPartitions.size() == 2) {
             // If only two partitions exist, clear all
-            partitions.clear();
-            remainingPartition = null;
+            networkPartitions.clear();
+            remainingNetworkPartition = null;
         } else {
-            assert remainingPartition != null; // because there are at least 3 partitions
+            assert remainingNetworkPartition != null; // because there are at least 3 partitions
             for (final Node node : partition.nodes()) {
-                partitions.put(node.selfId(), remainingPartition);
-                remainingPartition.nodes.add(node);
+                networkPartitions.put(node.selfId(), remainingNetworkPartition);
+                remainingNetworkPartition.nodes.add(node);
             }
         }
         updateConnections();
@@ -346,8 +346,8 @@ public abstract class AbstractNetwork implements Network {
      */
     @Override
     @NonNull
-    public Set<Partition> partitions() {
-        return Set.copyOf(partitions.values());
+    public Set<Partition> networkPartitions() {
+        return Set.copyOf(networkPartitions.values());
     }
 
     /**
@@ -355,8 +355,8 @@ public abstract class AbstractNetwork implements Network {
      */
     @Override
     @Nullable
-    public Partition getPartitionContaining(@NonNull final Node node) {
-        return partitions.get(node.selfId());
+    public Partition getNetworkPartitionContaining(@NonNull final Node node) {
+        return networkPartitions.get(node.selfId());
     }
 
     /**
@@ -365,7 +365,7 @@ public abstract class AbstractNetwork implements Network {
     @Override
     @NonNull
     public Partition isolate(@NonNull final Node node) {
-        return createPartition(Set.of(node));
+        return createNetworkPartition(Set.of(node));
     }
 
     /**
@@ -373,7 +373,7 @@ public abstract class AbstractNetwork implements Network {
      */
     @Override
     public void rejoin(@NonNull final Node node) {
-        final Partition partition = partitions.get(node.selfId());
+        final Partition partition = networkPartitions.get(node.selfId());
         if (partition == null) {
             throw new IllegalArgumentException("Node is not isolated: " + node.selfId());
         }
@@ -385,7 +385,7 @@ public abstract class AbstractNetwork implements Network {
      */
     @Override
     public boolean isIsolated(@NonNull final Node node) {
-        final Partition partition = partitions.get(node.selfId());
+        final Partition partition = networkPartitions.get(node.selfId());
         return partition != null && partition.size() == 1;
     }
 
@@ -394,7 +394,7 @@ public abstract class AbstractNetwork implements Network {
      */
     @Override
     public void restoreConnectivity() {
-        partitions.clear();
+        networkPartitions.clear();
         updateConnections();
     }
 
@@ -414,11 +414,7 @@ public abstract class AbstractNetwork implements Network {
         final byte[] freezeTransaction = TransactionFactory.createFreezeTransaction(
                         random.nextLong(), timeManager().now().plus(FREEZE_DELAY))
                 .toByteArray();
-        nodes().stream()
-                .filter(Node::isActive)
-                .findFirst()
-                .orElseThrow(() -> new AssertionError("No active node found to send freeze transaction to."))
-                .submitTransaction(freezeTransaction);
+        submitTransaction(freezeTransaction);
 
         log.debug("Waiting for nodes to freeze...");
         timeManager()
@@ -428,6 +424,45 @@ public abstract class AbstractNetwork implements Network {
                         "Timeout while waiting for all nodes to freeze.");
 
         transactionGenerator().stop();
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void triggerIss(@NonNull final List<Partition> issPartitions) {
+        doTriggerIss(DEFAULT_TIMEOUT, issPartitions);
+    }
+
+    private void doTriggerIss(@NonNull final Duration timeout, @NonNull final List<Partition> issPartitions) {
+        throwIfInState(State.INIT, "Network has not been started yet.");
+        throwIfInState(State.SHUTDOWN, "Network has been shut down.");
+
+        log.info("Sending ISS triggering transaction...");
+        final byte[] issTransaction = TransactionFactory.createIssTransaction(random.nextLong(), issPartitions)
+                .toByteArray();
+        submitTransaction(issTransaction);
+
+        log.debug("Waiting for ISS to trigger...");
+        // TODO change the thing to wait for here
+        //        timeManager()
+        //                .waitForCondition(
+        //                        () -> allNodesInStatus(FREEZE_COMPLETE),
+        //                        timeout,
+        //                        "Timeout while waiting for all nodes to freeze.");
+    }
+
+    /**
+     * Submits the transaction to the first active node found in the network.
+     *
+     * @param transaction the transaction to submit
+     */
+    private void submitTransaction(@NonNull final byte[] transaction) {
+        nodes().stream()
+                .filter(Node::isActive)
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("No active node found to send transaction to."))
+                .submitTransaction(transaction);
     }
 
     /**
@@ -659,7 +694,7 @@ public abstract class AbstractNetwork implements Network {
                 }
                 final ConnectionKey key = new ConnectionKey(sender.selfId(), receiver.selfId());
                 ConnectionData connectionData = topology().getConnectionData(sender, receiver);
-                if (getPartitionContaining(sender) != getPartitionContaining(receiver)) {
+                if (getNetworkPartitionContaining(sender) != getNetworkPartitionContaining(receiver)) {
                     connectionData = connectionData.withConnected(false);
                 }
                 // add other effects (e.g., clique, latency) on connections here

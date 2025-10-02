@@ -437,7 +437,7 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
                 case LOG_ENTRY -> resultsCollector.addLogEntry(ProtobufConverter.toPlatform(event.getLogEntry()));
                 case PLATFORM_STATUS_CHANGE -> handlePlatformChange(event);
                 case CONSENSUS_ROUNDS ->
-                        resultsCollector.addConsensusRounds(ProtobufConverter.toPbj(event.getConsensusRounds()));
+                    resultsCollector.addConsensusRounds(ProtobufConverter.toPbj(event.getConsensusRounds()));
                 case MARKER_FILE_ADDED -> {
                     final ProtocolStringList markerFiles =
                             event.getMarkerFileAdded().getMarkerFileNameList();

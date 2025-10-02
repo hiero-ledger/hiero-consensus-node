@@ -12,6 +12,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Set;
 import org.hiero.consensus.model.status.PlatformStatus;
+import org.hiero.otter.fixtures.internal.PartitionImpl;
 import org.hiero.otter.fixtures.internal.helpers.Utils;
 import org.hiero.otter.fixtures.network.Partition;
 import org.hiero.otter.fixtures.network.Topology;
@@ -140,7 +141,7 @@ public interface Network {
      * @throws IllegalArgumentException if {@code nodes} is empty or contains all nodes in the network
      */
     @NonNull
-    Partition createPartition(@NonNull Collection<Node> nodes);
+    Partition createNetworkPartition(@NonNull Collection<Node> nodes);
 
     /**
      * Creates a network partition containing the specified nodes. Nodes within the partition remain connected to each
@@ -155,8 +156,8 @@ public interface Network {
      * @throws IllegalArgumentException if {@code nodes} is empty or contains all nodes in the network
      */
     @NonNull
-    default Partition createPartition(@NonNull final Node node0, @NonNull final Node... nodes) {
-        return createPartition(Utils.collect(node0, nodes));
+    default Partition createNetworkPartition(@NonNull final Node node0, @NonNull final Node... nodes) {
+        return createNetworkPartition(Utils.collect(node0, nodes));
     }
 
     /**
@@ -173,7 +174,7 @@ public interface Network {
      * @return set of all active partitions
      */
     @NonNull
-    Set<Partition> partitions();
+    Set<Partition> networkPartitions();
 
     /**
      * Gets the partition containing the specified node.
@@ -182,7 +183,7 @@ public interface Network {
      * @return the partition containing the node, or {@code null} if not in any partition
      */
     @Nullable
-    Partition getPartitionContaining(@NonNull Node node);
+    Partition getNetworkPartitionContaining(@NonNull Node node);
 
     /**
      * Isolates a node from the network. Disconnects all connections to and from this node.
@@ -278,6 +279,38 @@ public interface Network {
      * {@code FREEZE_COMPLETE} state. The default can be overridden by calling {@link #withTimeout(Duration)}.
      */
     void freeze();
+
+    /**
+     * Triggers an ISS. All nodes in a specified partition will calculate the same hash for an upcoming round, but
+     * different from other nodes. Nodes not specified in a partition are treated as being in a partition of their own.
+     * Each partition must contain at least one node, and at least one partition must be specified.
+     *
+     * @param issPartitions the list of partitions for the ISS.
+     */
+    void triggerIss(@NonNull final List<Partition> issPartitions);
+
+    /**
+     * Triggers a self-ISS for the specified node. The node will calculate a different hash from all other nodes for an
+     * upcoming round.
+     *
+     * @param node the node to trigger a self ISS for
+     */
+    default void triggerSingleNodeIss(@NonNull final Node node) {
+        final Partition singleNodePartition = new PartitionImpl(List.of(node));
+        triggerIss(List.of(singleNodePartition));
+    }
+
+    /**
+     * Triggers a catastrophic ISS. All nodes in the network will calculate different hashes for an upcoming round.
+     */
+    default void triggerCatastrophicIss() {
+        final List<Partition> partitions = nodes().stream()
+                .map(List::of)
+                .map(PartitionImpl::new)
+                .map(p -> (Partition) p)
+                .toList();
+        triggerIss(partitions);
+    }
 
     /**
      * Shuts down the network. The nodes are killed immediately. No attempt is made to finish any outstanding tasks or
