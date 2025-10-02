@@ -13,8 +13,8 @@ module com.hedera.node.app.service.token {
     requires transitive com.hedera.node.hapi;
     requires transitive com.hedera.pbj.runtime;
     requires transitive com.swirlds.config.api;
-    requires transitive org.apache.logging.log4j;
     requires transitive com.esaulpaugh.headlong;
+    requires transitive org.apache.logging.log4j;
     requires com.hedera.node.app.hapi.utils;
     requires com.swirlds.common;
     requires org.hiero.base.utility;
