@@ -45,6 +45,7 @@ import com.hedera.node.app.spi.throttle.Throttle;
 import com.hedera.node.app.state.recordcache.RecordCacheService;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.HederaConfig;
+import com.hedera.node.config.data.TssConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.context.PlatformContext;
@@ -132,7 +133,8 @@ class IngestComponentTest {
                 ForkJoinPool.commonPool(),
                 appContext,
                 new HintsLibraryImpl(),
-                DEFAULT_CONFIG.getConfigData(BlockStreamConfig.class).blockPeriod());
+                DEFAULT_CONFIG.getConfigData(BlockStreamConfig.class).blockPeriod(),
+                DEFAULT_CONFIG.getConfigData(TssConfig.class));
         final var historyService = new HistoryServiceImpl(
                 NO_OP_METRICS, ForkJoinPool.commonPool(), appContext, new HistoryLibraryImpl(), DEFAULT_CONFIG);
         app = DaggerHederaInjectionComponent.builder()
