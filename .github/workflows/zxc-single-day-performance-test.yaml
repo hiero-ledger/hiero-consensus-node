@@ -1218,7 +1218,6 @@ jobs:
           echo "### Single Day Performance Result" >> "${GITHUB_STEP_SUMMARY}"
           echo "result=${RESULT}" >> "${GITHUB_STEP_SUMMARY}"
 
-
   delete-namespace:
     name: Delete namespace
     runs-on: hiero-citr-linux-large
