@@ -22,7 +22,6 @@ on:
         default: "main"
         description: "Version of block-node: branch, tag, commit"
         type: string
-
       nlg-accounts: #'-R -c 32 -a 100000000 -T 1000 -n 100000 -S hot -p 50 -tt 1m
         required: true
         default: "100000"
