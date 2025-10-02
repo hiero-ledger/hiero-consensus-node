@@ -44,7 +44,6 @@ testIntegrationModuleInfo {
     requires("org.hiero.otter.fixtures")
     requires("org.assertj.core")
     requires("com.github.spotbugs.annotations")
-    requires("org.slf4j")
     runtimeOnly("io.grpc.netty.shaded")
 }
 
