@@ -9,6 +9,7 @@ import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.proxyUpdaterFor;
 import static com.hedera.node.app.service.contract.impl.utils.SynthTxnUtils.hasNonDegenerateAutoRenewAccountId;
 import static com.hedera.node.app.service.token.AliasUtils.extractEvmAddress;
+import static java.math.BigInteger.ZERO;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.base.utility.CommonUtils.unhex;
 
@@ -139,6 +140,24 @@ public class ConversionUtils {
             return 0L;
         }
         return value.longValueExact();
+    }
+
+    /**
+     * Given a {@link BigInteger} representing 'uint' value.
+     * Returns either:
+     * <br>
+     * - its long value
+     * <br>
+     * - ZERO if it is less than ZERO
+     * <br>
+     * - MAX_LONG_VALUE if it is more than MAX_LONG_VALUE
+     *
+     * @param value the {@link BigInteger}
+     * @return long value
+     */
+    public static long asLongLimitedToZeroOrMax(@NonNull final BigInteger value) {
+        requireNonNull(value);
+        return ZERO.max(MAX_LONG_VALUE.min(value)).longValueExact();
     }
 
     /**
