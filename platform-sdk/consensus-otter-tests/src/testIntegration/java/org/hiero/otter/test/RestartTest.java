@@ -20,6 +20,10 @@ import org.hiero.otter.fixtures.TimeManager;
 import org.hiero.otter.fixtures.result.MultipleNodePlatformStatusResults;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
 
+/**
+ * Tests that a hard restart of all nodes in the network works correctly, and that all nodes are able to restart, replay
+ * their PCES events, go ACTIVE, and continue reaching consensus.
+ */
 public class RestartTest {
 
     /**
@@ -45,7 +49,7 @@ public class RestartTest {
         // Allow the nodes to run for a short time
         timeManager.waitFor(Duration.ofSeconds(10L));
 
-        // Hard restart all the nodes
+        // Restart all the nodes
         network.shutdown();
 
         // Verify that the node was healthy prior to being killed

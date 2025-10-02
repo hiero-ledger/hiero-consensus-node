@@ -22,9 +22,6 @@ import org.hiero.otter.fixtures.OtterTest;
 import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.TimeManager;
 import org.hiero.otter.fixtures.result.SingleNodePlatformStatusResult;
-import org.hiero.otter.fixtures.result.SingleNodeReconnectResult;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * Tests the reconnect functionality of a node that has fallen behind in the consensus rounds. The test ensures that the
@@ -32,9 +29,6 @@ import org.slf4j.LoggerFactory;
  */
 public class ReconnectTest {
 
-    private static final Logger log = LoggerFactory.getLogger(ReconnectTest.class);
-
-    //    private static final long ROUNDS_NON_ANCIENT = 26L;
     private static final long ROUNDS_EXPIRED = 100L;
 
     /**
@@ -55,7 +49,6 @@ public class ReconnectTest {
         network.addNodes(4);
 
         // Set the rounds non-ancient and expired to smaller values to allow nodes to fall behind quickly
-        //        network.withConfigValue(ConsensusConfig_.ROUNDS_NON_ANCIENT, ROUNDS_NON_ANCIENT)
         network.withConfigValue(ConsensusConfig_.ROUNDS_EXPIRED, ROUNDS_EXPIRED);
 
         // Set the node we will force to reconnect
@@ -103,9 +96,7 @@ public class ReconnectTest {
         // Validations
         assertThat(network.newLogResults()).haveNoErrorLevelMessages();
 
-        final SingleNodeReconnectResult nodeToReconnectResult = nodeToReconnect.newReconnectResult();
-        assertThat(nodeToReconnectResult).hasExactSuccessfulReconnects(1);
-        nodeToReconnectResult.getSynchronizationCompletePayloads().forEach(p -> log.info(p.toString()));
+        assertThat(nodeToReconnect.newReconnectResult()).hasExactSuccessfulReconnects(1);
 
         assertThat(network.newConsensusResults().suppressingNode(nodeToReconnect))
                 .haveConsistentRounds();
