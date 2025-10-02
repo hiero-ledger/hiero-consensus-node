@@ -6,33 +6,39 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.swirlds.common.context.PlatformContext;
+import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.event.ConsensusEvent;
 import org.hiero.consensus.model.event.Event;
 import org.hiero.consensus.model.hashgraph.Round;
 import org.hiero.consensus.model.roster.AddressBook;
 import org.hiero.consensus.model.transaction.ConsensusTransaction;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
+import org.hiero.consensus.model.transaction.Transaction;
 import org.hiero.otter.fixtures.app.services.consistency.ConsistencyService;
 import org.hiero.otter.fixtures.app.services.platform.PlatformStateService;
 import org.hiero.otter.fixtures.app.services.roster.RosterService;
 import org.hiero.otter.fixtures.app.state.OtterStateInitializer;
 
 /**
- * The main entry point for the Otter application. This class is instantiated by the platform when the
- * application is started. It creates the services that make up the application and routes events and rounds
- * to those services.
+ * The main entry point for the Otter application. This class is instantiated by the platform when the application is
+ * started. It creates the services that make up the application and routes events and rounds to those services.
  */
 @SuppressWarnings("removal")
 public class OtterApp implements ConsensusStateEventHandler<OtterAppState> {
+
+    private static final Logger log = LogManager.getLogger();
 
     public static final String APP_NAME = "org.hiero.otter.fixtures.app.OtterApp";
     public static final String SWIRLD_NAME = "123";
@@ -91,7 +97,24 @@ public class OtterApp implements ConsensusStateEventHandler<OtterAppState> {
             @NonNull final Event event,
             @NonNull final OtterAppState state,
             @NonNull final Consumer<ScopedSystemTransaction<StateSignatureTransaction>> callback) {
-        consistencyService.recordPreHandleTransactions(event);
+        for (final OtterService service : allServices) {
+            service.preHandleEvent(event);
+        }
+        final Iterator<Transaction> transactionIterator = event.transactionIterator();
+        while (transactionIterator.hasNext()) {
+            try {
+                final OtterTransaction transaction = OtterTransaction.parseFrom(
+                        transactionIterator.next().getApplicationTransaction().toInputStream());
+                for (final OtterService service : allServices) {
+                    service.preHandleTransaction(event, transaction, callback);
+                }
+            } catch (final IOException ex) {
+                log.error(
+                        "Unable to parse OtterTransaction created by node {}",
+                        event.getCreatorId().id(),
+                        ex);
+            }
+        }
     }
 
     /**
@@ -103,22 +126,39 @@ public class OtterApp implements ConsensusStateEventHandler<OtterAppState> {
             @NonNull final OtterAppState state,
             @NonNull final Consumer<ScopedSystemTransaction<StateSignatureTransaction>> callback) {
         for (final OtterService service : allServices) {
-            service.onRound(state.getWritableStates(service.name()), round);
+            service.onRoundStart(state.getWritableStates(service.name()), round);
         }
 
         for (final ConsensusEvent consensusEvent : round) {
             for (final OtterService service : allServices) {
-                service.onEvent(state.getWritableStates(service.name()), consensusEvent);
+                service.onEventStart(state.getWritableStates(service.name()), consensusEvent);
             }
-            for (final Iterator<ConsensusTransaction> transactionIterator =
-                            consensusEvent.consensusTransactionIterator();
-                    transactionIterator.hasNext(); ) {
-                final ConsensusTransaction transaction = transactionIterator.next();
-                for (final OtterService service : allServices) {
-                    service.onTransaction(
-                            state.getWritableStates(service.name()), consensusEvent, transaction, callback);
+            final Iterator<ConsensusTransaction> transactionIterator = consensusEvent.consensusTransactionIterator();
+            while (transactionIterator.hasNext()) {
+                try {
+                    final OtterTransaction transaction = OtterTransaction.parseFrom(transactionIterator
+                            .next()
+                            .getApplicationTransaction()
+                            .toInputStream());
+                    for (final OtterService service : allServices) {
+                        service.handleTransaction(
+                                state.getWritableStates(service.name()), consensusEvent, transaction, callback);
+                    }
+                } catch (final IOException ex) {
+                    log.error(
+                            "Unable to parse OtterTransaction created by node {}",
+                            consensusEvent.getCreatorId().id(),
+                            ex);
                 }
             }
+
+            for (final OtterService service : allServices) {
+                service.onEventComplete(consensusEvent);
+            }
+        }
+
+        for (final OtterService service : allServices) {
+            service.onRoundComplete(round);
         }
 
         state.commitState();
@@ -158,12 +198,14 @@ public class OtterApp implements ConsensusStateEventHandler<OtterAppState> {
             @NonNull final Platform platform,
             @NonNull final InitTrigger trigger,
             @Nullable final SemanticVersion previousVersion) {
+        final Configuration configuration = platform.getContext().getConfiguration();
         if (state.getReadableStates(ConsistencyService.NAME).isEmpty()) {
-            OtterStateInitializer.initOtterAppState(
-                    platform.getContext().getConfiguration(), state, version, appServices);
+            OtterStateInitializer.initOtterAppState(configuration, state, version, appServices);
         }
 
-        consistencyService.initialize();
+        for (final OtterService service : allServices) {
+            service.initialize(trigger, platform.getSelfId(), configuration, state);
+        }
     }
 
     /**
@@ -192,5 +234,11 @@ public class OtterApp implements ConsensusStateEventHandler<OtterAppState> {
      */
     public void updateSyntheticBottleneck(final long millisToSleepPerRound) {
         this.syntheticBottleneckMillis.set(millisToSleepPerRound);
+    }
+
+    public void destroy() {
+        for (final OtterService service : allServices) {
+            service.destroy();
+        }
     }
 }

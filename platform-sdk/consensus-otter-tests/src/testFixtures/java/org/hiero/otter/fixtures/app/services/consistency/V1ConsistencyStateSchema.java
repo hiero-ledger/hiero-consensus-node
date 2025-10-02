@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.app.services.consistency;
 
+import static com.hedera.hapi.util.HapiUtils.SEMANTIC_VERSION_COMPARATOR;
 import static org.hiero.otter.fixtures.app.state.OtterStateId.CONSISTENCY_SINGLETON_STATE_ID;
 
 import com.hedera.hapi.node.base.SemanticVersion;
@@ -15,7 +16,7 @@ import org.hiero.otter.fixtures.app.model.ConsistencyState;
 /**
  * Genesis schema for the Consistency service
  */
-public class V1ConsistencyStateSchema extends Schema {
+public class V1ConsistencyStateSchema extends Schema<SemanticVersion> {
 
     private static final int STATE_ID = CONSISTENCY_SINGLETON_STATE_ID.id();
     private static final String STATE_KEY = "CONSISTENCY_STATE_KEY";
@@ -26,7 +27,7 @@ public class V1ConsistencyStateSchema extends Schema {
      * @param version the current software version
      */
     public V1ConsistencyStateSchema(@NonNull final SemanticVersion version) {
-        super(version);
+        super(version, SEMANTIC_VERSION_COMPARATOR);
     }
 
     /**

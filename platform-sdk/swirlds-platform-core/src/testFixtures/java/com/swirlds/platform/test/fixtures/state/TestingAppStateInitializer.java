@@ -86,7 +86,9 @@ public class TestingAppStateInitializer {
     }
 
     private static void registerConstructablesForSchema(
-            @NonNull final ConstructableRegistry registry, @NonNull final Schema schema, @NonNull final String name) {
+            @NonNull final ConstructableRegistry registry,
+            @NonNull final Schema<SemanticVersion> schema,
+            @NonNull final String name) {
         schema.statesToCreate().stream()
                 .sorted(Comparator.comparing(StateDefinition::stateKey))
                 .forEach(def -> registerWithSystem(new StateMetadata<>(name, schema, def), registry));

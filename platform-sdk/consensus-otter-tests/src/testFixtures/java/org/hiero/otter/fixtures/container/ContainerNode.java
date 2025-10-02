@@ -5,7 +5,10 @@ import static com.swirlds.platform.event.preconsensus.PcesUtilities.getDatabaseD
 import static java.util.Objects.requireNonNull;
 import static org.hiero.otter.fixtures.container.utils.ContainerConstants.CONTAINER_APP_WORKING_DIR;
 import static org.hiero.otter.fixtures.container.utils.ContainerConstants.CONTAINER_CONTROL_PORT;
+import static org.hiero.otter.fixtures.container.utils.ContainerConstants.HASHSTREAM_LOG_PATH;
+import static org.hiero.otter.fixtures.container.utils.ContainerConstants.METRICS_PATH;
 import static org.hiero.otter.fixtures.container.utils.ContainerConstants.NODE_COMMUNICATION_PORT;
+import static org.hiero.otter.fixtures.container.utils.ContainerConstants.SWIRLDS_LOG_PATH;
 import static org.hiero.otter.fixtures.internal.AbstractNetwork.NODE_IDENTIFIER_FORMAT;
 import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.DESTROYED;
 import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.INIT;
@@ -15,6 +18,7 @@ import static org.junit.jupiter.api.Assertions.fail;
 
 import com.google.protobuf.ByteString;
 import com.google.protobuf.ProtocolStringList;
+import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import io.grpc.ManagedChannel;
@@ -38,6 +42,7 @@ import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.otter.fixtures.KeysAndCertsConverter;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.ProtobufConverter;
+import org.hiero.otter.fixtures.app.services.consistency.ConsistencyServiceConfig;
 import org.hiero.otter.fixtures.container.proto.ContainerControlServiceGrpc;
 import org.hiero.otter.fixtures.container.proto.EventMessage;
 import org.hiero.otter.fixtures.container.proto.InitRequest;
@@ -212,6 +217,8 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
             final KillImmediatelyRequest request = KillImmediatelyRequest.getDefaultInstance();
             // Unary call – will throw if server returns an error.
             containerControlBlockingStub.withDeadlineAfter(timeout).killImmediately(request);
+
+            log.info("Node {} has been killed", selfId);
         } catch (final Exception e) {
             fail("Failed to kill node %d immediately".formatted(selfId.id()), e);
         }
@@ -370,17 +377,12 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
     void destroy() {
         try {
             // copy logs from container to the local filesystem
-            final Path logPath = Path.of("build", "container", NODE_IDENTIFIER_FORMAT.formatted(selfId.id()), "output");
-            Files.createDirectories(logPath.resolve("swirlds-hashstream"));
-
-            container.copyFileFromContainer(
-                    CONTAINER_APP_WORKING_DIR + "/output/swirlds.log",
-                    logPath.resolve("swirlds.log").toString());
-            container.copyFileFromContainer(
-                    CONTAINER_APP_WORKING_DIR + "/output/swirlds-hashstream/swirlds-hashstream.log",
-                    logPath.resolve("swirlds-hashstream/swirlds-hashstream.log").toString());
+            final Path localOutputDirectory =
+                    Path.of("build", "container", NODE_IDENTIFIER_FORMAT.formatted(selfId.id()));
+            downloadConsensusFiles(localOutputDirectory);
+            downloadConsistencyServiceFiles(localOutputDirectory);
         } catch (final IOException e) {
-            throw new UncheckedIOException("Failed to copy logs from container", e);
+            throw new UncheckedIOException("Failed to copy files from container", e);
         }
 
         if (lifeCycle == RUNNING) {
@@ -392,6 +394,41 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
         resultsCollector.destroy();
         platformStatus = null;
         lifeCycle = DESTROYED;
+    }
+
+    private void downloadConsensusFiles(@NonNull final Path localOutputDirectory) throws IOException {
+        Files.createDirectories(localOutputDirectory.resolve("output/swirlds-hashstream"));
+        Files.createDirectories(localOutputDirectory.resolve("data/stats"));
+
+        container.copyFileFromContainer(
+                CONTAINER_APP_WORKING_DIR + SWIRLDS_LOG_PATH,
+                localOutputDirectory.resolve(SWIRLDS_LOG_PATH).toString());
+        container.copyFileFromContainer(
+                CONTAINER_APP_WORKING_DIR + HASHSTREAM_LOG_PATH,
+                localOutputDirectory.resolve(HASHSTREAM_LOG_PATH).toString());
+        container.copyFileFromContainer(
+                CONTAINER_APP_WORKING_DIR + METRICS_PATH.formatted(selfId.id()),
+                localOutputDirectory
+                        .resolve(METRICS_PATH.formatted(selfId.id()))
+                        .toString());
+    }
+
+    private void downloadConsistencyServiceFiles(@NonNull final Path localOutputDirectory) {
+        final StateCommonConfig stateConfig = nodeConfiguration.current().getConfigData(StateCommonConfig.class);
+        final ConsistencyServiceConfig consistencyServiceConfig =
+                nodeConfiguration.current().getConfigData(ConsistencyServiceConfig.class);
+
+        final Path historyFileDirectory = stateConfig
+                .savedStateDirectory()
+                .resolve(consistencyServiceConfig.historyFileDirectory())
+                .resolve(Long.toString(selfId.id()));
+
+        final Path historyFilePath = historyFileDirectory.resolve(consistencyServiceConfig.historyFileName());
+        container.copyFileFromContainer(
+                CONTAINER_APP_WORKING_DIR + historyFilePath,
+                localOutputDirectory
+                        .resolve(consistencyServiceConfig.historyFileName())
+                        .toString());
     }
 
     /**

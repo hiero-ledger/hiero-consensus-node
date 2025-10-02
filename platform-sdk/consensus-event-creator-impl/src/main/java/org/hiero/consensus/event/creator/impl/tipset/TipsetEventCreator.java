@@ -88,6 +88,16 @@ public class TipsetEventCreator implements EventCreator {
     private final PbjStreamHasher eventHasher;
 
     /**
+     * Current QuiescenceCommand of the system
+     */
+    private QuiescenceCommand quiescenceCommand = QuiescenceCommand.DONT_QUIESCE;
+
+    /**
+     * We want to allow creation of only one event to break quiescence until normal events starts flowing through
+     */
+    private boolean breakQuiescenceEventCreated;
+
+    /**
      * Create a new tipset event creator.
      *
      * @param configuration       the configuration for the event creator
@@ -181,7 +191,7 @@ public class TipsetEventCreator implements EventCreator {
 
     @Override
     public void quiescenceCommand(@NonNull final QuiescenceCommand quiescenceCommand) {
-        throw new UnsupportedOperationException("Quiescence is not yet implemented");
+        this.quiescenceCommand = Objects.requireNonNull(quiescenceCommand);
     }
 
     /**
@@ -190,12 +200,30 @@ public class TipsetEventCreator implements EventCreator {
     @Nullable
     @Override
     public PlatformEvent maybeCreateEvent() {
-        final UnsignedEvent event = maybeCreateUnsignedEvent();
+        if (quiescenceCommand == QuiescenceCommand.QUIESCE) {
+            return null;
+        }
+        UnsignedEvent event = maybeCreateUnsignedEvent();
+        if (event != null) {
+            breakQuiescenceEventCreated = false;
+        } else if (quiescenceCommand == QuiescenceCommand.BREAK_QUIESCENCE && !breakQuiescenceEventCreated) {
+            event = createQuiescenceBreakEvent();
+            breakQuiescenceEventCreated = true;
+        }
         if (event != null) {
             lastSelfEvent = signEvent(event);
             return lastSelfEvent;
         }
         return null;
+    }
+
+    /**
+     * For simplicity, we will always create an event based only on single self parent; this is a special rare case
+     * and it will unblock the network
+     * @return new event based only on self parent
+     */
+    private UnsignedEvent createQuiescenceBreakEvent() {
+        return buildAndProcessEvent(null);
     }
 
     @Nullable
@@ -480,8 +508,7 @@ public class TipsetEventCreator implements EventCreator {
     @FunctionalInterface
     public interface HashSigner {
         /**
-         * @param hash
-         * 		the hash to sign
+         * @param hash the hash to sign
          * @return the signature for the hash provided
          */
         Signature sign(Hash hash);

@@ -18,6 +18,7 @@ import com.swirlds.metrics.api.Metrics;
 import java.time.Duration;
 import java.util.List;
 import org.hiero.consensus.model.event.PlatformEvent;
+import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.model.test.fixtures.hashgraph.EventWindowBuilder;
 import org.junit.jupiter.api.BeforeEach;
@@ -87,6 +88,50 @@ class EventCreatorTests {
         time.tick(Duration.ofSeconds(1));
 
         manager.updatePlatformStatus(PlatformStatus.ACTIVE);
+        final PlatformEvent e1 = manager.maybeCreateEvent();
+        assertNotNull(e1);
+        verify(creator, times(2)).maybeCreateEvent();
+        assertSame(eventsToCreate.get(1), e1);
+    }
+
+    @Test
+    void quiescencePreventsCreation() {
+        final PlatformEvent e0 = manager.maybeCreateEvent();
+        verify(creator, times(1)).maybeCreateEvent();
+        assertNotNull(e0);
+        assertSame(eventsToCreate.getFirst(), e0);
+
+        time.tick(Duration.ofSeconds(1));
+
+        manager.quiescenceCommand(QuiescenceCommand.QUIESCE);
+        assertNull(manager.maybeCreateEvent());
+        verify(creator, times(1)).maybeCreateEvent();
+
+        time.tick(Duration.ofSeconds(1));
+
+        manager.quiescenceCommand(QuiescenceCommand.DONT_QUIESCE);
+        final PlatformEvent e1 = manager.maybeCreateEvent();
+        assertNotNull(e1);
+        verify(creator, times(2)).maybeCreateEvent();
+        assertSame(eventsToCreate.get(1), e1);
+    }
+
+    @Test
+    void breakQuiescenceAllowsCreation() {
+        final PlatformEvent e0 = manager.maybeCreateEvent();
+        verify(creator, times(1)).maybeCreateEvent();
+        assertNotNull(e0);
+        assertSame(eventsToCreate.getFirst(), e0);
+
+        time.tick(Duration.ofSeconds(1));
+
+        manager.quiescenceCommand(QuiescenceCommand.QUIESCE);
+        assertNull(manager.maybeCreateEvent());
+        verify(creator, times(1)).maybeCreateEvent();
+
+        time.tick(Duration.ofSeconds(1));
+
+        manager.quiescenceCommand(QuiescenceCommand.BREAK_QUIESCENCE);
         final PlatformEvent e1 = manager.maybeCreateEvent();
         assertNotNull(e1);
         verify(creator, times(2)).maybeCreateEvent();
