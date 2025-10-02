@@ -30,6 +30,7 @@ public class BlockContentsValidator implements BlockStreamValidator {
         final var validator = new BlockContentsValidator();
         final var blocks =
                 BlockStreamAccess.BLOCK_STREAM_ACCESS.readBlocks(node0Dir.resolve("data/blockStreams/block-11.12.3"));
+
         validator.validateBlocks(blocks);
     }
 

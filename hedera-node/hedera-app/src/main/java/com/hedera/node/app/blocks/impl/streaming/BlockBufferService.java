@@ -19,6 +19,8 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -316,10 +318,9 @@ public class BlockBufferService {
         }
 
         final BlockState existingBlock = blockBuffer.get(blockNumber);
-        if (existingBlock != null && existingBlock.isBlockProofSent()) {
-            logger.error("Attempted to open block {}, but this block already has the block proof sent", blockNumber);
-            throw new IllegalStateException("Attempted to open block " + blockNumber + ", but this block already has "
-                    + "the block proof sent");
+        if (existingBlock != null && existingBlock.isClosed()) {
+            logger.debug("Block {} is already open and its closed; ignoring open request", blockNumber);
+            return;
         }
 
         // Create a new block state
@@ -350,6 +351,9 @@ public class BlockBufferService {
         if (blockState == null) {
             throw new IllegalStateException("Block state not found for block " + blockNumber);
         }
+        if (blockState.isClosed()) {
+            return;
+        }
         blockState.addItem(blockItem);
     }
 
@@ -368,6 +372,9 @@ public class BlockBufferService {
             throw new IllegalStateException("Block state not found for block " + blockNumber);
         }
 
+        if (blockState.isClosed()) {
+            return;
+        }
         blockStreamMetrics.recordBlockClosed();
         blockState.closeBlock();
     }
@@ -509,6 +516,8 @@ public class BlockBufferService {
 
             final Timestamp closedTimestamp = bufferedBlock.closedTimestamp();
             final Instant closedInstant = Instant.ofEpochSecond(closedTimestamp.seconds(), closedTimestamp.nanos());
+            logger.debug(
+                    "Reconstructed block {} from disk and closed at {}", bufferedBlock.blockNumber(), closedInstant);
             block.closeBlock(closedInstant);
 
             if (bufferedBlock.isAcknowledged()) {
@@ -699,15 +708,17 @@ public class BlockBufferService {
         final PruneResult previousPruneResult = lastPruningResult;
         lastPruningResult = pruningResult;
 
-        logger.debug(
-                "Block buffer status: idealMaxBufferSize={}, blocksChecked={}, blocksPruned={}, blocksPendingAck={}, blockRange=[{}, {}], saturation={}%",
-                pruningResult.idealMaxBufferSize,
-                pruningResult.numBlocksChecked,
-                pruningResult.numBlocksPruned,
-                pruningResult.numBlocksPendingAck,
-                pruningResult.oldestBlockNumber == -1 ? "-" : pruningResult.oldestBlockNumber,
-                pruningResult.newestBlockNumber == -1 ? "-" : pruningResult.newestBlockNumber,
-                pruningResult.saturationPercent);
+        // create a list of ranges of continguous blocks in the buffer
+        if (logger.isDebugEnabled()) {
+            logger.debug(
+                    "Block buffer status: idealMaxBufferSize={}, blocksChecked={}, blocksPruned={}, blocksPendingAck={}, blockRange={}, saturation={}%",
+                    pruningResult.idealMaxBufferSize,
+                    pruningResult.numBlocksChecked,
+                    pruningResult.numBlocksPruned,
+                    pruningResult.numBlocksPendingAck,
+                    getContiguousRangesAsString(),
+                    pruningResult.saturationPercent);
+        }
 
         blockStreamMetrics.recordBufferSaturation(pruningResult.saturationPercent);
 
@@ -810,6 +821,41 @@ public class BlockBufferService {
         if (awaitingRecovery && !pruningResult.isSaturated) {
             disableBackPressureIfRecovered(pruningResult);
         }
+    }
+
+    public String getContiguousRangesAsString() {
+        // Collect and sort keys
+        List<Long> keys = new ArrayList<>(blockBuffer.keySet());
+        Collections.sort(keys);
+
+        if (keys.isEmpty()) {
+            return "[]";
+        }
+
+        List<String> ranges = new ArrayList<>();
+        long start = keys.get(0);
+        long prev = start;
+
+        for (int i = 1; i < keys.size(); i++) {
+            long current = keys.get(i);
+            if (current == prev + 1) {
+                // Still contiguous
+                prev = current;
+            } else {
+                // Close previous range
+                ranges.add(formatRange(start, prev));
+                start = current;
+                prev = current;
+            }
+        }
+        // Add last range
+        ranges.add(formatRange(start, prev));
+
+        return "[" + String.join(",", ranges) + "]";
+    }
+
+    private String formatRange(long start, long end) {
+        return start == end ? "(" + start + ")" : "(" + start + "-" + end + ")";
     }
 
     /**
