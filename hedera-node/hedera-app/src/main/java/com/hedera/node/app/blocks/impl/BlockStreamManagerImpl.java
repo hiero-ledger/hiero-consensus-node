@@ -92,7 +92,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.concurrent.AbstractTask;
 import org.hiero.base.crypto.Hash;
-import org.hiero.base.exceptions.NotImplementedException;
 import org.hiero.consensus.model.hashgraph.Round;
 
 @Singleton
@@ -492,7 +491,8 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                     .build();
 
             // Write BlockFooter to block stream (last item before BlockProof)
-            final var footerItem = BlockItem.newBuilder().blockFooter(blockFooter).build();
+            final var footerItem =
+                    BlockItem.newBuilder().blockFooter(blockFooter).build();
             worker.addItem(footerItem);
             worker.sync();
 

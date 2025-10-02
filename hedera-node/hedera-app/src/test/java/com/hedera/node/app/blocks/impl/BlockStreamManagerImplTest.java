@@ -35,7 +35,6 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.withSettings;
 
 import com.hedera.hapi.block.stream.BlockItem;
-import com.hedera.hapi.block.stream.RecordFileItem;
 import com.hedera.hapi.block.stream.output.BlockHeader;
 import com.hedera.hapi.block.stream.output.StateChanges;
 import com.hedera.hapi.block.stream.output.TransactionResult;
@@ -116,7 +115,7 @@ class BlockStreamManagerImplTest {
     private static final BlockItem FAKE_STATE_CHANGES = BlockItem.newBuilder()
             .stateChanges(StateChanges.newBuilder().consensusTimestamp(CONSENSUS_THEN))
             .build();
-	// TODO: remove, or replace with wrapped record file item
+    // TODO: remove, or replace with wrapped record file item
     private static final BlockItem FAKE_RECORD_FILE_ITEM = null;
     private final InitialStateHash hashInfo = new InitialStateHash(completedFuture(ZERO_BLOCK_HASH), 0);
 
@@ -537,8 +536,7 @@ class BlockStreamManagerImplTest {
         subject.writeItem(FAKE_TRANSACTION_RESULT);
         assertEquals(Bytes.fromHex("bb".repeat(48)), subject.prngSeed());
         subject.writeItem(FAKE_STATE_CHANGES);
-        for (int i = 0; i < 8; i++) {
-            }
+        for (int i = 0; i < 8; i++) {}
 
         // Immediately resolve to the expected ledger signature
         given(blockHashSigner.signFuture(any())).willReturn(mockSigningFuture);
@@ -929,11 +927,7 @@ class BlockStreamManagerImplTest {
     void writesBlockFooterBeforeBlockProof() {
         // Given a manager with a single round per block
         givenSubjectWith(
-                1,
-                0,
-                blockStreamInfoWith(Bytes.EMPTY, CREATION_VERSION),
-                platformStateWithFreezeTime(null),
-                aWriter);
+                1, 0, blockStreamInfoWith(Bytes.EMPTY, CREATION_VERSION), platformStateWithFreezeTime(null), aWriter);
         givenEndOfRoundSetup();
 
         final AtomicReference<BlockItem> footerItem = new AtomicReference<>();
@@ -1002,11 +996,7 @@ class BlockStreamManagerImplTest {
     void blockFooterContainsCorrectHashValues() {
         // Given a manager with a single round per block
         givenSubjectWith(
-                1,
-                0,
-                blockStreamInfoWith(Bytes.EMPTY, CREATION_VERSION),
-                platformStateWithFreezeTime(null),
-                aWriter);
+                1, 0, blockStreamInfoWith(Bytes.EMPTY, CREATION_VERSION), platformStateWithFreezeTime(null), aWriter);
         givenEndOfRoundSetup();
 
         final AtomicReference<BlockItem> footerItem = new AtomicReference<>();
@@ -1138,11 +1128,7 @@ class BlockStreamManagerImplTest {
     void blockFooterNotWrittenWhenBlockNotClosed() {
         // Given a manager with 2 rounds per block
         givenSubjectWith(
-                2,
-                0,
-                blockStreamInfoWith(Bytes.EMPTY, CREATION_VERSION),
-                platformStateWithFreezeTime(null),
-                aWriter);
+                2, 0, blockStreamInfoWith(Bytes.EMPTY, CREATION_VERSION), platformStateWithFreezeTime(null), aWriter);
         givenEndOfRoundSetup();
 
         final AtomicBoolean footerWritten = new AtomicBoolean(false);
