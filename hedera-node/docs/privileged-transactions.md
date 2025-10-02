@@ -31,7 +31,7 @@ For the purposes of this document, we care about the the following:
  - The **system admin**, used primarily to manage the keys of the above admin accounts;
  or substitute for them in circumstances where they have been compromised or rendered
  unusable.
- - The **software update admin**, responsible for managing the contents of the software update file (`0.0.150`). Updating `0.0.150` does not update the network code; the network code is only updated by a freeze transaction signed by `0.0.58` (the freeze admin), and the update will not occur unless the hash in that transaction matches the hash of the file at `0.0.150`.
+ - The **software update admin**, responsible for managing the contents of the software update file (`0.0.150`). Updating `0.0.150` itself does not update the network code; the network code is only updated by executing a successful freeze/upgrade process, initiated and signed by `0.0.58` (the freeze admin). Note that this update will not occur unless the hash in the freeze/upgrade transaction(s) matches the hash of the file stored in `0.0.150` at time of the freeze/upgrade submission.
 
 The account number that plays each role is set, once, on network startup, by consulting
 the [_bootstrap.properties_](../hedera-node/src/main/resources/bootstrap.properties) 
