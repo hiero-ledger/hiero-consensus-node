@@ -181,6 +181,8 @@ jobs:
 
       - name: Check for namespace collision
         run: |
+          set +e
+          set +x
           NETWORK_ID="$(echo "${{ steps.set-namespace.outputs.namespace }}" | perl -pne '~s/^.*[^\d](\d+)$/$1/g')"
 
           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt get namespaces | grep -E "solo-.*t-n${NETWORK_ID}"
