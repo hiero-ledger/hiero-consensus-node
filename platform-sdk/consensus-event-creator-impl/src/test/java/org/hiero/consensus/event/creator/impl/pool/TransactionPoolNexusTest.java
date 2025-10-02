@@ -6,10 +6,14 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.common.test.fixtures.Randotron;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
+import org.hiero.base.utility.ByteUtils;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.model.transaction.TimestampedTransaction;
 import org.hiero.consensus.transaction.TransactionLimits;
@@ -27,11 +31,13 @@ class TransactionPoolNexusTest {
     static final int TX_QUEUE_SIZE = 100_000;
 
     TransactionPoolNexus nexus;
+    FakeTime fakeTime;
 
     @BeforeEach
     public void beforeEach() {
+        fakeTime = new FakeTime();
         final TransactionLimits txConfig = new TransactionLimits(TX_MAX_BYTES, MAX_TX_BYTES_PER_EVENT);
-        nexus = new TransactionPoolNexus(txConfig, TX_QUEUE_SIZE, new NoOpMetrics(), Time.getCurrent());
+        nexus = new TransactionPoolNexus(txConfig, TX_QUEUE_SIZE, new NoOpMetrics(), fakeTime);
         nexus.updatePlatformStatus(PlatformStatus.ACTIVE);
     }
 
@@ -97,5 +103,62 @@ class TransactionPoolNexusTest {
         final List<TimestampedTransaction> thirdBatch = nexus.getTransactionsForEvent();
         assertNotNull(thirdBatch);
         assertTrue(thirdBatch.isEmpty());
+    }
+
+    @Test
+    void testTransactionTimestamps() {
+        nexus.updatePlatformStatus(PlatformStatus.ACTIVE);
+
+        // Record the initial time and advance it slightly to establish baseline
+        final Instant initialTime = fakeTime.now();
+        fakeTime.tick(Duration.ofMillis(10));
+
+        // Submit first transaction
+        final Instant firstTxTime = fakeTime.now();
+        final Bytes firstTx = Bytes.wrap(ByteUtils.intToByteArray(1));
+        assertTrue(nexus.submitApplicationTransaction(firstTx));
+
+        // Advance time before submitting second transaction
+        fakeTime.tick(Duration.ofMillis(100));
+        final Instant secondTxTime = fakeTime.now();
+        final Bytes secondTx = Bytes.wrap(ByteUtils.intToByteArray(2));
+        assertTrue(nexus.submitApplicationTransaction(secondTx));
+
+        // Advance time again before third transaction
+        fakeTime.tick(Duration.ofSeconds(1));
+        final Instant thirdTxTime = fakeTime.now();
+        final Bytes thirdTx = Bytes.wrap(ByteUtils.intToByteArray(3));
+        assertTrue(nexus.submitApplicationTransaction(thirdTx));
+
+        // Get transactions for event
+        final List<TimestampedTransaction> transactions = nexus.getTransactionsForEvent();
+
+        // Validate we got all three transactions
+        assertNotNull(transactions);
+        assertEquals(3, transactions.size());
+
+        // Validate timestamps are correct and in order
+        final TimestampedTransaction firstTimestamped = transactions.get(0);
+        final TimestampedTransaction secondTimestamped = transactions.get(1);
+        final TimestampedTransaction thirdTimestamped = transactions.get(2);
+
+        // Verify transaction data matches
+        assertEquals(firstTx, firstTimestamped.transaction());
+        assertEquals(secondTx, secondTimestamped.transaction());
+        assertEquals(thirdTx, thirdTimestamped.transaction());
+
+        // Verify timestamps match when transactions were submitted
+        assertEquals(firstTxTime, firstTimestamped.receivedTime());
+        assertEquals(secondTxTime, secondTimestamped.receivedTime());
+        assertEquals(thirdTxTime, thirdTimestamped.receivedTime());
+
+        // Verify timestamps are in chronological order
+        assertTrue(firstTimestamped.receivedTime().isBefore(secondTimestamped.receivedTime()));
+        assertTrue(secondTimestamped.receivedTime().isBefore(thirdTimestamped.receivedTime()));
+
+        // Verify all timestamps are after initial time
+        assertTrue(firstTimestamped.receivedTime().isAfter(initialTime));
+        assertTrue(secondTimestamped.receivedTime().isAfter(initialTime));
+        assertTrue(thirdTimestamped.receivedTime().isAfter(initialTime));
     }
 }

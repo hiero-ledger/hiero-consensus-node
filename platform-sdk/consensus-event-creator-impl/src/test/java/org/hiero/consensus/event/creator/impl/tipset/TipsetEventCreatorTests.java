@@ -385,7 +385,7 @@ class TipsetEventCreatorTests {
 
         final FakeTime time = new FakeTime();
 
-        final AtomicReference<List<Bytes>> transactionSupplier = new AtomicReference<>();
+        final AtomicReference<List<TimestampedTransaction>> transactionSupplier = new AtomicReference<>();
 
         final Map<NodeId, SimulatedNode> nodes = buildSimulatedNodes(random, time, roster, transactionSupplier::get);
 
