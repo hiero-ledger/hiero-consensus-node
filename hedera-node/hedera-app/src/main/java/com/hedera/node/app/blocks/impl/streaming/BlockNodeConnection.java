@@ -379,7 +379,6 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
         final EndOfStream.Code responseCode = endOfStream.status();
 
         logger.debug("[{}] Received EndOfStream response (block={}, responseCode={})", this, blockNumber, responseCode);
-        blockStreamMetrics.recordEndOfStreamBlockNumber(blockNumber);
 
         // Update the latest acknowledged block number
         acknowledgeBlocks(blockNumber, false);
@@ -470,7 +469,6 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
         requireNonNull(skipBlock, "skipBlock must not be null");
         final long skipBlockNumber = skipBlock.blockNumber();
         final long streamingBlockNumber = blockNodeConnectionManager.currentStreamingBlockNumber();
-        blockStreamMetrics.recordSkipBlockNumber(skipBlockNumber);
 
         // Only jump if the skip is for the block we are currently processing
         if (skipBlockNumber == streamingBlockNumber) {
@@ -497,7 +495,6 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
 
         final long resendBlockNumber = resendBlock.blockNumber();
         logger.debug("[{}] Received ResendBlock response for block {}", this, resendBlockNumber);
-        blockStreamMetrics.recordResendBlockNumber(resendBlockNumber);
 
         if (blockBufferService.getBlockState(resendBlockNumber) != null) {
             jumpToBlock(resendBlockNumber);

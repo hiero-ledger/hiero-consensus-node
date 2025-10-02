@@ -47,10 +47,6 @@ public class BlockStreamMetrics {
             new EnumMap<>(PublishStreamResponse.EndOfStream.Code.class);
     private final Map<PublishStreamResponse.ResponseOneOfType, Counter> connRecv_counters =
             new EnumMap<>(PublishStreamResponse.ResponseOneOfType.class);
-
-    private LongGauge connRecv_endOfStream_blockNumber;
-    private LongGauge connRecv_resendBlock_blockNumber;
-    private LongGauge connRecv_skipBlock_blockNumber;
     private Counter connRecv_unknownCounter;
 
     // connectivity metrics
@@ -136,30 +132,6 @@ public class BlockStreamMetrics {
         final LongGauge.Config newestBlockCfg = newLongGauge(GROUP_BUFFER, "newestBlock")
                 .withDescription("After pruning, the newest block in the buffer");
         buffer_newestBlockGauge = metrics.getOrCreate(newestBlockCfg);
-    }
-
-    /**
-     * Record the block number from the most recent ResendBlock response received.
-     * @param blockNumber the block number from the most recent ResendBlock response
-     */
-    public void recordResendBlockNumber(final long blockNumber) {
-        connRecv_resendBlock_blockNumber.set(blockNumber);
-    }
-
-    /**
-     * Record the block number from the most recent ResendBlock response received.
-     * @param blockNumber the block number from the most recent ResendBlock response
-     */
-    public void recordSkipBlockNumber(final long blockNumber) {
-        connRecv_skipBlock_blockNumber.set(blockNumber);
-    }
-
-    /**
-     * Record the block number from the most recent EndOfStream response received.
-     * @param blockNumber the block number from the most recent EndOfStream response
-     */
-    public void recordEndOfStreamBlockNumber(final long blockNumber) {
-        connRecv_endOfStream_blockNumber.set(blockNumber);
     }
 
     /**
@@ -393,18 +365,6 @@ public class BlockStreamMetrics {
         final Counter.Config recvUnknownCfg = newCounter(GROUP_CONN_RECV, "unknown")
                 .withDescription("Number of responses received from block nodes that are of unknown types");
         this.connRecv_unknownCounter = metrics.getOrCreate(recvUnknownCfg);
-
-        final LongGauge.Config eosBlockNumberCfg = newLongGauge(GROUP_CONN_RECV, "endOfStream_blockNumber")
-                .withDescription("The block number from the most recent EndOfStream response received");
-        this.connRecv_endOfStream_blockNumber = metrics.getOrCreate(eosBlockNumberCfg);
-
-        final LongGauge.Config resendBlockNumberCfg = newLongGauge(GROUP_CONN_RECV, "resendBlock_blockNumber")
-                .withDescription("The block number from the most recent ResendBlock response received");
-        this.connRecv_resendBlock_blockNumber = metrics.getOrCreate(resendBlockNumberCfg);
-
-        final LongGauge.Config skipBlockNumberCfg = newLongGauge(GROUP_CONN_RECV, "skipBlock_blockNumber")
-                .withDescription("The block number from the most recent SkipBlock response received");
-        this.connRecv_skipBlock_blockNumber = metrics.getOrCreate(skipBlockNumberCfg);
     }
 
     /**
