@@ -477,6 +477,25 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
 
             final var stateChangesHash = stateChangesHasher.rootHash().join();
 
+            // TODO(#21210): Implement streaming merkle tree of all block hashes from genesis to N-1
+            // For now, using NULL_HASH as placeholder until the historical block data infrastructure is ready.
+            final var blockHashesTreeRoot = NULL_HASH;
+
+            // Create BlockFooter with the three essential hashes:
+            // 1. previousBlockRootHash - Root hash of the previous block (N-1)
+            // 2. rootHashOfAllBlockHashesTree - Streaming tree of all block hashes 0..N-1 (TODO: #21210)
+            // 3. startOfBlockStateRootHash - State hash at the beginning of current block
+            final var blockFooter = com.hedera.hapi.block.stream.output.BlockFooter.newBuilder()
+                    .previousBlockRootHash(lastBlockHash)
+                    .rootHashOfAllBlockHashesTree(blockHashesTreeRoot)
+                    .startOfBlockStateRootHash(blockStartStateHash)
+                    .build();
+
+            // Write BlockFooter to block stream (last item before BlockProof)
+            final var footerItem = BlockItem.newBuilder().blockFooter(blockFooter).build();
+            worker.addItem(footerItem);
+            worker.sync();
+
             // Compute depth two hashes
             final var depth2Node0 = combine(lastBlockHash, blockStartStateHash);
             final var depth2Node1 = combine(consensusHeaderHash, inputHash);
@@ -755,10 +774,8 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                             STATE_CHANGES,
                             ROUND_HEADER,
                             BLOCK_HEADER,
-						 	BLOCK_FOOTER,
-						    BLOCK_PROOF
-							// Also EndBlock?
-							-> {
+                            BLOCK_FOOTER,
+                            BLOCK_PROOF -> {
                         MessageDigest digest = sha384DigestOrThrow();
                         bytes.writeTo(digest);
                         hash = ByteBuffer.wrap(digest.digest());
@@ -797,7 +814,10 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                 }
                 case TRANSACTION_OUTPUT, BLOCK_HEADER -> outputTreeHasher.addLeaf(hash);
                 case STATE_CHANGES -> stateChangesHasher.addLeaf(hash);
-				case BLOCK_FOOTER, BLOCK_PROOF -> throw new NotImplementedException();
+                case BLOCK_FOOTER, BLOCK_PROOF -> {
+                    // BlockFooter and BlockProof are not included in any merkle tree
+                    // They are metadata about the block, not part of the hashed content
+                }
             }
 
             final BlockHeader header = item.blockHeader();
