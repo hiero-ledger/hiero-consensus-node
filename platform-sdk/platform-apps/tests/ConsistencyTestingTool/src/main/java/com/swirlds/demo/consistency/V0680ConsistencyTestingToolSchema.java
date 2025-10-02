@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.demo.consistency;
 
+import static com.hedera.hapi.util.HapiUtils.SEMANTIC_VERSION_COMPARATOR;
+
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.primitives.ProtoLong;
 import com.swirlds.state.lifecycle.Schema;
@@ -8,7 +10,7 @@ import com.swirlds.state.lifecycle.StateDefinition;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Set;
 
-public class V0680ConsistencyTestingToolSchema extends Schema {
+public class V0680ConsistencyTestingToolSchema extends Schema<SemanticVersion> {
 
     public static final String CONSISTENCY_SERVICE_NAME = "ConsistencyTestingToolService";
 
@@ -26,7 +28,7 @@ public class V0680ConsistencyTestingToolSchema extends Schema {
             SemanticVersion.newBuilder().major(0).minor(68).patch(0).build();
 
     public V0680ConsistencyTestingToolSchema() {
-        super(VERSION);
+        super(VERSION, SEMANTIC_VERSION_COMPARATOR);
     }
 
     @NonNull

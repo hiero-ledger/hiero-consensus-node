@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.demo.iss;
 
+import static com.hedera.hapi.util.HapiUtils.SEMANTIC_VERSION_COMPARATOR;
+
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.primitives.ProtoLong;
 import com.hedera.hapi.node.state.primitives.ProtoString;
@@ -9,7 +11,7 @@ import com.swirlds.state.lifecycle.StateDefinition;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Set;
 
-public class V0680ISSTestingToolSchema extends Schema {
+public class V0680ISSTestingToolSchema extends Schema<SemanticVersion> {
 
     public static final String ISS_SERVICE_NAME = "ISSTestingToolService";
 
@@ -33,7 +35,7 @@ public class V0680ISSTestingToolSchema extends Schema {
             SemanticVersion.newBuilder().major(0).minor(68).patch(0).build();
 
     public V0680ISSTestingToolSchema() {
-        super(VERSION);
+        super(VERSION, SEMANTIC_VERSION_COMPARATOR);
     }
 
     @NonNull
