@@ -89,90 +89,90 @@ jobs:
       jf-user-name: ${{ vars.JF_USER_NAME }}
       jf-access-token: ${{ secrets.JF_ACCESS_TOKEN }}
 
-#  update-hedera-protobufs:
-#    name: Update Hedera Protobufs
-#    runs-on: hiero-network-node-linux-medium
-#    needs:
-#      - prepare-tag-release
-#    steps:
-#      - name: Harden Runner
-#        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
-#        with:
-#          egress-policy: audit
-#
-#      - name: Checkout Hiero Consensus Node Code
-#        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-#        with:
-#          token: ${{ secrets.GH_ACCESS_TOKEN }}
-#          ref: ${{ github.ref }}
-#          fetch-depth: "0"
-#
-#      - name: Checkout Hedera Protobufs Code
-#        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-#        with:
-#          token: ${{ secrets.PROTOBUFS_GH_ACCESS_TOKEN }}
-#          fetch-depth: "0"
-#          repository: hashgraph/hedera-protobufs
-#          path: hedera-protobufs
-#
-#      - name: Install rsync
-#        run: sudo apt update && sudo apt -y install rsync
-#
-#      - name: Update the folders owned by Services
-#        working-directory: hedera-protobufs
-#        run: |
-#          git push --delete origin v${{ needs.prepare-tag-release.outputs.version }} || true
-#          git tag --delete v${{ needs.prepare-tag-release.outputs.version }} || true
-#          rsync -a --delete ../hapi/hedera-protobuf-java-api/src/main/proto/services/ services/
-#
-#      - name: Import GPG key for commit signoff
-#        id: gpg_import
-#        uses: step-security/ghaction-import-gpg@c86c374c0659a6c2d1284bccf8af889e73ce8fe0 # v6.3.0
-#        with:
-#          gpg_private_key: ${{ secrets.PROTOBUFS_GPG_KEY_CONTENTS }}
-#          passphrase: ${{ secrets.PROTOBUFS_GPG_KEY_PASSPHRASE }}
-#          git_user_signingkey: true
-#          git_commit_gpgsign: true
-#          git_tag_gpgsign: true
-#
-#      - name: Add & Commit
-#        uses: EndBug/add-and-commit@a94899bca583c204427a224a7af87c02f9b325d5 # v9.1.4
-#        with:
-#          cwd: "hedera-protobufs"
-#          author_name: swirlds-eng-automation
-#          author_email: ${{ secrets.PROTOBUFS_GPG_USER_EMAIL }}
-#          commit: --signoff
-#          message: "ci: Copied recent protobuf changes from hedera-services"
-#          new_branch: "update-recent-protobuf-changes-${{ github.run_number }}"
-#          tag: 'v${{ needs.prepare-tag-release.outputs.version }} -s -m "Hedera Protobufs v${{ needs.prepare-tag-release.outputs.version }}" -u "${{ steps.gpg_import.outputs.keyid }}"'
-#
-#  release-branch:
-#    name: Release [Branch]
-#    uses: ./.github/workflows/node-zxc-build-release-artifact.yaml
-#    if: ${{ github.event_name == 'workflow_dispatch' }}
-#    with:
-#      version-policy: branch-commit
-#      trigger-env-deploy: integration
-#      release-profile: DevelopCommit
-#      dry-run-enabled: ${{ inputs.dry-run-enabled }}
-#    secrets:
-#      access-token: ${{ secrets.GITHUB_TOKEN }}
-#      bucket-name: ${{ secrets.RELEASE_ARTIFACT_BUCKET_NAME }}
-#      cdn-bucket-name: ${{ secrets.CDN_ARTIFACT_BUCKET_NAME }}
-#      central-publishing-username: ${{ secrets.CENTRAL_PUBLISHING_USERNAME }}
-#      central-publishing-password: ${{ secrets.CENTRAL_PUBLISHING_PASSWORD }}
-#      svcs-gpg-key-contents: ${{ secrets.SVCS_GPG_KEY_CONTENTS }}
-#      svcs-gpg-key-passphrase: ${{ secrets.SVCS_GPG_KEY_PASSPHRASE }}
-#      sdk-ossrh-username: ${{ secrets.PLATFORM_OSSRH_USERNAME }}
-#      sdk-ossrh-password: ${{ secrets.PLATFORM_OSSRH_PASSWORD }}
-#      sdk-gpg-key-contents: ${{ secrets.PLATFORM_GPG_KEY_CONTENTS }}
-#      sdk-gpg-key-passphrase: ${{ secrets.PLATFORM_GPG_KEY_PASSPHRASE }}
-#      slack-webhook-url: ${{ secrets.PLATFORM_SLACK_RELEASE_WEBHOOK }}
-#      jf-url: ${{ vars.JF_URL }}
-#      jf-docker-registry: ${{ vars.JF_DOCKER_REGISTRY }}
-#      jf-user-name: ${{ vars.JF_USER_NAME }}
-#      jf-access-token: ${{ secrets.JF_ACCESS_TOKEN }}
-#
+  update-hedera-protobufs:
+    name: Update Hedera Protobufs
+    runs-on: hiero-network-node-linux-medium
+    needs:
+      - prepare-tag-release
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+        with:
+          egress-policy: audit
+
+      - name: Checkout Hiero Consensus Node Code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          token: ${{ secrets.GH_ACCESS_TOKEN }}
+          ref: ${{ github.ref }}
+          fetch-depth: "0"
+
+      - name: Checkout Hedera Protobufs Code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          token: ${{ secrets.PROTOBUFS_GH_ACCESS_TOKEN }}
+          fetch-depth: "0"
+          repository: hashgraph/hedera-protobufs
+          path: hedera-protobufs
+
+      - name: Install rsync
+        run: sudo apt update && sudo apt -y install rsync
+
+      - name: Update the folders owned by Services
+        working-directory: hedera-protobufs
+        run: |
+          git push --delete origin v${{ needs.prepare-tag-release.outputs.version }} || true
+          git tag --delete v${{ needs.prepare-tag-release.outputs.version }} || true
+          rsync -a --delete ../hapi/hedera-protobuf-java-api/src/main/proto/services/ services/
+
+      - name: Import GPG key for commit signoff
+        id: gpg_import
+        uses: step-security/ghaction-import-gpg@c86c374c0659a6c2d1284bccf8af889e73ce8fe0 # v6.3.0
+        with:
+          gpg_private_key: ${{ secrets.PROTOBUFS_GPG_KEY_CONTENTS }}
+          passphrase: ${{ secrets.PROTOBUFS_GPG_KEY_PASSPHRASE }}
+          git_user_signingkey: true
+          git_commit_gpgsign: true
+          git_tag_gpgsign: true
+
+      - name: Add & Commit
+        uses: EndBug/add-and-commit@a94899bca583c204427a224a7af87c02f9b325d5 # v9.1.4
+        with:
+          cwd: "hedera-protobufs"
+          author_name: swirlds-eng-automation
+          author_email: ${{ secrets.PROTOBUFS_GPG_USER_EMAIL }}
+          commit: --signoff
+          message: "ci: Copied recent protobuf changes from hedera-services"
+          new_branch: "update-recent-protobuf-changes-${{ github.run_number }}"
+          tag: 'v${{ needs.prepare-tag-release.outputs.version }} -s -m "Hedera Protobufs v${{ needs.prepare-tag-release.outputs.version }}" -u "${{ steps.gpg_import.outputs.keyid }}"'
+
+  release-branch:
+    name: Release [Branch]
+    uses: ./.github/workflows/node-zxc-build-release-artifact.yaml
+    if: ${{ github.event_name == 'workflow_dispatch' }}
+    with:
+      version-policy: branch-commit
+      trigger-env-deploy: integration
+      release-profile: DevelopCommit
+      dry-run-enabled: ${{ inputs.dry-run-enabled }}
+    secrets:
+      access-token: ${{ secrets.GITHUB_TOKEN }}
+      bucket-name: ${{ secrets.RELEASE_ARTIFACT_BUCKET_NAME }}
+      cdn-bucket-name: ${{ secrets.CDN_ARTIFACT_BUCKET_NAME }}
+      central-publishing-username: ${{ secrets.CENTRAL_PUBLISHING_USERNAME }}
+      central-publishing-password: ${{ secrets.CENTRAL_PUBLISHING_PASSWORD }}
+      svcs-gpg-key-contents: ${{ secrets.SVCS_GPG_KEY_CONTENTS }}
+      svcs-gpg-key-passphrase: ${{ secrets.SVCS_GPG_KEY_PASSPHRASE }}
+      sdk-ossrh-username: ${{ secrets.PLATFORM_OSSRH_USERNAME }}
+      sdk-ossrh-password: ${{ secrets.PLATFORM_OSSRH_PASSWORD }}
+      sdk-gpg-key-contents: ${{ secrets.PLATFORM_GPG_KEY_CONTENTS }}
+      sdk-gpg-key-passphrase: ${{ secrets.PLATFORM_GPG_KEY_PASSPHRASE }}
+      slack-webhook-url: ${{ secrets.PLATFORM_SLACK_RELEASE_WEBHOOK }}
+      jf-url: ${{ vars.JF_URL }}
+      jf-docker-registry: ${{ vars.JF_DOCKER_REGISTRY }}
+      jf-user-name: ${{ vars.JF_USER_NAME }}
+      jf-access-token: ${{ secrets.JF_ACCESS_TOKEN }}
+
 #  deploy-xts-ci-trigger:
 #    name: Trigger XTS CI Flow
 #    runs-on: hiero-network-node-linux-medium
