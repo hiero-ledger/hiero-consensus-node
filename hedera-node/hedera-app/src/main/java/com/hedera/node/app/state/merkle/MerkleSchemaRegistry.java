@@ -50,7 +50,7 @@ import org.apache.logging.log4j.Logger;
  * MerkleNodeState}. The registry determines which {@link Schema}s to apply, possibly taking multiple migration steps,
  * to transition the merkle tree from its current version to the final version.
  */
-public class MerkleSchemaRegistry implements SchemaRegistry {
+public class MerkleSchemaRegistry implements SchemaRegistry<SemanticVersion> {
     private static final Logger logger = LogManager.getLogger(MerkleSchemaRegistry.class);
 
     /**
@@ -60,7 +60,7 @@ public class MerkleSchemaRegistry implements SchemaRegistry {
     /**
      * The ordered set of all schemas registered by the service
      */
-    private final SortedSet<Schema> schemas = new TreeSet<>();
+    private final SortedSet<Schema<SemanticVersion>> schemas = new TreeSet<>();
     /**
      * The analysis to use when determining how to apply a schema.
      */
@@ -84,7 +84,7 @@ public class MerkleSchemaRegistry implements SchemaRegistry {
      * @return
      */
     @Override
-    public SchemaRegistry register(@NonNull Schema schema) {
+    public SchemaRegistry register(@NonNull Schema<SemanticVersion> schema) {
         schemas.remove(schema);
         schemas.add(requireNonNull(schema));
         logger.debug(
@@ -221,8 +221,8 @@ public class MerkleSchemaRegistry implements SchemaRegistry {
     }
 
     private RedefinedWritableStates applyStateDefinitions(
-            @NonNull final Schema schema,
-            @NonNull final List<Schema> schemasAlreadyInState,
+            @NonNull final Schema<SemanticVersion> schema,
+            @NonNull final List<Schema<SemanticVersion>> schemasAlreadyInState,
             @NonNull final Configuration nodeConfiguration,
             @NonNull final MerkleNodeState stateRoot) {
         // Create the new states (based on the schema) which, thanks to the above, does not

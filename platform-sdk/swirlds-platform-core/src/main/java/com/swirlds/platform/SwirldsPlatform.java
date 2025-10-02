@@ -433,7 +433,7 @@ public class SwirldsPlatform implements Platform {
 
     @Override
     public void quiescenceCommand(@NonNull final QuiescenceCommand quiescenceCommand) {
-        platformCoordinator.setQuiescenceStatus(quiescenceCommand);
+        platformCoordinator.quiescenceCommand(quiescenceCommand);
     }
 
     /**

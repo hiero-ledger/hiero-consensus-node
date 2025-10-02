@@ -362,7 +362,7 @@ public record PlatformCoordinator(@NonNull PlatformComponents components) implem
     /**
      * @see EventCreatorModule#quiescenceCommand(QuiescenceCommand)
      */
-    public void setQuiescenceStatus(@NonNull final QuiescenceCommand quiescenceCommand) {
+    public void quiescenceCommand(@NonNull final QuiescenceCommand quiescenceCommand) {
         components
                 .eventCreationManagerWiring()
                 .getInputWire(EventCreatorModule::quiescenceCommand)
