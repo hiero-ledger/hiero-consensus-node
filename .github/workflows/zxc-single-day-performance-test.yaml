@@ -1156,7 +1156,7 @@ jobs:
   single-day-performance-test-result:
     name: Calculate Result
     runs-on: hiero-citr-linux-large
-    if: ${{ always() }}
+    if: ${{ !cancelled() }}
     needs:
       - performance-NftTransferLoadTest-report
       - performance-HCSLoadTest
