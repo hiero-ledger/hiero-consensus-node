@@ -2,6 +2,7 @@
 package com.hedera.node.app.blocks.schemas;
 
 import static com.hedera.node.app.blocks.schemas.V0560BlockStreamSchema.BLOCK_STREAM_INFO_KEY;
+import static com.hedera.node.app.blocks.schemas.V0560BlockStreamSchema.BLOCK_STREAM_INFO_STATE_ID;
 import static com.hedera.node.app.fixtures.AppTestBase.DEFAULT_CONFIG;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -29,6 +30,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 public class V0560BlockStreamSchemaTest {
+
     @Mock
     private MigrationContext migrationContext;
 
@@ -60,12 +62,13 @@ public class V0560BlockStreamSchemaTest {
         final var def = stateDefs.iterator().next();
         assertTrue(def.singleton());
         assertEquals(BLOCK_STREAM_INFO_KEY, def.stateKey());
+        assertEquals(BLOCK_STREAM_INFO_STATE_ID, def.stateId());
     }
 
     @Test
     void createsDefaultInfoAtGenesis() {
         given(migrationContext.newStates()).willReturn(writableStates);
-        given(writableStates.<BlockStreamInfo>getSingleton(BLOCK_STREAM_INFO_KEY))
+        given(writableStates.<BlockStreamInfo>getSingleton(BLOCK_STREAM_INFO_STATE_ID))
                 .willReturn(state);
         given(migrationContext.isGenesis()).willReturn(true);
 
@@ -82,6 +85,8 @@ public class V0560BlockStreamSchemaTest {
                 Bytes.fromHex("abcd".repeat(24 * 256)),
                 new Timestamp(1_234_567L, 890),
                 false,
+                new Timestamp(1_234_567L, 123),
+                new Timestamp(1_234_567L, 123),
                 new Timestamp(1_234_567L, 123));
         final var sharedValues = Map.<String, Object>of(
                 "SHARED_BLOCK_RECORD_INFO",
@@ -94,7 +99,7 @@ public class V0560BlockStreamSchemaTest {
                         Bytes.fromHex("dd".repeat(48))));
         given(migrationContext.newStates()).willReturn(writableStates);
         given(migrationContext.previousVersion()).willReturn(SemanticVersion.DEFAULT);
-        given(writableStates.<BlockStreamInfo>getSingleton(BLOCK_STREAM_INFO_KEY))
+        given(writableStates.<BlockStreamInfo>getSingleton(BLOCK_STREAM_INFO_STATE_ID))
                 .willReturn(state);
         given(migrationContext.sharedValues()).willReturn(sharedValues);
 
@@ -124,7 +129,7 @@ public class V0560BlockStreamSchemaTest {
     @Test
     void migrationIsNoopIfNotGenesisAndInfoIsNonNull() {
         given(migrationContext.newStates()).willReturn(writableStates);
-        given(writableStates.<BlockStreamInfo>getSingleton(BLOCK_STREAM_INFO_KEY))
+        given(writableStates.<BlockStreamInfo>getSingleton(BLOCK_STREAM_INFO_STATE_ID))
                 .willReturn(state);
         given(state.get()).willReturn(BlockStreamInfo.DEFAULT);
 

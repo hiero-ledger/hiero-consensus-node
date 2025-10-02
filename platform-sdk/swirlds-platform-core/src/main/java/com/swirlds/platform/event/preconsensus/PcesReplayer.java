@@ -24,6 +24,7 @@ import java.util.Objects;
 import java.util.function.Supplier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.model.event.EventConstants;
 import org.hiero.consensus.model.event.PlatformEvent;
 
 /**
@@ -47,13 +48,13 @@ public class PcesReplayer {
     /**
      * Constructor
      *
-     * @param context                  the platform context
-     * @param eventOutputWire          the wire to put events on, to be replayed
-     * @param flushIntake              a runnable that flushes the intake pipeline
+     * @param context the platform context
+     * @param eventOutputWire the wire to put events on, to be replayed
+     * @param flushIntake a runnable that flushes the intake pipeline
      * @param flushTransactionHandling a runnable that flushes the transaction handling pipeline
-     * @param latestImmutableState     a supplier of the latest immutable state
-     * @param isSystemHealthy          a supplier that returns true if the system is healthy and false if the system is
-     *                                 overwhelmed
+     * @param latestImmutableState a supplier of the latest immutable state
+     * @param isSystemHealthy a supplier that returns true if the system is healthy and false if the system is
+     * overwhelmed
      */
     public PcesReplayer(
             final @NonNull PlatformContext context,
@@ -77,17 +78,19 @@ public class PcesReplayer {
      * Log information about the replay
      *
      * @param timestampBeforeReplay the consensus timestamp before replay
-     * @param roundBeforeReplay     the round before replay
-     * @param eventCount            the number of events replayed
-     * @param transactionCount      the number of transactions replayed
-     * @param elapsedTime           the elapsed wall clock time during replay
+     * @param roundBeforeReplay the round before replay
+     * @param eventCount the number of events replayed
+     * @param transactionCount the number of transactions replayed
+     * @param elapsedTime the elapsed wall clock time during replay
+     * @param maxBirthRound the maximum birth round of the events that were replayed
      */
     private void logReplayInfo(
             @Nullable final Instant timestampBeforeReplay,
             final long roundBeforeReplay,
             final long eventCount,
             final long transactionCount,
-            @NonNull final Duration elapsedTime) {
+            @NonNull final Duration elapsedTime,
+            final long maxBirthRound) {
 
         try (final ReservedSignedState stateAfterReplay = latestImmutableState.get()) {
             if (stateAfterReplay == null || stateAfterReplay.isNull()) {
@@ -112,10 +115,11 @@ public class PcesReplayer {
 
             logger.info(
                     STARTUP.getMarker(),
-                    "Replayed {} preconsensus events. These events contained {} transactions. "
+                    "Replayed {} preconsensus events with max birth round {}. These events contained {} transactions. "
                             + "{} rounds reached consensus spanning {} of consensus time. The latest "
                             + "round to reach consensus is round {}. Replay took {}.",
                     commaSeparatedNumber(eventCount),
+                    commaSeparatedNumber(maxBirthRound),
                     commaSeparatedNumber(transactionCount),
                     commaSeparatedNumber(elapsedRounds),
                     elapsedConsensusTime != null
@@ -157,6 +161,7 @@ public class PcesReplayer {
 
         int eventCount = 0;
         int transactionCount = 0;
+        long maxBirthRound = EventConstants.BIRTH_ROUND_UNDEFINED;
         try {
             while (eventIterator.hasNext()) {
                 // If the system is not keeping up with the rate at which we are replaying PCES, we need to wait
@@ -171,6 +176,7 @@ public class PcesReplayer {
 
                 eventCount++;
                 transactionCount += event.getTransactionCount();
+                maxBirthRound = Math.max(maxBirthRound, event.getBirthRound());
 
                 eventOutputWire.forward(event);
             }
@@ -183,7 +189,8 @@ public class PcesReplayer {
 
         final Duration elapsedTime = Duration.between(start, time.now());
 
-        logReplayInfo(timestampBeforeReplay, roundBeforeReplay, eventCount, transactionCount, elapsedTime);
+        logReplayInfo(
+                timestampBeforeReplay, roundBeforeReplay, eventCount, transactionCount, elapsedTime, maxBirthRound);
 
         return NoInput.getInstance();
     }

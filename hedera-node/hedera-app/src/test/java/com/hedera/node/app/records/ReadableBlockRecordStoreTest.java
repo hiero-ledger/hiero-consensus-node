@@ -2,12 +2,13 @@
 package com.hedera.node.app.records;
 
 import static com.hedera.hapi.node.base.Timestamp.newBuilder;
+import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCKS_STATE_ID;
+import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCKS_STATE_LABEL;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
-import com.hedera.node.app.records.schemas.V0490BlockRecordSchema;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.state.spi.ReadableSingletonStateBase;
+import com.swirlds.state.test.fixtures.FunctionReadableSingletonState;
 import com.swirlds.state.test.fixtures.MapReadableStates;
 import java.util.Map;
 import org.assertj.core.api.Assertions;
@@ -40,9 +41,8 @@ class ReadableBlockRecordStoreTest {
                 .build();
 
         final var blockState = new MapReadableStates(Map.of(
-                V0490BlockRecordSchema.BLOCK_INFO_STATE_KEY,
-                new ReadableSingletonStateBase<>(
-                        V0490BlockRecordSchema.BLOCK_INFO_STATE_KEY, () -> expectedBlockInfo)));
+                BLOCKS_STATE_ID,
+                new FunctionReadableSingletonState<>(BLOCKS_STATE_ID, BLOCKS_STATE_LABEL, () -> expectedBlockInfo)));
         final var subject = new ReadableBlockRecordStore(blockState);
 
         // When

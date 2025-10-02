@@ -8,7 +8,7 @@ import com.hedera.hapi.node.state.history.HistoryProofConstruction;
 import com.hedera.node.app.history.HistoryLibrary;
 import com.hedera.node.app.history.ReadableHistoryStore;
 import com.hedera.node.app.roster.ActiveRosters;
-import com.swirlds.state.lifecycle.info.NodeInfo;
+import com.hedera.node.app.spi.info.NodeInfo;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Optional;

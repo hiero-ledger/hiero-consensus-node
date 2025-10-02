@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.token.batch;
 
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.TOKEN;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.atomicBatch;
@@ -32,6 +33,7 @@ import org.junit.jupiter.api.Tag;
 // we are wrapping the operations in an atomic batch to confirm that everything works as expected.
 @HapiTestLifecycle
 @Tag(TOKEN)
+@Tag(MATS)
 public class AtomicTokenDeleteSpecs {
 
     private static final String FIRST_TBD = "firstTbd";
@@ -59,14 +61,14 @@ public class AtomicTokenDeleteSpecs {
                 tokenDissociate(TOKEN_TREASURY, FIRST_TBD).hasKnownStatus(ACCOUNT_IS_TREASURY),
                 atomicBatch(
                                 tokenDelete(FIRST_TBD).batchKey(BATCH_OPERATOR),
-                                tokenDissociate(TOKEN_TREASURY, FIRST_TBD).batchKey(BATCH_OPERATOR),
-                                tokenDelete(SECOND_TBD).batchKey(BATCH_OPERATOR))
+                                tokenDissociate(TOKEN_TREASURY, FIRST_TBD).batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR),
                 atomicBatch(cryptoDelete(TOKEN_TREASURY)
                                 .hasKnownStatus(ACCOUNT_IS_TREASURY)
                                 .batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR)
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
+                tokenDelete(SECOND_TBD),
                 tokenDissociate(TOKEN_TREASURY, SECOND_TBD),
                 cryptoDelete(TOKEN_TREASURY));
     }

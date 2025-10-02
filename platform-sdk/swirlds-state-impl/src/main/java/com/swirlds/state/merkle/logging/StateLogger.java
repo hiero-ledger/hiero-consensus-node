@@ -6,19 +6,17 @@ import com.hedera.hapi.node.base.FileID;
 import com.hedera.hapi.node.base.ScheduleID;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.base.TopicID;
-import com.swirlds.fcqueue.FCQueue;
-import com.swirlds.state.merkle.disk.OnDiskKey;
-import com.swirlds.state.merkle.disk.OnDiskValue;
-import com.swirlds.state.merkle.memory.InMemoryKey;
-import com.swirlds.state.merkle.memory.InMemoryValue;
-import com.swirlds.state.merkle.singleton.ValueLeaf;
+import com.hedera.pbj.runtime.Codec;
+import com.hedera.pbj.runtime.ParseException;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.internal.merkle.VirtualLeafNode;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.util.Set;
+import java.util.Iterator;
+import java.util.Objects;
 import java.util.Spliterator;
 import java.util.Spliterators;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 import org.apache.logging.log4j.LogManager;
@@ -43,9 +41,9 @@ public class StateLogger {
      * @param value The value of the singleton
      * @param <T> The type of the singleton
      */
-    public static <T> void logSingletonRead(@NonNull final String label, @Nullable final ValueLeaf<T> value) {
+    public static <T> void logSingletonRead(@NonNull final String label, @Nullable final T value) {
         if (logger.isDebugEnabled() && Thread.currentThread().getName().equals(TRANSACTION_HANDLING_THREAD_NAME)) {
-            logger.debug("      READ singleton {} value {}", label, value == null ? "null" : value.getValue());
+            logger.debug("      READ singleton {} value {}", label, value == null ? "null" : value.toString());
         }
     }
 
@@ -54,10 +52,24 @@ public class StateLogger {
      *
      * @param label The label of the singleton
      * @param value The value of the singleton
+     * @param <T> The type of the singleton
      */
-    public static void logSingletonWrite(@NonNull final String label, @Nullable final Object value) {
+    public static <T> void logSingletonWrite(@NonNull final String label, @Nullable final T value) {
         if (logger.isDebugEnabled() && Thread.currentThread().getName().equals(TRANSACTION_HANDLING_THREAD_NAME)) {
             logger.debug("      WRITTEN singleton {} value {}", label, value == null ? "null" : value.toString());
+        }
+    }
+
+    /**
+     * Log when a value is removed from a singleton.
+     *
+     * @param label The label of the singleton
+     * @param value The value of the singleton
+     * @param <T> The type of the singleton
+     */
+    public static <T> void logSingletonRemove(@NonNull final String label, @Nullable final T value) {
+        if (logger.isDebugEnabled() && Thread.currentThread().getName().equals(TRANSACTION_HANDLING_THREAD_NAME)) {
+            logger.debug("      REMOVE from singleton {} value {}", label, value == null ? "null" : value.toString());
         }
     }
 
@@ -66,8 +78,9 @@ public class StateLogger {
      *
      * @param label The label of the queue
      * @param value The value added to the queue
+     * @param <T> The type of the queue values
      */
-    public static void logQueueAdd(@NonNull final String label, @Nullable final Object value) {
+    public static <T> void logQueueAdd(@NonNull final String label, @Nullable final T value) {
         if (logger.isDebugEnabled() && Thread.currentThread().getName().equals(TRANSACTION_HANDLING_THREAD_NAME)) {
             logger.debug("      ADD to queue {} value {}", label, value == null ? "null" : value.toString());
         }
@@ -78,8 +91,9 @@ public class StateLogger {
      *
      * @param label The label of the queue
      * @param value The value removed from the queue
+     * @param <T> The type of the queue values
      */
-    public static void logQueueRemove(@NonNull final String label, @Nullable final Object value) {
+    public static <T> void logQueueRemove(@NonNull final String label, @Nullable final T value) {
         if (logger.isDebugEnabled() && Thread.currentThread().getName().equals(TRANSACTION_HANDLING_THREAD_NAME)) {
             logger.debug("      REMOVE from queue {} value {}", label, value == null ? "null" : value.toString());
         }
@@ -90,8 +104,9 @@ public class StateLogger {
      *
      * @param label The label of the queue
      * @param value The value peeked from the queue
+     * @param <T> The type of the queue values
      */
-    public static void logQueuePeek(@NonNull final String label, @Nullable final Object value) {
+    public static <T> void logQueuePeek(@NonNull final String label, @Nullable final T value) {
         if (logger.isDebugEnabled() && Thread.currentThread().getName().equals(TRANSACTION_HANDLING_THREAD_NAME)) {
             logger.debug("      PEEK on queue {} value {}", label, value == null ? "null" : value.toString());
         }
@@ -101,19 +116,22 @@ public class StateLogger {
      * Log the iteration over a queue.
      *
      * @param label The label of the queue
-     * @param queue The queue that was iterated
+     * @param size The queue size
+     * @param it The queue elements iterator
      * @param <K> The type of the queue values
      */
-    public static <K> void logQueueIterate(@NonNull final String label, @NonNull final FCQueue<ValueLeaf<K>> queue) {
+    public static <K> void logQueueIterate(
+            @NonNull final String label, final long size, @NonNull final Iterator<K> it) {
         if (logger.isDebugEnabled() && Thread.currentThread().getName().equals(TRANSACTION_HANDLING_THREAD_NAME)) {
-            if (queue.isEmpty()) {
+            if (size == 0) {
                 logger.debug("      ITERATE queue {} size 0 values:EMPTY", label);
             } else {
+                final Iterable<K> iterable = () -> it;
                 logger.debug(
                         "      ITERATE queue {} size {} values:\n{}",
                         label,
-                        queue.size(),
-                        queue.stream()
+                        size,
+                        StreamSupport.stream(iterable.spliterator(), false)
                                 .map(leaf -> leaf == null ? "null" : leaf.toString())
                                 .collect(Collectors.joining(",\n")));
             }
@@ -143,33 +161,12 @@ public class StateLogger {
      * Log the removal of an entry from a map.
      *
      * @param label The label of the map
-     * @param key The key removed to the map
-     * @param value The value removed to the map
+     * @param key The key removed from the map
+     * @param value The value bytes removed from the map
      * @param <K> The type of the key
      * @param <V> The type of the value
      */
-    public static <K, V> void logMapRemove(
-            @NonNull final String label, @NonNull final K key, @Nullable final InMemoryValue<K, V> value) {
-        if (logger.isDebugEnabled() && Thread.currentThread().getName().equals(TRANSACTION_HANDLING_THREAD_NAME)) {
-            logger.debug(
-                    "      REMOVE from map {} key {} removed value {}",
-                    label,
-                    formatKey(key),
-                    value == null ? "null" : value.toString());
-        }
-    }
-
-    /**
-     * Log the removal of an entry from a map.
-     *
-     * @param label The label of the map
-     * @param key The key removed to the map
-     * @param value The value removed to the map
-     * @param <K> The type of the key
-     * @param <V> The type of the value
-     */
-    public static <K, V> void logMapRemove(
-            @NonNull final String label, @NonNull final K key, @Nullable final OnDiskValue<V> value) {
+    public static <K, V> void logMapRemove(@NonNull final String label, @NonNull final K key, @Nullable final V value) {
         if (logger.isDebugEnabled() && Thread.currentThread().getName().equals(TRANSACTION_HANDLING_THREAD_NAME)) {
             logger.debug(
                     "      REMOVE from map {} key {} removed value {}",
@@ -211,62 +208,40 @@ public class StateLogger {
     }
 
     /**
-     * Log the iteration of keys of a map.
-     *
-     * @param label The label of the map
-     * @param keySet The set of keys of the map
-     * @param <K> The type of the key
-     */
-    public static <K> void logMapIterate(@NonNull final String label, @NonNull final Set<InMemoryKey<K>> keySet) {
-        if (logger.isDebugEnabled() && Thread.currentThread().getName().equals(TRANSACTION_HANDLING_THREAD_NAME)) {
-            final long size = keySet.size();
-            if (size == 0) {
-                logger.debug("      ITERATE map {} size 0 keys:EMPTY", label);
-            } else {
-                logger.debug(
-                        "      ITERATE map {} size {} keys:\n{}",
-                        label,
-                        size,
-                        keySet.stream()
-                                .map(InMemoryKey::key)
-                                .map(StateLogger::formatKey)
-                                .collect(Collectors.joining(",\n")));
-            }
-        }
-    }
-
-    /**
      * Log the iteration of values of a map.
      *
-     * @param label The label of the map
      * @param virtualMap The map that was iterated
      * @param <K> The type of the key
-     * @param <V> The type of the value
      */
-    public static <K, V> void logMapIterate(
-            @NonNull final String label, @NonNull final VirtualMap<OnDiskKey<K>, OnDiskValue<V>> virtualMap) {
+    public static <K> void logMapIterate(
+            @NonNull final String label, @NonNull final VirtualMap virtualMap, @NonNull final Codec<K> keyCodec) {
         if (logger.isDebugEnabled()) {
             final var spliterator = Spliterators.spliterator(
                     virtualMap.treeIterator(), virtualMap.size(), Spliterator.SIZED & Spliterator.ORDERED);
             final long size = virtualMap.size();
             if (size == 0) {
-                logger.debug("      ITERATE map {} size 0 keys:EMPTY", label);
+                logger.debug("      ITERATE keys of {} state size 0 keys:EMPTY", label);
             } else {
-                logger.debug(
-                        "      ITERATE map {} size {} keys:\n{}",
-                        label,
-                        size,
-                        StreamSupport.stream(spliterator, false)
-                                .map(merkleNode -> {
-                                    if (merkleNode instanceof VirtualLeafNode<?, ?> leaf) {
-                                        final var k = leaf.getKey();
-                                        if (k instanceof OnDiskKey<?> onDiskKey) {
-                                            return onDiskKey.getKey().toString();
-                                        }
-                                    }
-                                    return "Unknown_Type";
-                                })
-                                .collect(Collectors.joining(",\n")));
+                AtomicInteger count = new AtomicInteger(0);
+                String keys = StreamSupport.stream(spliterator, false)
+                        .map(merkleNode -> {
+                            if (merkleNode instanceof VirtualLeafNode leaf) {
+                                final var k = leaf.getKey();
+                                String result = null;
+                                try {
+                                    result = keyCodec.parse(k).toString();
+                                    count.incrementAndGet();
+                                } catch (final ParseException e) {
+                                    // ignore, return null
+                                }
+                                return result;
+                            } else {
+                                return null;
+                            }
+                        })
+                        .filter(Objects::nonNull)
+                        .collect(Collectors.joining(",\n"));
+                logger.debug("      ITERATE keys of {} state (size {}) keys:\n{}", label, count.get(), keys);
             }
         }
     }

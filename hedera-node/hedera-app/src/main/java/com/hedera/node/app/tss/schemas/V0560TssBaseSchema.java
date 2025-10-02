@@ -1,9 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.tss.schemas;
 
+import static com.hedera.hapi.util.HapiUtils.SEMANTIC_VERSION_COMPARATOR;
+
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.tss.TssMessageMapKey;
 import com.hedera.hapi.node.state.tss.TssVoteMapKey;
+import com.hedera.hapi.platform.state.StateKey;
 import com.hedera.hapi.services.auxiliary.tss.TssMessageTransactionBody;
 import com.hedera.hapi.services.auxiliary.tss.TssVoteTransactionBody;
 import com.swirlds.state.lifecycle.Schema;
@@ -15,9 +18,14 @@ import java.util.Set;
  * Schema for the TSS service.
  */
 @Deprecated(forRemoval = true, since = "0.59.0")
-public class V0560TssBaseSchema extends Schema {
-    public static final String TSS_MESSAGE_MAP_KEY = "TSS_MESSAGES";
-    public static final String TSS_VOTE_MAP_KEY = "TSS_VOTES";
+public class V0560TssBaseSchema extends Schema<SemanticVersion> {
+
+    public static final String TSS_MESSAGES_KEY = "TSS_MESSAGES";
+    public static final int TSS_MESSAGES_STATE_ID = StateKey.KeyOneOfType.TSSBASESERVICE_I_TSS_MESSAGES.protoOrdinal();
+
+    public static final String TSS_VOTES_KEY = "TSS_VOTES";
+    public static final int TSS_VOTES_STATE_ID = StateKey.KeyOneOfType.TSSBASESERVICE_I_TSS_VOTES.protoOrdinal();
+
     /**
      * This will at most be equal to the number of nodes in the network.
      */
@@ -36,7 +44,7 @@ public class V0560TssBaseSchema extends Schema {
      * Create a new instance
      */
     public V0560TssBaseSchema() {
-        super(VERSION);
+        super(VERSION, SEMANTIC_VERSION_COMPARATOR);
     }
 
     @NonNull
@@ -44,11 +52,16 @@ public class V0560TssBaseSchema extends Schema {
     public Set<StateDefinition> statesToCreate() {
         return Set.of(
                 StateDefinition.onDisk(
-                        TSS_MESSAGE_MAP_KEY,
+                        TSS_MESSAGES_STATE_ID,
+                        TSS_MESSAGES_KEY,
                         TssMessageMapKey.PROTOBUF,
                         TssMessageTransactionBody.PROTOBUF,
                         MAX_TSS_MESSAGES),
                 StateDefinition.onDisk(
-                        TSS_VOTE_MAP_KEY, TssVoteMapKey.PROTOBUF, TssVoteTransactionBody.PROTOBUF, MAX_TSS_VOTES));
+                        TSS_VOTES_STATE_ID,
+                        TSS_VOTES_KEY,
+                        TssVoteMapKey.PROTOBUF,
+                        TssVoteTransactionBody.PROTOBUF,
+                        MAX_TSS_VOTES));
     }
 }

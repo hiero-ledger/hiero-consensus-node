@@ -2,7 +2,7 @@
 package com.hedera.node.app.service.contract.impl.records;
 
 import com.hedera.hapi.node.base.ContractID;
-import com.hedera.hapi.node.base.Transaction;
+import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.node.app.spi.workflows.record.DeleteCapableTransactionStreamBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -21,5 +21,5 @@ public interface ContractDeleteStreamBuilder extends DeleteCapableTransactionStr
     ContractDeleteStreamBuilder contractID(@Nullable ContractID contractId);
 
     @NonNull
-    ContractDeleteStreamBuilder transaction(@NonNull final Transaction txn);
+    ContractDeleteStreamBuilder signedTx(@NonNull final SignedTransaction txn);
 }

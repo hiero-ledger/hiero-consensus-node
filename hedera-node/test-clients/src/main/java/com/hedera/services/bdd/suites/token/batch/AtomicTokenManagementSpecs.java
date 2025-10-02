@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.suites.token.batch;
 
 import static com.google.protobuf.ByteString.copyFromUtf8;
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.TOKEN;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.keys.KeyShape.ED25519;
@@ -55,6 +56,8 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNAT
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TOKEN_BURN_AMOUNT;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TOKEN_MINT_AMOUNT;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_WIPING_AMOUNT;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_HAS_NO_KYC_KEY;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_HAS_NO_SUPPLY_KEY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_HAS_NO_WIPE_KEY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_MAX_SUPPLY_REACHED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_NOT_ASSOCIATED_TO_ACCOUNT;
@@ -137,6 +140,7 @@ public class AtomicTokenManagementSpecs {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> aliasFormFailsForAllTokenOps() {
         final var PRIMARY = "primary";
         final var partyAlias = "partyAlias";
@@ -149,7 +153,8 @@ public class AtomicTokenManagementSpecs {
                         .hasPrecheck(INVALID_ACCOUNT_ID),
                 atomicBatch(tokenDissociateWithAlias(partyAlias, PRIMARY)
                                 .signedBy(partyAlias, DEFAULT_PAYER)
-                                .batchKey(BATCH_OPERATOR))
+                                .batchKey(BATCH_OPERATOR)
+                                .hasKnownStatus(INVALID_ACCOUNT_ID))
                         .payingWith(BATCH_OPERATOR)
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
                 atomicBatch(tokenAssociateWithAlias(partyAlias, PRIMARY)
@@ -157,19 +162,29 @@ public class AtomicTokenManagementSpecs {
                                 .batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR)
                         .hasPrecheck(INVALID_ACCOUNT_ID),
-                atomicBatch(grantTokenKycWithAlias(PRIMARY, partyAlias).batchKey(BATCH_OPERATOR))
+                atomicBatch(grantTokenKycWithAlias(PRIMARY, partyAlias)
+                                .batchKey(BATCH_OPERATOR)
+                                .hasKnownStatus(INVALID_ACCOUNT_ID))
                         .payingWith(BATCH_OPERATOR)
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                atomicBatch(revokeTokenKycWithAlias(PRIMARY, partyAlias).batchKey(BATCH_OPERATOR))
+                atomicBatch(revokeTokenKycWithAlias(PRIMARY, partyAlias)
+                                .batchKey(BATCH_OPERATOR)
+                                .hasKnownStatus(INVALID_ACCOUNT_ID))
                         .payingWith(BATCH_OPERATOR)
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                atomicBatch(tokenFreezeWithAlias(PRIMARY, partyAlias).batchKey(BATCH_OPERATOR))
+                atomicBatch(tokenFreezeWithAlias(PRIMARY, partyAlias)
+                                .batchKey(BATCH_OPERATOR)
+                                .hasKnownStatus(INVALID_ACCOUNT_ID))
                         .payingWith(BATCH_OPERATOR)
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                atomicBatch(tokenUnfreezeWithAlias(PRIMARY, partyAlias).batchKey(BATCH_OPERATOR))
+                atomicBatch(tokenUnfreezeWithAlias(PRIMARY, partyAlias)
+                                .batchKey(BATCH_OPERATOR)
+                                .hasKnownStatus(INVALID_ACCOUNT_ID))
                         .payingWith(BATCH_OPERATOR)
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                atomicBatch(grantTokenKycWithAlias(PRIMARY, partyAlias).batchKey(BATCH_OPERATOR))
+                atomicBatch(grantTokenKycWithAlias(PRIMARY, partyAlias)
+                                .batchKey(BATCH_OPERATOR)
+                                .hasKnownStatus(INVALID_ACCOUNT_ID))
                         .payingWith(BATCH_OPERATOR)
                         .hasKnownStatus(INNER_TRANSACTION_FAILED)));
     }
@@ -191,6 +206,7 @@ public class AtomicTokenManagementSpecs {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> frozenTreasuryCannotBeMintedOrBurned() {
         return hapiTest(
                 newKeyNamed(SUPPLY_KEY),
@@ -218,6 +234,7 @@ public class AtomicTokenManagementSpecs {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> revokedKYCTreasuryCannotBeMintedOrBurned() {
         return hapiTest(
                 newKeyNamed(SUPPLY_KEY),
@@ -245,6 +262,7 @@ public class AtomicTokenManagementSpecs {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> burnTokenFailsDueToInsufficientTreasuryBalance() {
         final String BURN_TOKEN = "burn";
         final int TOTAL_SUPPLY = 100;
@@ -309,6 +327,7 @@ public class AtomicTokenManagementSpecs {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> wipeAccountFailureCasesWork() {
         var unwipeableToken = "without";
         var wipeableToken = "with";
@@ -365,6 +384,7 @@ public class AtomicTokenManagementSpecs {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> kycMgmtFailureCasesWork() {
         var withoutKycKey = "withoutKycKey";
         var withKycKey = "withKycKey";
@@ -376,28 +396,36 @@ public class AtomicTokenManagementSpecs {
                 tokenCreate(withKycKey).kycKey(ONE_KYC).treasury(TOKEN_TREASURY),
                 atomicBatch(grantTokenKyc(withoutKycKey, TOKEN_TREASURY)
                                 .signedBy(GENESIS)
-                                .batchKey(BATCH_OPERATOR))
+                                .batchKey(BATCH_OPERATOR)
+                                .hasKnownStatus(TOKEN_HAS_NO_KYC_KEY))
                         .payingWith(BATCH_OPERATOR)
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                atomicBatch(grantTokenKyc(withKycKey, INVALID_ACCOUNT).batchKey(BATCH_OPERATOR))
+                atomicBatch(grantTokenKyc(withKycKey, INVALID_ACCOUNT)
+                                .batchKey(BATCH_OPERATOR)
+                                .hasKnownStatus(INVALID_ACCOUNT_ID))
                         .payingWith(BATCH_OPERATOR)
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
                 atomicBatch(grantTokenKyc(withKycKey, TOKEN_TREASURY)
                                 .signedBy(GENESIS)
-                                .batchKey(BATCH_OPERATOR))
+                                .batchKey(BATCH_OPERATOR)
+                                .hasKnownStatus(INVALID_SIGNATURE))
                         .payingWith(BATCH_OPERATOR)
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
                 atomicBatch(grantTokenKyc(withoutKycKey, TOKEN_TREASURY)
                                 .signedBy(GENESIS)
-                                .batchKey(BATCH_OPERATOR))
+                                .batchKey(BATCH_OPERATOR)
+                                .hasKnownStatus(TOKEN_HAS_NO_KYC_KEY))
                         .payingWith(BATCH_OPERATOR)
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                atomicBatch(revokeTokenKyc(withKycKey, INVALID_ACCOUNT).batchKey(BATCH_OPERATOR))
+                atomicBatch(revokeTokenKyc(withKycKey, INVALID_ACCOUNT)
+                                .batchKey(BATCH_OPERATOR)
+                                .hasKnownStatus(INVALID_ACCOUNT_ID))
                         .payingWith(BATCH_OPERATOR)
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
                 atomicBatch(revokeTokenKyc(withKycKey, TOKEN_TREASURY)
                                 .signedBy(GENESIS)
-                                .batchKey(BATCH_OPERATOR))
+                                .batchKey(BATCH_OPERATOR)
+                                .hasKnownStatus(INVALID_SIGNATURE))
                         .payingWith(BATCH_OPERATOR)
                         .hasKnownStatus(INNER_TRANSACTION_FAILED));
     }
@@ -417,6 +445,7 @@ public class AtomicTokenManagementSpecs {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> freezeMgmtSuccessCasesWork() {
         var withPlusDefaultFalse = "withPlusDefaultFalse";
 
@@ -441,6 +470,7 @@ public class AtomicTokenManagementSpecs {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> kycMgmtSuccessCasesWork() {
         var withKycKey = "withKycKey";
         var withoutKycKey = "withoutKycKey";
@@ -476,6 +506,7 @@ public class AtomicTokenManagementSpecs {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> fungibleCommonMaxSupplyReachWork() {
         return hapiTest(
                 newKeyNamed(SUPPLY_KEY),
@@ -496,25 +527,34 @@ public class AtomicTokenManagementSpecs {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> supplyMgmtFailureCasesWork() {
         return hapiTest(
                 newKeyNamed(SUPPLY_KEY),
                 tokenCreate(RIGID),
                 tokenCreate(SUPPLE).supplyKey(SUPPLY_KEY).decimals(16).initialSupply(1),
-                atomicBatch(mintToken(RIGID, 1).signedBy(GENESIS).batchKey(BATCH_OPERATOR))
+                atomicBatch(mintToken(RIGID, 1)
+                                .signedBy(GENESIS)
+                                .batchKey(BATCH_OPERATOR)
+                                .hasKnownStatus(TOKEN_HAS_NO_SUPPLY_KEY))
                         .payingWith(BATCH_OPERATOR)
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                atomicBatch(burnToken(RIGID, 1).signedBy(GENESIS).batchKey(BATCH_OPERATOR))
+                atomicBatch(burnToken(RIGID, 1)
+                                .signedBy(GENESIS)
+                                .batchKey(BATCH_OPERATOR)
+                                .hasKnownStatus(TOKEN_HAS_NO_SUPPLY_KEY))
                         .payingWith(BATCH_OPERATOR)
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                atomicBatch(mintToken(SUPPLE, Long.MAX_VALUE).batchKey(BATCH_OPERATOR))
+                atomicBatch(mintToken(SUPPLE, Long.MAX_VALUE)
+                                .batchKey(BATCH_OPERATOR)
+                                .hasKnownStatus(INVALID_TOKEN_MINT_AMOUNT))
                         .payingWith(BATCH_OPERATOR)
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
                 atomicBatch(mintToken(SUPPLE, 0).batchKey(BATCH_OPERATOR)).payingWith(BATCH_OPERATOR),
                 atomicBatch(mintToken(SUPPLE, -1).batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR)
                         .hasPrecheck(INVALID_TOKEN_MINT_AMOUNT),
-                atomicBatch(burnToken(SUPPLE, 2).batchKey(BATCH_OPERATOR))
+                atomicBatch(burnToken(SUPPLE, 2).batchKey(BATCH_OPERATOR).hasKnownStatus(INVALID_TOKEN_BURN_AMOUNT))
                         .payingWith(BATCH_OPERATOR)
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
                 atomicBatch(burnToken(SUPPLE, 0).batchKey(BATCH_OPERATOR)).payingWith(BATCH_OPERATOR),

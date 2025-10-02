@@ -1,17 +1,20 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.state.merkle.disk;
 
+import static com.swirlds.state.merkle.StateUtils.getStateKeyForKv;
 import static com.swirlds.state.merkle.logging.StateLogger.logMapGet;
 import static com.swirlds.state.merkle.logging.StateLogger.logMapGetSize;
 import static com.swirlds.state.merkle.logging.StateLogger.logMapIterate;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.pbj.runtime.Codec;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.state.merkle.StateValue;
+import com.swirlds.state.merkle.StateValue.StateValueCodec;
 import com.swirlds.state.spi.ReadableKVState;
 import com.swirlds.state.spi.ReadableKVStateBase;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Iterator;
 
 /**
@@ -24,38 +27,45 @@ import java.util.Iterator;
 public final class OnDiskReadableKVState<K, V> extends ReadableKVStateBase<K, V> {
 
     /** The backing merkle data structure to use */
-    private final VirtualMap<OnDiskKey<K>, OnDiskValue<V>> virtualMap;
+    @NonNull
+    private final VirtualMap virtualMap;
 
-    private final long keyClassId;
+    @NonNull
     private final Codec<K> keyCodec;
+
+    @NonNull
+    private final Codec<StateValue<V>> stateValueCodec;
 
     /**
      * Create a new instance
      *
-     * @param stateKey
-     * @param keyClassId
-     * @param keyCodec
-     * @param virtualMap the backing merkle structure to use
+     * @param stateId     the state ID
+     * @param label       the state label
+     * @param keyCodec    the codec for the key
+     * @param virtualMap  the backing merkle data structure to use
      */
     public OnDiskReadableKVState(
-            String stateKey,
-            final long keyClassId,
-            @Nullable final Codec<K> keyCodec,
-            @NonNull final VirtualMap<OnDiskKey<K>, OnDiskValue<V>> virtualMap) {
-        super(stateKey);
-        this.keyClassId = keyClassId;
-        this.keyCodec = keyCodec;
+            final int stateId,
+            @NonNull final String label,
+            @NonNull final Codec<K> keyCodec,
+            @NonNull final Codec<V> valueCodec,
+            @NonNull final VirtualMap virtualMap) {
+        super(stateId, requireNonNull(label));
+        this.keyCodec = requireNonNull(keyCodec);
+        this.stateValueCodec = new StateValueCodec<>(stateId, requireNonNull(valueCodec));
         this.virtualMap = requireNonNull(virtualMap);
     }
 
-    /** {@inheritDoc} */
+    /**
+     * {@inheritDoc}
+     */
     @Override
     protected V readFromDataSource(@NonNull K key) {
-        final var k = new OnDiskKey<>(keyClassId, keyCodec, key);
-        final var v = virtualMap.get(k);
-        final var value = v == null ? null : v.getValue();
+        final Bytes stateKey = getStateKeyForKv(stateId, key, keyCodec);
+        final StateValue<V> stateValue = virtualMap.get(stateKey, stateValueCodec);
+        final V value = stateValue != null ? stateValue.value() : null;
         // Log to transaction state log, what was read
-        logMapGet(getStateKey(), key, value);
+        logMapGet(label, key, value);
         return value;
     }
 
@@ -64,23 +74,25 @@ public final class OnDiskReadableKVState<K, V> extends ReadableKVStateBase<K, V>
     @Override
     protected Iterator<K> iterateFromDataSource() {
         // Log to transaction state log, what was iterated
-        logMapIterate(getStateKey(), virtualMap);
-        return new OnDiskIterator<>(virtualMap);
+        logMapIterate(label, virtualMap, keyCodec);
+        return new OnDiskIterator<>(virtualMap, keyCodec, stateId);
     }
 
-    /** {@inheritDoc} */
+    /**
+     * {@inheritDoc}
+     */
     @Override
     @Deprecated
     public long size() {
         final var size = virtualMap.size();
         // Log to transaction state log, size of map
-        logMapGetSize(getStateKey(), size);
+        logMapGetSize(label, size);
         return size;
     }
 
     @Override
     public void warm(@NonNull final K key) {
-        final var k = new OnDiskKey<>(keyClassId, keyCodec, key);
-        virtualMap.warm(k);
+        final Bytes stateKey = getStateKeyForKv(stateId, key, keyCodec);
+        virtualMap.warm(stateKey);
     }
 }

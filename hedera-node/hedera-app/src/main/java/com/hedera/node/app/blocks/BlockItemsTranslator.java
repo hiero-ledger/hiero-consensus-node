@@ -1,20 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.blocks;
 
-import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_CONTRACT_BYTECODE;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CALL;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CREATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.ETHEREUM_TRANSACTION;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asBesuLog;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.bloomFor;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.bloomForAll;
-import static com.hedera.node.app.service.token.api.ContractChangeSummary.CONTRACT_ID_NUM_COMPARATOR;
 import static com.hedera.node.app.service.token.api.ContractChangeSummary.NONCE_INFO_CONTRACT_ID_COMPARATOR;
 import static java.util.Objects.requireNonNull;
 
-import com.hedera.hapi.block.stream.output.MapChangeKey;
-import com.hedera.hapi.block.stream.output.MapUpdateChange;
-import com.hedera.hapi.block.stream.output.StateChange;
 import com.hedera.hapi.block.stream.output.TransactionOutput;
 import com.hedera.hapi.block.stream.output.TransactionResult;
 import com.hedera.hapi.block.stream.trace.EvmTransactionLog;
@@ -35,7 +30,7 @@ import com.hedera.node.app.blocks.impl.contexts.SubmitOpContext;
 import com.hedera.node.app.blocks.impl.contexts.SupplyChangeOpContext;
 import com.hedera.node.app.blocks.impl.contexts.TokenOpContext;
 import com.hedera.node.app.blocks.impl.contexts.TopicOpContext;
-import com.hedera.node.app.service.contract.impl.utils.ConversionUtils;
+import com.hedera.node.app.hapi.utils.contracts.HookUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.ArrayList;
@@ -166,7 +161,7 @@ public class BlockItemsTranslator {
                     final var ethOutput = outputValueIfPresent(
                             TransactionOutput::hasEthereumCall, TransactionOutput::ethereumCallOrThrow, outputs);
                     if (ethOutput != null) {
-                        switch (ethOutput.txnResult().kind()) {
+                        switch (ethOutput.transactionResult().kind()) {
                             case EVM_CALL_TRANSACTION_RESULT ->
                                 recordBuilder.contractCallResult(
                                         legacyResultFrom(ethOutput.evmCallTransactionResultOrThrow(), context, logs));
@@ -231,16 +226,9 @@ public class BlockItemsTranslator {
         }
         if (context instanceof ContractOpContext contractContext) {
             builder.signerNonce(contractContext.senderNonce());
-            final var stateChanges = contractContext.stateChanges();
-            final var createdIds = stateChanges.stream()
-                    .filter(change -> change.stateId() == STATE_ID_CONTRACT_BYTECODE.protoOrdinal())
-                    .filter(StateChange::hasMapUpdate)
-                    .map(StateChange::mapUpdateOrThrow)
-                    .map(MapUpdateChange::keyOrThrow)
-                    .map(MapChangeKey::contractIdKeyOrThrow)
-                    .sorted(CONTRACT_ID_NUM_COMPARATOR)
-                    .toList();
-            builder.createdContractIDs(createdIds);
+            if (contractContext.createdContractIds() != null) {
+                builder.createdContractIDs(contractContext.createdContractIds());
+            }
             if (contractContext.evmAddress() != null) {
                 builder.evmAddress(contractContext.evmAddress());
             }
@@ -262,7 +250,7 @@ public class BlockItemsTranslator {
             final List<ContractLoginfo> verboseLogs = new ArrayList<>(logs.size());
             for (final var log : logs) {
                 final var paddedTopics =
-                        log.topics().stream().map(ConversionUtils::leftPad32).toList();
+                        log.topics().stream().map(HookUtils::leftPad32).toList();
                 final var besuLog = asBesuLog(log, paddedTopics);
                 besuLogs.add(besuLog);
                 verboseLogs.add(ContractLoginfo.newBuilder()

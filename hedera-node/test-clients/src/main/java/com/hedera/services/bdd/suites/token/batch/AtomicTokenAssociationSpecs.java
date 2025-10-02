@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.token.batch;
 
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.TOKEN;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.NoTokenTransfers.emptyTokenTransfers;
@@ -79,6 +80,7 @@ import org.junit.jupiter.api.Tag;
 // we are wrapping the operations in an atomic batch to confirm that everything works as expected.
 @HapiTestLifecycle
 @Tag(TOKEN)
+@Tag(MATS)
 public class AtomicTokenAssociationSpecs {
 
     public static final String FREEZABLE_TOKEN_ON_BY_DEFAULT = "TokenA";
@@ -136,7 +138,7 @@ public class AtomicTokenAssociationSpecs {
                 atomicBatch(tokenAssociate(unknownID, VANILLA_TOKEN)
                                 .fee(DEFAULT_FEE)
                                 .signedBy(DEFAULT_PAYER)
-                                .hasPrecheck(INVALID_ACCOUNT_ID)
+                                .hasKnownStatus(INVALID_ACCOUNT_ID)
                                 .batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR)
                         .hasKnownStatus(INNER_TRANSACTION_FAILED)));
@@ -545,7 +547,7 @@ public class AtomicTokenAssociationSpecs {
     final Stream<DynamicTest> dissociateHasExpectedSemantics() {
         return hapiTest(flattened(
                 basicKeysAndTokens(),
-                tokenCreate("tkn1"),
+                tokenCreate("tkn1").treasury(TOKEN_TREASURY),
                 cryptoCreate("misc"),
                 atomicBatch(tokenDissociate(TOKEN_TREASURY, "tkn1")
                                 .hasKnownStatus(ACCOUNT_IS_TREASURY)

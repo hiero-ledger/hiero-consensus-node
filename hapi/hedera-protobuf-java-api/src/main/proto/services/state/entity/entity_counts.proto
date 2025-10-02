@@ -71,4 +71,12 @@ message EntityCounts {
    * The number of contract bytecodes in the network.
    */
   uint64 num_contract_bytecodes = 13;
+  /**
+   * The number of hooks in the network.
+   */
+  uint64 num_hooks = 14;
+  /**
+   * The number of lambda hook storage slots in the network.
+   */
+  uint64 num_lambda_storage_slots = 15;
 }

@@ -5,6 +5,7 @@ import static java.util.Objects.requireNonNull;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.util.regex.Pattern;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -15,8 +16,13 @@ import org.apache.logging.log4j.Logger;
  * @param version the version of the user-agent used
  */
 public record UserAgent(@NonNull UserAgentType agentType, @NonNull String version) {
-    static final UserAgent UNKNOWN = new UserAgent(UserAgentType.UNKNOWN, "Unknown");
-    static final UserAgent UNSPECIFIED = new UserAgent(UserAgentType.UNSPECIFIED, "Unknown");
+    // Simple SemVer regex, taken from https://ihateregex.io/expr/semver/
+    private static final Pattern VERSION_REGEX = Pattern.compile(
+            "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(?:-((?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\\.(?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\\+([0-9a-zA-Z-]+(?:\\.[0-9a-zA-Z-]+)*))?$");
+
+    private static final String UNKNOWN_STR = "Unknown";
+    static final UserAgent UNKNOWN = new UserAgent(UserAgentType.UNKNOWN, UNKNOWN_STR);
+    static final UserAgent UNSPECIFIED = new UserAgent(UserAgentType.UNSPECIFIED, UNKNOWN_STR);
 
     private static final Logger logger = LogManager.getLogger(UserAgent.class);
 
@@ -59,8 +65,17 @@ public record UserAgent(@NonNull UserAgentType agentType, @NonNull String versio
 
             final UserAgentType type = UserAgentType.fromString(subTokens[0]);
             // If the version is blank/missing or the type is a known type, then set the version to unknown
-            final String version =
-                    subTokens.length == 1 || subTokens[1].isBlank() || !type.isKnownType() ? "Unknown" : subTokens[1];
+            final String rawVersion = subTokens.length == 1 ? null : subTokens[1];
+            final String version;
+            if (rawVersion == null || rawVersion.isBlank() || !type.isKnownType()) {
+                version = UNKNOWN_STR;
+            } else if ("dev".equalsIgnoreCase(rawVersion)) {
+                version = "dev";
+            } else if (VERSION_REGEX.matcher(rawVersion).matches()) {
+                version = rawVersion.toLowerCase();
+            } else {
+                version = UNKNOWN_STR;
+            }
 
             if (userAgent == null) {
                 userAgent = new UserAgent(type, version);

@@ -5,6 +5,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.ACCOUNT_DELETED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.ACCOUNT_EXPIRED_AND_PENDING_REMOVAL;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.ACCOUNT_ID_DOES_NOT_EXIST;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.EXISTING_AUTOMATIC_ASSOCIATIONS_EXCEED_GIVEN_LIMIT;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOK_ID_REPEATED_IN_CREATION_DETAILS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ADMIN_KEY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_MAX_AUTO_ASSOCIATIONS;
@@ -18,6 +19,9 @@ import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.BASIC_ENTITY_ID_SIZE
 import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.INT_SIZE;
 import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.LONG_SIZE;
 import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.getAccountKeyStorageSize;
+import static com.hedera.node.app.service.token.HookDispatchUtils.dispatchHookCreations;
+import static com.hedera.node.app.service.token.HookDispatchUtils.dispatchHookDeletions;
+import static com.hedera.node.app.service.token.HookDispatchUtils.validateHookDuplicates;
 import static com.hedera.node.app.service.token.api.AccountSummariesApi.SENTINEL_ACCOUNT_ID;
 import static com.hedera.node.app.service.token.api.AccountSummariesApi.SENTINEL_NODE_ID;
 import static com.hedera.node.app.spi.validation.AttributeValidator.isImmutableKey;
@@ -74,6 +78,7 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
 
     /**
      * Default constructor for injection.
+     *
      * @param waivers the {@link CryptoSignatureWaivers} to use for checking signature waivers
      */
     @Inject
@@ -90,6 +95,11 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
         validateFalsePreCheck(
                 op.hasProxyAccountID() && !op.proxyAccountID().equals(AccountID.DEFAULT),
                 PROXY_ACCOUNT_ID_FIELD_IS_DEPRECATED);
+        validateHookDuplicates(op.hookCreationDetails());
+        if (!op.hookIdsToDelete().isEmpty()) {
+            final var distinctHookIds = op.hookIdsToDelete().stream().distinct().count();
+            validateTruePreCheck(distinctHookIds == op.hookIdsToDelete().size(), HOOK_ID_REPEATED_IN_CREATION_DETAILS);
+        }
     }
 
     @Override
@@ -122,6 +132,7 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
 
     /**
      * This method is called during the handle workflow. It executes the actual transaction.
+     *
      * @param context the {@link HandleContext} which collects all information
      * @throws HandleException if any of the checks fail
      * @throws NullPointerException if any of the arguments are null
@@ -150,6 +161,8 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
         if (targetAccount.expiredAndPendingRemoval()) {
             builder.expiredAndPendingRemoval(false);
         }
+        // Update hooks if any
+        updateHooks(context, targetAccount, op, builder);
 
         // Add account to the modifications in state
         accountStore.put(builder.build());
@@ -159,7 +172,43 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
     }
 
     /**
+     * Update hooks if any in the transaction. This includes dispatching hook creations and deletions.
+     * This method also updates the firstHookId and numberHooksInUse in the account builder.
+     *
+     * @param context the handle context
+     * @param targetAccount the account to be updated
+     * @param op the crypto update transaction body
+     * @param builder the account builder to update firstHookId and numberHooksInUse
+     */
+    private void updateHooks(
+            final @NonNull HandleContext context,
+            final Account targetAccount,
+            final CryptoUpdateTransactionBody op,
+            final Account.Builder builder) {
+        // compute head after deletes
+        long currentHead = targetAccount.firstHookId();
+        long headAfterDeletes = currentHead;
+        // Dispatch all the hooks to delete
+        if (!op.hookIdsToDelete().isEmpty()) {
+            headAfterDeletes =
+                    dispatchHookDeletions(context, op.hookIdsToDelete(), currentHead, op.accountIDToUpdate());
+        }
+        if (!op.hookCreationDetails().isEmpty()) {
+            dispatchHookCreations(context, op.hookCreationDetails(), headAfterDeletes, op.accountIDToUpdate());
+        }
+        // Update firstHookId in the account if needed.
+        // If there are creations, always the first hookId created will be the firstHookId.
+        // If there are only deletions, then set as the head after deletions
+        if (!op.hookCreationDetails().isEmpty()) {
+            builder.firstHookId(op.hookCreationDetails().getFirst().hookId());
+        } else if (!op.hookIdsToDelete().isEmpty()) {
+            builder.firstHookId(headAfterDeletes);
+        }
+    }
+
+    /**
      * Add a builder from {@link CryptoUpdateTransactionBody} to create {@link Account.Builder} object.
+     *
      * @param op Crypto update transaction body
      * @return builder
      */
@@ -207,12 +256,19 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
                 builder.stakedNodeId(op.stakedNodeId());
             }
         }
+        if (!op.hookCreationDetails().isEmpty() || !op.hookIdsToDelete().isEmpty()) {
+            final var currentHooks = currentAccount.numberHooksInUse();
+            builder.numberHooksInUse(currentHooks
+                    - op.hookIdsToDelete().size()
+                    + op.hookCreationDetails().size());
+        }
         return builder;
     }
 
     /**
      * Validate semantics of the transaction. This method is called during the handle workflow.
      * It validates any fields of the transaction that involves state or config.
+     *
      * @param context handle context
      * @param updateAccount account to be updated
      * @param op crypto update transaction body
@@ -277,6 +333,7 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
 
     /**
      * Validate basic fields of the transaction that involves state or config.
+     *
      * @param op crypto update transaction body
      * @param context handle context
      * @param accountStore account store
@@ -310,6 +367,7 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
     /**
      * This method calculates the fees for the CryptoUpdate transaction.
      * Currently, it just duplicates all the logic from mono-service
+     *
      * @param feeContext the {@link FeeContext} with all information needed for the calculation
      * @return the calculated fees
      */
@@ -330,6 +388,7 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
     /**
      * This method calculates the base size of the cryptoUpdate transaction.
      * This is the duplicated code as in mono-service
+     *
      * @param txBody the {@link CryptoUpdateTransactionBody}
      * @param keySize the size of the key
      * @return the calculated base size
@@ -347,6 +406,7 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
     /**
      * This method calculates the bytes for the CryptoUpdate transaction auto-renew information.
      * This is the duplicated code as in mono-service
+     *
      * @param account the {@link Account} to be updated
      * @return the calculated bytes
      */
@@ -363,6 +423,7 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
     /**
      * This method calculates the bytes for the CryptoUpdate transaction related to memo and keys.
      * This is the duplicated code as in mono-service
+     *
      * @param account the {@link Account} to be updated
      * @return the calculated bytes
      */
@@ -380,6 +441,7 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
     /**
      * This method calculates the fees for the CryptoUpdate transaction.
      * This can also be used for lazy account creation logic in AutoAccountCreator class in future PRs
+     *
      * @param body the {@link TransactionBody}
      * @param feeCalculator the {@link FeeCalculator}
      * @param accountStore the {@link ReadableAccountStore}

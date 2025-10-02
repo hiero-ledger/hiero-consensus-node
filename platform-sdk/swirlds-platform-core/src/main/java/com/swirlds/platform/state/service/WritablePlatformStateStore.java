@@ -24,6 +24,7 @@ import org.hiero.base.crypto.Hash;
  * Extends the read-only platform state store to provide write access to the platform state.
  */
 public class WritablePlatformStateStore extends ReadablePlatformStateStore implements PlatformStateModifier {
+
     private final WritableStates writableStates;
     private final WritableSingletonState<PlatformState> state;
 
@@ -34,7 +35,7 @@ public class WritablePlatformStateStore extends ReadablePlatformStateStore imple
     public WritablePlatformStateStore(@NonNull final WritableStates writableStates) {
         super(writableStates);
         this.writableStates = writableStates;
-        this.state = writableStates.getSingleton(V0540PlatformStateSchema.PLATFORM_STATE_KEY);
+        this.state = writableStates.getSingleton(V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID);
     }
 
     /**
@@ -140,42 +141,6 @@ public class WritablePlatformStateStore extends ReadablePlatformStateStore imple
     public void setLatestFreezeRound(final long latestFreezeRound) {
         final var previousState = stateOrThrow();
         update(previousState.copyBuilder().latestFreezeRound(latestFreezeRound));
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void setFirstVersionInBirthRoundMode(@NonNull final SemanticVersion firstVersionInBirthRoundMode) {
-        requireNonNull(firstVersionInBirthRoundMode);
-        final var previousState = stateOrThrow();
-        update(previousState
-                .copyBuilder()
-                .firstVersionInBirthRoundMode(firstVersionInBirthRoundMode)
-                .build());
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void setLastRoundBeforeBirthRoundMode(final long lastRoundBeforeBirthRoundMode) {
-        final var previousState = stateOrThrow();
-        update(previousState
-                .copyBuilder()
-                .lastRoundBeforeBirthRoundMode(lastRoundBeforeBirthRoundMode)
-                .build());
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void setLowestJudgeGenerationBeforeBirthRoundMode(final long lowestJudgeGenerationBeforeBirthRoundMode) {
-        final var previousState = stateOrThrow();
-        update(previousState
-                .copyBuilder()
-                .lowestJudgeGenerationBeforeBirthRoundMode(lowestJudgeGenerationBeforeBirthRoundMode));
     }
 
     /**

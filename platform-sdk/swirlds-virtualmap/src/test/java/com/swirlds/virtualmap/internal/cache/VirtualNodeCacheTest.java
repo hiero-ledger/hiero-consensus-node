@@ -2,7 +2,6 @@
 package com.swirlds.virtualmap.internal.cache;
 
 import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyDoesNotThrow;
-import static com.swirlds.virtualmap.internal.cache.VirtualNodeCache.DELETED_HASH;
 import static com.swirlds.virtualmap.internal.cache.VirtualNodeCache.DELETED_LEAF_RECORD;
 import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.*;
 import static java.util.Arrays.asList;
@@ -16,16 +15,20 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.state.MutabilityException;
 import com.swirlds.common.test.fixtures.io.InputOutputStream;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.datasource.VirtualHashRecord;
-import com.swirlds.virtualmap.datasource.VirtualLeafRecord;
+import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.test.fixtures.TestKey;
 import com.swirlds.virtualmap.test.fixtures.TestValue;
+import com.swirlds.virtualmap.test.fixtures.TestValueCodec;
 import com.swirlds.virtualmap.test.fixtures.VirtualTestBase;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -42,8 +45,8 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.hiero.base.crypto.Cryptography;
+import org.hiero.base.crypto.CryptographyException;
 import org.hiero.base.crypto.Hash;
-import org.hiero.base.crypto.HashBuilder;
 import org.hiero.base.exceptions.ReferenceCountException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
@@ -51,6 +54,7 @@ import org.junit.jupiter.api.Tags;
 import org.junit.jupiter.api.Test;
 
 class VirtualNodeCacheTest extends VirtualTestBase {
+
     private static final long BOGUS_KEY_ID = -7000;
 
     // ----------------------------------------------------------------------
@@ -79,25 +83,25 @@ class VirtualNodeCacheTest extends VirtualTestBase {
         // creating the next round.
 
         // Add apple at path 1
-        final VirtualNodeCache<TestKey, TestValue> cache0 = cache;
-        final VirtualLeafRecord<TestKey, TestValue> appleLeaf0 = appleLeaf(1);
+        final VirtualNodeCache cache0 = cache;
+        VirtualLeafBytes<TestValue> appleLeaf0 = appleLeaf(1);
         cache0.putLeaf(appleLeaf0);
         validateLeaves(cache0, 1, Collections.singletonList(appleLeaf0));
 
         // Add banana at path 2
-        final VirtualLeafRecord<TestKey, TestValue> bananaLeaf0 = bananaLeaf(2);
+        final VirtualLeafBytes<TestValue> bananaLeaf0 = bananaLeaf(2);
         cache0.putLeaf(bananaLeaf0);
         validateLeaves(cache0, 1, asList(appleLeaf0, bananaLeaf0));
 
         // Move apple to path 3
-        appleLeaf0.setPath(3);
+        appleLeaf0 = appleLeaf0.withPath(3);
         cache0.clearLeafPath(1);
         cache0.putLeaf(appleLeaf0);
-        assertEquals(DELETED_LEAF_RECORD, cache0.lookupLeafByPath(1, false), "leaf should have been deleted");
+        assertEquals(DELETED_LEAF_RECORD, cache0.lookupLeafByPath(1), "leaf should have been deleted");
         validateLeaves(cache0, 2, asList(bananaLeaf0, appleLeaf0));
 
         // Add cherry to path 4
-        final VirtualLeafRecord<TestKey, TestValue> cherryLeaf0 = cherryLeaf(4);
+        final VirtualLeafBytes<TestValue> cherryLeaf0 = cherryLeaf(4);
         cache0.putLeaf(cherryLeaf0);
         validateLeaves(cache0, 2, asList(bananaLeaf0, appleLeaf0, cherryLeaf0));
 
@@ -112,11 +116,11 @@ class VirtualNodeCacheTest extends VirtualTestBase {
         cache0.putHash(rootInternal0);
         cache0.seal();
         validateTree(cache0, asList(rootInternal0, leftInternal0, bananaLeaf0, appleLeaf0, cherryLeaf0));
-        final Hash bananaLeaf0intHash = cache0.lookupHashByPath(bananaLeaf0.getPath(), false);
+        final Hash bananaLeaf0intHash = cache0.lookupHashByPath(bananaLeaf0.path());
         assertNull(bananaLeaf0intHash);
-        final Hash appleLeaf0intHash = cache0.lookupHashByPath(appleLeaf0.getPath(), false);
+        final Hash appleLeaf0intHash = cache0.lookupHashByPath(appleLeaf0.path());
         assertNull(appleLeaf0intHash);
-        final Hash cherryLeaf0intHash = cache0.lookupHashByPath(cherryLeaf0.getPath(), false);
+        final Hash cherryLeaf0intHash = cache0.lookupHashByPath(cherryLeaf0.path());
         assertNull(cherryLeaf0intHash);
         // This check (and many similar checks below) is arguable. In real world, dirtyHashes() is only
         // called when a cache is flushed to disk, and it happens only after VirtualMap copy is hashed, all
@@ -126,35 +130,35 @@ class VirtualNodeCacheTest extends VirtualTestBase {
         validateDirtyInternals(Set.of(rootInternal0, leftInternal0), cache0.dirtyHashesForFlush(4));
 
         // ROUND 1: Add D and E.
-        final VirtualNodeCache<TestKey, TestValue> cache1 = cache;
+        final VirtualNodeCache cache1 = cache;
 
         // Move B to index 5
-        final VirtualLeafRecord<TestKey, TestValue> bananaLeaf1 = bananaLeaf(5);
+        final VirtualLeafBytes<TestValue> bananaLeaf1 = bananaLeaf(5);
         cache1.clearLeafPath(2);
         cache1.putLeaf(bananaLeaf1);
         assertEquals(
                 DELETED_LEAF_RECORD,
-                cache1.lookupLeafByPath(2, false),
+                cache1.lookupLeafByPath(2),
                 "value that was looked up should match original value");
         validateLeaves(cache1, 3, asList(appleLeaf0, cherryLeaf0, bananaLeaf1));
 
         // Add D at index 6
-        final VirtualLeafRecord<TestKey, TestValue> dateLeaf1 = dateLeaf(6);
+        final VirtualLeafBytes<TestValue> dateLeaf1 = dateLeaf(6);
         cache1.putLeaf(dateLeaf1);
         validateLeaves(cache1, 3, asList(appleLeaf0, cherryLeaf0, bananaLeaf1, dateLeaf1));
 
         // Move A to index 7
-        final VirtualLeafRecord<TestKey, TestValue> appleLeaf1 = appleLeaf(7);
+        final VirtualLeafBytes<TestValue> appleLeaf1 = appleLeaf(7);
         cache1.clearLeafPath(3);
         cache1.putLeaf(appleLeaf1);
         assertEquals(
                 DELETED_LEAF_RECORD,
-                cache1.lookupLeafByPath(3, false),
+                cache1.lookupLeafByPath(3),
                 "value that was looked up should match original value");
         validateLeaves(cache1, 4, asList(cherryLeaf0, bananaLeaf1, dateLeaf1, appleLeaf1));
 
         // Add E at index 8
-        final VirtualLeafRecord<TestKey, TestValue> eggplantLeaf1 = eggplantLeaf(8);
+        final VirtualLeafBytes<TestValue> eggplantLeaf1 = eggplantLeaf(8);
         cache1.putLeaf(eggplantLeaf1);
         validateLeaves(cache1, 4, asList(cherryLeaf0, bananaLeaf1, dateLeaf1, appleLeaf1, eggplantLeaf1));
 
@@ -188,35 +192,35 @@ class VirtualNodeCacheTest extends VirtualTestBase {
                 Set.of(rootInternal1, leftInternal1, rightInternal1, leftLeftInternal1), cache1.dirtyHashesForFlush(8));
 
         // ROUND 2: Add F and G
-        final VirtualNodeCache<TestKey, TestValue> cache2 = cache;
+        final VirtualNodeCache cache2 = cache;
 
         // Move C to index 9
-        final VirtualLeafRecord<TestKey, TestValue> cherryLeaf2 = cherryLeaf(9);
+        final VirtualLeafBytes<TestValue> cherryLeaf2 = cherryLeaf(9);
         cache2.clearLeafPath(4);
         cache2.putLeaf(cherryLeaf2);
         assertEquals(
                 DELETED_LEAF_RECORD,
-                cache2.lookupLeafByPath(4, false),
+                cache2.lookupLeafByPath(4),
                 "value that was looked up should match original value");
         validateLeaves(cache2, 5, asList(bananaLeaf1, dateLeaf1, appleLeaf1, eggplantLeaf1, cherryLeaf2));
 
         // Add F at index 10
-        final VirtualLeafRecord<TestKey, TestValue> figLeaf2 = figLeaf(10);
+        final VirtualLeafBytes<TestValue> figLeaf2 = figLeaf(10);
         cache2.putLeaf(figLeaf2);
         validateLeaves(cache2, 5, asList(bananaLeaf1, dateLeaf1, appleLeaf1, eggplantLeaf1, cherryLeaf2, figLeaf2));
 
         // Move B to index 11
-        final VirtualLeafRecord<TestKey, TestValue> bananaLeaf2 = bananaLeaf(11);
+        final VirtualLeafBytes<TestValue> bananaLeaf2 = bananaLeaf(11);
         cache2.clearLeafPath(5);
         cache2.putLeaf(bananaLeaf2);
         assertEquals(
                 DELETED_LEAF_RECORD,
-                cache2.lookupLeafByPath(5, false),
+                cache2.lookupLeafByPath(5),
                 "value that was looked up should match original value");
         validateLeaves(cache2, 6, asList(dateLeaf1, appleLeaf1, eggplantLeaf1, cherryLeaf2, figLeaf2, bananaLeaf2));
 
         // Add G at index 12
-        final VirtualLeafRecord<TestKey, TestValue> grapeLeaf2 = grapeLeaf(12);
+        final VirtualLeafBytes<TestValue> grapeLeaf2 = grapeLeaf(12);
         cache2.putLeaf(grapeLeaf2);
         validateLeaves(
                 cache2,
@@ -263,68 +267,80 @@ class VirtualNodeCacheTest extends VirtualTestBase {
         // will be removed and replaced with a new value (same key).
 
         // Remove A and move G to take its place. Move B to path 5
-        final VirtualNodeCache<TestKey, TestValue> cache3 = cache;
-        final VirtualLeafRecord<TestKey, TestValue> appleLeaf3 = appleLeaf(7);
+        final VirtualNodeCache cache3 = cache;
+        final VirtualLeafBytes<TestValue> appleLeaf3 = appleLeaf(7);
         cache3.deleteLeaf(appleLeaf3);
         assertEquals(
                 DELETED_LEAF_RECORD,
-                cache3.lookupLeafByPath(7, false),
+                cache3.lookupLeafByPath(7),
                 "value that was looked up should match original value");
 
-        final VirtualLeafRecord<TestKey, TestValue> grapeLeaf3 = grapeLeaf(7);
+        final VirtualLeafBytes<TestValue> grapeLeaf3 = grapeLeaf(7);
         cache3.clearLeafPath(12);
         cache3.putLeaf(grapeLeaf3);
         assertEquals(
                 DELETED_LEAF_RECORD,
-                cache3.lookupLeafByPath(12, false),
+                cache3.lookupLeafByPath(12),
                 "value that was looked up should match original value");
 
-        final VirtualLeafRecord<TestKey, TestValue> bananaLeaf3 = bananaLeaf(5);
+        final VirtualLeafBytes<TestValue> bananaLeaf3 = bananaLeaf(5);
         cache3.clearLeafPath(11);
         cache3.putLeaf(bananaLeaf3);
-        cache3.deleteHash(5);
         assertEquals(
                 DELETED_LEAF_RECORD,
-                cache3.lookupLeafByPath(11, false),
-                "value that was looked up should match original value");
-        assertEquals(
-                DELETED_HASH,
-                cache3.lookupHashByPath(5, false),
+                cache3.lookupLeafByPath(11),
                 "value that was looked up should match original value");
 
         validateLeaves(cache3, 5, asList(bananaLeaf3, dateLeaf1, grapeLeaf3, eggplantLeaf1, cherryLeaf2, figLeaf2));
 
         // Add A back. Banana is moved to position 11, Apple goes to position 12
-        appleLeaf3.setPath(12);
-        cache3.putLeaf(appleLeaf3);
-        bananaLeaf3.setPath(11);
-        cache3.putLeaf(bananaLeaf3);
+        VirtualLeafBytes<TestValue> appleLeaf3updated = appleLeaf3.withPath(12);
+        cache3.putLeaf(appleLeaf3updated);
+        VirtualLeafBytes<TestValue> bananaLeaf3updated = bananaLeaf3.withPath(11);
+        cache3.putLeaf(bananaLeaf3updated);
         cache3.clearLeafPath(5);
         assertEquals(
                 DELETED_LEAF_RECORD,
-                cache3.lookupLeafByPath(5, false),
+                cache3.lookupLeafByPath(5),
                 "value that was looked up should match original value");
 
         validateLeaves(
                 cache3,
                 6,
-                asList(dateLeaf1, grapeLeaf3, eggplantLeaf1, cherryLeaf2, figLeaf2, bananaLeaf3, appleLeaf3));
+                asList(
+                        dateLeaf1,
+                        grapeLeaf3,
+                        eggplantLeaf1,
+                        cherryLeaf2,
+                        figLeaf2,
+                        bananaLeaf3updated,
+                        appleLeaf3updated));
 
         // Update D
-        final VirtualLeafRecord<TestKey, TestValue> dogLeaf3 = dogLeaf(dateLeaf1.getPath());
+        final VirtualLeafBytes<TestValue> dogLeaf3 = dogLeaf(dateLeaf1.path());
         cache3.putLeaf(dogLeaf3);
 
         // Update F
-        final VirtualLeafRecord<TestKey, TestValue> foxLeaf3 = foxLeaf(figLeaf2.getPath());
+        final VirtualLeafBytes<TestValue> foxLeaf3 = foxLeaf(figLeaf2.path());
         cache3.putLeaf(foxLeaf3);
 
         validateLeaves(
-                cache3, 6, asList(dogLeaf3, grapeLeaf3, eggplantLeaf1, cherryLeaf2, foxLeaf3, bananaLeaf3, appleLeaf3));
+                cache3,
+                6,
+                asList(
+                        dogLeaf3,
+                        grapeLeaf3,
+                        eggplantLeaf1,
+                        cherryLeaf2,
+                        foxLeaf3,
+                        bananaLeaf3updated,
+                        appleLeaf3updated));
 
         // End the round and create the next round
         nextRound();
         validateDirtyLeaves(
-                asList(dogLeaf3, grapeLeaf3, foxLeaf3, bananaLeaf3, appleLeaf3), cache3.dirtyLeavesForHash(6, 12));
+                asList(dogLeaf3, grapeLeaf3, foxLeaf3, bananaLeaf3updated, appleLeaf3updated),
+                cache3.dirtyLeavesForHash(6, 12));
 
         // We removed the internal node rightLeftInternal. We need to add it back in.
         final VirtualHashRecord rightLeftInternal3 = rightLeftInternal();
@@ -352,7 +368,7 @@ class VirtualNodeCacheTest extends VirtualTestBase {
 
         // At this point, we have built the tree successfully. Verify one more time that each version of
         // the cache still sees things the same way it did at the time the copy was made.
-        final VirtualNodeCache<TestKey, TestValue> cache4 = cache;
+        final VirtualNodeCache cache4 = cache;
         validateTree(cache0, asList(rootInternal0, leftInternal0, bananaLeaf0, appleLeaf0, cherryLeaf0));
         validateTree(
                 cache1,
@@ -396,8 +412,8 @@ class VirtualNodeCacheTest extends VirtualTestBase {
                         eggplantLeaf1,
                         cherryLeaf2,
                         foxLeaf3,
-                        bananaLeaf3,
-                        appleLeaf3));
+                        bananaLeaf3updated,
+                        appleLeaf3updated));
         validateTree(
                 cache4,
                 asList(
@@ -412,8 +428,8 @@ class VirtualNodeCacheTest extends VirtualTestBase {
                         eggplantLeaf1,
                         cherryLeaf2,
                         foxLeaf3,
-                        bananaLeaf3,
-                        appleLeaf3));
+                        bananaLeaf3updated,
+                        appleLeaf3updated));
 
         // Now, we will release the oldest, cache0
         cache0.release();
@@ -471,8 +487,8 @@ class VirtualNodeCacheTest extends VirtualTestBase {
                                     eggplantLeaf1,
                                     cherryLeaf2,
                                     foxLeaf3,
-                                    bananaLeaf3,
-                                    appleLeaf3));
+                                    bananaLeaf3updated,
+                                    appleLeaf3updated));
                 },
                 Duration.ofSeconds(1),
                 "expected cache3 to eventually become clean");
@@ -492,8 +508,8 @@ class VirtualNodeCacheTest extends VirtualTestBase {
                                     eggplantLeaf1,
                                     cherryLeaf2,
                                     foxLeaf3,
-                                    bananaLeaf3,
-                                    appleLeaf3));
+                                    bananaLeaf3updated,
+                                    appleLeaf3updated));
                 },
                 Duration.ofSeconds(1),
                 "expected cache4 to eventually become clean");
@@ -537,8 +553,8 @@ class VirtualNodeCacheTest extends VirtualTestBase {
                                     null,
                                     cherryLeaf2,
                                     foxLeaf3,
-                                    bananaLeaf3,
-                                    appleLeaf3));
+                                    bananaLeaf3updated,
+                                    appleLeaf3updated));
                 },
                 Duration.ofSeconds(1),
                 "expected cache3 to eventually become clean");
@@ -558,8 +574,8 @@ class VirtualNodeCacheTest extends VirtualTestBase {
                                     null,
                                     cherryLeaf2,
                                     foxLeaf3,
-                                    bananaLeaf3,
-                                    appleLeaf3));
+                                    bananaLeaf3updated,
+                                    appleLeaf3updated));
                 },
                 Duration.ofSeconds(1),
                 "expected cache to eventually become clean");
@@ -594,10 +610,10 @@ class VirtualNodeCacheTest extends VirtualTestBase {
     @Tags({@Tag("VirtualMerkle"), @Tag("VirtualNodeCache"), @Tag("Lifecycle")})
     @DisplayName("Copied caches are immutable for all leaf modifications")
     void copiedCacheIsImmutableForLeaves() {
-        final VirtualNodeCache<TestKey, TestValue> original = cache;
+        final VirtualNodeCache original = cache;
         nextRound();
 
-        final VirtualNodeCache<TestKey, TestValue> latest = cache;
+        final VirtualNodeCache latest = cache;
         assertTrue(original.isImmutable(), "After a round, a copy is created");
         assertFalse(latest.isImmutable(), "The latest cache is mutable");
         assertThrows(
@@ -622,10 +638,10 @@ class VirtualNodeCacheTest extends VirtualTestBase {
     @Tags({@Tag("VirtualMerkle"), @Tag("VirtualNodeCache"), @Tag("Lifecycle")})
     @DisplayName("Copied caches are not destroyed")
     void copiedCacheIsNotDestroyed() {
-        final VirtualNodeCache<TestKey, TestValue> original = cache;
+        final VirtualNodeCache original = cache;
         nextRound();
 
-        final VirtualNodeCache<TestKey, TestValue> latest = cache;
+        final VirtualNodeCache latest = cache;
         assertFalse(original.isDestroyed(), "copy should be destroyed");
         assertFalse(latest.isDestroyed(), "copy should be destroyed");
     }
@@ -638,14 +654,13 @@ class VirtualNodeCacheTest extends VirtualTestBase {
     @Tags({@Tag("VirtualMerkle"), @Tag("VirtualNodeCache"), @Tag("Lifecycle")})
     @DisplayName("Copied caches are still queryable for leaves")
     void copiedCacheIsQueryableForLeaves() {
-        final VirtualNodeCache<TestKey, TestValue> original = cache;
-        final VirtualLeafRecord<TestKey, TestValue> appleLeaf0 = appleLeaf(A_PATH);
+        final VirtualNodeCache original = cache;
+        final VirtualLeafBytes<TestValue> appleLeaf0 = appleLeaf(A_PATH);
         original.putLeaf(appleLeaf0);
         nextRound();
 
-        assertEquals(appleLeaf0, original.lookupLeafByKey(A_KEY, false), "value that was found should equal original");
-        assertEquals(
-                appleLeaf0, original.lookupLeafByPath(A_PATH, false), "value that was found should equal original");
+        assertEquals(appleLeaf0, original.lookupLeafByKey(A_KEY), "value that was found should equal original");
+        assertEquals(appleLeaf0, original.lookupLeafByPath(A_PATH), "value that was found should equal original");
     }
 
     /**
@@ -656,20 +671,18 @@ class VirtualNodeCacheTest extends VirtualTestBase {
     @Tags({@Tag("VirtualMerkle"), @Tag("VirtualNodeCache"), @Tag("Lifecycle")})
     @DisplayName("First copies are mutable for internal node modifications")
     void firstCopyIsMutableForInternals() {
-        final VirtualNodeCache<TestKey, TestValue> original = cache;
+        final VirtualNodeCache original = cache;
         nextRound();
 
-        final VirtualNodeCache<TestKey, TestValue> latest = cache;
+        final VirtualNodeCache latest = cache;
         final VirtualHashRecord rootInternal0 = rootInternal();
         original.putHash(rootInternal0);
         assertEquals(
                 rootInternal0.hash(),
-                original.lookupHashByPath(ROOT_PATH, false),
+                original.lookupHashByPath(ROOT_PATH),
                 "value that was found should equal original");
         assertEquals(
-                rootInternal0.hash(),
-                latest.lookupHashByPath(ROOT_PATH, false),
-                "value that was found should equal original");
+                rootInternal0.hash(), latest.lookupHashByPath(ROOT_PATH), "value that was found should equal original");
     }
 
     /**
@@ -680,7 +693,7 @@ class VirtualNodeCacheTest extends VirtualTestBase {
     @DisplayName("Latest version is immutable for internal node modifications")
     void latestIsMutableForInternals() {
         nextRound();
-        final VirtualNodeCache<TestKey, TestValue> latest = cache;
+        final VirtualNodeCache latest = cache;
         final VirtualHashRecord virtualHashRecord = rootInternal();
         assertThrows(
                 MutabilityException.class,
@@ -699,15 +712,15 @@ class VirtualNodeCacheTest extends VirtualTestBase {
     @Tags({@Tag("VirtualMerkle"), @Tag("VirtualNodeCache"), @Tag("Lifecycle")})
     @DisplayName("Older copies are mutable for all internal record modifications")
     void secondCopyIsImmutable() {
-        final VirtualNodeCache<TestKey, TestValue> original = cache;
+        final VirtualNodeCache original = cache;
         nextRound();
 
-        VirtualNodeCache<TestKey, TestValue> old = original;
-        VirtualNodeCache<TestKey, TestValue> latest = cache;
+        VirtualNodeCache old = original;
+        VirtualNodeCache latest = cache;
         for (int i = 0; i < 100; i++) {
             // As long as this doesn't throw an exception, the test passes.
             final int iFinal = i;
-            final VirtualNodeCache<TestKey, TestValue> oldFinal = old;
+            final VirtualNodeCache oldFinal = old;
             assertDoesNotThrow(() -> oldFinal.putHash(new VirtualHashRecord(iFinal)), "Should not throw exception");
 
             nextRound();
@@ -726,8 +739,8 @@ class VirtualNodeCacheTest extends VirtualTestBase {
     @DisplayName("Fast copy correctness tests")
     void fastCopyCorrectness() throws InterruptedException {
         // put A->APPLE into the oldest cache
-        final VirtualNodeCache<TestKey, TestValue> cache0 = cache;
-        final VirtualLeafRecord<TestKey, TestValue> appleLeaf0 = appleLeaf(1);
+        final VirtualNodeCache cache0 = cache;
+        final VirtualLeafBytes<TestValue> appleLeaf0 = appleLeaf(1);
         cache0.putLeaf(appleLeaf0);
         final List<TestValue> expected0 = new ArrayList<>(asList(APPLE, null, null, null, null, null, null));
         validateCache(cache0, expected0);
@@ -735,9 +748,9 @@ class VirtualNodeCacheTest extends VirtualTestBase {
 
         // put A->AARDVARK into the next cache (overriding the value from the oldest).
         // put B->BANANA into the next cache
-        final VirtualNodeCache<TestKey, TestValue> cache1 = cache;
-        final VirtualLeafRecord<TestKey, TestValue> aardvarkLeaf1 = aardvarkLeaf(1);
-        final VirtualLeafRecord<TestKey, TestValue> bananaLeaf1 = bananaLeaf(2);
+        final VirtualNodeCache cache1 = cache;
+        final VirtualLeafBytes<TestValue> aardvarkLeaf1 = aardvarkLeaf(1);
+        final VirtualLeafBytes<TestValue> bananaLeaf1 = bananaLeaf(2);
         cache1.putLeaf(aardvarkLeaf1); // Update the value of A
         cache1.putLeaf(bananaLeaf1); // add B
         final List<TestValue> expected1 = new ArrayList<>(asList(AARDVARK, BANANA, null, null, null, null, null));
@@ -746,8 +759,8 @@ class VirtualNodeCacheTest extends VirtualTestBase {
         nextRound();
 
         // In the next cache, put C->CHERRY but inherit the values for A and B from the previous cache
-        final VirtualNodeCache<TestKey, TestValue> cache2 = cache;
-        final VirtualLeafRecord<TestKey, TestValue> cherryLeaf2 = cherryLeaf(3);
+        final VirtualNodeCache cache2 = cache;
+        final VirtualLeafBytes<TestValue> cherryLeaf2 = cherryLeaf(3);
         cache2.putLeaf(cherryLeaf2);
         final List<TestValue> expected2 = new ArrayList<>(asList(AARDVARK, BANANA, CHERRY, null, null, null, null));
         validateCache(cache0, expected0);
@@ -758,12 +771,12 @@ class VirtualNodeCacheTest extends VirtualTestBase {
         // In this cache:
         // put B->BEAR overriding the value from two caches ago
         // put D->Date, E->EGGPLANT, F->FIG, and G->GRAPE into the cache
-        final VirtualNodeCache<TestKey, TestValue> cache3 = cache;
-        final VirtualLeafRecord<TestKey, TestValue> bearLeaf3 = bearLeaf(2);
-        final VirtualLeafRecord<TestKey, TestValue> dateLeaf3 = dateLeaf(4);
-        final VirtualLeafRecord<TestKey, TestValue> eggplantLeaf3 = eggplantLeaf(5);
-        final VirtualLeafRecord<TestKey, TestValue> figLeaf3 = figLeaf(6);
-        final VirtualLeafRecord<TestKey, TestValue> grapeLeaf3 = grapeLeaf(7);
+        final VirtualNodeCache cache3 = cache;
+        final VirtualLeafBytes<TestValue> bearLeaf3 = bearLeaf(2);
+        final VirtualLeafBytes<TestValue> dateLeaf3 = dateLeaf(4);
+        final VirtualLeafBytes<TestValue> eggplantLeaf3 = eggplantLeaf(5);
+        final VirtualLeafBytes<TestValue> figLeaf3 = figLeaf(6);
+        final VirtualLeafBytes<TestValue> grapeLeaf3 = grapeLeaf(7);
         cache3.putLeaf(bearLeaf3);
         cache3.putLeaf(dateLeaf3);
         cache3.putLeaf(eggplantLeaf3);
@@ -777,12 +790,12 @@ class VirtualNodeCacheTest extends VirtualTestBase {
         nextRound();
 
         // In this cache override C, D, E, F, and G with new values
-        final VirtualNodeCache<TestKey, TestValue> cache4 = cache;
-        final VirtualLeafRecord<TestKey, TestValue> cuttlefishLeaf4 = cuttlefishLeaf(3);
-        final VirtualLeafRecord<TestKey, TestValue> dogLeaf4 = dogLeaf(4);
-        final VirtualLeafRecord<TestKey, TestValue> emuLeaf4 = emuLeaf(5);
-        final VirtualLeafRecord<TestKey, TestValue> foxLeaf4 = foxLeaf(6);
-        final VirtualLeafRecord<TestKey, TestValue> gooseLeaf4 = gooseLeaf(7);
+        final VirtualNodeCache cache4 = cache;
+        final VirtualLeafBytes<TestValue> cuttlefishLeaf4 = cuttlefishLeaf(3);
+        final VirtualLeafBytes<TestValue> dogLeaf4 = dogLeaf(4);
+        final VirtualLeafBytes<TestValue> emuLeaf4 = emuLeaf(5);
+        final VirtualLeafBytes<TestValue> foxLeaf4 = foxLeaf(6);
+        final VirtualLeafBytes<TestValue> gooseLeaf4 = gooseLeaf(7);
         cache4.putLeaf(cuttlefishLeaf4);
         cache4.putLeaf(dogLeaf4);
         cache4.putLeaf(emuLeaf4);
@@ -860,19 +873,19 @@ class VirtualNodeCacheTest extends VirtualTestBase {
     @DisplayName("Can release the oldest version")
     void canReleaseOldest() {
         // Build the list with 100 caches (indexes 0-99)
-        final List<VirtualNodeCache<TestKey, TestValue>> caches = new ArrayList<>();
+        final List<VirtualNodeCache> caches = new ArrayList<>();
         for (int i = 0; i < 100; i++) {
             caches.add(cache);
             nextRound();
         }
         // Try and fail to release caches 99-0 (reverse iteration order -- the oldest caches are first)
         for (int i = 99; i > 0; i--) {
-            final VirtualNodeCache<TestKey, TestValue> copy = caches.get(i);
+            final VirtualNodeCache copy = caches.get(i);
             assertThrows(IllegalStateException.class, copy::release, "cache should not be able to be released");
         }
         // Try (and hopefully succeed!) in releasing caches 0-99 (the oldest first!)
         for (int i = 0; i < 99; i++) {
-            final VirtualNodeCache<TestKey, TestValue> copy = caches.get(i);
+            final VirtualNodeCache copy = caches.get(i);
             copy.release();
         }
     }
@@ -897,56 +910,43 @@ class VirtualNodeCacheTest extends VirtualTestBase {
     @Tags({@Tag("VirtualMerkle"), @Tag("VirtualNodeCache"), @Tag("Lifecycle")})
     @DisplayName("Release drops the state")
     void releaseDropsState() throws InterruptedException {
-        final VirtualNodeCache<TestKey, TestValue> original = cache;
-        final VirtualLeafRecord<TestKey, TestValue> appleLeaf0 = appleLeaf(A_PATH);
+        final VirtualNodeCache original = cache;
+        final VirtualLeafBytes<TestValue> appleLeaf0 = appleLeaf(A_PATH);
         original.putLeaf(appleLeaf0);
         nextRound();
 
-        final VirtualNodeCache<TestKey, TestValue> oneLess = cache;
+        final VirtualNodeCache oneLess = cache;
         final VirtualHashRecord rootInternal0 = rootInternal();
-        final VirtualLeafRecord<TestKey, TestValue> bananaLeaf1 = bananaLeaf(B_PATH);
+        final VirtualLeafBytes<TestValue> bananaLeaf1 = bananaLeaf(B_PATH);
         original.putHash(rootInternal0);
         oneLess.putLeaf(bananaLeaf1);
         nextRound();
 
-        final VirtualNodeCache<TestKey, TestValue> latest = cache;
+        final VirtualNodeCache latest = cache;
         final VirtualHashRecord leftInternal1 = leftInternal();
-        final VirtualLeafRecord<TestKey, TestValue> cherryLeaf2 = cherryLeaf(C_PATH);
+        final VirtualLeafBytes<TestValue> cherryLeaf2 = cherryLeaf(C_PATH);
         oneLess.putHash(leftInternal1);
         latest.putLeaf(cherryLeaf2);
 
         // I should be able to see everything from all three versions
+        assertEquals(appleLeaf0, latest.lookupLeafByKey(A_KEY), "value that was looked up should match original value");
         assertEquals(
-                appleLeaf0,
-                latest.lookupLeafByKey(A_KEY, false),
-                "value that was looked up should match original value");
+                appleLeaf0, latest.lookupLeafByPath(A_PATH), "value that was looked up should match original value");
         assertEquals(
-                appleLeaf0,
-                latest.lookupLeafByPath(A_PATH, false),
-                "value that was looked up should match original value");
+                bananaLeaf1, latest.lookupLeafByKey(B_KEY), "value that was looked up should match original value");
         assertEquals(
-                bananaLeaf1,
-                latest.lookupLeafByKey(B_KEY, false),
-                "value that was looked up should match original value");
+                bananaLeaf1, latest.lookupLeafByPath(B_PATH), "value that was looked up should match original value");
         assertEquals(
-                bananaLeaf1,
-                latest.lookupLeafByPath(B_PATH, false),
-                "value that was looked up should match original value");
+                cherryLeaf2, latest.lookupLeafByKey(C_KEY), "value that was looked up should match original value");
         assertEquals(
-                cherryLeaf2,
-                latest.lookupLeafByKey(C_KEY, false),
-                "value that was looked up should match original value");
-        assertEquals(
-                cherryLeaf2,
-                latest.lookupLeafByPath(C_PATH, false),
-                "value that was looked up should match original value");
+                cherryLeaf2, latest.lookupLeafByPath(C_PATH), "value that was looked up should match original value");
         assertEquals(
                 rootInternal0.hash(),
-                latest.lookupHashByPath(ROOT_PATH, false),
+                latest.lookupHashByPath(ROOT_PATH),
                 "value that was looked up should match original value");
         assertEquals(
                 leftInternal1.hash(),
-                latest.lookupHashByPath(LEFT_PATH, false),
+                latest.lookupHashByPath(LEFT_PATH),
                 "value that was looked up should match original value");
 
         // After releasing the original, I should only see what was available in the latest two
@@ -954,28 +954,28 @@ class VirtualNodeCacheTest extends VirtualTestBase {
 
         assertEventuallyDoesNotThrow(
                 () -> {
-                    assertNull(latest.lookupLeafByKey(A_KEY, false), "no leaf should be found");
-                    assertNull(latest.lookupLeafByPath(A_PATH, false), "no leaf should be found");
+                    assertNull(latest.lookupLeafByKey(A_KEY), "no leaf should be found");
+                    assertNull(latest.lookupLeafByPath(A_PATH), "no leaf should be found");
                     assertEquals(
                             bananaLeaf1,
-                            latest.lookupLeafByKey(B_KEY, false),
+                            latest.lookupLeafByKey(B_KEY),
                             "value that was looked up should match original value");
                     assertEquals(
                             bananaLeaf1,
-                            latest.lookupLeafByPath(B_PATH, false),
+                            latest.lookupLeafByPath(B_PATH),
                             "value that was looked up should match original value");
                     assertEquals(
                             cherryLeaf2,
-                            latest.lookupLeafByKey(C_KEY, false),
+                            latest.lookupLeafByKey(C_KEY),
                             "value that was looked up should match original value");
                     assertEquals(
                             cherryLeaf2,
-                            latest.lookupLeafByPath(C_PATH, false),
+                            latest.lookupLeafByPath(C_PATH),
                             "value that was looked up should match original value");
-                    assertNull(latest.lookupHashByPath(ROOT_PATH, false), "no leaf should be found");
+                    assertNull(latest.lookupHashByPath(ROOT_PATH), "no leaf should be found");
                     assertEquals(
                             leftInternal1.hash(),
-                            latest.lookupHashByPath(LEFT_PATH, false),
+                            latest.lookupHashByPath(LEFT_PATH),
                             "value that was looked up should match original value");
                 },
                 Duration.ofSeconds(2),
@@ -1002,16 +1002,16 @@ class VirtualNodeCacheTest extends VirtualTestBase {
     @Tags({@Tag("VirtualMerkle"), @Tag("VirtualNodeCache"), @Tag("Lifecycle")})
     @DisplayName("Cannot merge unsealed caches")
     void cannotMergeUnsealedCaches() {
-        final VirtualNodeCache<TestKey, TestValue> cache0 = cache;
+        final VirtualNodeCache cache0 = cache;
         nextRound();
-        final VirtualNodeCache<TestKey, TestValue> cache1 = cache;
+        final VirtualNodeCache cache1 = cache;
         nextRound();
-        final VirtualNodeCache<TestKey, TestValue> cache2 = cache;
+        final VirtualNodeCache cache2 = cache;
         nextRound();
         nextRound();
-        final VirtualNodeCache<TestKey, TestValue> cache4 = cache;
+        final VirtualNodeCache cache4 = cache;
         nextRound();
-        final VirtualNodeCache<TestKey, TestValue> cache5 = cache;
+        final VirtualNodeCache cache5 = cache;
         nextRound();
 
         cache2.seal();
@@ -1037,9 +1037,9 @@ class VirtualNodeCacheTest extends VirtualTestBase {
     @Tags({@Tag("VirtualMerkle"), @Tag("VirtualNodeCache"), @Tag("Lifecycle")})
     @DisplayName("Merging the same key retains the most recent mutation")
     void mergingTheSameKeyRetainsTheMostRecentMutation() {
-        final VirtualNodeCache<TestKey, TestValue> cache0 = cache;
-        final VirtualLeafRecord<TestKey, TestValue> appleLeaf0 = appleLeaf(1);
-        final VirtualLeafRecord<TestKey, TestValue> bananaLeaf0 = bananaLeaf(2);
+        final VirtualNodeCache cache0 = cache;
+        final VirtualLeafBytes<TestValue> appleLeaf0 = appleLeaf(1);
+        final VirtualLeafBytes<TestValue> bananaLeaf0 = bananaLeaf(2);
         cache0.putLeaf(appleLeaf0);
         cache0.putLeaf(bananaLeaf0);
 
@@ -1047,8 +1047,8 @@ class VirtualNodeCacheTest extends VirtualTestBase {
 
         // Change A from APPLE -> AARDVARK
         // Delete B (BANANA)
-        final VirtualNodeCache<TestKey, TestValue> cache1 = cache;
-        final VirtualLeafRecord<TestKey, TestValue> aardvarkLeaf1 = aardvarkLeaf(1);
+        final VirtualNodeCache cache1 = cache;
+        final VirtualLeafBytes<TestValue> aardvarkLeaf1 = aardvarkLeaf(1);
         cache1.putLeaf(aardvarkLeaf1);
         cache1.deleteLeaf(bananaLeaf(2));
 
@@ -1059,25 +1059,20 @@ class VirtualNodeCacheTest extends VirtualTestBase {
         cache0.merge();
 
         // Aardvark should be in cache 1
+        assertEquals(aardvarkLeaf1, cache1.lookupLeafByPath(1), "value that was looked up should match original value");
         assertEquals(
-                aardvarkLeaf1,
-                cache1.lookupLeafByPath(1, false),
-                "value that was looked up should match original value");
-        assertEquals(
-                aardvarkLeaf1,
-                cache1.lookupLeafByKey(A_KEY, false),
-                "value that was looked up should match original value");
+                aardvarkLeaf1, cache1.lookupLeafByKey(A_KEY), "value that was looked up should match original value");
         // And Banana should be deleted
         assertEquals(
                 DELETED_LEAF_RECORD,
-                cache1.lookupLeafByPath(2, false),
+                cache1.lookupLeafByPath(2),
                 "value that was looked up should match original value");
         assertEquals(
                 DELETED_LEAF_RECORD,
-                cache1.lookupLeafByKey(B_KEY, false),
+                cache1.lookupLeafByKey(B_KEY),
                 "value that was looked up should match original value");
 
-        final List<VirtualLeafRecord<TestKey, TestValue>> dirtyLeaves =
+        final List<VirtualLeafBytes> dirtyLeaves =
                 cache1.dirtyLeavesForFlush(1, 1).toList();
         assertEquals(1, dirtyLeaves.size(), "incorrect number of dirty leaves");
         assertEquals(aardvarkLeaf1, dirtyLeaves.get(0), "there should be no dirty leaves");
@@ -1091,10 +1086,10 @@ class VirtualNodeCacheTest extends VirtualTestBase {
     @Tags({@Tag("VirtualMerkle"), @Tag("VirtualNodeCache"), @Tag("Lifecycle")})
     @DisplayName("Merging an older cache with no mutation into a newer one with the mutation keeps the mutation")
     void mergeNoMutationIntoCacheWithMutation() {
-        final VirtualNodeCache<TestKey, TestValue> cache0 = cache;
+        final VirtualNodeCache cache0 = cache;
         nextRound();
-        final VirtualNodeCache<TestKey, TestValue> cache1 = cache;
-        final VirtualLeafRecord<TestKey, TestValue> appleLeaf1 = appleLeaf(1);
+        final VirtualNodeCache cache1 = cache;
+        final VirtualLeafBytes<TestValue> appleLeaf1 = appleLeaf(1);
         cache1.putLeaf(appleLeaf1);
 
         cache0.seal();
@@ -1104,12 +1099,8 @@ class VirtualNodeCacheTest extends VirtualTestBase {
         cache0.merge();
 
         // Apple should be in cache 1
-        assertEquals(
-                appleLeaf1, cache1.lookupLeafByPath(1, false), "value that was looked up should match original value");
-        assertEquals(
-                appleLeaf1,
-                cache1.lookupLeafByKey(A_KEY, false),
-                "value that was looked up should match original value");
+        assertEquals(appleLeaf1, cache1.lookupLeafByPath(1), "value that was looked up should match original value");
+        assertEquals(appleLeaf1, cache1.lookupLeafByKey(A_KEY), "value that was looked up should match original value");
     }
 
     /**
@@ -1120,12 +1111,12 @@ class VirtualNodeCacheTest extends VirtualTestBase {
     @Tags({@Tag("VirtualMerkle"), @Tag("VirtualNodeCache"), @Tag("Lifecycle")})
     @DisplayName("Merging a mutation into a cache without one retains the mutation")
     void mergeOldMutationIntoNewerCacheWithNoMutation() {
-        final VirtualNodeCache<TestKey, TestValue> cache0 = cache;
-        final VirtualLeafRecord<TestKey, TestValue> appleLeaf0 = appleLeaf(1);
+        final VirtualNodeCache cache0 = cache;
+        final VirtualLeafBytes<TestValue> appleLeaf0 = appleLeaf(1);
         cache0.putLeaf(appleLeaf0);
 
         nextRound();
-        final VirtualNodeCache<TestKey, TestValue> cache1 = cache;
+        final VirtualNodeCache cache1 = cache;
 
         cache0.seal();
         cache1.seal();
@@ -1134,12 +1125,8 @@ class VirtualNodeCacheTest extends VirtualTestBase {
         cache0.merge();
 
         // Apple should be in cache 1
-        assertEquals(
-                appleLeaf0, cache1.lookupLeafByPath(1, false), "value that was looked up should match original value");
-        assertEquals(
-                appleLeaf0,
-                cache1.lookupLeafByKey(A_KEY, false),
-                "value that was looked up should match original value");
+        assertEquals(appleLeaf0, cache1.lookupLeafByPath(1), "value that was looked up should match original value");
+        assertEquals(appleLeaf0, cache1.lookupLeafByKey(A_KEY), "value that was looked up should match original value");
     }
 
     /**
@@ -1151,10 +1138,10 @@ class VirtualNodeCacheTest extends VirtualTestBase {
     @DisplayName("Merging middle copies keeps correctness")
     void mergeCorrectness() {
         // Add some items
-        final VirtualNodeCache<TestKey, TestValue> cache0 = cache;
-        final VirtualLeafRecord<TestKey, TestValue> appleLeaf0 = appleLeaf(3);
-        final VirtualLeafRecord<TestKey, TestValue> bananaLeaf0 = bananaLeaf(2);
-        final VirtualLeafRecord<TestKey, TestValue> cherryLeaf0 = cherryLeaf(4);
+        final VirtualNodeCache cache0 = cache;
+        final VirtualLeafBytes<TestValue> appleLeaf0 = appleLeaf(3);
+        final VirtualLeafBytes<TestValue> bananaLeaf0 = bananaLeaf(2);
+        final VirtualLeafBytes<TestValue> cherryLeaf0 = cherryLeaf(4);
         cache0.putLeaf(appleLeaf0); // new leaf
         cache0.putLeaf(bananaLeaf0); // new leaf
         cache0.putLeaf(cherryLeaf0); // new leaf
@@ -1165,10 +1152,10 @@ class VirtualNodeCacheTest extends VirtualTestBase {
         cache0.putHash(leftInternal());
 
         // Update, Remove, and add some items
-        final VirtualNodeCache<TestKey, TestValue> cache1 = cache;
-        final VirtualLeafRecord<TestKey, TestValue> aardvarkLeaf1 = aardvarkLeaf(3);
-        final VirtualLeafRecord<TestKey, TestValue> bananaLeaf1 = bananaLeaf(5);
-        final VirtualLeafRecord<TestKey, TestValue> dateLeaf1 = dateLeaf(6);
+        final VirtualNodeCache cache1 = cache;
+        final VirtualLeafBytes<TestValue> aardvarkLeaf1 = aardvarkLeaf(3);
+        final VirtualLeafBytes<TestValue> bananaLeaf1 = bananaLeaf(5);
+        final VirtualLeafBytes<TestValue> dateLeaf1 = dateLeaf(6);
         cache1.putLeaf(aardvarkLeaf1); // updated leaf
         cache1.putLeaf(bananaLeaf1); // moved leaf
         cache1.putLeaf(dateLeaf1); // new leaf
@@ -1181,10 +1168,10 @@ class VirtualNodeCacheTest extends VirtualTestBase {
         cache1.putHash(rightInternal());
 
         // Update, Remove, and add some of the same items and some new ones
-        final VirtualNodeCache<TestKey, TestValue> cache2 = cache;
-        final VirtualLeafRecord<TestKey, TestValue> cuttlefishLeaf2 = cuttlefishLeaf(4);
-        final VirtualLeafRecord<TestKey, TestValue> aardvarkLeaf2 = aardvarkLeaf(7);
-        final VirtualLeafRecord<TestKey, TestValue> eggplantLeaf2 = eggplantLeaf(8);
+        final VirtualNodeCache cache2 = cache;
+        final VirtualLeafBytes<TestValue> cuttlefishLeaf2 = cuttlefishLeaf(4);
+        final VirtualLeafBytes<TestValue> aardvarkLeaf2 = aardvarkLeaf(7);
+        final VirtualLeafBytes<TestValue> eggplantLeaf2 = eggplantLeaf(8);
         cache2.putLeaf(aardvarkLeaf2); // moved leaf
         cache2.putLeaf(cuttlefishLeaf2); // updated leaf
         cache2.putLeaf(eggplantLeaf2); // new leaf
@@ -1200,10 +1187,10 @@ class VirtualNodeCacheTest extends VirtualTestBase {
         cache2.putHash(leftLeftInternal());
 
         // And a cache 3 just for fun
-        final VirtualNodeCache<TestKey, TestValue> cache3 = cache;
-        final VirtualLeafRecord<TestKey, TestValue> cuttlefishLeaf3 = cuttlefishLeaf(9);
-        final VirtualLeafRecord<TestKey, TestValue> figLeaf3 = figLeaf(10);
-        final VirtualLeafRecord<TestKey, TestValue> emuLeaf3 = emuLeaf(8);
+        final VirtualNodeCache cache3 = cache;
+        final VirtualLeafBytes<TestValue> cuttlefishLeaf3 = cuttlefishLeaf(9);
+        final VirtualLeafBytes<TestValue> figLeaf3 = figLeaf(10);
+        final VirtualLeafBytes<TestValue> emuLeaf3 = emuLeaf(8);
         cache3.putLeaf(cuttlefishLeaf3); // moved leaf
         cache3.putLeaf(figLeaf3); // new leaf
         cache3.putLeaf(emuLeaf3); // updated leaf
@@ -1235,9 +1222,10 @@ class VirtualNodeCacheTest extends VirtualTestBase {
     void mergeStressTest() {
         // Add all the leaves. They go in at path totalMutationCount+leafIndex because internal nodes go first.
         final int totalMutationCount = 100_000;
-        final VirtualNodeCache<TestKey, TestValue> cache0 = cache;
+        final VirtualNodeCache cache0 = cache;
         for (int i = 0; i < totalMutationCount; i++) {
-            cache0.putLeaf(new VirtualLeafRecord<>(totalMutationCount + i, new TestKey(i), new TestValue("Value" + i)));
+            cache0.putLeaf(new VirtualLeafBytes<>(
+                    totalMutationCount + i, TestKey.longToKey(i), new TestValue("Value" + i), TestValueCodec.INSTANCE));
         }
 
         nextRound();
@@ -1249,11 +1237,14 @@ class VirtualNodeCacheTest extends VirtualTestBase {
         }
 
         // Replace the first 60,000 leaves with newer versions
-        final VirtualNodeCache<TestKey, TestValue> cache1 = cache;
+        final VirtualNodeCache cache1 = cache;
         final int nextMutationCount = 60_000;
         for (int i = 0; i < nextMutationCount; i++) {
-            cache1.putLeaf(new VirtualLeafRecord<>(
-                    totalMutationCount + i, new TestKey(i), new TestValue("OverriddenValue" + i)));
+            cache1.putLeaf(new VirtualLeafBytes<>(
+                    totalMutationCount + i,
+                    TestKey.longToKey(i),
+                    new TestValue("OverriddenValue" + i),
+                    TestValueCodec.INSTANCE));
         }
 
         nextRound();
@@ -1274,19 +1265,21 @@ class VirtualNodeCacheTest extends VirtualTestBase {
         // Verify everything
         final AtomicInteger index = new AtomicInteger(0);
         cache1.dirtyLeavesForFlush(totalMutationCount, totalMutationCount * 2)
-                .sorted(Comparator.comparingLong(VirtualLeafRecord::getPath))
+                .sorted(Comparator.comparingLong(VirtualLeafBytes::path))
                 .forEach(rec -> {
                     final int i = index.getAndIncrement();
-                    assertEquals(
-                            totalMutationCount + i, rec.getPath(), "path should be one greater than mutation count");
-                    assertEquals(new TestKey(i), rec.getKey(), "key should match expected");
+                    assertEquals(totalMutationCount + i, rec.path(), "path should be one greater than mutation count");
+                    assertEquals(TestKey.longToKey(i), rec.keyBytes(), "key should match expected");
                     if (i < nextMutationCount) {
                         assertEquals(
-                                new TestValue("OverriddenValue" + i),
-                                rec.getValue(),
+                                new TestValue("OverriddenValue" + i).toBytes(),
+                                rec.valueBytes(),
                                 "value should have the expected data");
                     } else {
-                        assertEquals(new TestValue("Value" + i), rec.getValue(), "value should have the expected data");
+                        assertEquals(
+                                new TestValue("Value" + i).toBytes(),
+                                rec.valueBytes(),
+                                "value should have the expected data");
                     }
                 });
 
@@ -1325,7 +1318,7 @@ class VirtualNodeCacheTest extends VirtualTestBase {
         // each round has a unique value. Might not be needed, but is helpful in debugging.
         final AtomicInteger round = new AtomicInteger(0);
         // Keeps track of all caches, so I know which one to release and which to merge.
-        final ConcurrentLinkedDeque<VirtualNodeCache<TestKey, TestValue>> caches = new ConcurrentLinkedDeque<>();
+        final ConcurrentLinkedDeque<VirtualNodeCache> caches = new ConcurrentLinkedDeque<>();
 
         // I will have one thread that produces new caches as quickly as possible.
         // It will randomly put and delete leaves.
@@ -1339,12 +1332,13 @@ class VirtualNodeCacheTest extends VirtualTestBase {
                     final int chance = random.nextInt(100);
                     // Give a 90% chance of a put
                     if (chance <= 90) {
-                        cache.putLeaf(new VirtualLeafRecord<>(id, new TestKey(id), new TestValue(r + ":" + id)));
+                        cache.putLeaf(new VirtualLeafBytes<>(
+                                id, TestKey.longToKey(id), new TestValue(r + ":" + id), TestValueCodec.INSTANCE));
                     } else {
-                        cache.deleteLeaf(new VirtualLeafRecord<>(id, new TestKey(id), null));
+                        cache.deleteLeaf(new VirtualLeafBytes<>(id, TestKey.longToKey(id), null, null));
                     }
                 }
-                final VirtualNodeCache<TestKey, TestValue> done = cache;
+                final VirtualNodeCache done = cache;
                 nextRound();
                 done.seal();
                 caches.addLast(done);
@@ -1355,14 +1349,14 @@ class VirtualNodeCacheTest extends VirtualTestBase {
         creatorThread.start();
 
         // I will have another thread that performs releases. Every 100us it will attempt to release a cache
-        final AtomicReference<VirtualNodeCache<TestKey, TestValue>> toRelease = new AtomicReference<>();
+        final AtomicReference<VirtualNodeCache> toRelease = new AtomicReference<>();
         final AtomicReference<Throwable> releaseThreadException = new AtomicReference<>();
         final Thread releaseThread = new Thread(() -> {
             long startNanos = System.nanoTime();
             while (!stop.get()) {
                 final long currentNanos = System.nanoTime();
                 if (currentNanos - startNanos >= 100_000) {
-                    final VirtualNodeCache<TestKey, TestValue> cache = toRelease.getAndSet(null);
+                    final VirtualNodeCache cache = toRelease.getAndSet(null);
                     if (cache != null) {
                         cache.release();
                     }
@@ -1379,13 +1373,13 @@ class VirtualNodeCacheTest extends VirtualTestBase {
         final AtomicReference<Throwable> mergingThreadException = new AtomicReference<>();
         final Thread mergingThread = new Thread(() -> {
             while (!stop.get()) {
-                final Iterator<VirtualNodeCache<TestKey, TestValue>> itr = caches.iterator();
+                final Iterator<VirtualNodeCache> itr = caches.iterator();
                 if (itr.hasNext()) {
-                    final VirtualNodeCache<TestKey, TestValue> toMerge = itr.next();
+                    final VirtualNodeCache toMerge = itr.next();
                     if (itr.hasNext()) {
                         itr.remove(); // get rid of "toMerge". It is to be merged into the next.
                         toMerge.merge();
-                        final VirtualNodeCache<TestKey, TestValue> merged = itr.next();
+                        final VirtualNodeCache merged = itr.next();
                         if (toRelease.compareAndSet(null, merged)) {
                             itr.remove();
                         }
@@ -1432,7 +1426,7 @@ class VirtualNodeCacheTest extends VirtualTestBase {
     @Tags({@Tag("VirtualMerkle"), @Tag("VirtualNodeCache"), @Tag("Internal")})
     @DisplayName("NPE when putting a null internal")
     void puttingANullInternalLeadsToNPE() {
-        final VirtualNodeCache<TestKey, TestValue> cache0 = cache;
+        final VirtualNodeCache cache0 = cache;
         nextRound();
         assertThrows(NullPointerException.class, () -> cache0.putHash(null), "null shouldn't be accepted into cache");
     }
@@ -1441,14 +1435,14 @@ class VirtualNodeCacheTest extends VirtualTestBase {
     @Tags({@Tag("VirtualMerkle"), @Tag("VirtualNodeCache"), @Tag("Internal")})
     @DisplayName("Put an internal")
     void putAnInternal() {
-        final VirtualNodeCache<TestKey, TestValue> cache0 = cache;
+        final VirtualNodeCache cache0 = cache;
         nextRound();
 
         final VirtualHashRecord root0 = rootInternal();
         cache0.putHash(root0);
         assertEquals(
                 root0.hash(),
-                cache0.lookupHashByPath(ROOT_PATH, false),
+                cache0.lookupHashByPath(ROOT_PATH),
                 "value that was looked up should match original value");
     }
 
@@ -1456,19 +1450,19 @@ class VirtualNodeCacheTest extends VirtualTestBase {
     @Tags({@Tag("VirtualMerkle"), @Tag("VirtualNodeCache"), @Tag("Internal")})
     @DisplayName("Put the same internal twice")
     void putAnInternalTwice() {
-        final VirtualNodeCache<TestKey, TestValue> cache0 = cache;
+        final VirtualNodeCache cache0 = cache;
         nextRound();
 
         final VirtualHashRecord root0 = rootInternal();
         cache0.putHash(root0);
         assertEquals(
                 root0.hash(),
-                cache0.lookupHashByPath(ROOT_PATH, false),
+                cache0.lookupHashByPath(ROOT_PATH),
                 "value that was looked up should match original value");
         cache0.putHash(root0);
         assertEquals(
                 root0.hash(),
-                cache0.lookupHashByPath(ROOT_PATH, false),
+                cache0.lookupHashByPath(ROOT_PATH),
                 "value that was looked up should match original value");
     }
 
@@ -1476,7 +1470,7 @@ class VirtualNodeCacheTest extends VirtualTestBase {
     @Tags({@Tag("VirtualMerkle"), @Tag("VirtualNodeCache"), @Tag("Internal")})
     @DisplayName("Put the same internal twice with different hashes")
     void putAnInternalTwiceWithDifferentHashes() {
-        final VirtualNodeCache<TestKey, TestValue> cache0 = cache;
+        final VirtualNodeCache cache0 = cache;
         nextRound();
 
         final VirtualHashRecord root1 = new VirtualHashRecord(
@@ -1487,42 +1481,15 @@ class VirtualNodeCacheTest extends VirtualTestBase {
         cache0.putHash(root2);
         assertEquals(
                 root2.hash(),
-                cache0.lookupHashByPath(ROOT_PATH, false),
+                cache0.lookupHashByPath(ROOT_PATH),
                 "value that was looked up should match original value");
-    }
-
-    @Test
-    @Tags({@Tag("VirtualMerkle"), @Tag("VirtualNodeCache"), @Tag("Internal")})
-    @DisplayName("Sealed cache cannot delete internals")
-    void deletingAnInternalWithSealedCacheThrows() {
-        cache.seal();
-        assertThrows(
-                MutabilityException.class, () -> cache.deleteHash(ROOT_PATH), "can't delete after cache is sealed");
-    }
-
-    @Test
-    @Tags({@Tag("VirtualMerkle"), @Tag("VirtualNodeCache"), @Tag("Internal")})
-    @DisplayName("Deleting a non-existent internal is OK")
-    void deletingAnInternalThatDoesNotExistIsOK() {
-        final VirtualNodeCache<TestKey, TestValue> cache0 = cache;
-        nextRound();
-
-        final VirtualHashRecord root0 = rootInternal();
-        final VirtualHashRecord left0 = leftInternal();
-        final VirtualHashRecord right0 = rightInternal();
-        cache0.putHash(root0);
-        cache0.putHash(left0);
-        cache0.putHash(right0);
-
-        assertNull(cache.lookupHashByPath(LEFT_LEFT_PATH, false), "no node should be found");
-        cache.deleteHash(LEFT_LEFT_PATH);
     }
 
     @Test
     @Tags({@Tag("VirtualMerkle"), @Tag("VirtualNodeCache"), @Tag("Internal")})
     @DisplayName("Deleting an existent internal in the same cache version is OK")
     void deletingAnInternalThatDoesExistIsOK() {
-        final VirtualNodeCache<TestKey, TestValue> cache0 = cache;
+        final VirtualNodeCache cache0 = cache;
         nextRound();
 
         final VirtualHashRecord root0 = rootInternal();
@@ -1534,35 +1501,7 @@ class VirtualNodeCacheTest extends VirtualTestBase {
 
         assertEquals(
                 right0.hash(),
-                cache0.lookupHashByPath(RIGHT_PATH, false),
-                "value that was looked up should match original value");
-        cache.deleteHash(RIGHT_PATH);
-        assertEquals(
-                DELETED_HASH,
-                cache.lookupHashByPath(RIGHT_PATH, false),
-                "value that was looked up should match original value");
-    }
-
-    @Test
-    @Tags({@Tag("VirtualMerkle"), @Tag("VirtualNodeCache"), @Tag("Internal")})
-    @DisplayName("Deleting an existent internal across cache versions is OK")
-    void deletingAnInternalThatDoesExistInOlderCacheIsOK() {
-        final VirtualNodeCache<TestKey, TestValue> cache0 = cache;
-        nextRound();
-
-        final VirtualHashRecord root0 = rootInternal();
-        final VirtualHashRecord left0 = leftInternal();
-        final VirtualHashRecord right0 = rightInternal();
-        cache0.putHash(root0);
-        cache0.putHash(left0);
-        cache0.putHash(right0);
-        nextRound();
-        cache0.seal();
-
-        cache.deleteHash(RIGHT_PATH);
-        assertEquals(
-                DELETED_HASH,
-                cache.lookupHashByPath(RIGHT_PATH, false),
+                cache0.lookupHashByPath(RIGHT_PATH),
                 "value that was looked up should match original value");
     }
 
@@ -1570,7 +1509,7 @@ class VirtualNodeCacheTest extends VirtualTestBase {
     @Tags({@Tag("VirtualMerkle"), @Tag("VirtualNodeCache"), @Tag("Internal")})
     @DisplayName("Exception when getting an internal on a released cache")
     void gettingAnInternalOnReleasedCacheThrows() {
-        final VirtualNodeCache<TestKey, TestValue> cache0 = cache;
+        final VirtualNodeCache cache0 = cache;
         nextRound();
 
         final VirtualHashRecord root0 = rootInternal();
@@ -1578,23 +1517,23 @@ class VirtualNodeCacheTest extends VirtualTestBase {
         cache0.seal();
         cache0.release();
 
-        assertNull(cache0.lookupLeafByPath(ROOT_PATH, false), "should not be able to look up value on destroyed cache");
+        assertNull(cache0.lookupLeafByPath(ROOT_PATH), "should not be able to look up value on destroyed cache");
     }
 
     @Test
     @Tags({@Tag("VirtualMerkle"), @Tag("VirtualNodeCache"), @Tag("Internal")})
     @DisplayName("Getting non-existent internals returns null")
     void gettingANonExistentInternalGivesNull() {
-        final VirtualNodeCache<TestKey, TestValue> cache0 = cache;
+        final VirtualNodeCache cache0 = cache;
         nextRound();
-        assertNull(cache0.lookupHashByPath(100, false), "value should not be found");
+        assertNull(cache0.lookupHashByPath(100), "value should not be found");
     }
 
     @Test
     @Tags({@Tag("VirtualMerkle"), @Tag("VirtualNodeCache"), @Tag("Internal")})
     @DisplayName("Lookup by internal with forModify works across versions")
     void getInternalWithForModify() {
-        final VirtualNodeCache<TestKey, TestValue> cache0 = cache;
+        final VirtualNodeCache cache0 = cache;
         nextRound();
 
         final VirtualHashRecord root0 = rootInternal();
@@ -1604,29 +1543,27 @@ class VirtualNodeCacheTest extends VirtualTestBase {
         cache0.putHash(root0);
         cache0.putHash(left0);
         cache0.putHash(right0);
-        final VirtualNodeCache<TestKey, TestValue> cache1 = cache;
+        final VirtualNodeCache cache1 = cache;
         nextRound();
 
-        final VirtualNodeCache<TestKey, TestValue> cache2 = cache;
+        final VirtualNodeCache cache2 = cache;
         nextRound();
-        final Hash right1 = cache2.lookupHashByPath(RIGHT_PATH, true);
+        final Hash right1 = cache2.lookupHashByPath(RIGHT_PATH);
         // assertNotNull(right1, "value should have been found");
 
         assertEquals(
                 right0.hash(),
-                cache1.lookupHashByPath(RIGHT_PATH, false),
+                cache1.lookupHashByPath(RIGHT_PATH),
                 "value that was looked up should match original value");
         assertEquals(
-                right1,
-                cache2.lookupHashByPath(RIGHT_PATH, false),
-                "value that was looked up should match original value");
+                right1, cache2.lookupHashByPath(RIGHT_PATH), "value that was looked up should match original value");
     }
 
     @Test
     @Tags({@Tag("VirtualMerkle"), @Tag("VirtualNodeCache"), @Tag("Internal")})
     @DisplayName("dirtyInternals() cannot be called if the dirtyInternals are still mutable")
     void dirtyInternalsMustButImmutableToCreateASortedStream() {
-        final VirtualNodeCache<TestKey, TestValue> cache0 = cache;
+        final VirtualNodeCache cache0 = cache;
         nextRound();
 
         final VirtualHashRecord root0 = rootInternal();
@@ -1659,73 +1596,54 @@ class VirtualNodeCacheTest extends VirtualTestBase {
     @Tags({@Tag("VirtualMerkle"), @Tag("VirtualNodeCache"), @Tag("Leaf")})
     @DisplayName("Put a leaf")
     void putALeaf() {
-        final VirtualLeafRecord<TestKey, TestValue> appleLeaf0 = appleLeaf(A_PATH);
+        final VirtualLeafBytes<TestValue> appleLeaf0 = appleLeaf(A_PATH);
         cache.putLeaf(appleLeaf0);
+        assertEquals(appleLeaf0, cache.lookupLeafByKey(A_KEY), "value that was looked up should match original value");
         assertEquals(
-                appleLeaf0,
-                cache.lookupLeafByKey(A_KEY, false),
-                "value that was looked up should match original value");
-        assertEquals(
-                appleLeaf0,
-                cache.lookupLeafByPath(A_PATH, false),
-                "value that was looked up should match original value");
+                appleLeaf0, cache.lookupLeafByPath(A_PATH), "value that was looked up should match original value");
     }
 
     @Test
     @Tags({@Tag("VirtualMerkle"), @Tag("VirtualNodeCache"), @Tag("Leaf")})
     @DisplayName("Put the same leaf twice")
     void putALeafTwice() {
-        final VirtualLeafRecord<TestKey, TestValue> appleLeaf0 = appleLeaf(A_PATH);
+        final VirtualLeafBytes<TestValue> appleLeaf0 = appleLeaf(A_PATH);
         cache.putLeaf(appleLeaf0);
         cache.putLeaf(appleLeaf0);
+        assertEquals(appleLeaf0, cache.lookupLeafByKey(A_KEY), "value that was looked up should match original value");
         assertEquals(
-                appleLeaf0,
-                cache.lookupLeafByKey(A_KEY, false),
-                "value that was looked up should match original value");
-        assertEquals(
-                appleLeaf0,
-                cache.lookupLeafByPath(A_PATH, false),
-                "value that was looked up should match original value");
+                appleLeaf0, cache.lookupLeafByPath(A_PATH), "value that was looked up should match original value");
     }
 
     @Test
     @Tags({@Tag("VirtualMerkle"), @Tag("VirtualNodeCache"), @Tag("Leaf")})
     @DisplayName("Put the same leaf twice with different values")
     void putALeafTwiceWithDifferentValues() {
-        final VirtualLeafRecord<TestKey, TestValue> appleLeaf1 = appleLeaf(A_PATH);
+        final VirtualLeafBytes<TestValue> appleLeaf1 = appleLeaf(A_PATH);
         cache.putLeaf(appleLeaf1);
-        final VirtualLeafRecord<TestKey, TestValue> appleLeaf2 = appleLeaf(A_PATH);
-        appleLeaf2.setValue(new TestValue("second"));
+        VirtualLeafBytes<TestValue> appleLeaf2 = appleLeaf(A_PATH);
+        appleLeaf2 = appleLeaf2.withValue(new TestValue("second"), TestValueCodec.INSTANCE);
         cache.putLeaf(appleLeaf2);
+        assertEquals(appleLeaf2, cache.lookupLeafByKey(A_KEY), "value that was looked up should match original value");
         assertEquals(
-                appleLeaf2,
-                cache.lookupLeafByKey(A_KEY, false),
-                "value that was looked up should match original value");
-        assertEquals(
-                appleLeaf2,
-                cache.lookupLeafByPath(A_PATH, false),
-                "value that was looked up should match original value");
+                appleLeaf2, cache.lookupLeafByPath(A_PATH), "value that was looked up should match original value");
     }
 
     @Test
     @Tags({@Tag("VirtualMerkle"), @Tag("VirtualNodeCache"), @Tag("Leaf")})
     @DisplayName("Put the same leaf twice with different paths")
     void putALeafTwiceWithDifferentPaths() {
-        final VirtualLeafRecord<TestKey, TestValue> appleLeaf0 = appleLeaf(A_PATH);
+        VirtualLeafBytes<TestValue> appleLeaf0 = appleLeaf(A_PATH);
         cache.putLeaf(appleLeaf0);
         cache.clearLeafPath(A_PATH);
-        appleLeaf0.setPath(100);
+        appleLeaf0 = appleLeaf0.withPath(100);
         cache.putLeaf(appleLeaf0);
         assertEquals(
                 DELETED_LEAF_RECORD,
-                cache.lookupLeafByPath(A_PATH, false),
+                cache.lookupLeafByPath(A_PATH),
                 "value that was looked up should match original value");
-        assertEquals(
-                appleLeaf0,
-                cache.lookupLeafByKey(A_KEY, false),
-                "value that was looked up should match original value");
-        assertEquals(
-                appleLeaf0, cache.lookupLeafByPath(100, false), "value that was looked up should match original value");
+        assertEquals(appleLeaf0, cache.lookupLeafByKey(A_KEY), "value that was looked up should match original value");
+        assertEquals(appleLeaf0, cache.lookupLeafByPath(100), "value that was looked up should match original value");
     }
 
     @Test
@@ -1740,7 +1658,7 @@ class VirtualNodeCacheTest extends VirtualTestBase {
     @DisplayName("Immutable cache cannot delete leaves")
     void deletingALeafWithImmutableCacheThrows() {
         cache.seal();
-        final VirtualLeafRecord<TestKey, TestValue> virtualRecord = appleLeaf(1);
+        final VirtualLeafBytes<TestValue> virtualRecord = appleLeaf(1);
         assertThrows(
                 MutabilityException.class,
                 () -> cache.deleteLeaf(virtualRecord),
@@ -1751,41 +1669,37 @@ class VirtualNodeCacheTest extends VirtualTestBase {
     @Tags({@Tag("VirtualMerkle"), @Tag("VirtualNodeCache"), @Tag("Leaf")})
     @DisplayName("Deleting a non-existent node is OK")
     void deletingALeafThatDoesNotExistIsOK() {
-        final VirtualLeafRecord<TestKey, TestValue> appleLeaf0 = appleLeaf(1);
-        assertNull(cache.lookupLeafByKey(appleLeaf0.getKey(), false), "no value should be found");
+        final VirtualLeafBytes<TestValue> appleLeaf0 = appleLeaf(1);
+        assertNull(cache.lookupLeafByKey(appleLeaf0.keyBytes()), "no value should be found");
         cache.deleteLeaf(appleLeaf0);
         assertEquals(
                 DELETED_LEAF_RECORD,
-                cache.lookupLeafByKey(appleLeaf0.getKey(), false),
+                cache.lookupLeafByKey(appleLeaf0.keyBytes()),
                 "value that was looked up should match original value");
         assertEquals(
-                DELETED_LEAF_RECORD,
-                cache.lookupLeafByPath(1, false),
-                "value that was looked up should match original value");
+                DELETED_LEAF_RECORD, cache.lookupLeafByPath(1), "value that was looked up should match original value");
     }
 
     @Test
     @Tags({@Tag("VirtualMerkle"), @Tag("VirtualNodeCache"), @Tag("Leaf")})
     @DisplayName("Deleting an existent node in the same cache version is OK")
     void deletingALeafThatDoesExistIsOK() {
-        final VirtualLeafRecord<TestKey, TestValue> appleLeaf0 = appleLeaf(A_PATH);
+        final VirtualLeafBytes<TestValue> appleLeaf0 = appleLeaf(A_PATH);
         cache.putLeaf(appleLeaf0);
         assertEquals(
                 appleLeaf0,
-                cache.lookupLeafByKey(appleLeaf0.getKey(), false),
+                cache.lookupLeafByKey(appleLeaf0.keyBytes()),
                 "value that was looked up should match original value");
         assertEquals(
-                appleLeaf0,
-                cache.lookupLeafByPath(A_PATH, false),
-                "value that was looked up should match original value");
+                appleLeaf0, cache.lookupLeafByPath(A_PATH), "value that was looked up should match original value");
         cache.deleteLeaf(appleLeaf0);
         assertEquals(
                 DELETED_LEAF_RECORD,
-                cache.lookupLeafByKey(appleLeaf0.getKey(), false),
+                cache.lookupLeafByKey(appleLeaf0.keyBytes()),
                 "value that was looked up should match original value");
         assertEquals(
                 DELETED_LEAF_RECORD,
-                cache.lookupLeafByPath(A_PATH, false),
+                cache.lookupLeafByPath(A_PATH),
                 "value that was looked up should match original value");
     }
 
@@ -1793,30 +1707,28 @@ class VirtualNodeCacheTest extends VirtualTestBase {
     @Tags({@Tag("VirtualMerkle"), @Tag("VirtualNodeCache"), @Tag("Leaf")})
     @DisplayName("Deleting an existent node across cache versions is OK")
     void deletingALeafThatDoesExistInOlderCacheIsOK() {
-        final VirtualLeafRecord<TestKey, TestValue> appleLeaf0 = appleLeaf(A_PATH);
+        final VirtualLeafBytes<TestValue> appleLeaf0 = appleLeaf(A_PATH);
         cache.putLeaf(appleLeaf0);
-        final VirtualNodeCache<TestKey, TestValue> original = cache;
+        final VirtualNodeCache original = cache;
         nextRound();
         original.seal();
 
-        final VirtualLeafRecord<TestKey, TestValue> appleLeaf1 = appleLeaf(A_PATH);
+        final VirtualLeafBytes<TestValue> appleLeaf1 = appleLeaf(A_PATH);
         cache.deleteLeaf(appleLeaf1);
 
         assertEquals(
                 appleLeaf0,
-                original.lookupLeafByKey(appleLeaf0.getKey(), false),
+                original.lookupLeafByKey(appleLeaf0.keyBytes()),
                 "value that was looked up should match original value");
         assertEquals(
-                appleLeaf0,
-                original.lookupLeafByPath(A_PATH, false),
+                appleLeaf0, original.lookupLeafByPath(A_PATH), "value that was looked up should match original value");
+        assertEquals(
+                DELETED_LEAF_RECORD,
+                cache.lookupLeafByKey(appleLeaf0.keyBytes()),
                 "value that was looked up should match original value");
         assertEquals(
                 DELETED_LEAF_RECORD,
-                cache.lookupLeafByKey(appleLeaf0.getKey(), false),
-                "value that was looked up should match original value");
-        assertEquals(
-                DELETED_LEAF_RECORD,
-                cache.lookupLeafByPath(A_PATH, false),
+                cache.lookupLeafByPath(A_PATH),
                 "value that was looked up should match original value");
     }
 
@@ -1824,9 +1736,9 @@ class VirtualNodeCacheTest extends VirtualTestBase {
     @Tags({@Tag("VirtualMerkle"), @Tag("VirtualNodeCache"), @Tag("Leaf")})
     @DisplayName("Clearing a leaf path results in a deletion tombstone for that path")
     void clearingALeafPath() {
-        final VirtualLeafRecord<TestKey, TestValue> appleLeaf0 = appleLeaf(A_PATH);
+        final VirtualLeafBytes<TestValue> appleLeaf0 = appleLeaf(A_PATH);
         cache.putLeaf(appleLeaf0);
-        final VirtualNodeCache<TestKey, TestValue> original = cache;
+        final VirtualNodeCache original = cache;
         nextRound();
         original.seal();
 
@@ -1834,19 +1746,17 @@ class VirtualNodeCacheTest extends VirtualTestBase {
 
         assertEquals(
                 appleLeaf0,
-                original.lookupLeafByKey(appleLeaf0.getKey(), false),
+                original.lookupLeafByKey(appleLeaf0.keyBytes()),
                 "value that was looked up should match original value");
         assertEquals(
-                appleLeaf0,
-                original.lookupLeafByPath(A_PATH, false),
-                "value that was looked up should match original value");
+                appleLeaf0, original.lookupLeafByPath(A_PATH), "value that was looked up should match original value");
         assertEquals(
                 appleLeaf0,
-                cache.lookupLeafByKey(appleLeaf0.getKey(), false),
+                cache.lookupLeafByKey(appleLeaf0.keyBytes()),
                 "value that was looked up should match original value");
         assertEquals(
                 DELETED_LEAF_RECORD,
-                cache.lookupLeafByPath(A_PATH, false),
+                cache.lookupLeafByPath(A_PATH),
                 "value that was looked up should match original value");
     }
 
@@ -1856,7 +1766,7 @@ class VirtualNodeCacheTest extends VirtualTestBase {
     void gettingALeafWithANullKeyLeadsToNPE() {
         assertThrows(
                 NullPointerException.class,
-                () -> cache.lookupLeafByKey(null, false),
+                () -> cache.lookupLeafByKey(null),
                 "should not be able to look up a null key");
     }
 
@@ -1864,20 +1774,20 @@ class VirtualNodeCacheTest extends VirtualTestBase {
     @Tags({@Tag("VirtualMerkle"), @Tag("VirtualNodeCache"), @Tag("Leaf")})
     @DisplayName("Exception when getting a leaf on a destroyed cache")
     void gettingALeafOnDestroyedCacheThrows() {
-        final VirtualLeafRecord<TestKey, TestValue> appleLeaf0 = appleLeaf(A_PATH);
+        final VirtualLeafBytes<TestValue> appleLeaf0 = appleLeaf(A_PATH);
         cache.putLeaf(appleLeaf0);
         cache.seal();
         cache.release();
 
-        assertNull(cache.lookupLeafByKey(A_KEY, false), "shouldn't be able to key on destroyed cache");
+        assertNull(cache.lookupLeafByKey(A_KEY), "shouldn't be able to key on destroyed cache");
     }
 
     @Test
     @Tags({@Tag("VirtualMerkle"), @Tag("VirtualNodeCache"), @Tag("Leaf")})
     @DisplayName("Getting non-existent leaves returns null")
     void gettingANonExistentLeafGivesNull() {
-        assertNull(cache.lookupLeafByKey(new TestKey(BOGUS_KEY_ID), false), "no value should be found");
-        assertNull(cache.lookupLeafByPath(100, false), "no value should be found");
+        assertNull(cache.lookupLeafByKey(TestKey.longToKey(BOGUS_KEY_ID)), "no value should be found");
+        assertNull(cache.lookupLeafByPath(100), "no value should be found");
     }
 
     @Test
@@ -1885,26 +1795,27 @@ class VirtualNodeCacheTest extends VirtualTestBase {
     @DisplayName("Lookup by leaf key with forModify works across versions")
     void getLeafByKeyWithForModify() {
         // Add APPLE to the original cache
-        final VirtualNodeCache<TestKey, TestValue> cache0 = cache;
-        final VirtualLeafRecord<TestKey, TestValue> appleLeaf0 = appleLeaf(A_PATH);
+        final VirtualNodeCache cache0 = cache;
+        final VirtualLeafBytes<TestValue> appleLeaf0 = appleLeaf(A_PATH);
         cache0.putLeaf(appleLeaf0);
         nextRound();
 
         // Create a new cache and use lookupLeafByKey with forModify true
-        final VirtualNodeCache<TestKey, TestValue> cache1 = cache0.copy();
-        final VirtualLeafRecord<TestKey, TestValue> aardvarkLeaf1 = cache1.lookupLeafByKey(A_KEY, true);
+        final VirtualNodeCache cache1 = cache0.copy();
+        VirtualLeafBytes<TestValue> aardvarkLeaf1 = cache1.lookupLeafByKey(A_KEY);
         assertNotNull(aardvarkLeaf1, "value should have been found");
-        aardvarkLeaf1.setValue(AARDVARK);
-        assertEquals(appleLeaf0, cache0.lookupLeafByKey(A_KEY, false), "value should match original");
-        assertEquals(appleLeaf0, cache0.lookupLeafByPath(A_PATH, false), "lookup by path should work");
-        assertEquals(aardvarkLeaf1, cache1.lookupLeafByKey(A_KEY, false), "value should match original");
-        assertEquals(aardvarkLeaf1, cache1.lookupLeafByPath(A_PATH, false), "lookup by path should work");
+        aardvarkLeaf1 = aardvarkLeaf1.withValue(AARDVARK, TestValueCodec.INSTANCE);
+        cache1.putLeaf(aardvarkLeaf1);
+        assertEquals(appleLeaf0, cache0.lookupLeafByKey(A_KEY), "value should match original");
+        assertEquals(appleLeaf0, cache0.lookupLeafByPath(A_PATH), "lookup by path should work");
+        assertEquals(aardvarkLeaf1, cache1.lookupLeafByKey(A_KEY), "value should match original");
+        assertEquals(aardvarkLeaf1, cache1.lookupLeafByPath(A_PATH), "lookup by path should work");
 
         // Create a new cache. Release the original cache, and then lookup APPLE by A_PATH.
-        final VirtualNodeCache<TestKey, TestValue> cache2 = cache1.copy();
+        final VirtualNodeCache cache2 = cache1.copy();
         cache0.release();
-        assertEquals(aardvarkLeaf1, cache2.lookupLeafByKey(A_KEY, false), "value should match aardvark");
-        assertEquals(aardvarkLeaf1, cache2.lookupLeafByPath(A_PATH, false), "lookup by path should work");
+        assertEquals(aardvarkLeaf1, cache2.lookupLeafByKey(A_KEY), "value should match aardvark");
+        assertEquals(aardvarkLeaf1, cache2.lookupLeafByPath(A_PATH), "lookup by path should work");
     }
 
     @Test
@@ -1912,34 +1823,35 @@ class VirtualNodeCacheTest extends VirtualTestBase {
     @DisplayName("Lookup by leaf path with forModify works across versions")
     void getLeafByPathWithForModify() {
         // Add APPLE to the original cache
-        final VirtualNodeCache<TestKey, TestValue> cache0 = cache;
-        final VirtualLeafRecord<TestKey, TestValue> appleLeaf0 = appleLeaf(A_PATH);
+        final VirtualNodeCache cache0 = cache;
+        final VirtualLeafBytes<TestValue> appleLeaf0 = appleLeaf(A_PATH);
         cache0.putLeaf(appleLeaf0);
         nextRound();
 
         // Create a new cache and use lookupLeafByKey with forModify true
-        final VirtualNodeCache<TestKey, TestValue> cache1 = cache0.copy();
-        final VirtualLeafRecord<TestKey, TestValue> aardvarkLeaf1 = cache1.lookupLeafByPath(A_PATH, true);
+        final VirtualNodeCache cache1 = cache0.copy();
+        VirtualLeafBytes<TestValue> aardvarkLeaf1 = cache1.lookupLeafByPath(A_PATH);
         assertNotNull(aardvarkLeaf1, "value should have been found");
-        aardvarkLeaf1.setValue(AARDVARK);
-        assertEquals(appleLeaf0, cache0.lookupLeafByKey(A_KEY, false), "value should match original");
-        assertEquals(appleLeaf0, cache0.lookupLeafByPath(A_PATH, false), "lookup by path should work");
-        assertEquals(aardvarkLeaf1, cache1.lookupLeafByKey(A_KEY, false), "value should match original");
-        assertEquals(aardvarkLeaf1, cache1.lookupLeafByPath(A_PATH, false), "lookup by path should work");
+        aardvarkLeaf1 = aardvarkLeaf1.withValue(AARDVARK, TestValueCodec.INSTANCE);
+        cache1.putLeaf(aardvarkLeaf1);
+        assertEquals(appleLeaf0, cache0.lookupLeafByKey(A_KEY), "value should match original");
+        assertEquals(appleLeaf0, cache0.lookupLeafByPath(A_PATH), "lookup by path should work");
+        assertEquals(aardvarkLeaf1, cache1.lookupLeafByKey(A_KEY), "value should match original");
+        assertEquals(aardvarkLeaf1, cache1.lookupLeafByPath(A_PATH), "lookup by path should work");
 
         // Create a new cache. Release the original cache, and then lookup APPLE by A_PATH.
-        final VirtualNodeCache<TestKey, TestValue> cache2 = cache1.copy();
+        final VirtualNodeCache cache2 = cache1.copy();
         cache0.release();
-        assertEquals(aardvarkLeaf1, cache2.lookupLeafByKey(A_KEY, false), "value should match aardvark");
-        assertEquals(aardvarkLeaf1, cache2.lookupLeafByPath(A_PATH, false), "lookup by path should work");
+        assertEquals(aardvarkLeaf1, cache2.lookupLeafByKey(A_KEY), "value should match aardvark");
+        assertEquals(aardvarkLeaf1, cache2.lookupLeafByPath(A_PATH), "lookup by path should work");
     }
 
     @Test
     @Tags({@Tag("VirtualMerkle"), @Tag("VirtualNodeCache"), @Tag("Leaf")})
     @DisplayName("dirtyLeaves() cannot be called if the dirtyLeaves are still mutable")
     void dirtyLeavesMustButImmutableToCreateASortedStream() {
-        final VirtualNodeCache<TestKey, TestValue> cache0 = cache;
-        final VirtualLeafRecord<TestKey, TestValue> appleLeaf0 = appleLeaf(A_PATH);
+        final VirtualNodeCache cache0 = cache;
+        final VirtualLeafBytes<TestValue> appleLeaf0 = appleLeaf(A_PATH);
         cache0.putLeaf(appleLeaf0);
         assertThrows(
                 MutabilityException.class,
@@ -1965,26 +1877,26 @@ class VirtualNodeCacheTest extends VirtualTestBase {
         // F: [C (FORCE), v3] -> [D, v2] -> [U (FOX), v1] -> [C (FIG), v0]
         // G: [U (GRAVITY), v3] -> [U (GOOSE), v2] -> [C (GRAPE), v1]
 
-        final VirtualMap<TestKey, TestValue> map0 = createMap();
-        final VirtualNodeCache<TestKey, TestValue> cache0 = getRoot(map0).getCache();
+        final VirtualMap map0 = createMap();
+        final VirtualNodeCache cache0 = map0.getCache();
         // A: [C (APPLE), v0]
         // B: [C (BANANA), v0]
         // C: [C+U (CHERRY, CUTTLEFISH), v0]
         // D: [C+U (DATE, DOG), v0]
         // E: [C+U (EGGPLANT, EMU), v0]
         // F: [C (FIG), v0]
-        map0.put(A_KEY, APPLE);
-        map0.put(B_KEY, BANANA);
-        map0.put(C_KEY, CHERRY);
-        map0.put(C_KEY, CUTTLEFISH);
-        map0.put(D_KEY, DATE);
-        map0.put(D_KEY, DOG);
-        map0.put(E_KEY, EGGPLANT);
-        map0.put(E_KEY, EMU);
-        map0.put(F_KEY, FIG);
+        map0.put(A_KEY, APPLE, TestValueCodec.INSTANCE);
+        map0.put(B_KEY, BANANA, TestValueCodec.INSTANCE);
+        map0.put(C_KEY, CHERRY, TestValueCodec.INSTANCE);
+        map0.put(C_KEY, CUTTLEFISH, TestValueCodec.INSTANCE);
+        map0.put(D_KEY, DATE, TestValueCodec.INSTANCE);
+        map0.put(D_KEY, DOG, TestValueCodec.INSTANCE);
+        map0.put(E_KEY, EGGPLANT, TestValueCodec.INSTANCE);
+        map0.put(E_KEY, EMU, TestValueCodec.INSTANCE);
+        map0.put(F_KEY, FIG, TestValueCodec.INSTANCE);
 
-        final VirtualMap<TestKey, TestValue> map1 = map0.copy();
-        final VirtualNodeCache<TestKey, TestValue> cache1 = getRoot(map1).getCache();
+        final VirtualMap map1 = map0.copy();
+        final VirtualNodeCache cache1 = map1.getCache();
 
         // A: [U+D (AARDVARK), v1]
         // B: [D, v1]
@@ -1992,17 +1904,17 @@ class VirtualNodeCacheTest extends VirtualTestBase {
         // D: [U+D (DRACO), v1]
         // F: [U (FOX), v1]
         // G: [C (GRAPE), v1]
-        map1.put(A_KEY, AARDVARK);
+        map1.put(A_KEY, AARDVARK, TestValueCodec.INSTANCE);
         map1.remove(A_KEY);
         map1.remove(B_KEY);
-        map1.put(C_KEY, COMET);
-        map1.put(D_KEY, DRACO);
+        map1.put(C_KEY, COMET, TestValueCodec.INSTANCE);
+        map1.put(D_KEY, DRACO, TestValueCodec.INSTANCE);
         map1.remove(D_KEY);
-        map1.put(F_KEY, FOX);
-        map1.put(G_KEY, GRAPE);
+        map1.put(F_KEY, FOX, TestValueCodec.INSTANCE);
+        map1.put(G_KEY, GRAPE, TestValueCodec.INSTANCE);
 
-        final VirtualMap<TestKey, TestValue> map2 = map1.copy();
-        final VirtualNodeCache<TestKey, TestValue> cache2 = getRoot(map2).getCache();
+        final VirtualMap map2 = map1.copy();
+        final VirtualNodeCache cache2 = map2.getCache();
 
         // A: [D, v2]
         // B: [C+U (BEAR, BLASTOFF), v2]
@@ -2011,18 +1923,18 @@ class VirtualNodeCacheTest extends VirtualTestBase {
         // E: [D, v2]
         // F: [D, v2]
         // G: [U (GOOSE), v2]
-        map2.remove(A_KEY);
-        map2.put(B_KEY, BEAR);
-        map2.put(B_KEY, BLASTOFF);
+        map2.remove(A_KEY, TestValueCodec.INSTANCE);
+        map2.put(B_KEY, BEAR, TestValueCodec.INSTANCE);
+        map2.put(B_KEY, BLASTOFF, TestValueCodec.INSTANCE);
         map2.remove(C_KEY);
-        map2.put(D_KEY, DISCIPLINE);
-        map2.put(D_KEY, DENMARK);
+        map2.put(D_KEY, DISCIPLINE, TestValueCodec.INSTANCE);
+        map2.put(D_KEY, DENMARK, TestValueCodec.INSTANCE);
         map2.remove(E_KEY);
         map2.remove(F_KEY);
-        map2.put(G_KEY, GOOSE);
+        map2.put(G_KEY, GOOSE, TestValueCodec.INSTANCE);
 
-        final VirtualMap<TestKey, TestValue> map3 = map2.copy();
-        final VirtualNodeCache<TestKey, TestValue> cache3 = getRoot(map3).getCache();
+        final VirtualMap map3 = map2.copy();
+        final VirtualNodeCache cache3 = map3.getCache();
 
         // B: [D, v3]
         // C: [C+U+D (CHEMISTRY, CHAD), v3]
@@ -2030,19 +1942,18 @@ class VirtualNodeCacheTest extends VirtualTestBase {
         // F: [C (FORCE), v3]
         // G: [U (GRAVITY), v3]
         map3.remove(B_KEY);
-        map3.put(C_KEY, CHEMISTRY);
-        map3.put(C_KEY, CHAD);
+        map3.put(C_KEY, CHEMISTRY, TestValueCodec.INSTANCE);
+        map3.put(C_KEY, CHAD, TestValueCodec.INSTANCE);
         map3.remove(C_KEY);
-        map3.put(E_KEY, EXOPLANET);
-        map3.put(E_KEY, ECOLOGY);
-        map3.put(F_KEY, FORCE);
-        map3.put(G_KEY, GRAVITY);
+        map3.put(E_KEY, EXOPLANET, TestValueCodec.INSTANCE);
+        map3.put(E_KEY, ECOLOGY, TestValueCodec.INSTANCE);
+        map3.put(F_KEY, FORCE, TestValueCodec.INSTANCE);
+        map3.put(G_KEY, GRAVITY, TestValueCodec.INSTANCE);
 
         // One last copy, so we can get the dirty leaves without an exception
-        final VirtualMap<TestKey, TestValue> map4 = map3.copy();
+        final VirtualMap map4 = map3.copy();
 
-        final List<VirtualLeafRecord<TestKey, TestValue>> deletedLeaves0 =
-                cache0.deletedLeaves().collect(Collectors.toList());
+        final List<VirtualLeafBytes> deletedLeaves0 = cache0.deletedLeaves().collect(Collectors.toList());
         assertEquals(0, deletedLeaves0.size(), "No deleted leaves in cache0");
 
         cache0.seal();
@@ -2109,12 +2020,11 @@ class VirtualNodeCacheTest extends VirtualTestBase {
         cache.putLeaf(bananaLeaf(2));
         cache.copy();
         cache.putHash(rootInternal());
-        final VirtualNodeCache<TestKey, TestValue> snapshot =
-                cache.snapshot().snapshot().snapshot();
-        assertEquals(appleLeaf(1), snapshot.lookupLeafByKey(A_KEY, false), "value should match expected");
-        assertEquals(appleLeaf(1), snapshot.lookupLeafByPath(1, false), "value should match expected");
-        assertEquals(bananaLeaf(2), snapshot.lookupLeafByKey(B_KEY, false), "value should match expected");
-        assertEquals(bananaLeaf(2), snapshot.lookupLeafByPath(2, false), "value should match expected");
+        final VirtualNodeCache snapshot = cache.snapshot().snapshot().snapshot();
+        assertEquals(appleLeaf(1), snapshot.lookupLeafByKey(A_KEY), "value should match expected");
+        assertEquals(appleLeaf(1), snapshot.lookupLeafByPath(1), "value should match expected");
+        assertEquals(bananaLeaf(2), snapshot.lookupLeafByKey(B_KEY), "value should match expected");
+        assertEquals(bananaLeaf(2), snapshot.lookupLeafByPath(2), "value should match expected");
     }
 
     @Test
@@ -2124,13 +2034,13 @@ class VirtualNodeCacheTest extends VirtualTestBase {
         cache.putLeaf(bananaLeaf(2));
         cache.copy();
         cache.putHash(rootInternal());
-        VirtualNodeCache<TestKey, TestValue> snapshot;
+        VirtualNodeCache snapshot;
         for (int i = 0; i < 10; i++) {
             snapshot = cache.snapshot();
-            assertEquals(appleLeaf(1), snapshot.lookupLeafByKey(A_KEY, false), "value should match expected");
-            assertEquals(appleLeaf(1), snapshot.lookupLeafByPath(1, false), "value should match expected");
-            assertEquals(bananaLeaf(2), snapshot.lookupLeafByKey(B_KEY, false), "value should match expected");
-            assertEquals(bananaLeaf(2), snapshot.lookupLeafByPath(2, false), "value should match expected");
+            assertEquals(appleLeaf(1), snapshot.lookupLeafByKey(A_KEY), "value should match expected");
+            assertEquals(appleLeaf(1), snapshot.lookupLeafByPath(1), "value should match expected");
+            assertEquals(bananaLeaf(2), snapshot.lookupLeafByKey(B_KEY), "value should match expected");
+            assertEquals(bananaLeaf(2), snapshot.lookupLeafByPath(2), "value should match expected");
         }
     }
 
@@ -2183,8 +2093,7 @@ class VirtualNodeCacheTest extends VirtualTestBase {
                 ioStream.getOutput().writeSerializable(snapshot.cache, true);
                 ioStream.startReading();
 
-                final VirtualNodeCache<TestKey, TestValue> deserializedCache =
-                        ioStream.getInput().readSerializable();
+                final VirtualNodeCache deserializedCache = ioStream.getInput().readSerializable();
                 final CacheInfo deserializedInfo =
                         new CacheInfo(deserializedCache, snapshot.firstLeafPath, snapshot.lastLeafPath);
                 validateSnapshot(expected, deserializedInfo, i);
@@ -2213,56 +2122,51 @@ class VirtualNodeCacheTest extends VirtualTestBase {
         //          (A+)======(E+)     (C+)=======(F+)       (B+)========(G+)
         //
         // Add A and B as leaf 1 and 2
-        final VirtualNodeCache<TestKey, TestValue> cache0 = new VirtualNodeCache<>(VIRTUAL_MAP_CONFIG);
-        final VirtualLeafRecord<TestKey, TestValue> appleLeaf0 = appleLeaf(1);
-        final VirtualLeafRecord<TestKey, TestValue> bananaLeaf0 = bananaLeaf(2);
+        final VirtualNodeCache cache0 = new VirtualNodeCache(VIRTUAL_MAP_CONFIG);
+        VirtualLeafBytes<TestValue> appleLeaf0 = appleLeaf(1);
+        VirtualLeafBytes<TestValue> bananaLeaf0 = bananaLeaf(2);
         cache0.putLeaf(appleLeaf0);
         cache0.putLeaf(bananaLeaf0);
         // Move A to path 3 and add D at 4.
-        cache0.clearLeafPath(appleLeaf0.getPath());
-        appleLeaf0.setPath(3);
+        cache0.clearLeafPath(appleLeaf0.path());
+        appleLeaf0 = appleLeaf0.withPath(3);
         cache0.putLeaf(appleLeaf0);
-        final VirtualLeafRecord<TestKey, TestValue> cherryLeaf0 = cherryLeaf(4);
+        VirtualLeafBytes<TestValue> cherryLeaf0 = cherryLeaf(4);
         cache0.putLeaf(cherryLeaf0);
         // Move B to 5 and put D at 6
-        cache0.clearLeafPath(bananaLeaf0.getPath());
-        bananaLeaf0.setPath(5);
+        cache0.clearLeafPath(bananaLeaf0.path());
+        bananaLeaf0 = bananaLeaf0.withPath(5);
         cache0.putLeaf(bananaLeaf0);
-        final VirtualLeafRecord<TestKey, TestValue> dateLeaf0 = dateLeaf(6);
+        final VirtualLeafBytes<TestValue> dateLeaf0 = dateLeaf(6);
         cache0.putLeaf(dateLeaf0);
         // Move A to 7 and put E at 8
-        cache0.clearLeafPath(appleLeaf0.getPath());
-        appleLeaf0.setPath(7);
+        cache0.clearLeafPath(appleLeaf0.path());
+        appleLeaf0 = appleLeaf0.withPath(7);
         cache0.putLeaf(appleLeaf0);
-        final VirtualLeafRecord<TestKey, TestValue> eggplantLeaf0 = eggplantLeaf(8);
+        final VirtualLeafBytes<TestValue> eggplantLeaf0 = eggplantLeaf(8);
         cache0.putLeaf(eggplantLeaf0);
         // Move C to 9 and put F at 10
-        cache0.clearLeafPath(cherryLeaf0.getPath());
-        cherryLeaf0.setPath(9);
+        cache0.clearLeafPath(cherryLeaf0.path());
+        cherryLeaf0 = cherryLeaf0.withPath(9);
         cache0.putLeaf(cherryLeaf0);
-        final VirtualLeafRecord<TestKey, TestValue> figLeaf0 = figLeaf(10);
+        final VirtualLeafBytes<TestValue> figLeaf0 = figLeaf(10);
         cache0.putLeaf(figLeaf0);
         // Move B to 11 and put G at 12
-        cache0.clearLeafPath(bananaLeaf0.getPath());
-        bananaLeaf0.setPath(11);
+        cache0.clearLeafPath(bananaLeaf0.path());
+        bananaLeaf0 = bananaLeaf0.withPath(11);
         cache0.putLeaf(bananaLeaf0);
-        final VirtualLeafRecord<TestKey, TestValue> grapeLeaf0 = grapeLeaf(12);
+        final VirtualLeafBytes<TestValue> grapeLeaf0 = grapeLeaf(12);
         cache0.putLeaf(grapeLeaf0);
         // Create the copy and add the root internals and hash everything
-        final VirtualNodeCache<TestKey, TestValue> cache1 = cache0.copy();
+        final VirtualNodeCache cache1 = cache0.copy();
 
-        final VirtualHashRecord appleLeaf0int =
-                new VirtualHashRecord(appleLeaf0.getPath(), CRYPTO.digestSync(appleLeaf0));
-        final VirtualHashRecord bananaLeaf0int =
-                new VirtualHashRecord(bananaLeaf0.getPath(), CRYPTO.digestSync(bananaLeaf0));
-        final VirtualHashRecord cherryLeaf0int =
-                new VirtualHashRecord(cherryLeaf0.getPath(), CRYPTO.digestSync(cherryLeaf0));
-        final VirtualHashRecord dateLeaf0int = new VirtualHashRecord(dateLeaf0.getPath(), CRYPTO.digestSync(dateLeaf0));
-        final VirtualHashRecord eggplantLeaf0int =
-                new VirtualHashRecord(eggplantLeaf0.getPath(), CRYPTO.digestSync(eggplantLeaf0));
-        final VirtualHashRecord figLeaf0int = new VirtualHashRecord(figLeaf0.getPath(), CRYPTO.digestSync(figLeaf0));
-        final VirtualHashRecord grapeLeaf0int =
-                new VirtualHashRecord(grapeLeaf0.getPath(), CRYPTO.digestSync(grapeLeaf0));
+        final VirtualHashRecord appleLeaf0int = new VirtualHashRecord(appleLeaf0.path(), hash(appleLeaf0));
+        final VirtualHashRecord bananaLeaf0int = new VirtualHashRecord(bananaLeaf0.path(), hash(bananaLeaf0));
+        final VirtualHashRecord cherryLeaf0int = new VirtualHashRecord(cherryLeaf0.path(), hash(cherryLeaf0));
+        final VirtualHashRecord dateLeaf0int = new VirtualHashRecord(dateLeaf0.path(), hash(dateLeaf0));
+        final VirtualHashRecord eggplantLeaf0int = new VirtualHashRecord(eggplantLeaf0.path(), hash(eggplantLeaf0));
+        final VirtualHashRecord figLeaf0int = new VirtualHashRecord(figLeaf0.path(), hash(figLeaf0));
+        final VirtualHashRecord grapeLeaf0int = new VirtualHashRecord(grapeLeaf0.path(), hash(grapeLeaf0));
 
         final VirtualHashRecord leftRight0 =
                 new VirtualHashRecord(leftRightInternal().path(), digest(cherryLeaf0int, figLeaf0int));
@@ -2301,28 +2205,26 @@ class VirtualNodeCacheTest extends VirtualTestBase {
         //           (A)======(E)      (C')=======(F)
         //
         // Update C
-        final VirtualLeafRecord<TestKey, TestValue> cherryLeaf1 = cache1.lookupLeafByKey(C_KEY, true);
+        VirtualLeafBytes<TestValue> cherryLeaf1 = cache1.lookupLeafByKey(C_KEY);
         assert cherryLeaf1 != null;
-        cherryLeaf1.setValue(CUTTLEFISH);
+        cherryLeaf1 = cherryLeaf1.withValue(CUTTLEFISH, TestValueCodec.INSTANCE);
+        cache1.putLeaf(cherryLeaf1);
         // Delete B and move G
         cache1.deleteLeaf(bananaLeaf0);
-        cache1.deleteHash(5);
-        final VirtualLeafRecord<TestKey, TestValue> grapeLeaf1 = cache1.lookupLeafByKey(G_KEY, true);
+        VirtualLeafBytes<TestValue> grapeLeaf1 = cache1.lookupLeafByKey(G_KEY);
         assert grapeLeaf1 != null;
-        grapeLeaf1.setPath(5);
+        grapeLeaf1 = grapeLeaf1.withPath(5);
         cache1.putLeaf(grapeLeaf1);
         cache1.clearLeafPath(12);
         // Make a copy and hash
-        final VirtualNodeCache<TestKey, TestValue> cache2 = cache1.copy();
-        final VirtualHashRecord cherryLeaf1int =
-                new VirtualHashRecord(cherryLeaf1.getPath(), CRYPTO.digestSync(cherryLeaf1));
+        final VirtualNodeCache cache2 = cache1.copy();
+        final VirtualHashRecord cherryLeaf1int = new VirtualHashRecord(cherryLeaf1.path(), hash(cherryLeaf1));
         cache1.putHash(cherryLeaf1int);
         VirtualHashRecord leftRight1 = new VirtualHashRecord(leftRight0.path(), digest(cherryLeaf1int, figLeaf0int));
         cache1.putHash(leftRight1);
         VirtualHashRecord left1 = new VirtualHashRecord(left0.path(), digest(leftLeft0, leftRight1));
         cache1.putHash(left1);
-        final VirtualHashRecord grapeLeaf1int =
-                new VirtualHashRecord(grapeLeaf1.getPath(), CRYPTO.digestSync(grapeLeaf1));
+        final VirtualHashRecord grapeLeaf1int = new VirtualHashRecord(grapeLeaf1.path(), hash(grapeLeaf1));
         cache1.putHash(grapeLeaf1int);
         VirtualHashRecord right1 = new VirtualHashRecord(right0.path(), digest(grapeLeaf1int, dateLeaf0int));
         cache1.putHash(right1);
@@ -2341,86 +2243,85 @@ class VirtualNodeCacheTest extends VirtualTestBase {
         //           (F')======(B+)
         //
         // Update D
-        final VirtualLeafRecord<TestKey, TestValue> dateLeaf2 = cache2.lookupLeafByKey(D_KEY, true);
+        VirtualLeafBytes<TestValue> dateLeaf2 = cache2.lookupLeafByKey(D_KEY);
         assert dateLeaf2 != null;
-        dateLeaf2.setValue(DOG);
+        dateLeaf2 = dateLeaf2.withValue(DOG, TestValueCodec.INSTANCE);
+        cache2.putLeaf(dateLeaf2);
         // Delete A and move F into A's place and C into leftRight's place
         cache2.deleteLeaf(appleLeaf0);
-        final VirtualLeafRecord<TestKey, TestValue> figLeaf2 = cache2.lookupLeafByKey(F_KEY, true);
+        VirtualLeafBytes<TestValue> figLeaf2 = cache2.lookupLeafByKey(F_KEY);
         assert figLeaf2 != null;
-        figLeaf2.setPath(appleLeaf0.getPath());
+        figLeaf2 = figLeaf2.withPath(appleLeaf0.path());
         cache2.putLeaf(figLeaf2);
-        cache2.deleteHash(leftRight1.path());
-        final VirtualLeafRecord<TestKey, TestValue> cherryLeaf2 = cache2.lookupLeafByKey(C_KEY, true);
+        VirtualLeafBytes<TestValue> cherryLeaf2 = cache2.lookupLeafByKey(C_KEY);
         assert cherryLeaf2 != null;
-        cherryLeaf2.setPath(leftRight1.path());
+        cherryLeaf2 = cherryLeaf2.withPath(leftRight1.path());
         cache2.putLeaf(cherryLeaf2);
         // Delete E and move F into leftLeft's place
         cache2.deleteLeaf(eggplantLeaf0);
-        cache2.deleteHash(leftLeft0.path());
-        figLeaf2.setPath(leftLeft0.path());
+        figLeaf2 = figLeaf2.withPath(leftLeft0.path());
         cache2.putLeaf(figLeaf2);
         // Finally, add B and move F back down to where it was
-        final VirtualLeafRecord<TestKey, TestValue> bananaLeaf2 = bananaLeaf(8);
+        final VirtualLeafBytes<TestValue> bananaLeaf2 = bananaLeaf(8);
         cache2.putLeaf(bananaLeaf2);
-        figLeaf2.setPath(7);
+        figLeaf2 = figLeaf2.withPath(7);
         cache2.putLeaf(figLeaf2);
         // And we don't hash this one or make a copy.
 
         // Verify the contents of cache0 are as expected
-        assertEquals(dateLeaf0, cache0.lookupLeafByKey(D_KEY, false), "value should match original");
-        assertEquals(dateLeaf0, cache0.lookupLeafByPath(6, false), "value should match original");
-        assertEquals(appleLeaf0, cache0.lookupLeafByKey(A_KEY, false), "value should match original");
-        assertEquals(appleLeaf0, cache0.lookupLeafByPath(7, false), "value should match original");
-        assertEquals(eggplantLeaf0, cache0.lookupLeafByKey(E_KEY, false), "value should match original");
-        assertEquals(eggplantLeaf0, cache0.lookupLeafByPath(8, false), "value should match original");
-        assertEquals(cherryLeaf0, cache0.lookupLeafByKey(C_KEY, false), "value should match original");
-        assertEquals(cherryLeaf0, cache0.lookupLeafByPath(9, false), "value should match original");
-        assertEquals(figLeaf0, cache0.lookupLeafByKey(F_KEY, false), "value should match original");
-        assertEquals(figLeaf0, cache0.lookupLeafByPath(10, false), "value should match original");
-        assertEquals(root0.hash(), cache0.lookupHashByPath(0, false), "value should match original");
-        assertEquals(left0.hash(), cache0.lookupHashByPath(1, false), "value should match original");
-        assertEquals(right0.hash(), cache0.lookupHashByPath(2, false), "value should match original");
-        assertEquals(leftLeft0.hash(), cache0.lookupHashByPath(3, false), "value should match original");
-        assertEquals(leftRight0.hash(), cache0.lookupHashByPath(4, false), "value should match original");
-        assertEquals(rightLeft0.hash(), cache0.lookupHashByPath(5, false), "value should match original");
+        assertEquals(dateLeaf0, cache0.lookupLeafByKey(D_KEY), "value should match original");
+        assertEquals(dateLeaf0, cache0.lookupLeafByPath(6), "value should match original");
+        assertEquals(appleLeaf0, cache0.lookupLeafByKey(A_KEY), "value should match original");
+        assertEquals(appleLeaf0, cache0.lookupLeafByPath(7), "value should match original");
+        assertEquals(eggplantLeaf0, cache0.lookupLeafByKey(E_KEY), "value should match original");
+        assertEquals(eggplantLeaf0, cache0.lookupLeafByPath(8), "value should match original");
+        assertEquals(cherryLeaf0, cache0.lookupLeafByKey(C_KEY), "value should match original");
+        assertEquals(cherryLeaf0, cache0.lookupLeafByPath(9), "value should match original");
+        assertEquals(figLeaf0, cache0.lookupLeafByKey(F_KEY), "value should match original");
+        assertEquals(figLeaf0, cache0.lookupLeafByPath(10), "value should match original");
+        assertEquals(root0.hash(), cache0.lookupHashByPath(0), "value should match original");
+        assertEquals(left0.hash(), cache0.lookupHashByPath(1), "value should match original");
+        assertEquals(right0.hash(), cache0.lookupHashByPath(2), "value should match original");
+        assertEquals(leftLeft0.hash(), cache0.lookupHashByPath(3), "value should match original");
+        assertEquals(leftRight0.hash(), cache0.lookupHashByPath(4), "value should match original");
+        assertEquals(rightLeft0.hash(), cache0.lookupHashByPath(5), "value should match original");
 
         // Verify the contents of cache1 are as expected
-        assertEquals(grapeLeaf1, cache1.lookupLeafByKey(G_KEY, false), "value should match original");
-        assertEquals(grapeLeaf1, cache1.lookupLeafByPath(5, false), "value should match original");
-        assertEquals(dateLeaf0, cache1.lookupLeafByKey(D_KEY, false), "value should match original");
-        assertEquals(dateLeaf0, cache1.lookupLeafByPath(6, false), "value should match original");
-        assertEquals(appleLeaf0, cache1.lookupLeafByKey(A_KEY, false), "value should match original");
-        assertEquals(appleLeaf0, cache1.lookupLeafByPath(7, false), "value should match original");
-        assertEquals(eggplantLeaf0, cache1.lookupLeafByKey(E_KEY, false), "value should match original");
-        assertEquals(eggplantLeaf0, cache1.lookupLeafByPath(8, false), "value should match original");
-        assertEquals(cherryLeaf1, cache1.lookupLeafByKey(C_KEY, false), "value should match original");
-        assertEquals(cherryLeaf1, cache1.lookupLeafByPath(9, false), "value should match original");
-        assertEquals(figLeaf0, cache1.lookupLeafByKey(F_KEY, false), "value should match original");
-        assertEquals(figLeaf0, cache1.lookupLeafByPath(10, false), "value should match original");
-        assertEquals(DELETED_LEAF_RECORD, cache1.lookupLeafByKey(B_KEY, false), "value should be deleted");
-        assertEquals(DELETED_LEAF_RECORD, cache1.lookupLeafByPath(11, false), "value should be deleted");
-        assertEquals(root1.hash(), cache1.lookupHashByPath(0, false), "value should match original");
-        assertEquals(left1.hash(), cache1.lookupHashByPath(1, false), "value should match original");
-        assertEquals(right1.hash(), cache1.lookupHashByPath(2, false), "value should match original");
-        assertEquals(leftLeft0.hash(), cache1.lookupHashByPath(3, false), "value should match original");
-        assertEquals(leftRight1.hash(), cache1.lookupHashByPath(4, false), "value should match original");
-        assertEquals(grapeLeaf1int.hash(), cache1.lookupHashByPath(5, false), "value should match original");
+        assertEquals(grapeLeaf1, cache1.lookupLeafByKey(G_KEY), "value should match original");
+        assertEquals(grapeLeaf1, cache1.lookupLeafByPath(5), "value should match original");
+        assertEquals(dateLeaf0, cache1.lookupLeafByKey(D_KEY), "value should match original");
+        assertEquals(dateLeaf0, cache1.lookupLeafByPath(6), "value should match original");
+        assertEquals(appleLeaf0, cache1.lookupLeafByKey(A_KEY), "value should match original");
+        assertEquals(appleLeaf0, cache1.lookupLeafByPath(7), "value should match original");
+        assertEquals(eggplantLeaf0, cache1.lookupLeafByKey(E_KEY), "value should match original");
+        assertEquals(eggplantLeaf0, cache1.lookupLeafByPath(8), "value should match original");
+        assertEquals(cherryLeaf1, cache1.lookupLeafByKey(C_KEY), "value should match original");
+        assertEquals(cherryLeaf1, cache1.lookupLeafByPath(9), "value should match original");
+        assertEquals(figLeaf0, cache1.lookupLeafByKey(F_KEY), "value should match original");
+        assertEquals(figLeaf0, cache1.lookupLeafByPath(10), "value should match original");
+        assertEquals(DELETED_LEAF_RECORD, cache1.lookupLeafByKey(B_KEY), "value should be deleted");
+        assertEquals(DELETED_LEAF_RECORD, cache1.lookupLeafByPath(11), "value should be deleted");
+        assertEquals(root1.hash(), cache1.lookupHashByPath(0), "value should match original");
+        assertEquals(left1.hash(), cache1.lookupHashByPath(1), "value should match original");
+        assertEquals(right1.hash(), cache1.lookupHashByPath(2), "value should match original");
+        assertEquals(leftLeft0.hash(), cache1.lookupHashByPath(3), "value should match original");
+        assertEquals(leftRight1.hash(), cache1.lookupHashByPath(4), "value should match original");
+        assertEquals(grapeLeaf1int.hash(), cache1.lookupHashByPath(5), "value should match original");
 
         // Verify the contents of cache2 are as expected
-        assertEquals(cherryLeaf2, cache2.lookupLeafByKey(C_KEY, false), "value should match original");
-        assertEquals(cherryLeaf2, cache2.lookupLeafByPath(4, false), "value should match original");
-        assertEquals(grapeLeaf1, cache2.lookupLeafByKey(G_KEY, false), "value should match original");
-        assertEquals(grapeLeaf1, cache2.lookupLeafByPath(5, false), "value should match original");
-        assertEquals(dateLeaf2, cache2.lookupLeafByKey(D_KEY, false), "value should match original");
-        assertEquals(dateLeaf2, cache2.lookupLeafByPath(6, false), "value should match original");
-        assertEquals(figLeaf2, cache2.lookupLeafByKey(F_KEY, false), "value should match original");
-        assertEquals(figLeaf2, cache2.lookupLeafByPath(7, false), "value should match original");
-        assertEquals(bananaLeaf2, cache2.lookupLeafByKey(B_KEY, false), "value should match original");
-        assertEquals(bananaLeaf2, cache2.lookupLeafByPath(8, false), "value should match original");
+        assertEquals(cherryLeaf2, cache2.lookupLeafByKey(C_KEY), "value should match original");
+        assertEquals(cherryLeaf2, cache2.lookupLeafByPath(4), "value should match original");
+        assertEquals(grapeLeaf1, cache2.lookupLeafByKey(G_KEY), "value should match original");
+        assertEquals(grapeLeaf1, cache2.lookupLeafByPath(5), "value should match original");
+        assertEquals(dateLeaf2, cache2.lookupLeafByKey(D_KEY), "value should match original");
+        assertEquals(dateLeaf2, cache2.lookupLeafByPath(6), "value should match original");
+        assertEquals(figLeaf2, cache2.lookupLeafByKey(F_KEY), "value should match original");
+        assertEquals(figLeaf2, cache2.lookupLeafByPath(7), "value should match original");
+        assertEquals(bananaLeaf2, cache2.lookupLeafByKey(B_KEY), "value should match original");
+        assertEquals(bananaLeaf2, cache2.lookupLeafByPath(8), "value should match original");
 
-        assertEquals(DELETED_LEAF_RECORD, cache2.lookupLeafByKey(A_KEY, false), "value should be deleted");
-        assertEquals(DELETED_LEAF_RECORD, cache2.lookupLeafByKey(E_KEY, false), "value should be deleted");
+        assertEquals(DELETED_LEAF_RECORD, cache2.lookupLeafByKey(A_KEY), "value should be deleted");
+        assertEquals(DELETED_LEAF_RECORD, cache2.lookupLeafByKey(E_KEY), "value should be deleted");
 
         return List.of(new CacheInfo(cache0, 6, 12), new CacheInfo(cache1, 5, 10), new CacheInfo(cache2, 4, 8));
     }
@@ -2430,35 +2331,35 @@ class VirtualNodeCacheTest extends VirtualTestBase {
         assertEquals(expected.lastLeafPath, snapshot.lastLeafPath, "Should have the same lastLeafPath");
 
         assertEquals(
-                expected.cache.lookupLeafByKey(A_KEY, false),
-                snapshot.cache.lookupLeafByKey(A_KEY, false),
+                expected.cache.lookupLeafByKey(A_KEY),
+                snapshot.cache.lookupLeafByKey(A_KEY),
                 "Expected the leaf for A_KEY to match for snapshot on iteration " + iteration);
         assertEquals(
-                expected.cache.lookupLeafByKey(B_KEY, false),
-                snapshot.cache.lookupLeafByKey(B_KEY, false),
+                expected.cache.lookupLeafByKey(B_KEY),
+                snapshot.cache.lookupLeafByKey(B_KEY),
                 "Expected the leaf for B_KEY to match for snapshot on iteration " + iteration);
         assertEquals(
-                expected.cache.lookupLeafByKey(C_KEY, false),
-                snapshot.cache.lookupLeafByKey(C_KEY, false),
+                expected.cache.lookupLeafByKey(C_KEY),
+                snapshot.cache.lookupLeafByKey(C_KEY),
                 "Expected the leaf for C_KEY to match for snapshot on iteration " + iteration);
         assertEquals(
-                expected.cache.lookupLeafByKey(D_KEY, false),
-                snapshot.cache.lookupLeafByKey(D_KEY, false),
+                expected.cache.lookupLeafByKey(D_KEY),
+                snapshot.cache.lookupLeafByKey(D_KEY),
                 "Expected the leaf for D_KEY to match for snapshot on iteration " + iteration);
 
         // Test looking up leaves by paths, including paths we have never used
         for (long j = expected.firstLeafPath; j <= expected.lastLeafPath; j++) {
             assertEquals(
-                    expected.cache.lookupLeafByPath(j, false),
-                    snapshot.cache.lookupLeafByPath(j, false),
+                    expected.cache.lookupLeafByPath(j),
+                    snapshot.cache.lookupLeafByPath(j),
                     "Unexpected leaf for path " + j + " in snapshot on iteration " + iteration);
         }
 
         // Test looking up internals by paths, including paths we have never used
         for (int j = 0; j < expected.firstLeafPath; j++) {
             assertEquals(
-                    expected.cache.lookupHashByPath(j, false),
-                    snapshot.cache.lookupHashByPath(j, false),
+                    expected.cache.lookupHashByPath(j),
+                    snapshot.cache.lookupHashByPath(j),
                     "Unexpected internal for path " + j + " in snapshot on iteration " + iteration);
         }
     }
@@ -2475,7 +2376,7 @@ class VirtualNodeCacheTest extends VirtualTestBase {
     @Tags({@Tag("VirtualMerkle"), @Tag("VirtualNodeCache"), @Tag("DirtyLeaves")})
     @DisplayName("dirtyLeaves where all mutations are in the same version and none are deleted")
     void dirtyLeaves_allInSameVersionNoneDeleted() {
-        final VirtualNodeCache<TestKey, TestValue> cache = new VirtualNodeCache<>(VIRTUAL_MAP_CONFIG);
+        final VirtualNodeCache cache = new VirtualNodeCache(VIRTUAL_MAP_CONFIG);
         cache.putLeaf(appleLeaf(7));
         cache.putLeaf(bananaLeaf(5));
         cache.putLeaf(cherryLeaf(4));
@@ -2483,8 +2384,7 @@ class VirtualNodeCacheTest extends VirtualTestBase {
         cache.putLeaf(eggplantLeaf(8));
         cache.seal();
 
-        final List<VirtualLeafRecord<TestKey, TestValue>> leaves =
-                cache.dirtyLeavesForHash(4, 8).toList();
+        final List<VirtualLeafBytes> leaves = cache.dirtyLeavesForHash(4, 8).toList();
         assertEquals(5, leaves.size(), "All leaves should be dirty");
         assertEquals(cherryLeaf(4), leaves.get(0), "Unexpected leaf");
         assertEquals(bananaLeaf(5), leaves.get(1), "Unexpected leaf");
@@ -2497,7 +2397,7 @@ class VirtualNodeCacheTest extends VirtualTestBase {
     @Tags({@Tag("VirtualMerkle"), @Tag("VirtualNodeCache"), @Tag("DirtyLeaves")})
     @DisplayName("dirtyLeaves where all mutations are in the same version and some are deleted")
     void dirtyLeaves_allInSameVersionSomeDeleted() {
-        final VirtualNodeCache<TestKey, TestValue> cache = new VirtualNodeCache<>(VIRTUAL_MAP_CONFIG);
+        final VirtualNodeCache cache = new VirtualNodeCache(VIRTUAL_MAP_CONFIG);
         cache.putLeaf(appleLeaf(7));
         cache.putLeaf(bananaLeaf(5));
         cache.putLeaf(cherryLeaf(4));
@@ -2508,8 +2408,7 @@ class VirtualNodeCacheTest extends VirtualTestBase {
         cache.putLeaf(appleLeaf(3));
         cache.seal();
 
-        final List<VirtualLeafRecord<TestKey, TestValue>> leaves =
-                cache.dirtyLeavesForHash(3, 6).toList();
+        final List<VirtualLeafBytes> leaves = cache.dirtyLeavesForHash(3, 6).toList();
         assertEquals(4, leaves.size(), "Some leaves should be dirty");
         assertEquals(appleLeaf(3), leaves.get(0), "Unexpected leaf");
         assertEquals(cherryLeaf(4), leaves.get(1), "Unexpected leaf");
@@ -2521,7 +2420,7 @@ class VirtualNodeCacheTest extends VirtualTestBase {
     @Tags({@Tag("VirtualMerkle"), @Tag("VirtualNodeCache"), @Tag("DirtyLeaves")})
     @DisplayName("dirtyLeaves where all mutations are in the same version and all are deleted")
     void dirtyLeaves_allInSameVersionAllDeleted() {
-        final VirtualNodeCache<TestKey, TestValue> cache = new VirtualNodeCache<>(VIRTUAL_MAP_CONFIG);
+        final VirtualNodeCache cache = new VirtualNodeCache(VIRTUAL_MAP_CONFIG);
         cache.putLeaf(appleLeaf(7));
         cache.putLeaf(bananaLeaf(5));
         cache.putLeaf(cherryLeaf(4));
@@ -2552,8 +2451,7 @@ class VirtualNodeCacheTest extends VirtualTestBase {
         cache.deleteLeaf(cherryLeaf(1));
         cache.seal();
 
-        final List<VirtualLeafRecord<TestKey, TestValue>> leaves =
-                cache.dirtyLeavesForFlush(-1, -1).toList();
+        final List<VirtualLeafBytes> leaves = cache.dirtyLeavesForFlush(-1, -1).toList();
         assertEquals(0, leaves.size(), "All leaves should be missing");
     }
 
@@ -2561,7 +2459,7 @@ class VirtualNodeCacheTest extends VirtualTestBase {
     @Tags({@Tag("VirtualMerkle"), @Tag("VirtualNodeCache"), @Tag("DirtyLeaves")})
     @DisplayName("dirtyLeaves where all mutations are in the same version and some paths have hosted multiple leaves")
     void dirtyLeaves_allInSameVersionSomeDeletedPathConflict() {
-        final VirtualNodeCache<TestKey, TestValue> cache = new VirtualNodeCache<>(VIRTUAL_MAP_CONFIG);
+        final VirtualNodeCache cache = new VirtualNodeCache(VIRTUAL_MAP_CONFIG);
         cache.putLeaf(appleLeaf(7));
         cache.putLeaf(bananaLeaf(5));
         cache.putLeaf(cherryLeaf(4));
@@ -2582,8 +2480,7 @@ class VirtualNodeCacheTest extends VirtualTestBase {
         cache.putLeaf(bananaLeaf(2));
         cache.seal();
 
-        final List<VirtualLeafRecord<TestKey, TestValue>> leaves =
-                cache.dirtyLeavesForHash(2, 4).toList();
+        final List<VirtualLeafBytes> leaves = cache.dirtyLeavesForHash(2, 4).toList();
         assertEquals(3, leaves.size(), "Should only have three leaves");
         assertEquals(bananaLeaf(2), leaves.get(0), "Unexpected leaf");
         assertEquals(appleLeaf(3), leaves.get(1), "Unexpected leaf");
@@ -2595,15 +2492,15 @@ class VirtualNodeCacheTest extends VirtualTestBase {
     @DisplayName("dirtyLeaves where mutations are across versions and none are deleted")
     void dirtyLeaves_differentVersionsNoneDeleted() {
         // NOTE: In all these tests I don't bother with clearLeafPath since I'm not getting leave paths
-        final VirtualNodeCache<TestKey, TestValue> cache0 = new VirtualNodeCache<>(VIRTUAL_MAP_CONFIG);
+        final VirtualNodeCache cache0 = new VirtualNodeCache(VIRTUAL_MAP_CONFIG);
         cache0.putLeaf(appleLeaf(1));
 
-        final VirtualNodeCache<TestKey, TestValue> cache1 = cache0.copy();
+        final VirtualNodeCache cache1 = cache0.copy();
         cache1.putLeaf(bananaLeaf(2));
         cache1.putLeaf(appleLeaf(3));
         cache1.putLeaf(cherryLeaf(4));
 
-        final VirtualNodeCache<TestKey, TestValue> cache2 = cache1.copy();
+        final VirtualNodeCache cache2 = cache1.copy();
         cache2.putLeaf(bananaLeaf(5));
         cache2.putLeaf(dateLeaf(6));
         cache2.putLeaf(appleLeaf(7));
@@ -2616,8 +2513,7 @@ class VirtualNodeCacheTest extends VirtualTestBase {
         cache0.merge();
         cache1.merge();
 
-        final Set<VirtualLeafRecord<TestKey, TestValue>> leaves =
-                cache2.dirtyLeavesForFlush(4, 8).collect(Collectors.toSet());
+        final Set<VirtualLeafBytes> leaves = cache2.dirtyLeavesForFlush(4, 8).collect(Collectors.toSet());
         assertEquals(5, leaves.size(), "All leaves should be dirty");
         assertEquals(Set.of(cherryLeaf(4), bananaLeaf(5), dateLeaf(6), appleLeaf(7), eggplantLeaf(8)), leaves);
     }
@@ -2626,17 +2522,17 @@ class VirtualNodeCacheTest extends VirtualTestBase {
     @Tags({@Tag("VirtualMerkle"), @Tag("VirtualNodeCache"), @Tag("DirtyLeaves")})
     @DisplayName("dirtyLeaves where mutations are across versions and some are deleted")
     void dirtyLeaves_differentVersionsSomeDeleted() {
-        final VirtualNodeCache<TestKey, TestValue> cache0 = new VirtualNodeCache<>(VIRTUAL_MAP_CONFIG);
+        final VirtualNodeCache cache0 = new VirtualNodeCache(VIRTUAL_MAP_CONFIG);
         cache0.putLeaf(appleLeaf(1));
 
-        final VirtualNodeCache<TestKey, TestValue> cache1 = cache0.copy();
+        final VirtualNodeCache cache1 = cache0.copy();
         cache1.putLeaf(bananaLeaf(2));
         cache1.putLeaf(appleLeaf(3));
         cache1.deleteLeaf(appleLeaf(3));
         cache1.putLeaf(figLeaf(3));
         cache1.putLeaf(cherryLeaf(4));
 
-        final VirtualNodeCache<TestKey, TestValue> cache2 = cache1.copy();
+        final VirtualNodeCache cache2 = cache1.copy();
         cache2.putLeaf(bananaLeaf(5));
         cache2.putLeaf(dateLeaf(6));
         cache2.deleteLeaf(bananaLeaf(5));
@@ -2655,8 +2551,7 @@ class VirtualNodeCacheTest extends VirtualTestBase {
         cache0.merge();
         cache1.merge();
 
-        final Set<VirtualLeafRecord<TestKey, TestValue>> leaves =
-                cache2.dirtyLeavesForFlush(3, 6).collect(Collectors.toSet());
+        final Set<VirtualLeafBytes> leaves = cache2.dirtyLeavesForFlush(3, 6).collect(Collectors.toSet());
         assertEquals(4, leaves.size(), "Some leaves should be dirty");
         assertEquals(Set.of(figLeaf(3), eggplantLeaf(4), dateLeaf(5), grapeLeaf(6)), leaves);
     }
@@ -2665,7 +2560,7 @@ class VirtualNodeCacheTest extends VirtualTestBase {
     @Tags({@Tag("VirtualMerkle"), @Tag("VirtualNodeCache"), @Tag("DirtyLeaves")})
     @DisplayName("dirtyLeaves where mutations are across versions and all are deleted")
     void dirtyLeaves_differentVersionsAllDeleted() {
-        final VirtualNodeCache<TestKey, TestValue> cache0 = new VirtualNodeCache<>(VIRTUAL_MAP_CONFIG);
+        final VirtualNodeCache cache0 = new VirtualNodeCache(VIRTUAL_MAP_CONFIG);
         cache0.putLeaf(appleLeaf(1));
         cache0.putLeaf(bananaLeaf(2));
         cache0.putLeaf(appleLeaf(3));
@@ -2673,14 +2568,14 @@ class VirtualNodeCacheTest extends VirtualTestBase {
         cache0.deleteLeaf(appleLeaf(3));
         cache0.putLeaf(cherryLeaf(1));
 
-        final VirtualNodeCache<TestKey, TestValue> cache1 = cache0.copy();
+        final VirtualNodeCache cache1 = cache0.copy();
         cache1.putLeaf(cherryLeaf(3));
         cache1.putLeaf(dateLeaf(4));
         cache1.deleteLeaf(bananaLeaf(2));
         cache1.putLeaf(dateLeaf(2));
         cache1.putLeaf(cherryLeaf(1));
 
-        final VirtualNodeCache<TestKey, TestValue> cache2 = cache1.copy();
+        final VirtualNodeCache cache2 = cache1.copy();
         cache2.putLeaf(cherryLeaf(3));
         cache2.putLeaf(eggplantLeaf(4));
         cache2.deleteLeaf(cherryLeaf(3));
@@ -2695,8 +2590,7 @@ class VirtualNodeCacheTest extends VirtualTestBase {
         cache0.merge();
         cache1.merge();
 
-        final List<VirtualLeafRecord<TestKey, TestValue>> leaves =
-                cache2.dirtyLeavesForFlush(-1, -1).toList();
+        final List<VirtualLeafBytes> leaves = cache2.dirtyLeavesForFlush(-1, -1).toList();
         assertEquals(0, leaves.size(), "All leaves should be deleted");
     }
 
@@ -2704,7 +2598,7 @@ class VirtualNodeCacheTest extends VirtualTestBase {
     @Tags({@Tag("VirtualMerkle"), @Tag("VirtualNodeCache"), @Tag("DirtyInternals")})
     @DisplayName("dirtyInternals where all mutations are in the same version and none are deleted")
     void dirtyInternals_allInSameVersionNoneDeleted() {
-        final VirtualNodeCache<TestKey, TestValue> cache0 = new VirtualNodeCache<>(VIRTUAL_MAP_CONFIG);
+        final VirtualNodeCache cache0 = new VirtualNodeCache(VIRTUAL_MAP_CONFIG);
         cache0.copy(); // Needed until #3842 is fixed
 
         cache0.putHash(rootInternal());
@@ -2729,8 +2623,8 @@ class VirtualNodeCacheTest extends VirtualTestBase {
     @Tags({@Tag("VirtualMerkle"), @Tag("VirtualNodeCache"), @Tag("DirtyInternals")})
     @DisplayName("dirtyInternals where mutations are across versions and none are deleted")
     void dirtyInternals_differentVersionsNoneDeleted() {
-        final VirtualNodeCache<TestKey, TestValue> cache0 = new VirtualNodeCache<>(VIRTUAL_MAP_CONFIG);
-        final VirtualNodeCache<TestKey, TestValue> cache1 = cache0.copy();
+        final VirtualNodeCache cache0 = new VirtualNodeCache(VIRTUAL_MAP_CONFIG);
+        final VirtualNodeCache cache1 = cache0.copy();
         cache0.putHash(rootInternal());
         cache0.putHash(leftInternal());
         cache0.putHash(rightInternal());
@@ -2760,19 +2654,16 @@ class VirtualNodeCacheTest extends VirtualTestBase {
     @Tags({@Tag("VirtualMerkle"), @Tag("VirtualNodeCache"), @Tag("DirtyInternals")})
     @DisplayName("dirtyInternals where mutations are across versions and some are deleted")
     void dirtyInternals_differentVersionsSomeDeleted() {
-        final VirtualNodeCache<TestKey, TestValue> cache0 = new VirtualNodeCache<>(VIRTUAL_MAP_CONFIG);
-        final VirtualNodeCache<TestKey, TestValue> cache1 = cache0.copy();
+        final VirtualNodeCache cache0 = new VirtualNodeCache(VIRTUAL_MAP_CONFIG);
+        final VirtualNodeCache cache1 = cache0.copy();
         cache0.putHash(rootInternal());
         cache0.putHash(leftInternal());
         cache0.putHash(rightInternal());
-        cache1.deleteHash(2);
 
-        final VirtualNodeCache<TestKey, TestValue> cache2 = cache1.copy();
+        final VirtualNodeCache cache2 = cache1.copy();
         cache1.putHash(rightInternal());
         cache1.putHash(leftLeftInternal());
         cache1.putHash(leftRightInternal());
-        cache2.deleteHash(4);
-        cache2.deleteHash(3);
 
         cache2.copy(); // Needed until #3842 is fixed
         cache2.putHash(leftLeftInternal());
@@ -2803,25 +2694,17 @@ class VirtualNodeCacheTest extends VirtualTestBase {
     @Tags({@Tag("VirtualMerkle"), @Tag("VirtualNodeCache"), @Tag("DirtyInternals")})
     @DisplayName("dirtyInternals where mutations are across versions and all are deleted")
     void dirtyInternals_differentVersionsAllDeleted() {
-        final VirtualNodeCache<TestKey, TestValue> cache0 = new VirtualNodeCache<>(VIRTUAL_MAP_CONFIG);
-        final VirtualNodeCache<TestKey, TestValue> cache1 = cache0.copy();
+        final VirtualNodeCache cache0 = new VirtualNodeCache(VIRTUAL_MAP_CONFIG);
+        final VirtualNodeCache cache1 = cache0.copy();
         cache0.putHash(rootInternal());
         cache0.putHash(leftInternal());
         cache0.putHash(rightInternal());
         cache0.putHash(leftLeftInternal());
         cache0.putHash(leftRightInternal());
         cache0.putHash(rightLeftInternal());
-        cache1.deleteHash(6);
-        cache1.deleteHash(5);
-        cache1.deleteHash(4);
 
-        final VirtualNodeCache<TestKey, TestValue> cache2 = cache1.copy();
+        final VirtualNodeCache cache2 = cache1.copy();
         cache1.putHash(leftLeftInternal());
-        cache2.deleteHash(4);
-        cache2.deleteHash(3);
-        cache2.deleteHash(2);
-        cache2.deleteHash(1);
-        cache2.deleteHash(0);
 
         cache2.copy();
         cache0.seal();
@@ -2838,18 +2721,18 @@ class VirtualNodeCacheTest extends VirtualTestBase {
     @Tags({@Tag("VirtualMerkle"), @Tag("VirtualNodeCache"), @Tag("DirtyLeaves")})
     @DisplayName("dirtyLeaves for hashing and flushes do not affect each other")
     void dirtyLeaves_flushesAndHashing() {
-        final VirtualNodeCache<TestKey, TestValue> cache0 = new VirtualNodeCache<>(VIRTUAL_MAP_CONFIG);
+        final VirtualNodeCache cache0 = new VirtualNodeCache(VIRTUAL_MAP_CONFIG);
         cache0.putLeaf(appleLeaf(1));
         cache0.putLeaf(bananaLeaf(2));
 
-        final VirtualNodeCache<TestKey, TestValue> cache1 = cache0.copy();
+        final VirtualNodeCache cache1 = cache0.copy();
         cache0.seal();
         cache1.deleteLeaf(appleLeaf(1));
         cache1.putLeaf(appleLeaf(3));
         cache1.putLeaf(cherryLeaf(4));
 
         // Hash version 0
-        final List<VirtualLeafRecord<TestKey, TestValue>> dirtyLeaves0H =
+        final List<VirtualLeafBytes> dirtyLeaves0H =
                 cache0.dirtyLeavesForHash(1, 2).toList();
         assertEquals(List.of(appleLeaf(1), bananaLeaf(2)), dirtyLeaves0H);
 
@@ -2857,12 +2740,12 @@ class VirtualNodeCacheTest extends VirtualTestBase {
         cache1.seal();
 
         // Hash version 1
-        final List<VirtualLeafRecord<TestKey, TestValue>> dirtyLeaves1 =
+        final List<VirtualLeafBytes> dirtyLeaves1 =
                 cache1.dirtyLeavesForHash(2, 4).toList();
         assertEquals(List.of(appleLeaf(3), cherryLeaf(4)), dirtyLeaves1);
 
         // Flush version 0
-        final Set<VirtualLeafRecord<TestKey, TestValue>> dirtyLeaves0F =
+        final Set<VirtualLeafBytes> dirtyLeaves0F =
                 cache0.dirtyLeavesForFlush(1, 2).collect(Collectors.toSet());
         assertEquals(Set.of(appleLeaf(1), bananaLeaf(2)), dirtyLeaves0F);
     }
@@ -2871,12 +2754,13 @@ class VirtualNodeCacheTest extends VirtualTestBase {
     // Test Utility methods
     // ----------------------------------------------------------------------
 
-    private TestValue lookupValue(final VirtualNodeCache<TestKey, TestValue> cache, final TestKey key) {
-        final VirtualLeafRecord<TestKey, TestValue> leaf = cache.lookupLeafByKey(key, false);
-        return leaf == null ? null : leaf.getValue();
+    @SuppressWarnings("unchecked")
+    private TestValue lookupValue(final VirtualNodeCache cache, final Bytes key) {
+        final VirtualLeafBytes<TestValue> leaf = cache.lookupLeafByKey(key);
+        return leaf == null ? null : leaf.value(TestValueCodec.INSTANCE);
     }
 
-    private void validateCache(final VirtualNodeCache<TestKey, TestValue> cache, final List<TestValue> expected) {
+    private void validateCache(final VirtualNodeCache cache, final List<TestValue> expected) {
         assertEquals(
                 expected.get(0), lookupValue(cache, A_KEY), "value that was looked up should match expected value");
         assertEquals(
@@ -2894,28 +2778,22 @@ class VirtualNodeCacheTest extends VirtualTestBase {
     }
 
     private void validateLeaves(
-            final VirtualNodeCache<TestKey, TestValue> cache,
-            final long firstLeafPath,
-            final List<VirtualLeafRecord<TestKey, TestValue>> leaves) {
+            final VirtualNodeCache cache, final long firstLeafPath, final List<VirtualLeafBytes> leaves) {
         long expectedPath = firstLeafPath;
-        for (final VirtualLeafRecord<TestKey, TestValue> leaf : leaves) {
-            assertEquals(expectedPath, leaf.getPath(), "path should match expected path");
+        for (final VirtualLeafBytes leaf : leaves) {
+            assertEquals(expectedPath, leaf.path(), "path should match expected path");
+            assertEquals(
+                    leaf, cache.lookupLeafByPath(leaf.path()), "value that was looked up should match original value");
             assertEquals(
                     leaf,
-                    cache.lookupLeafByPath(leaf.getPath(), false),
-                    "value that was looked up should match original value");
-            assertEquals(
-                    leaf,
-                    cache.lookupLeafByKey(leaf.getKey(), false),
+                    cache.lookupLeafByKey(leaf.keyBytes()),
                     "value that was looked up should match original value");
             expectedPath++;
         }
     }
 
-    private void validateDirtyLeaves(
-            final List<VirtualLeafRecord<TestKey, TestValue>> expected,
-            final Stream<VirtualLeafRecord<TestKey, TestValue>> stream) {
-        final List<VirtualLeafRecord<TestKey, TestValue>> dirty = stream.toList();
+    private void validateDirtyLeaves(final List<VirtualLeafBytes> expected, final Stream<VirtualLeafBytes> stream) {
+        final List<VirtualLeafBytes> dirty = stream.toList();
         assertEquals(expected.size(), dirty.size(), "dirtyLeaves did not have the expected number of elements");
         for (int i = 0; i < expected.size(); i++) {
             assertEquals(expected.get(i), dirty.get(i), "value that was looked up should match expected value");
@@ -2930,31 +2808,29 @@ class VirtualNodeCacheTest extends VirtualTestBase {
         }
     }
 
-    private void validateTree(final VirtualNodeCache<TestKey, TestValue> cache, final List<?> nodes) {
+    private void validateTree(final VirtualNodeCache cache, final List<?> nodes) {
         long expectedPath = 0;
         for (final Object node : nodes) {
             if (node == null) {
                 // This signals that a leaf has fallen out of the cache.
-                assertNull(cache.lookupLeafByPath(expectedPath, false), "no value should be found");
-                assertNull(cache.lookupHashByPath(expectedPath, false), "no value should be found");
+                assertNull(cache.lookupLeafByPath(expectedPath), "no value should be found");
+                assertNull(cache.lookupHashByPath(expectedPath), "no value should be found");
                 expectedPath++;
             } else {
-                if (node instanceof VirtualLeafRecord virtualLeafRecord) {
-                    assertEquals(expectedPath, virtualLeafRecord.getPath(), "path should match the expected value");
-                    //noinspection unchecked
-                    final VirtualLeafRecord<TestKey, TestValue> leaf = (VirtualLeafRecord<TestKey, TestValue>) node;
+                if (node instanceof VirtualLeafBytes leaf) {
+                    assertEquals(expectedPath, leaf.path(), "path should match the expected value");
                     assertEquals(
                             leaf,
-                            cache.lookupLeafByPath(leaf.getPath(), false),
+                            cache.lookupLeafByPath(leaf.path()),
                             "value that was looked up should match original value");
                     assertEquals(
                             leaf,
-                            cache.lookupLeafByKey(leaf.getKey(), false),
+                            cache.lookupLeafByKey(leaf.keyBytes()),
                             "value that was looked up should match original value");
                 } else if (node instanceof VirtualHashRecord virtualHashRecord) {
                     assertEquals(
                             virtualHashRecord.hash(),
-                            cache.lookupHashByPath(virtualHashRecord.path(), false),
+                            cache.lookupHashByPath(virtualHashRecord.path()),
                             "value that was looked up should match original value");
                 } else {
                     throw new IllegalArgumentException("Unexpected node type: " + node.getClass());
@@ -2965,34 +2841,37 @@ class VirtualNodeCacheTest extends VirtualTestBase {
     }
 
     private Hash digest(VirtualHashRecord left, VirtualHashRecord right) {
-        final HashBuilder builder = new HashBuilder(Cryptography.DEFAULT_DIGEST_TYPE);
-        builder.update(left.hash());
-        builder.update(right.hash());
-        return builder.build();
+        try {
+            final MessageDigest md = MessageDigest.getInstance(Cryptography.DEFAULT_DIGEST_TYPE.algorithmName());
+            md.update((byte) 0x0F);
+            left.hash().getBytes().writeTo(md);
+            right.hash().getBytes().writeTo(md);
+            return new Hash(md.digest(), Cryptography.DEFAULT_DIGEST_TYPE);
+        } catch (final NoSuchAlgorithmException e) {
+            throw new CryptographyException(e);
+        }
     }
 
     private void validateDeletedLeaves(
-            final List<VirtualLeafRecord<TestKey, TestValue>> deletedLeaves,
-            final Set<TestKey> expectedKeys,
-            final String name) {
+            final List<VirtualLeafBytes> deletedLeaves, final Set<Bytes> expectedKeys, final String name) {
 
         assertEquals(expectedKeys.size(), deletedLeaves.size(), "Not enough deleted leaves in " + name);
 
-        final Set<TestKey> keys =
-                deletedLeaves.stream().map(VirtualLeafRecord::getKey).collect(Collectors.toSet());
+        final Set<Bytes> keys =
+                deletedLeaves.stream().map(VirtualLeafBytes::keyBytes).collect(Collectors.toSet());
         assertEquals(deletedLeaves.size(), keys.size(), "Two records with the same key exist in " + name);
 
         for (final var rec : deletedLeaves) {
-            assertTrue(keys.remove(rec.getKey()), "A record does not have the expected key in " + name);
+            assertTrue(keys.remove(rec.keyBytes()), "A record does not have the expected key in " + name);
         }
     }
 
     private static final class CacheInfo {
-        VirtualNodeCache<TestKey, TestValue> cache;
+        VirtualNodeCache cache;
         long firstLeafPath;
         long lastLeafPath;
 
-        CacheInfo(final VirtualNodeCache<TestKey, TestValue> cache, final long first, final long last) {
+        CacheInfo(final VirtualNodeCache cache, final long first, final long last) {
             this.cache = cache;
             this.firstLeafPath = first;
             this.lastLeafPath = last;

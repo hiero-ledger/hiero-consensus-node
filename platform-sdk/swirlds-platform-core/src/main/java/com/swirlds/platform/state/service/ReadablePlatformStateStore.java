@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state.service;
 
-import static com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema.PLATFORM_STATE_KEY;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.base.utility.CommonUtils.fromPbjTimestamp;
 
@@ -9,6 +8,7 @@ import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.hedera.hapi.platform.state.PlatformState;
 import com.swirlds.platform.state.PlatformStateAccessor;
+import com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.ReadableSingletonState;
 import com.swirlds.state.spi.ReadableStates;
@@ -31,7 +31,7 @@ public class ReadablePlatformStateStore implements PlatformStateAccessor {
      * @param readableStates the readable states
      */
     public ReadablePlatformStateStore(@NonNull final ReadableStates readableStates) {
-        this.state = requireNonNull(readableStates).getSingleton(PLATFORM_STATE_KEY);
+        this.state = requireNonNull(readableStates).getSingleton(V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID);
     }
 
     /**
@@ -91,7 +91,7 @@ public class ReadablePlatformStateStore implements PlatformStateAccessor {
             throw new IllegalStateException(
                     "No minimum judge info found in state for round " + consensusSnapshot.round() + ", list is empty");
         }
-        return minimumJudgeInfos.getFirst().minimumJudgeAncientThreshold();
+        return minimumJudgeInfos.getFirst().minimumJudgeBirthRound();
     }
 
     /**
@@ -132,31 +132,6 @@ public class ReadablePlatformStateStore implements PlatformStateAccessor {
     @Override
     public long getLatestFreezeRound() {
         return stateOrThrow().latestFreezeRound();
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Nullable
-    @Override
-    public SemanticVersion getFirstVersionInBirthRoundMode() {
-        return stateOrThrow().firstVersionInBirthRoundMode();
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public long getLastRoundBeforeBirthRoundMode() {
-        return stateOrThrow().lastRoundBeforeBirthRoundMode();
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public long getLowestJudgeGenerationBeforeBirthRoundMode() {
-        return stateOrThrow().lowestJudgeGenerationBeforeBirthRoundMode();
     }
 
     private @NonNull PlatformState stateOrThrow() {

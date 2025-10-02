@@ -67,12 +67,40 @@ public interface BlockRecordManager extends BlockRecordInfo, AutoCloseable {
     boolean willOpenNewBlock(@NonNull Instant consensusTime, @NonNull State state);
 
     /**
-     * "Advances the consensus clock" by updating the latest consensus timestamp that the node has handled. This should
-     * be called early on in the transaction handling process in order to avoid assigning the same consensus timestamp
-     * to multiple transactions.
+     * "Advances the consensus clock" by updating the latest top-level timestamp that the node has handled (which at
+     * the time of the call, is <i>also</i> the last-used consensus timestamp).
      * @param consensusTime the most recent consensus timestamp that the node has <b>started</b> to handle
      */
-    void advanceConsensusClock(@NonNull Instant consensusTime, @NonNull State state);
+    void setLastTopLevelTime(@NonNull Instant consensusTime, @NonNull State state);
+
+    /**
+     * Sets just the last used consensus time, without updating the latest top-level time.
+     * @param consensusTime the most recent consensus timestamp that the node has <b>started</b> to handle
+     * @param state the state to set the last used consensus time in
+     */
+    void setLastUsedConsensusTime(@NonNull Instant consensusTime, @NonNull State state);
+
+    /**
+     * Returns the timestamp of the last execution processed by the block stream.
+     */
+    @NonNull
+    Instant lastUsedConsensusTime();
+
+    /**
+     * Sets the last interval process time.
+     *
+     * @param lastIntervalProcessTime the last interval process time
+     * @param state the state to set the last interval process time in
+     */
+    void setLastIntervalProcessTime(@NonNull Instant lastIntervalProcessTime, @NonNull State state);
+
+    /**
+     * Get the consensus time at which an interval was last processed.
+     *
+     * @return the consensus time at which an interval was last processed
+     */
+    @NonNull
+    Instant lastIntervalProcessTime();
 
     /**
      * Add a user transaction's records to the record stream. They must be in exact consensus time order! This must only

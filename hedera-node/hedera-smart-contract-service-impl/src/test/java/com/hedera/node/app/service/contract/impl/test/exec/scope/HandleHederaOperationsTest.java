@@ -22,7 +22,7 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.VALID_C
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityIdFactory;
 import static com.hedera.node.app.service.contract.impl.utils.SynthTxnUtils.synthAccountCreationFromHapi;
 import static com.hedera.node.app.service.contract.impl.utils.SynthTxnUtils.synthContractCreationFromParent;
-import static com.hedera.node.app.spi.workflows.record.StreamBuilder.TransactionCustomizer.SUPPRESSING_TRANSACTION_CUSTOMIZER;
+import static com.hedera.node.app.spi.workflows.record.StreamBuilder.SignedTxCustomizer.SUPPRESSING_SIGNED_TX_CUSTOMIZER;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
@@ -40,7 +40,6 @@ import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
-import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.contract.ContractCreateTransactionBody;
 import com.hedera.hapi.node.contract.ContractFunctionResult;
 import com.hedera.hapi.node.state.token.Account;
@@ -50,6 +49,7 @@ import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.contract.impl.exec.gas.SystemContractGasCalculator;
 import com.hedera.node.app.service.contract.impl.exec.gas.TinybarValues;
+import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
 import com.hedera.node.app.service.contract.impl.exec.scope.HandleHederaOperations;
 import com.hedera.node.app.service.contract.impl.exec.scope.HederaOperations;
 import com.hedera.node.app.service.contract.impl.exec.utils.PendingCreationMetadataRef;
@@ -122,6 +122,9 @@ class HandleHederaOperationsTest {
     @Mock
     private FeeCharging.Context feeChargingContext;
 
+    @Mock
+    private ContractMetrics contractMetrics;
+
     private HandleHederaOperations subject;
 
     @BeforeEach
@@ -135,7 +138,8 @@ class HandleHederaOperationsTest {
                 HederaFunctionality.CONTRACT_CALL,
                 pendingCreationMetadataRef,
                 DEFAULT_ACCOUNTS_CONFIG,
-                entityIdFactory);
+                entityIdFactory,
+                contractMetrics);
     }
 
     @Test
@@ -342,7 +346,7 @@ class HandleHederaOperationsTest {
 
         final var dispatchOptions = captor.getValue();
         assertEquals(synthTxn, dispatchOptions.body());
-        assertInternalFinisherAsExpected(dispatchOptions.transactionCustomizer(), synthContractCreation);
+        assertInternalFinisherAsExpected(dispatchOptions.signedTxCustomizer(), synthContractCreation);
         verify(tokenServiceApi)
                 .markAsContract(AccountID.newBuilder().accountNum(666L).build(), NON_SYSTEM_ACCOUNT_ID);
     }
@@ -416,14 +420,14 @@ class HandleHederaOperationsTest {
         subject.createContract(666L, NON_SYSTEM_ACCOUNT_ID.accountNumOrThrow(), CANONICAL_ALIAS);
 
         final var dispatchOptions = captor.getValue();
-        assertInternalFinisherAsExpected(dispatchOptions.transactionCustomizer(), synthContractCreation);
+        assertInternalFinisherAsExpected(dispatchOptions.signedTxCustomizer(), synthContractCreation);
         assertEquals(synthTxn, dispatchOptions.body());
         verify(tokenServiceApi)
                 .markAsContract(AccountID.newBuilder().accountNum(666L).build(), NON_SYSTEM_ACCOUNT_ID);
     }
 
     private void assertInternalFinisherAsExpected(
-            @NonNull final UnaryOperator<Transaction> internalFinisher,
+            @NonNull final UnaryOperator<SignedTransaction> internalFinisher,
             @NonNull final ContractCreateTransactionBody expectedOp)
             throws ParseException {
         Objects.requireNonNull(internalFinisher);
@@ -432,33 +436,25 @@ class HandleHederaOperationsTest {
         final var cryptoCreateBody = TransactionBody.newBuilder()
                 .cryptoCreateAccount(CryptoCreateTransactionBody.DEFAULT)
                 .build();
-        final var cryptoCreateInput = Transaction.newBuilder()
-                .signedTransactionBytes(SignedTransaction.PROTOBUF.toBytes(SignedTransaction.newBuilder()
-                        .bodyBytes(TransactionBody.PROTOBUF.toBytes(cryptoCreateBody))
-                        .build()))
+        final var cryptoCreateInput = SignedTransaction.newBuilder()
+                .bodyBytes(TransactionBody.PROTOBUF.toBytes(cryptoCreateBody))
                 .build();
         final var cryptoCreateOutput = internalFinisher.apply(cryptoCreateInput);
-        final var finishedBody = TransactionBody.PROTOBUF.parseStrict(SignedTransaction.PROTOBUF
-                .parseStrict(cryptoCreateOutput.signedTransactionBytes().toReadableSequentialData())
-                .bodyBytes()
-                .toReadableSequentialData());
+        final var finishedBody = TransactionBody.PROTOBUF.parseStrict(cryptoCreateOutput.bodyBytes());
         assertEquals(expectedOp, finishedBody.contractCreateInstanceOrThrow());
 
         // The finisher should reject transforming anything but a crypto create
         final var nonCryptoCreateBody = TransactionBody.newBuilder()
                 .tokenCreation(TokenCreateTransactionBody.DEFAULT)
                 .build();
-        final var nonCryptoCreateInput = Transaction.newBuilder()
-                .signedTransactionBytes(SignedTransaction.PROTOBUF.toBytes(SignedTransaction.newBuilder()
-                        .bodyBytes(TransactionBody.PROTOBUF.toBytes(nonCryptoCreateBody))
-                        .build()))
+        final var nonCryptoCreateInput = SignedTransaction.newBuilder()
+                .bodyBytes(TransactionBody.PROTOBUF.toBytes(nonCryptoCreateBody))
                 .build();
         assertThrows(IllegalArgumentException.class, () -> internalFinisher.apply(nonCryptoCreateInput));
 
         // The finisher should propagate any IOExceptions (which should never happen, as only HandleContext is client)
-        final var nonsenseInput = Transaction.newBuilder()
-                .signedTransactionBytes(Bytes.wrap("NONSENSE"))
-                .build();
+        final var nonsenseInput =
+                SignedTransaction.newBuilder().bodyBytes(Bytes.wrap("NONSENSE")).build();
         assertThrows(UncheckedParseException.class, () -> internalFinisher.apply(nonsenseInput));
     }
 
@@ -510,7 +506,8 @@ class HandleHederaOperationsTest {
                 ETHEREUM_TRANSACTION,
                 pendingCreationMetadataRef,
                 DEFAULT_ACCOUNTS_CONFIG,
-                entityIdFactory);
+                entityIdFactory,
+                contractMetrics);
         final var someBody = ContractCreateTransactionBody.newBuilder()
                 .adminKey(AN_ED25519_KEY)
                 .autoRenewAccountId(NON_SYSTEM_ACCOUNT_ID)
@@ -533,7 +530,7 @@ class HandleHederaOperationsTest {
 
         final var captor = ArgumentCaptor.forClass(DispatchOptions.class);
         verify(context).dispatch(captor.capture());
-        assertNotSame(SUPPRESSING_TRANSACTION_CUSTOMIZER, captor.getValue().transactionCustomizer());
+        assertNotSame(SUPPRESSING_SIGNED_TX_CUSTOMIZER, captor.getValue().signedTxCustomizer());
         verify(tokenServiceApi)
                 .markAsContract(AccountID.newBuilder().accountNum(666L).build(), NON_SYSTEM_ACCOUNT_ID);
     }
@@ -592,7 +589,8 @@ class HandleHederaOperationsTest {
                 .willReturn(contractCreateRecordBuilder);
         given(contractCreateRecordBuilder.createdContractID(contractId)).willReturn(contractCreateRecordBuilder);
         given(contractCreateRecordBuilder.status(any())).willReturn(contractCreateRecordBuilder);
-        given(contractCreateRecordBuilder.transaction(any(Transaction.class))).willReturn(contractCreateRecordBuilder);
+        given(contractCreateRecordBuilder.signedTx(any(SignedTransaction.class)))
+                .willReturn(contractCreateRecordBuilder);
         given(contractCreateRecordBuilder.contractCreateResult(any(ContractFunctionResult.class)))
                 .willReturn(contractCreateRecordBuilder);
         given(contractCreateRecordBuilder.createdEvmAddress(any())).willReturn(contractCreateRecordBuilder);

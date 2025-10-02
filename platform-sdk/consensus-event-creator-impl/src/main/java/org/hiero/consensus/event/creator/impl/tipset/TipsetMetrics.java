@@ -3,7 +3,6 @@ package org.hiero.consensus.event.creator.impl.tipset;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
-import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.metrics.RunningAverageMetric;
 import com.swirlds.common.metrics.SpeedometerMetric;
 import com.swirlds.metrics.api.Metrics;
@@ -36,11 +35,11 @@ public class TipsetMetrics {
     /**
      * Create metrics for the tipset event creator.
      *
-     * @param platformContext the platform context
+     * @param metrics the metrics instance to use
+     * @param roster  the roster of nodes in the network
      */
-    public TipsetMetrics(@NonNull final PlatformContext platformContext, @NonNull final Roster roster) {
+    public TipsetMetrics(@NonNull final Metrics metrics, @NonNull final Roster roster) {
 
-        final Metrics metrics = platformContext.getMetrics();
         tipsetAdvancementMetric = metrics.getOrCreate(TIPSET_ADVANCEMENT_CONFIG);
         selfishnessMetric = metrics.getOrCreate(SELFISHNESS_CONFIG);
 

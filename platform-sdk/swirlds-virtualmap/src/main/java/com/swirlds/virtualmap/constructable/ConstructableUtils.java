@@ -30,8 +30,6 @@ public final class ConstructableUtils {
                         VirtualNodeCache.class,
                         () -> new VirtualNodeCache(configuration.getConfigData(VirtualMapConfig.class))));
         ConstructableRegistry.getInstance()
-                .registerConstructable(new ClassConstructorPair(
-                        VirtualRootNode.class,
-                        () -> new VirtualRootNode(configuration.getConfigData(VirtualMapConfig.class))));
+                .registerConstructable(new ClassConstructorPair(VirtualRootNode.class, VirtualRootNode::new));
     }
 }

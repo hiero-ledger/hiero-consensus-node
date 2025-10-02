@@ -40,8 +40,8 @@ public class ReadableRosterStoreImpl implements ReadableRosterStore {
      */
     public ReadableRosterStoreImpl(@NonNull final ReadableStates readableStates) {
         requireNonNull(readableStates);
-        this.rosterState = readableStates.getSingleton(WritableRosterStore.ROSTER_STATES_KEY);
-        this.rosterMap = readableStates.get(WritableRosterStore.ROSTER_KEY);
+        this.rosterState = readableStates.getSingleton(RosterStateId.ROSTER_STATE_STATE_ID);
+        this.rosterMap = readableStates.get(RosterStateId.ROSTERS_STATE_ID);
     }
 
     /**
@@ -121,5 +121,9 @@ public class ReadableRosterStoreImpl implements ReadableRosterStore {
                 .map(RosterState::candidateRosterHash)
                 .filter(bytes -> bytes.length() > 0)
                 .orElse(null);
+    }
+
+    public boolean isTransplantInProgress() {
+        return rosterState.get() != null && requireNonNull(rosterState.get()).transplantInProgress();
     }
 }

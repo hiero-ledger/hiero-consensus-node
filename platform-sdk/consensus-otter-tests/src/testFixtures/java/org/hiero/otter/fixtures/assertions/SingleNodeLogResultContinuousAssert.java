@@ -19,12 +19,16 @@ import org.hiero.otter.fixtures.result.SingleNodeLogResult;
 
 /**
  * Continuous assertions for {@link SingleNodeLogResult}.
+ *
+ * <p>Please note: If two continuous assertions fail roughly at the same time, it is non-deterministic which one
+ * will report the failure first. This is even true when running a test in the Turtle environment.
+ * If deterministic behavior is required, please use regular assertions instead of continuous assertions.
  */
 @SuppressWarnings({"UnusedReturnValue", "unused"})
 public class SingleNodeLogResultContinuousAssert
         extends AbstractContinuousAssertion<SingleNodeLogResultContinuousAssert, SingleNodeLogResult> {
 
-    protected final Set<Marker> suppressedLogMarkers = ConcurrentHashMap.newKeySet();
+    private final Set<Marker> suppressedLogMarkers = ConcurrentHashMap.newKeySet();
 
     /**
      * Creates a continuous assertion for the given {@link SingleNodeLogResult}.
@@ -116,6 +120,21 @@ public class SingleNodeLogResultContinuousAssert
     @NonNull
     public SingleNodeLogResultContinuousAssert haveNoErrorLevelMessages() {
         return haveNoMessageWithLevelHigherThan(Level.WARN);
+    }
+
+    /**
+     * Verifies that no log message contains the specified substring.
+     *
+     * @param searchString the substring that should not be present
+     * @return this assertion object for method chaining
+     */
+    @NonNull
+    public SingleNodeLogResultContinuousAssert hasNoMessageContaining(@NonNull final String searchString) {
+        return checkContinuously(logEntry -> {
+            if (logEntry.message().contains(searchString)) {
+                failWithMessage("Expected no message containing '%s', but found in %n%s", searchString, logEntry);
+            }
+        });
     }
 
     private SingleNodeLogResultContinuousAssert checkContinuously(final Consumer<StructuredLog> check) {

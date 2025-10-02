@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.junit.hedera.embedded;
 
+import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.RUNNING_HASHES_STATE_ID;
 import static com.hedera.services.bdd.junit.SharedNetworkLauncherSessionListener.CLASSIC_HAPI_TEST_NETWORK_SIZE;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.APPLICATION_PROPERTIES;
 import static com.hedera.services.bdd.junit.hedera.embedded.EmbeddedMode.REPEATABLE;
@@ -19,10 +20,12 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.state.blockrecords.RunningHashes;
 import com.hedera.node.app.fixtures.state.FakeState;
+import com.hedera.node.app.records.BlockRecordService;
 import com.hedera.services.bdd.junit.hedera.AbstractNetwork;
 import com.hedera.services.bdd.junit.hedera.HederaNetwork;
 import com.hedera.services.bdd.junit.hedera.HederaNode;
 import com.hedera.services.bdd.junit.hedera.SystemFunctionalityTarget;
+import com.hedera.services.bdd.junit.hedera.subprocess.PrometheusClient;
 import com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils;
 import com.hedera.services.bdd.spec.HapiPropertySource;
 import com.hedera.services.bdd.spec.TargetNetworkType;
@@ -43,6 +46,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 public class EmbeddedNetwork extends AbstractNetwork {
+
     private static final Logger log = LogManager.getLogger(EmbeddedNetwork.class);
 
     private static final String FAKE_HOST = "127.0.0.1";
@@ -50,6 +54,7 @@ public class EmbeddedNetwork extends AbstractNetwork {
     private static final String CONCURRENT_NAME = CONCURRENT_WORKING_DIR.toUpperCase();
     public static final String REPEATABLE_WORKING_DIR = "repeatable";
     private static final String REPEATABLE_NAME = REPEATABLE_WORKING_DIR.toUpperCase();
+    private static final PrometheusClient PROMETHEUS_CLIENT = new PrometheusClient();
 
     private final String configTxt;
     private final EmbeddedMode mode;
@@ -111,7 +116,13 @@ public class EmbeddedNetwork extends AbstractNetwork {
      */
     public void restart(@NonNull final FakeState state, @NonNull final Map<String, String> bootstrapOverrides) {
         requireNonNull(state);
-        startVia(hedera -> hedera.restart(state), bootstrapOverrides);
+        final var restartOffset = requireNonNull(embeddedHedera).restartOffset();
+        startVia(
+                hedera -> {
+                    hedera.tick(restartOffset);
+                    hedera.restart(state);
+                },
+                bootstrapOverrides);
     }
 
     @Override
@@ -132,8 +143,8 @@ public class EmbeddedNetwork extends AbstractNetwork {
             if (mode == REPEATABLE) {
                 final var runningHashes = embeddedHedera
                         .state()
-                        .getReadableStates("BlockRecordService")
-                        .<RunningHashes>getSingleton("RUNNING_HASHES")
+                        .getReadableStates(BlockRecordService.NAME)
+                        .<RunningHashes>getSingleton(RUNNING_HASHES_STATE_ID)
                         .get();
                 if (runningHashes != null) {
                     log.info(
@@ -227,5 +238,10 @@ public class EmbeddedNetwork extends AbstractNetwork {
     @Override
     public long realm() {
         return realm;
+    }
+
+    @Override
+    public PrometheusClient prometheusClient() {
+        return PROMETHEUS_CLIENT;
     }
 }

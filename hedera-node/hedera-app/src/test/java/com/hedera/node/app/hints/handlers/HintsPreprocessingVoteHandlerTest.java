@@ -12,11 +12,11 @@ import com.hedera.hapi.services.auxiliary.hints.HintsPreprocessingVoteTransactio
 import com.hedera.node.app.hints.WritableHintsStore;
 import com.hedera.node.app.hints.impl.HintsController;
 import com.hedera.node.app.hints.impl.HintsControllers;
+import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
-import com.swirlds.state.lifecycle.info.NodeInfo;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;

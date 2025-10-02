@@ -135,10 +135,10 @@ public class BlockTransactionalUnitTranslator {
                     put(CRYPTO_TRANSFER, new CryptoTransferTranslator());
                     put(CRYPTO_UPDATE, new CryptoUpdateTranslator());
                     put(ETHEREUM_TRANSACTION, new EthereumTransactionTranslator());
-                    put(FILE_APPEND, NO_EXPLICIT_SIDE_EFFECTS_TRANSLATOR);
                     put(FILE_CREATE, new FileCreateTranslator());
                     put(FILE_DELETE, NO_EXPLICIT_SIDE_EFFECTS_TRANSLATOR);
                     put(FILE_UPDATE, new FileUpdateTranslator());
+                    put(FILE_APPEND, new FileAppendTranslator());
                     put(FREEZE, NO_EXPLICIT_SIDE_EFFECTS_TRANSLATOR);
                     put(NODE_CREATE, new NodeCreateTranslator());
                     put(NODE_DELETE, NO_EXPLICIT_SIDE_EFFECTS_TRANSLATOR);

@@ -159,7 +159,7 @@ public abstract class AbstractNativeSystemContract extends AbstractFullContract 
                                     pricedResult.responseCode(),
                                     enhancement
                                             .systemOperations()
-                                            .syntheticTransactionForNativeCall(input, contractID, true),
+                                            .syntheticSignedTxForNativeCall(input, contractID, true),
                                     txSuccessResultOf(
                                             attempt.senderId(),
                                             pricedResult.fullResult(),
@@ -212,7 +212,7 @@ public abstract class AbstractNativeSystemContract extends AbstractFullContract 
                         contractFunctionResultFailedFor(
                                 attempt.senderId(), output, gasRequirement, status.toString(), contractID),
                         status,
-                        enhancement.systemOperations().syntheticTransactionForNativeCall(input, contractID, true),
+                        enhancement.systemOperations().syntheticSignedTxForNativeCall(input, contractID, true),
                         txResultFailedFor(attempt.senderId(), output, gasRequirement, status.toString(), contractID));
     }
 

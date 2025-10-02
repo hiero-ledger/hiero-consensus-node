@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.suites.hip551.contracts;
 
 import static com.google.protobuf.ByteString.copyFromUtf8;
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.resultWith;
 import static com.hedera.services.bdd.spec.assertions.SomeFungibleTransfers.changingFungibleBalances;
@@ -80,6 +81,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.Tag;
 
 /**
  * This class tests the behavior of atomic batch operations
@@ -241,7 +243,8 @@ public class AtomicBatchContractKeysHtsTest {
                                                 BigInteger.ZERO,
                                                 new long[] {1L})
                                         .via(DELEGATE_BURN_CALL_WITH_CONTRACT_KEY_TXN)
-                                        .gas(GAS_TO_OFFER))
+                                        .gas(GAS_TO_OFFER)
+                                        .hasKnownStatus(CONTRACT_REVERT_EXECUTED))
                         .hasKnownStatus(INNER_TRANSACTION_FAILED)),
                 childRecordsCheck(
                         DELEGATE_BURN_CALL_WITH_CONTRACT_KEY_TXN,
@@ -279,7 +282,8 @@ public class AtomicBatchContractKeysHtsTest {
                                                 vanillaTokenTokenAddress.get(),
                                                 BigInteger.ONE)
                                         .via(DELEGATE_BURN_CALL_WITH_CONTRACT_KEY_TXN)
-                                        .gas(GAS_TO_OFFER))
+                                        .gas(GAS_TO_OFFER)
+                                        .hasKnownStatus(CONTRACT_REVERT_EXECUTED))
                         .hasKnownStatus(INNER_TRANSACTION_FAILED)),
                 childRecordsCheck(
                         DELEGATE_BURN_CALL_WITH_CONTRACT_KEY_TXN,
@@ -313,7 +317,8 @@ public class AtomicBatchContractKeysHtsTest {
                                         accountAddress.get(),
                                         vanillaTokenTokenAddress.get())
                                 .via("staticDissociateCallTxn")
-                                .gas(GAS_TO_OFFER))
+                                .gas(GAS_TO_OFFER)
+                                .hasKnownStatus(CONTRACT_REVERT_EXECUTED))
                         .hasKnownStatus(INNER_TRANSACTION_FAILED)),
                 emptyChildRecordsCheck("staticDissociateCallTxn", CONTRACT_REVERT_EXECUTED),
                 getAccountInfo(ACCOUNT).hasToken(relationshipWith(VANILLA_TOKEN)));
@@ -352,12 +357,14 @@ public class AtomicBatchContractKeysHtsTest {
                                                 receiverAddress.get(),
                                                 1L)
                                         .via("staticTransferCallWithContractKeyTxn")
-                                        .gas(GAS_TO_OFFER))
+                                        .gas(GAS_TO_OFFER)
+                                        .hasKnownStatus(CONTRACT_REVERT_EXECUTED))
                         .hasKnownStatus(INNER_TRANSACTION_FAILED)),
                 emptyChildRecordsCheck("staticTransferCallWithContractKeyTxn", CONTRACT_REVERT_EXECUTED));
     }
 
     @HapiTest
+    @Tag(MATS)
     public final Stream<DynamicTest> staticCallForBurnWithContractKey() {
         final AtomicReference<Address> vanillaTokenTokenAddress = new AtomicReference<>();
         return hapiTest(
@@ -384,7 +391,8 @@ public class AtomicBatchContractKeysHtsTest {
                                                 BigInteger.ZERO,
                                                 new long[] {1L})
                                         .via(STATIC_BURN_CALL_WITH_CONTRACT_KEY_TXN)
-                                        .gas(GAS_TO_OFFER))
+                                        .gas(GAS_TO_OFFER)
+                                        .hasKnownStatus(CONTRACT_REVERT_EXECUTED))
                         .hasKnownStatus(INNER_TRANSACTION_FAILED)),
                 emptyChildRecordsCheck(STATIC_BURN_CALL_WITH_CONTRACT_KEY_TXN, CONTRACT_REVERT_EXECUTED));
     }
@@ -413,7 +421,8 @@ public class AtomicBatchContractKeysHtsTest {
                                                 vanillaTokenTokenAddress.get(),
                                                 BigInteger.ONE)
                                         .via(STATIC_BURN_CALL_WITH_CONTRACT_KEY_TXN)
-                                        .gas(GAS_TO_OFFER))
+                                        .gas(GAS_TO_OFFER)
+                                        .hasKnownStatus(CONTRACT_REVERT_EXECUTED))
                         .hasKnownStatus(INNER_TRANSACTION_FAILED)),
                 emptyChildRecordsCheck(STATIC_BURN_CALL_WITH_CONTRACT_KEY_TXN, CONTRACT_REVERT_EXECUTED));
     }
@@ -451,7 +460,8 @@ public class AtomicBatchContractKeysHtsTest {
                                                 receiverAddress.get(),
                                                 1L)
                                         .via("staticTransferCallWithDelegateContractKeyTxn")
-                                        .gas(GAS_TO_OFFER))
+                                        .gas(GAS_TO_OFFER)
+                                        .hasKnownStatus(CONTRACT_REVERT_EXECUTED))
                         .hasKnownStatus(INNER_TRANSACTION_FAILED)),
                 emptyChildRecordsCheck("staticTransferCallWithDelegateContractKeyTxn", CONTRACT_REVERT_EXECUTED));
     }
@@ -483,7 +493,8 @@ public class AtomicBatchContractKeysHtsTest {
                                                 BigInteger.ZERO,
                                                 new long[] {1L})
                                         .via(STATIC_BURN_CALL_WITH_DELEGATE_CONTRACT_KEY_TXN)
-                                        .gas(GAS_TO_OFFER))
+                                        .gas(GAS_TO_OFFER)
+                                        .hasKnownStatus(CONTRACT_REVERT_EXECUTED))
                         .hasKnownStatus(INNER_TRANSACTION_FAILED)),
                 emptyChildRecordsCheck(STATIC_BURN_CALL_WITH_DELEGATE_CONTRACT_KEY_TXN, CONTRACT_REVERT_EXECUTED));
     }
@@ -512,7 +523,8 @@ public class AtomicBatchContractKeysHtsTest {
                                                 vanillaTokenTokenAddress.get(),
                                                 BigInteger.ONE)
                                         .via(STATIC_BURN_CALL_WITH_DELEGATE_CONTRACT_KEY_TXN)
-                                        .gas(GAS_TO_OFFER))
+                                        .gas(GAS_TO_OFFER)
+                                        .hasKnownStatus(CONTRACT_REVERT_EXECUTED))
                         .hasKnownStatus(INNER_TRANSACTION_FAILED)),
                 emptyChildRecordsCheck(STATIC_BURN_CALL_WITH_DELEGATE_CONTRACT_KEY_TXN, CONTRACT_REVERT_EXECUTED));
     }
@@ -536,7 +548,8 @@ public class AtomicBatchContractKeysHtsTest {
                                         vanillaTokenTokenAddress.get())
                                 .payingWith(ACCOUNT)
                                 .via("staticAssociateCallTxn")
-                                .gas(GAS_TO_OFFER))
+                                .gas(GAS_TO_OFFER)
+                                .hasKnownStatus(CONTRACT_REVERT_EXECUTED))
                         .hasKnownStatus(INNER_TRANSACTION_FAILED)),
                 emptyChildRecordsCheck("staticAssociateCallTxn", CONTRACT_REVERT_EXECUTED),
                 getAccountInfo(ACCOUNT).hasNoTokenRelationship(VANILLA_TOKEN));
@@ -823,7 +836,8 @@ public class AtomicBatchContractKeysHtsTest {
                                                 accountAddress.get(),
                                                 vanillaTokenAddress.get())
                                         .via(NON_ZERO_TOKEN_BALANCE_DISSOCIATE_WITH_DELEGATE_CONTRACT_KEY_FAILED_TXN)
-                                        .gas(GAS_TO_OFFER))
+                                        .gas(GAS_TO_OFFER)
+                                        .hasKnownStatus(CONTRACT_REVERT_EXECUTED))
                         .hasKnownStatus(INNER_TRANSACTION_FAILED)),
                 sourcing(() -> atomicBatchDefaultOperator(
                         cryptoTransfer(moving(1, VANILLA_TOKEN).between(ACCOUNT, TOKEN_TREASURY)),
@@ -854,6 +868,7 @@ public class AtomicBatchContractKeysHtsTest {
     }
 
     @HapiTest
+    @Tag(MATS)
     public final Stream<DynamicTest> callForDissociateWithContractKey() {
         final AtomicReference<Address> accountAddress = new AtomicReference<>();
         final AtomicReference<Address> vanillaTokenAddress = new AtomicReference<>();
@@ -879,7 +894,8 @@ public class AtomicBatchContractKeysHtsTest {
                                         accountAddress.get(),
                                         vanillaTokenAddress.get())
                                 .via("nonZeroTokenBalanceDissociateWithContractKeyFailedTxn")
-                                .gas(GAS_TO_OFFER))
+                                .gas(GAS_TO_OFFER)
+                                .hasKnownStatus(CONTRACT_REVERT_EXECUTED))
                         .hasKnownStatus(INNER_TRANSACTION_FAILED)),
                 sourcing(() -> atomicBatchDefaultOperator(
                         cryptoTransfer(moving(1, VANILLA_TOKEN).between(ACCOUNT, TOKEN_TREASURY)),
@@ -1035,7 +1051,8 @@ public class AtomicBatchContractKeysHtsTest {
                                         accountAddress.get(),
                                         kycTokenAddress.get())
                                 .via("kycNFTAssociateFailsTxn")
-                                .gas(GAS_TO_OFFER))
+                                .gas(GAS_TO_OFFER)
+                                .hasKnownStatus(CONTRACT_REVERT_EXECUTED))
                         .hasKnownStatus(INNER_TRANSACTION_FAILED)),
                 newKeyNamed(DELEGATE_KEY)
                         .shape(DELEGATE_CONTRACT_KEY_SHAPE.signedWith(sigs(ON, ASSOCIATE_DISSOCIATE_CONTRACT))),
@@ -1055,7 +1072,8 @@ public class AtomicBatchContractKeysHtsTest {
                                         accountAddress.get(),
                                         kycTokenAddress.get())
                                 .via("kycNFTSecondAssociateFailsTxn")
-                                .gas(GAS_TO_OFFER))
+                                .gas(GAS_TO_OFFER)
+                                .hasKnownStatus(CONTRACT_REVERT_EXECUTED))
                         .hasKnownStatus(INNER_TRANSACTION_FAILED)),
                 childRecordsCheck(
                         "kycNFTAssociateFailsTxn",
@@ -1109,7 +1127,8 @@ public class AtomicBatchContractKeysHtsTest {
                                         treasuryAddress.get(),
                                         vanillaTokenAddress.get())
                                 .via("tokenDissociateFromTreasuryFailedTxn")
-                                .gas(GAS_TO_OFFER))
+                                .gas(GAS_TO_OFFER)
+                                .hasKnownStatus(CONTRACT_REVERT_EXECUTED))
                         .hasKnownStatus(INNER_TRANSACTION_FAILED)),
                 sourcing(() -> atomicBatchDefaultOperator(contractCall(
                                         ASSOCIATE_DISSOCIATE_CONTRACT,
@@ -1117,7 +1136,8 @@ public class AtomicBatchContractKeysHtsTest {
                                         accountAddress.get(),
                                         vanillaTokenAddress.get())
                                 .via("tokenDissociateWithDelegateContractKeyFailedTxn")
-                                .gas(GAS_TO_OFFER))
+                                .gas(GAS_TO_OFFER)
+                                .hasKnownStatus(CONTRACT_REVERT_EXECUTED))
                         .hasKnownStatus(INNER_TRANSACTION_FAILED)),
                 tokenAssociate(ACCOUNT, VANILLA_TOKEN),
                 cryptoTransfer(moving(1, VANILLA_TOKEN).between(TOKEN_TREASURY, ACCOUNT)),
@@ -1127,7 +1147,8 @@ public class AtomicBatchContractKeysHtsTest {
                                         accountAddress.get(),
                                         vanillaTokenAddress.get())
                                 .via(NON_ZERO_TOKEN_BALANCE_DISSOCIATE_WITH_DELEGATE_CONTRACT_KEY_FAILED_TXN)
-                                .gas(GAS_TO_OFFER))
+                                .gas(GAS_TO_OFFER)
+                                .hasKnownStatus(CONTRACT_REVERT_EXECUTED))
                         .hasKnownStatus(INNER_TRANSACTION_FAILED)),
                 sourcing(() -> atomicBatchDefaultOperator(
                         cryptoTransfer(moving(1, VANILLA_TOKEN).between(ACCOUNT, TOKEN_TREASURY)),
@@ -1198,7 +1219,8 @@ public class AtomicBatchContractKeysHtsTest {
                                         accountAddress.get(),
                                         frozenTokenAddress.get())
                                 .via("frozenTokenAssociateWithDelegateContractKeyTxn")
-                                .gas(GAS_TO_OFFER))
+                                .gas(GAS_TO_OFFER)
+                                .hasKnownStatus(CONTRACT_REVERT_EXECUTED))
                         .hasKnownStatus(INNER_TRANSACTION_FAILED)),
                 sourcing(() -> atomicBatchDefaultOperator(
                         tokenUnfreeze(FROZEN_TOKEN, ACCOUNT),
@@ -1251,7 +1273,8 @@ public class AtomicBatchContractKeysHtsTest {
                                         accountAddress.get(),
                                         kycTokenAddress.get())
                                 .via("kycTokenDissociateWithDelegateContractKeyFailedTxn")
-                                .gas(GAS_TO_OFFER))
+                                .gas(GAS_TO_OFFER)
+                                .hasKnownStatus(CONTRACT_REVERT_EXECUTED))
                         .hasKnownStatus(INNER_TRANSACTION_FAILED)),
                 sourcing(() -> atomicBatchDefaultOperator(
                         tokenAssociate(ACCOUNT, KYC_TOKEN),
@@ -1309,7 +1332,8 @@ public class AtomicBatchContractKeysHtsTest {
                                         treasuryAddress.get(),
                                         vanillaTokenAddress.get())
                                 .via("NFTDissociateFromTreasuryFailedTxn")
-                                .gas(GAS_TO_OFFER))
+                                .gas(GAS_TO_OFFER)
+                                .hasKnownStatus(CONTRACT_REVERT_EXECUTED))
                         .hasKnownStatus(INNER_TRANSACTION_FAILED)),
                 sourcing(() -> atomicBatchDefaultOperator(contractCall(
                                         ASSOCIATE_DISSOCIATE_CONTRACT,
@@ -1317,7 +1341,8 @@ public class AtomicBatchContractKeysHtsTest {
                                         accountAddress.get(),
                                         vanillaTokenAddress.get())
                                 .via("NFTDissociateWithDelegateContractKeyFailedTxn")
-                                .gas(GAS_TO_OFFER))
+                                .gas(GAS_TO_OFFER)
+                                .hasKnownStatus(CONTRACT_REVERT_EXECUTED))
                         .hasKnownStatus(INNER_TRANSACTION_FAILED)),
                 tokenAssociate(ACCOUNT, VANILLA_TOKEN),
                 cryptoTransfer(movingUnique(VANILLA_TOKEN, 1).between(TOKEN_TREASURY, ACCOUNT)),
@@ -1327,7 +1352,8 @@ public class AtomicBatchContractKeysHtsTest {
                                         accountAddress.get(),
                                         vanillaTokenAddress.get())
                                 .via("nonZeroNFTBalanceDissociateWithDelegateContractKeyFailedTxn")
-                                .gas(GAS_TO_OFFER))
+                                .gas(GAS_TO_OFFER)
+                                .hasKnownStatus(CONTRACT_REVERT_EXECUTED))
                         .hasKnownStatus(INNER_TRANSACTION_FAILED)),
                 sourcing(() -> atomicBatchDefaultOperator(
                         cryptoTransfer(movingUnique(VANILLA_TOKEN, 1).between(ACCOUNT, TOKEN_TREASURY)),
@@ -1399,7 +1425,8 @@ public class AtomicBatchContractKeysHtsTest {
                                         accountAddress.get(),
                                         frozenTokenAddress.get())
                                 .via("frozenNFTAssociateWithDelegateContractKeyTxn")
-                                .gas(GAS_TO_OFFER))
+                                .gas(GAS_TO_OFFER)
+                                .hasKnownStatus(CONTRACT_REVERT_EXECUTED))
                         .hasKnownStatus(INNER_TRANSACTION_FAILED)),
                 sourcing(() -> atomicBatchDefaultOperator(
                         tokenUnfreeze(FROZEN_TOKEN, ACCOUNT),
@@ -1453,7 +1480,8 @@ public class AtomicBatchContractKeysHtsTest {
                                         accountAddress.get(),
                                         kycTokenAddress.get())
                                 .via("kycNFTDissociateWithDelegateContractKeyFailedTxn")
-                                .gas(GAS_TO_OFFER))
+                                .gas(GAS_TO_OFFER)
+                                .hasKnownStatus(CONTRACT_REVERT_EXECUTED))
                         .hasKnownStatus(INNER_TRANSACTION_FAILED)),
                 sourcing(() -> atomicBatchDefaultOperator(
                         tokenAssociate(ACCOUNT, KYC_TOKEN),
@@ -1505,7 +1533,8 @@ public class AtomicBatchContractKeysHtsTest {
                                         accountAddress.get(),
                                         frozenTokenAddress.get())
                                 .via("frozenNFTAssociateFailsTxn")
-                                .gas(GAS_TO_OFFER))
+                                .gas(GAS_TO_OFFER)
+                                .hasKnownStatus(CONTRACT_REVERT_EXECUTED))
                         .hasKnownStatus(INNER_TRANSACTION_FAILED)),
                 newKeyNamed(DELEGATE_KEY)
                         .shape(DELEGATE_CONTRACT_KEY_SHAPE.signedWith(sigs(ON, ASSOCIATE_DISSOCIATE_CONTRACT))),
@@ -1525,7 +1554,8 @@ public class AtomicBatchContractKeysHtsTest {
                                         accountAddress.get(),
                                         frozenTokenAddress.get())
                                 .via("frozenNFTSecondAssociateFailsTxn")
-                                .gas(GAS_TO_OFFER))
+                                .gas(GAS_TO_OFFER)
+                                .hasKnownStatus(CONTRACT_REVERT_EXECUTED))
                         .hasKnownStatus(INNER_TRANSACTION_FAILED)),
                 childRecordsCheck(
                         "frozenNFTAssociateFailsTxn",
@@ -1573,7 +1603,8 @@ public class AtomicBatchContractKeysHtsTest {
                                         accountAddress.get(),
                                         vanillaTokenAddress.get())
                                 .via("vanillaNFTAssociateFailsTxn")
-                                .gas(GAS_TO_OFFER))
+                                .gas(GAS_TO_OFFER)
+                                .hasKnownStatus(CONTRACT_REVERT_EXECUTED))
                         .hasKnownStatus(INNER_TRANSACTION_FAILED)),
                 newKeyNamed(DELEGATE_KEY)
                         .shape(DELEGATE_CONTRACT_KEY_SHAPE.signedWith(sigs(ON, ASSOCIATE_DISSOCIATE_CONTRACT))),
@@ -1593,7 +1624,8 @@ public class AtomicBatchContractKeysHtsTest {
                                         accountAddress.get(),
                                         vanillaTokenAddress.get())
                                 .via("vanillaNFTSecondAssociateFailsTxn")
-                                .gas(GAS_TO_OFFER))
+                                .gas(GAS_TO_OFFER)
+                                .hasKnownStatus(CONTRACT_REVERT_EXECUTED))
                         .hasKnownStatus(INNER_TRANSACTION_FAILED)),
                 childRecordsCheck(
                         "vanillaNFTAssociateFailsTxn",
@@ -1640,7 +1672,8 @@ public class AtomicBatchContractKeysHtsTest {
                                         accountAddress.get(),
                                         kycTokenAddress.get())
                                 .via("kycTokenAssociateFailsTxn")
-                                .gas(GAS_TO_OFFER))
+                                .gas(GAS_TO_OFFER)
+                                .hasKnownStatus(CONTRACT_REVERT_EXECUTED))
                         .hasKnownStatus(INNER_TRANSACTION_FAILED)),
                 newKeyNamed(DELEGATE_KEY)
                         .shape(DELEGATE_CONTRACT_KEY_SHAPE.signedWith(sigs(ON, ASSOCIATE_DISSOCIATE_CONTRACT))),
@@ -1660,7 +1693,8 @@ public class AtomicBatchContractKeysHtsTest {
                                         accountAddress.get(),
                                         kycTokenAddress.get())
                                 .via("kycTokenSecondAssociateFailsTxn")
-                                .gas(GAS_TO_OFFER))
+                                .gas(GAS_TO_OFFER)
+                                .hasKnownStatus(CONTRACT_REVERT_EXECUTED))
                         .hasKnownStatus(INNER_TRANSACTION_FAILED)),
                 childRecordsCheck(
                         "kycTokenAssociateFailsTxn",
@@ -1709,7 +1743,8 @@ public class AtomicBatchContractKeysHtsTest {
                                         accountAddress.get(),
                                         frozenTokenAddress.get())
                                 .via("frozenTokenAssociateFailsTxn")
-                                .gas(GAS_TO_OFFER))
+                                .gas(GAS_TO_OFFER)
+                                .hasKnownStatus(CONTRACT_REVERT_EXECUTED))
                         .hasKnownStatus(INNER_TRANSACTION_FAILED)),
                 newKeyNamed(DELEGATE_KEY)
                         .shape(DELEGATE_CONTRACT_KEY_SHAPE.signedWith(sigs(ON, ASSOCIATE_DISSOCIATE_CONTRACT))),
@@ -1729,7 +1764,8 @@ public class AtomicBatchContractKeysHtsTest {
                                         accountAddress.get(),
                                         frozenTokenAddress.get())
                                 .via("frozenTokenSecondAssociateFailsTxn")
-                                .gas(GAS_TO_OFFER))
+                                .gas(GAS_TO_OFFER)
+                                .hasKnownStatus(CONTRACT_REVERT_EXECUTED))
                         .hasKnownStatus(INNER_TRANSACTION_FAILED)),
                 childRecordsCheck(
                         "frozenTokenAssociateFailsTxn",
@@ -1775,7 +1811,8 @@ public class AtomicBatchContractKeysHtsTest {
                                         accountAddress.get(),
                                         vanillaTokenAddress.get())
                                 .via("vanillaTokenAssociateFailsTxn")
-                                .gas(GAS_TO_OFFER))
+                                .gas(GAS_TO_OFFER)
+                                .hasKnownStatus(CONTRACT_REVERT_EXECUTED))
                         .hasKnownStatus(INNER_TRANSACTION_FAILED)),
                 newKeyNamed(DELEGATE_KEY)
                         .shape(DELEGATE_CONTRACT_KEY_SHAPE.signedWith(sigs(ON, ASSOCIATE_DISSOCIATE_CONTRACT))),
@@ -1795,7 +1832,8 @@ public class AtomicBatchContractKeysHtsTest {
                                         accountAddress.get(),
                                         vanillaTokenAddress.get())
                                 .via("vanillaTokenSecondAssociateFailsTxn")
-                                .gas(GAS_TO_OFFER))
+                                .gas(GAS_TO_OFFER)
+                                .hasKnownStatus(CONTRACT_REVERT_EXECUTED))
                         .hasKnownStatus(INNER_TRANSACTION_FAILED)),
                 childRecordsCheck(
                         "vanillaTokenAssociateFailsTxn",
@@ -1881,7 +1919,8 @@ public class AtomicBatchContractKeysHtsTest {
                                                 accountAddress.get(),
                                                 vanillaTokenTokenAddress.get())
                                         .via("delegateDissociateCallWithContractKeyTxn")
-                                        .gas(GAS_TO_OFFER))
+                                        .gas(GAS_TO_OFFER)
+                                        .hasKnownStatus(CONTRACT_REVERT_EXECUTED))
                         .hasKnownStatus(INNER_TRANSACTION_FAILED)),
                 childRecordsCheck(
                         "delegateDissociateCallWithContractKeyTxn",

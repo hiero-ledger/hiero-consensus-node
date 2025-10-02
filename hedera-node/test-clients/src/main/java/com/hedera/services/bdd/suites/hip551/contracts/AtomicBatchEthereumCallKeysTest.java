@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.hip551.contracts;
 
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asAccountString;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AssertUtils.inOrder;
@@ -65,8 +66,10 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.Tag;
 
 @HapiTestLifecycle
+@Tag(MATS)
 public class AtomicBatchEthereumCallKeysTest {
     private static final String DEFAULT_BATCH_OPERATOR = "defaultBatchOperator";
 
@@ -117,7 +120,8 @@ public class AtomicBatchEthereumCallKeysTest {
                                         adminKey.get())
                                 .via("creationWithoutTopLevelSig")
                                 .gas(5_000_000L)
-                                .sending(100 * ONE_HBAR))
+                                .sending(100 * ONE_HBAR)
+                                .hasKnownStatus(CONTRACT_REVERT_EXECUTED))
                         .hasKnownStatus(INNER_TRANSACTION_FAILED)),
                 // Next verify we succeed when using the top-level SignatureMap to
                 // sign with the admin key

@@ -2,7 +2,7 @@
 package com.hedera.node.app.service.token.records;
 
 import com.hedera.hapi.node.base.ResponseCodeEnum;
-import com.hedera.hapi.node.base.Transaction;
+import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
 
@@ -21,11 +21,11 @@ public interface NodeStakeUpdateStreamBuilder extends StreamBuilder {
     /**
      * Sets the transaction.
      *
-     * @param transaction the transaction
+     * @param signedTx the transaction
      * @return the builder
      */
     @NonNull
-    NodeStakeUpdateStreamBuilder transaction(@NonNull Transaction transaction);
+    NodeStakeUpdateStreamBuilder signedTx(@NonNull SignedTransaction signedTx);
 
     /**
      * Sets the record's memo.

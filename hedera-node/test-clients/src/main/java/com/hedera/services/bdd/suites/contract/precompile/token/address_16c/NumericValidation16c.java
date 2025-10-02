@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.suites.contract.precompile.token.address_16c;
 
 import static com.hedera.services.bdd.junit.RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION;
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.dsl.entities.SpecContract.VARIANT_16C;
 import static com.hedera.services.bdd.spec.dsl.entities.SpecTokenKey.ADMIN_KEY;
@@ -22,15 +23,24 @@ import com.hedera.services.bdd.spec.dsl.entities.SpecContract;
 import com.hedera.services.bdd.spec.dsl.entities.SpecFungibleToken;
 import com.hedera.services.bdd.spec.dsl.entities.SpecNonFungibleToken;
 import com.hedera.services.bdd.suites.contract.precompile.token.NumericValidationTest;
+import com.hedera.services.bdd.suites.contract.precompile.token.NumericValidationTest.UintTestCase;
 import java.math.BigInteger;
+import java.util.List;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.Tag;
 
 public class NumericValidation16c {
 
     @Contract(contract = "NumericContract16c", creationGas = 1_000_000L, variant = VARIANT_16C)
     static SpecContract numericContract;
+
+    // Big integer test cases for zero, negative, and greater than Long.MAX_VALUE amounts with expected failed status
+    public static final List<UintTestCase> ALL_FAIL = List.of(
+            new UintTestCase(NumericValidationTest.NEGATIVE_ONE_BIG_INT, CONTRACT_REVERT_EXECUTED),
+            new UintTestCase(NumericValidationTest.MAX_LONG_PLUS_1_BIG_INT, CONTRACT_REVERT_EXECUTED),
+            new UintTestCase(BigInteger.ZERO, CONTRACT_REVERT_EXECUTED));
 
     @NonFungibleToken(
             numPreMints = 5,
@@ -61,6 +71,7 @@ public class NumericValidation16c {
 
     @HapiTest
     @DisplayName("when using getTokenKey should return metadata key")
+    @Tag(MATS)
     public Stream<DynamicTest> succeedToGetTokenKey() {
         return hapiTest(numericContract
                 .call("getTokenKey", nft, BigInteger.valueOf(128L))
@@ -70,8 +81,9 @@ public class NumericValidation16c {
 
     @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
     @DisplayName("when using getTokenKey for NFT")
+    @Tag(MATS)
     public Stream<DynamicTest> failToGetTokenKeyNFT() {
-        return NumericValidationTest.allFail.stream()
+        return ALL_FAIL.stream()
                 .flatMap(testCase -> hapiTest(numericContract
                         .call("getTokenKey", nft, testCase.amount())
                         .andAssert(txn -> txn.hasKnownStatus(testCase.status()))));
@@ -80,7 +92,7 @@ public class NumericValidation16c {
     @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
     @DisplayName("when using getTokenKey for Fungible Token")
     public Stream<DynamicTest> failToGetTokenKeyFT() {
-        return NumericValidationTest.allFail.stream()
+        return ALL_FAIL.stream()
                 .flatMap(testCase -> hapiTest(numericContract
                         .call("getTokenKey", fungibleToken, testCase.amount())
                         .andAssert(txn -> txn.hasKnownStatus(testCase.status()))));

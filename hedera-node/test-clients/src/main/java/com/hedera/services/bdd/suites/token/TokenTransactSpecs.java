@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.suites.token;
 
 import static com.google.protobuf.ByteString.copyFromUtf8;
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.TOKEN;
 import static com.hedera.services.bdd.spec.HapiSpec.defaultHapiSpec;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
@@ -71,6 +72,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ACCOUN
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_NFT_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TOKEN_ID;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.NFT_TRANSFERS_ONLY_ALLOWED_FOR_NON_FUNGIBLE_UNIQUE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.NO_REMAINING_AUTOMATIC_ASSOCIATIONS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SENDER_DOES_NOT_OWN_NFT_SERIAL_NO;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
@@ -86,6 +88,8 @@ import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.HapiSpecOperation;
 import com.hedera.services.bdd.spec.SpecOperation;
 import com.hederahashgraph.api.proto.java.CustomFee;
+import com.hederahashgraph.api.proto.java.NftTransfer;
+import com.hederahashgraph.api.proto.java.TokenTransferList;
 import com.hederahashgraph.api.proto.java.TokenType;
 import java.util.List;
 import java.util.OptionalLong;
@@ -97,6 +101,7 @@ import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
 @Tag(TOKEN)
+@Tag(MATS)
 public class TokenTransactSpecs {
     public static final String PAYER = "payer";
     private static final long TOTAL_SUPPLY = 1_000;
@@ -1014,6 +1019,32 @@ public class TokenTransactSpecs {
                 .then(cryptoTransfer(movingUnique(A_TOKEN, 1).between(TOKEN_TREASURY, FIRST_USER))
                         .signedBy(SIGNING_KEY_TREASURY, SIGNING_KEY_FIRST_USER, DEFAULT_PAYER)
                         .hasKnownStatus(TOKEN_WAS_DELETED));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> fractionalFeeTokenPutInNonFungibleTransferListIsRejectedSafely() {
+        return hapiTest(
+                cryptoCreate(CIVILIAN),
+                cryptoCreate("receiver").maxAutomaticTokenAssociations(5),
+                tokenCreate("fractionalFeeToken")
+                        .tokenType(FUNGIBLE_COMMON)
+                        .initialSupply(Long.MAX_VALUE)
+                        .treasury(DEFAULT_PAYER)
+                        .withCustom(fractionalFee(1, 10, 0, OptionalLong.empty(), DEFAULT_PAYER)),
+                cryptoTransfer((spec, b) -> {
+                            final var registry = spec.registry();
+                            b.addTokenTransfers(TokenTransferList.newBuilder()
+                                    .setToken(registry.getTokenID("fractionalFeeToken"))
+                                    .addAllNftTransfers(List.of(NftTransfer.newBuilder()
+                                            .setSenderAccountID(registry.getAccountID(CIVILIAN))
+                                            .setReceiverAccountID(registry.getAccountID("receiver"))
+                                            .setSerialNumber(123L)
+                                            .build()))
+                                    .build());
+                        })
+                        .fee(ONE_HUNDRED_HBARS)
+                        .signedBy(DEFAULT_PAYER, CIVILIAN)
+                        .hasKnownStatus(NFT_TRANSFERS_ONLY_ALLOWED_FOR_NON_FUNGIBLE_UNIQUE));
     }
 
     @HapiTest

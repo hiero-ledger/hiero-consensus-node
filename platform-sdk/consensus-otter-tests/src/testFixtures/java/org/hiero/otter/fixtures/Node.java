@@ -2,15 +2,17 @@
 package org.hiero.otter.fixtures;
 
 import com.hedera.hapi.node.base.SemanticVersion;
-import com.hedera.hapi.platform.state.NodeId;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
+import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
 import org.hiero.otter.fixtures.result.SingleNodeLogResult;
+import org.hiero.otter.fixtures.result.SingleNodeMarkerFileResult;
 import org.hiero.otter.fixtures.result.SingleNodePcesResult;
-import org.hiero.otter.fixtures.result.SingleNodePlatformStatusResults;
+import org.hiero.otter.fixtures.result.SingleNodePlatformStatusResult;
+import org.hiero.otter.fixtures.result.SingleNodeReconnectResult;
 
 /**
  * Interface representing a node in the network.
@@ -26,6 +28,14 @@ public interface Node {
     SemanticVersion DEFAULT_VERSION = SemanticVersion.newBuilder().major(1).build();
 
     /**
+     * Start the node.
+     *
+     * <p>The method will wait for a environment-specific timeout before throwing an exception if the node cannot be
+     * started. The default can be overridden by calling {@link #withTimeout(Duration)}.
+     */
+    void start();
+
+    /**
      * Kill the node without prior cleanup.
      *
      * <p>This method simulates a sudden failure of the node. No attempt to finish ongoing work,
@@ -33,18 +43,44 @@ public interface Node {
      *
      * <p>The method will wait for a environment-specific timeout before throwing an exception if the nodes cannot be
      * killed. The default can be overridden by calling {@link #withTimeout(Duration)}.
-     *
-     * @throws InterruptedException if the thread is interrupted while waiting
      */
-    void killImmediately() throws InterruptedException;
+    void killImmediately();
 
     /**
-     * Start the node.
+     * Start a synthetic bottleneck on the node.
      *
-     * <p>The method will wait for a environment-specific timeout before throwing an exception if the node cannot be
-     * started. The default can be overridden by calling {@link #withTimeout(Duration)}.
+     * <p>This method simulates a delay in processing rounds of consensus, which can be used to test the node's
+     * behavior when the handle thread cannot keep up.
+     *
+     * <p>Equivalent to calling {@link #startSyntheticBottleneck(Duration)} with a delay of 100 milliseconds.
+     *
+     * @see #startSyntheticBottleneck(Duration)
      */
-    void start();
+    default void startSyntheticBottleneck() {
+        startSyntheticBottleneck(Duration.ofMillis(100));
+    }
+
+    /**
+     * Start a synthetic bottleneck on the node.
+     *
+     * <p>This method simulates a delay in processing rounds of consensus, which can be used to test the node's
+     * behavior when the handle thread cannot keep up.
+     *
+     * @param delayPerRound the duration to sleep on the handle thread after processing each round
+     * @see #startSyntheticBottleneck()
+     */
+    void startSyntheticBottleneck(@NonNull Duration delayPerRound);
+
+    /**
+     * Stop the synthetic bottleneck on the node.
+     *
+     * <p>This method stops the delay in processing rounds of consensus that was started by
+     * {@link #startSyntheticBottleneck(Duration)}.
+     *
+     * @see #startSyntheticBottleneck(Duration)
+     * @see #startSyntheticBottleneck()
+     */
+    void stopSyntheticBottleneck();
 
     /**
      * Allows to override the default timeout for node operations.
@@ -62,13 +98,13 @@ public interface Node {
     void submitTransaction(@NonNull byte[] transaction);
 
     /**
-     * Gets the configuration of the node. The returned object can be used to evaluate the current
-     * configuration, but also for modifications.
+     * Gets the configuration of the node. The returned object can be used to evaluate the current configuration, but
+     * also for modifications.
      *
      * @return the configuration of the node
      */
     @NonNull
-    NodeConfiguration<?> configuration();
+    NodeConfiguration configuration();
 
     /**
      * Gets the self id of the node. This value can be used to identify a node.
@@ -77,6 +113,13 @@ public interface Node {
      */
     @NonNull
     NodeId selfId();
+
+    /**
+     * Gets the weight of the node. This value is always non-negative.
+     *
+     * @return the weight
+     */
+    long weight();
 
     /**
      * Returns the status of the platform while the node is running or {@code null} if not.
@@ -92,7 +135,35 @@ public interface Node {
      * @return {@code true} if the node is active, {@code false} otherwise
      */
     default boolean isActive() {
-        return platformStatus() == PlatformStatus.ACTIVE;
+        return isInStatus(PlatformStatus.ACTIVE);
+    }
+
+    /**
+     * Checks if the node's {@link PlatformStatus} is {@link PlatformStatus#CHECKING}.
+     *
+     * @return {@code true} if the node is checking, {@code false} otherwise
+     */
+    default boolean isChecking() {
+        return isInStatus(PlatformStatus.CHECKING);
+    }
+
+    /**
+     * Checks if the node's {@link PlatformStatus} is {@link PlatformStatus#BEHIND}.
+     *
+     * @return {@code true} if the node is behind, {@code false} otherwise
+     */
+    default boolean isBehind() {
+        return isInStatus(PlatformStatus.BEHIND);
+    }
+
+    /**
+     * Checks if the node's {@link PlatformStatus} is {@code status}.
+     *
+     * @param status the status to check against
+     * @return {@code true} if the node is in the supplied status, {@code false} otherwise
+     */
+    default boolean isInStatus(@NonNull final PlatformStatus status) {
+        return platformStatus() == status;
     }
 
     /**
@@ -106,46 +177,64 @@ public interface Node {
     /**
      * Sets the software version of the node.
      *
-     * <p>If no version is set, {@link #DEFAULT_VERSION} will be used. This method can only be called while the node is not running.
+     * <p>If no version is set, {@link #DEFAULT_VERSION} will be used. This method can only be called while the node is
+     * not running.
      *
      * @param version the software version to set for the node
      */
-    void setVersion(@NonNull SemanticVersion version);
+    void version(@NonNull SemanticVersion version);
 
     /**
-     * This method updates the version to trigger a "config only upgrade" on the next restart. This method can only be called while the node is not running.
+     * This method updates the version to trigger a "config only upgrade" on the next restart. This method can only be
+     * called while the node is not running.
      */
     void bumpConfigVersion();
 
     /**
-     * Gets the consensus rounds of the node.
+     * Creates a new result with all the consensus rounds of the node.
      *
      * @return the consensus rounds of the node
      */
     @NonNull
-    SingleNodeConsensusResult getConsensusResult();
+    SingleNodeConsensusResult newConsensusResult();
 
     /**
-     * Gets the log results of this node.
+     * Creates a new result with all the log results of this node.
      *
      * @return the log results of this node
      */
     @NonNull
-    SingleNodeLogResult getLogResult();
+    SingleNodeLogResult newLogResult();
 
     /**
-     * Gets the status progression result of the node.
+     * Creates a new result with all the status progression results of the node.
      *
      * @return the status progression result of the node
      */
     @NonNull
-    SingleNodePlatformStatusResults getPlatformStatusResults();
+    SingleNodePlatformStatusResult newPlatformStatusResult();
 
     /**
-     * Gets the results related to PCES files.
+     * Creates a new result with all the results related to PCES files.
      *
      * @return the PCES files created by the node
      */
     @NonNull
-    SingleNodePcesResult getPcesResult();
+    SingleNodePcesResult newPcesResult();
+
+    /**
+     * Creates a new result with all the reconnects this node performed.
+     *
+     * @return the reconnect results of the node
+     */
+    @NonNull
+    SingleNodeReconnectResult newReconnectResult();
+
+    /**
+     * Creates a new result with all marker file result of the node.
+     *
+     * @return the marker file result of the node
+     */
+    @NonNull
+    SingleNodeMarkerFileResult newMarkerFileResult();
 }

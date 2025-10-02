@@ -20,7 +20,9 @@ public class HapiSpecSleep extends UtilOp {
 
     @Override
     protected boolean submitOp(@NonNull final HapiSpec spec) throws Throwable {
-        log.info("Sleeping for {}ms now...", timeMs);
+        if (!loggingOff) {
+            log.info("Sleeping for {}ms now...", timeMs);
+        }
         spec.sleepConsensusTime(Duration.ofMillis(timeMs));
         return false;
     }

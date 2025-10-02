@@ -24,4 +24,20 @@ public class StateReport {
     public void setCalculatedHash(final String calculatedHash) {
         this.calculatedHash = calculatedHash;
     }
+
+    @Override
+    public String toString() {
+        StringBuilder sb = new StringBuilder();
+        sb.append("============\n");
+
+        sb.append(String.format("Root Hash: %s\n", rootHash));
+        sb.append(String.format("Calculated Hash: %s\n", calculatedHash));
+
+        if (rootHash != null && calculatedHash != null) {
+            boolean hashesMatch = rootHash.equals(calculatedHash);
+            sb.append(String.format("Hashes Match: %s\n", hashesMatch ? "YES" : "NO"));
+        }
+
+        return sb.toString();
+    }
 }

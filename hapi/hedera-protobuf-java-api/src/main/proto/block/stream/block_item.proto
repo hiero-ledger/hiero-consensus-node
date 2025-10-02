@@ -28,7 +28,6 @@ option java_package = "com.hedera.hapi.block.stream.protoc";
 // <<<pbj.java_package = "com.hedera.hapi.block.stream">>> This comment is special code for setting PBJ Compiler java package
 option java_multiple_files = true;
 
-import "platform/event/event_transaction.proto";
 import "block/stream/block_proof.proto";
 import "block/stream/record_file_item.proto";
 import "block/stream/input/event_metadata.proto";
@@ -73,6 +72,7 @@ import "block/stream/trace/trace_data.proto";
  *   }
  * state_proof
  * ```
+ *
  * A filtered stream may exclude some items above, depending on filter
  * criteria. A filtered item is replaced with a merkle path and hash value
  * to maintain block stream verifiability.
@@ -88,44 +88,56 @@ import "block/stream/trace/trace_data.proto";
  * coordinate deployments of different systems creating and processing
  * block streams in the future, the following rules SHALL be followed
  * for field numbering in this message.
- * - The first 15 field numbers SHALL be assigned to the fields present
+ * - The first 19 field numbers SHALL be assigned to the fields present
  *   in the first release. Unused fields in this range SHALL remain reserved
- *   until needed for additional options that do not fit into "input" or
- *   "output" categories.
- * - Fields numbered 16 and above MUST be numbered as follows.
- *    - "input" items MUST use `odd` field numbers.
- *    - "output" items MUST use `even` field numbers.
+ *   until needed for additional options that do not fit into existing
+ *   subtree categories.
+ * - Fields numbered 20 and above MUST be numbered as follows.
+ *    - Calculate the category number as N modulo 10, where N is the actual field number.
+ *        - 0 - Consensus Headers
+ *        - 1 - Inputs
+ *        - 2 - Outputs
+ *        - 3 - State Changes
+ *        - 4 - Trace Data
+ *        - 5 - Extension 0
+ *        - 6 - Extension 1
+ *        - 7 - Extension 2
+ *        - 8 - Extension 3
+ *        - 9 - Not hashed (not part of the block proof merkle tree)
  *
  * #### Forward Compatibility Example
  * A future update adding three new items. A "BlockTrailer" item which is
- * neither input nor output, a new "ConsensusTransom" which is an input,
- * and a new "BridgeTransform" which is an output.
- * - The "BlockTrailer" is field 11, which is removed from the `reserved` list.
- * - The "ConsensusTransom" is an input, so it is field `17` (the first unused
- *   `odd` field greater than or equal to 16).
- * - The "BridgeTransform" is an output, so it is field `16` (the first unused
- *   even field greater than or equal to 16).
+ * not part of the merkle tree, a new "ConsensusTransform" which is in Consensus Headers,
+ * and a new "BridgeTransform" which is in Trace Data.
+ * - All three fields are at least 20, so they are additions.
+ * - The "BlockTrailer" is field 29.
+ * - The "ConsensusTransform" is field 20 (20 modulo 10 is 0, so it is a Consensus Header).
+ * - The "BridgeTransform" field is 24 (24 modulo 10 is 4, so it is Trace Data).
  *
- * #### Initial Field assignment to "input", "output", and "other" categories.
- * - Inputs
+ * #### Initial Field assignment to subtree categories.
+ * - Consensus Headers
  *    - `event_header`
  *    - `round_header`
+ * - Inputs
  *    - `event_transaction`
  * - Outputs
  *    - `block_header`
  *    - `transaction_result`
  *    - `transaction_output`
+ * - State Changes
  *    - `state_changes`
+ * - Trace Data
+ *    - `trace_data`
  * - Any subtree (depending on what was filtered).
- *   This item details it's path in the tree.
+ *   This item contains it's path in the tree and must be fully parsed.
  *    - `filtered_item_hash`
- * - Neither input nor output (and not part of the "proof" merkle tree)
+ * - No subtree (and not part of the "proof" merkle tree)
  *    - `block_proof`
  *    - `record_file`
  */
 message BlockItem {
-    // Reserved for future items that are neither "input" nor "output".
-    reserved 11,12,13,14,15;
+    // Reserved for future items that require separate handling for block hash purposes.
+    reserved 12,13,14,15,16,17,18,19;
 
     oneof item {
         /**
@@ -153,19 +165,17 @@ message BlockItem {
          * A single transaction.
          * <p>
          * This item SHALL contain the serialized bytes of a
-         * single transaction.<br/>
-         * Each event transaction SHALL be either a `SignedTransaction` or
-         * an internal system-generated transaction.<br/>
+         * single proto.SignedTransaction.<br/>
          * This item MUST NOT contain data for more than one
-         * `SignedTransaction` or system-generated transaction.
+         * `SignedTransaction`.
          */
-        com.hedera.hapi.platform.event.EventTransaction event_transaction = 4;
+        bytes signed_transaction = 4;
 
         /**
          * The result of running a transaction.
          * <p>
          * This item SHALL be present immediately after an
-         * `event_transaction` item.<br/>
+         * `signed_transaction` item.<br/>
          * This item MAY be redacted in some circumstances, and SHALL be
          * replaced with a `filtered_item` if removed.
          */
@@ -246,7 +256,7 @@ message BlockItem {
          * Any informational trace data MAY be described by
          * stream items of this type.<br/>
          */
-        com.hedera.hapi.block.stream.trace.TraceData trace_data = 16;
+        com.hedera.hapi.block.stream.trace.TraceData trace_data = 11;
     }
 }
 

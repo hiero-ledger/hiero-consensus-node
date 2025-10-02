@@ -22,6 +22,7 @@ option java_multiple_files = true;
 
 import "services/basic_types.proto";
 import "services/duration.proto";
+import "services/hook_types.proto";
 import "services/timestamp.proto";
 import "google/protobuf/wrappers.proto";
 
@@ -178,4 +179,14 @@ message ContractUpdateTransactionBody {
      * without reward.
      */
     google.protobuf.BoolValue decline_reward = 15;
+
+    /**
+     * The ids the hooks to delete from the contract.
+     */
+    repeated int64 hook_ids_to_delete = 16;
+
+    /**
+     * The hooks to create for the contract.
+     */
+    repeated com.hedera.hapi.node.hooks.HookCreationDetails hook_creation_details = 17;
 }

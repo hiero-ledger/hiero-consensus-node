@@ -98,6 +98,9 @@ import "services/auxiliary/history/history_proof_signature.proto";
 import "services/auxiliary/history/history_proof_key_publication.proto";
 import "services/auxiliary/history/history_proof_vote.proto";
 
+import "services/lambda_sstore.proto";
+import "services/hook_dispatch.proto";
+
 /**
  * A wrapper around signed transaction bytes.<br/>
  * This was originally a transaction with body, signatures, and/or bytes,
@@ -648,6 +651,16 @@ message TransactionBody {
          * A transaction body for handling a set of transactions atomically.
          */
         AtomicBatchTransactionBody atomic_batch = 74;
+
+        /**
+         * A transaction body for updating the storage of a EVM lambda hook.
+         */
+        com.hedera.hapi.node.hooks.LambdaSStoreTransactionBody lambda_sstore = 75;
+
+        /**
+         * An internal-only transaction body for dispatching a hook CRUD operation.
+         */
+        com.hedera.hapi.node.hooks.HookDispatchTransactionBody hook_dispatch = 76;
     }
 
     /**

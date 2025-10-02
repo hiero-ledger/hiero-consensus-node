@@ -4,6 +4,7 @@ package com.swirlds.demo.migration.virtual;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.virtualmap.VirtualKey;
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -16,6 +17,7 @@ import org.hiero.base.io.streams.SerializableDataOutputStream;
  * stored inside a {@link com.swirlds.virtualmap.VirtualMap} instance.
  */
 public class AccountVirtualMapKey implements VirtualKey {
+
     private static final long CLASS_ID = 0xff95b64a8d311cdaL;
 
     private static final class ClassVersion {
@@ -34,6 +36,12 @@ public class AccountVirtualMapKey implements VirtualKey {
         this.realmID = realmID;
         this.shardID = shardID;
         this.accountID = accountID;
+    }
+
+    public Bytes toBytes() {
+        final byte[] bytes = new byte[Long.BYTES * 3];
+        ByteBuffer.wrap(bytes).putLong(realmID).putLong(shardID).putLong(accountID);
+        return Bytes.wrap(bytes);
     }
 
     /**

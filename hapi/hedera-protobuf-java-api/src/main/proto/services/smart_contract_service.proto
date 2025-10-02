@@ -171,4 +171,9 @@ service SmartContractService {
      * is less than this "floor" amount.
      */
     rpc callEthereum (Transaction) returns (TransactionResponse);
+
+    /**
+     * Update zero or more slots of a lambda.
+     */
+    rpc lambdaSStore (Transaction) returns (TransactionResponse);
 }

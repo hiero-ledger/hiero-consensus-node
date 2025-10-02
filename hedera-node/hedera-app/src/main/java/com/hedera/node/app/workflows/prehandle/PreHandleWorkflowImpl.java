@@ -25,11 +25,13 @@ import com.hedera.node.app.signature.ExpandedSignaturePair;
 import com.hedera.node.app.signature.SignatureExpander;
 import com.hedera.node.app.signature.SignatureVerificationFuture;
 import com.hedera.node.app.signature.SignatureVerifier;
+import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
 import com.hedera.node.app.state.DeduplicationCache;
 import com.hedera.node.app.store.ReadableStoreFactory;
+import com.hedera.node.app.workflows.InnerTransaction;
 import com.hedera.node.app.workflows.TransactionChecker;
 import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.app.workflows.dispatcher.TransactionDispatcher;
@@ -38,7 +40,6 @@ import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfiguration;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.state.lifecycle.info.NodeInfo;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.ArrayList;
@@ -163,7 +164,7 @@ public class PreHandleWorkflowImpl implements PreHandleWorkflow {
             @NonNull final NodeInfo creatorInfo,
             @NonNull final ReadableStoreFactory storeFactory,
             @NonNull final ReadableAccountStore accountStore,
-            @NonNull final Bytes applicationTxBytes,
+            @NonNull final Bytes serializedSignedTx,
             @Nullable PreHandleResult previousResult,
             @NonNull final Consumer<StateSignatureTransaction> stateSignatureTransactionCallback,
             @NonNull final InnerTransaction innerTransaction) {
@@ -182,11 +183,7 @@ public class PreHandleWorkflowImpl implements PreHandleWorkflow {
                     .getConfigData(HederaConfig.class)
                     .nodeTransactionMaxBytes();
             if (previousResult == null) {
-                if (InnerTransaction.YES.equals(innerTransaction)) {
-                    txInfo = transactionChecker.parseSignedAndCheck(applicationTxBytes, maxBytes);
-                } else {
-                    txInfo = transactionChecker.parseAndCheck(applicationTxBytes, maxBytes);
-                }
+                txInfo = transactionChecker.parseSignedAndCheck(serializedSignedTx, maxBytes);
             } else {
                 txInfo = previousResult.txInfo();
             }

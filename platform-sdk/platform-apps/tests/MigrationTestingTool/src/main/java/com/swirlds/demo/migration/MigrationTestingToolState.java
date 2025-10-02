@@ -4,18 +4,12 @@ package com.swirlds.demo.migration;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
-import com.swirlds.demo.migration.virtual.AccountVirtualMapKey;
-import com.swirlds.demo.migration.virtual.AccountVirtualMapKeySerializer;
-import com.swirlds.demo.migration.virtual.AccountVirtualMapValue;
-import com.swirlds.demo.migration.virtual.AccountVirtualMapValueSerializer;
 import com.swirlds.merkle.map.MerkleMap;
-import com.swirlds.merkledb.MerkleDb;
 import com.swirlds.merkledb.MerkleDbDataSourceBuilder;
-import com.swirlds.merkledb.MerkleDbTableConfig;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer;
-import com.swirlds.state.merkle.MerkleStateRoot;
+import com.swirlds.state.test.fixtures.merkle.MerkleStateRoot;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.datasource.VirtualDataSourceBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -23,7 +17,6 @@ import java.util.List;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.constructable.ConstructableIgnored;
-import org.hiero.base.crypto.DigestType;
 import org.hiero.consensus.model.roster.AddressBook;
 
 @ConstructableIgnored
@@ -124,13 +117,14 @@ public class MigrationTestingToolState extends MerkleStateRoot<MigrationTestingT
     }
 
     @Override
-    public MerkleNode migrate(int version) {
+    public MerkleNode migrate(@NonNull final Configuration configuration, int version) {
         if (version == ClassVersion.VIRTUAL_MAP) {
             TestingAppStateInitializer.DEFAULT.initRosterState(this);
             return this;
         }
 
-        return super.migrate(version);
+        // FUTURE WORK: https://github.com/hiero-ledger/hiero-consensus-node/issues/19002
+        return this;
     }
 
     /**
@@ -164,14 +158,14 @@ public class MigrationTestingToolState extends MerkleStateRoot<MigrationTestingT
     /**
      * Get a {@link VirtualMap} that contains various data.
      */
-    VirtualMap<AccountVirtualMapKey, AccountVirtualMapValue> getVirtualMap() {
+    VirtualMap getVirtualMap() {
         return getChild(ChildIndices.VIRTUAL_MAP);
     }
 
     /**
      * Set a {@link VirtualMap} that contains various data.
      */
-    protected void setVirtualMap(final VirtualMap<AccountVirtualMapKey, AccountVirtualMapValue> map) {
+    protected void setVirtualMap(final VirtualMap map) {
         setChild(ChildIndices.VIRTUAL_MAP, map);
     }
 
@@ -183,18 +177,9 @@ public class MigrationTestingToolState extends MerkleStateRoot<MigrationTestingT
                 ConfigurationBuilder.create().autoDiscoverExtensions().build();
         setMerkleMap(new MerkleMap<>());
         final MerkleDbConfig merkleDbConfig = configuration.getConfigData(MerkleDbConfig.class);
-        final MerkleDbTableConfig tableConfig = new MerkleDbTableConfig(
-                (short) 1, DigestType.SHA_384, INITIAL_ACCOUNTS_HINT, merkleDbConfig.hashesRamToDiskThreshold());
-        // to make it work for the multiple node in one JVM case, we need reset the default instance path every time
-        // we create another instance of MerkleDB.
-        MerkleDb.resetDefaultInstancePath();
-        final VirtualDataSourceBuilder dsBuilder = new MerkleDbDataSourceBuilder(tableConfig, configuration);
-        setVirtualMap(new VirtualMap<>(
-                "virtualMap",
-                new AccountVirtualMapKeySerializer(),
-                new AccountVirtualMapValueSerializer(),
-                dsBuilder,
-                configuration));
+        final VirtualDataSourceBuilder dsBuilder = new MerkleDbDataSourceBuilder(
+                configuration, INITIAL_ACCOUNTS_HINT, merkleDbConfig.hashesRamToDiskThreshold());
+        setVirtualMap(new VirtualMap("virtualMap", dsBuilder, configuration));
     }
 
     /**

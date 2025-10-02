@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.virtualmap.benchmark.reconnect;
 
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.virtualmap.test.fixtures.TestKey;
 import com.swirlds.virtualmap.test.fixtures.TestValue;
 import java.util.Random;
@@ -35,10 +36,10 @@ public class StateBuilder {
             final long size,
             final double learnerMissingProbability,
             final double learnerDifferentProbability,
-            final BiConsumer<TestKey, TestValue> teacherPopulator,
-            final BiConsumer<TestKey, TestValue> learnerPopulator) {
+            final BiConsumer<Bytes, TestValue> teacherPopulator,
+            final BiConsumer<Bytes, TestValue> learnerPopulator) {
         LongStream.range(1, size).forEach(i -> {
-            final TestKey key = new TestKey(i);
+            final Bytes key = TestKey.longToKey(i);
 
             final TestValue teacherValue = new TestValue(RandomUtils.randomString(random, random.nextInt(1, 64)));
             teacherPopulator.accept(key, teacherValue);

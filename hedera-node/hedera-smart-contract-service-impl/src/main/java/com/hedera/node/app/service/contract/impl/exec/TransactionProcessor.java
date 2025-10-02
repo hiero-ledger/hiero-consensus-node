@@ -5,11 +5,13 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_CONTRACT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.WRONG_NONCE;
+import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.accessTrackerFor;
 import static com.hedera.node.app.service.contract.impl.hevm.HederaEvmTransactionResult.resourceExhaustionFrom;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.contractIDToBesuAddress;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.isEvmAddress;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.pbjToBesuAddress;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.sponsorCustomizedCreation;
+import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.txStorageUsageFrom;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static java.util.Objects.requireNonNull;
 
@@ -18,11 +20,14 @@ import com.hedera.hapi.node.contract.ContractCreateTransactionBody;
 import com.hedera.node.app.service.contract.impl.exec.gas.CustomGasCharging;
 import com.hedera.node.app.service.contract.impl.exec.processors.CustomMessageCallProcessor;
 import com.hedera.node.app.service.contract.impl.exec.utils.FrameBuilder;
+import com.hedera.node.app.service.contract.impl.exec.utils.OpsDurationCounter;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmContext;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmTransaction;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmTransactionResult;
 import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
+import com.hedera.node.app.service.contract.impl.infra.StorageAccessTracker;
 import com.hedera.node.app.service.contract.impl.state.HederaEvmAccount;
+import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.ResourceExhaustedException;
 import com.hedera.node.config.data.ContractsConfig;
@@ -30,6 +35,7 @@ import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import org.hyperledger.besu.datatypes.Address;
+import org.hyperledger.besu.evm.code.CodeFactory;
 import org.hyperledger.besu.evm.processor.ContractCreationProcessor;
 
 /**
@@ -44,6 +50,7 @@ public class TransactionProcessor {
     private final CustomMessageCallProcessor messageCall;
     private final ContractCreationProcessor contractCreation;
     private final FeatureFlags featureFlags;
+    private final CodeFactory codeFactory;
 
     public TransactionProcessor(
             @NonNull final FrameBuilder frameBuilder,
@@ -51,13 +58,15 @@ public class TransactionProcessor {
             @NonNull final CustomGasCharging gasCharging,
             @NonNull final CustomMessageCallProcessor messageCall,
             @NonNull final ContractCreationProcessor contractCreation,
-            @NonNull final FeatureFlags featureFlags) {
+            @NonNull final FeatureFlags featureFlags,
+            @NonNull final CodeFactory codeFactory) {
         this.frameBuilder = requireNonNull(frameBuilder);
         this.frameRunner = requireNonNull(frameRunner);
         this.gasCharging = requireNonNull(gasCharging);
         this.messageCall = requireNonNull(messageCall);
         this.contractCreation = requireNonNull(contractCreation);
         this.featureFlags = requireNonNull(featureFlags);
+        this.codeFactory = codeFactory;
     }
 
     /**
@@ -100,9 +109,11 @@ public class TransactionProcessor {
             @NonNull final HederaWorldUpdater updater,
             @NonNull final HederaEvmContext context,
             @NonNull final ActionSidecarContentTracer tracer,
-            @NonNull final Configuration config) {
+            @NonNull final Configuration config,
+            @NonNull final OpsDurationCounter opsDurationCounter) {
         final var parties = computeInvolvedPartiesOrAbort(transaction, updater, config);
-        return processTransactionWithParties(transaction, updater, context, tracer, config, parties);
+        return processTransactionWithParties(
+                transaction, updater, context, tracer, config, opsDurationCounter, parties);
     }
 
     private HederaEvmTransactionResult processTransactionWithParties(
@@ -111,6 +122,7 @@ public class TransactionProcessor {
             @NonNull final HederaEvmContext context,
             @NonNull final ActionSidecarContentTracer tracer,
             @NonNull final Configuration config,
+            @NonNull final OpsDurationCounter opsDurationCounter,
             @NonNull final InvolvedParties parties) {
         final var gasCharges =
                 gasCharging.chargeForGas(parties.sender(), parties.relayer(), context, updater, transaction);
@@ -119,10 +131,12 @@ public class TransactionProcessor {
                 updater,
                 context,
                 config,
+                opsDurationCounter,
                 featureFlags,
                 parties.sender().getAddress(),
                 parties.receiverAddress(),
-                gasCharges.intrinsicGas());
+                gasCharges.intrinsicGas(),
+                codeFactory);
 
         // Compute the result of running the frame to completion
         final var result = frameRunner.runToCompletion(
@@ -139,7 +153,7 @@ public class TransactionProcessor {
         initialFrame.getSelfDestructs().forEach(updater::deleteAccount);
 
         // Tries to commit and return the original result; returns a fees-only result on resource exhaustion
-        return safeCommit(result, transaction, updater, context);
+        return safeCommit(result, transaction, updater, context, accessTrackerFor(initialFrame));
     }
 
     private InvolvedParties computeInvolvedPartiesOrAbort(
@@ -148,9 +162,9 @@ public class TransactionProcessor {
             @NonNull final Configuration config) {
         try {
             return computeInvolvedParties(transaction, updater, config);
-        } catch (HandleException e) {
+        } catch (final HandleException e) {
             throw e;
-        } catch (Exception e) {
+        } catch (final Exception e) {
             throw new HandleException(INVALID_TRANSACTION_BODY);
         }
     }
@@ -159,16 +173,23 @@ public class TransactionProcessor {
             @NonNull final HederaEvmTransactionResult result,
             @NonNull final HederaEvmTransaction transaction,
             @NonNull final HederaWorldUpdater updater,
-            @NonNull final HederaEvmContext context) {
+            @NonNull final HederaEvmContext context,
+            @Nullable final StorageAccessTracker accessTracker) {
         try {
             updater.commit();
-        } catch (ResourceExhaustedException e) {
+            if (result.isSuccess()) {
+                final var txStorageUsage = txStorageUsageFrom((ProxyWorldUpdater) updater, accessTracker, true);
+                if (txStorageUsage != null) {
+                    return result.withTxStorageUsage(txStorageUsage);
+                }
+            }
+            return result;
+        } catch (final ResourceExhaustedException e) {
             updater.revert();
             final var sender = updater.getHederaAccount(transaction.senderId());
             return resourceExhaustionFrom(
                     requireNonNull(sender).hederaId(), transaction.gasLimit(), context.gasPrice(), e.getStatus());
         }
-        return result;
     }
 
     /**

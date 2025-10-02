@@ -14,30 +14,33 @@ import java.util.*;
  * @param <V> The value type
  */
 public abstract class WritableKVStateBase<K, V> extends ReadableKVStateBase<K, V> implements WritableKVState<K, V> {
+
     /** A map of all modified values buffered in this mutable state */
     private final Map<K, V> modifications;
-    /**
-     * A list of listeners to be notified of changes to the state.
-     */
+
+    /** A list of listeners to be notified of changes to the state */
     private final List<KVChangeListener<K, V>> listeners = new ArrayList<>();
 
     /**
      * Create a new StateBase.
      *
-     * @param stateKey The state key. Cannot be null.
+     * @param stateId The state ID
+     * @param label The state label
      */
-    protected WritableKVStateBase(@NonNull final String stateKey) {
-        this(stateKey, new LinkedHashMap<>());
+    protected WritableKVStateBase(final int stateId, final String label) {
+        this(stateId, label, new LinkedHashMap<>());
     }
 
     /**
      * Create a new StateBase from the provided map.
      *
-     * @param stateKey The state key. Cannot be null.
+     * @param stateId The state ID
+     * @param label The state label
      * @param modifications A map that is used to init the cache.
      */
-    protected WritableKVStateBase(@NonNull final String stateKey, @NonNull final Map<K, V> modifications) {
-        super(stateKey);
+    protected WritableKVStateBase(
+            final int stateId, @NonNull final String label, @NonNull final Map<K, V> modifications) {
+        super(stateId, label);
         this.modifications = Objects.requireNonNull(modifications);
     }
 
@@ -45,6 +48,7 @@ public abstract class WritableKVStateBase<K, V> extends ReadableKVStateBase<K, V
      * Register a listener to be notified of changes to the state on {@link #commit()}. We do not support unregistering
      * a listener, as the lifecycle of a {@link WritableKVState} is scoped to the set of mutations made to a state in a
      * round; and there is no use case where an application would only want to be notified of a subset of those changes.
+     *
      * @param listener the listener to register
      */
     public void registerListener(@NonNull final KVChangeListener<K, V> listener) {

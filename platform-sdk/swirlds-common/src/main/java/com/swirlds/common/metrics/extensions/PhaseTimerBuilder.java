@@ -4,8 +4,8 @@ package com.swirlds.common.metrics.extensions;
 import static com.swirlds.common.units.TimeUnit.UNIT_MICROSECONDS;
 
 import com.swirlds.base.time.Time;
-import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.units.TimeUnit;
+import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.EnumSet;
 import java.util.Objects;
@@ -16,7 +16,7 @@ import java.util.Set;
  */
 public class PhaseTimerBuilder<T extends Enum<T>> {
 
-    private final PlatformContext platformContext;
+    private final Metrics metrics;
     private final Time time;
     private final Class<T> clazz;
     private final Set<T> phases;
@@ -31,19 +31,19 @@ public class PhaseTimerBuilder<T extends Enum<T>> {
     /**
      * Create a new {@link PhaseTimerBuilder} instance.
      *
-     * @param platformContext the platform context
+     * @param metrics         the metrics provider
      * @param time            the time provider
      * @param metricsCategory the metrics category
      * @param clazz           the enum class that describes the phases
      */
     public PhaseTimerBuilder(
-            @NonNull final PlatformContext platformContext,
+            @NonNull final Metrics metrics,
             @NonNull final Time time,
             @NonNull final String metricsCategory,
             @NonNull final Class<T> clazz) {
 
         this.clazz = Objects.requireNonNull(clazz);
-        this.platformContext = Objects.requireNonNull(platformContext);
+        this.metrics = Objects.requireNonNull(metrics);
         this.time = Objects.requireNonNull(time);
         this.metricsCategory = Objects.requireNonNull(metricsCategory);
         this.phases = EnumSet.allOf(Objects.requireNonNull(clazz));
@@ -122,13 +122,12 @@ public class PhaseTimerBuilder<T extends Enum<T>> {
     }
 
     /**
-     * Get the platform context.
-     *
-     * @return the platform context
+     * Get the metrics provider
+     * @return Metrics provider for this builder
      */
     @NonNull
-    PlatformContext getPlatformContext() {
-        return platformContext;
+    Metrics getMetrics() {
+        return metrics;
     }
 
     /**

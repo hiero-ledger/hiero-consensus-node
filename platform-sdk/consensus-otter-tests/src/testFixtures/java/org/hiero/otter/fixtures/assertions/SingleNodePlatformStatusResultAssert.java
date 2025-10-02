@@ -12,33 +12,33 @@ import java.util.Set;
 import org.assertj.core.api.AbstractAssert;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
-import org.hiero.otter.fixtures.result.SingleNodePlatformStatusResults;
+import org.hiero.otter.fixtures.result.SingleNodePlatformStatusResult;
 
 /**
  * Assertions for {@link SingleNodeConsensusResult}.
  */
 @SuppressWarnings("UnusedReturnValue")
 public class SingleNodePlatformStatusResultAssert
-        extends AbstractAssert<SingleNodePlatformStatusResultAssert, SingleNodePlatformStatusResults> {
+        extends AbstractAssert<SingleNodePlatformStatusResultAssert, SingleNodePlatformStatusResult> {
 
     /**
      * Creates a new instance of {@link SingleNodePlatformStatusResultAssert}.
      *
-     * @param actual the actual {@link SingleNodePlatformStatusResults} to assert
+     * @param actual the actual {@link SingleNodePlatformStatusResult} to assert
      */
-    public SingleNodePlatformStatusResultAssert(@Nullable final SingleNodePlatformStatusResults actual) {
+    public SingleNodePlatformStatusResultAssert(@Nullable final SingleNodePlatformStatusResult actual) {
         super(actual, SingleNodePlatformStatusResultAssert.class);
     }
 
     /**
-     * Creates an assertion for the given {@link SingleNodePlatformStatusResults}.
+     * Creates an assertion for the given {@link SingleNodePlatformStatusResult}.
      *
-     * @param actual the {@link SingleNodePlatformStatusResults} to assert
-     * @return an assertion for the given {@link SingleNodePlatformStatusResults}
+     * @param actual the {@link SingleNodePlatformStatusResult} to assert
+     * @return an assertion for the given {@link SingleNodePlatformStatusResult}
      */
     @NonNull
     public static SingleNodePlatformStatusResultAssert assertThat(
-            @Nullable final SingleNodePlatformStatusResults actual) {
+            @Nullable final SingleNodePlatformStatusResult actual) {
         return new SingleNodePlatformStatusResultAssert(actual);
     }
 

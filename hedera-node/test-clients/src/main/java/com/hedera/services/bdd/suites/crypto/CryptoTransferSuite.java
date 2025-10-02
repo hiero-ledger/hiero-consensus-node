@@ -4,6 +4,7 @@ package com.hedera.services.bdd.suites.crypto;
 import static com.google.protobuf.ByteString.copyFromUtf8;
 import static com.hedera.node.app.hapi.utils.EthSigsUtils.recoverAddressFromPubKey;
 import static com.hedera.services.bdd.junit.TestTags.CRYPTO;
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asAccount;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asAccountString;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asTopicString;
@@ -20,6 +21,7 @@ import static com.hedera.services.bdd.spec.keys.KeyShape.ED25519;
 import static com.hedera.services.bdd.spec.keys.KeyShape.threshOf;
 import static com.hedera.services.bdd.spec.keys.SigControl.OFF;
 import static com.hedera.services.bdd.spec.keys.SigControl.ON;
+import static com.hedera.services.bdd.spec.keys.SigMapGenerator.Nature.FULL_PREFIXES;
 import static com.hedera.services.bdd.spec.keys.TrieSigMapGenerator.uniqueWithFullPrefixesFor;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountDetails;
@@ -111,6 +113,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_MAX_AU
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TOKEN_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.NO_REMAINING_AUTOMATIC_ASSOCIATIONS;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.OK;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_NOT_ASSOCIATED_TO_FEE_COLLECTOR;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TRANSFERS_NOT_ZERO_SUM_FOR_TOKEN;
@@ -128,6 +131,8 @@ import com.hedera.services.bdd.spec.HapiSpecOperation;
 import com.hedera.services.bdd.spec.HapiSpecSetup;
 import com.hedera.services.bdd.spec.assertions.AccountDetailsAsserts;
 import com.hedera.services.bdd.spec.keys.SigControl;
+import com.hedera.services.bdd.spec.keys.TrieSigMapGenerator;
+import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
 import com.hedera.services.bdd.suites.contract.Utils;
 import com.hederahashgraph.api.proto.java.AccountAmount;
 import com.hederahashgraph.api.proto.java.AccountID;
@@ -311,6 +316,7 @@ public class CryptoTransferSuite {
     }
 
     @HapiTest // fees differ expected 46889349 actual 46887567
+    @Tag(MATS)
     final Stream<DynamicTest> canUseAliasAndAccountCombinations() {
         final AtomicReference<TokenID> ftId = new AtomicReference<>();
         final AtomicReference<TokenID> nftId = new AtomicReference<>();
@@ -390,6 +396,7 @@ public class CryptoTransferSuite {
 
     // https://github.com/hashgraph/hedera-services/issues/2875
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> canUseMirrorAliasesForNonContractXfers() {
         final AtomicReference<TokenID> ftId = new AtomicReference<>();
         final AtomicReference<TokenID> nftId = new AtomicReference<>();
@@ -473,6 +480,7 @@ public class CryptoTransferSuite {
 
     @SuppressWarnings("java:S5669")
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> canUseEip1014AliasesForXfers() {
         final var partyCreation2 = "partyCreation2";
         final var counterCreation2 = "counterCreation2";
@@ -595,6 +603,7 @@ public class CryptoTransferSuite {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> cannotTransferFromImmutableAccounts() {
         final var contract = "PayableConstructor";
         final var multiKey = "swiss";
@@ -755,6 +764,7 @@ public class CryptoTransferSuite {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> nftTransfersCannotRepeatSerialNos() {
         final var aParty = "aParty";
         final var bParty = "bParty";
@@ -1033,6 +1043,7 @@ public class CryptoTransferSuite {
 
     @SuppressWarnings("java:S5960")
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> tokenTransferFeesScaleAsExpected() {
         return hapiTest(
                 cryptoCreate("a"),
@@ -1228,6 +1239,7 @@ public class CryptoTransferSuite {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> specialAccountsBalanceCheck() {
         return hapiTest(IntStream.concat(IntStream.range(1, 101), IntStream.range(900, 1001))
                 .mapToObj(i -> withOpContext((spec, log) -> allRunFor(spec, getAccountBalance(String.valueOf(i))))
@@ -1410,6 +1422,7 @@ public class CryptoTransferSuite {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> hapiTransferFromForFungibleTokenWithCustomFeesWithAllowance() {
         final var FUNGIBLE_TOKEN_WITH_FIXED_HBAR_FEE = "fungibleTokenWithFixedHbarFee";
         final var FUNGIBLE_TOKEN_WITH_FIXED_TOKEN_FEE = "fungibleTokenWithFixedTokenFee";
@@ -1653,6 +1666,7 @@ public class CryptoTransferSuite {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> netAdjustmentsMustBeZero() {
         final AtomicReference<AccountID> partyId = new AtomicReference<>();
         final AtomicReference<AccountID> counterId = new AtomicReference<>();
@@ -1688,6 +1702,7 @@ public class CryptoTransferSuite {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> customFeesCannotCauseOverflow() {
         final var secondFeeCollector = "secondFeeCollector";
         return hapiTest(
@@ -1708,6 +1723,7 @@ public class CryptoTransferSuite {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> createHollowAccountWithNftTransferAndCompleteIt() {
         final var tokenA = "tokenA";
         final var hollowAccountKey = "hollowAccountKey";
@@ -1819,5 +1835,229 @@ public class CryptoTransferSuite {
                 tokenDissociate(collector, fungible),
                 cryptoTransfer(movingUnique(nft, 1L).between(party, counterparty))
                         .hasKnownStatus(TOKEN_NOT_ASSOCIATED_TO_FEE_COLLECTOR));
+    }
+
+    /**
+     * Debiting an account's fungible token balance *without* an allowance approval requires its signature.
+     * Debiting an account's fungible token balance *with* an approval waives its signature.
+     */
+    @HapiTest
+    final Stream<DynamicTest> debitingFtBalanceWithoutApprovalRequiresSig() {
+        final String feeDenom = "denom";
+        final String tokenTreasury = "tokenTreasury";
+        final var tokenOwner = "tokenOwner";
+        return hapiTest(
+                // create accounts
+                cryptoCreate(tokenTreasury),
+                cryptoCreate(tokenOwner).receiverSigRequired(true),
+                // create FT
+                tokenCreate(feeDenom).treasury(tokenTreasury).initialSupply(10),
+                // associate
+                tokenAssociate(tokenOwner, feeDenom),
+                // transfer to owner w/o owner's sig should fail
+                cryptoTransfer(moving(10, feeDenom).between(tokenTreasury, tokenOwner))
+                        .signedBy(tokenTreasury)
+                        .payingWithNoSig(tokenOwner)
+                        .hasPrecheck(INVALID_SIGNATURE),
+                // transfer to owner with owner's sig should pass
+                cryptoTransfer(moving(10, feeDenom).between(tokenTreasury, tokenOwner))
+                        .signedBy(tokenTreasury, tokenOwner)
+                        .payingWithNoSig(tokenOwner)
+                        .hasPrecheck(OK),
+                // remove from owner w/o owner's sig should fail
+                cryptoTransfer(moving(5, feeDenom).between(tokenOwner, tokenTreasury))
+                        .payingWithNoSig(tokenTreasury)
+                        .signedBy(tokenTreasury)
+                        .hasKnownStatus(INVALID_SIGNATURE),
+                // remove from owner with owner's sig should pass
+                cryptoTransfer(moving(5, feeDenom).between(tokenOwner, tokenTreasury))
+                        .payingWithNoSig(tokenTreasury)
+                        .signedBy(tokenTreasury, tokenOwner)
+                        .hasKnownStatus(SUCCESS),
+                // now add allowance
+                // owner allows treasury an allowance of 5
+                cryptoApproveAllowance()
+                        .payingWith(tokenTreasury)
+                        .addTokenAllowance(tokenOwner, feeDenom, tokenTreasury, 5L)
+                        .signedBy(tokenTreasury, tokenOwner),
+                // remove from owner w/o sig but with allowance should pass
+                cryptoTransfer(movingWithAllowance(5, feeDenom).between(tokenOwner, tokenTreasury))
+                        .payingWithNoSig(tokenTreasury)
+                        .signedBy(tokenTreasury)
+                        .hasKnownStatus(SUCCESS));
+    }
+
+    /**
+     * Transferring an account's NFT *without* approval requires its signature.
+     * Transferring an account's NFT *with* approval waives its signature.
+     */
+    @HapiTest
+    final Stream<DynamicTest> transferringNftWithoutApprovalRequiresSig() {
+        final var NFT_KEY = "NFT_KEY";
+        final String tokenTreasury = "tokenTreasury";
+        final var tokenOwner = "tokenOwner";
+        final var nonFungibleToken = "nonFungibleToken";
+        return hapiTest(
+                newKeyNamed(NFT_KEY),
+                // create accounts
+                cryptoCreate(tokenTreasury),
+                cryptoCreate(tokenOwner),
+                // create NFT
+                tokenCreate(nonFungibleToken)
+                        .treasury(tokenTreasury)
+                        .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
+                        .initialSupply(0)
+                        .supplyKey(NFT_KEY)
+                        .supplyType(TokenSupplyType.INFINITE),
+                tokenAssociate(tokenOwner, nonFungibleToken),
+                // mint an NFT
+                mintToken(nonFungibleToken, List.of(ByteStringUtils.wrapUnsafely("meta1".getBytes()))),
+
+                // transfer NFT from treasury to owner
+                cryptoTransfer(movingUnique(nonFungibleToken, 1L).between(tokenTreasury, tokenOwner))
+                        .payingWithNoSig(tokenTreasury)
+                        .signedBy(tokenTreasury, tokenOwner),
+                // transfer NFT from owner to treasury w/o owner sig will fail
+                cryptoTransfer(movingUnique(nonFungibleToken, 1L).between(tokenOwner, tokenTreasury))
+                        .payingWithNoSig(tokenTreasury)
+                        .signedBy(tokenTreasury)
+                        .hasKnownStatus(INVALID_SIGNATURE),
+                // now add allowance, owner allows treasury an allowance of 5
+                cryptoApproveAllowance()
+                        .payingWith(tokenTreasury)
+                        .addNftAllowance(tokenOwner, nonFungibleToken, tokenTreasury, true, List.of(1L))
+                        .signedBy(tokenTreasury, tokenOwner)
+                        .fee(ONE_HBAR),
+                // transfer NFT from owner to treasury w/o sig now passes using allowance
+                cryptoTransfer(TokenMovement.movingUniqueWithAllowance(nonFungibleToken, 1L)
+                                .between(tokenOwner, tokenTreasury))
+                        .payingWithNoSig(tokenTreasury)
+                        .signedBy(tokenTreasury)
+                        .hasKnownStatus(SUCCESS));
+    }
+
+    /**
+     * Debiting an account's HBAR *without* approval requires its signature.
+     * Debiting an account's HBAR *with* approval waives its signature.
+     */
+    @HapiTest
+    final Stream<DynamicTest> debitingHBarBalanceWithoutApprovalRequiresSig() {
+        final var tokenTreasury = "tokenTreasury";
+        final var tokenOwner = "tokenOwner";
+        return hapiTest(
+                // create accounts
+                cryptoCreate(tokenTreasury).balance(ONE_MILLION_HBARS),
+                cryptoCreate(tokenOwner).balance(ONE_MILLION_HBARS),
+                // transfer hbar from owner to treasury without owner's sig should fail
+                cryptoTransfer(movingHbar(10).between(tokenOwner, tokenTreasury))
+                        .signedBy(tokenTreasury)
+                        .payingWithNoSig(tokenTreasury)
+                        .hasKnownStatus(INVALID_SIGNATURE),
+                // now add allowance
+                // owner allows treasury an allowance of 5
+                cryptoApproveAllowance()
+                        .payingWith(tokenTreasury)
+                        .addCryptoAllowance(tokenOwner, tokenTreasury, 5L)
+                        .signedBy(tokenTreasury, tokenOwner),
+                // transfer hbar from owner to treasury without owner's sig should pass now
+                cryptoTransfer(TokenMovement.movingHbarWithAllowance(5).between(tokenOwner, tokenTreasury))
+                        .payingWithNoSig(tokenTreasury)
+                        .signedBy(tokenTreasury)
+                        .hasKnownStatus(SUCCESS));
+    }
+
+    /**
+     * Crediting HBAR to an account with receiverSigRequired=true requires its signature.
+     */
+    @HapiTest
+    final Stream<DynamicTest> creditingHBarBalanceRequiresSig() {
+        final var tokenTreasury = "tokenTreasury";
+        final var receiver = "receiver";
+        return hapiTest(
+                cryptoCreate(tokenTreasury).balance(ONE_MILLION_HBARS),
+                // receiver require sig to receive
+                cryptoCreate(receiver).receiverSigRequired(true),
+                // 10hbar from treasury to receiver *without* receiver sig
+                // requires receiver sig, so this will fail
+                cryptoTransfer(movingHbar(10).between(tokenTreasury, receiver))
+                        .payingWithNoSig(tokenTreasury)
+                        .signedBy(tokenTreasury)
+                        .sigMapPrefixes(TrieSigMapGenerator.withNature(FULL_PREFIXES))
+                        .hasKnownStatus(INVALID_SIGNATURE),
+                // try again *with* the receiver sig.
+                cryptoTransfer(movingHbar(10).between(tokenTreasury, receiver))
+                        .payingWithNoSig(tokenTreasury)
+                        .signedBy(tokenTreasury, receiver)
+                        .hasKnownStatus(SUCCESS));
+    }
+
+    /**
+     * Crediting fungible token units to an account with receiverSigRequired=true requires its signature.
+     */
+    @HapiTest
+    final Stream<DynamicTest> creditingFtRequiresSig() {
+        final String feeDenom = "denom";
+        final var treasury = "tokenTreasury";
+        final var receiver = "receiver";
+        return hapiTest(
+                cryptoCreate(treasury).balance(ONE_MILLION_HBARS),
+                // receiver require sig to receive
+                cryptoCreate(receiver).receiverSigRequired(true),
+
+                // create FT
+                tokenCreate(feeDenom).treasury(treasury).initialSupply(10),
+                // associate
+                tokenAssociate(receiver, feeDenom),
+
+                // 5 FT from treasury to receiver *without* receiver sig
+                // requires receiver sig, so this will fail
+                cryptoTransfer(moving(5, feeDenom).between(treasury, receiver))
+                        .payingWithNoSig(treasury)
+                        .signedBy(treasury)
+                        .hasKnownStatus(INVALID_SIGNATURE),
+                // try again *with* the receiver sig.
+                cryptoTransfer(moving(5, feeDenom).between(treasury, receiver))
+                        .payingWithNoSig(treasury)
+                        .signedBy(treasury, receiver)
+                        .hasKnownStatus(SUCCESS));
+    }
+
+    /**
+     * Transferring an NFT to an account with receiverSigRequired=true requires its signature.
+     */
+    @HapiTest
+    final Stream<DynamicTest> transferNftRequiresSig() {
+        final var tokenTreasury = "tokenTreasury";
+        final var tokenReceiver = "receiver";
+        final var NFT_KEY = "NFT_KEY";
+        final var nonFungibleToken = "nonFungibleToken";
+        return hapiTest(
+                newKeyNamed(NFT_KEY),
+                cryptoCreate(tokenTreasury).balance(ONE_MILLION_HBARS),
+                // receiver require sig to receive
+                cryptoCreate(tokenReceiver).receiverSigRequired(true),
+
+                // create nft
+                tokenCreate(nonFungibleToken)
+                        .treasury(tokenTreasury)
+                        .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
+                        .initialSupply(0)
+                        .supplyKey(NFT_KEY)
+                        .supplyType(TokenSupplyType.INFINITE),
+                tokenAssociate(tokenReceiver, nonFungibleToken),
+                // mint nft
+                mintToken(nonFungibleToken, List.of(ByteStringUtils.wrapUnsafely("meta1".getBytes()))),
+
+                // NFT from treasury to receiver *without* receiver sig
+                // requires receiver sig, so this will fail
+                cryptoTransfer(movingUnique(nonFungibleToken, 1L).between(tokenTreasury, tokenReceiver))
+                        .payingWithNoSig(tokenTreasury)
+                        .signedBy(tokenTreasury)
+                        .hasKnownStatus(INVALID_SIGNATURE),
+                // try again *with* the receiver sig.
+                cryptoTransfer(movingUnique(nonFungibleToken, 1L).between(tokenTreasury, tokenReceiver))
+                        .payingWithNoSig(tokenTreasury)
+                        .signedBy(tokenTreasury, tokenReceiver)
+                        .hasKnownStatus(SUCCESS));
     }
 }
