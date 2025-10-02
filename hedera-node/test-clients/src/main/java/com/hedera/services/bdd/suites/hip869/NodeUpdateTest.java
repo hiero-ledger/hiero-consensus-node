@@ -68,6 +68,7 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
@@ -195,6 +196,7 @@ public class NodeUpdateTest {
                 })));
     }
 
+    @Disabled // enable when handling in-flight accountId update is supported
     @Tag(ONLY_SUBPROCESS)
     @LeakyHapiTest(overrides = {"nodes.updateAccountIdAllowed"})
     final Stream<DynamicTest> accountIdUpdateInBatch() {

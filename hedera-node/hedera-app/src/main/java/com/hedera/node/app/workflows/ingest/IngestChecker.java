@@ -20,7 +20,6 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.CREATING_SYSTEM_ENTITIE
 import static com.hedera.hapi.node.base.ResponseCodeEnum.DUPLICATE_TRANSACTION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOKS_NOT_ENABLED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_NODE_ACCOUNT;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_NODE_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.NOT_SUPPORTED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.PLATFORM_NOT_ACTIVE;
@@ -43,19 +42,18 @@ import com.hedera.hapi.node.base.TransferList;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.hapi.node.token.TokenAirdropTransactionBody;
-import com.hedera.node.app.annotations.NodeSelfId;
 import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.fees.FeeContextImpl;
 import com.hedera.node.app.fees.FeeManager;
 import com.hedera.node.app.hapi.utils.EthSigsUtils;
 import com.hedera.node.app.info.CurrentPlatformStatus;
-import com.hedera.node.app.service.addressbook.ReadableNodeStore;
 import com.hedera.node.app.signature.DefaultKeyVerifier;
 import com.hedera.node.app.signature.ExpandedSignaturePair;
 import com.hedera.node.app.signature.SignatureExpander;
 import com.hedera.node.app.signature.SignatureVerifier;
 import com.hedera.node.app.spi.authorization.Authorizer;
 import com.hedera.node.app.spi.fees.FeeContext;
+import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.signatures.SignatureVerification;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.state.DeduplicationCache;
@@ -119,7 +117,7 @@ public final class IngestChecker {
     private final DeduplicationCache deduplicationCache;
     private final TransactionDispatcher dispatcher;
     private final FeeManager feeManager;
-    private final long nodeId;
+    private final NetworkInfo networkInfo;
     private final Authorizer authorizer;
     private final SynchronizedThrottleAccumulator synchronizedThrottleAccumulator;
     private final InstantSource instantSource;
@@ -157,7 +155,7 @@ public final class IngestChecker {
     /**
      * Constructor of the {@code IngestChecker}
      *
-     * @param nodeId the id of the node
+     * @param networkInfo the {@link NetworkInfo} that contains information about the network
      * @param currentPlatformStatus the {@link CurrentPlatformStatus} that contains the current status of the platform
      * @param transactionChecker the {@link TransactionChecker} that pre-processes the bytes of a transaction
      * @param solvencyPreCheck the {@link SolvencyPreCheck} that checks payer balance
@@ -172,7 +170,7 @@ public final class IngestChecker {
      */
     @Inject
     public IngestChecker(
-            @NodeSelfId final long nodeId,
+            @NonNull final NetworkInfo networkInfo,
             @NonNull final CurrentPlatformStatus currentPlatformStatus,
             @NonNull final BlockStreamManager blockStreamManager,
             @NonNull final TransactionChecker transactionChecker,
@@ -187,7 +185,7 @@ public final class IngestChecker {
             @NonNull final InstantSource instantSource,
             @NonNull final OpWorkflowMetrics workflowMetrics,
             @Nullable final AtomicBoolean systemEntitiesCreatedFlag) {
-        this.nodeId = nodeId;
+        this.networkInfo = networkInfo;
         this.currentPlatformStatus = requireNonNull(currentPlatformStatus, "currentPlatformStatus must not be null");
         this.blockStreamManager = requireNonNull(blockStreamManager, "blockStreamManager must not be null");
         this.transactionChecker = requireNonNull(transactionChecker, "transactionChecker must not be null");
@@ -277,12 +275,8 @@ public final class IngestChecker {
         final var functionality = txInfo.functionality();
 
         // 1a. Verify the transaction has been sent to *this* node
-        final var nodeStore = new ReadableStoreFactory(state).getStore(ReadableNodeStore.class);
-        final var node = nodeStore.get(nodeId);
-        if (node == null) {
-            throw new PreCheckException(INVALID_NODE_ID);
-        }
-        if (!node.accountIdOrThrow().equals(txBody.nodeAccountID()) && innerTransaction == NO) {
+        final var nodeAccountId = networkInfo.selfNodeInfo().accountId();
+        if (!nodeAccountId.equals(txBody.nodeAccountID()) && innerTransaction == NO) {
             throw new PreCheckException(INVALID_NODE_ACCOUNT);
         }
 

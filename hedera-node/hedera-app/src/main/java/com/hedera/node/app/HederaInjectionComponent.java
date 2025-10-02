@@ -23,7 +23,6 @@ import com.hedera.node.app.grpc.GrpcServerManager;
 import com.hedera.node.app.hints.HintsService;
 import com.hedera.node.app.history.HistoryService;
 import com.hedera.node.app.info.CurrentPlatformStatus;
-import com.hedera.node.app.info.InfoInjectionModule;
 import com.hedera.node.app.metrics.MetricsInjectionModule;
 import com.hedera.node.app.platform.PlatformModule;
 import com.hedera.node.app.records.BlockRecordInjectionModule;
@@ -86,7 +85,6 @@ import org.hiero.consensus.transaction.TransactionPoolNexus;
             GrpcInjectionModule.class,
             MetricsInjectionModule.class,
             AuthorizerInjectionModule.class,
-            InfoInjectionModule.class,
             BlockRecordInjectionModule.class,
             BlockStreamModule.class,
             PlatformModule.class,

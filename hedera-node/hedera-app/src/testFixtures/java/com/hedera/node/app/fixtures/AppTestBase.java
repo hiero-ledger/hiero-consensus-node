@@ -395,7 +395,7 @@ public class AppTestBase extends TestBase implements TransactionFactory, Scenari
                                     NodeMetadata.newBuilder().rosterEntry(entry).build())
                             .toList())
                     .build();
-            final var networkInfo = new GenesisNetworkInfo(genesisNetwork, Bytes.fromHex("03"));
+            final var networkInfo = new GenesisNetworkInfo(genesisNetwork, Bytes.fromHex("03"), realSelfNodeInfo);
             final var startupNetworks = new FakeStartupNetworks(genesisNetwork);
             services.forEach(svc -> {
                 final var reg = new FakeSchemaRegistry();
@@ -452,6 +452,7 @@ public class AppTestBase extends TestBase implements TransactionFactory, Scenari
     public static class GenesisNetworkInfo implements NetworkInfo {
         private final Bytes ledgerId;
         private final Map<Long, NodeInfo> nodeInfos;
+        private final NodeInfo selfNodeInfo;
 
         /**
          * Constructs a new {@link GenesisNetworkInfo} instance.
@@ -459,9 +460,11 @@ public class AppTestBase extends TestBase implements TransactionFactory, Scenari
          * @param genesisNetwork The genesis network
          * @param ledgerId      The ledger ID
          */
-        public GenesisNetworkInfo(@NonNull final Network genesisNetwork, @NonNull final Bytes ledgerId) {
+        public GenesisNetworkInfo(
+                @NonNull final Network genesisNetwork, @NonNull final Bytes ledgerId, @NonNull NodeInfo selfNodeInfo) {
             this.ledgerId = requireNonNull(ledgerId);
             this.nodeInfos = nodeInfosFrom(genesisNetwork);
+            this.selfNodeInfo = requireNonNull(selfNodeInfo);
         }
 
         /**
@@ -479,7 +482,7 @@ public class AppTestBase extends TestBase implements TransactionFactory, Scenari
         @NonNull
         @Override
         public NodeInfo selfNodeInfo() {
-            throw new UnsupportedOperationException("Not implemented");
+            return selfNodeInfo;
         }
 
         /**

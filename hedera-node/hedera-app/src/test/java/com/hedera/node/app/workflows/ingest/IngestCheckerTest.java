@@ -11,7 +11,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.FAIL_FEE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_TX_FEE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_NODE_ID;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_NODE_ACCOUNT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
@@ -22,6 +22,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.WAITING_FOR_LEDGER_ID;
 import static com.hedera.node.app.spi.fixtures.workflows.ExceptionConditions.estimatedFee;
 import static com.hedera.node.app.spi.fixtures.workflows.ExceptionConditions.responseCode;
 import static com.hedera.node.app.workflows.handle.dispatch.DispatchValidator.WorkflowCheck.INGEST;
+import static com.swirlds.platform.system.address.AddressBookUtils.endpointFor;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -55,11 +56,13 @@ import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.fees.FeeManager;
 import com.hedera.node.app.fixtures.AppTestBase;
 import com.hedera.node.app.info.CurrentPlatformStatus;
+import com.hedera.node.app.info.NodeInfoImpl;
 import com.hedera.node.app.signature.SignatureExpander;
 import com.hedera.node.app.signature.SignatureVerificationFuture;
 import com.hedera.node.app.signature.SignatureVerifier;
 import com.hedera.node.app.spi.authorization.Authorizer;
 import com.hedera.node.app.spi.fees.Fees;
+import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.spi.signatures.SignatureVerification;
 import com.hedera.node.app.spi.workflows.InsufficientBalanceException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
@@ -77,6 +80,7 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import java.time.Instant;
 import java.time.InstantSource;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeoutException;
@@ -152,6 +156,7 @@ class IngestCheckerTest extends AppTestBase {
     @BeforeEach
     void setUp() throws PreCheckException {
         setupStandardStates();
+        final var app = appBuilder().withSelfNode(selfNodeInfo).build();
         when(currentPlatformStatus.get()).thenReturn(PlatformStatus.ACTIVE);
 
         configuration = new VersionedConfigImpl(HederaTestConfigBuilder.createConfig(), 1L);
@@ -180,7 +185,7 @@ class IngestCheckerTest extends AppTestBase {
         when(dispatcher.dispatchComputeFees(any())).thenReturn(DEFAULT_FEES);
 
         subject = new IngestChecker(
-                nodeSelfId.id(),
+                app.networkInfo(),
                 currentPlatformStatus,
                 blockStreamManager,
                 transactionChecker,
@@ -247,8 +252,10 @@ class IngestCheckerTest extends AppTestBase {
     @DisplayName("A wrong nodeId in transaction fails")
     void testWrongNodeIdFails() {
         // Given a transaction with an unknown node ID
+        final var tempApp =
+                appBuilder().withSelfNode(buildNodeWithAccountId(9L)).build();
         subject = new IngestChecker(
-                nodeSelfAccountId.accountNumOrElse(0L) + 1L,
+                tempApp.networkInfo(),
                 currentPlatformStatus,
                 blockStreamManager,
                 transactionChecker,
@@ -267,7 +274,7 @@ class IngestCheckerTest extends AppTestBase {
         // Then the checker should throw a PreCheckException
         assertThatThrownBy(() -> subject.runAllChecks(state, serializedTx, configuration, new IngestChecker.Result()))
                 .isInstanceOf(PreCheckException.class)
-                .has(responseCode(INVALID_NODE_ID));
+                .has(responseCode(INVALID_NODE_ACCOUNT));
         verify(opWorkflowMetrics, never()).incrementThrottled(any());
     }
 
@@ -831,5 +838,29 @@ class IngestCheckerTest extends AppTestBase {
                     .hasMessageContaining("checkPayerSignature exception");
             verify(opWorkflowMetrics, never()).incrementThrottled(any());
         }
+    }
+
+    private NodeInfo buildNodeWithAccountId(long accountNum) {
+        final AccountID nodeSelfAccountId = AccountID.newBuilder()
+                .shardNum(0)
+                .realmNum(0)
+                .accountNum(accountNum)
+                .build();
+
+        final Account nodeSelfAccount = Account.newBuilder()
+                .accountId(nodeSelfAccountId)
+                .key(FAKE_ED25519_KEY_INFOS[0].publicKey())
+                .declineReward(true)
+                .build();
+
+        return new NodeInfoImpl(
+                7,
+                nodeSelfAccountId,
+                10,
+                List.of(endpointFor("127.0.0.1", 50211), endpointFor("127.0.0.1", 23456)),
+                Bytes.wrap("cert7"),
+                List.of(endpointFor("127.0.0.1", 50211), endpointFor("127.0.0.1", 23456)),
+                false,
+                null);
     }
 }
