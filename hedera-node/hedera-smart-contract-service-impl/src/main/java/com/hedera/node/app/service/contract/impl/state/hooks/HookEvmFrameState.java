@@ -1,14 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.hedera.node.app.service.contract.impl.state;
+package com.hedera.node.app.service.contract.impl.state.hooks;
 
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.HtsSystemContract.HTS_HOOKS_16D_CONTRACT_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.HtsSystemContract.HTS_HOOKS_16D_CONTRACT_ID;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
-import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.HookId;
 import com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations;
+import com.hedera.node.app.service.contract.impl.state.ContractStateStore;
+import com.hedera.node.app.service.contract.impl.state.DispatchingEvmFrameState;
+import com.hedera.node.app.service.contract.impl.state.WritableEvmHookStore;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import org.hyperledger.besu.datatypes.Address;
@@ -18,9 +20,7 @@ import org.hyperledger.besu.evm.code.CodeFactory;
 /**
  * EVM frame state used during hook execution. For address 0x16d, it returns
  * the executing hook's contract bytecode (fetched from the hook store).
- * <p>
- * (Additional behavior like storage redirection and debit-from-owner will be
- * added here in follow-ups.)
+ * TODO: Additional behavior like storage redirection and debit-from-owner will be added here in next PRs
  */
 public class HookEvmFrameState extends DispatchingEvmFrameState {
     private final WritableEvmHookStore evmHookStore;
@@ -43,9 +43,14 @@ public class HookEvmFrameState extends DispatchingEvmFrameState {
         this.codeFactory = requireNonNull(codeFactory);
     }
 
+    /**
+     * When accessing account while executing hook, return a proxy account that
+     * fetches the bytecode from the hook store using the hookId.
+     * Otherwise, delegate to the parent class to handle.
+     */
     @Override
     protected @Nullable MutableAccount getAccountInternal(final AccountID accountID, final Address address) {
-        if (isHookContract(address)) {
+        if (address.equals(HTS_HOOKS_16D_CONTRACT_ADDRESS)) {
             final var evmHookState = requireNonNull(evmHookStore.getEvmHook(hookId));
             return new ProxyEvmHook(this, evmHookState, codeFactory);
         }
@@ -58,13 +63,5 @@ public class HookEvmFrameState extends DispatchingEvmFrameState {
             return HTS_HOOKS_16D_CONTRACT_ADDRESS;
         }
         return super.getAddressInternal(number);
-    }
-
-    public static boolean isHookContract(@NonNull final ContractID contractID) {
-        return HTS_HOOKS_16D_CONTRACT_ID.equals(contractID);
-    }
-
-    public static boolean isHookContract(@NonNull final Address address) {
-        return address.equals(HTS_HOOKS_16D_CONTRACT_ADDRESS);
     }
 }

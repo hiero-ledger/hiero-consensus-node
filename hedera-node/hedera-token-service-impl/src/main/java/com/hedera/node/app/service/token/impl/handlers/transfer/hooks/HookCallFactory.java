@@ -88,7 +88,6 @@ public class HookCallFactory {
                 accountStore,
                 preOnly,
                 prePost);
-        log.info("XXXX Direct transfers: {}", directTransfers);
         // Encode custom fee transfers
         final var customFeeTransfers = encodeCustomFees(accountStore, assessedFeeWithPayerDebits);
         return new HookCalls(

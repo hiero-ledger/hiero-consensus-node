@@ -125,6 +125,7 @@ public class TransactionProcessor {
             @NonNull final Configuration config,
             @NonNull final OpsDurationCounter opsDurationCounter,
             @NonNull final InvolvedParties parties) {
+        // If it is hook dispatch, skip gas charging because gas is pre-paid in cryptoTransfer already
         final var gasCharges = transaction.isHookDispatch()
                 ? GasCharges.NONE
                 : gasCharging.chargeForGas(parties.sender(), parties.relayer(), context, updater, transaction);
@@ -144,7 +145,9 @@ public class TransactionProcessor {
         final var result = frameRunner.runToCompletion(
                 transaction.gasLimit(), parties.senderId(), initialFrame, tracer, messageCall, contractCreation);
 
-        // Maybe refund some of the charged fees before committing
+        // Maybe refund some of the charged fees before committing if not a hook dispatch
+        // Note that for hook dispatch, gas is charged during cryptoTransfer and will not be refunded once
+        // hook is executed
         if (!transaction.isHookDispatch()) {
             gasCharging.maybeRefundGiven(
                     transaction.unusedGas(result.gasUsed()),

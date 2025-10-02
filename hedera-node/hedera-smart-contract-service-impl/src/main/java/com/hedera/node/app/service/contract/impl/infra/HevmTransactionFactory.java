@@ -11,6 +11,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.ERROR_DECODING_BYTESTRI
 import static com.hedera.hapi.node.base.ResponseCodeEnum.FILE_DELETED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_GAS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_CONTRACT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ETHEREUM_TRANSACTION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_FILE_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_MAX_AUTO_ASSOCIATIONS;
@@ -171,6 +172,15 @@ public class HevmTransactionFactory {
                 null);
     }
 
+    /**
+     * Create a {@link HederaEvmTransaction} from a {@link HookDispatchTransactionBody}. Always use the HTS
+     * 0x16d allowance contract as the target contract to execute the hook.
+     *
+     * @param payer the payer of the transaction
+     * @param body the {@link HookDispatchTransactionBody}
+     * @return the created {@link HederaEvmTransaction}
+     * @throws HandleException if the {@link HookDispatchTransactionBody} is invalid
+     */
     private HederaEvmTransaction fromHookDispatch(
             @NonNull final AccountID payer, @NonNull final HookDispatchTransactionBody body) {
         assertValidHookDispatch(body);
@@ -329,6 +339,12 @@ public class HevmTransactionFactory {
         }
     }
 
+    /**
+     * Validates the given {@link HookDispatchTransactionBody} used to convert to a {@link HederaEvmTransaction}.
+     *
+     * @param body the {@link HookDispatchTransactionBody} to validate
+     * @throws HandleException if the {@link HookDispatchTransactionBody} is invalid
+     */
     private void assertValidHookDispatch(@NonNull final HookDispatchTransactionBody body) {
         final var execution = body.executionOrThrow();
 
@@ -338,11 +354,12 @@ public class HevmTransactionFactory {
 
         final var entityId = execution.hookEntityIdOrThrow();
 
-        final var account = entityId.hasAccountId()
+        final var isAccount = entityId.hasAccountId();
+        final var entity = isAccount
                 ? accountStore.getAccountById(entityId.accountIdOrThrow())
                 : accountStore.getContractById(entityId.contractIdOrThrow());
-        validateTrue(account != null, INVALID_ACCOUNT_ID);
-        validateTrue(!account.deleted(), ACCOUNT_DELETED);
+        validateTrue(entity != null, isAccount ? INVALID_ACCOUNT_ID : INVALID_CONTRACT_ID);
+        validateTrue(!entity.deleted(), isAccount ? ACCOUNT_DELETED : CONTRACT_DELETED);
     }
 
     private void assertValidCreation(@NonNull final ContractCreateTransactionBody body) {

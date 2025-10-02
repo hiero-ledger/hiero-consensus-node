@@ -591,7 +591,15 @@ public class DispatchingEvmFrameState implements EvmFrameState {
         }
         return account;
     }
-
+    /**
+     * Returns the mutable account for the given account ID and address, or null if the account is
+     * deleted, expired-and-pending-removal, or (if the account has an EVM address) the given
+     * address is not the priority address for the account.
+     *
+     * @param accountID the account ID of the desired account
+     * @param address   the address to use to disambiguate (if necessary)
+     * @return the mutable account, or null if not found or not valid for use
+     */
     protected @Nullable MutableAccount getAccountInternal(final AccountID accountID, final Address address) {
         final var account = nativeOperations.getAccount(accountID);
         if (account != null) {
@@ -606,7 +614,14 @@ public class DispatchingEvmFrameState implements EvmFrameState {
         }
         return null;
     }
-
+    /**
+     * Returns the EVM address for the given account number, or null if no such account exists or
+     * the account is deleted. If the account has no alias, returns the "long zero" address
+     * corresponding to the account number.
+     *
+     * @param number the account number
+     * @return the EVM address, or null if no such account exists or the account is deleted
+     */
     protected @Nullable Address getAddressInternal(final long number) {
         final AccountID accountID = entityIdFactory().newAccountId(number);
         final var account = nativeOperations.getAccount(accountID);

@@ -237,7 +237,6 @@ public interface TransactionModule {
         // If this EVM tx is for a hook, the factory returned here will
         // create "hook-aware" EvmFrameState's that e.g. return the executing
         // hook contract's bytecode from address 0x16d
-        // Produces the concrete factory for *this* transaction
         return evmFrameStates.from(operations, nativeOperations, codeFactory);
     }
 }

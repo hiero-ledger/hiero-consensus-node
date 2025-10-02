@@ -155,10 +155,10 @@ public class FrameBuilder {
             contextEntries.put(
                     PENDING_CREATION_BUILDER_CONTEXT_VARIABLE, context.pendingCreationRecordBuilderReference());
         }
+        contextEntries.put(OPS_DURATION_COUNTER, opsDurationCounter);
         if (hookDispatch) {
             contextEntries.put(IS_HOOK_VARIABLE, true);
         }
-        contextEntries.put(OPS_DURATION_COUNTER, opsDurationCounter);
         return contextEntries;
     }
 

@@ -126,7 +126,6 @@ public interface QueryModule {
             @NonNull final CodeFactory codeFactory,
             @NonNull final HederaOperations operations,
             @NonNull final HederaNativeOperations nativeOperations) {
-        // Produces the concrete factory for *this* transaction
         return evmFrameStates.from(operations, nativeOperations, codeFactory);
     }
 

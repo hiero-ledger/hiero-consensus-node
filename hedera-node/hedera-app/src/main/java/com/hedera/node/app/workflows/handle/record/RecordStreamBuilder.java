@@ -1132,7 +1132,7 @@ public class RecordStreamBuilder
                 contractFunctionResult.contractCallResult(),
                 contractFunctionResult.errorMessage(),
                 contractFunctionResult.gasUsed(),
-                null);
+                null); //  Do we need to construct this?
     }
 
     /**

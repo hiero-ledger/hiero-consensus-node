@@ -17,11 +17,12 @@ import com.hedera.hapi.node.base.HookId;
 import com.hedera.node.app.hapi.utils.fee.SigValueObj;
 import com.hedera.node.app.hapi.utils.fee.SmartContractFeeBuilder;
 import com.hedera.node.app.service.contract.impl.ContractServiceComponent;
+import com.hedera.node.app.service.contract.impl.exec.CallOutcome;
 import com.hedera.node.app.service.contract.impl.exec.TransactionComponent;
 import com.hedera.node.app.service.contract.impl.records.ContractCallStreamBuilder;
 import com.hedera.node.app.service.contract.impl.state.EvmFrameStates;
-import com.hedera.node.app.service.contract.impl.state.HookEvmFrameStateFactory;
 import com.hedera.node.app.service.contract.impl.state.WritableEvmHookStore;
+import com.hedera.node.app.service.contract.impl.state.hooks.HookEvmFrameStateFactory;
 import com.hedera.node.app.service.token.records.HookDispatchStreamBuilder;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
@@ -68,13 +69,6 @@ public class HookDispatchHandler extends AbstractContractTransactionHandler impl
     }
 
     @Override
-    @NonNull
-    public Fees calculateFees(@NonNull final FeeContext feeContext) {
-        // All charges are upfront in CryptoTransfer, so no fees here
-        return Fees.FREE;
-    }
-
-    @Override
     public void handle(@NonNull final HandleContext context) throws HandleException {
         final var evmHookStore = context.storeFactory().writableStore(WritableEvmHookStore.class);
         final var op = context.body().hookDispatchOrThrow();
@@ -118,15 +112,24 @@ public class HookDispatchHandler extends AbstractContractTransactionHandler impl
                 final EvmFrameStates evmFrameStates = (ops, nativeOps, codeFactory) ->
                         new HookEvmFrameStateFactory(ops, nativeOps, codeFactory, evmHookStore, hookKey);
 
-                // Create the transaction-scoped component using the hook-aware strategy
-                final var component = getTransactionComponent(context, CONTRACT_CALL, evmFrameStates);
+                // Create the transaction-scoped component. Use ContractCall functionality since
+                // we are just calling a contract (the hook)
+                final TransactionComponent component = getTransactionComponent(context, CONTRACT_CALL, evmFrameStates);
 
                 // Run transaction and write record as usual
-                final var outcome = component.contextTransactionProcessor().call();
+                final CallOutcome outcome =
+                        component.contextTransactionProcessor().call();
                 final var streamBuilder = context.savepointStack().getBaseBuilder(ContractCallStreamBuilder.class);
                 outcome.addCallDetailsTo(streamBuilder, context);
             }
         }
+    }
+
+    @Override
+    @NonNull
+    public Fees calculateFees(@NonNull final FeeContext feeContext) {
+        // All charges are upfront in CryptoTransfer, so no fees here
+        return Fees.FREE;
     }
 
     @NonNull
@@ -135,6 +138,7 @@ public class HookDispatchHandler extends AbstractContractTransactionHandler impl
             @NonNull final SmartContractFeeBuilder usageEstimator,
             @NonNull final TransactionBody txBody,
             @NonNull final SigValueObj sigValObj) {
+        // No fees for HookDispatch
         return FeeData.getDefaultInstance();
     }
 }

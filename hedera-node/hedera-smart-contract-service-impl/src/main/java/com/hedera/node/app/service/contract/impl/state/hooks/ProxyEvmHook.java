@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.hedera.node.app.service.contract.impl.state;
+package com.hedera.node.app.service.contract.impl.state.hooks;
 
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.HtsSystemContract.HTS_HOOKS_16D_CONTRACT_ADDRESS;
 import static java.util.Objects.requireNonNull;
@@ -8,6 +8,8 @@ import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.HookId;
 import com.hedera.hapi.node.state.hooks.EvmHookState;
+import com.hedera.node.app.service.contract.impl.state.AbstractProxyEvmAccount;
+import com.hedera.node.app.service.contract.impl.state.EvmFrameState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.apache.tuweni.bytes.Bytes;
 import org.hyperledger.besu.datatypes.Address;
@@ -16,18 +18,16 @@ import org.hyperledger.besu.evm.Code;
 import org.hyperledger.besu.evm.code.CodeFactory;
 
 /**
- * A concrete subclass of {@link AbstractProxyEvmAccount} that represents a contract account.
- *
- * Responsible for retrieving the redirectForAccount proxy contract byte code from {@link EvmFrameState}
- * if the function selector is eligible for proxy redirection.
- * Otherwise, it returns the 0x bytecode.
- *
+ * A concrete subclass of {@link AbstractProxyEvmAccount} that represents a hook.
+ * <p>
+ * Responsible for retrieving the contract byte code from hook's contract. Always returns the address of the
+ * Allowance hook address (0x16d). Otherwise, use all the information from the owner of the hook.
  */
 public class ProxyEvmHook extends AbstractProxyEvmAccount {
     private final EvmHookState hookState;
     private final CodeFactory codeFactory;
 
-    protected ProxyEvmHook(
+    public ProxyEvmHook(
             @NonNull final EvmFrameState state, @NonNull final EvmHookState hookState, final CodeFactory codeFactory) {
         super(getOwnerId(hookState.hookId()), state);
         this.hookState = requireNonNull(hookState);

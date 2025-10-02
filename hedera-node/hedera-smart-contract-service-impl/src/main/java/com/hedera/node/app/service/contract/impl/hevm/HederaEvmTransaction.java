@@ -58,10 +58,6 @@ public record HederaEvmTransaction(
         return !isEthereumTransaction() && !isCreate();
     }
 
-    public boolean isHookDispatch() {
-        return hookDispatch != null;
-    }
-
     public boolean isException() {
         return exception != null;
     }
@@ -137,5 +133,14 @@ public record HederaEvmTransaction(
                 this.hapiCreation,
                 exception,
                 this.hookDispatch);
+    }
+
+    /**
+     * Check if this transaction is a hook dispatch transaction
+     *
+     * @return true if this transaction is a hook dispatch transaction, false otherwise
+     */
+    public boolean isHookDispatch() {
+        return hookDispatch != null;
     }
 }

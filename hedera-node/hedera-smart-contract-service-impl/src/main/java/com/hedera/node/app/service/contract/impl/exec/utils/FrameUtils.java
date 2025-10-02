@@ -370,7 +370,12 @@ public class FrameUtils {
                 .findAny()
                 .isEmpty();
     }
-
+    /**
+     * Returns true if the given frame is part of a hook execution.
+     *
+     * @param frame the current frame
+     * @return true if the frame is part of a hook execution
+     */
     public static boolean isHookExecution(@NonNull final MessageFrame frame) {
         return Boolean.TRUE.equals(initialFrameOf(frame).getContextVariable(IS_HOOK_VARIABLE));
     }

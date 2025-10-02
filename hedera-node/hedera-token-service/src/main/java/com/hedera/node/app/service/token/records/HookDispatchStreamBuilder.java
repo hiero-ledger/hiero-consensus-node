@@ -23,5 +23,10 @@ public interface HookDispatchStreamBuilder extends StreamBuilder {
      */
     long getNextHookId();
 
+    /**
+     * Returns the EVM transaction result to be recorded in the record stream
+     *
+     * @return the EVM transaction result
+     */
     EvmTransactionResult getEvmTransactionResult();
 }
