@@ -375,15 +375,15 @@ jobs:
           echo "run_number=${{ github.run_number }}" | tee -a "${{ github.workspace }}"/version_run.txt
           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" cp "${{ github.workspace }}"/version_run.txt ${nlgpod}:/app/
 
-      - name: Distribution of K8S nodes, SysAdm Grafana
+      - name: Distribution of K8S nodes, SysAdmin Grafana
         run: |
           set +x
           set +e
 
           start_date=$(date +%Y-%m-%dT%T)
-          echo "NAME                                                  STATUS    NODE                                     GRAFANA"
+          echo "NAME                                                  STATUS    GRAFANA"
           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods -o=custom-columns=NAME:.metadata.name,STATUS:.status.phase,NODE:.spec.nodeName | grep -v -w STATUS |\
-          awk "{print \$0\" ${{ steps.set-k8s-cluster.outputs.grafana-url }}&var-nodename=\"\$3\"&from=${start_date}\"}"
+            perl -ne "if (/^([^\s]+\s+)([^\s]+\s+)([^\s]+)\s*$/) {print \"\$1\$2\[\$3\](${GRAFANA_URL}&from=${start_date}&var-nodename=\$3)\n\"}"
 
       - name: Start Longevity test
         run: |
