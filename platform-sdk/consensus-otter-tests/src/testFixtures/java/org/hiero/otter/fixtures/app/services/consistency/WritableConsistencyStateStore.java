@@ -27,11 +27,6 @@ public class WritableConsistencyStateStore {
         singletonState = writableStates.getSingleton(CONSISTENCY_SINGLETON_STATE_ID.id());
     }
 
-    public long getRunningChecksum() {
-        final ConsistencyState consistencyState = requireNonNull(singletonState.get());
-        return consistencyState.runningChecksum();
-    }
-
     /**
      * Gets the current running checksum.
      *

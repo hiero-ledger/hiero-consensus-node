@@ -14,6 +14,7 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.test.fixtures.WeightGenerator;
 import com.swirlds.common.test.fixtures.WeightGenerators;
 import com.swirlds.common.utility.Threshold;
+import com.swirlds.logging.legacy.payload.IssPayload;
 import com.swirlds.platform.crypto.CryptoStatic;
 import com.swirlds.platform.gossip.shadowgraph.SyncFallenBehindStatus;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -34,6 +35,7 @@ import java.util.Map;
 import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import org.apache.logging.log4j.LogManager;
@@ -71,6 +73,7 @@ import org.hiero.otter.fixtures.result.SingleNodeMarkerFileResult;
 import org.hiero.otter.fixtures.result.SingleNodePcesResult;
 import org.hiero.otter.fixtures.result.SingleNodePlatformStatusResult;
 import org.hiero.otter.fixtures.result.SingleNodeReconnectResult;
+import org.hiero.otter.fixtures.result.SubscriberAction;
 
 /**
  * An abstract base class for a network implementation that provides common functionality shared by the different
@@ -448,7 +451,8 @@ public abstract class AbstractNetwork implements Network {
         final Duration elapsed = Duration.between(start, timeManager().now());
 
         log.debug("Waiting for Catastrophic ISS to trigger...");
-        timeManager().waitForCondition(() -> this.allNodesInStatus(CATASTROPHIC_FAILURE), defaultTimeout.minus(elapsed));
+        timeManager().waitForCondition(() -> this.allNodesInStatus(CATASTROPHIC_FAILURE), defaultTimeout.minus(elapsed),
+                "Nodes did not enter CATASTROPHIC_FAILURE before timeout");
     }
 
     /**
@@ -464,14 +468,19 @@ public abstract class AbstractNetwork implements Network {
         throwIfInState(State.SHUTDOWN, "Network has been shut down.");
 
         log.info("Sending Self ISS triggering transaction...");
+        final Instant start = timeManager().now();
         final byte[] issTransaction = TransactionFactory.createSelfIssTransaction(random.nextLong(), node)
                 .toByteArray();
+
+        final AtomicBoolean issPayloadFound = node.newLogResult().findNextLogPayload(IssPayload.class.getName());
+
         submitTransaction(issTransaction);
+        final Duration elapsed = Duration.between(start, timeManager().now());
 
         log.debug("Waiting for Self ISS to trigger...");
 
-        // TODO continuously check the logs of this node for the self ISS log payload
-//        timeManager().waitForCondition(() -> node.newLogResult().);
+        timeManager().waitForCondition(issPayloadFound::get, timeout.minus(elapsed),
+                "Did not receive IssPayload log before timeout");
     }
 
     /**

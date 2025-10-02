@@ -2,12 +2,16 @@
 package org.hiero.otter.fixtures.result;
 
 import com.swirlds.logging.legacy.LogMarker;
+import com.swirlds.logging.legacy.payload.IssPayload;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import org.apache.logging.log4j.Marker;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.otter.fixtures.container.proto.LogEntry;
 import org.hiero.otter.fixtures.logging.StructuredLog;
 
 /**
@@ -62,4 +66,24 @@ public interface SingleNodeLogResult extends OtterResult {
      * @param subscriber the subscriber that will receive the log entries
      */
     void subscribe(@NonNull LogSubscriber subscriber);
+
+    /**
+     * Sets up a temporary subscription to find the next log entry that contains the specified string payload. When
+     * the next match is found, the subscription is canceled and the returned AtomicBoolean is set to true.
+     *
+     * @param payload the payload to search for
+     * @return an AtomicBoolean that will be set to true if/when a matching log entry is found
+     */
+    default AtomicBoolean findNextLogPayload(@NonNull final String payload) {
+        final AtomicBoolean found = new AtomicBoolean(false);
+        subscribe(structuredLog -> {
+            if (structuredLog.message().contains(payload)) {
+                found.set(true);
+                return SubscriberAction.UNSUBSCRIBE;
+            }
+            return SubscriberAction.CONTINUE;
+        });
+        return found;
+    }
+
 }

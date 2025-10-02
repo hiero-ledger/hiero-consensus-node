@@ -222,7 +222,9 @@ public abstract class AbstractNode implements Node {
         doStopSyntheticBottleneck(DEFAULT_TIMEOUT);
     }
 
-    @Override
+    /**
+     * {@inheritDoc}
+     */
     public AsyncNodeActions withTimeout(@NonNull final Duration timeout) {
         return new AsyncNodeActionsImpl(timeout);
     }
