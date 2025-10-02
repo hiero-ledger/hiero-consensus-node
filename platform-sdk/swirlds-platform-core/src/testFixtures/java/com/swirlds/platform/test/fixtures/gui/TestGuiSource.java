@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.fixtures.gui;
 
+import com.hedera.hapi.node.state.roster.Roster;
+import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.platform.event.GossipEvent;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.common.context.PlatformContext;
@@ -44,15 +46,15 @@ public class TestGuiSource {
      * Construct a {@link TestGuiSource} with the given platform context, address book, and event provider.
      *
      * @param platformContext the platform context
-     * @param addressBook     the address book
+     * @param roster     the roster
      * @param eventProvider   the event provider
      */
     public TestGuiSource(
             @NonNull final PlatformContext platformContext,
-            @NonNull final AddressBook addressBook,
+            @NonNull final Roster roster,
             @NonNull final GuiEventProvider eventProvider) {
-        this.eventStorage = new GuiEventStorage(platformContext.getConfiguration(), addressBook);
-        this.guiSource = new StandardGuiSource(addressBook, eventStorage);
+        this.eventStorage = new GuiEventStorage(platformContext.getConfiguration(), roster);
+        this.guiSource = new StandardGuiSource(roster, eventStorage);
         this.eventProvider = eventProvider;
         this.orphanBuffer = new DefaultOrphanBuffer(
                 platformContext.getConfiguration(), platformContext.getMetrics(), new NoOpIntakeEventCounter());
@@ -200,7 +202,8 @@ public class TestGuiSource {
 
         if (eventProvider instanceof GeneratorEventProvider) {
             final List<ForkingEventSource> forkingEventSources = new ArrayList<>();
-            for (final NodeId nodeId : guiSource.getAddressBook().getNodeIdSet()) {
+            for (final NodeId nodeId : guiSource.getRoster().rosterEntries().stream().map(RosterEntry::nodeId)
+                    .map(NodeId::of).toList()) {
                 if (((GeneratorEventProvider) eventProvider).getNodeSource(nodeId)
                         instanceof ForkingEventSource forkingEventSource) {
                     forkingEventSources.add(forkingEventSource);

@@ -26,6 +26,7 @@ import static com.swirlds.platform.util.BootstrapUtils.getNodesToRun;
 import static com.swirlds.platform.util.BootstrapUtils.loadSwirldMains;
 import static com.swirlds.platform.util.BootstrapUtils.setupBrowserWindow;
 
+import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.util.HapiUtils;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
@@ -78,6 +79,7 @@ import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.roster.AddressBook;
 import org.hiero.consensus.roster.RosterHistory;
+import org.hiero.consensus.roster.RosterRetriever;
 import org.hiero.consensus.roster.RosterUtils;
 
 /**
@@ -192,6 +194,7 @@ public class Browser {
         final HashgraphGuiSource guiSource;
         Metrics guiMetrics = null;
         if (showUi) {
+            final Roster guiRoster = RosterRetriever.buildRoster(appDefinition.getConfigAddressBook());
             setupBrowserWindow();
             setStateHierarchy(new StateHierarchy(null));
             final InfoApp infoApp = getStateHierarchy().getInfoApp(appDefinition.getApplicationName());
@@ -199,9 +202,9 @@ public class Browser {
             new InfoMember(infoSwirld, "Node" + nodesToRun.getFirst().id());
 
             initNodeSecurity(appDefinition.getConfigAddressBook(), bootstrapConfiguration, Set.copyOf(nodesToRun));
-            guiEventStorage = new GuiEventStorage(bootstrapConfiguration, appDefinition.getConfigAddressBook());
+            guiEventStorage = new GuiEventStorage(bootstrapConfiguration, guiRoster);
 
-            guiSource = new StandardGuiSource(appDefinition.getConfigAddressBook(), guiEventStorage);
+            guiSource = new StandardGuiSource(guiRoster, guiEventStorage);
         } else {
             guiSource = null;
             guiEventStorage = null;

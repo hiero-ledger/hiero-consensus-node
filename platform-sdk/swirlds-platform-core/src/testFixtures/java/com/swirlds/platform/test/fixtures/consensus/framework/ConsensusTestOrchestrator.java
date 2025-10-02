@@ -55,12 +55,9 @@ public class ConsensusTestOrchestrator {
     @SuppressWarnings("unused") // useful for debugging
     public void runGui() {
         final ConsensusTestNode node = nodes.stream().findAny().orElseThrow();
-        final AddressBook addressBook =
-                node.getEventEmitter().getGraphGenerator().getAddressBook();
-
         new TestGuiSource(
                         platformContext,
-                        addressBook,
+                        node.getEventEmitter().getGraphGenerator().getRoster(),
                         new ListEventProvider(node.getOutput().getAddedEvents()))
                 .runGui();
     }
