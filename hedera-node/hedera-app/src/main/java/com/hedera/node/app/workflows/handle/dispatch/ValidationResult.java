@@ -141,14 +141,9 @@ public record ValidationResult(
      * @return the error report
      */
     @NonNull
-    public static ValidationResult newGenesisWaiver(@NonNull final AccountID creatorId) {
+    public static ValidationResult newWaiver(@NonNull final AccountID creatorId) {
         requireNonNull(creatorId);
         return new ValidationResult(creatorId, null, null, null, CAN_PAY_SERVICE_FEE, NO_DUPLICATE);
-    }
-
-    public static ValidationResult newStateSigWaiver(@NonNull final AccountID CreatorId) {
-        requireNonNull(CreatorId);
-        return new ValidationResult(CreatorId, null, null, null, CAN_PAY_SERVICE_FEE, NO_DUPLICATE);
     }
 
     /**

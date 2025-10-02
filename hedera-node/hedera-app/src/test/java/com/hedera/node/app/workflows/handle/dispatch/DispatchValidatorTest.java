@@ -111,6 +111,7 @@ class DispatchValidatorTest {
     @Test
     void dueDiligencePreHandleIsCreatorError() {
         givenCreatorInfo();
+        given(dispatch.txnInfo()).willReturn(TXN_INFO);
         given(dispatch.preHandleResult()).willReturn(INVALID_PAYER_SIG_PREHANDLE);
 
         final var report = subject.validateFeeChargingScenario(dispatch);
@@ -377,6 +378,7 @@ class DispatchValidatorTest {
     @Test
     void missingPayerIsFailInvalidForChildDispatch() {
         givenChildDispatch();
+        given(dispatch.txnInfo()).willReturn(TXN_INFO);
         given(dispatch.preHandleResult()).willReturn(SUCCESSFUL_PREHANDLE);
         givenMissingPayer();
         assertThrows(IllegalStateException.class, () -> subject.validateFeeChargingScenario(dispatch));
@@ -403,6 +405,7 @@ class DispatchValidatorTest {
     @Test
     void missingScheduledPayerIsFailInvalid() {
         givenScheduledDispatch();
+        given(dispatch.txnInfo()).willReturn(TXN_INFO);
         given(dispatch.preHandleResult()).willReturn(SUCCESSFUL_PREHANDLE);
         givenMissingPayer();
         assertThrows(IllegalStateException.class, () -> subject.validateFeeChargingScenario(dispatch));

@@ -10,10 +10,9 @@ import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategor
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.USER;
 import static com.hedera.node.app.state.HederaRecordCache.DuplicateCheckResult.NO_DUPLICATE;
 import static com.hedera.node.app.workflows.handle.dispatch.ValidationResult.newCreatorError;
-import static com.hedera.node.app.workflows.handle.dispatch.ValidationResult.newGenesisWaiver;
 import static com.hedera.node.app.workflows.handle.dispatch.ValidationResult.newPayerDuplicateError;
 import static com.hedera.node.app.workflows.handle.dispatch.ValidationResult.newPayerUniqueError;
-import static com.hedera.node.app.workflows.handle.dispatch.ValidationResult.newStateSigWaiver;
+import static com.hedera.node.app.workflows.handle.dispatch.ValidationResult.newWaiver;
 import static com.hedera.node.app.workflows.prehandle.PreHandleResult.Status.SO_FAR_SO_GOOD;
 import static java.util.Objects.requireNonNull;
 
@@ -77,11 +76,9 @@ public class DispatchValidator {
      * @return the error report
      */
     public FeeCharging.Validation validateFeeChargingScenario(@NonNull final Dispatch dispatch) {
-        if (systemEntitiesCreatedFlag != null && !systemEntitiesCreatedFlag.get()) {
-            return newGenesisWaiver(dispatch.creatorInfo().accountId());
-        }
-        if (dispatch.txnInfo().functionality() == HederaFunctionality.STATE_SIGNATURE_TRANSACTION) {
-            return newStateSigWaiver(dispatch.creatorInfo().accountId());
+        if ((systemEntitiesCreatedFlag != null && !systemEntitiesCreatedFlag.get())
+                || dispatch.txnInfo().functionality() == HederaFunctionality.STATE_SIGNATURE_TRANSACTION) {
+            return newWaiver(dispatch.creatorInfo().accountId());
         }
         final var creatorError = creatorErrorIfKnown(dispatch);
         if (creatorError != null) {
