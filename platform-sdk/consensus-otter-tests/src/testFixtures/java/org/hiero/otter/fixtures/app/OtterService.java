@@ -60,29 +60,6 @@ public interface OtterService {
     }
 
     /**
-     * Called when the service is initialized. This is called once when the application starts up.
-     *
-     * @param trigger the trigger that caused the initialization
-     * @param selfId the ID of this node
-     * @param configuration the configuration to use
-     * @param state the current state at the time of initialization
-     */
-    default void initialize(
-            @NonNull final InitTrigger trigger,
-            @NonNull final NodeId selfId,
-            @NonNull final Configuration configuration,
-            @NonNull final OtterAppState state) {
-        // Default implementation does nothing
-    }
-
-    /**
-     * Called when the service is being shut down. This is called once when the application is shutting down.
-     */
-    default void destroy() {
-        // Default implementation does nothing
-    }
-
-    /**
      * Called when a new round of consensus has been received. The service should only do actions for the whole round in
      * this method. For actions on individual events, use {@link #onEventStart(WritableStates, Event)}. For actions on
      * individual transactions, use {@link #handleTransaction(WritableStates, Event, OtterTransaction, Consumer)} .

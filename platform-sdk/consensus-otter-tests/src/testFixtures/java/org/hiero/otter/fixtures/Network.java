@@ -281,36 +281,17 @@ public interface Network {
     void freeze();
 
     /**
-     * Triggers an ISS. All nodes in a specified partition will calculate the same hash for an upcoming round, but
-     * different from other nodes. Nodes not specified in a partition are treated as being in a partition of their own.
-     * Each partition must contain at least one node, and at least one partition must be specified.
-     *
-     * @param issPartitions the list of partitions for the ISS.
-     */
-    void triggerIss(@NonNull final List<Partition> issPartitions);
-
-    /**
      * Triggers a self-ISS for the specified node. The node will calculate a different hash from all other nodes for an
      * upcoming round.
      *
      * @param node the node to trigger a self ISS for
      */
-    default void triggerSingleNodeIss(@NonNull final Node node) {
-        final Partition singleNodePartition = new PartitionImpl(List.of(node));
-        triggerIss(List.of(singleNodePartition));
-    }
+    void triggerSingleNodeIss(@NonNull Node node);
 
     /**
      * Triggers a catastrophic ISS. All nodes in the network will calculate different hashes for an upcoming round.
      */
-    default void triggerCatastrophicIss() {
-        final List<Partition> partitions = nodes().stream()
-                .map(List::of)
-                .map(PartitionImpl::new)
-                .map(p -> (Partition) p)
-                .toList();
-        triggerIss(partitions);
-    }
+    void triggerCatastrophicIss();
 
     /**
      * Shuts down the network. The nodes are killed immediately. No attempt is made to finish any outstanding tasks or

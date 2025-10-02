@@ -58,33 +58,48 @@ public class TransactionFactory {
     }
 
     /**
-     * Creates an ISS transaction with the specified partitions. Nodes in each partition will calculate the same hash
-     * for the consensus round this transaction is handled in. Unspecified nodes will calculate a different hash which
-     * they agree on.
+     * Creates an ISS transaction that will cause a self ISS for the node provided.
      *
      * @param nonce the nonce for the transaction
-     * @param partitions the list of partitions for the ISS transaction
+     * @param node the node to trigger a self ISS transaction for
      * @return the created ISS transaction
      */
     @NonNull
-    public static OtterTransaction createIssTransaction(final long nonce, @NonNull final List<Partition> partitions) {
-        final Set<HashPartition> hashPartitions = partitions.stream()
-                .map(p -> HashPartition.newBuilder()
-                        .addAllNodeId(p.nodes().stream()
-                                .map(TransactionFactory::getId)
-                                .toList())
-                        .build())
-                .collect(Collectors.toSet());
+    public static OtterTransaction createSelfIssTransaction(final long nonce, @NonNull final Node node) {
+        final HashPartition hashPartition = HashPartition.newBuilder()
+                .addNodeId(node.selfId().id())
+                .build();
         final OtterIssTransaction issTransaction =
-                OtterIssTransaction.newBuilder().addAllPartition(hashPartitions).build();
+                OtterIssTransaction.newBuilder().addPartition(hashPartition).build();
         return OtterTransaction.newBuilder()
                 .setNonce(nonce)
                 .setIssTransaction(issTransaction)
                 .build();
     }
 
-    private static long getId(@NonNull final Node node) {
-        return node.selfId().id();
+
+    /**
+     * Creates an ISS transaction that will cause the specified nodes to calculate different hashes for the round this
+     * transaction reaches consensus in. Each node specified will calculate a different hash for the same round. Any
+     * nodes not specified will agree on yet a different hash.
+     *
+     * @param nonce the nonce for the transaction
+     * @param nodes the nodes that will calculate different hashes when this ISS transaction is handled
+     * @return the created ISS transaction
+     */
+    @NonNull
+    public static OtterTransaction createIssTransaction(final long nonce, @NonNull final List<Node> nodes) {
+        final List<HashPartition> hashPartitions = nodes.stream()
+                .map(node -> HashPartition.newBuilder()
+                        .addNodeId(node.selfId().id())
+                        .build())
+                .toList();
+        final OtterIssTransaction issTransaction =
+                OtterIssTransaction.newBuilder().addAllPartition(hashPartitions).build();
+        return OtterTransaction.newBuilder()
+                .setNonce(nonce)
+                .setIssTransaction(issTransaction)
+                .build();
     }
 
     /**

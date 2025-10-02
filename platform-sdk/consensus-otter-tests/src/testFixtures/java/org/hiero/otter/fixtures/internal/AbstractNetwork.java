@@ -3,6 +3,7 @@ package org.hiero.otter.fixtures.internal;
 
 import static java.util.Objects.requireNonNull;
 import static org.hiero.consensus.model.status.PlatformStatus.ACTIVE;
+import static org.hiero.consensus.model.status.PlatformStatus.CATASTROPHIC_FAILURE;
 import static org.hiero.consensus.model.status.PlatformStatus.FREEZE_COMPLETE;
 
 import com.hedera.hapi.node.base.SemanticVersion;
@@ -21,6 +22,7 @@ import java.nio.file.Path;
 import java.security.KeyStoreException;
 import java.security.cert.CertificateEncodingException;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
@@ -430,26 +432,46 @@ public abstract class AbstractNetwork implements Network {
      * {@inheritDoc}
      */
     @Override
-    public void triggerIss(@NonNull final List<Partition> issPartitions) {
-        doTriggerIss(DEFAULT_TIMEOUT, issPartitions);
+    public void triggerCatastrophicIss() {
+        doTriggerCatastrophicIss(DEFAULT_TIMEOUT);
     }
 
-    private void doTriggerIss(@NonNull final Duration timeout, @NonNull final List<Partition> issPartitions) {
+    private void doTriggerCatastrophicIss(@NonNull final Duration defaultTimeout) {
         throwIfInState(State.INIT, "Network has not been started yet.");
         throwIfInState(State.SHUTDOWN, "Network has been shut down.");
 
-        log.info("Sending ISS triggering transaction...");
-        final byte[] issTransaction = TransactionFactory.createIssTransaction(random.nextLong(), issPartitions)
+        log.info("Sending Catastrophic ISS triggering transaction...");
+        final Instant start = timeManager().now();
+        final byte[] issTransaction = TransactionFactory.createIssTransaction(random.nextLong(), nodes())
+                .toByteArray();
+        submitTransaction(issTransaction);
+        final Duration elapsed = Duration.between(start, timeManager().now());
+
+        log.debug("Waiting for Catastrophic ISS to trigger...");
+        timeManager().waitForCondition(() -> this.allNodesInStatus(CATASTROPHIC_FAILURE), defaultTimeout.minus(elapsed));
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void triggerSingleNodeIss(@NonNull final Node node) {
+        doTriggerSelfIss(DEFAULT_TIMEOUT, node);
+    }
+
+    private void doTriggerSelfIss(@NonNull final Duration timeout, @NonNull final Node node) {
+        throwIfInState(State.INIT, "Network has not been started yet.");
+        throwIfInState(State.SHUTDOWN, "Network has been shut down.");
+
+        log.info("Sending Self ISS triggering transaction...");
+        final byte[] issTransaction = TransactionFactory.createSelfIssTransaction(random.nextLong(), node)
                 .toByteArray();
         submitTransaction(issTransaction);
 
-        log.debug("Waiting for ISS to trigger...");
-        // TODO change the thing to wait for here
-        //        timeManager()
-        //                .waitForCondition(
-        //                        () -> allNodesInStatus(FREEZE_COMPLETE),
-        //                        timeout,
-        //                        "Timeout while waiting for all nodes to freeze.");
+        log.debug("Waiting for Self ISS to trigger...");
+
+        // TODO continuously check the logs of this node for the self ISS log payload
+//        timeManager().waitForCondition(() -> node.newLogResult().);
     }
 
     /**
