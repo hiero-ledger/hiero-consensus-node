@@ -67,7 +67,6 @@ public class VirtualMapStateTest extends MerkleTestBase {
         virtualMapState = new TestVirtualMapState(CONFIGURATION, new NoOpMetrics());
         virtualMapState.init(
                 new FakeTime(),
-                CONFIGURATION,
                 new NoOpMetrics(),
                 mock(MerkleCryptography.class),
                 () -> PlatformStateAccessor.GENESIS_ROUND);
@@ -746,8 +745,7 @@ public class VirtualMapStateTest extends MerkleTestBase {
             final MerkleCryptography merkleCryptography = MerkleCryptographyFactory.create(ConfigurationBuilder.create()
                     .withConfigDataType(CryptoConfig.class)
                     .build());
-            virtualMapState.init(
-                    new FakeTime(), CONFIGURATION, new NoOpMetrics(), merkleCryptography, () -> GENESIS_ROUND);
+            virtualMapState.init(new FakeTime(), new NoOpMetrics(), merkleCryptography, () -> GENESIS_ROUND);
         }
 
         @Test
