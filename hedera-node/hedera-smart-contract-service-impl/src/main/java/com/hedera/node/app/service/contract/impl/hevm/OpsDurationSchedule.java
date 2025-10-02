@@ -3,6 +3,7 @@ package com.hedera.node.app.service.contract.impl.hevm;
 
 import com.hedera.node.config.data.OpsDurationConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
@@ -20,7 +21,8 @@ public record OpsDurationSchedule(
         /* Denominator for all above multipliers (to be able to configure fractional multipliers) */
         long multipliersDenominator) {
 
-    private static final OpsDurationSchedule EMPTY = new OpsDurationSchedule(List.of(), 0, 0, 0, 0, 1);
+    private static final OpsDurationSchedule EMPTY =
+            new OpsDurationSchedule(Collections.nCopies(256, 0L), 0, 0, 0, 0, 1);
 
     private static final long DEFAULT_MULTIPLIERS_DENOMINATOR = 100;
 
