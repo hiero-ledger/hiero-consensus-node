@@ -82,8 +82,9 @@ public class HistoryServiceImpl implements HistoryService {
             case BOOTSTRAP, TRANSITION -> {
                 final var construction = historyStore.getOrCreateConstruction(activeRosters, now, tssConfig);
                 if (!construction.hasTargetProof()) {
-                    final var controller =
-                            component.controllers().getOrCreateFor(activeRosters, construction, historyStore, activeConstruction);
+                    final var controller = component
+                            .controllers()
+                            .getOrCreateFor(activeRosters, construction, historyStore, activeConstruction);
                     controller.advanceConstruction(now, metadata, historyStore, isActive);
                 }
             }
@@ -115,12 +116,8 @@ public class HistoryServiceImpl implements HistoryService {
 
     @Override
     public boolean isReady() {
-        // We don't delay signing blocks until we have a proof for the genesis
-        // address book hash; and once we have adopted *any* subsequent roster
-        // with the HistoryService enabled, the proof will be available---c.f.
-        // Hedera#canAdoptRoster(), which requires a proof to be present for
-        // the candidate roster hash.
-        return true;
+        // Not ready until there is a chain-of-trust proof for the genesis hinTS verification key
+        return historyProof != null && historyProof.hasChainOfTrustProof();
     }
 
     @Override

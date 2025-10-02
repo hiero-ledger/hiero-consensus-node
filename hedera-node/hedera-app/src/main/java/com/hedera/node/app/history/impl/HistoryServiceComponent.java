@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.history.impl;
 
-import com.hedera.hapi.node.state.history.HistoryProof;
 import com.hedera.node.app.history.HistoryLibrary;
 import com.hedera.node.app.history.HistoryService;
 import com.hedera.node.app.history.handlers.HistoryHandlers;
@@ -11,7 +10,6 @@ import com.swirlds.metrics.api.Metrics;
 import dagger.BindsInstance;
 import dagger.Component;
 import java.util.concurrent.Executor;
-import java.util.function.Consumer;
 import java.util.function.Supplier;
 import javax.inject.Singleton;
 

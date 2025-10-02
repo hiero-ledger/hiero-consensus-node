@@ -23,7 +23,6 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
 import org.apache.logging.log4j.LogManager;
@@ -92,14 +91,23 @@ public class HintsServiceImpl implements HintsService, OnHintsFinished {
         return component.signingContext().isReady();
     }
 
-    @Override
-    public long schemeId() {
-        return component.signingContext().activeSchemeIdOrThrow();
+    public Bytes verificationKey() {
+        return component.signingContext().verificationKeyOrThrow();
     }
 
     @Override
-    public Bytes verificationKey() {
-        return component.signingContext().verificationKeyOrThrow();
+    public HintsContext.Signing sign(@NonNull final Bytes blockHash) {
+        if (!isReady()) {
+            throw new IllegalStateException("hinTS service not ready to sign block hash " + blockHash);
+        }
+        final var signing = component.signings().computeIfAbsent(blockHash, b -> component
+                .signingContext()
+                .newSigning(b, () -> component.signings().remove(blockHash)));
+        component.submissions().submitPartialSignature(blockHash).exceptionally(t -> {
+            logger.warn("Failed to submit partial signature for block hash {}", blockHash, t);
+            return null;
+        });
+        return signing;
     }
 
     @Override
@@ -140,8 +148,9 @@ public class HintsServiceImpl implements HintsService, OnHintsFinished {
             case BOOTSTRAP, TRANSITION -> {
                 final var construction = hintsStore.getOrCreateConstruction(activeRosters, now, tssConfig);
                 if (!construction.hasHintsScheme()) {
-                    final var controller =
-                            component.controllers().getOrCreateFor(activeRosters, construction, hintsStore, activeConstruction());
+                    final var controller = component
+                            .controllers()
+                            .getOrCreateFor(activeRosters, construction, hintsStore, activeConstruction());
                     controller.advanceConstruction(now, hintsStore, isActive);
                 }
             }
@@ -183,21 +192,6 @@ public class HintsServiceImpl implements HintsService, OnHintsFinished {
         requireNonNull(registry);
         registry.register(new V059HintsSchema());
         registry.register(new V060HintsSchema(component.signingContext(), library));
-    }
-
-    @Override
-    public CompletableFuture<Bytes> signFuture(@NonNull final Bytes blockHash) {
-        if (!isReady()) {
-            throw new IllegalStateException("hinTS service not ready to sign block hash " + blockHash);
-        }
-        final var signing = component.signings().computeIfAbsent(blockHash, b -> component
-                .signingContext()
-                .newSigning(b, () -> component.signings().remove(blockHash)));
-        component.submissions().submitPartialSignature(blockHash).exceptionally(t -> {
-            logger.warn("Failed to submit partial signature for block hash {}", blockHash, t);
-            return null;
-        });
-        return signing.future();
     }
 
     @Override

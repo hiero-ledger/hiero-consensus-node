@@ -7,9 +7,8 @@ import static java.util.stream.Collectors.toMap;
 import com.hedera.hapi.node.state.hints.HintsConstruction;
 import com.hedera.hapi.node.state.hints.NodePartyId;
 import com.hedera.hapi.node.state.roster.Roster;
-import com.hedera.hapi.node.state.roster.RosterEntry;
-import com.hedera.node.app.blocks.BlockHashSigner;
 import com.hedera.node.app.hints.handlers.HintsHandlers;
+import com.hedera.node.app.hints.impl.HintsContext;
 import com.hedera.node.app.hints.impl.HintsController;
 import com.hedera.node.app.hints.impl.OnHintsFinished;
 import com.hedera.node.app.roster.ActiveRosters;
@@ -53,7 +52,7 @@ import java.util.TreeMap;
  * and if requested to orchestrate a different construction, will abandon all in-progress
  * work.
  */
-public interface HintsService extends Service, BlockHashSigner {
+public interface HintsService extends Service {
     String NAME = "HintsService";
 
     /**
@@ -82,6 +81,16 @@ public interface HintsService extends Service, BlockHashSigner {
      */
     @Nullable
     HintsConstruction activeConstruction();
+
+    /**
+     * Whether the signer is ready.
+     */
+    boolean isReady();
+
+    /**
+     * Signs the given block hash.
+     */
+    HintsContext.Signing sign(@NonNull Bytes blockHash);
 
     /**
      * Sets the current roster for the network.

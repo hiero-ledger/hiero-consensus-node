@@ -3,9 +3,11 @@ package com.hedera.services.bdd.junit.hedera.embedded.fakes;
 
 import com.hedera.hapi.node.state.hints.HintsConstruction;
 import com.hedera.hapi.node.state.roster.Roster;
+import com.hedera.node.app.blocks.BlockHashSigner;
 import com.hedera.node.app.hints.HintsService;
 import com.hedera.node.app.hints.WritableHintsStore;
 import com.hedera.node.app.hints.handlers.HintsHandlers;
+import com.hedera.node.app.hints.impl.HintsContext;
 import com.hedera.node.app.hints.impl.HintsLibraryImpl;
 import com.hedera.node.app.hints.impl.HintsServiceImpl;
 import com.hedera.node.app.hints.impl.OnHintsFinished;
@@ -22,7 +24,6 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.ArrayDeque;
 import java.util.Queue;
-import java.util.concurrent.CompletableFuture;
 
 public class FakeHintsService implements HintsService {
     private final HintsService delegate;
@@ -58,8 +59,8 @@ public class FakeHintsService implements HintsService {
     }
 
     @Override
-    public CompletableFuture<Bytes> signFuture(@NonNull final Bytes blockHash) {
-        return delegate.signFuture(blockHash);
+    public HintsContext.Signing sign(@NonNull final Bytes blockHash) {
+        return delegate.sign(blockHash);
     }
 
     @Override
@@ -101,16 +102,6 @@ public class FakeHintsService implements HintsService {
     @Override
     public void registerSchemas(@NonNull final SchemaRegistry registry) {
         delegate.registerSchemas(registry);
-    }
-
-    @Override
-    public long schemeId() {
-        return delegate.schemeId();
-    }
-
-    @Override
-    public Bytes verificationKey() {
-        return delegate.verificationKey();
     }
 
     @Override

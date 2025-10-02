@@ -6,6 +6,7 @@ import static com.hedera.node.app.roster.ActiveRosters.Phase.BOOTSTRAP;
 import static com.hedera.node.app.roster.ActiveRosters.Phase.HANDOFF;
 import static com.hedera.node.app.roster.ActiveRosters.Phase.TRANSITION;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -79,8 +80,14 @@ class HistoryServiceImplTest {
     }
 
     @Test
-    void alwaysReady() {
+    void notReadyUntilHistoryProofSetWithChainOfTrust() {
         withLiveSubject();
+        assertFalse(subject.isReady());
+        subject.setLatestHistoryProof(HistoryProof.DEFAULT);
+        assertFalse(subject.isReady());
+        subject.setLatestHistoryProof(HistoryProof.newBuilder()
+                .chainOfTrustProof(ChainOfTrustProof.DEFAULT)
+                .build());
         assertTrue(subject.isReady());
     }
 
@@ -88,7 +95,8 @@ class HistoryServiceImplTest {
     void refusesToProveMismatchedMetadata() {
         withLiveSubject();
         final var oldVk = Bytes.wrap("X");
-        final var cotProof = ChainOfTrustProof.newBuilder().wrapsProof(Bytes.wrap("RAIN")).build();
+        final var cotProof =
+                ChainOfTrustProof.newBuilder().wrapsProof(Bytes.wrap("RAIN")).build();
         final var currentProof = HistoryProof.newBuilder()
                 .targetHistory(History.newBuilder().metadata(CURRENT_VK))
                 .chainOfTrustProof(cotProof)
@@ -134,7 +142,8 @@ class HistoryServiceImplTest {
         given(store.getOrCreateConstruction(activeRosters, CONSENSUS_NOW, tssConfig))
                 .willReturn(HistoryProofConstruction.DEFAULT);
         given(component.controllers()).willReturn(controllers);
-        given(controllers.getOrCreateFor(activeRosters, HistoryProofConstruction.DEFAULT, store, HintsConstruction.DEFAULT))
+        given(controllers.getOrCreateFor(
+                        activeRosters, HistoryProofConstruction.DEFAULT, store, HintsConstruction.DEFAULT))
                 .willReturn(controller);
 
         subject.reconcile(activeRosters, CURRENT_VK, store, CONSENSUS_NOW, tssConfig, true, HintsConstruction.DEFAULT);

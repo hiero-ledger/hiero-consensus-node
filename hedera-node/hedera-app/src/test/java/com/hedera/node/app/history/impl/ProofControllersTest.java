@@ -74,12 +74,14 @@ class ProofControllersTest {
                 HistoryProofConstruction.newBuilder().constructionId(2L).build();
 
         assertTrue(subject.getAnyInProgress().isEmpty());
-        final var firstController = subject.getOrCreateFor(activeRosters, ONE_CONSTRUCTION, historyStore, HintsConstruction.DEFAULT);
+        final var firstController =
+                subject.getOrCreateFor(activeRosters, ONE_CONSTRUCTION, historyStore, HintsConstruction.DEFAULT);
         assertTrue(subject.getAnyInProgress().isEmpty());
         assertTrue(subject.getInProgressById(1L).isEmpty());
         assertTrue(subject.getInProgressById(2L).isEmpty());
         assertInstanceOf(InertProofController.class, firstController);
-        final var secondController = subject.getOrCreateFor(activeRosters, twoConstruction, historyStore, HintsConstruction.DEFAULT);
+        final var secondController =
+                subject.getOrCreateFor(activeRosters, twoConstruction, historyStore, HintsConstruction.DEFAULT);
         assertNotSame(firstController, secondController);
         assertInstanceOf(InertProofController.class, secondController);
     }
@@ -91,7 +93,8 @@ class ProofControllersTest {
         given(keyAccessor.getOrCreateSchnorrKeyPair(1L)).willReturn(MOCK_KEY_PAIR);
         given(selfNodeInfoSupplier.get()).willReturn(selfNodeInfo);
 
-        final var controller = subject.getOrCreateFor(activeRosters, ONE_CONSTRUCTION, historyStore, HintsConstruction.DEFAULT);
+        final var controller =
+                subject.getOrCreateFor(activeRosters, ONE_CONSTRUCTION, historyStore, HintsConstruction.DEFAULT);
 
         assertInstanceOf(ProofControllerImpl.class, controller);
     }

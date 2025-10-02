@@ -254,6 +254,13 @@ public class HintsContext {
         }
 
         /**
+         * The verification key of the hinTS scheme being used for the signing attempt.
+         */
+        public Bytes verificationKey() {
+            return verificationKey;
+        }
+
+        /**
          * Incorporates a node's pre-validated partial signature into the aggregation. If including this node's
          * weight passes the required threshold, completes the future returned from {@link #future()} with the
          * aggregated signature.

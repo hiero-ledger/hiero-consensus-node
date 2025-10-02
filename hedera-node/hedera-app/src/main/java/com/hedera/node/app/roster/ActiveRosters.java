@@ -173,7 +173,8 @@ public class ActiveRosters {
         return switch (phase) {
             case BOOTSTRAP, TRANSITION ->
                 new RosterTransitionWeights(
-                        sourceWeights != null ? sourceWeights : weightsFrom(lookup.apply(sourceRosterHash)), weightsFrom(lookup.apply(targetRosterHash)));
+                        sourceWeights != null ? sourceWeights : weightsFrom(lookup.apply(sourceRosterHash)),
+                        weightsFrom(lookup.apply(targetRosterHash)));
             case HANDOFF -> throw new IllegalStateException("No target roster in handoff phase");
         };
     }

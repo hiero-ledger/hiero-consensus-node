@@ -511,10 +511,10 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                 // In case the id of the next hinTS construction changed since a block ended
                 pendingBlocks.forEach(block -> block.flushPending(hasPrecedingUnproven.getAndSet(true)));
             } else {
-                final var verificationKey = blockHashSigner.verificationKey();
-                blockHashSigner
-                        .signFuture(blockHash)
-                        .thenAcceptAsync(signature -> finishProofWithSignature(blockHash, signature, verificationKey, ChainOfTrustProof.DEFAULT));
+                final var attempt = blockHashSigner.sign(blockHash);
+                attempt.signatureFuture()
+                        .thenAcceptAsync(signature -> finishProofWithSignature(
+                                blockHash, signature, attempt.verificationKey(), attempt.chainOfTrustProof()));
             }
 
             final var exportNetworkToDisk =
@@ -597,13 +597,14 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
      *
      * @param blockHash the block hash to finish the block proof for
      * @param blockSignature the signature to use in the block proof
-     * @param schemeId the id of the signing scheme used
+     * @param verificationKey if hinTS is enabled, the verification key to use in the block proof
+     * @param chainOfTrustProof if history proofs are enabled, the chain of trust proof to use in the block proof
      */
     private synchronized void finishProofWithSignature(
             @NonNull final Bytes blockHash,
             @NonNull final Bytes blockSignature,
-            @NonNull final Bytes verificationKey,
-            @NonNull final ChainOfTrustProof verificationKeyProof) {
+            @Nullable final Bytes verificationKey,
+            @Nullable final ChainOfTrustProof chainOfTrustProof) {
         // Find the block whose hash is the signed message, tracking any sibling hashes
         // needed for indirect proofs of earlier blocks along the way
         long blockNumber = Long.MIN_VALUE;
@@ -632,8 +633,13 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             }
             final var proof = block.proofBuilder()
                     .blockSignature(blockSignature)
-                    .siblingHashes(siblingHashes.stream().flatMap(List::stream).toList())
-                    .verificationKey(verificationKey);
+                    .siblingHashes(siblingHashes.stream().flatMap(List::stream).toList());
+            if (verificationKey != null) {
+                proof.verificationKey(verificationKey);
+                if (chainOfTrustProof != null) {
+                    proof.verificationKeyProof(chainOfTrustProof);
+                }
+            }
             final var proofItem = BlockItem.newBuilder().blockProof(proof).build();
             block.writer().writePbjItemAndBytes(proofItem, BlockItem.PROTOBUF.toBytes(proofItem));
             block.writer().closeCompleteBlock();

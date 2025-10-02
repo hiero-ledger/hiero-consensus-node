@@ -244,8 +244,8 @@ class ProofControllerImplTest {
         given(library.hashAddressBook(any(), any())).willReturn(Bytes.EMPTY);
         given(library.proveChainOfTrust(any(), any(), any(), any(), any(), any(), any(), any()))
                 .willReturn(Bytes.EMPTY);
-        given(submissions.submitProofVote(
-                        eq(CONSTRUCTION_ID), argThat(v -> v.chainOfTrustProofOrThrow().equals(PROOF))))
+        given(submissions.submitProofVote(eq(CONSTRUCTION_ID), argThat(v -> v.chainOfTrustProofOrThrow()
+                        .equals(PROOF))))
                 .willReturn(CompletableFuture.completedFuture(null));
 
         runScheduledTasks();
@@ -276,14 +276,14 @@ class ProofControllerImplTest {
         given(library.hashAddressBook(any(), any())).willReturn(Bytes.EMPTY);
         given(library.proveChainOfTrust(any(), any(), any(), any(), any(), any(), any(), any()))
                 .willReturn(PROOF.wrapsProof());
-        given(submissions.submitProofVote(
-                        eq(CONSTRUCTION_ID), argThat(v -> v.chainOfTrustProofOrThrow().equals(PROOF))))
+        given(submissions.submitProofVote(eq(CONSTRUCTION_ID), argThat(v -> v.chainOfTrustProofOrThrow()
+                        .equals(PROOF))))
                 .willReturn(CompletableFuture.completedFuture(null));
 
         runScheduledTasks();
 
-        verify(submissions)
-                .submitProofVote(eq(CONSTRUCTION_ID), argThat(v -> v.chainOfTrustProofOrThrow().equals(PROOF)));
+        verify(submissions).submitProofVote(eq(CONSTRUCTION_ID), argThat(v -> v.chainOfTrustProofOrThrow()
+                .equals(PROOF)));
     }
 
     @Test
@@ -299,7 +299,8 @@ class ProofControllerImplTest {
     void votingWorksAsExpectedWithKnownLedgerId() {
         setupWith(SCHEDULED_ASSEMBLY_CONSTRUCTION_WITH_SOURCE_PROOF);
 
-        final var expectedProof = HistoryProof.newBuilder().chainOfTrustProof(PROOF).build();
+        final var expectedProof =
+                HistoryProof.newBuilder().chainOfTrustProof(PROOF).build();
         final var selfVote = HistoryProofVote.newBuilder().proof(expectedProof).build();
         given(weights.sourceWeightOf(SELF_ID)).willReturn(3L);
         given(weights.sourceWeightThreshold()).willReturn(4L);
@@ -338,7 +339,8 @@ class ProofControllerImplTest {
         setupWith(SCHEDULED_ASSEMBLY_CONSTRUCTION_WITH_SOURCE_PROOF, List.of(), List.of(), Map.of(), null);
         subject.advanceConstruction(CONSENSUS_NOW, METADATA, store, true);
 
-        final var expectedProof = HistoryProof.newBuilder().chainOfTrustProof(PROOF).build();
+        final var expectedProof =
+                HistoryProof.newBuilder().chainOfTrustProof(PROOF).build();
         final var selfVote = HistoryProofVote.newBuilder().proof(expectedProof).build();
         given(weights.sourceWeightOf(SELF_ID)).willReturn(3L);
         given(weights.sourceWeightThreshold()).willReturn(4L);

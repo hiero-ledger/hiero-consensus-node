@@ -39,7 +39,6 @@ import java.util.TreeMap;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Consumer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -426,7 +425,8 @@ public class ProofControllerImpl implements ProofController {
         final Map<Long, Bytes> sourceProofKeys;
         if (construction.hasSourceProof()) {
             // TODO
-            sourceProof = construction.sourceProofOrThrow().chainOfTrustProofOrThrow().wrapsProofOrThrow();
+            sourceProof =
+                    construction.sourceProofOrThrow().chainOfTrustProofOrThrow().wrapsProofOrThrow();
             sourceProofKeys = proofKeyMapFrom(construction.sourceProofOrThrow());
         } else {
             sourceProof = null;
