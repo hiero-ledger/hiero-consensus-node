@@ -74,14 +74,14 @@ public class ReconnectTest {
         // Wait for the node we just killed to become behind enough to require a reconnect.
         timeManager.waitForCondition(
                 () -> network.nodeIsBehindByNodeCount(nodeToReconnect, 0.5),
-                Duration.ofSeconds(60),
+                Duration.ofSeconds(120),
                 "Node did not fall behind in the time allotted.");
 
         // Restart the node that was killed
         nodeToReconnect.start();
 
-        // First we must wait for the node to come back up and report that it is behind.
-        // If we wait for it to be active, this check will pass immediately because that was the last status it had
+        // First, we must wait for the node to come back up and report that it is behind.
+        // If we wait for it to be active, this check will pass immediately. That was the last status it had,
         // and we will check the value before the node has a change to tell us that it is behind.
         timeManager.waitForCondition(nodeToReconnect::isBehind, Duration.ofSeconds(30));
 

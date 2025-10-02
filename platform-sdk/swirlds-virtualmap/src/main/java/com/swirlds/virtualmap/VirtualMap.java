@@ -1272,6 +1272,10 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
     @Override
     public CustomReconnectRoot<Long, Long> createNewRoot() {
         final VirtualMap newRoot = new VirtualMap(configuration);
+        // Ensure the original map is hashed here. Once hashed, all its internal nodes are also hashed,
+        // which is required for the reconnect process. A teacher needs these hashes to determine
+        // whether to send the underlying nodes or not.
+        getHash();
         newRoot.setupWithOriginalNode(this);
         return newRoot;
     }

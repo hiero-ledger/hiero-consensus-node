@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.app.state;
 
+import static com.hedera.hapi.util.HapiUtils.SEMANTIC_VERSION_COMPARATOR;
+
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.state.State;
@@ -11,12 +13,13 @@ import com.swirlds.state.spi.ReadableStates;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.util.Comparator;
 import java.util.Map;
 
 /**
  * A simple migration context for use when initializing a genesis state of an OtterApp.
  */
-public class GenesisMigrationContext implements MigrationContext {
+public class GenesisMigrationContext implements MigrationContext<SemanticVersion> {
 
     private final Configuration configuration;
     private final WritableStates newStates;
@@ -111,5 +114,15 @@ public class GenesisMigrationContext implements MigrationContext {
     @NonNull
     public Map<String, Object> sharedValues() {
         throw new UnsupportedOperationException("OtterApp should not need sharedValues");
+    }
+
+    @Override
+    public SemanticVersion getDefaultVersion() {
+        return null;
+    }
+
+    @Override
+    public Comparator<SemanticVersion> getVersionComparator() {
+        return SEMANTIC_VERSION_COMPARATOR;
     }
 }

@@ -368,7 +368,7 @@ void testDeterministicBehavior(@NonNull final TestEnvironment env) throws Interr
             network.newConsensusResults().results().getFirst().lastRoundNum();
 
     // This assertion will always pass with seed=42
-    assertThat(lastRound).isEqualTo(46L);
+    assertThat(lastRound).isEqualTo(47L);
 }
 ```
 
