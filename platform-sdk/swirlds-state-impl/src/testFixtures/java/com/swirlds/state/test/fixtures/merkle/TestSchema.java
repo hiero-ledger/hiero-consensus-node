@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.state.test.fixtures.merkle;
 
+import static com.hedera.hapi.util.HapiUtils.SEMANTIC_VERSION_COMPARATOR;
+
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.lifecycle.Schema;
@@ -15,7 +17,7 @@ import java.util.Set;
  * implementation for the various methods. Test code can subclass this to add the behavior they'd
  * like to test with.
  */
-public class TestSchema extends Schema {
+public class TestSchema extends Schema<SemanticVersion> {
 
     public static final SemanticVersion CURRENT_VERSION = new SemanticVersion(0, 47, 0, "SNAPSHOT", "");
     private final Runnable onMigrate;
@@ -45,7 +47,7 @@ public class TestSchema extends Schema {
             @NonNull final Set<Integer> statesToRemove,
             @Nullable Runnable onMigrate,
             @Nullable Runnable onRestart) {
-        super(version);
+        super(version, SEMANTIC_VERSION_COMPARATOR);
         this.onMigrate = onMigrate;
         this.onRestart = onRestart;
         this.statesToCreate = statesToCreate;

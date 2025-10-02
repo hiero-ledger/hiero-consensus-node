@@ -32,7 +32,7 @@ public interface OtterService {
      * @return the schema for the genesis state of this service
      */
     @NonNull
-    Schema genesisSchema(@NonNull SemanticVersion version);
+    Schema<SemanticVersion> genesisSchema(@NonNull SemanticVersion version);
 
     /**
      * Called when a new round of consensus has been received. The service should only do actions for the whole round in
