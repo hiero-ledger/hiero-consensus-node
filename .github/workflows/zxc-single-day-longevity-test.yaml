@@ -627,7 +627,7 @@ jobs:
           cp -r podlog_"${{ needs.longevity-tests-start.outputs.namespace }}" "${{ github.workspace }}"/report/
 
       - name: Delete namespace
-        if: ${{ inputs.delete-namespace == 'true' }}
+        if: ${{ inputs.delete-namespace == true }}
         run: |
           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt delete namespace "${{ needs.longevity-tests-start.outputs.namespace }}"
 

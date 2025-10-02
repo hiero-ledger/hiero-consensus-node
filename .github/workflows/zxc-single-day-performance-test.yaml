@@ -1262,7 +1262,7 @@ jobs:
           certificate-ttl: 168h
 
       - name: Delete namespace
-        if: ${{ inputs.delete-namespace == 'true' }}
+        if: ${{ inputs.delete-namespace == true }}
         run: |
           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt delete namespace "${{ needs.performance-tests-start.outputs.namespace }}"
 
