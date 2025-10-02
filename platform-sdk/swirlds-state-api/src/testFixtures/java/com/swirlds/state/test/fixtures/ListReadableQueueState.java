@@ -11,6 +11,7 @@ import java.util.Queue;
 
 /** Useful class for testing {@link ReadableQueueStateBase} */
 public class ListReadableQueueState<E> extends ReadableQueueStateBase<E> {
+
     /** Represents the backing storage for this state */
     private final Queue<E> backingStore;
 
@@ -19,11 +20,12 @@ public class ListReadableQueueState<E> extends ReadableQueueStateBase<E> {
      * pre-populate the queue, or if you want to use Mockito to mock it or cause it to throw
      * exceptions when certain keys are accessed, etc.
      *
-     * @param stateKey The state key for this state
+     * @param stateId      The state ID
+     * @param label        The service label
      * @param backingStore The backing store to use
      */
-    public ListReadableQueueState(@NonNull final String stateKey, @NonNull final Queue<E> backingStore) {
-        super(stateKey);
+    public ListReadableQueueState(final int stateId, final String label, @NonNull final Queue<E> backingStore) {
+        super(stateId, label);
         this.backingStore = Objects.requireNonNull(backingStore);
     }
 
@@ -43,24 +45,28 @@ public class ListReadableQueueState<E> extends ReadableQueueStateBase<E> {
      * Create a new {@link ListReadableQueueState.Builder} for building a {@link ListReadableQueueState}. The builder has
      * convenience methods for pre-populating the queue.
      *
-     * @param stateKey The state key
+     * @param <E>      The value type
+     * @param stateId  The state ID
+     * @param label    The state label
      * @return A {@link ListReadableQueueState.Builder} to be used for creating a {@link ListReadableQueueState}.
-     * @param <E> The value type
      */
     @NonNull
-    public static <E> ListReadableQueueState.Builder<E> builder(@NonNull final String stateKey) {
-        return new ListReadableQueueState.Builder<>(stateKey);
+    public static <E> ListReadableQueueState.Builder<E> builder(final int stateId, @NonNull final String label) {
+        return new ListReadableQueueState.Builder<>(stateId, label);
     }
 
     /**
      * A convenient builder for creating instances of {@link ListReadableQueueState}.
      */
     public static final class Builder<E> {
-        private final Queue<E> backingStore = new LinkedList<>();
-        private final String stateKey;
 
-        Builder(@NonNull final String stateKey) {
-            this.stateKey = stateKey;
+        private final int stateId;
+        private final String label;
+        private final Queue<E> backingStore = new LinkedList<>();
+
+        Builder(final int stateId, @NonNull final String label) {
+            this.stateId = stateId;
+            this.label = label;
         }
 
         /**
@@ -83,7 +89,7 @@ public class ListReadableQueueState<E> extends ReadableQueueStateBase<E> {
          */
         @NonNull
         public ListReadableQueueState<E> build() {
-            return new ListReadableQueueState<>(stateKey, new LinkedList<>(backingStore));
+            return new ListReadableQueueState<>(stateId, label, new LinkedList<>(backingStore));
         }
     }
 }

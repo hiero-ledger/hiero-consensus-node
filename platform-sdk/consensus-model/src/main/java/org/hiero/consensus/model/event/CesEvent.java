@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.model.event;
 
-import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.event.EventConsensusData;
 import com.hedera.hapi.platform.event.EventCore;
 import com.hedera.hapi.platform.event.GossipEvent;
@@ -158,13 +157,6 @@ public class CesEvent extends AbstractSerializableHashable
     @Override
     public NodeId getCreatorId() {
         return platformEvent.getCreatorId();
-    }
-
-    @Deprecated(forRemoval = true)
-    @NonNull
-    @Override
-    public SemanticVersion getSoftwareVersion() {
-        return platformEvent.getSoftwareVersion();
     }
 
     @Override

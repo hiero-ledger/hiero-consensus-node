@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.suites.contract.precompile.airdrops;
 
 import static com.hedera.node.app.hapi.utils.EthSigsUtils.recoverAddressFromPubKey;
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.includingFungiblePendingAirdrop;
@@ -209,6 +210,7 @@ public class AirdropFromContractTest {
     @HapiTest
     @RepeatableHapiTest(RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
     @DisplayName("Contract account airdrops a single token to an ECDSA account")
+    @Tag(MATS)
     public Stream<DynamicTest> airdropTokenToECDSAAccount(
             @NonNull @Account(maxAutoAssociations = 10, tinybarBalance = 100L) final SpecAccount receiver,
             @Contract(contract = "EmptyOne", creationGas = 15_000_000L) final SpecContract sender,
@@ -241,6 +243,7 @@ public class AirdropFromContractTest {
     @HapiTest
     @RepeatableHapiTest(RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
     @DisplayName("Contract account airdrops a single token to an ED25519 account")
+    @Tag(MATS)
     public Stream<DynamicTest> airdropTokenToED25519Account(
             @NonNull @Account(maxAutoAssociations = 10, tinybarBalance = 100L) final SpecAccount receiver,
             @Contract(contract = "EmptyOne", creationGas = 10_000_000L) final SpecContract sender,

@@ -30,8 +30,9 @@ import picocli.CommandLine;
                 + "Equivalent to running 'scrape' followed by 'render'.")
 @SubcommandOf(JrsTestReaderCommand.class)
 public class JrsTestReaderReportCommand extends AbstractCommand {
+    private static final String DEFAULT_BUCKET_PREFIX_REPLACEMENT = "https://jrs.reports.eng.hashgraph.io";
     private String bucketPrefix = "gs://swirlds-circleci-jrs-results";
-    private String bucketPrefixReplacement = "http://35.247.76.217:8095";
+    private String bucketPrefixReplacement = DEFAULT_BUCKET_PREFIX_REPLACEMENT;
     private List<String> targets;
     private List<Path> outputPaths;
     private int days = 7;
@@ -47,8 +48,8 @@ public class JrsTestReaderReportCommand extends AbstractCommand {
 
     @CommandLine.Option(
             names = {"-r", "--bucket-replacement"},
-            description = "The replacement for bucket prefix in order to convert bucket URLs to web links. Defaults"
-                    + "to http://35.247.76.217:8095")
+            description = "The replacement for bucket prefix in order to convert bucket URLs to web links."
+                    + " Defaults to " + DEFAULT_BUCKET_PREFIX_REPLACEMENT)
     private void setBucketPrefixReplacement(@NonNull final String bucketPrefix) {
         this.bucketPrefixReplacement = bucketPrefix;
     }

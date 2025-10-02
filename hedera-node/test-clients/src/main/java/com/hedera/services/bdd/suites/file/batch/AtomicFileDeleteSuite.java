@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.file.batch;
 
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.keys.ControlForKey.forKey;
 import static com.hedera.services.bdd.spec.keys.KeyShape.SIMPLE;
@@ -29,6 +30,7 @@ import java.util.Map;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.Tag;
 
 // This test cases are direct copies of FileDeleteSuite. The difference here is that
 // we are wrapping the operations in an atomic batch to confirm that everything works as expected.
@@ -58,6 +60,7 @@ public class AtomicFileDeleteSuite {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> getDeletedFileInfo() {
         return hapiTest(
                 cryptoCreate(BATCH_OPERATOR),

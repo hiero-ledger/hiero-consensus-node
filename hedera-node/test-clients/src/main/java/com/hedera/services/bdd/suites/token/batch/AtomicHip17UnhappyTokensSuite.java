@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.token.batch;
 
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.TOKEN;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountInfo;
@@ -54,6 +55,7 @@ import org.junit.jupiter.api.Tag;
 // we are wrapping the operations in an atomic batch to confirm that everything works as expected.
 @HapiTestLifecycle
 @Tag(TOKEN)
+@Tag(MATS)
 public class AtomicHip17UnhappyTokensSuite {
 
     private static final String ANOTHER_USER = "AnotherUser";
@@ -253,7 +255,7 @@ public class AtomicHip17UnhappyTokensSuite {
                 atomicBatch(tokenUpdate(NFT_DELETED)
                                 .entityMemo(ZERO_BYTE_MEMO)
                                 .signedByPayerAnd(ADMIN_KEY)
-                                .hasPrecheck(INVALID_ZERO_BYTE_IN_STRING)
+                                .hasKnownStatus(INVALID_ZERO_BYTE_IN_STRING)
                                 .batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR)
                         .hasKnownStatus(INNER_TRANSACTION_FAILED)));

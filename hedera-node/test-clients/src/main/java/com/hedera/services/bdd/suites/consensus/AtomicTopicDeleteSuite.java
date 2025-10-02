@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.consensus;
 
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTopicInfo;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.asTopicId;
@@ -24,6 +25,7 @@ import java.util.Map;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.Tag;
 
 // This test cases are direct copies of TopicDeleteSuite. The difference here is that
 // we are wrapping the operations in an atomic batch to confirm that everything works as expected.
@@ -40,6 +42,7 @@ public class AtomicTopicDeleteSuite {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> idVariantsTreatedAsExpected() {
         return hapiTest(
                 cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS),
@@ -54,7 +57,7 @@ public class AtomicTopicDeleteSuite {
                 cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS),
                 cryptoCreate("nonTopicId"),
                 atomicBatch(deleteTopic(spec -> asTopicId(spec.registry().getAccountID("nonTopicId")))
-                                .hasPrecheck(INVALID_TOPIC_ID)
+                                .hasKnownStatus(INVALID_TOPIC_ID)
                                 .batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR)
                         .hasKnownStatus(INNER_TRANSACTION_FAILED));
@@ -66,7 +69,7 @@ public class AtomicTopicDeleteSuite {
                 cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS),
                 cryptoCreate("nonTopicId"),
                 atomicBatch(deleteTopic((String) null)
-                                .hasPrecheck(INVALID_TOPIC_ID)
+                                .hasKnownStatus(INVALID_TOPIC_ID)
                                 .batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR)
                         .hasKnownStatus(INNER_TRANSACTION_FAILED));
@@ -140,6 +143,7 @@ public class AtomicTopicDeleteSuite {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> feeAsExpected() {
         return hapiTest(
                 cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS),

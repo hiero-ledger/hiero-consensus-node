@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.throttling;
 
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
@@ -15,7 +16,9 @@ import com.hedera.services.bdd.junit.LeakyHapiTest;
 import java.util.stream.Stream;
 import org.apache.tuweni.bytes.Bytes;
 import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.Tag;
 
+@Tag(MATS)
 public class GasLimitThrottlingSuite {
     private static final String CONTRACT = "Benchmark";
     public static final String PAYER_ACCOUNT = "payerAccount";

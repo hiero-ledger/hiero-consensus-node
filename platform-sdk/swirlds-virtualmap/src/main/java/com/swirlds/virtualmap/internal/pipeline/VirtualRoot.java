@@ -2,16 +2,12 @@
 package com.swirlds.virtualmap.internal.pipeline;
 
 import com.swirlds.common.merkle.MerkleNode;
-import com.swirlds.virtualmap.VirtualKey;
-import com.swirlds.virtualmap.VirtualValue;
 import com.swirlds.virtualmap.internal.RecordAccessor;
-import java.io.IOException;
-import java.nio.file.Path;
 
 /**
  * The root of a merkle tree containing virtual nodes (i.e. nodes that can be flushed to disk).
  */
-public interface VirtualRoot<K extends VirtualKey, V extends VirtualValue> extends MerkleNode {
+public interface VirtualRoot extends MerkleNode {
 
     /**
      * Check if this copy is a copy that has been designated for flushing. Once designated
@@ -91,18 +87,7 @@ public interface VirtualRoot<K extends VirtualKey, V extends VirtualValue> exten
      *
      * @return a reference to the detached state
      */
-    RecordAccessor<K, V> detach();
-
-    /**
-     * Takes a snapshot of this virtual root into the specified location. The snapshot can be loaded
-     * back to memory using {@link com.swirlds.virtualmap.datasource.VirtualDataSourceBuilder#restore(String, Path)}
-     * method. It will contain the same data as this root, but some data may be moved from memory to
-     * disk or vice versa. After snapshot is taken, it does not consume any runtime resources, CPU or memory.
-     *
-     * @param destination the location where snapshot files will be located
-     * @throws IOException if an I/O error occurs
-     */
-    void snapshot(final Path destination) throws IOException;
+    RecordAccessor detach();
 
     /**
      * Gets whether this copy is detached.
@@ -118,7 +103,7 @@ public interface VirtualRoot<K extends VirtualKey, V extends VirtualValue> exten
      * 		the pipeline in question
      * @return true if this virtual root has been previously registered with the given pipeline
      */
-    boolean isRegisteredToPipeline(final VirtualPipeline<K, V> pipeline);
+    boolean isRegisteredToPipeline(final VirtualPipeline pipeline);
 
     /**
      * Called by the {@link VirtualPipeline} on the most recent remaining copy in the pipeline when the pipeline is

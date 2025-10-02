@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.token;
 
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.TOKEN;
 import static com.hedera.services.bdd.spec.HapiSpec.defaultHapiSpec;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
+import static com.hedera.services.bdd.spec.keys.SigMapGenerator.Nature.FULL_PREFIXES;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTokenInfo;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.burnToken;
@@ -32,11 +34,13 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_IS_IMMUT
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_WAS_DELETED;
 
 import com.hedera.services.bdd.junit.HapiTest;
+import com.hedera.services.bdd.spec.keys.TrieSigMapGenerator;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
 @Tag(TOKEN)
+@Tag(MATS)
 public class TokenDeleteSpecs {
     private static final String FIRST_TBD = "firstTbd";
     private static final String SECOND_TBD = "secondTbd";
@@ -110,7 +114,11 @@ public class TokenDeleteSpecs {
                                 .treasury(TOKEN_TREASURY)
                                 .payingWith(PAYER))
                 .when()
-                .then(tokenDelete("tbd").payingWith(PAYER).signedBy(PAYER).hasKnownStatus(INVALID_SIGNATURE));
+                .then(tokenDelete("tbd")
+                        .payingWith(PAYER)
+                        .signedBy(PAYER)
+                        .sigMapPrefixes(TrieSigMapGenerator.withNature(FULL_PREFIXES))
+                        .hasKnownStatus(INVALID_SIGNATURE));
     }
 
     @HapiTest

@@ -3,8 +3,6 @@ package com.swirlds.virtualmap.datasource;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.metrics.api.Metrics;
-import com.swirlds.virtualmap.serialize.KeySerializer;
-import com.swirlds.virtualmap.serialize.ValueSerializer;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
@@ -121,18 +119,12 @@ public interface VirtualDataSource {
     /**
      * Load virtual record bytes for a leaf node by key.
      *
-     * <p>Key hash code may look redundant here, but it's currently not. In the future, key
-     * hash codes will be calculated as {@code keyBytes}' hash code. However, keys stored in
-     * the data source before it's migrated to bytes could be different from hashcodes from
-     * bytes. Therefore to load the existing keys, key hash codes must be passed explicitly.
-     *
      * @param keyBytes the key bytes for a leaf
-     * @param keyHashCode the key hash code
      * @return the leaf's record if one was stored for the given key or null if not stored
      * @throws IOException if there was a problem reading the leaf record
      */
     @Nullable
-    VirtualLeafBytes loadLeafRecord(final Bytes keyBytes, final int keyHashCode) throws IOException;
+    VirtualLeafBytes loadLeafRecord(final Bytes keyBytes) throws IOException;
 
     /**
      * Load virtual record bytes for a leaf node by path. If the path is outside the current
@@ -148,17 +140,11 @@ public interface VirtualDataSource {
     /**
      * Find the path of the given key.
      *
-     * <p>Key hash code may look redundant here, but it's currently not. In the future, key
-     * hash codes will be calculated as {@code keyBytes}' hash code. However, keys stored in
-     * the data source before it's migrated to bytes could be different from hash codes from
-     * bytes. Therefore, to load the existing keys, key hash codes must be passed explicitly.
-     *
      * @param keyBytes the key bytes
-     * @param keyHashCode the key hash code
      * @return the path or INVALID_PATH if the key is not stored
      * @throws IOException if there was a problem locating the key
      */
-    long findKey(final Bytes keyBytes, final int keyHashCode) throws IOException;
+    long findKey(final Bytes keyBytes) throws IOException;
 
     /**
      * Load a virtual node hash by path. If the path is outside [0, last leaf path] range, this
@@ -241,28 +227,4 @@ public interface VirtualDataSource {
     long getFirstLeafPath();
 
     long getLastLeafPath();
-
-    /**
-     * This method is used by VirtualMap / VirtualRootNode to get a key serializer from the
-     * data source, when it's deserialized from an existing state snapshot, where serializers
-     * are stored in the data source rather than in the root node.
-     *
-     * <p>The method is only used to migrate data sources to work with bytes rather than with
-     * strictly typed objects. It will be removed in the next version.
-     */
-    @Deprecated
-    @SuppressWarnings("rawtypes")
-    KeySerializer getKeySerializer();
-
-    /**
-     * This method is used by VirtualMap / VirtualRootNode to get a value serializer from the
-     * data source, when it's deserialized from an existing state snapshot, where serializers
-     * are stored in the data source rather than in the root node.
-     *
-     * <p>This method is only used to migrate data sources to work with bytes rather than with
-     * strictly typed objects. It will be removed in the next version.
-     */
-    @Deprecated
-    @SuppressWarnings("rawtypes")
-    ValueSerializer getValueSerializer();
 }

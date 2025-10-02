@@ -525,16 +525,6 @@ public class EventImpl implements Clearable {
     }
 
     /**
-     * Get the generation of this event
-     *
-     * @return the generation of this event
-     */
-    @Deprecated(forRemoval = true)
-    public long getGeneration() {
-        return baseEvent.getGeneration();
-    }
-
-    /**
      * Get the non-deterministic generation of this event
      *
      * @return the non-deterministic generation of this event

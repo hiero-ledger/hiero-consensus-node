@@ -16,6 +16,7 @@ import com.swirlds.virtualmap.datasource.VirtualDataSourceBuilder;
 import com.swirlds.virtualmap.test.fixtures.InMemoryBuilder;
 import com.swirlds.virtualmap.test.fixtures.TestKey;
 import com.swirlds.virtualmap.test.fixtures.TestValue;
+import com.swirlds.virtualmap.test.fixtures.TestValueCodec;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedList;
@@ -187,11 +188,11 @@ class RandomVirtualMapReconnectTests extends VirtualMapReconnectTestBase {
             final String key = randomWord(random, config.maximumKey());
             final String value = randomWord(random, ZZZZZ);
             // treat the hashCode of the key as a long value for the TestKey
-            teacherMap.put(new TestKey(wordToKey(key)), new TestValue(value));
-            learnerMap.put(new TestKey(wordToKey(key)), new TestValue(value));
+            teacherMap.put(TestKey.longToKey(wordToKey(key)), new TestValue(value), TestValueCodec.INSTANCE);
+            learnerMap.put(TestKey.longToKey(wordToKey(key)), new TestValue(value), TestValueCodec.INSTANCE);
             usedKeys.add(key);
         }
-        final Queue<VirtualMap<TestKey, TestValue>> copiesQueue = new LinkedList<>();
+        final Queue<VirtualMap> copiesQueue = new LinkedList<>();
 
         for (int operation = 0; operation < config.operations(); operation++) {
             int op = random.nextInt(config.createWeight() + config.updateWeight() + config.deleteWeight());
@@ -202,18 +203,18 @@ class RandomVirtualMapReconnectTests extends VirtualMapReconnectTestBase {
                     key = randomWord(random, config.maximumKey());
                 }
                 final String value = randomWord(random, ZZZZZ);
-                teacherMap.put(new TestKey(wordToKey(key)), new TestValue(value));
+                teacherMap.put(TestKey.longToKey(wordToKey(key)), new TestValue(value), TestValueCodec.INSTANCE);
                 usedKeys.add(key);
                 removedKeys.remove(key);
             } else if (op < config.createWeight() + config.updateWeight()) {
                 // update an existing key from the teacherMap
                 final String key = usedKeys.get(random);
                 final String value = randomWord(random, ZZZZZ);
-                teacherMap.put(new TestKey(wordToKey(key)), new TestValue(value));
+                teacherMap.put(TestKey.longToKey(wordToKey(key)), new TestValue(value), TestValueCodec.INSTANCE);
             } else {
                 // remove an existing key from the teacherMap
                 final String key = usedKeys.get(random);
-                teacherMap.remove(new TestKey(wordToKey(key)));
+                teacherMap.remove(TestKey.longToKey(wordToKey(key)));
                 usedKeys.remove(key);
                 removedKeys.add(key);
             }
@@ -222,14 +223,14 @@ class RandomVirtualMapReconnectTests extends VirtualMapReconnectTestBase {
                 copiesQueue.add(teacherMap);
                 teacherMap = teacherMap.copy();
                 if (copiesQueue.size() > config.maxCopiesInMemory()) {
-                    final VirtualMap<TestKey, TestValue> oldestCopy = copiesQueue.remove();
+                    final VirtualMap oldestCopy = copiesQueue.remove();
                     oldestCopy.release();
                 }
             }
         }
 
         final MerkleInternal teacherTree = createTreeForMap(teacherMap);
-        final VirtualMap<TestKey, TestValue> copy = teacherMap.copy(); // ensure teacherMap is immutable
+        final VirtualMap copy = teacherMap.copy(); // ensure teacherMap is immutable
         final MerkleInternal learnerTree = createTreeForMap(learnerMap);
 
         // reconnect happening
@@ -237,12 +238,12 @@ class RandomVirtualMapReconnectTests extends VirtualMapReconnectTestBase {
                 MerkleTestUtils.hashAndTestSynchronization(learnerTree, teacherTree, reconnectConfig);
 
         final DummyMerkleInternal node = afterSyncLearnerTree.getChild(1);
-        final VirtualMap<TestKey, TestValue> afterMap = node.getChild(3);
+        final VirtualMap afterMap = node.getChild(3);
 
         for (final String key : removedKeys) {
             try {
                 assertNull(
-                        afterMap.get(new TestKey(wordToKey(key))),
+                        afterMap.get(TestKey.longToKey(wordToKey(key)), TestValueCodec.INSTANCE),
                         "Key " + key + " should no longer be present after reconnect.");
             } catch (AssertionError ae) {
                 assertEquals(

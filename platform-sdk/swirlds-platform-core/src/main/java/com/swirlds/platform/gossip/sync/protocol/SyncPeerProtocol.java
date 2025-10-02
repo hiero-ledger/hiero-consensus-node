@@ -10,6 +10,7 @@ import com.swirlds.platform.gossip.IntakeEventCounter;
 import com.swirlds.platform.gossip.SyncException;
 import com.swirlds.platform.gossip.permits.SyncPermitProvider;
 import com.swirlds.platform.gossip.shadowgraph.ShadowgraphSynchronizer;
+import com.swirlds.platform.gossip.sync.config.SyncConfig;
 import com.swirlds.platform.metrics.SyncMetrics;
 import com.swirlds.platform.network.Connection;
 import com.swirlds.platform.network.NetworkProtocolException;
@@ -32,6 +33,7 @@ import org.hiero.consensus.model.status.PlatformStatus;
  * This object will be instantiated once per peer, and is bidirectional
  */
 public class SyncPeerProtocol implements PeerProtocol {
+
     /**
      * The id of the peer being synced with in this protocol
      */
@@ -67,6 +69,12 @@ public class SyncPeerProtocol implements PeerProtocol {
      * Returns true if gossip is halted, false otherwise
      */
     private final BooleanSupplier gossipHalted;
+
+    /**
+     * When enabled, instead of completely reducing number of syncs when system is unhealthy, we will just stop
+     * receiving and processing remote events, while we still continue sending our own events
+     */
+    private final boolean keepSendingEventsWhenUnhealthy;
 
     /**
      * The last time this protocol executed
@@ -119,6 +127,10 @@ public class SyncPeerProtocol implements PeerProtocol {
         this.sleepAfterSync = Objects.requireNonNull(sleepAfterSync);
         this.syncMetrics = Objects.requireNonNull(syncMetrics);
         this.platformStatusSupplier = Objects.requireNonNull(platformStatusSupplier);
+        this.keepSendingEventsWhenUnhealthy = platformContext
+                .getConfiguration()
+                .getConfigData(SyncConfig.class)
+                .keepSendingEventsWhenUnhealthy();
     }
 
     /**
@@ -239,7 +251,8 @@ public class SyncPeerProtocol implements PeerProtocol {
             throws NetworkProtocolException, IOException, InterruptedException {
 
         try {
-            synchronizer.synchronize(platformContext, connection);
+            synchronizer.synchronize(
+                    platformContext, connection, !permitProvider.isHealthy() && keepSendingEventsWhenUnhealthy);
         } catch (final ParallelExecutionException | SyncException e) {
             if (Utilities.isRootCauseSuppliedType(e, IOException.class)) {
                 throw new IOException(e);

@@ -38,10 +38,11 @@ public class HapiUncheckedSubmit<T extends HapiTxnOp<T>> extends HapiTxnOp<HapiU
 
     @Override
     protected Consumer<TransactionBody.Builder> opBodyDef(final HapiSpec spec) throws Throwable {
-        final var subOpBytes = subOp.serializeSignedTxnFor(spec);
+        final var tx = subOp.signedTxnFor(spec);
         if (verboseLoggingOn) {
-            log.info("Submitting unchecked: {}", CommonUtils.extractTransactionBody(Transaction.parseFrom(subOpBytes)));
+            log.info("Submitting unchecked: {}", CommonUtils.extractTransactionBody(tx));
         }
+        final var subOpBytes = HapiTxnOp.serializedSignedTxFrom(subOp.signedTxnFor(spec));
         final UncheckedSubmitBody opBody = spec.txns()
                 .<UncheckedSubmitBody, UncheckedSubmitBody.Builder>body(
                         UncheckedSubmitBody.class, b -> b.setTransactionBytes(ByteString.copyFrom(subOpBytes)));

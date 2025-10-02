@@ -10,7 +10,9 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import org.apache.tuweni.bytes.Bytes;
+import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.datatypes.Transaction;
 import org.hyperledger.besu.evm.frame.ExceptionalHaltReason;
 import org.hyperledger.besu.evm.frame.MessageFrame;
@@ -115,12 +117,13 @@ public class AddOnEvmActionTracer implements ActionSidecarContentTracer {
             @Nullable final Bytes output,
             @NonNull final List<Log> logs,
             final long gasUsed,
+            final Set<Address> selfDestructs,
             final long timeNs) {
         requireNonNull(worldView);
         requireNonNull(tx);
         requireNonNull(logs);
-        addOnTracers.forEach(
-                tracer -> tracer.traceEndTransaction(worldView, tx, status, output, logs, gasUsed, timeNs));
+        addOnTracers.forEach(tracer ->
+                tracer.traceEndTransaction(worldView, tx, status, output, logs, gasUsed, selfDestructs, timeNs));
     }
 
     @Override

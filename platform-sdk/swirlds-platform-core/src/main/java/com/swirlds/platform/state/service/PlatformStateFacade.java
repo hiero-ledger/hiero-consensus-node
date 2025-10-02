@@ -5,14 +5,14 @@ import static com.hedera.hapi.util.HapiUtils.asInstant;
 import static com.swirlds.platform.state.MerkleStateUtils.createInfoString;
 import static com.swirlds.platform.state.PlatformStateAccessor.GENESIS_ROUND;
 import static com.swirlds.platform.state.service.PlatformStateService.NAME;
-import static com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema.PLATFORM_STATE_KEY;
+import static com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID;
 import static com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema.UNINITIALIZED_PLATFORM_STATE;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.hedera.hapi.platform.state.PlatformState;
-import com.swirlds.common.merkle.MerkleNode;
+import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.PlatformStateAccessor;
 import com.swirlds.platform.state.PlatformStateModifier;
 import com.swirlds.state.State;
@@ -136,7 +136,7 @@ public class PlatformStateFacade {
             return UNINITIALIZED_PLATFORM_STATE;
         } else {
             return (PlatformState)
-                    readableStates.getSingleton(PLATFORM_STATE_KEY).get();
+                    readableStates.getSingleton(PLATFORM_STATE_STATE_ID).get();
         }
     }
 
@@ -171,38 +171,6 @@ public class PlatformStateFacade {
     @Nullable
     public ConsensusSnapshot consensusSnapshotOf(@NonNull final State root) {
         return readablePlatformStateStore(root).getSnapshot();
-    }
-
-    /**
-     * Given a {@link State}, returns the first software version where the birth round migration happened, or null if
-     * birth round migration has not yet happened.
-     *
-     * @param state the state to extract the first version in birth round mode from
-     * @return the number of non-ancient rounds, or zero if the state is a genesis state
-     */
-    @Nullable
-    public SemanticVersion firstVersionInBirthRoundModeOf(@NonNull final State state) {
-        return readablePlatformStateStore(state).getFirstVersionInBirthRoundMode();
-    }
-
-    /**
-     * Given a {@link State}, returns the last round before the birth round mode was enabled.
-     *
-     * @param root the root to extract the round number from
-     * @return the last round before the birth round mode was enabled, or zero if the state is a genesis state
-     */
-    public long lastRoundBeforeBirthRoundModeOf(@NonNull final State root) {
-        return readablePlatformStateStore(root).getLastRoundBeforeBirthRoundMode();
-    }
-
-    /**
-     * Given a {@link State}, lowest judge generation before birth round mode.
-     *
-     * @param state the state to extract the judge generation from
-     * @return the number of non-ancient rounds, or zero if the state is a genesis state
-     */
-    public long lowestJudgeGenerationBeforeBirthRoundModeOf(@NonNull final State state) {
-        return readablePlatformStateStore(state).getLowestJudgeGenerationBeforeBirthRoundMode();
     }
 
     /**
@@ -310,7 +278,13 @@ public class PlatformStateFacade {
      */
     @NonNull
     public String getInfoString(@NonNull final State state, final int hashDepth) {
-        return createInfoString(hashDepth, readablePlatformStateStore(state), state.getHash(), (MerkleNode) state);
+        final MerkleNodeState merkleNodeState = (MerkleNodeState) state;
+        return createInfoString(
+                        hashDepth,
+                        readablePlatformStateStore(state),
+                        merkleNodeState.getHash(),
+                        merkleNodeState.getRoot())
+                .concat(merkleNodeState.getInfoJson());
     }
 
     private PlatformStateAccessor readablePlatformStateStore(@NonNull final State state) {

@@ -18,6 +18,7 @@ import java.util.Set;
  * @param <V> The type of the value
  */
 public class ReadonlyKVStateWrapper<K, V> implements ReadableKVState<K, V> {
+
     private final WritableKVState<K, V> delegate;
 
     /**
@@ -32,10 +33,9 @@ public class ReadonlyKVStateWrapper<K, V> implements ReadableKVState<K, V> {
     /**
      * {@inheritDoc}
      */
-    @NonNull
     @Override
-    public String getStateKey() {
-        return delegate.getStateKey();
+    public int getStateId() {
+        return delegate.getStateId();
     }
 
     /**

@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.suites.fees;
 
 import static com.hedera.services.bdd.junit.RepeatableReason.NEEDS_SYNCHRONOUS_HANDLE_WORKFLOW;
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.customizedHapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getScheduleInfo;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
@@ -32,8 +33,10 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.Tag;
 
 @HapiTestLifecycle
+@Tag(MATS)
 public class ScheduleServiceFeesSuite {
     private static final double BASE_FEE_SCHEDULE_CREATE = 0.01;
     private static final double BASE_FEE_SCHEDULE_SIGN = 0.001;

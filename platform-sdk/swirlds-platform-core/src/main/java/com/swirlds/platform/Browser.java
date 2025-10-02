@@ -26,6 +26,7 @@ import static com.swirlds.platform.util.BootstrapUtils.getNodesToRun;
 import static com.swirlds.platform.util.BootstrapUtils.loadSwirldMains;
 import static com.swirlds.platform.util.BootstrapUtils.setupBrowserWindow;
 
+import com.hedera.hapi.util.HapiUtils;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.filesystem.FileSystemManager;
@@ -36,7 +37,6 @@ import com.swirlds.common.threading.framework.config.ThreadConfiguration;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.config.extensions.sources.SystemEnvironmentConfigSource;
-import com.swirlds.merkledb.MerkleDb;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.builder.PlatformBuilder;
 import com.swirlds.platform.config.BasicConfig;
@@ -50,6 +50,7 @@ import com.swirlds.platform.gui.model.InfoApp;
 import com.swirlds.platform.gui.model.InfoMember;
 import com.swirlds.platform.gui.model.InfoSwirld;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
+import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.HashedReservedSignedState;
 import com.swirlds.platform.state.signed.ReservedSignedState;
@@ -57,6 +58,7 @@ import com.swirlds.platform.system.SwirldMain;
 import com.swirlds.platform.system.SystemExitCode;
 import com.swirlds.platform.util.BootstrapUtils;
 import com.swirlds.state.State;
+import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.awt.GraphicsEnvironment;
 import java.util.ArrayList;
@@ -66,6 +68,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Function;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Cryptography;
@@ -78,8 +81,7 @@ import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.roster.RosterUtils;
 
 /**
- * The Browser that launches the Platforms that run the apps. This is used by the demo apps to launch the
- * Platforms.
+ * The Browser that launches the Platforms that run the apps. This is used by the demo apps to launch the Platforms.
  * This class will be removed once the demo apps moved to Inversion of Control pattern to build and start platform
  * directly.
  */
@@ -254,8 +256,7 @@ public class Browser {
                     FileSystemManager.create(configuration),
                     recycleBin,
                     merkleCryptography);
-            // Each platform needs a different temporary state on disk.
-            MerkleDb.resetDefaultInstancePath();
+
             PlatformStateFacade platformStateFacade = new PlatformStateFacade();
             // Create the initial state for the platform
             ConsensusStateEventHandler consensusStateEventHandler = appMain.newConsensusStateEvenHandler();
@@ -263,6 +264,7 @@ public class Browser {
                     recycleBin,
                     appMain.getSemanticVersion(),
                     appMain::newStateRoot,
+                    stateRootFromVirtualMap(appMain),
                     appMain.getClass().getName(),
                     appDefinition.getSwirldName(),
                     nodeId,
@@ -281,8 +283,20 @@ public class Browser {
                     consensusStateEventHandler,
                     platformStateFacade);
 
-            // Build the platform with the given values
             final State state = initialState.get().getState();
+
+            // If we are upgrading, then we are loading a freeze state and we need to update the latest freeze round
+            // value
+            if (HapiUtils.SEMANTIC_VERSION_COMPARATOR.compare(
+                            appMain.getSemanticVersion(), platformStateFacade.creationSemanticVersionOf(state))
+                    > 0) {
+                final long initialStateRound = platformStateFacade.roundOf(state);
+                platformStateFacade.bulkUpdateOf(state, v -> {
+                    v.setLatestFreezeRound(initialStateRound);
+                });
+            }
+
+            // Build the platform with the given values
             final RosterHistory rosterHistory = RosterUtils.createRosterHistory(state);
 
             final PlatformBuilder builder = PlatformBuilder.create(
@@ -294,12 +308,13 @@ public class Browser {
                     nodeId,
                     String.valueOf(nodeId),
                     rosterHistory,
-                    platformStateFacade);
+                    platformStateFacade,
+                    stateRootFromVirtualMap(appMain));
             if (showUi && index == 0) {
                 builder.withPreconsensusEventCallback(guiEventStorage::handlePreconsensusEvent);
                 builder.withConsensusSnapshotOverrideCallback(guiEventStorage::handleSnapshotOverride);
             }
-            builder.withSystemTransactionEncoderCallback(appMain::encodeSystemTransaction);
+            builder.withExecutionLayer(appMain);
 
             // Build platform using the Inversion of Control pattern by injecting all needed
             // dependencies into the PlatformBuilder.
@@ -379,5 +394,15 @@ public class Browser {
                 .setRunnable(appMain)
                 .setDaemon(false)
                 .build(true);
+    }
+
+    /**
+     * A function to instantiate the state root object from a Virtual Map.
+     *
+     * @return a function that accepts a {@code VirtualMap} and returns the state root object.
+     */
+    private static Function<VirtualMap, MerkleNodeState> stateRootFromVirtualMap(@NonNull final SwirldMain appMain) {
+        Objects.requireNonNull(appMain);
+        return (virtualMap) -> (com.swirlds.platform.state.MerkleNodeState) appMain.stateRootFromVirtualMap();
     }
 }

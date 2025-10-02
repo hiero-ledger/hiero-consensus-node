@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.consensus;
 
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTopicInfo;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.atomicBatch;
@@ -23,6 +24,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.EXPIRATION_RED
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_AUTORENEW_ACCOUNT;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_EXPIRATION_TIME;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TOPIC_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ZERO_BYTE_IN_STRING;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.MEMO_TOO_LONG;
@@ -44,6 +46,7 @@ import java.util.function.Function;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.Tag;
 
 // This test cases are direct copies of TopicUpdateSuite\. The difference here is that
 // we are wrapping the operations in an atomic batch to confirm that everything works as expected.
@@ -64,7 +67,9 @@ public class AtomicTopicUpdateSuite {
         return hapiTest(
                 cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS),
                 cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS),
-                atomicBatch(updateTopic("0.0.1").hasPrecheck(INVALID_TOPIC_ID).batchKey(BATCH_OPERATOR))
+                atomicBatch(updateTopic("0.0.1")
+                                .hasKnownStatus(INVALID_TOPIC_ID)
+                                .batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR)
                         .hasKnownStatus(INNER_TRANSACTION_FAILED));
     }
@@ -258,8 +263,17 @@ public class AtomicTopicUpdateSuite {
                         .adminKey("newAdminKey")
                         .autoRenewAccountId("newAutoRenewAccount")
                         .signedBy(signers)
+                        .hasKnownStatus(INVALID_SIGNATURE)
                         .batchKey(BATCH_OPERATOR))
                 .payingWith(BATCH_OPERATOR);
+        final var successfulTopicUpdate = atomicBatch(updateTopic("testTopic")
+                        .payingWith("payer")
+                        .adminKey("newAdminKey")
+                        .autoRenewAccountId("newAutoRenewAccount")
+                        .signedBy("payer", "oldAdminKey", "newAdminKey", "newAutoRenewAccount")
+                        .batchKey(BATCH_OPERATOR))
+                .payingWith(BATCH_OPERATOR)
+                .hasKnownStatus(SUCCESS);
 
         return hapiTest(
                 cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS),
@@ -281,9 +295,7 @@ public class AtomicTopicUpdateSuite {
                 updateTopicSignedBy
                         .apply(new String[] {"payer", "newAdminKey", "newAutoRenewAccount"})
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                updateTopicSignedBy
-                        .apply(new String[] {"payer", "oldAdminKey", "newAdminKey", "newAutoRenewAccount"})
-                        .hasKnownStatus(SUCCESS),
+                successfulTopicUpdate,
                 getTopicInfo("testTopic")
                         .logged()
                         .hasAdminKey("newAdminKey")
@@ -311,6 +323,7 @@ public class AtomicTopicUpdateSuite {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> updateSubmitKeyToDiffKey() {
         return hapiTest(
                 cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS),

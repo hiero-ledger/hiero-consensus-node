@@ -9,6 +9,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 import static org.mockito.Mockito.mock;
 
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.merkle.MerkleInternal;
@@ -37,11 +38,11 @@ import com.swirlds.common.threading.pool.StandardWorkGroup;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.metrics.api.Metrics;
-import com.swirlds.virtualmap.VirtualKey;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.internal.merkle.VirtualLeafNode;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -49,6 +50,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Random;
 import java.util.Set;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -902,9 +904,8 @@ public final class MerkleTestUtils {
      * sure either the map in both trees contains the key, or the map in both trees doesn't
      * contain the key.
      */
-    @SuppressWarnings({"rawtypes", "unchecked"})
     public static boolean checkVirtualMapKeys(
-            final MerkleNode rootA, final MerkleNode rootB, final Set<VirtualKey> virtualKeys) {
+            final MerkleNode rootA, final MerkleNode rootB, final Set<Bytes> virtualKeys) {
         final Iterator<MerkleNode> iteratorA = new MerkleIterator<>(rootA);
         final Iterator<MerkleNode> iteratorB = new MerkleIterator<>(rootB);
         while (iteratorA.hasNext()) {
@@ -917,7 +918,7 @@ public final class MerkleTestUtils {
                 if (!(b instanceof VirtualMap vmB)) {
                     return false;
                 }
-                for (final VirtualKey key : virtualKeys) {
+                for (final Bytes key : virtualKeys) {
                     if (vmA.containsKey(key) != vmB.containsKey(key)) {
                         return false;
                     }
@@ -1052,7 +1053,7 @@ public final class MerkleTestUtils {
                                         threadManager,
                                         "test-learning-synchronizer",
                                         breakConnection,
-                                        reconnectExceptionListener,
+                                        createSuppressedExceptionListener(reconnectExceptionListener),
                                         true);
                             }
                         };
@@ -1077,7 +1078,7 @@ public final class MerkleTestUtils {
                                         threadManager,
                                         "test-teaching-synchronizer",
                                         breakConnection,
-                                        exceptionListener,
+                                        createSuppressedExceptionListener(exceptionListener),
                                         true);
                             }
                         };
@@ -1100,7 +1101,7 @@ public final class MerkleTestUtils {
                                         threadManager,
                                         "test-learning-synchronizer",
                                         breakConnection,
-                                        reconnectExceptionListener,
+                                        createSuppressedExceptionListener(reconnectExceptionListener),
                                         true);
                             }
                         };
@@ -1124,17 +1125,17 @@ public final class MerkleTestUtils {
                                         threadManager,
                                         "test-teaching-synchronizer",
                                         breakConnection,
-                                        reconnectExceptionListener,
+                                        createSuppressedExceptionListener(reconnectExceptionListener),
                                         true);
                             }
                         };
             }
 
             final AtomicReference<Throwable> firstReconnectException = new AtomicReference<>();
-            final Function<Throwable, Boolean> exceptionListener = t -> {
+            final Function<Throwable, Boolean> exceptionListener = createSuppressedExceptionListener(t -> {
                 firstReconnectException.compareAndSet(null, t);
                 return false;
-            };
+            });
             final StandardWorkGroup workGroup = new StandardWorkGroup(
                     getStaticThreadManager(), "synchronization-test", null, exceptionListener, true);
             workGroup.execute("teaching-synchronizer-main", () -> teachingSynchronizerThread(teacher));
@@ -1167,12 +1168,12 @@ public final class MerkleTestUtils {
         return node != null && (node.getClassId() == 0xaf2482557cfdb6bfL || node.getClassId() == 0x499677a326fb04caL);
     }
 
-    private static Set<VirtualKey> getVirtualKeys(final MerkleNode node) {
-        final Set<VirtualKey> keys = new HashSet<>();
+    private static Set<Bytes> getVirtualKeys(final MerkleNode node) {
+        final Set<Bytes> keys = new HashSet<>();
         final Iterator<MerkleNode> it = new MerkleIterator<>(node);
         while (it.hasNext()) {
             final MerkleNode n = it.next();
-            if (n instanceof VirtualLeafNode<?, ?> leaf) {
+            if (n instanceof VirtualLeafNode leaf) {
                 keys.add(leaf.getKey());
             }
         }
@@ -1195,7 +1196,7 @@ public final class MerkleTestUtils {
         // Checks that the trees are equal as merkle structures
         assertTrue(areTreesEqual(generatedTree, desiredTree), "reconnect should produce identical tree");
 
-        final Set<VirtualKey> allKeys = new HashSet<>();
+        final Set<Bytes> allKeys = new HashSet<>();
         allKeys.addAll(getVirtualKeys(startingTree));
         allKeys.addAll(getVirtualKeys(desiredTree));
         // A deeper check at VirtualMap level
@@ -1310,5 +1311,29 @@ public final class MerkleTestUtils {
             next = next.asInternal().getChild(step);
         }
         return next;
+    }
+
+    /**
+     * Creates an exception listener that suppresses specific expected exceptions during testing.
+     *
+     * @param originalListener the original exception listener to delegate to first
+     * @return a listener that suppresses expected exceptions
+     */
+    private static Function<Throwable, Boolean> createSuppressedExceptionListener(
+            Function<Throwable, Boolean> originalListener) {
+        return t -> {
+            boolean handled = originalListener.apply(t);
+            if (handled) {
+                return true;
+            }
+            Throwable cause = (t.getCause() != null) ? t.getCause() : t;
+            if (cause instanceof IOException
+                    || cause instanceof UncheckedIOException
+                    || cause instanceof ExecutionException
+                    || cause instanceof MerkleSynchronizationException) {
+                return true; // Suppress print/log for simulated
+            }
+            return false; // Allow print/log for unexpected
+        };
     }
 }

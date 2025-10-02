@@ -28,6 +28,11 @@ public class CreateOperationTestBase {
     protected static final long VALUE = 123_456L;
     protected static final long NONCE = 789L;
     protected static final long GAS_COST = 1_234L;
+    protected static final int INPUT_OFFSET = 0;
+    protected static final int INPUT_SIZE = 10;
+    protected static final long TX_CREATE_COST = 500L;
+    protected static final long MEMORY_EXPANSION_COST = 200L;
+    protected static final long INITCODE_COST = 534L;
     protected static final long CHILD_STIPEND = 1_000_000L;
     protected static final Wei GAS_PRICE = Wei.of(1000L);
     protected static final Bytes INITCODE = Bytes.wrap(new byte[] {1, 2, 3, 4, 5});
@@ -65,7 +70,7 @@ public class CreateOperationTestBase {
         given(frame.getGasPrice()).willReturn(GAS_PRICE);
         given(frame.getBlockValues()).willReturn(blockValues);
         given(frame.getMiningBeneficiary()).willReturn(COINBASE_ADDRESS);
-        given(frame.getBlockHashLookup()).willReturn(l -> Hash.ZERO);
+        given(frame.getBlockHashLookup()).willReturn((f, l) -> Hash.ZERO);
     }
 
     protected void givenSpawnPrereqs() {
@@ -82,5 +87,14 @@ public class CreateOperationTestBase {
         given(worldUpdater.getAccount(RECIEVER_ADDRESS)).willReturn(receiver);
         given(receiver.getBalance()).willReturn(Wei.of(VALUE));
         given(frame.getDepth()).willReturn(1023);
+    }
+
+    protected void givenGasCostPrereqs() {
+        given(frame.getStackItem(1)).willReturn(Bytes.ofUnsignedInt(INPUT_OFFSET));
+        given(frame.getStackItem(2)).willReturn(Bytes.ofUnsignedInt(INPUT_SIZE));
+        given(gasCalculator.txCreateCost()).willReturn(TX_CREATE_COST);
+        given(gasCalculator.memoryExpansionGasCost(frame, INPUT_OFFSET, INPUT_SIZE))
+                .willReturn(MEMORY_EXPANSION_COST);
+        given(gasCalculator.initcodeCost(INPUT_SIZE)).willReturn(INITCODE_COST);
     }
 }

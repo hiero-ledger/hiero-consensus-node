@@ -4,8 +4,9 @@ package com.swirlds.platform.event.orphan;
 import static com.swirlds.metrics.api.Metrics.PLATFORM_CATEGORY;
 import static org.hiero.consensus.model.event.NonDeterministicGeneration.assignNGen;
 
-import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.metrics.FunctionGauge;
+import com.swirlds.config.api.Configuration;
+import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.gossip.IntakeEventCounter;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
@@ -66,21 +67,22 @@ public class DefaultOrphanBuffer implements OrphanBuffer {
     /**
      * Constructor
      *
-     * @param platformContext    the platform context
+     * @param configuration the platform configuration
+     * @param metrics the metrics instance to use
      * @param intakeEventCounter keeps track of the number of events in the intake pipeline from each peer
      */
     public DefaultOrphanBuffer(
-            @NonNull final PlatformContext platformContext, @NonNull final IntakeEventCounter intakeEventCounter) {
+            @NonNull final Configuration configuration,
+            @NonNull final Metrics metrics,
+            @NonNull final IntakeEventCounter intakeEventCounter) {
 
         this.intakeEventCounter = Objects.requireNonNull(intakeEventCounter);
         this.currentOrphanCount = 0;
 
-        platformContext
-                .getMetrics()
-                .getOrCreate(new FunctionGauge.Config<>(
-                                PLATFORM_CATEGORY, "orphanBufferSize", Integer.class, this::getCurrentOrphanCount)
-                        .withDescription("number of orphaned events currently in the orphan buffer")
-                        .withUnit("events"));
+        metrics.getOrCreate(new FunctionGauge.Config<>(
+                        PLATFORM_CATEGORY, "orphanBufferSize", Integer.class, this::getCurrentOrphanCount)
+                .withDescription("number of orphaned events currently in the orphan buffer")
+                .withUnit("events"));
         this.eventWindow = EventWindow.getGenesisEventWindow();
         missingParentMap = new StandardSequenceMap<>(0, INITIAL_CAPACITY, true, EventDescriptorWrapper::birthRound);
         eventsWithParents = new StandardSequenceMap<>(0, INITIAL_CAPACITY, true, EventDescriptorWrapper::birthRound);

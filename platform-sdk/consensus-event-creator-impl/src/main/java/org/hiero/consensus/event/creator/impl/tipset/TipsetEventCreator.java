@@ -6,10 +6,12 @@ import static org.hiero.consensus.event.creator.impl.tipset.TipsetAdvancementWei
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.base.time.Time;
-import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.utility.throttle.RateLimitedLogger;
+import com.swirlds.config.api.Configuration;
+import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.security.SecureRandom;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -17,20 +19,20 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
-import java.util.Random;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.Signature;
 import org.hiero.consensus.crypto.PbjStreamHasher;
+import org.hiero.consensus.event.creator.EventCreationConfig;
 import org.hiero.consensus.event.creator.impl.EventCreator;
-import org.hiero.consensus.event.creator.impl.TransactionSupplier;
-import org.hiero.consensus.event.creator.impl.config.EventCreationConfig;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.event.UnsignedEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.quiescence.QuiescenceCommand;
+import org.hiero.consensus.model.transaction.EventTransactionSupplier;
 import org.hiero.consensus.roster.RosterUtils;
 
 /**
@@ -41,13 +43,13 @@ public class TipsetEventCreator implements EventCreator {
     private static final Logger logger = LogManager.getLogger(TipsetEventCreator.class);
 
     private final Time time;
-    private final Random random;
+    private final SecureRandom random;
     private final HashSigner signer;
     private final NodeId selfId;
     private final TipsetTracker tipsetTracker;
     private final TipsetWeightCalculator tipsetWeightCalculator;
     private final ChildlessEventTracker childlessOtherEventTracker;
-    private final TransactionSupplier transactionSupplier;
+    private final EventTransactionSupplier transactionSupplier;
     private EventWindow eventWindow;
 
     /**
@@ -86,39 +88,52 @@ public class TipsetEventCreator implements EventCreator {
     private final PbjStreamHasher eventHasher;
 
     /**
+     * Current QuiescenceCommand of the system
+     */
+    private QuiescenceCommand quiescenceCommand = QuiescenceCommand.DONT_QUIESCE;
+
+    /**
+     * We want to allow creation of only one event to break quiescence until normal events starts flowing through
+     */
+    private boolean breakQuiescenceEventCreated;
+
+    /**
      * Create a new tipset event creator.
      *
-     * @param platformContext     the platform context
-     * @param random              a source of randomness, does not need to be cryptographically secure
+     * @param configuration       the configuration for the event creator
+     * @param metrics             the metrics for the event creator
+     * @param time                provides the time source for the event creator
+     * @param random              a source of randomness that must be cryptographically secure
      * @param signer              used for signing things with this node's private key
      * @param roster              the current roster
      * @param selfId              this node's ID
      * @param transactionSupplier provides transactions to be included in new events
      */
     public TipsetEventCreator(
-            @NonNull final PlatformContext platformContext,
-            @NonNull final Random random,
+            @NonNull final Configuration configuration,
+            @NonNull final Metrics metrics,
+            @NonNull final Time time,
+            @NonNull final SecureRandom random,
             @NonNull final HashSigner signer,
             @NonNull final Roster roster,
             @NonNull final NodeId selfId,
-            @NonNull final TransactionSupplier transactionSupplier) {
+            @NonNull final EventTransactionSupplier transactionSupplier) {
 
-        this.time = platformContext.getTime();
+        this.time = Objects.requireNonNull(time);
         this.random = Objects.requireNonNull(random);
         this.signer = Objects.requireNonNull(signer);
         this.selfId = Objects.requireNonNull(selfId);
         this.transactionSupplier = Objects.requireNonNull(transactionSupplier);
         this.roster = Objects.requireNonNull(roster);
 
-        final EventCreationConfig eventCreationConfig =
-                platformContext.getConfiguration().getConfigData(EventCreationConfig.class);
+        final EventCreationConfig eventCreationConfig = configuration.getConfigData(EventCreationConfig.class);
 
         antiSelfishnessFactor = Math.max(1.0, eventCreationConfig.antiSelfishnessFactor());
-        tipsetMetrics = new TipsetMetrics(platformContext, roster);
+        tipsetMetrics = new TipsetMetrics(metrics, roster);
         tipsetTracker = new TipsetTracker(time, selfId, roster);
         childlessOtherEventTracker = new ChildlessEventTracker();
-        tipsetWeightCalculator =
-                new TipsetWeightCalculator(platformContext, roster, selfId, tipsetTracker, childlessOtherEventTracker);
+        tipsetWeightCalculator = new TipsetWeightCalculator(
+                configuration, time, roster, selfId, tipsetTracker, childlessOtherEventTracker);
         networkSize = roster.rosterEntries().size();
 
         zeroAdvancementWeightLogger = new RateLimitedLogger(logger, time, Duration.ofMinutes(1));
@@ -174,18 +189,41 @@ public class TipsetEventCreator implements EventCreator {
         childlessOtherEventTracker.pruneOldEvents(eventWindow);
     }
 
+    @Override
+    public void quiescenceCommand(@NonNull final QuiescenceCommand quiescenceCommand) {
+        this.quiescenceCommand = Objects.requireNonNull(quiescenceCommand);
+    }
+
     /**
      * {@inheritDoc}
      */
     @Nullable
     @Override
     public PlatformEvent maybeCreateEvent() {
-        final UnsignedEvent event = maybeCreateUnsignedEvent();
+        if (quiescenceCommand == QuiescenceCommand.QUIESCE) {
+            return null;
+        }
+        UnsignedEvent event = maybeCreateUnsignedEvent();
+        if (event != null) {
+            breakQuiescenceEventCreated = false;
+        } else if (quiescenceCommand == QuiescenceCommand.BREAK_QUIESCENCE && !breakQuiescenceEventCreated) {
+            event = createQuiescenceBreakEvent();
+            breakQuiescenceEventCreated = true;
+        }
         if (event != null) {
             lastSelfEvent = signEvent(event);
             return lastSelfEvent;
         }
         return null;
+    }
+
+    /**
+     * For simplicity, we will always create an event based only on single self parent; this is a special rare case
+     * and it will unblock the network
+     * @return new event based only on self parent
+     */
+    private UnsignedEvent createQuiescenceBreakEvent() {
+        return buildAndProcessEvent(null);
     }
 
     @Nullable
@@ -396,7 +434,8 @@ public class TipsetEventCreator implements EventCreator {
                 otherParent == null ? Collections.emptyList() : Collections.singletonList(otherParent),
                 eventWindow.newEventBirthRound(),
                 timeCreated,
-                transactionSupplier.getTransactions());
+                transactionSupplier.getTransactionsForEvent(),
+                random.nextLong(0, roster.rosterEntries().size() + 1));
         eventHasher.hashUnsignedEvent(event);
 
         return event;
@@ -469,8 +508,7 @@ public class TipsetEventCreator implements EventCreator {
     @FunctionalInterface
     public interface HashSigner {
         /**
-         * @param hash
-         * 		the hash to sign
+         * @param hash the hash to sign
          * @return the signature for the hash provided
          */
         Signature sign(Hash hash);

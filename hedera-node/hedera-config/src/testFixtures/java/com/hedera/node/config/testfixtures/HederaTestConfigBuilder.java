@@ -28,6 +28,7 @@ import com.hedera.node.config.data.AtomicBatchConfig;
 import com.hedera.node.config.data.AutoRenew2Config;
 import com.hedera.node.config.data.AutoRenewConfig;
 import com.hedera.node.config.data.BalancesConfig;
+import com.hedera.node.config.data.BlockBufferConfig;
 import com.hedera.node.config.data.BlockNodeConnectionConfig;
 import com.hedera.node.config.data.BlockRecordStreamConfig;
 import com.hedera.node.config.data.BlockStreamConfig;
@@ -42,6 +43,7 @@ import com.hedera.node.config.data.FilesConfig;
 import com.hedera.node.config.data.GrpcConfig;
 import com.hedera.node.config.data.GrpcUsageTrackerConfig;
 import com.hedera.node.config.data.HederaConfig;
+import com.hedera.node.config.data.HooksConfig;
 import com.hedera.node.config.data.JumboTransactionsConfig;
 import com.hedera.node.config.data.LedgerConfig;
 import com.hedera.node.config.data.NettyConfig;
@@ -86,7 +88,6 @@ import com.swirlds.virtualmap.config.VirtualMapConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.hiero.base.crypto.config.CryptoConfig;
 import org.hiero.consensus.config.EventConfig;
-import org.hiero.consensus.config.TransactionConfig;
 
 /**
  * A builder for creating {@link TestConfigBuilder} instances, or {@link Configuration} instances for testing. The
@@ -117,7 +118,6 @@ public final class HederaTestConfigBuilder {
                 .withConfigDataType(SocketConfig.class)
                 .withConfigDataType(StateConfig.class)
                 .withConfigDataType(StateCommonConfig.class)
-                .withConfigDataType(TransactionConfig.class)
                 .withConfigDataType(CryptoConfig.class)
                 .withConfigDataType(TemporaryFileConfig.class)
                 .withConfigDataType(FileSystemManagerConfig.class)
@@ -151,6 +151,7 @@ public final class HederaTestConfigBuilder {
                 .withConfigDataType(CacheConfig.class)
                 .withConfigDataType(ConsensusConfig.class)
                 .withConfigDataType(ContractsConfig.class)
+                .withConfigDataType(HooksConfig.class)
                 .withConfigDataType(EntitiesConfig.class)
                 .withConfigDataType(ExpiryConfig.class)
                 .withConfigDataType(FeesConfig.class)
@@ -172,6 +173,7 @@ public final class HederaTestConfigBuilder {
                 .withConfigDataType(TssConfig.class)
                 .withConfigDataType(BlockStreamConfig.class)
                 .withConfigDataType(BlockNodeConnectionConfig.class)
+                .withConfigDataType(BlockBufferConfig.class)
                 .withConfigDataType(AtomicBatchConfig.class)
                 .withConfigDataType(JumboTransactionsConfig.class)
                 .withConfigDataType(GrpcUsageTrackerConfig.class)

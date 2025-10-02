@@ -47,4 +47,14 @@ message SignedTransaction {
      * This set MAY contain additional signatures.
      */
     SignatureMap sigMap = 2;
+
+    /**
+     * If false then the hash of this transaction is the SHA-384 hash of the
+     * serialization of this SignedTransaction message as it arrived on the wire.
+     * <p>
+     * If true then the hash of this transaction is the SHA-384 hash of the
+     * ascending field order serialization of the Transaction whose `bodyBytes`
+     * and sigMap fields are deserialized from the contents of this message.
+     */
+    bool use_serialized_tx_message_hash_algorithm = 3;
 }

@@ -9,9 +9,11 @@ import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.swirlds.virtualmap.VirtualKey;
 import com.swirlds.virtualmap.serialize.KeySerializer;
 import java.io.IOException;
+import org.hiero.base.constructable.ConstructableIgnored;
 import org.hiero.base.io.streams.SerializableDataInputStream;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
 
+@ConstructableIgnored
 public class ExampleLongLongKeyVariableSize implements VirtualKey {
 
     /** random so that for testing we are sure we are getting same version */

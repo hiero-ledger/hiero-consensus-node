@@ -14,15 +14,16 @@ import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.SignatureMap;
 import com.hedera.hapi.node.base.Timestamp;
-import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.state.throttles.ThrottleUsageSnapshot;
 import com.hedera.hapi.node.state.throttles.ThrottleUsageSnapshots;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
+import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.ThrottleDefinitions;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.hapi.utils.throttles.DeterministicThrottle;
 import com.hedera.node.app.hapi.utils.throttles.LeakyBucketDeterministicThrottle;
+import com.hedera.node.app.hapi.utils.throttles.OpsDurationDeterministicThrottle;
 import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
@@ -44,7 +45,7 @@ class AppThrottleFactoryTest {
     private static final AccountID PAYER_ID =
             AccountID.newBuilder().accountNum(666L).build();
     private static final TransactionInfo TXN_INFO = new TransactionInfo(
-            Transaction.DEFAULT,
+            SignedTransaction.DEFAULT,
             TransactionBody.newBuilder()
                     .cryptoTransfer(CryptoTransferTransactionBody.DEFAULT)
                     .build(),
@@ -83,7 +84,7 @@ class AppThrottleFactoryTest {
     private LeakyBucketDeterministicThrottle bytesThrottle;
 
     @Mock
-    private LeakyBucketDeterministicThrottle opsDurationThrottle;
+    private OpsDurationDeterministicThrottle opsDurationThrottle;
 
     @Mock
     private AppThrottleFactory.ThrottleAccumulatorFactory throttleAccumulatorFactory;

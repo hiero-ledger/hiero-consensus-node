@@ -12,11 +12,11 @@ import com.hedera.hapi.services.auxiliary.history.HistoryProofVoteTransactionBod
 import com.hedera.node.app.history.WritableHistoryStore;
 import com.hedera.node.app.history.impl.ProofController;
 import com.hedera.node.app.history.impl.ProofControllers;
+import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
-import com.swirlds.state.lifecycle.info.NodeInfo;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;

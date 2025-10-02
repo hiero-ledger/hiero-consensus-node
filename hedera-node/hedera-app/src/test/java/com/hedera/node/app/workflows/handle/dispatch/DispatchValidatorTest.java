@@ -34,15 +34,16 @@ import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.SignatureMap;
-import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.state.token.Account;
+import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.fees.AppFeeCharging;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.signature.AppKeyVerifier;
 import com.hedera.node.app.signature.impl.SignatureVerificationImpl;
 import com.hedera.node.app.spi.fees.Fees;
+import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.spi.signatures.SignatureVerification;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.InsufficientNonFeeDebitsException;
@@ -56,7 +57,6 @@ import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.app.workflows.handle.Dispatch;
 import com.hedera.node.app.workflows.prehandle.PreHandleResult;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.state.lifecycle.info.NodeInfo;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.Collections;
@@ -521,7 +521,7 @@ class DispatchValidatorTest {
                     TransactionID.newBuilder().accountID(PAYER_ACCOUNT_ID).build())
             .build();
     private static final TransactionInfo TXN_INFO = new TransactionInfo(
-            Transaction.DEFAULT,
+            SignedTransaction.DEFAULT,
             TXN_BODY,
             SignatureMap.DEFAULT,
             Bytes.EMPTY,

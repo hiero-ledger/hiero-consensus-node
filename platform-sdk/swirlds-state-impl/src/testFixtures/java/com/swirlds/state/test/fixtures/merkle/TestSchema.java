@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.state.test.fixtures.merkle;
 
+import static com.hedera.hapi.util.HapiUtils.SEMANTIC_VERSION_COMPARATOR;
+
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.lifecycle.Schema;
@@ -15,12 +17,13 @@ import java.util.Set;
  * implementation for the various methods. Test code can subclass this to add the behavior they'd
  * like to test with.
  */
-public class TestSchema extends Schema {
+public class TestSchema extends Schema<SemanticVersion> {
+
     public static final SemanticVersion CURRENT_VERSION = new SemanticVersion(0, 47, 0, "SNAPSHOT", "");
     private final Runnable onMigrate;
     private final Runnable onRestart;
     private final Set<StateDefinition> statesToCreate;
-    private final Set<String> statesToRemove;
+    private final Set<Integer> statesToRemove;
 
     public TestSchema(int version) {
         this(SemanticVersion.newBuilder().major(version).build());
@@ -41,10 +44,10 @@ public class TestSchema extends Schema {
     public TestSchema(
             @NonNull final SemanticVersion version,
             @NonNull final Set<StateDefinition> statesToCreate,
-            @NonNull final Set<String> statesToRemove,
+            @NonNull final Set<Integer> statesToRemove,
             @Nullable Runnable onMigrate,
             @Nullable Runnable onRestart) {
-        super(version);
+        super(version, SEMANTIC_VERSION_COMPARATOR);
         this.onMigrate = onMigrate;
         this.onRestart = onRestart;
         this.statesToCreate = statesToCreate;
@@ -67,7 +70,7 @@ public class TestSchema extends Schema {
 
     @NonNull
     @Override
-    public Set<String> statesToRemove() {
+    public Set<Integer> statesToRemove() {
         return statesToRemove;
     }
 
@@ -84,11 +87,12 @@ public class TestSchema extends Schema {
     }
 
     public static final class Builder {
+
         private SemanticVersion version = CURRENT_VERSION;
         private Runnable onMigrate;
         private Runnable onRestart;
         private final Set<StateDefinition> statesToCreate = new HashSet<>();
-        private final Set<String> statesToRemove = new HashSet<>();
+        private final Set<Integer> statesToRemove = new HashSet<>();
 
         public Builder version(SemanticVersion version) {
             this.version = version;
@@ -125,7 +129,7 @@ public class TestSchema extends Schema {
             return this;
         }
 
-        public Builder stateToRemove(String state) {
+        public Builder stateToRemove(int state) {
             this.statesToRemove.add(state);
             return this;
         }

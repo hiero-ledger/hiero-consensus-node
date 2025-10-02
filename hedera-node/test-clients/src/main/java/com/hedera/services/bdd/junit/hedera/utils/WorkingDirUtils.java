@@ -187,7 +187,7 @@ public class WorkingDirUtils {
     public @NonNull static SemanticVersion workingDirVersion() {
         final var loc = Paths.get(System.getProperty("user.dir")).endsWith("hedera-services")
                 ? "version.txt"
-                : "../version.txt";
+                : "../../version.txt";
         final var versionLiteral = readStringUnchecked(Paths.get(loc)).trim();
         return requireNonNull(new SemanticVersionConverter().convert(versionLiteral));
     }
@@ -285,6 +285,19 @@ public class WorkingDirUtils {
             }
         }
         return path;
+    }
+
+    /**
+     * Reads all bytes from a file, throwing an unchecked exception if an {@link IOException} occurs.
+     * @param path the path to read
+     * @return the bytes at the given path
+     */
+    public static byte[] readBytesUnchecked(@NonNull final Path path) {
+        try {
+            return Files.readAllBytes(path);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
 
     private static String readStringUnchecked(@NonNull final Path path) {
@@ -415,7 +428,7 @@ public class WorkingDirUtils {
                                 nodeAccount,
                                 "node" + (nodeId + 1),
                                 gossipEndpoints,
-                                List.of(),
+                                List.of(endpointFrom(parts[5], parts[6])),
                                 cert,
                                 // The gRPC certificate hash is irrelevant for PR checks
                                 Bytes.EMPTY,

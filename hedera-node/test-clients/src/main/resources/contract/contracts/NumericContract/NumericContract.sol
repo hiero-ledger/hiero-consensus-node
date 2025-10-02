@@ -9,14 +9,6 @@ contract NumericContract {
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
     /*               Non-static Simple HTS functions              */
     /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
-    function updateNFTsMetadata(address nftToken, int64[] memory serialNumbers, bytes memory _newMetadata) public {
-        (bool success, bytes memory result) = address(0x167)
-            .call(abi.encodeWithSignature("updateNFTsMetadata(address,int64[],bytes)", nftToken, serialNumbers, _newMetadata));
-
-        int32 responseCode = abi.decode(result, (int32));
-        require(responseCode == SUCCESS_CODE);
-    }
-
     function approveRedirect(address token, address account, uint256 amount) public {
         (bool success, bytes memory result) = address(token).call(abi.encodeWithSignature("approve(address,uint256)", account, amount));
 

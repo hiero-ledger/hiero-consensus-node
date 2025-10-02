@@ -23,7 +23,7 @@ import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.T
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateFalsePreCheck;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
-import static com.hedera.node.app.spi.workflows.record.StreamBuilder.TransactionCustomizer.SUPPRESSING_TRANSACTION_CUSTOMIZER;
+import static com.hedera.node.app.spi.workflows.record.StreamBuilder.SignedTxCustomizer.SUPPRESSING_SIGNED_TX_CUSTOMIZER;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
@@ -332,7 +332,7 @@ public class ConsensusSubmitMessageHandler implements TransactionHandler {
                     handleContext.payer(),
                     cryptoTransferBody,
                     CryptoTransferStreamBuilder.class,
-                    SUPPRESSING_TRANSACTION_CUSTOMIZER,
+                    SUPPRESSING_SIGNED_TX_CUSTOMIZER,
                     new DispatchMetadata(TRANSACTION_FIXED_FEE, entry.getKey())));
             // validate response and collect assessed fees
             validateTrue(dispatchedStreamBuilder.status().equals(SUCCESS), dispatchedStreamBuilder.status());

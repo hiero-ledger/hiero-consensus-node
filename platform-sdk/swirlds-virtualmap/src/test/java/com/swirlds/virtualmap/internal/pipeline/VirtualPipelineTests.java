@@ -24,8 +24,6 @@ import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.metrics.api.Metric;
 import com.swirlds.metrics.api.Metric.ValueType;
 import com.swirlds.metrics.api.Metrics;
-import com.swirlds.virtualmap.VirtualKey;
-import com.swirlds.virtualmap.VirtualValue;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
 import com.swirlds.virtualmap.config.VirtualMapConfig_;
 import java.io.IOException;
@@ -100,15 +98,14 @@ class VirtualPipelineTests {
     /**
      * Make sure that every copy in the list is in the correct state.
      */
-    private void assertValidity(final List<DummyVirtualRoot<VirtualKey, VirtualValue>> copies)
-            throws InterruptedException {
+    private void assertValidity(final List<DummyVirtualRoot> copies) throws InterruptedException {
 
         boolean oldestUndestroyedFound = false;
         boolean allAreDestroyed = true;
 
         // Index 0 is the oldest copy, so we will iterate from the oldest to the newest copy
         for (int index = 0; index < copies.size(); index++) {
-            final DummyVirtualRoot<VirtualKey, VirtualValue> copy = copies.get(index);
+            final DummyVirtualRoot copy = copies.get(index);
             allAreDestroyed &= copy.isDestroyed();
 
             // Flushing and merging are mutually exclusive, and only those marked
@@ -138,8 +135,7 @@ class VirtualPipelineTests {
                     assertFalse(copy.isFlushed(), "only the oldest copy can be flushed. Copy #" + copy.getCopyIndex());
                 } else {
                     if ((copy.isDestroyed() || copy.isDetached()) && copy.isImmutable()) {
-                        final DummyVirtualRoot<VirtualKey, VirtualValue> next =
-                                index + 1 < copies.size() ? copies.get(index + 1) : null;
+                        final DummyVirtualRoot next = index + 1 < copies.size() ? copies.get(index + 1) : null;
                         if (next != null && next.isImmutable()) {
                             interruptOnTimeout(
                                     2_000,
@@ -158,8 +154,7 @@ class VirtualPipelineTests {
                                     copy::waitUntilFlushed,
                                     "copy should quickly become flushed. Copy #" + copy.getCopyIndex());
                         } else {
-                            final DummyVirtualRoot<VirtualKey, VirtualValue> next =
-                                    index + 1 < copies.size() ? copies.get(index + 1) : null;
+                            final DummyVirtualRoot next = index + 1 < copies.size() ? copies.get(index + 1) : null;
                             if (next != null && next.isImmutable()) {
                                 interruptOnTimeout(
                                         2_000,
@@ -176,8 +171,7 @@ class VirtualPipelineTests {
         }
 
         if (allAreDestroyed && !copies.isEmpty()) {
-            final VirtualPipeline<VirtualKey, VirtualValue> pipeline =
-                    copies.getFirst().getPipeline();
+            final VirtualPipeline pipeline = copies.getFirst().getPipeline();
             assertTrue(pipeline.awaitTermination(2, TimeUnit.SECONDS), "thread should stop");
         }
     }
@@ -194,15 +188,15 @@ class VirtualPipelineTests {
      * @throws InterruptedException
      * 		As part of the tests this might happen.
      */
-    private List<DummyVirtualRoot<VirtualKey, VirtualValue>> setupCopies(
+    private List<DummyVirtualRoot> setupCopies(
             @SuppressWarnings("SameParameterValue") int copyCount, Predicate<Integer> shouldBeFlushed)
             throws InterruptedException {
-        final List<DummyVirtualRoot<VirtualKey, VirtualValue>> copies = new ArrayList<>(copyCount);
+        final List<DummyVirtualRoot> copies = new ArrayList<>(copyCount);
 
-        DummyVirtualRoot<VirtualKey, VirtualValue> mutableCopy = null;
+        DummyVirtualRoot mutableCopy = null;
         for (int index = 0; index < copyCount; index++) {
             if (mutableCopy == null) {
-                mutableCopy = new DummyVirtualRoot<>("VirtualPipelineTests", config);
+                mutableCopy = new DummyVirtualRoot("VirtualPipelineTests", config);
                 mutableCopy.setShouldFlushPredicate(shouldBeFlushed);
                 mutableCopy.registerMetrics(metrics);
             } else {
@@ -259,9 +253,8 @@ class VirtualPipelineTests {
     @Tag(TestComponentTags.VMAP)
     @DisplayName("registerCopy rejects nulls")
     void registerCopyRejectsNull() {
-        final DummyVirtualRoot<VirtualKey, VirtualValue> root =
-                new DummyVirtualRoot<>("registerCopyRejectsNull", config);
-        final VirtualPipeline<VirtualKey, VirtualValue> pipeline = root.getPipeline();
+        final DummyVirtualRoot root = new DummyVirtualRoot("registerCopyRejectsNull", config);
+        final VirtualPipeline pipeline = root.getPipeline();
         assertNotNull(pipeline, "Pipeline should never be null");
         assertThrows(NullPointerException.class, () -> pipeline.registerCopy(null), "Should have thrown NPE");
     }
@@ -279,8 +272,8 @@ class VirtualPipelineTests {
     @DisplayName("Ordered Release and/or Detach")
     void orderedReleaseAndOrDetach(boolean doDetach, boolean doRelease) throws IOException, InterruptedException {
         // Create 100 copies where every 10th is flush eligible
-        final List<DummyVirtualRoot<VirtualKey, VirtualValue>> copies = setupCopies(100, i -> i % 10 == 0);
-        for (final DummyVirtualRoot<VirtualKey, VirtualValue> copy : copies) {
+        final List<DummyVirtualRoot> copies = setupCopies(100, i -> i % 10 == 0);
+        for (final DummyVirtualRoot copy : copies) {
             if (doDetach) {
                 copy.getPipeline().pausePipelineAndRun("copy", copy::detach);
             }
@@ -306,7 +299,7 @@ class VirtualPipelineTests {
     void randomReleaseAndOrDetach(boolean doDetach, boolean doRelease) throws IOException, InterruptedException {
         // Create 100 copies where every 10th is flush eligible
         final int copyCount = 100;
-        final List<DummyVirtualRoot<VirtualKey, VirtualValue>> copies = setupCopies(copyCount, i -> i % 10 == 0);
+        final List<DummyVirtualRoot> copies = setupCopies(copyCount, i -> i % 10 == 0);
 
         // Create a collection of indexes corresponding to the copies and pseudo-randomly shuffle them
         // This will give us the order in which we release items.
@@ -321,7 +314,7 @@ class VirtualPipelineTests {
 
         // Now release things in the order we determined above.
         for (final int index : order) {
-            final DummyVirtualRoot<VirtualKey, VirtualValue> copy = copies.get(index);
+            final DummyVirtualRoot copy = copies.get(index);
             if (doDetach) {
                 copy.getPipeline().pausePipelineAndRun("copy", copy::detach);
             }
@@ -337,9 +330,9 @@ class VirtualPipelineTests {
     @DisplayName("Reject Immutable Registration")
     void rejectImmutableRegistration() throws InterruptedException {
         final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
-        final VirtualPipeline<VirtualKey, VirtualValue> pipeline = new VirtualPipeline<>(
-                configuration.getConfigData(VirtualMapConfig.class), "rejectImmutableRegistration");
-        final NoOpVirtualRoot<VirtualKey, VirtualValue> root = new NoOpVirtualRoot<>();
+        final VirtualPipeline pipeline =
+                new VirtualPipeline(configuration.getConfigData(VirtualMapConfig.class), "rejectImmutableRegistration");
+        final NoOpVirtualRoot root = new NoOpVirtualRoot();
         root.makeImmutable();
 
         assertThrows(
@@ -357,11 +350,11 @@ class VirtualPipelineTests {
     void randomReleasePreHash() throws InterruptedException {
         // Create 100 copies where every 10th is flush eligible
         final int copyCount = 100;
-        final List<DummyVirtualRoot<VirtualKey, VirtualValue>> copies = setupCopies(copyCount, i -> i % 10 == 0);
+        final List<DummyVirtualRoot> copies = setupCopies(copyCount, i -> i % 10 == 0);
 
         // Hash the oldest half of the copies
         for (int index = 0; index < copyCount / 2; index++) {
-            final DummyVirtualRoot<VirtualKey, VirtualValue> copyToHash = copies.get(index);
+            final DummyVirtualRoot copyToHash = copies.get(index);
 
             if (index > 0) {
                 // first copy may have been hashed since it is flush eligible, no other will have been hashed
@@ -380,7 +373,7 @@ class VirtualPipelineTests {
         final Random random = new Random();
         for (int index = 0; index < copyCount; index++) {
             if (random.nextFloat() > 0.5) {
-                final DummyVirtualRoot<VirtualKey, VirtualValue> copyToHash = copies.get(index);
+                final DummyVirtualRoot copyToHash = copies.get(index);
                 copyToHash.getHash();
                 assertTrue(copyToHash.isHashed(), "copy should be hashed");
                 assertValidity(copies);
@@ -395,7 +388,7 @@ class VirtualPipelineTests {
         releaseOrder.add(copyCount - 1); // release the mutable copy last
 
         for (final int indexToRelease : releaseOrder) {
-            final DummyVirtualRoot<VirtualKey, VirtualValue> copyToRelease = copies.get(indexToRelease);
+            final DummyVirtualRoot copyToRelease = copies.get(indexToRelease);
             copyToRelease.release();
             assertValidity(copies);
         }
@@ -405,10 +398,10 @@ class VirtualPipelineTests {
     @Tag(TestComponentTags.VMAP)
     @DisplayName("Terminate waits for jobs to complete")
     void terminateWaitsForJobs() {
-        final SlowVirtualRoot<VirtualKey, VirtualValue> root = new SlowVirtualRoot<>("terminateWaitsForJobs", config);
-        final SlowVirtualRoot<VirtualKey, VirtualValue> copy1 = root.copy();
-        final SlowVirtualRoot<VirtualKey, VirtualValue> copy2 = copy1.copy();
-        final SlowVirtualRoot<VirtualKey, VirtualValue> copy3 = copy2.copy();
+        final SlowVirtualRoot root = new SlowVirtualRoot("terminateWaitsForJobs", config);
+        final SlowVirtualRoot copy1 = root.copy();
+        final SlowVirtualRoot copy2 = copy1.copy();
+        final SlowVirtualRoot copy3 = copy2.copy();
 
         // Copies root, copy1, copy2 are all immutable.
         // root should be flushable. copy1 and copy2 are all merge-able,
@@ -509,8 +502,7 @@ class VirtualPipelineTests {
     void dataSourceClosedAfterLastCopyDestroyed() throws InterruptedException {
         // Create 10 copies. Copy 3, 6, and 9 are flush eligible.
         final int copyCount = 10;
-        final List<DummyVirtualRoot<VirtualKey, VirtualValue>> copies =
-                setupCopies(copyCount, i -> i != 0 && i % 3 == 0);
+        final List<DummyVirtualRoot> copies = setupCopies(copyCount, i -> i != 0 && i % 3 == 0);
 
         final Random rand = new Random(837);
         final List<Integer> shuffledIndexes =
@@ -535,8 +527,7 @@ class VirtualPipelineTests {
     void dataSourceClosedWhenPipelineTerminates() throws InterruptedException {
         // Create 10 copies. Copy 3, 6, and 9 are flush eligible.
         final int copyCount = 10;
-        final List<DummyVirtualRoot<VirtualKey, VirtualValue>> copies =
-                setupCopies(copyCount, i -> i != 0 && i % 3 == 0);
+        final List<DummyVirtualRoot> copies = setupCopies(copyCount, i -> i != 0 && i % 3 == 0);
 
         // I'll release half of them and then terminate the pipeline.
         for (int i = 0; i < copyCount / 2; i++) {
@@ -558,7 +549,7 @@ class VirtualPipelineTests {
     void dataSourceClosedWhenPipelineTerminatesDueToError() throws InterruptedException {
         // Create 10 copies. Let's them all be flush eligible for simplicity in the test
         final int copyCount = 10;
-        final List<DummyVirtualRoot<VirtualKey, VirtualValue>> copies = setupCopies(copyCount, i -> true);
+        final List<DummyVirtualRoot> copies = setupCopies(copyCount, i -> true);
 
         // I'll release half of them and then blow something up.
         final int half = copyCount / 2;
@@ -578,8 +569,7 @@ class VirtualPipelineTests {
         assertTrue(lastCopy.isShutdownHandlerCalled(), "Callback should now be invoked");
     }
 
-    private static final class SlowVirtualRoot<K extends VirtualKey, V extends VirtualValue>
-            extends DummyVirtualRoot<K, V> {
+    private static final class SlowVirtualRoot extends DummyVirtualRoot {
 
         private final CountDownLatch flushFinishedLatch = new CountDownLatch(1);
         private final CountDownLatch mergeFinishedLatch = new CountDownLatch(1);
@@ -588,14 +578,14 @@ class VirtualPipelineTests {
             super(label, config);
         }
 
-        private SlowVirtualRoot(SlowVirtualRoot<K, V> other) {
+        private SlowVirtualRoot(SlowVirtualRoot other) {
             super(other);
         }
 
         @Override
-        public SlowVirtualRoot<K, V> copy() {
+        public SlowVirtualRoot copy() {
             setImmutable(true);
-            final SlowVirtualRoot<K, V> copy = new SlowVirtualRoot<>(this);
+            final SlowVirtualRoot copy = new SlowVirtualRoot(this);
             getPipeline().registerCopy(copy);
             return copy;
         }
@@ -635,15 +625,15 @@ class VirtualPipelineTests {
         final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
         final VirtualMapConfig config = configuration.getConfigData(VirtualMapConfig.class);
 
-        final List<DummyVirtualRoot<VirtualKey, VirtualValue>> copies = setupCopies(copyCount, i -> false);
-        DummyVirtualRoot<VirtualKey, VirtualValue> last = copies.get(copies.size() - 1);
-        DummyVirtualRoot<VirtualKey, VirtualValue> afterCopy = last.copy();
+        final List<DummyVirtualRoot> copies = setupCopies(copyCount, i -> false);
+        DummyVirtualRoot last = copies.get(copies.size() - 1);
+        DummyVirtualRoot afterCopy = last.copy();
         afterCopy.setShouldBeFlushed(true);
         afterCopy.copy(); // make it immutable and eligible to flush
         for (int i = 0; i < copyCount; i++) {
-            DummyVirtualRoot<VirtualKey, VirtualValue> copy = copies.get(i);
+            DummyVirtualRoot copy = copies.get(i);
             // Every 11th copy should be flushed
-            copy.setEstimatedSize(config.copyFlushThreshold() / 10 - 1);
+            copy.setEstimatedSize(config.copyFlushCandidateThreshold() / 10 - 1);
         }
         // Release all copies to make them mergeable / flushable. Note that when the first copy is
         // released, a thread race between this thread and the pipeline thread starts. It may
@@ -651,7 +641,7 @@ class VirtualPipelineTests {
         // which would result in less than expected number of flushed copies. To avoid that,
         // pause the pipeline until all copies are released
         afterCopy.getPipeline().pausePipelineAndExecute("releaseAll", () -> {
-            for (DummyVirtualRoot<VirtualKey, VirtualValue> copy : copies) {
+            for (DummyVirtualRoot copy : copies) {
                 copy.release();
             }
             return null;
@@ -659,7 +649,7 @@ class VirtualPipelineTests {
         afterCopy.release();
         afterCopy.waitUntilFlushed();
         int flushedCount = 0;
-        for (DummyVirtualRoot<VirtualKey, VirtualValue> copy : copies) {
+        for (DummyVirtualRoot copy : copies) {
             if (copy.isFlushed()) {
                 flushedCount++;
             }
@@ -674,21 +664,21 @@ class VirtualPipelineTests {
         final int copyCount = 1000;
         final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
         final VirtualMapConfig config = configuration.getConfigData(VirtualMapConfig.class);
-        final List<DummyVirtualRoot<VirtualKey, VirtualValue>> copies = setupCopies(copyCount, i -> false);
+        final List<DummyVirtualRoot> copies = setupCopies(copyCount, i -> false);
         for (int i = 0; i < copyCount; i++) {
-            DummyVirtualRoot<VirtualKey, VirtualValue> copy = copies.get(i);
+            DummyVirtualRoot copy = copies.get(i);
             // Set all copies small enough, so none of them should be flushed even after merge
-            copy.setEstimatedSize(config.copyFlushThreshold() / (copyCount + 1));
+            copy.setEstimatedSize(config.copyFlushCandidateThreshold() / (copyCount + 1));
         }
-        DummyVirtualRoot<VirtualKey, VirtualValue> last = copies.get(copies.size() - 1);
-        DummyVirtualRoot<VirtualKey, VirtualValue> afterCopy = last.copy();
+        DummyVirtualRoot last = copies.get(copies.size() - 1);
+        DummyVirtualRoot afterCopy = last.copy();
         afterCopy.setShouldBeFlushed(true);
         afterCopy.copy(); // make afterCopy immutable / eligible to flush
-        for (DummyVirtualRoot<VirtualKey, VirtualValue> copy : copies) {
+        for (DummyVirtualRoot copy : copies) {
             copy.release();
         }
         last.waitUntilMerged();
-        for (DummyVirtualRoot<VirtualKey, VirtualValue> copy : copies) {
+        for (DummyVirtualRoot copy : copies) {
             assertFalse(copy.isFlushed(), "Small copy should not be flushed");
         }
         afterCopy.release();
@@ -703,7 +693,7 @@ class VirtualPipelineTests {
         final int copyCount = 10;
 
         // Copies 0 and 5 need to be flushed
-        final List<DummyVirtualRoot<VirtualKey, VirtualValue>> copies = setupCopies(copyCount, i -> i == 0 || i == 5);
+        final List<DummyVirtualRoot> copies = setupCopies(copyCount, i -> i == 0 || i == 5);
 
         // release copies 1 through 5. 5 should be prevented from flushing due to copy 0 not being destroyed.
         for (int i = 1; i <= 5; i++) {
@@ -712,7 +702,7 @@ class VirtualPipelineTests {
 
         copies.get(4).waitUntilMerged();
         for (int i = 0; i < copyCount; i++) {
-            DummyVirtualRoot<VirtualKey, VirtualValue> copy = copies.get(i);
+            DummyVirtualRoot copy = copies.get(i);
             assertFalse(copy.isFlushed(), "Copy should not yet be flushed");
             if ((i != 0) && (i < 5)) {
                 assertTrue(copy.isMerged(), "Copy should be merged by now " + copy.getCopyIndex());
@@ -737,9 +727,9 @@ class VirtualPipelineTests {
         final int copyCount = 10;
 
         // Copies 5 needs to be flushed
-        final List<DummyVirtualRoot<VirtualKey, VirtualValue>> copies = setupCopies(copyCount, i -> i == 5);
+        final List<DummyVirtualRoot> copies = setupCopies(copyCount, i -> i == 5);
 
-        final DummyVirtualRoot<VirtualKey, VirtualValue> copy0 = copies.get(0);
+        final DummyVirtualRoot copy0 = copies.get(0);
         copy0.getPipeline().pausePipelineAndRun("copy", copy0::detach);
 
         // Once detached, copy 0 should be merge eligible
@@ -769,7 +759,7 @@ class VirtualPipelineTests {
         final int copyCount = 10;
 
         // Copies 5 needs to be flushed
-        final List<DummyVirtualRoot<VirtualKey, VirtualValue>> copies = setupCopies(copyCount, i -> i == 5);
+        final List<DummyVirtualRoot> copies = setupCopies(copyCount, i -> i == 5);
 
         // Release 0-3
         for (int i = 0; i < 4; i++) {
@@ -804,8 +794,8 @@ class VirtualPipelineTests {
      * Measure the time that it takes to make another copy, assert that it is within 10ms of the expected time.
      */
     private static void copyAndAssertFamilySizeBackpressurePause(
-            final Deque<DummyVirtualRoot<VirtualKey, VirtualValue>> copies, final int expectedTimeMs) {
-        final DummyVirtualRoot<VirtualKey, VirtualValue> copy = copies.getLast().copy();
+            final Deque<DummyVirtualRoot> copies, final int expectedTimeMs) {
+        final DummyVirtualRoot copy = copies.getLast().copy();
         copies.add(copy);
         final long duration = copy.getPipeline().calculateFamilySizeBackpressurePause();
         if (duration <= 0) {
@@ -829,10 +819,10 @@ class VirtualPipelineTests {
                 .withConfigDataType(VirtualMapConfig.class)
                 .getOrCreateConfig();
 
-        final Deque<DummyVirtualRoot<VirtualKey, VirtualValue>> copies = new LinkedList<>();
+        final Deque<DummyVirtualRoot> copies = new LinkedList<>();
 
-        final DummyVirtualRoot<VirtualKey, VirtualValue> originalCopy =
-                new DummyVirtualRoot<>("flushThrottle", config.getConfigData(VirtualMapConfig.class));
+        final DummyVirtualRoot originalCopy =
+                new DummyVirtualRoot("flushThrottle", config.getConfigData(VirtualMapConfig.class));
         originalCopy.setEstimatedSize(100);
         originalCopy.setShouldFlushPredicate(i -> i % 2 == 1); // flush odd copies
         copies.add(originalCopy);
@@ -869,10 +859,10 @@ class VirtualPipelineTests {
     void concurrentHashing() throws InterruptedException {
         final int NUM_COPIES = 100;
         final int NUM_THREADS = 50;
-        final List<DummyVirtualRoot<VirtualKey, VirtualValue>> copies = setupCopies(NUM_COPIES, i -> false);
+        final List<DummyVirtualRoot> copies = setupCopies(NUM_COPIES, i -> false);
 
-        final DummyVirtualRoot<VirtualKey, VirtualValue> penultimate = copies.get(copies.size() - 2);
-        final DummyVirtualRoot<VirtualKey, VirtualValue> last = copies.get(copies.size() - 1);
+        final DummyVirtualRoot penultimate = copies.get(copies.size() - 2);
+        final DummyVirtualRoot last = copies.get(copies.size() - 1);
         final Hash[] hashes = new Hash[NUM_COPIES];
         IntStream.range(0, NUM_THREADS).parallel().forEach(i -> {
             hashes[i] = penultimate.getHash();
@@ -888,10 +878,9 @@ class VirtualPipelineTests {
     @Tag(TestComponentTags.VMAP)
     void pipelineSizeStatTest() throws Exception {
         final int copiesCount = 100;
-        final List<DummyVirtualRoot<VirtualKey, VirtualValue>> copies = setupCopies(copiesCount, i -> false);
+        final List<DummyVirtualRoot> copies = setupCopies(copiesCount, i -> false);
         assertIntMetricValue("vmap_lifecycle_pipelineSize_VirtualPipelineTests", copiesCount);
-        final DummyVirtualRoot<VirtualKey, VirtualValue> newCopy =
-                copies.get(copiesCount - 1).copy();
+        final DummyVirtualRoot newCopy = copies.get(copiesCount - 1).copy();
         assertIntMetricValue("vmap_lifecycle_pipelineSize_VirtualPipelineTests", copiesCount + 1);
         for (int i = 0; i < copiesCount / 2; i++) {
             copies.get(i).release();
@@ -904,7 +893,7 @@ class VirtualPipelineTests {
             copies.get(i).release();
         }
         // Create one more copy, so lastCopy can be merged into newCopy, which must be immutable
-        final DummyVirtualRoot<VirtualKey, VirtualValue> newNewCopy = newCopy.copy();
+        final DummyVirtualRoot newNewCopy = newCopy.copy();
         assertEventuallyTrue(
                 () -> getIntMetricValue("vmap_lifecycle_pipelineSize_VirtualPipelineTests") == 2,
                 Duration.ofSeconds(10),
@@ -916,7 +905,7 @@ class VirtualPipelineTests {
     @Test
     @Tag(TestComponentTags.VMAP)
     void flushCountStatTest() throws Exception {
-        final List<DummyVirtualRoot<VirtualKey, VirtualValue>> copies = setupCopies(81, i -> (i > 0) && (i % 20 == 0));
+        final List<DummyVirtualRoot> copies = setupCopies(81, i -> (i > 0) && (i % 20 == 0));
         assertIntMetricValue("vmap_lifecycle_flushCount_VirtualPipelineTests", 0);
         for (int i = 0; i < 39; i++) {
             copies.get(i).release();
@@ -931,8 +920,7 @@ class VirtualPipelineTests {
                 () -> getIntMetricValue("vmap_lifecycle_flushCount_VirtualPipelineTests") == 2,
                 Duration.ofSeconds(10),
                 "Copy is not flushed");
-        final DummyVirtualRoot<VirtualKey, VirtualValue> newCopy =
-                copies.get(80).copy();
+        final DummyVirtualRoot newCopy = copies.get(80).copy();
         for (int i = 41; i < 81; i++) {
             copies.get(i).release();
         }

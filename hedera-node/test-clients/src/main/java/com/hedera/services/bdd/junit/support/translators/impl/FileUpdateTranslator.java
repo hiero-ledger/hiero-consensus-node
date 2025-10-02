@@ -41,6 +41,14 @@ public class FileUpdateTranslator implements BlockTransactionPartsTranslator {
                 parts,
                 (receiptBuilder, recordBuilder) -> {
                     if (parts.status() == SUCCESS) {
+                        final var update = parts.body().fileUpdateOrThrow();
+                        final long fileNum = update.fileIDOrThrow().fileNum();
+                        if (fileNum > 1000) {
+                            final var opContents = update.contents();
+                            if (opContents.length() > 0) {
+                                baseTranslator.setFile(fileNum, opContents);
+                            }
+                        }
                         for (final var stateChange : remainingStateChanges) {
                             if (stateChange.hasMapUpdate()
                                     && stateChange

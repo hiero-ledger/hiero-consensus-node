@@ -3,6 +3,8 @@ package com.swirlds.platform;
 
 import static com.swirlds.common.io.utility.FileUtils.throwIfFileExists;
 import static com.swirlds.common.merkle.utility.MerkleTreeSnapshotReader.SIGNED_STATE_FILE_NAME;
+import static com.swirlds.platform.StateFileManagerTests.hashState;
+import static com.swirlds.platform.StateFileManagerTests.makeImmutable;
 import static com.swirlds.platform.state.snapshot.SignedStateFileReader.readStateFile;
 import static com.swirlds.platform.state.snapshot.SignedStateFileUtils.CURRENT_ROSTER_FILE_NAME;
 import static com.swirlds.platform.state.snapshot.SignedStateFileUtils.HASH_INFO_FILE_NAME;
@@ -24,11 +26,9 @@ import com.swirlds.common.config.StateCommonConfig_;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
 import com.swirlds.common.merkle.utility.MerkleTreeVisualizer;
-import com.swirlds.common.test.fixtures.merkle.TestMerkleCryptoFactory;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
-import com.swirlds.merkledb.MerkleDb;
 import com.swirlds.platform.config.StateConfig;
 import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.service.PlatformStateFacade;
@@ -37,6 +37,7 @@ import com.swirlds.platform.state.snapshot.DeserializedSignedState;
 import com.swirlds.platform.state.snapshot.SignedStateFileUtils;
 import com.swirlds.platform.state.snapshot.StateToDiskReason;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
+import com.swirlds.platform.test.fixtures.state.TestVirtualMapState;
 import com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer;
 import com.swirlds.state.State;
 import java.io.BufferedReader;
@@ -76,11 +77,9 @@ class SignedStateFileReadWriteTest {
 
     @BeforeEach
     void beforeEach() throws IOException {
-        // Don't use JUnit @TempDir as it runs into a thread race with Merkle DB DataSource release...
         testDirectory = LegacyTemporaryFileBuilder.buildTemporaryFile(
                 "SignedStateFileReadWriteTest", TestingAppStateInitializer.CONFIGURATION);
         LegacyTemporaryFileBuilder.overrideTemporaryFileLocation(testDirectory.resolve("tmp"));
-        MerkleDb.resetDefaultInstancePath();
     }
 
     @AfterEach
@@ -130,23 +129,18 @@ class SignedStateFileReadWriteTest {
 
         State state = signedState.getState();
         state.copy().release();
+        hashState(signedState);
         state.createSnapshot(testDirectory);
         writeSignatureSetFile(testDirectory, signedState);
 
         assertTrue(exists(stateFile), "signed state file should be present");
         assertTrue(exists(signatureSetFile), "signature set file should be present");
 
-        MerkleDb.resetDefaultInstancePath();
         Configuration configuration =
                 TestPlatformContextBuilder.create().build().getConfiguration();
-        final DeserializedSignedState deserializedSignedState =
-                readStateFile(stateFile, TEST_PLATFORM_STATE_FACADE, PlatformContext.create(configuration));
-        TestMerkleCryptoFactory.getInstance()
-                .digestTreeSync(deserializedSignedState
-                        .reservedSignedState()
-                        .get()
-                        .getState()
-                        .getRoot());
+        final DeserializedSignedState deserializedSignedState = readStateFile(
+                stateFile, TestVirtualMapState::new, TEST_PLATFORM_STATE_FACADE, PlatformContext.create(configuration));
+        hashState(deserializedSignedState.reservedSignedState().get());
 
         assertNotNull(deserializedSignedState.originalHash(), "hash should not be null");
         assertEquals(signedState.getState().getHash(), deserializedSignedState.originalHash(), "hash should match");
@@ -180,8 +174,8 @@ class SignedStateFileReadWriteTest {
                 .withConfiguration(configuration)
                 .build();
 
-        // make immutable
-        signedState.getState().copy().release();
+        makeImmutable(signedState);
+        hashState(signedState);
 
         writeSignedStateToDisk(
                 platformContext,

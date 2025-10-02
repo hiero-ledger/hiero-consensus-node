@@ -1,0 +1,16 @@
+#/usr/bin/sh -f
+KBCTL=kubectl
+
+
+timeout --signal=KILL --preserve-status --foreground 10m $KBCTL "$@" >/tmp/stdout.$$ 2>/tmp/stderr.$$
+result=$?
+if [ $result -ne 137 ]
+then
+  cat /tmp/stdout.$$ > /dev/stdout
+  cat /tmp/stderr.$$ > /dev/stderr
+  rm -f /tmp/stdout.$$ /tmp/stderr.$$
+  exit $result
+else
+  rm -f /tmp/stdout.$$ /tmp/stderr.$$ 
+  timeout --signal=KILL --preserve-status --foreground 10m $KBCTL "$@"
+fi

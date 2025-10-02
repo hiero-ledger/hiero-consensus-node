@@ -34,6 +34,8 @@ import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.fees.ResourcePriceCalculator;
 import com.hedera.node.app.spi.ids.EntityNumGenerator;
+import com.hedera.node.app.spi.info.NetworkInfo;
+import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.spi.key.KeyVerifier;
 import com.hedera.node.app.spi.records.BlockRecordInfo;
 import com.hedera.node.app.spi.store.StoreFactory;
@@ -48,6 +50,7 @@ import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.TransactionKeys;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.app.store.StoreFactoryImpl;
+import com.hedera.node.app.workflows.InnerTransaction;
 import com.hedera.node.app.workflows.TransactionChecker;
 import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.app.workflows.dispatcher.TransactionDispatcher;
@@ -61,8 +64,6 @@ import com.hedera.node.app.workflows.prehandle.PreHandleWorkflow;
 import com.hedera.node.app.workflows.purechecks.PureChecksContextImpl;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.state.lifecycle.info.NetworkInfo;
-import com.swirlds.state.lifecycle.info.NodeInfo;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
@@ -354,6 +355,7 @@ public class DispatchHandleContext implements HandleContext, FeeContext {
         } catch (UnknownHederaFunctionality ex) {
             throw new HandleException(ResponseCodeEnum.INVALID_TRANSACTION_BODY);
         }
+        final var signatureMapSize = SignatureMap.PROTOBUF.measureRecord(txnInfo.signatureMap());
         return dispatcher.dispatchComputeFees(new ChildFeeContextImpl(
                 feeManager,
                 this,
@@ -364,9 +366,7 @@ public class DispatchHandleContext implements HandleContext, FeeContext {
                 storeFactory.asReadOnly(),
                 consensusNow,
                 shouldChargeForSigVerification(txBody) ? verifier : null,
-                shouldChargeForSigVerification(txBody)
-                        ? txnInfo.signatureMap().sigPair().size()
-                        : 0));
+                shouldChargeForSigVerification(txBody) ? signatureMapSize : 0));
     }
 
     private boolean shouldChargeForSigVerification(@NonNull final TransactionBody txBody) {
@@ -414,7 +414,7 @@ public class DispatchHandleContext implements HandleContext, FeeContext {
                     batchInnerTxnBytes,
                     maybeReusablePreHandleResult,
                     (s) -> {},
-                    PreHandleWorkflow.InnerTransaction.YES);
+                    InnerTransaction.YES);
         }
 
         final var childDispatch = childDispatchFactory.createChildDispatch(

@@ -8,6 +8,7 @@ import static com.swirlds.logging.legacy.LogMarker.TCP_CONNECT_EXCEPTIONS;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.swirlds.common.context.PlatformContext;
+import com.swirlds.common.utility.throttle.RateLimitedLogger;
 import com.swirlds.platform.gossip.config.GossipConfig;
 import com.swirlds.platform.gossip.config.NetworkEndpoint;
 import com.swirlds.platform.gossip.sync.SyncInputStream;
@@ -21,8 +22,10 @@ import java.net.Socket;
 import java.net.SocketException;
 import java.net.SocketTimeoutException;
 import java.net.UnknownHostException;
+import java.time.Duration;
 import java.util.Collections;
 import java.util.Objects;
+import javax.net.ssl.SSLHandshakeException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.concurrent.locks.AutoClosableResourceLock;
@@ -38,6 +41,7 @@ public class OutboundConnectionManager implements ConnectionManager {
     private final SocketConfig socketConfig;
     private final GossipConfig gossipConfig;
     private final PeerInfo otherPeer;
+    private final RateLimitedLogger socketExceptionLogger;
     /** the current connection in use, initially not connected. there is no synchronization on this variable */
     private Connection currentConn = NotConnectedConnection.getSingleton();
     /** locks the connection managed by this instance */
@@ -72,6 +76,7 @@ public class OutboundConnectionManager implements ConnectionManager {
         this.otherPeer = otherPeer;
         this.socketConfig = platformContext.getConfiguration().getConfigData(SocketConfig.class);
         this.gossipConfig = platformContext.getConfiguration().getConfigData(GossipConfig.class);
+        this.socketExceptionLogger = new RateLimitedLogger(logger, platformContext.getTime(), Duration.ofMinutes(1));
         this.socketFactory = NetworkUtils.createSocketFactory(
                 selfId, Collections.singletonList(otherPeer), ownKeysAndCerts, platformContext.getConfiguration());
     }
@@ -142,9 +147,17 @@ public class OutboundConnectionManager implements ConnectionManager {
                     dis,
                     dos,
                     platformContext.getConfiguration());
+        } catch (final SSLHandshakeException e) {
+            NetworkUtils.close(clientSocket, dis, dos);
+            socketExceptionLogger.warn(
+                    SOCKET_EXCEPTIONS.getMarker(),
+                    "{} failed to connect to {} with error: {}",
+                    selfId,
+                    otherPeer.nodeId(),
+                    NetworkUtils.formatException(e));
         } catch (final SocketTimeoutException | SocketException e) {
             NetworkUtils.close(clientSocket, dis, dos);
-            logger.debug(
+            socketExceptionLogger.debug(
                     TCP_CONNECT_EXCEPTIONS.getMarker(),
                     "{} failed to connect to {} with error:",
                     selfId,
@@ -158,7 +171,7 @@ public class OutboundConnectionManager implements ConnectionManager {
             NetworkUtils.close(clientSocket, dis, dos);
             // log the SSL connection exception which is caused by socket exceptions as warning.
             final String formattedException = NetworkUtils.formatException(e);
-            logger.warn(
+            socketExceptionLogger.warn(
                     SOCKET_EXCEPTIONS.getMarker(),
                     "{} failed to connect to {} {}",
                     selfId,

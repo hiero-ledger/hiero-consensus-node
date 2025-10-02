@@ -237,15 +237,10 @@ public class ConsensusImpl implements Consensus {
     @Override
     public void loadSnapshot(@NonNull final ConsensusSnapshot snapshot) {
         reset();
-        final Set<Hash> judgeHashes;
-        if (!snapshot.judgeHashes().isEmpty()) {
-            // Deprecated case, we are loading from a snapshot that contains just judge hashes, no ids
-            judgeHashes = snapshot.judgeHashes().stream().map(Hash::new).collect(toSet());
-        } else {
-            judgeHashes = snapshot.judgeIds().stream()
-                    .map(judge -> new Hash(judge.judgeHash()))
-                    .collect(toSet());
-        }
+        final Set<Hash> judgeHashes = snapshot.judgeIds().stream()
+                .map(judge -> new Hash(judge.judgeHash()))
+                .collect(toSet());
+
         initJudges = new InitJudges(snapshot.round(), judgeHashes);
         rounds.loadFromMinimumJudge(snapshot.minimumJudgeInfoList());
         numConsensus = snapshot.nextConsensusNumber();
@@ -268,6 +263,13 @@ public class ConsensusImpl implements Consensus {
      */
     public void setPcesMode(final boolean pcesMode) {
         this.pcesMode = pcesMode;
+    }
+
+    @Override
+    public List<EventImpl> getPreConsensusEvents() {
+        // recentEvents will usually only contain pre-consensus events,
+        // but if the most recent judge reaches consensus, it will be in this list too, so it needs to be filtered out
+        return recentEvents.stream().filter(e -> !e.isConsensus()).toList();
     }
 
     /**
@@ -298,7 +300,7 @@ public class ConsensusImpl implements Consensus {
 
             final boolean lastJudgeFound = checkInitJudges(event);
 
-            if (!noInitJudgesMissing()) {
+            if (waitingForInitJudges()) {
                 // we should not do any calculations or voting until we have found all the init judges
                 return List.of();
             }
@@ -422,7 +424,7 @@ public class ConsensusImpl implements Consensus {
         // done this, we can find the consensus events for the next round, which in this case would
         // be the election round. if we didn't do that, then an event could reach consensus twice.
         final RoundElections roundElections = rounds.getElectionRound();
-        if (roundElections.isDecided() && noInitJudgesMissing()) {
+        if (roundElections.isDecided() && !waitingForInitJudges()) {
             // all famous witnesses for this round are now known. None will ever be added again. We
             // know this round has at least one witness. We know they all have fame decided. We
             // know the next 2 rounds have events in them, because otherwise we couldn't have
@@ -435,11 +437,9 @@ public class ConsensusImpl implements Consensus {
         return null;
     }
 
-    /**
-     * @return true if there are no init judges missing
-     */
-    private boolean noInitJudgesMissing() {
-        return initJudges == null || initJudges.allJudgesFound();
+    @Override
+    public boolean waitingForInitJudges() {
+        return initJudges != null && initJudges.initJudgesMissing();
     }
 
     /**
@@ -451,7 +451,10 @@ public class ConsensusImpl implements Consensus {
      * @return true if the event is the last init judge we are looking for
      */
     private boolean checkInitJudges(@NonNull final EventImpl event) {
-        if (noInitJudgesMissing() || !initJudges.isInitJudge(event.getBaseHash())) {
+        if (!waitingForInitJudges()) {
+            return false;
+        }
+        if (!initJudges.isInitJudge(event.getBaseHash())) {
             return false;
         }
         // we found one of the missing init judges
@@ -460,7 +463,7 @@ public class ConsensusImpl implements Consensus {
                 STARTUP.getMarker(),
                 "Found init judge %s, num remaining: {}".formatted(event.shortString()),
                 initJudges::numMissingJudges);
-        if (!initJudges.allJudgesFound()) {
+        if (initJudges.initJudgesMissing()) {
             return false;
         }
 
@@ -546,7 +549,7 @@ public class ConsensusImpl implements Consensus {
                         "coin-" + (countingVote.isSupermajority() ? "counting" : "sig"),
                         diff);
                 markerFileWriter.writeMarkerFile(COIN_ROUND_MARKER_FILE);
-                coinRoundLogger.error(
+                coinRoundLogger.warn(
                         LogMarker.ERROR.getMarker(),
                         "Coin round {}, voting witness: {}",
                         roundElections.getRound(),
@@ -642,7 +645,7 @@ public class ConsensusImpl implements Consensus {
         consensusMetrics.coinRound();
         final boolean vote = countingVote.isSupermajority()
                 ? countingVote.getVote()
-                : ConsensusUtils.coin(votingWitness.getBaseEvent().getSignature());
+                : ConsensusUtils.coin(votingWitness.getBaseEvent());
 
         votingWitness.setVote(candidateWitness, vote);
     }
@@ -762,7 +765,6 @@ public class ConsensusImpl implements Consensus {
                         nonExpiredThreshold),
                 new ConsensusSnapshot(
                         decidedRoundNumber,
-                        List.of(),
                         rounds.getMinimumJudgeInfoList(),
                         numConsensus,
                         CommonUtils.toPbjTimestamp(lastConsensusTime),

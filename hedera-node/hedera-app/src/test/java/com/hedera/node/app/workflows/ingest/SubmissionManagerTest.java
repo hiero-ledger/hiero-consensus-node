@@ -2,16 +2,20 @@
 package com.hedera.node.app.workflows.ingest;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.DUPLICATE_TRANSACTION;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.PLATFORM_TRANSACTION_NOT_CREATED;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.node.base.TransactionID;
+import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.node.transaction.UncheckedSubmitBody;
+import com.hedera.hapi.node.util.AtomicBatchTransactionBody;
 import com.hedera.node.app.fixtures.AppTestBase;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.state.DeduplicationCache;
@@ -21,8 +25,11 @@ import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.metrics.SpeedometerMetric;
 import com.swirlds.metrics.api.Metrics;
-import com.swirlds.platform.system.Platform;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import org.hiero.consensus.transaction.TransactionPoolNexus;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -33,9 +40,9 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 final class SubmissionManagerTest extends AppTestBase {
-    /** A mocked {@link Platform} for accepting or rejecting submission of transaction bytes */
+    /** A mocked transaction pool for accepting or rejecting submission of transaction bytes */
     @Mock
-    private Platform platform;
+    private TransactionPoolNexus transactionPool;
     /** Mocked global properties to verify default transaction duration */
     @Mock
     private DeduplicationCache deduplicationCache;
@@ -53,11 +60,11 @@ final class SubmissionManagerTest extends AppTestBase {
     void testConstructorWithIllegalParameters() {
         assertThatThrownBy(() -> new SubmissionManager(null, deduplicationCache, config, metrics))
                 .isInstanceOf(NullPointerException.class);
-        assertThatThrownBy(() -> new SubmissionManager(platform, null, config, metrics))
+        assertThatThrownBy(() -> new SubmissionManager(transactionPool, null, config, metrics))
                 .isInstanceOf(NullPointerException.class);
-        assertThatThrownBy(() -> new SubmissionManager(platform, deduplicationCache, null, metrics))
+        assertThatThrownBy(() -> new SubmissionManager(transactionPool, deduplicationCache, null, metrics))
                 .isInstanceOf(NullPointerException.class);
-        assertThatThrownBy(() -> new SubmissionManager(platform, deduplicationCache, config, null))
+        assertThatThrownBy(() -> new SubmissionManager(transactionPool, deduplicationCache, config, null))
                 .isInstanceOf(NullPointerException.class);
     }
 
@@ -91,7 +98,7 @@ final class SubmissionManagerTest extends AppTestBase {
         void setup() {
             bytes = randomBytes(25);
             when(mockedMetrics.getOrCreate(any())).thenReturn(platformTxnRejections);
-            submissionManager = new SubmissionManager(platform, deduplicationCache, config, mockedMetrics);
+            submissionManager = new SubmissionManager(transactionPool, deduplicationCache, config, mockedMetrics);
             txBody = TransactionBody.newBuilder()
                     .transactionID(TransactionID.newBuilder()
                             .transactionValidStart(asTimestamp(Instant.now()))
@@ -111,13 +118,13 @@ final class SubmissionManagerTest extends AppTestBase {
         @DisplayName("Submission of the transaction to the platform is a success")
         void submittingToPlatformSucceeds() throws PreCheckException {
             // Given a platform that will succeed in taking bytes
-            when(platform.createTransaction(any())).thenReturn(true);
+            when(transactionPool.submitApplicationTransaction(any())).thenReturn(true);
 
             // When we submit bytes
             submissionManager.submit(txBody, bytes);
 
             // Then the platform actually receives the bytes
-            verify(platform).createTransaction(bytes.toByteArray());
+            verify(transactionPool).submitApplicationTransaction(bytes);
             // And the metrics keeping track of errors submitting are NOT touched
             verify(platformTxnRejections, never()).cycle();
             // And the deduplication cache is updated
@@ -128,7 +135,7 @@ final class SubmissionManagerTest extends AppTestBase {
         @DisplayName("If the platform fails to onConsensusRound the bytes, a PreCheckException is thrown")
         void testSubmittingToPlatformFails() {
             // Given a platform that will **fail** in taking bytes
-            when(platform.createTransaction(any())).thenReturn(false);
+            when(transactionPool.submitApplicationTransaction(any())).thenReturn(false);
 
             // When we submit bytes, then we fail by exception
             assertThatThrownBy(() -> submissionManager.submit(txBody, bytes))
@@ -145,7 +152,7 @@ final class SubmissionManagerTest extends AppTestBase {
         @DisplayName("Submitting the same transaction twice in close succession rejects the duplicate")
         void testSubmittingDuplicateTransactionsCloseTogether() throws PreCheckException {
             // Given a platform that will succeed in taking bytes
-            when(platform.createTransaction(any())).thenReturn(true);
+            when(transactionPool.submitApplicationTransaction(any())).thenReturn(true);
             when(deduplicationCache.contains(txBody.transactionIDOrThrow()))
                     .thenReturn(false)
                     .thenReturn(true);
@@ -178,7 +185,7 @@ final class SubmissionManagerTest extends AppTestBase {
         /** The TransactionBody of the transaction we are submitting */
         private TransactionBody txBody;
         /** Representative of the unchecked transaction bytes */
-        private byte[] uncheckedBytes;
+        private Bytes uncheckedBytes;
 
         @BeforeEach
         void setup() {
@@ -189,18 +196,18 @@ final class SubmissionManagerTest extends AppTestBase {
                             .getOrCreateConfig(),
                     1);
             when(mockedMetrics.getOrCreate(any())).thenReturn(platformTxnRejections);
-            submissionManager = new SubmissionManager(platform, deduplicationCache, config, mockedMetrics);
+            submissionManager = new SubmissionManager(transactionPool, deduplicationCache, config, mockedMetrics);
 
             bytes = randomBytes(25);
 
             final var uncheckedTx = simpleCryptoTransfer();
-            uncheckedBytes = asByteArray(uncheckedTx);
+            uncheckedBytes = Bytes.wrap(asByteArray(uncheckedTx));
             txBody = TransactionBody.newBuilder()
                     .transactionID(TransactionID.newBuilder()
                             .transactionValidStart(asTimestamp(Instant.now()))
                             .build())
                     .uncheckedSubmit(UncheckedSubmitBody.newBuilder()
-                            .transactionBytes(Bytes.wrap(uncheckedBytes))
+                            .transactionBytes(uncheckedBytes)
                             .build())
                     .build();
         }
@@ -209,13 +216,13 @@ final class SubmissionManagerTest extends AppTestBase {
         @DisplayName("An unchecked transaction not in PROD mode can be submitted")
         void testSuccessWithUncheckedSubmit() throws PreCheckException {
             // Given a platform that will succeed in taking the *unchecked* bytes
-            when(platform.createTransaction(uncheckedBytes)).thenReturn(true);
+            when(transactionPool.submitApplicationTransaction(uncheckedBytes)).thenReturn(true);
 
             // When we submit an unchecked transaction, and separate bytes
             submissionManager.submit(txBody, bytes);
 
             // Then the platform actually sees the unchecked bytes
-            verify(platform).createTransaction(uncheckedBytes);
+            verify(transactionPool).submitApplicationTransaction(uncheckedBytes);
             // And the metrics keeping track of errors submitting are NOT touched
             verify(platformTxnRejections, never()).cycle();
             // And the deduplication cache is updated
@@ -232,7 +239,7 @@ final class SubmissionManagerTest extends AppTestBase {
                             .withValue("ledger.id", "0x03")
                             .getOrCreateConfig(),
                     1);
-            submissionManager = new SubmissionManager(platform, deduplicationCache, config, mockedMetrics);
+            submissionManager = new SubmissionManager(transactionPool, deduplicationCache, config, mockedMetrics);
 
             // When we submit an unchecked transaction, and separate bytes, then the
             // submission FAILS because we are in PROD mode
@@ -241,7 +248,7 @@ final class SubmissionManagerTest extends AppTestBase {
                     .hasFieldOrPropertyWithValue("responseCode", PLATFORM_TRANSACTION_NOT_CREATED);
 
             // Then the platform NEVER sees the unchecked bytes
-            verify(platform, never()).createTransaction(uncheckedBytes);
+            verify(transactionPool, never()).submitApplicationTransaction(uncheckedBytes);
             // We never attempted to submit this tx to the platform, so we don't increase the metric
             verify(platformTxnRejections, never()).cycle();
             // And the deduplication cache is not updated
@@ -258,7 +265,7 @@ final class SubmissionManagerTest extends AppTestBase {
                             .withValue("ledger.id", "0x00")
                             .getOrCreateConfig(),
                     1);
-            submissionManager = new SubmissionManager(platform, deduplicationCache, config, mockedMetrics);
+            submissionManager = new SubmissionManager(transactionPool, deduplicationCache, config, mockedMetrics);
 
             // When we submit an unchecked transaction, and separate bytes, then the
             // submission FAILS because we are in PROD mode
@@ -267,7 +274,7 @@ final class SubmissionManagerTest extends AppTestBase {
                     .hasFieldOrPropertyWithValue("responseCode", PLATFORM_TRANSACTION_NOT_CREATED);
 
             // Then the platform NEVER sees the unchecked bytes
-            verify(platform, never()).createTransaction(uncheckedBytes);
+            verify(transactionPool, never()).submitApplicationTransaction(uncheckedBytes);
             // We never attempted to submit this tx to the platform, so we don't increase the metric
             verify(platformTxnRejections, never()).cycle();
             // And the deduplication cache is not updated
@@ -284,7 +291,7 @@ final class SubmissionManagerTest extends AppTestBase {
                             .withValue("ledger.id", "0x01")
                             .getOrCreateConfig(),
                     1);
-            submissionManager = new SubmissionManager(platform, deduplicationCache, config, mockedMetrics);
+            submissionManager = new SubmissionManager(transactionPool, deduplicationCache, config, mockedMetrics);
 
             // When we submit an unchecked transaction, and separate bytes, then the
             // submission FAILS because we are in PROD mode
@@ -293,7 +300,7 @@ final class SubmissionManagerTest extends AppTestBase {
                     .hasFieldOrPropertyWithValue("responseCode", PLATFORM_TRANSACTION_NOT_CREATED);
 
             // Then the platform NEVER sees the unchecked bytes
-            verify(platform, never()).createTransaction(uncheckedBytes);
+            verify(transactionPool, never()).submitApplicationTransaction(uncheckedBytes);
             // We never attempted to submit this tx to the platform, so we don't increase the metric
             verify(platformTxnRejections, never()).cycle();
             // And the deduplication cache is not updated
@@ -310,7 +317,7 @@ final class SubmissionManagerTest extends AppTestBase {
                             .withValue("ledger.id", "0x02")
                             .getOrCreateConfig(),
                     1);
-            submissionManager = new SubmissionManager(platform, deduplicationCache, config, mockedMetrics);
+            submissionManager = new SubmissionManager(transactionPool, deduplicationCache, config, mockedMetrics);
 
             // When we submit an unchecked transaction, and separate bytes, then the
             // submission FAILS because we are in PROD mode
@@ -319,7 +326,7 @@ final class SubmissionManagerTest extends AppTestBase {
                     .hasFieldOrPropertyWithValue("responseCode", PLATFORM_TRANSACTION_NOT_CREATED);
 
             // Then the platform NEVER sees the unchecked bytes
-            verify(platform, never()).createTransaction(uncheckedBytes);
+            verify(transactionPool, never()).submitApplicationTransaction(uncheckedBytes);
             // We never attempted to submit this tx to the platform, so we don't increase the metric
             verify(platformTxnRejections, never()).cycle();
             // And the deduplication cache is not updated
@@ -337,7 +344,7 @@ final class SubmissionManagerTest extends AppTestBase {
                             .withValue("hedera.profiles.active", "TEST")
                             .getOrCreateConfig(),
                     1);
-            submissionManager = new SubmissionManager(platform, deduplicationCache, config, mockedMetrics);
+            submissionManager = new SubmissionManager(transactionPool, deduplicationCache, config, mockedMetrics);
             txBody = TransactionBody.newBuilder()
                     .transactionID(TransactionID.newBuilder()
                             .transactionValidStart(asTimestamp(Instant.now()))
@@ -354,9 +361,144 @@ final class SubmissionManagerTest extends AppTestBase {
                     .hasFieldOrPropertyWithValue("responseCode", PLATFORM_TRANSACTION_NOT_CREATED);
 
             // Then the platform NEVER sees the unchecked bytes
-            verify(platform, never()).createTransaction(uncheckedBytes);
+            verify(transactionPool, never()).submitApplicationTransaction(uncheckedBytes);
             // And the deduplication cache is not updated
             verify(deduplicationCache, never()).add(any());
+        }
+    }
+
+    @Nested
+    @DisplayName("Tests for atomic batch transaction submission")
+    class AtomicBatchSubmitTest extends AppTestBase {
+        @Mock
+        private Metrics mockedMetrics;
+
+        @Mock
+        private SpeedometerMetric platformTxnRejections;
+
+        private SubmissionManager submissionManager;
+        private Bytes mainBytes;
+        private TransactionBody txBodyWithBatch;
+        private List<Bytes> batchTransactions;
+
+        @BeforeEach
+        void setup() {
+            when(mockedMetrics.getOrCreate(any())).thenReturn(platformTxnRejections);
+            submissionManager = new SubmissionManager(transactionPool, deduplicationCache, config, mockedMetrics);
+
+            // Create main transaction bytes
+            mainBytes = randomBytes(25);
+
+            // Create batch transactions
+            batchTransactions = new ArrayList<>();
+            for (int i = 0; i < 2; i++) {
+                // Create a signed transaction with a valid body inside
+                var innerTxBody = TransactionBody.newBuilder()
+                        .transactionID(TransactionID.newBuilder()
+                                .transactionValidStart(asTimestamp(Instant.now().plusSeconds(i)))
+                                .build())
+                        .build();
+
+                var signedTx = SignedTransaction.newBuilder()
+                        .bodyBytes(asBytes(TransactionBody.PROTOBUF, innerTxBody))
+                        .build();
+
+                batchTransactions.add(Bytes.wrap(asByteArray(signedTx)));
+            }
+
+            // Create main transaction body with batch
+            txBodyWithBatch = TransactionBody.newBuilder()
+                    .transactionID(TransactionID.newBuilder()
+                            .transactionValidStart(asTimestamp(Instant.now()))
+                            .build())
+                    .atomicBatch(AtomicBatchTransactionBody.newBuilder()
+                            .transactions(batchTransactions)
+                            .build())
+                    .build();
+        }
+
+        @Test
+        @DisplayName("Successfully submits atomic batch with valid inner transactions")
+        void testAtomicBatchSuccess() throws PreCheckException {
+            // Given a platform that will succeed in taking bytes
+            when(transactionPool.submitApplicationTransaction(any())).thenReturn(true);
+            when(deduplicationCache.contains(any())).thenReturn(false);
+
+            // When we submit a transaction with an atomic batch
+            submissionManager.submit(txBodyWithBatch, mainBytes);
+
+            // Then the platform receives the main bytes
+            verify(transactionPool).submitApplicationTransaction(mainBytes);
+
+            // And the deduplication cache is updated for the main transaction
+            verify(deduplicationCache).add(txBodyWithBatch.transactionIDOrThrow());
+
+            // And for each transaction in the batch (1 main + 2 inner = 3 total)
+            verify(deduplicationCache, times(3)).add(any());
+        }
+
+        @Test
+        @DisplayName("Handles parse exception from invalid batch transaction")
+        void testAtomicBatchWithParseException() throws Exception {
+            // Given a platform that will succeed in taking bytes
+            when(transactionPool.submitApplicationTransaction(any())).thenReturn(true);
+            when(deduplicationCache.contains(any())).thenReturn(false);
+
+            // Create a batch with an invalid transaction
+            List<Bytes> invalidBatch = new ArrayList<>(batchTransactions);
+            invalidBatch.add(randomBytes(10)); // Add invalid bytes that will cause ParseException
+
+            // Create transaction body with invalid batch
+            TransactionBody txBodyWithInvalidBatch = TransactionBody.newBuilder()
+                    .transactionID(TransactionID.newBuilder()
+                            .transactionValidStart(asTimestamp(Instant.now()))
+                            .build())
+                    .atomicBatch(AtomicBatchTransactionBody.newBuilder()
+                            .transactions(invalidBatch)
+                            .build())
+                    .build();
+
+            // When we submit a transaction with an atomic batch containing invalid data
+            assertThatThrownBy(() -> submissionManager.submit(txBodyWithInvalidBatch, mainBytes))
+                    .isInstanceOf(PreCheckException.class)
+                    .hasFieldOrPropertyWithValue("responseCode", INVALID_TRANSACTION);
+
+            // Then the platform received the main bytes
+            verify(transactionPool).submitApplicationTransaction(mainBytes);
+
+            // And the deduplication cache was updated for the main transaction
+            verify(deduplicationCache).add(txBodyWithInvalidBatch.transactionIDOrThrow());
+
+            // And for the valid transactions in the batch (but parsing stopped at the invalid one)
+            verify(deduplicationCache, times(3)).add(any());
+        }
+
+        @Test
+        @DisplayName("Handles empty atomic batch correctly")
+        void testEmptyAtomicBatch() throws PreCheckException {
+            // Create transaction body with empty batch
+            TransactionBody txBodyWithEmptyBatch = TransactionBody.newBuilder()
+                    .transactionID(TransactionID.newBuilder()
+                            .transactionValidStart(asTimestamp(Instant.now()))
+                            .build())
+                    .atomicBatch(AtomicBatchTransactionBody.newBuilder()
+                            .transactions(Collections.emptyList())
+                            .build())
+                    .build();
+
+            // Given a platform that will succeed in taking bytes
+            when(transactionPool.submitApplicationTransaction(any())).thenReturn(true);
+            when(deduplicationCache.contains(any())).thenReturn(false);
+
+            // When we submit a transaction with an empty atomic batch
+            submissionManager.submit(txBodyWithEmptyBatch, mainBytes);
+
+            // Then the platform receives the main bytes
+            verify(transactionPool).submitApplicationTransaction(mainBytes);
+
+            // And the deduplication cache is updated for the main transaction only
+            verify(deduplicationCache).add(txBodyWithEmptyBatch.transactionIDOrThrow());
+            verify(deduplicationCache, times(1)).add(any());
         }
     }
 }

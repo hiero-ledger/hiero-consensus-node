@@ -3,6 +3,8 @@ package com.swirlds.virtualmap.test.fixtures;
 
 import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.CONFIGURATION;
 
+import com.hedera.pbj.runtime.io.buffer.BufferedData;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.merkle.MerkleInternal;
 import com.swirlds.common.merkle.MerkleLeaf;
 import com.swirlds.common.merkle.impl.PartialBinaryMerkleInternal;
@@ -10,15 +12,19 @@ import com.swirlds.common.merkle.impl.PartialMerkleLeaf;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
 import com.swirlds.virtualmap.datasource.VirtualHashRecord;
-import com.swirlds.virtualmap.datasource.VirtualLeafRecord;
+import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.internal.cache.VirtualNodeCache;
 import java.io.IOException;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.List;
 import org.hiero.base.constructable.ClassConstructorPair;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.crypto.Cryptography;
+import org.hiero.base.crypto.CryptographyException;
 import org.hiero.base.crypto.CryptographyProvider;
+import org.hiero.base.crypto.Hash;
 import org.hiero.base.io.streams.SerializableDataInputStream;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
 import org.junit.jupiter.api.BeforeAll;
@@ -26,56 +32,57 @@ import org.junit.jupiter.api.BeforeEach;
 
 @SuppressWarnings("jol")
 public class VirtualTestBase {
+
     protected static final Cryptography CRYPTO = CryptographyProvider.getInstance();
 
     // Keys that we will use repeatedly in these tests.
-    protected static final TestKey A_KEY = new TestKey('A');
-    protected static final TestKey B_KEY = new TestKey('B');
-    protected static final TestKey C_KEY = new TestKey('C');
-    protected static final TestKey D_KEY = new TestKey('D');
-    protected static final TestKey E_KEY = new TestKey('E');
-    protected static final TestKey F_KEY = new TestKey('F');
-    protected static final TestKey G_KEY = new TestKey('G');
+    protected static final Bytes A_KEY = TestKey.charToKey('A');
+    protected static final Bytes B_KEY = TestKey.charToKey('B');
+    protected static final Bytes C_KEY = TestKey.charToKey('C');
+    protected static final Bytes D_KEY = TestKey.charToKey('D');
+    protected static final Bytes E_KEY = TestKey.charToKey('E');
+    protected static final Bytes F_KEY = TestKey.charToKey('F');
+    protected static final Bytes G_KEY = TestKey.charToKey('G');
 
-    protected static final TestValue APPLE = (TestValue) new TestValue("Apple").asReadOnly();
-    protected static final TestValue BANANA = (TestValue) new TestValue("Banana").asReadOnly();
-    protected static final TestValue CHERRY = (TestValue) new TestValue("Cherry").asReadOnly();
-    protected static final TestValue DATE = (TestValue) new TestValue("Date").asReadOnly();
-    protected static final TestValue EGGPLANT = (TestValue) new TestValue("Eggplant").asReadOnly();
-    protected static final TestValue FIG = (TestValue) new TestValue("Fig").asReadOnly();
-    protected static final TestValue GRAPE = (TestValue) new TestValue("Grape").asReadOnly();
+    protected static final TestValue APPLE = new TestValue("Apple");
+    protected static final TestValue BANANA = new TestValue("Banana");
+    protected static final TestValue CHERRY = new TestValue("Cherry");
+    protected static final TestValue DATE = new TestValue("Date");
+    protected static final TestValue EGGPLANT = new TestValue("Eggplant");
+    protected static final TestValue FIG = new TestValue("Fig");
+    protected static final TestValue GRAPE = new TestValue("Grape");
 
-    protected static final TestValue AARDVARK = (TestValue) new TestValue("Aardvark").asReadOnly();
-    protected static final TestValue BEAR = (TestValue) new TestValue("Bear").asReadOnly();
-    protected static final TestValue CUTTLEFISH = (TestValue) new TestValue("Cuttlefish").asReadOnly();
-    protected static final TestValue DOG = (TestValue) new TestValue("Dog").asReadOnly();
-    protected static final TestValue EMU = (TestValue) new TestValue("Emu").asReadOnly();
-    protected static final TestValue FOX = (TestValue) new TestValue("Fox").asReadOnly();
-    protected static final TestValue GOOSE = (TestValue) new TestValue("Goose").asReadOnly();
+    protected static final TestValue AARDVARK = new TestValue("Aardvark");
+    protected static final TestValue BEAR = new TestValue("Bear");
+    protected static final TestValue CUTTLEFISH = new TestValue("Cuttlefish");
+    protected static final TestValue DOG = new TestValue("Dog");
+    protected static final TestValue EMU = new TestValue("Emu");
+    protected static final TestValue FOX = new TestValue("Fox");
+    protected static final TestValue GOOSE = new TestValue("Goose");
 
-    protected static final TestValue ASTRONAUT = (TestValue) new TestValue("Astronaut").asReadOnly();
-    protected static final TestValue BLASTOFF = (TestValue) new TestValue("Blastoff").asReadOnly();
-    protected static final TestValue COMET = (TestValue) new TestValue("Comet").asReadOnly();
-    protected static final TestValue DRACO = (TestValue) new TestValue("Draco").asReadOnly();
-    protected static final TestValue EXOPLANET = (TestValue) new TestValue("Exoplanet").asReadOnly();
-    protected static final TestValue FORCE = (TestValue) new TestValue("Force").asReadOnly();
-    protected static final TestValue GRAVITY = (TestValue) new TestValue("Gravity").asReadOnly();
+    protected static final TestValue ASTRONAUT = new TestValue("Astronaut");
+    protected static final TestValue BLASTOFF = new TestValue("Blastoff");
+    protected static final TestValue COMET = new TestValue("Comet");
+    protected static final TestValue DRACO = new TestValue("Draco");
+    protected static final TestValue EXOPLANET = new TestValue("Exoplanet");
+    protected static final TestValue FORCE = new TestValue("Force");
+    protected static final TestValue GRAVITY = new TestValue("Gravity");
 
-    protected static final TestValue ASTRONOMY = (TestValue) new TestValue("Astronomy").asReadOnly();
-    protected static final TestValue BIOLOGY = (TestValue) new TestValue("Biology").asReadOnly();
-    protected static final TestValue CHEMISTRY = (TestValue) new TestValue("Chemistry").asReadOnly();
-    protected static final TestValue DISCIPLINE = (TestValue) new TestValue("Discipline").asReadOnly();
-    protected static final TestValue ECOLOGY = (TestValue) new TestValue("Ecology").asReadOnly();
-    protected static final TestValue FIELDS = (TestValue) new TestValue("Fields").asReadOnly();
-    protected static final TestValue GEOMETRY = (TestValue) new TestValue("Geometry").asReadOnly();
+    protected static final TestValue ASTRONOMY = new TestValue("Astronomy");
+    protected static final TestValue BIOLOGY = new TestValue("Biology");
+    protected static final TestValue CHEMISTRY = new TestValue("Chemistry");
+    protected static final TestValue DISCIPLINE = new TestValue("Discipline");
+    protected static final TestValue ECOLOGY = new TestValue("Ecology");
+    protected static final TestValue FIELDS = new TestValue("Fields");
+    protected static final TestValue GEOMETRY = new TestValue("Geometry");
 
-    protected static final TestValue AUSTRALIA = (TestValue) new TestValue("Australia").asReadOnly();
-    protected static final TestValue BRAZIL = (TestValue) new TestValue("Brazil").asReadOnly();
-    protected static final TestValue CHAD = (TestValue) new TestValue("Chad").asReadOnly();
-    protected static final TestValue DENMARK = (TestValue) new TestValue("Denmark").asReadOnly();
-    protected static final TestValue ESTONIA = (TestValue) new TestValue("Estonia").asReadOnly();
-    protected static final TestValue FRANCE = (TestValue) new TestValue("France").asReadOnly();
-    protected static final TestValue GHANA = (TestValue) new TestValue("Ghana").asReadOnly();
+    protected static final TestValue AUSTRALIA = new TestValue("Australia");
+    protected static final TestValue BRAZIL = new TestValue("Brazil");
+    protected static final TestValue CHAD = new TestValue("Chad");
+    protected static final TestValue DENMARK = new TestValue("Denmark");
+    protected static final TestValue ESTONIA = new TestValue("Estonia");
+    protected static final TestValue FRANCE = new TestValue("France");
+    protected static final TestValue GHANA = new TestValue("Ghana");
 
     protected static final long D_PATH = 6;
     protected static final long A_PATH = 7;
@@ -91,9 +98,9 @@ public class VirtualTestBase {
     protected static final long LEFT_RIGHT_PATH = 4;
     protected static final long RIGHT_LEFT_PATH = 5;
 
-    protected List<VirtualNodeCache<TestKey, TestValue>> rounds;
-    protected VirtualNodeCache<TestKey, TestValue> cache;
-    private VirtualNodeCache<TestKey, TestValue> lastCache;
+    protected List<VirtualNodeCache> rounds;
+    protected VirtualNodeCache cache;
+    private VirtualNodeCache lastCache;
 
     private VirtualHashRecord rootInternal;
     private VirtualHashRecord leftInternal;
@@ -101,13 +108,13 @@ public class VirtualTestBase {
     private VirtualHashRecord leftLeftInternal;
     private VirtualHashRecord leftRightInternal;
     private VirtualHashRecord rightLeftInternal;
-    private VirtualLeafRecord<TestKey, TestValue> lastALeaf;
-    private VirtualLeafRecord<TestKey, TestValue> lastBLeaf;
-    private VirtualLeafRecord<TestKey, TestValue> lastCLeaf;
-    private VirtualLeafRecord<TestKey, TestValue> lastDLeaf;
-    private VirtualLeafRecord<TestKey, TestValue> lastELeaf;
-    private VirtualLeafRecord<TestKey, TestValue> lastFLeaf;
-    private VirtualLeafRecord<TestKey, TestValue> lastGLeaf;
+    private VirtualLeafBytes<TestValue> lastALeaf;
+    private VirtualLeafBytes<TestValue> lastBLeaf;
+    private VirtualLeafBytes<TestValue> lastCLeaf;
+    private VirtualLeafBytes<TestValue> lastDLeaf;
+    private VirtualLeafBytes<TestValue> lastELeaf;
+    private VirtualLeafBytes<TestValue> lastFLeaf;
+    private VirtualLeafBytes<TestValue> lastGLeaf;
 
     @BeforeAll
     static void globalSetup() throws Exception {
@@ -117,8 +124,6 @@ public class VirtualTestBase {
         registry.registerConstructables("org.hiero");
         registry.registerConstructables("com.swirlds.virtualmap");
         registry.registerConstructables("com.swirlds.virtualmap.test.fixtures");
-        registry.registerConstructable(new ClassConstructorPair(TestKey.class, () -> new TestKey(0L)));
-        registry.registerConstructable(new ClassConstructorPair(TestValue.class, () -> new TestValue("")));
         registry.registerConstructable(new ClassConstructorPair(TestInternal.class, TestInternal::new));
         registry.registerConstructable(new ClassConstructorPair(TestLeaf.class, TestLeaf::new));
         registry.registerConstructable(new ClassConstructorPair(VirtualMap.class, () -> new VirtualMap(CONFIGURATION)));
@@ -130,7 +135,7 @@ public class VirtualTestBase {
     @BeforeEach
     public void setup() {
         rounds = new ArrayList<>();
-        cache = new VirtualNodeCache<>(CONFIGURATION.getConfigData(VirtualMapConfig.class));
+        cache = new VirtualNodeCache(CONFIGURATION.getConfigData(VirtualMapConfig.class));
         rounds.add(cache);
         lastCache = null;
     }
@@ -174,102 +179,126 @@ public class VirtualTestBase {
         return rightLeftInternal;
     }
 
-    protected VirtualLeafRecord<TestKey, TestValue> leaf(long path, long key, long value) {
-        return new VirtualLeafRecord<>(path, new TestKey(key), new TestValue(value));
+    protected VirtualLeafBytes<TestValue> leaf(long path, long key, long value) {
+        return new VirtualLeafBytes<>(path, TestKey.longToKey(key), new TestValue(value), TestValueCodec.INSTANCE);
     }
 
-    protected VirtualLeafRecord<TestKey, TestValue> appleLeaf(long path) {
-        lastALeaf =
-                lastALeaf == null ? new VirtualLeafRecord<>(path, A_KEY, APPLE) : copyWithPath(lastALeaf, APPLE, path);
+    protected VirtualLeafBytes<TestValue> appleLeaf(long path) {
+        lastALeaf = lastALeaf == null
+                ? new VirtualLeafBytes<>(path, A_KEY, APPLE, TestValueCodec.INSTANCE)
+                : copyWithPath(lastALeaf, APPLE, path);
         return lastALeaf;
     }
 
-    protected VirtualLeafRecord<TestKey, TestValue> bananaLeaf(long path) {
+    protected VirtualLeafBytes<TestValue> bananaLeaf(long path) {
         lastBLeaf = lastBLeaf == null
-                ? new VirtualLeafRecord<>(path, B_KEY, BANANA)
+                ? new VirtualLeafBytes<>(path, B_KEY, BANANA, TestValueCodec.INSTANCE)
                 : copyWithPath(lastBLeaf, BANANA, path);
         return lastBLeaf;
     }
 
-    protected VirtualLeafRecord<TestKey, TestValue> cherryLeaf(long path) {
+    protected VirtualLeafBytes<TestValue> cherryLeaf(long path) {
         lastCLeaf = lastCLeaf == null
-                ? new VirtualLeafRecord<>(path, C_KEY, CHERRY)
+                ? new VirtualLeafBytes<>(path, C_KEY, CHERRY, TestValueCodec.INSTANCE)
                 : copyWithPath(lastCLeaf, CHERRY, path);
         return lastCLeaf;
     }
 
-    protected VirtualLeafRecord<TestKey, TestValue> dateLeaf(long path) {
-        lastDLeaf =
-                lastDLeaf == null ? new VirtualLeafRecord<>(path, D_KEY, DATE) : copyWithPath(lastDLeaf, DATE, path);
+    protected VirtualLeafBytes<TestValue> dateLeaf(long path) {
+        lastDLeaf = lastDLeaf == null
+                ? new VirtualLeafBytes<>(path, D_KEY, DATE, TestValueCodec.INSTANCE)
+                : copyWithPath(lastDLeaf, DATE, path);
         return lastDLeaf;
     }
 
-    protected VirtualLeafRecord<TestKey, TestValue> eggplantLeaf(long path) {
+    protected VirtualLeafBytes<TestValue> eggplantLeaf(long path) {
         lastELeaf = lastELeaf == null
-                ? new VirtualLeafRecord<>(path, E_KEY, EGGPLANT)
+                ? new VirtualLeafBytes<>(path, E_KEY, EGGPLANT, TestValueCodec.INSTANCE)
                 : copyWithPath(lastELeaf, EGGPLANT, path);
         return lastELeaf;
     }
 
-    protected VirtualLeafRecord<TestKey, TestValue> figLeaf(long path) {
-        lastFLeaf = lastFLeaf == null ? new VirtualLeafRecord<>(path, F_KEY, FIG) : copyWithPath(lastFLeaf, FIG, path);
+    protected VirtualLeafBytes<TestValue> figLeaf(long path) {
+        lastFLeaf = lastFLeaf == null
+                ? new VirtualLeafBytes<>(path, F_KEY, FIG, TestValueCodec.INSTANCE)
+                : copyWithPath(lastFLeaf, FIG, path);
         return lastFLeaf;
     }
 
-    protected VirtualLeafRecord<TestKey, TestValue> grapeLeaf(long path) {
-        lastGLeaf =
-                lastGLeaf == null ? new VirtualLeafRecord<>(path, G_KEY, GRAPE) : copyWithPath(lastGLeaf, GRAPE, path);
+    protected VirtualLeafBytes<TestValue> grapeLeaf(long path) {
+        lastGLeaf = lastGLeaf == null
+                ? new VirtualLeafBytes<>(path, G_KEY, GRAPE, TestValueCodec.INSTANCE)
+                : copyWithPath(lastGLeaf, GRAPE, path);
         return lastGLeaf;
     }
 
-    protected VirtualLeafRecord<TestKey, TestValue> aardvarkLeaf(long path) {
+    protected VirtualLeafBytes<TestValue> aardvarkLeaf(long path) {
         lastALeaf = lastALeaf == null
-                ? new VirtualLeafRecord<>(path, A_KEY, AARDVARK)
+                ? new VirtualLeafBytes<>(path, A_KEY, AARDVARK, TestValueCodec.INSTANCE)
                 : copyWithPath(lastALeaf, AARDVARK, path);
         return lastALeaf;
     }
 
-    protected VirtualLeafRecord<TestKey, TestValue> bearLeaf(long path) {
-        lastBLeaf =
-                lastBLeaf == null ? new VirtualLeafRecord<>(path, B_KEY, BEAR) : copyWithPath(lastBLeaf, BEAR, path);
+    protected VirtualLeafBytes<TestValue> bearLeaf(long path) {
+        lastBLeaf = lastBLeaf == null
+                ? new VirtualLeafBytes<>(path, B_KEY, BEAR, TestValueCodec.INSTANCE)
+                : copyWithPath(lastBLeaf, BEAR, path);
         return lastBLeaf;
     }
 
-    protected VirtualLeafRecord<TestKey, TestValue> cuttlefishLeaf(long path) {
+    protected VirtualLeafBytes<TestValue> cuttlefishLeaf(long path) {
         lastCLeaf = lastCLeaf == null
-                ? new VirtualLeafRecord<>(path, C_KEY, CUTTLEFISH)
+                ? new VirtualLeafBytes<>(path, C_KEY, CUTTLEFISH, TestValueCodec.INSTANCE)
                 : copyWithPath(lastCLeaf, CUTTLEFISH, path);
         return lastCLeaf;
     }
 
-    protected VirtualLeafRecord<TestKey, TestValue> dogLeaf(long path) {
-        lastDLeaf = lastDLeaf == null ? new VirtualLeafRecord<>(path, D_KEY, DOG) : copyWithPath(lastDLeaf, DOG, path);
+    protected VirtualLeafBytes<TestValue> dogLeaf(long path) {
+        lastDLeaf = lastDLeaf == null
+                ? new VirtualLeafBytes<>(path, D_KEY, DOG, TestValueCodec.INSTANCE)
+                : copyWithPath(lastDLeaf, DOG, path);
         return lastDLeaf;
     }
 
-    protected VirtualLeafRecord<TestKey, TestValue> emuLeaf(long path) {
-        lastELeaf = lastELeaf == null ? new VirtualLeafRecord<>(path, E_KEY, EMU) : copyWithPath(lastELeaf, EMU, path);
+    protected VirtualLeafBytes<TestValue> emuLeaf(long path) {
+        lastELeaf = lastELeaf == null
+                ? new VirtualLeafBytes<>(path, E_KEY, EMU, TestValueCodec.INSTANCE)
+                : copyWithPath(lastELeaf, EMU, path);
         return lastELeaf;
     }
 
-    protected VirtualLeafRecord<TestKey, TestValue> foxLeaf(long path) {
-        lastFLeaf = lastFLeaf == null ? new VirtualLeafRecord<>(path, F_KEY, FOX) : copyWithPath(lastFLeaf, FOX, path);
+    protected VirtualLeafBytes<TestValue> foxLeaf(long path) {
+        lastFLeaf = lastFLeaf == null
+                ? new VirtualLeafBytes<>(path, F_KEY, FOX, TestValueCodec.INSTANCE)
+                : copyWithPath(lastFLeaf, FOX, path);
         return lastFLeaf;
     }
 
-    protected VirtualLeafRecord<TestKey, TestValue> gooseLeaf(long path) {
-        lastGLeaf =
-                lastGLeaf == null ? new VirtualLeafRecord<>(path, G_KEY, GOOSE) : copyWithPath(lastGLeaf, GOOSE, path);
+    protected VirtualLeafBytes<TestValue> gooseLeaf(long path) {
+        lastGLeaf = lastGLeaf == null
+                ? new VirtualLeafBytes<>(path, G_KEY, GOOSE, TestValueCodec.INSTANCE)
+                : copyWithPath(lastGLeaf, GOOSE, path);
         return lastGLeaf;
     }
 
-    protected VirtualHashRecord hash(VirtualLeafRecord<TestKey, TestValue> rec) {
-        return new VirtualHashRecord(rec.getPath(), CRYPTO.digestSync(rec));
+    protected static Hash hash(VirtualLeafBytes<TestValue> rec) {
+        final byte[] arr = new byte[rec.getSizeInBytesForHashing()];
+        rec.writeToForHashing(BufferedData.wrap(arr));
+        try {
+            final MessageDigest md = MessageDigest.getInstance(Cryptography.DEFAULT_DIGEST_TYPE.algorithmName());
+            md.update(arr);
+            return new Hash(md.digest(), Cryptography.DEFAULT_DIGEST_TYPE);
+        } catch (final NoSuchAlgorithmException e) {
+            throw new CryptographyException(e);
+        }
     }
 
-    private VirtualLeafRecord<TestKey, TestValue> copyWithPath(
-            VirtualLeafRecord<TestKey, TestValue> leaf, TestValue value, long path) {
-        return new VirtualLeafRecord<>(path, leaf.getKey(), value);
+    protected VirtualHashRecord hashRecord(VirtualLeafBytes<TestValue> rec) {
+        return new VirtualHashRecord(rec.path(), hash(rec));
+    }
+
+    private VirtualLeafBytes<TestValue> copyWithPath(VirtualLeafBytes<TestValue> leaf, TestValue value, long path) {
+        return new VirtualLeafBytes<>(path, leaf.keyBytes(), value, TestValueCodec.INSTANCE);
     }
 
     private VirtualHashRecord copy(VirtualHashRecord rec) {

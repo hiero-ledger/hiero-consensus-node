@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.suites.fees;
 
 import static com.google.protobuf.ByteString.copyFromUtf8;
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.customizedHapiTest;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.keys.KeyShape.SIMPLE;
@@ -30,6 +31,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.THREE_MONTHS_IN_SECONDS;
 import static com.hedera.services.bdd.suites.HapiSuite.TOKEN_TREASURY;
 import static com.hedera.services.bdd.suites.HapiSuite.flattened;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_EXPIRATION_TIME;
 import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
 import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
 
@@ -49,6 +51,7 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.Tag;
 
 // This test cases are direct copies of CryptoServiceFeesSuite. The difference here is that
 // we are wrapping the operations in an atomic batch to confirm the fees are the same
@@ -124,6 +127,7 @@ public class AtomicCryptoServiceFeesSuite {
 
     @HapiTest
     @DisplayName("CryptoDeleteAllowance transaction has expected base fee")
+    @Tag(MATS)
     final Stream<DynamicTest> cryptoDeleteAllowanceBaseUSDFee() {
         final String token = "token";
         final String nft = "nft";
@@ -405,7 +409,8 @@ public class AtomicCryptoServiceFeesSuite {
                                 .expiring(expiration.get() + THREE_MONTHS_IN_SECONDS)
                                 .blankMemo()
                                 .via(baseTxn)
-                                .batchKey(BATCH_OPERATOR))
+                                .batchKey(BATCH_OPERATOR)
+                                .hasKnownStatus(INVALID_EXPIRATION_TIME))
                         .hasKnownStatusFrom(INNER_TRANSACTION_FAILED)
                         .via(ATOMIC_BATCH)
                         .signedByPayerAnd(BATCH_OPERATOR)
@@ -581,6 +586,7 @@ public class AtomicCryptoServiceFeesSuite {
 
     @HapiTest
     @DisplayName("CryptoTransfer NFT transaction has expected base fee")
+    @Tag(MATS)
     final Stream<DynamicTest> cryptoNFTTransferBaseUSDFee() {
         final var nonFungibleToken = "nonFungibleToken";
         final var nftXferTxn = "nftXferTxn";

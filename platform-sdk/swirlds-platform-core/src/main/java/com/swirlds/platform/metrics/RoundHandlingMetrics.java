@@ -57,8 +57,7 @@ public class RoundHandlingMetrics {
         consensusTimeDeviation = metrics.getOrCreate(consensusTimeDeviationConfig);
         eventsPerRound = metrics.getOrCreate(eventsPerRoundConfig);
 
-        this.roundHandlerPhase = new PhaseTimerBuilder<>(
-                        platformContext, time, "platform", TransactionHandlerPhase.class)
+        this.roundHandlerPhase = new PhaseTimerBuilder<>(metrics, time, "platform", TransactionHandlerPhase.class)
                 .enableFractionalMetrics()
                 .setInitialPhase(IDLE)
                 .setMetricsNamePrefix("consensus")

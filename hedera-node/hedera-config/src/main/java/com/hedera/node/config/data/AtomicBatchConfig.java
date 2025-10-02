@@ -8,7 +8,7 @@ import com.swirlds.config.api.ConfigProperty;
 
 @ConfigData("atomicBatch")
 public record AtomicBatchConfig(
-        @ConfigProperty(defaultValue = "false") @NetworkProperty boolean isEnabled,
-        @ConfigProperty(defaultValue = "0") @NetworkProperty long maxNumberOfTransactions,
+        @ConfigProperty(defaultValue = "true") @NetworkProperty boolean isEnabled,
+        @ConfigProperty(defaultValue = "50") @NetworkProperty long maxNumberOfTransactions,
         @ConfigProperty(defaultValue = "Freeze,AtomicBatch,ScheduleCreate,ScheduleSign") @NetworkProperty
                 HederaFunctionalitySet blacklist) {}

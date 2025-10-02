@@ -14,15 +14,15 @@ import static org.mockito.Mockito.when;
 
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
-import com.swirlds.merkledb.MerkleDb;
 import com.swirlds.platform.crypto.SignatureVerifier;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
-import com.swirlds.platform.test.fixtures.state.TestMerkleStateRoot;
 import com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade;
+import com.swirlds.platform.test.fixtures.state.TestVirtualMapState;
 import com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer;
+import com.swirlds.platform.test.fixtures.virtualmap.VirtualMapUtils;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
@@ -31,7 +31,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import org.hiero.base.exceptions.ReferenceCountException;
 import org.hiero.consensus.roster.RosterUtils;
 import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -48,11 +47,6 @@ class SignedStateTests {
                 .left();
     }
 
-    @BeforeEach
-    void setUp() {
-        MerkleDb.resetDefaultInstancePath();
-    }
-
     @AfterEach
     void tearDown() {
         RandomSignedStateGenerator.releaseAllBuiltSignedStates();
@@ -66,16 +60,21 @@ class SignedStateTests {
      */
     private MerkleNodeState buildMockState(
             final Random random, final Runnable reserveCallback, final Runnable releaseCallback) {
-        final var real = new TestMerkleStateRoot();
-        TestingAppStateInitializer.DEFAULT.initStates(real);
+        final var virtualMapLabel = "vm-" + SignedStateTests.class.getSimpleName() + "-" + java.util.UUID.randomUUID();
+        final var real = TestVirtualMapState.createInstanceWithVirtualMapLabel(virtualMapLabel);
+        TestingAppStateInitializer.DEFAULT.initConsensusModuleStates(real);
         RosterUtils.setActiveRoster(real, RandomRosterBuilder.create(random).build(), 0L);
         final MerkleNodeState state = spy(real);
+        final MerkleNode realRoot = state.getRoot();
+        final MerkleNode rootSpy = spy(realRoot);
+        when(state.getRoot()).thenReturn(rootSpy);
+
         if (reserveCallback != null) {
             doAnswer(invocation -> {
                         reserveCallback.run();
                         return null;
                     })
-                    .when((MerkleNode) state)
+                    .when(rootSpy)
                     .reserve();
         }
 
@@ -212,7 +211,10 @@ class SignedStateTests {
     @Test
     @DisplayName("Alternate Constructor Reservations Test")
     void alternateConstructorReservationsTest() {
-        final MerkleNodeState state = spy(new TestMerkleStateRoot());
+        final var virtualMapLabel = "vm-" + SignedStateTests.class.getSimpleName() + "-" + java.util.UUID.randomUUID();
+        final var virtualMap = VirtualMapUtils.createVirtualMap(virtualMapLabel);
+
+        final MerkleNodeState state = spy(new TestVirtualMapState(virtualMap));
         final PlatformStateModifier platformState = mock(PlatformStateModifier.class);
         final TestPlatformStateFacade platformStateFacade = mock(TestPlatformStateFacade.class);
         TestingAppStateInitializer.DEFAULT.initPlatformState(state);

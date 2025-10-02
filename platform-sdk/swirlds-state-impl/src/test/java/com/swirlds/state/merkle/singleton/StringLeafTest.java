@@ -5,8 +5,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.swirlds.state.test.fixtures.merkle.MerkleTestBase;
+import com.swirlds.state.test.fixtures.merkle.singleton.StringLeaf;
 import org.junit.jupiter.api.Test;
 
+@Deprecated
 class StringLeafTest extends MerkleTestBase {
     @Test
     void setValue() {

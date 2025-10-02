@@ -46,10 +46,6 @@ class PbjConverterTest {
                 platformState.getLastFrozenTime().getEpochSecond(),
                 pbjPlatformState.lastFrozenTime().seconds());
         assertEquals(platformState.getLegacyRunningEventHash().getBytes(), pbjPlatformState.legacyRunningEventHash());
-        assertEquals(
-                platformState.getLowestJudgeGenerationBeforeBirthRoundMode(),
-                pbjPlatformState.lowestJudgeGenerationBeforeBirthRoundMode());
-        assertEquals(platformState.getFirstVersionInBirthRoundMode(), pbjPlatformState.firstVersionInBirthRoundMode());
 
         assertEquals(platformState.getSnapshot(), pbjPlatformState.consensusSnapshot());
     }
@@ -170,57 +166,6 @@ class PbjConverterTest {
     }
 
     @Test
-    void testToPbjPlatformState_acc_lowestJudgeGenerationBeforeBirthRoundMode() {
-        final var oldState = randomPbjPlatformState();
-        final var accumulator = new PlatformStateValueAccumulator();
-
-        // no change without update is expected
-        assertEquals(
-                oldState.lowestJudgeGenerationBeforeBirthRoundMode(),
-                toPbjPlatformState(oldState, accumulator).lowestJudgeGenerationBeforeBirthRoundMode());
-
-        final var newValue = nextInt();
-
-        accumulator.setLowestJudgeGenerationBeforeBirthRoundMode(newValue);
-
-        assertEquals(newValue, toPbjPlatformState(oldState, accumulator).lowestJudgeGenerationBeforeBirthRoundMode());
-    }
-
-    @Test
-    void testToPbjPlatformState_acc_firstVersionInBirthRoundMode() {
-        final var oldState = randomPbjPlatformState();
-        final var accumulator = new PlatformStateValueAccumulator();
-
-        // no change without update is expected
-        assertEquals(
-                oldState.firstVersionInBirthRoundMode(),
-                toPbjPlatformState(oldState, accumulator).firstVersionInBirthRoundMode());
-
-        final var newValue = randomSoftwareVersion();
-
-        accumulator.setFirstVersionInBirthRoundMode(newValue);
-
-        assertEquals(newValue, toPbjPlatformState(oldState, accumulator).firstVersionInBirthRoundMode());
-    }
-
-    @Test
-    void testToPbjPlatformState_acc_lastRoundBeforeBirthRoundMode() {
-        final var oldState = randomPbjPlatformState();
-        final var accumulator = new PlatformStateValueAccumulator();
-
-        // no change without update is expected
-        assertEquals(
-                oldState.lastRoundBeforeBirthRoundMode(),
-                toPbjPlatformState(oldState, accumulator).lastRoundBeforeBirthRoundMode());
-
-        final var newValue = nextInt();
-
-        accumulator.setLastRoundBeforeBirthRoundMode(newValue);
-
-        assertEquals(newValue, toPbjPlatformState(oldState, accumulator).lastRoundBeforeBirthRoundMode());
-    }
-
-    @Test
     void testToPbjPlatformState_acc_round() {
         final var oldState = randomPbjPlatformState();
         final var accumulator = new PlatformStateValueAccumulator();
@@ -305,10 +250,6 @@ class PbjConverterTest {
         accumulator.setFreezeTime(newValue.getLastFrozenTime());
         accumulator.setLastFrozenTime(newValue.getLastFrozenTime());
         accumulator.setLegacyRunningEventHash(newValue.getLegacyRunningEventHash());
-        accumulator.setLowestJudgeGenerationBeforeBirthRoundMode(
-                newValue.getLowestJudgeGenerationBeforeBirthRoundMode());
-        accumulator.setFirstVersionInBirthRoundMode(newValue.getFirstVersionInBirthRoundMode());
-        accumulator.setLastRoundBeforeBirthRoundMode(newValue.getLastRoundBeforeBirthRoundMode());
 
         final var pbjState = toPbjPlatformState(oldState, accumulator);
 
@@ -320,11 +261,6 @@ class PbjConverterTest {
         assertArrayEquals(
                 newValue.getLegacyRunningEventHash().getBytes().toByteArray(),
                 pbjState.legacyRunningEventHash().toByteArray());
-        assertEquals(
-                newValue.getLowestJudgeGenerationBeforeBirthRoundMode(),
-                pbjState.lowestJudgeGenerationBeforeBirthRoundMode());
-        assertEquals(newValue.getFirstVersionInBirthRoundMode(), pbjState.firstVersionInBirthRoundMode());
-        assertEquals(newValue.getLastRoundBeforeBirthRoundMode(), pbjState.lastRoundBeforeBirthRoundMode());
     }
 
     static PlatformStateModifier randomPlatformState(final Randotron randotron) {
@@ -333,9 +269,6 @@ class PbjConverterTest {
         platformState.setRoundsNonAncient(nextInt());
         platformState.setLastFrozenTime(randomInstant(randotron));
         platformState.setLegacyRunningEventHash(randomHash());
-        platformState.setLowestJudgeGenerationBeforeBirthRoundMode(nextInt());
-        platformState.setLastRoundBeforeBirthRoundMode(nextInt());
-        platformState.setFirstVersionInBirthRoundMode(randomSoftwareVersion());
         platformState.setSnapshot(randomSnapshot(randotron));
         return platformState;
     }

@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.suites.file.batch;
 
 import static com.hedera.services.bdd.junit.ContextRequirement.PERMISSION_OVERRIDES;
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getFileContents;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getFileInfo;
@@ -43,6 +44,7 @@ import java.util.Map;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.Tag;
 
 // This test cases are direct copies of FileUpdateSuite. The difference here is that
 // we are wrapping the operations in an atomic batch to confirm that everything works as expected.
@@ -61,6 +63,7 @@ public class AtomicFileUpdateSuite {
     }
 
     @LeakyHapiTest(requirement = PERMISSION_OVERRIDES)
+    @Tag(MATS)
     final Stream<DynamicTest> apiPermissionsChangeDynamically() {
         final var civilian = CIVILIAN;
         return hapiTest(
@@ -154,7 +157,7 @@ public class AtomicFileUpdateSuite {
                 atomicBatch(fileUpdate("test")
                                 .entityMemo(ZERO_BYTE_MEMO)
                                 .contents(new4k)
-                                .hasPrecheck(INVALID_ZERO_BYTE_IN_STRING)
+                                .hasKnownStatus(INVALID_ZERO_BYTE_IN_STRING)
                                 .batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR)
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
@@ -198,7 +201,7 @@ public class AtomicFileUpdateSuite {
                 fileCreate("test"),
                 doWithStartupConfig("entities.maxLifetime", maxLifetime -> atomicBatch(fileUpdate("test")
                                 .lifetime(parseLong(maxLifetime) + 12_345L)
-                                .hasPrecheck(AUTORENEW_DURATION_NOT_IN_RANGE)
+                                .hasKnownStatus(AUTORENEW_DURATION_NOT_IN_RANGE)
                                 .batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR)
                         .hasKnownStatusFrom(INNER_TRANSACTION_FAILED)));

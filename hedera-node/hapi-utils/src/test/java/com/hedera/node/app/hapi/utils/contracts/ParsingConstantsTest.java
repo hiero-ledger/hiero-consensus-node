@@ -63,13 +63,10 @@ class ParsingConstantsTest {
                 getTokenCustomFeesType,
                 TupleType.parse(RESPONSE_STATUS_AT_BEGINNING
                         + FIXED_FEE
-                        + ARRAY_BRACKETS
-                        + ","
+                        + "[],"
                         + FRACTIONAL_FEE
-                        + ARRAY_BRACKETS
-                        + ","
+                        + "[],"
                         + ROYALTY_FEE
-                        + ARRAY_BRACKETS
-                        + ")"));
+                        + "[])"));
     }
 }
