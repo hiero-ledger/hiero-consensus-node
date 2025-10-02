@@ -9,12 +9,12 @@ module org.hiero.consensus.utility {
 
     requires transitive com.hedera.node.hapi;
     requires transitive com.hedera.pbj.runtime;
+    requires transitive com.swirlds.base;
     requires transitive com.swirlds.config.api;
     requires transitive com.swirlds.metrics.api;
     requires transitive com.swirlds.state.api;
     requires transitive org.hiero.base.crypto;
     requires transitive org.hiero.consensus.model;
-    requires com.swirlds.base;
     requires com.swirlds.common;
     requires com.swirlds.logging;
     requires org.hiero.base.utility;
