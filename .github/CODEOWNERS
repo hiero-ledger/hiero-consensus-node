@@ -11,9 +11,9 @@
 /example-apps/swirlds-platform-base-example/    @hiero-ledger/hiero-consensus-node-foundation-codeowners
 
 ############################
-##### State Validator ######
+##### State Operator ######
 ############################
-/hedera-state-validator                         @hiero-ledger/hiero-consensus-node-foundation-codeowners
+/hedera-state-operator                         @hiero-ledger/hiero-consensus-node-foundation-codeowners
 
 #########################
 ##### Hedera Node  ######

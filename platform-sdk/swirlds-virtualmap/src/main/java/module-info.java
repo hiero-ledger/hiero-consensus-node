@@ -18,7 +18,7 @@ open module com.swirlds.virtualmap {
             com.swirlds.virtualmap.test.fixtures,
             com.swirlds.platform.core,
             com.swirlds.state.impl,
-            com.hedera.state.validator;
+            com.hedera.state.operator;
     exports com.swirlds.virtualmap.internal.pipeline to
             com.swirlds.merkle,
             com.swirlds.merkledb;
@@ -26,11 +26,11 @@ open module com.swirlds.virtualmap {
             com.swirlds.merkledb,
             com.swirlds.virtualmap.test.fixtures,
             com.swirlds.platform.core.test.fixtures,
-            com.hedera.state.validator;
+            com.hedera.state.operator;
     exports com.swirlds.virtualmap.internal.reconnect to
-            com.hedera.state.validator;
+            com.hedera.state.operator;
     exports com.swirlds.virtualmap.internal.hash to
-            com.hedera.state.validator;
+            com.hedera.state.operator;
 
     requires transitive com.hedera.pbj.runtime;
     requires transitive com.swirlds.base;

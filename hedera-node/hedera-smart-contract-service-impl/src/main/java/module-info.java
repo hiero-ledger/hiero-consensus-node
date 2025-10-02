@@ -87,7 +87,7 @@ module com.hedera.node.app.service.contract.impl {
             com.hedera.node.app.service.contract.impl.test,
             com.hedera.node.services.cli,
             com.hedera.node.test.clients,
-            com.hedera.state.validator;
+            com.hedera.state.operator;
     exports com.hedera.node.app.service.contract.impl.exec.tracers;
 
     opens com.hedera.node.app.service.contract.impl.exec.tracers to
