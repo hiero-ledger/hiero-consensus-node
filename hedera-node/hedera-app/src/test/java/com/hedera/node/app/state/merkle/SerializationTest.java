@@ -5,6 +5,7 @@ import static com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade.T
 import static com.swirlds.state.test.fixtures.merkle.MerkleStateRoot.MINIMUM_SUPPORTED_VERSION;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.node.app.services.MigrationStateChanges;
 import com.hedera.node.config.data.HederaConfig;
@@ -279,7 +280,7 @@ class SerializationTest extends MerkleTestBase {
         return loadedTree;
     }
 
-    private void initServices(Schema schemaV1, MerkleNodeState loadedTree) {
+    private void initServices(Schema<SemanticVersion> schemaV1, MerkleNodeState loadedTree) {
         final var newRegistry = new MerkleSchemaRegistry(FIRST_SERVICE, new SchemaApplications());
         newRegistry.register(schemaV1);
         newRegistry.migrate(
