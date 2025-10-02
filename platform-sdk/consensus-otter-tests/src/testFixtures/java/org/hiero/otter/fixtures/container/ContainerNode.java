@@ -270,7 +270,8 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
         final org.hiero.otter.fixtures.container.proto.QuiescenceCommand dto =
                 switch (command) {
                     case QUIESCE -> org.hiero.otter.fixtures.container.proto.QuiescenceCommand.QUIESCE;
-                    case BREAK_QUIESCENCE -> org.hiero.otter.fixtures.container.proto.QuiescenceCommand.BREAK_QUIESCENCE;
+                    case BREAK_QUIESCENCE ->
+                        org.hiero.otter.fixtures.container.proto.QuiescenceCommand.BREAK_QUIESCENCE;
                     case DONT_QUIESCE -> org.hiero.otter.fixtures.container.proto.QuiescenceCommand.DONT_QUIESCE;
                 };
         nodeCommBlockingStub
