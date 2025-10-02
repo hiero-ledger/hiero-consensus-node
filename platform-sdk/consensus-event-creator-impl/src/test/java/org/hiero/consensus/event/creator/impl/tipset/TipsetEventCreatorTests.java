@@ -46,6 +46,8 @@ import org.hiero.junit.extensions.UseParameterSources;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 
 @DisplayName("TipsetEventCreatorImpl Tests")
 class TipsetEventCreatorTests {
@@ -1099,53 +1101,6 @@ class TipsetEventCreatorTests {
         assertNotNull(newEvent2);
         assertEquals(newEvent.getDescriptor(), newEvent2.getSelfParent());
         assertEquals(NonDeterministicGeneration.GENERATION_UNDEFINED, newEvent2.getNGen());
-    }
-
-    /**
-     * This test verifies that the event creator assigns the propper creationTime for an event
-     *
-     * @param random {@link RandomUtils#getRandomPrintSeed()}
-     */
-    @TestTemplate
-    @ExtendWith(ParameterCombinationExtension.class)
-    @UseParameterSources({
-        @ParamSource(
-                param = "random",
-                fullyQualifiedClass = "org.hiero.base.utility.test.fixtures.RandomUtils",
-                method = "getRandomPrintSeed")
-    })
-    @DisplayName("calculateNewEventCreationTime Test()")
-    void eventCreationTimeTest(@ParamName("random") final Random random) {
-        final FakeTime time = new FakeTime();
-        // Common test set up. We initialize a network to make it easier to create events.
-        final int networkSize = 1;
-        final Roster roster =
-                RandomRosterBuilder.create(random).withSize(networkSize).build();
-        final EventCreator eventCreator = buildEventCreator(random, time, roster, NodeId.of(0), List::of);
-
-        // genesis event
-        final var firstEvent = eventCreator.maybeCreateEvent();
-        assertNotNull(firstEvent);
-        assertEquals(time.now(), firstEvent.getTimeCreated(), "The genesis event should use the wall-clock time");
-
-        // time created is based on parent's time received
-        final Instant parentTimeReceived = firstEvent.getTimeCreated().plusSeconds(1);
-        firstEvent.setTimeReceived(parentTimeReceived);
-        final var secondEvent = eventCreator.maybeCreateEvent();
-        assertNotNull(secondEvent);
-        assertEquals(
-                parentTimeReceived,
-                secondEvent.getTimeCreated(),
-                "An event's creation time should be equal to the max time received of its parents");
-
-        // max time received is the same as the event creation time
-        final var thirdEvent = eventCreator.maybeCreateEvent();
-        assertNotNull(thirdEvent);
-        assertEquals(
-                secondEvent.getTimeCreated().plusNanos(1),
-                thirdEvent.getTimeCreated(),
-                "If the maximum time received of all parents is not higher than the time created of the self "
-                        + "parent, the event creator should add a nanosecond to make it higher");
     }
 
     /**
