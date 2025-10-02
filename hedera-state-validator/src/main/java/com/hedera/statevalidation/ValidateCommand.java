@@ -35,11 +35,8 @@ public class ValidateCommand implements Callable<Integer> {
 
     @CommandLine.Parameters(
             arity = "1..*",
-            description =
-                    "Tag to run: [internal, leaf, hdhm, account, tokenRelations, rehash, files, entityIds]")
-    private String[] tags = {
-        "internal", "leaf", "hdhm", "account", "tokenRelations", "rehash", "files",  "entityIds"
-    };
+            description = "Tag to run: [internal, leaf, hdhm, account, tokenRelations, rehash, files, entityIds]")
+    private String[] tags = {"internal", "leaf", "hdhm", "account", "tokenRelations", "rehash", "files", "entityIds"};
 
     @Override
     public Integer call() {
