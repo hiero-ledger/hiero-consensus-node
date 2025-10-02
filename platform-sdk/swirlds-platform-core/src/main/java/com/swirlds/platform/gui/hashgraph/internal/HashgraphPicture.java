@@ -207,7 +207,8 @@ public class HashgraphPicture extends JPanel {
         final Roster roster = hashgraphSource.getRoster();
         if (e2 != null
                 && (RosterUtils.getIndex(roster, e2.getCreatorId().id()) == -1
-                        || RosterUtils.getIndex(roster, e2.getCreatorId().id()) >= roster.rosterEntries().size())) {
+                        || RosterUtils.getIndex(roster, e2.getCreatorId().id())
+                                >= roster.rosterEntries().size())) {
             // if the creator of the other parent has been removed,
             // treat it as if there is no other parent
             e2 = null;
@@ -254,7 +255,10 @@ public class HashgraphPicture extends JPanel {
         final int fa = fm.getMaxAscent();
         final int fd = fm.getMaxDescent();
         final EventImpl e2 = event.getOtherParent() != null
-                        && RosterUtils.getIndex(hashgraphSource.getRoster(), event.getOtherParent().getCreatorId().id()) != -1
+                        && RosterUtils.getIndex(
+                                        hashgraphSource.getRoster(),
+                                        event.getOtherParent().getCreatorId().id())
+                                != -1
                 ? event.getOtherParent()
                 : null;
         final Color color;

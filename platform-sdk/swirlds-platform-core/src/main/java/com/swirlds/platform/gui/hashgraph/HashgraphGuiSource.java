@@ -27,7 +27,8 @@ public interface HashgraphGuiSource {
     @NonNull
     List<EventImpl> getEvents(final long startGeneration, final int numGenerations);
 
-    @NonNull Roster getRoster();
+    @NonNull
+    Roster getRoster();
 
     /**
      * @return true if the source is ready to return data

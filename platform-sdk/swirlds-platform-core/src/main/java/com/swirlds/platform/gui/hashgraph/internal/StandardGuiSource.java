@@ -8,8 +8,6 @@ import com.swirlds.platform.internal.EventImpl;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import java.util.Objects;
-import org.hiero.consensus.model.roster.AddressBook;
-import org.hiero.consensus.roster.RosterRetriever;
 
 /**
  * A {@link HashgraphGuiSource} that retrieves events from a stream of events
@@ -22,14 +20,9 @@ public class StandardGuiSource implements HashgraphGuiSource {
     /**
      * Constructor
      *
+     * @param roster       the current roster
      * @param eventStorage stores information about events
      */
-    public StandardGuiSource(@NonNull final AddressBook addressBook, @NonNull final GuiEventStorage eventStorage) {
-
-        this.roster = RosterRetriever.buildRoster(Objects.requireNonNull(addressBook));
-        this.eventStorage = Objects.requireNonNull(eventStorage);
-    }
-
     public StandardGuiSource(@NonNull final Roster roster, @NonNull final GuiEventStorage eventStorage) {
         this.roster = Objects.requireNonNull(roster);
         this.eventStorage = Objects.requireNonNull(eventStorage);

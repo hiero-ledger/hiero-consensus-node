@@ -23,8 +23,6 @@ import java.util.Map;
 import java.util.Objects;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
-import org.hiero.consensus.model.roster.AddressBook;
-import org.hiero.consensus.roster.RosterRetriever;
 
 /**
  * This class is responsible for storing events utilized by the GUI.
@@ -53,8 +51,7 @@ public class GuiEventStorage {
         this.configuration = Objects.requireNonNull(configuration);
         final PlatformContext platformContext = PlatformContext.create(configuration);
 
-        this.consensus = new ConsensusImpl(
-                platformContext, new NoOpConsensusMetrics(), roster);
+        this.consensus = new ConsensusImpl(platformContext, new NoOpConsensusMetrics(), roster);
         this.linker = new SimpleLinker();
     }
 

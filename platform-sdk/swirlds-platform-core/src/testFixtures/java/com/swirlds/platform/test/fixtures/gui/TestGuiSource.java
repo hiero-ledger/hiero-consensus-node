@@ -32,7 +32,6 @@ import javax.swing.SpinnerNumberModel;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.model.roster.AddressBook;
 
 public class TestGuiSource {
     private final GuiEventProvider eventProvider;
@@ -202,8 +201,10 @@ public class TestGuiSource {
 
         if (eventProvider instanceof GeneratorEventProvider) {
             final List<ForkingEventSource> forkingEventSources = new ArrayList<>();
-            for (final NodeId nodeId : guiSource.getRoster().rosterEntries().stream().map(RosterEntry::nodeId)
-                    .map(NodeId::of).toList()) {
+            for (final NodeId nodeId : guiSource.getRoster().rosterEntries().stream()
+                    .map(RosterEntry::nodeId)
+                    .map(NodeId::of)
+                    .toList()) {
                 if (((GeneratorEventProvider) eventProvider).getNodeSource(nodeId)
                         instanceof ForkingEventSource forkingEventSource) {
                     forkingEventSources.add(forkingEventSource);
