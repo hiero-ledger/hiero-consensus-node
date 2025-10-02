@@ -35,6 +35,7 @@ import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 import org.hiero.consensus.model.transaction.Transaction;
 import org.hiero.consensus.model.transaction.TransactionWrapper;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -67,6 +68,11 @@ public class ConsistencyTestingToolStateTest {
         state = new ConsistencyTestingToolState(virtualMap);
         stateLifecycle = new ConsistencyTestingToolConsensusStateEventHandler(DEFAULT_PLATFORM_STATE_FACADE);
         TestingAppStateInitializer.initConsensusModuleStates(state);
+    }
+
+    @AfterAll
+    static void tearDown() {
+        state.release();
     }
 
     @BeforeEach

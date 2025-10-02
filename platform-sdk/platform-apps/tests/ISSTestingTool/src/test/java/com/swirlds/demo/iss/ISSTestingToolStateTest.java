@@ -36,6 +36,7 @@ import org.hiero.consensus.model.transaction.ConsensusTransaction;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 import org.hiero.consensus.model.transaction.Transaction;
 import org.hiero.consensus.model.transaction.TransactionWrapper;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -85,6 +86,11 @@ class ISSTestingToolStateTest {
                 .round(round.getRoundNum())
                 .build();
         signatureTransactionBytes = StateSignatureTransaction.PROTOBUF.toBytes(stateSignatureTransaction);
+    }
+
+    @AfterEach
+    void tearDown() {
+        state.release();
     }
 
     @Test
