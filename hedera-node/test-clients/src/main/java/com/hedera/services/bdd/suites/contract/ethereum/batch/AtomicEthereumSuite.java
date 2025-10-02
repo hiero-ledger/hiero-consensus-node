@@ -409,19 +409,23 @@ public class AtomicEthereumSuite {
                     final var subop1 = balanceSnapshot(senderBalance, SECP_256K1_SOURCE_KEY)
                             .accountIsAlias();
                     final var subop2 = balanceSnapshot(payerBalance, RELAYER);
-                    final var subop3 = ethereumCall(
-                                    PAY_RECEIVABLE_CONTRACT, "deposit", BigInteger.valueOf(DEPOSIT_AMOUNT))
-                            .type(EthTxData.EthTransactionType.EIP1559)
-                            .signingWith(SECP_256K1_SOURCE_KEY)
-                            .payingWith(RELAYER)
-                            .via(PAY_TXN)
-                            .nonce(0)
-                            .maxGasAllowance(relayerOffered)
-                            .maxFeePerGas(senderGasPrice)
-                            .gasLimit(GAS_LIMIT)
-                            .sending(DEPOSIT_AMOUNT)
-                            .hasKnownStatus(success ? ResponseCodeEnum.SUCCESS : ResponseCodeEnum.INSUFFICIENT_TX_FEE)
-                            .exposingGasTo(constantGasAssertion(gasUsed));
+                    final var subop3 = atomicBatch(ethereumCall(
+                                            PAY_RECEIVABLE_CONTRACT, "deposit", BigInteger.valueOf(DEPOSIT_AMOUNT))
+                                    .type(EthTxData.EthTransactionType.EIP1559)
+                                    .signingWith(SECP_256K1_SOURCE_KEY)
+                                    .payingWith(RELAYER)
+                                    .via(PAY_TXN)
+                                    .nonce(0)
+                                    .maxGasAllowance(relayerOffered)
+                                    .maxFeePerGas(senderGasPrice)
+                                    .gasLimit(GAS_LIMIT)
+                                    .sending(DEPOSIT_AMOUNT)
+                                    .hasKnownStatus(
+                                            success ? ResponseCodeEnum.SUCCESS : ResponseCodeEnum.INSUFFICIENT_TX_FEE)
+                                    .exposingGasTo(constantGasAssertion(gasUsed))
+                                    .batchKey(BATCH_OPERATOR))
+                            .payingWith(BATCH_OPERATOR)
+                            .hasKnownStatus(success ? ResponseCodeEnum.SUCCESS : INNER_TRANSACTION_FAILED);
 
                     final HapiGetTxnRecord hapiGetTxnRecord =
                             getTxnRecord(PAY_TXN).logged();
