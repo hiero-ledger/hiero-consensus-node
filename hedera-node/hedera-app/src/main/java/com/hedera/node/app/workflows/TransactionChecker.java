@@ -437,8 +437,11 @@ public class TransactionChecker {
         // the shard and realm match the shard and realm of this node, AND if the account number is positive
         // alias payer account is not allowed to submit transactions.
         final var accountID = txnId.accountID();
-        final var isPlausibleAccount =
-                accountID != null && accountID.hasAccountNum() && accountID.accountNumOrElse(0L) > 0;
+        final var isPlausibleAccount = accountID != null
+                && accountID.shardNum() == hederaConfig.shard()
+                && accountID.realmNum() == hederaConfig.realm()
+                && accountID.hasAccountNum()
+                && accountID.accountNumOrElse(0L) > 0;
 
         if (!isPlausibleAccount) {
             throw new PreCheckException(PAYER_ACCOUNT_NOT_FOUND);

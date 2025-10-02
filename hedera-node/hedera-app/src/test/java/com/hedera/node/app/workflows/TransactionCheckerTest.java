@@ -791,6 +791,38 @@ final class TransactionCheckerTest extends AppTestBase {
                         .has(responseCode(PAYER_ACCOUNT_NOT_FOUND));
             }
 
+            @ParameterizedTest
+            @ValueSource(longs = {1L, -1L})
+            @DisplayName("A transaction ID with the wrong shard fails")
+            void testCheckTransactionBodyWithBadShardFails(long shard) {
+                // Given a transaction ID with an account number that is not valid (0 is not a valid number)
+                final var payerId =
+                        AccountID.newBuilder().shardNum(shard).accountNum(10L).build();
+                final var body = bodyBuilder(txIdBuilder().accountID(payerId));
+                final var tx = txBuilder(signedTxBuilder(body, sigMapBuilder())).build();
+
+                // Then the checker should throw a PreCheckException
+                assertThatThrownBy(() -> checker.check(tx))
+                        .isInstanceOf(PreCheckException.class)
+                        .has(responseCode(PAYER_ACCOUNT_NOT_FOUND));
+            }
+
+            @ParameterizedTest
+            @ValueSource(longs = {1L, -1L})
+            @DisplayName("A transaction ID with the wrong realm fails")
+            void testCheckTransactionBodyWithBadRealmFails(long realm) {
+                // Given a transaction ID with an account number that is not valid (0 is not a valid number)
+                final var payerId =
+                        AccountID.newBuilder().realmNum(realm).accountNum(10L).build();
+                final var body = bodyBuilder(txIdBuilder().accountID(payerId));
+                final var tx = txBuilder(signedTxBuilder(body, sigMapBuilder())).build();
+
+                // Then the checker should throw a PreCheckException
+                assertThatThrownBy(() -> checker.check(tx))
+                        .isInstanceOf(PreCheckException.class)
+                        .has(responseCode(PAYER_ACCOUNT_NOT_FOUND));
+            }
+
             @Test
             @DisplayName("A scheduled transaction should fail")
             void testScheduledTransactionFails() {
