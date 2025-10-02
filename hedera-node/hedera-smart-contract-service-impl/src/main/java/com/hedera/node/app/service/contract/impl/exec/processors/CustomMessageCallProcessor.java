@@ -4,6 +4,7 @@ package com.hedera.node.app.service.contract.impl.exec.processors;
 import static com.hedera.hapi.streams.ContractActionType.PRECOMPILE;
 import static com.hedera.hapi.streams.ContractActionType.SYSTEM;
 import static com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalHaltReason.*;
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.HtsSystemContract.HTS_HOOKS_16D_CONTRACT_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.create.CreateCommons.createMethodsSet;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.*;
 import static com.hedera.node.app.service.contract.impl.hevm.HevmPropagatedCallFailure.MISSING_RECEIVER_SIGNATURE;
@@ -128,27 +129,22 @@ public class CustomMessageCallProcessor extends MessageCallProcessor {
             // disable precompile if so configured.
             evmPrecompile = null;
         }
-
         // Check to see if the code address is a system account and possibly halt
-        if (addressChecks.isSystemAccount(codeAddress)) {
+        if (addressChecks.isSystemAccount(codeAddress) && isNotAllowanceHook(frame, codeAddress)) {
             doHaltIfInvalidSystemCall(frame, tracer);
             if (alreadyHalted(frame)) {
                 return;
             }
-
             if (evmPrecompile == null) {
                 handleNonExtantSystemAccount(frame, tracer);
-
                 return;
             }
         }
-
         // Handle evm precompiles
         if (evmPrecompile != null) {
             doExecutePrecompile(evmPrecompile, frame, tracer);
             return;
         }
-
         // Transfer value to the contract if required and possibly halt
         if (transfersValue(frame)) {
             doTransferValueOrHalt(frame, tracer);
@@ -156,7 +152,6 @@ public class CustomMessageCallProcessor extends MessageCallProcessor {
                 return;
             }
         }
-
         // For mono-service fidelity, we need to consider called contracts
         // as a special case eligible for staking rewards
         if (isTopLevelTransaction(frame)) {
@@ -167,6 +162,10 @@ public class CustomMessageCallProcessor extends MessageCallProcessor {
         }
 
         frame.setState(MessageFrame.State.CODE_EXECUTING);
+    }
+
+    private static boolean isNotAllowanceHook(final @NonNull MessageFrame frame, final Address codeAddress) {
+        return !FrameUtils.isHookExecution(frame) || !HTS_HOOKS_16D_CONTRACT_ADDRESS.equals(codeAddress);
     }
 
     /**

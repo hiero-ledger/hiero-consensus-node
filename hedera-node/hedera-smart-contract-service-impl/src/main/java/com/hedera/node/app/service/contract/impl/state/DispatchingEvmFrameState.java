@@ -78,7 +78,7 @@ public class DispatchingEvmFrameState implements EvmFrameState {
     public static final Key HOLLOW_ACCOUNT_KEY =
             Key.newBuilder().keyList(KeyList.DEFAULT).build();
 
-    private final HederaNativeOperations nativeOperations;
+    protected final HederaNativeOperations nativeOperations;
     private final ContractStateStore contractStateStore;
     private final CodeFactory codeFactory;
 
@@ -101,7 +101,7 @@ public class DispatchingEvmFrameState implements EvmFrameState {
      */
     @Override
     public void setStorageValue(
-            @Nullable final ContractID contractID, @NonNull final UInt256 key, @NonNull final UInt256 value) {
+            @NonNull final ContractID contractID, @NonNull final UInt256 key, @NonNull final UInt256 value) {
         final var slotKey = new SlotKey(contractID, tuweniToPbjBytes(requireNonNull(key)));
         final var oldSlotValue = contractStateStore.getSlotValue(slotKey);
         if (oldSlotValue == null && value.isZero()) {
@@ -351,16 +351,11 @@ public class DispatchingEvmFrameState implements EvmFrameState {
      */
     @Override
     public @Nullable Address getAddress(final long number) {
-        final AccountID accountID = entityIdFactory().newAccountId(number);
-        final var account = nativeOperations.getAccount(accountID);
-        if (account != null) {
-            if (account.deleted()) {
-                return null;
-            }
-
-            final var evmAddress = extractEvmAddress(account.alias());
-            return evmAddress == null ? asLongZeroAddress(number) : pbjToBesuAddress(evmAddress);
+        final var evmAddress = getAddressInternal(number);
+        if (evmAddress != null) {
+            return evmAddress;
         }
+
         final var token = nativeOperations.getToken(entityIdFactory().newTokenId(number));
         final var schedule = nativeOperations.getSchedule(entityIdFactory().newScheduleId(number));
         if (token != null || schedule != null) {
@@ -554,16 +549,9 @@ public class DispatchingEvmFrameState implements EvmFrameState {
             return null;
         }
         final AccountID accountID = entityIdFactory().newAccountId(number);
-        final var account = nativeOperations.getAccount(accountID);
+        final var account = getAccountInternal(accountID, address);
         if (account != null) {
-            if (account.deleted() || account.expiredAndPendingRemoval() || isNotPriority(address, account)) {
-                return null;
-            }
-            if (account.smartContract()) {
-                return new ProxyEvmContract(account.accountId(), this, codeFactory);
-            } else {
-                return new ProxyEvmAccount(account.accountId(), this);
-            }
+            return account;
         }
         final var token = nativeOperations.getToken(entityIdFactory().newTokenId(number));
         if (token != null) {
@@ -588,7 +576,7 @@ public class DispatchingEvmFrameState implements EvmFrameState {
         return maybeEvmAddress != null && !address.equals(pbjToBesuAddress(maybeEvmAddress));
     }
 
-    private com.hedera.hapi.node.state.token.Account validatedAccount(final AccountID accountID) {
+    protected com.hedera.hapi.node.state.token.Account validatedAccount(final AccountID accountID) {
         final var account = nativeOperations.getAccount(accountID);
         if (account == null) {
             throw new IllegalArgumentException("No account has id " + accountID);
@@ -596,12 +584,40 @@ public class DispatchingEvmFrameState implements EvmFrameState {
         return account;
     }
 
-    private com.hedera.hapi.node.state.token.Account validatedAccount(final ContractID contractID) {
+    protected com.hedera.hapi.node.state.token.Account validatedAccount(final ContractID contractID) {
         final var account = nativeOperations.getAccount(contractID);
         if (account == null) {
             throw new IllegalArgumentException("No account found for contract ID " + contractID);
         }
         return account;
+    }
+
+    protected @Nullable MutableAccount getAccountInternal(final AccountID accountID, final Address address) {
+        final var account = nativeOperations.getAccount(accountID);
+        if (account != null) {
+            if (account.deleted() || account.expiredAndPendingRemoval() || isNotPriority(address, account)) {
+                return null;
+            }
+            if (account.smartContract()) {
+                return new ProxyEvmContract(account.accountId(), this, codeFactory);
+            } else {
+                return new ProxyEvmAccount(account.accountId(), this);
+            }
+        }
+        return null;
+    }
+
+    protected @Nullable Address getAddressInternal(final long number) {
+        final AccountID accountID = entityIdFactory().newAccountId(number);
+        final var account = nativeOperations.getAccount(accountID);
+        if (account != null) {
+            if (account.deleted()) {
+                return null;
+            }
+            final var evmAddress = extractEvmAddress(account.alias());
+            return evmAddress == null ? asLongZeroAddress(number) : pbjToBesuAddress(evmAddress);
+        }
+        return null;
     }
 
     private UInt256 valueOrZero(@Nullable final SlotValue slotValue) {

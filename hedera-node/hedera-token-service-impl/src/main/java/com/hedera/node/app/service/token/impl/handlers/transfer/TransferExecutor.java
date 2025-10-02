@@ -46,6 +46,8 @@ import java.util.ArrayList;
 import java.util.List;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * Service class that provides static methods for execution of Crypto transfer transaction. The main purpose of this
@@ -55,6 +57,7 @@ import javax.inject.Singleton;
  */
 @Singleton
 public class TransferExecutor extends BaseTokenHandler {
+    private static final Logger log = LogManager.getLogger(TransferExecutor.class);
     private final CryptoTransferValidator validator;
     private final HookCallFactory hookCallFactory;
 
@@ -326,6 +329,8 @@ public class TransferExecutor extends BaseTokenHandler {
             final HandleContext handleContext,
             com.esaulpaugh.headlong.abi.Function function) {
         for (final var hookInvocation : hookInvocations) {
+            log.info("XXXX Selector " + function.selectorHex());
+            log.info("XXXX Function " + function.toJson(true));
             final HookExecution execution = HookExecution.newBuilder()
                     .hookEntityId(HookEntityId.newBuilder()
                             .accountId(hookInvocation.ownerId())
