@@ -89,6 +89,7 @@ import com.hedera.node.app.service.util.impl.UtilServiceImpl;
 import com.hedera.node.app.services.AppContextImpl;
 import com.hedera.node.app.services.ServiceMigrator;
 import com.hedera.node.app.services.ServicesRegistry;
+import com.hedera.node.app.services.StartupNetworks;
 import com.hedera.node.app.signature.AppSignatureVerifier;
 import com.hedera.node.app.signature.impl.SignatureExpanderImpl;
 import com.hedera.node.app.signature.impl.SignatureVerifierImpl;
@@ -134,7 +135,6 @@ import com.swirlds.platform.system.state.notifications.AsyncFatalIssListener;
 import com.swirlds.platform.system.state.notifications.StateHashedListener;
 import com.swirlds.state.State;
 import com.swirlds.state.StateChangeListener;
-import com.swirlds.state.lifecycle.StartupNetworks;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.state.spi.WritableSingletonStateBase;
@@ -381,7 +381,7 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
     private List<StateChanges.Builder> migrationStateChanges;
 
     @Nullable
-    private StartupNetworks<Network> startupNetworks;
+    private StartupNetworks startupNetworks;
 
     @Nullable
     private Supplier<Network> genesisNetworkSupplier;
@@ -1060,7 +1060,7 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
     /**
      * Returns the startup networks.
      */
-    public @NonNull StartupNetworks<Network> startupNetworks() {
+    public @NonNull StartupNetworks startupNetworks() {
         return requireNonNull(startupNetworks);
     }
 

@@ -11,12 +11,13 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.util.HapiUtils;
+import com.hedera.node.app.services.HederaMigrationContext;
+import com.hedera.node.app.services.StartupNetworks;
 import com.hedera.node.app.state.merkle.SchemaApplications;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.lifecycle.SchemaRegistry;
-import com.swirlds.state.lifecycle.StartupNetworks;
 import com.swirlds.state.spi.FilteredReadableStates;
 import com.swirlds.state.spi.FilteredWritableStates;
 import com.swirlds.state.spi.ReadableStates;
@@ -169,7 +170,7 @@ public class FakeSchemaRegistry implements SchemaRegistry<SemanticVersion> {
             @NonNull final Configuration platformConfig,
             @NonNull final Map<String, Object> sharedValues,
             @NonNull final StartupNetworks startupNetworks) {
-        return new MigrationContext<SemanticVersion>() {
+        return new HederaMigrationContext() {
             @Override
             public void copyAndReleaseOnDiskState(final int stateId) {
                 // No-op

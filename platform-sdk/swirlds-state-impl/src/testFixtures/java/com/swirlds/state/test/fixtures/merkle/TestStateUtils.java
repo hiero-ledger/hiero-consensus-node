@@ -34,7 +34,7 @@ public class TestStateUtils {
      * <p>The implementation will take the service name and the state key and compute a hash for it.
      *
      * @param md      The state metadata
-     * @param version
+     * @param version The version of the state
      * @deprecated Registrations should be removed when there are no longer any objects of the relevant class.
      * Once all registrations have been removed, this method itself should be deleted.
      * See <a href="https://github.com/hiero-ledger/hiero-consensus-node/issues/19416">GitHub issue</a>.
@@ -44,7 +44,7 @@ public class TestStateUtils {
     public static void registerWithSystem(
             @NonNull final StateMetadata md,
             @NonNull final ConstructableRegistry constructableRegistry,
-            SemanticVersion version) {
+            @NonNull final SemanticVersion version) {
         // Register with the system the uniqueId as the "classId" of an InMemoryValue. There can be
         // multiple id's associated with InMemoryValue. The secret is that the supplier captures the
         // various delegate writers and parsers, and so can parse/write different types of data

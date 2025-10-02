@@ -7,7 +7,6 @@ import com.hedera.hapi.node.base.SemanticVersion;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.state.State;
 import com.swirlds.state.lifecycle.MigrationContext;
-import com.swirlds.state.lifecycle.StartupNetworks;
 import com.swirlds.state.spi.EmptyReadableStates;
 import com.swirlds.state.spi.ReadableStates;
 import com.swirlds.state.spi.WritableStates;
@@ -79,15 +78,6 @@ public class GenesisMigrationContext implements MigrationContext<SemanticVersion
     @NonNull
     public Configuration platformConfig() {
         return configuration;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    @NonNull
-    public StartupNetworks startupNetworks() {
-        throw new UnsupportedOperationException("OtterApp should not need startupNetworks");
     }
 
     /**

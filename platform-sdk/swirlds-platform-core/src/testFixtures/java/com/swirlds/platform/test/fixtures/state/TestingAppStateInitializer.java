@@ -120,7 +120,7 @@ public class TestingAppStateInitializer {
         final var schema = new V0540PlatformStateSchema(
                 config -> SemanticVersion.newBuilder().minor(1).build());
         schema.statesToCreate().stream()
-                .sorted(Comparator.comparing(StateDefinition::stateKey))
+                .sorted(Comparator.comparing(StateDefinition::stateId))
                 .forEach(def -> {
                     final var md = new StateMetadata<>(PlatformStateService.NAME, def);
                     if (def.singleton()) {

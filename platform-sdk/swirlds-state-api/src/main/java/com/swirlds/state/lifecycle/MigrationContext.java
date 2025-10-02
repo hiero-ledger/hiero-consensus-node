@@ -59,12 +59,6 @@ public interface MigrationContext<V> {
     Configuration platformConfig();
 
     /**
-     * Returns the startup networks in use.
-     */
-    @NonNull
-    <N> StartupNetworks<N> startupNetworks();
-
-    /**
      * Copies and releases the underlying on-disk state for the given ID. If this is not called
      * periodically during a large migration, the underlying {@code VirtualMap} will grow too large
      * and apply extreme backpressure during transaction handling post-migration.
