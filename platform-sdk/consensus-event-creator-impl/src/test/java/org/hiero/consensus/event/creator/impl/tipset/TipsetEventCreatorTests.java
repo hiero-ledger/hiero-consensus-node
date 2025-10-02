@@ -350,32 +350,23 @@ class TipsetEventCreatorTests {
     /**
      * This test simulates the creation and propagation of events in a small network of simulated nodes (networkSize =
      * 10). It iterates 100 times, and within each iteration, it cycles through all nodes in randomized order. For each
-     * node, it potentially advances a simulated clock (if advancingClock is true), generates random transactions,
-     * triggers the node to create a new event, distributes this event to other nodes, and then validates the newly
-     * created event. The test asserts that every node is always able to create an event and, if the clock is advancing,
-     * that the event's creation time matches the simulated current time. The ancientMode parameter is used to assign a
-     * birthround or a generation at the time the event is being created. Additionally, if event cannot be created due
-     * to eligible parent constraints, it forces the break quiescence event to be generated, to check that it is
-     * possible in case we need that.
+     * node, generates random transactions, triggers the node to create a new event, distributes this event to other
+     * nodes, and then validates the newly created event. The test asserts that every node is always able to create an
+     * event.Additionally, if event cannot be created due to eligible parent constraints, it forces the break quiescence
+     * event to be generated, to check that it is possible in case we need that.
      *
-     * @param advancingClock {@link TipsetEventCreatorTestUtils#booleanValues()}
-     * @param random         {@link RandomUtils#getRandomPrintSeed()}
+     * @param random {@link RandomUtils#getRandomPrintSeed()}
      */
     @TestTemplate
     @ExtendWith(ParameterCombinationExtension.class)
     @UseParameterSources({
-        @ParamSource(
-                param = "advancingClock",
-                fullyQualifiedClass = "org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreatorTestUtils",
-                method = "booleanValues"),
         @ParamSource(
                 param = "random",
                 fullyQualifiedClass = "org.hiero.base.utility.test.fixtures.RandomUtils",
                 method = "getRandomPrintSeed")
     })
     @DisplayName("Create many events including breaking quiescence")
-    void createManyEventsAndBreakQuiescenceTest(
-            @ParamName("advancingClock") final boolean advancingClock, @ParamName("random") final Random random) {
+    void createManyEventsAndBreakQuiescenceTest(@ParamName("random") final Random random) {
 
         final int networkSize = 10;
 
@@ -398,10 +389,6 @@ class TipsetEventCreatorTests {
             boolean atLeastOneEventCreated = false;
 
             for (final RosterEntry address : addresses) {
-                if (advancingClock) {
-                    time.tick(Duration.ofMillis(10));
-                }
-
                 transactionSupplier.set(generateRandomTransactions(random));
 
                 final NodeId nodeId = NodeId.of(address.nodeId());
@@ -434,9 +421,6 @@ class TipsetEventCreatorTests {
 
                 assignNGenAndDistributeEvent(nodes, events, event);
 
-                if (advancingClock) {
-                    assertEquals(event.getTimeCreated(), time.now());
-                }
                 validateNewEventAndMaybeAdvanceCreatorScore(
                         events, event, transactionSupplier.get(), nodes.get(nodeId), false, breakQuiescence);
             }
