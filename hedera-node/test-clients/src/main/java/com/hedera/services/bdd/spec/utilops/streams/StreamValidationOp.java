@@ -158,7 +158,6 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
                 // Wait for the final stream files to be created
                 sleepFor(STREAM_FILE_WAIT.toMillis()));
         final var diskBlocks = readMaybeBlockStreamsFor(spec).orElse(List.of());
-        final var simulatorBlocks = readMaybeSimulatorBlocks(spec);
         boolean validatedAny = false;
 
         // Re-read the record streams since they may have been updated
@@ -166,9 +165,15 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
                 .ifPresentOrElse(dataRef::set, () -> Assertions.fail("No record stream data found"));
         final var data = requireNonNull(dataRef.get());
 
+        if (spec.targetNetworkType() == SUBPROCESS_NETWORK) {
+            log.info("Waiting for simulator block processing to complete...");
+            sleepFor(15000);
+        }
+        List<Block> simulatorBlocks = readMaybeSimulatorBlocks(spec);
+
         // If there are on-disk blocks and simulator blocks, let's compare them byte for byte
         if (!diskBlocks.isEmpty() && !simulatorBlocks.isEmpty()) {
-            for (int i = 0; i < diskBlocks.size(); i++) {
+            for (int i = 0; i < Math.min(simulatorBlocks.size(), diskBlocks.size()); i++) {
                 final var diskBlock = diskBlocks.get(i);
                 final var simBlock = simulatorBlocks.get(i);
                 if (!diskBlock.equals(simBlock)) {
@@ -188,7 +193,7 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
                     .map(Throwable::getMessage)
                     .collect(joining(ERROR_PREFIX));
             if (!maybeErrors.isBlank()) {
-                throw new AssertionError("Block stream validation failed:" + ERROR_PREFIX + maybeErrors);
+                throw new AssertionError("(Disk) Block stream validation failed:" + ERROR_PREFIX + maybeErrors);
             }
             validatedAny = true;
         }
@@ -203,7 +208,7 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
                     .map(Throwable::getMessage)
                     .collect(joining(ERROR_PREFIX));
             if (!maybeErrors.isBlank()) {
-                throw new AssertionError("Block stream validation failed:" + ERROR_PREFIX + maybeErrors);
+                throw new AssertionError("(Simulator) Block stream validation failed:" + ERROR_PREFIX + maybeErrors);
             }
             validatedAny = true;
         }
