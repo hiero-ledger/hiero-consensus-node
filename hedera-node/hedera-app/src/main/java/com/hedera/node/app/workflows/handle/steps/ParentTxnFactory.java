@@ -167,9 +167,9 @@ public class ParentTxnFactory {
      * @param platformTxn the transaction itself
      * @param consensusNow the current consensus time
      * @param stateSignatureTxnCallback a callback to be called when encountering a {@link StateSignatureTransaction}
-     * @return the new user transaction, or {@code null} if the transaction is not a user transaction
+     * @return the new top-level transaction, or {@code null} if the transaction is not parseable
      */
-    public @Nullable ParentTxn createUserTxn(
+    public @Nullable ParentTxn createTopLevelTxn(
             @NonNull final State state,
             @NonNull final NodeInfo creatorInfo,
             @NonNull final ConsensusTransaction platformTxn,

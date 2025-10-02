@@ -560,23 +560,24 @@ public class HandleWorkflow {
                 systemAccountCleanupDone = systemTransactions.do066SystemAccountCleanup(consensusNow, state);
             }
         }
-        final var userTxn =
-                parentTxnFactory.createUserTxn(state, creator, txn, consensusNow, stateSignatureTxnCallback);
-        if (userTxn == null) {
+
+        final var topLevelTxn =
+                parentTxnFactory.createTopLevelTxn(state, creator, txn, consensusNow, stateSignatureTxnCallback);
+        if (topLevelTxn == null) {
             return false;
         } else if (streamMode != BLOCKS && startsNewRecordFile) {
             blockRecordManager.startUserTransaction(consensusNow, state);
         }
         if (streamMode != BLOCKS
-                && userTxn.txnInfo().functionality() == HederaFunctionality.STATE_SIGNATURE_TRANSACTION) {
+                && topLevelTxn.txnInfo().functionality() == HederaFunctionality.STATE_SIGNATURE_TRANSACTION) {
             var bi = BlockItem.newBuilder()
-                    .signedTransaction(userTxn.txnInfo().serializedSignedTx())
+                    .signedTransaction(topLevelTxn.txnInfo().serializedSignedTx())
                     .build();
             blockStreamManager.writeItem2(bi);
             return true;
         }
 
-        final var handleOutput = executeSubmittedParent(userTxn, eventBirthRound, state);
+        final var handleOutput = executeSubmittedParent(topLevelTxn, eventBirthRound, state);
         if (streamMode != BLOCKS) {
             final var records = ((LegacyListRecordSource) handleOutput.recordSourceOrThrow()).precomputedRecords();
             blockRecordManager.endUserTransaction(records.stream(), state);
@@ -587,33 +588,33 @@ public class HandleWorkflow {
             blockRecordManager.setLastUsedConsensusTime(handleOutput.lastAssignedConsensusTime(), state);
         }
 
-        opWorkflowMetrics.updateDuration(userTxn.functionality(), (int) (System.nanoTime() - handleStart));
-        congestionMetrics.updateMultiplier(userTxn.txnInfo(), userTxn.readableStoreFactory());
+        opWorkflowMetrics.updateDuration(topLevelTxn.functionality(), (int) (System.nanoTime() - handleStart));
+        congestionMetrics.updateMultiplier(topLevelTxn.txnInfo(), topLevelTxn.readableStoreFactory());
 
         var executionStart = streamMode == RECORDS
                 ? blockRecordManager.lastIntervalProcessTime()
                 : blockStreamManager.lastIntervalProcessTime();
         if (executionStart.equals(EPOCH)) {
-            executionStart = userTxn.consensusNow();
+            executionStart = topLevelTxn.consensusNow();
         }
         try {
             // We execute as many schedules expiring in [lastIntervalProcessTime, consensusNow]
             // as there are available consensus times and execution slots (ordinarily there will
             // be more than enough of both, but we must be prepared for the edge cases)
-            executeAsManyScheduled(state, executionStart, userTxn.consensusNow(), userTxn.creatorInfo());
+            executeAsManyScheduled(state, executionStart, topLevelTxn.consensusNow(), topLevelTxn.creatorInfo());
         } catch (Exception e) {
             logger.error(
                     "{} - unhandled exception while executing schedules between [{}, {}]",
                     ALERT_MESSAGE,
                     executionStart,
-                    userTxn.consensusNow(),
+                    topLevelTxn.consensusNow(),
                     e);
             // This should never happen, but if it does, we skip over everything in the interval to
             // avoid being stuck in a crash loop here
             if (streamMode != RECORDS) {
-                blockStreamManager.setLastIntervalProcessTime(userTxn.consensusNow());
+                blockStreamManager.setLastIntervalProcessTime(topLevelTxn.consensusNow());
             } else {
-                blockRecordManager.setLastIntervalProcessTime(userTxn.consensusNow(), state);
+                blockRecordManager.setLastIntervalProcessTime(topLevelTxn.consensusNow(), state);
             }
         }
         return true;
