@@ -64,6 +64,7 @@ on:
 permissions:
   contents: write
   id-token: write
+  actions: write
 
 env:
   NAMESPACE_PREFIX: solo-sdpt-n
@@ -205,7 +206,7 @@ jobs:
           echo "namespace=${NAMESPACE_PREFIX}${n}" >> "${GITHUB_OUTPUT}"
           echo "namespace=${NAMESPACE_PREFIX}${n}" >> "${GITHUB_STEP_SUMMARY}"
 
-      - name: Check for namespace
+      - name: Check for namespace collision
         run: |
           NETWORK_ID="$(echo "${{ steps.set-namespace.outputs.namespace }}" | perl -pne '~s/^.*[^\d](\d+)$/$1/g')"
 
@@ -215,6 +216,17 @@ jobs:
             echo "::error The namespace[s] with NETWORK_ID=${NETWORK_ID} already exist[s]. Please check previous run; remove with 'kubectl delete namespaces <namespace namespace ...>'"
             exit 13
           fi
+
+      - name: Cancelling in case of namespace collision
+        if: failure()
+        uses: actions/github-script@v6
+        with:
+          script: |
+            github.rest.actions.cancelWorkflowRun({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              run_id: context.runId
+            });
 
       - name: Print parameters
         run: |
