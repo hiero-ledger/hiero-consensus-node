@@ -189,8 +189,8 @@ public class NodeUpdateTest {
                         .accountId("newNodeAccount")
                         .signedByPayerAnd("newNodeAccount", "adminKey")),
                 sourcing(() -> viewNode("testNode", node -> {
-                    assertNotNull(node.accountId());
-                    assertNotNull(node.accountId().accountNum());
+                    assertNotNull(node.accountId(), "Node accountId should not be null");
+                    assertNotNull(node.accountId().accountNum(), "Node accountNum should not be null");
                     assertEquals(
                             node.accountId().accountNum(), newAccountId.get().getAccountNum());
                 })));

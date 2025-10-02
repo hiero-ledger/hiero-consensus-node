@@ -185,7 +185,7 @@ public final class IngestChecker {
             @NonNull final InstantSource instantSource,
             @NonNull final OpWorkflowMetrics workflowMetrics,
             @Nullable final AtomicBoolean systemEntitiesCreatedFlag) {
-        this.networkInfo = networkInfo;
+        this.networkInfo = requireNonNull(networkInfo, "networkInfo must not be null");
         this.currentPlatformStatus = requireNonNull(currentPlatformStatus, "currentPlatformStatus must not be null");
         this.blockStreamManager = requireNonNull(blockStreamManager, "blockStreamManager must not be null");
         this.transactionChecker = requireNonNull(transactionChecker, "transactionChecker must not be null");

@@ -840,17 +840,11 @@ class IngestCheckerTest extends AppTestBase {
         }
     }
 
-    private NodeInfo buildNodeWithAccountId(long accountNum) {
+    private NodeInfo buildNodeWithAccountId(final long accountNum) {
         final AccountID nodeSelfAccountId = AccountID.newBuilder()
                 .shardNum(0)
                 .realmNum(0)
                 .accountNum(accountNum)
-                .build();
-
-        final Account nodeSelfAccount = Account.newBuilder()
-                .accountId(nodeSelfAccountId)
-                .key(FAKE_ED25519_KEY_INFOS[0].publicKey())
-                .declineReward(true)
                 .build();
 
         return new NodeInfoImpl(
