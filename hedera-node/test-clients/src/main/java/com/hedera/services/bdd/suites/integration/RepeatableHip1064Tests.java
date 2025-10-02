@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.integration;
 
+import static com.hedera.hapi.node.base.HederaFunctionality.NODE_STAKE_UPDATE;
 import static com.hedera.hapi.util.HapiUtils.asInstant;
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.toPbj;
 import static com.hedera.node.app.service.token.impl.schemas.V0610TokenSchema.NODE_REWARDS_STATE_ID;
@@ -691,6 +692,9 @@ public class RepeatableHip1064Tests {
                                                                     == 801L);
                                     assertTrue(
                                             hasNodeRewardDebit, "Node rewards payment should be present in the block");
+									// todo: re-add
+//									final var nodeStakeUpdate = findFirst(b, NODE_STAKE_UPDATE);
+//									assertTrue(nodeStakeUpdate.isPresent(), "Node stake update should be present in the block");
                                 },
                                 Duration.ofSeconds(1)))));
     }

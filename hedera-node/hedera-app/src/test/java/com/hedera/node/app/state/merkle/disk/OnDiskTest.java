@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.state.merkle.disk;
 
+import static com.hedera.hapi.util.HapiUtils.SEMANTIC_VERSION_COMPARATOR;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_KEY;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_STATE_ID;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_STATE_LABEL;
@@ -80,7 +81,7 @@ class OnDiskTest extends MerkleTestBase {
         def = StateDefinition.onDisk(ACCOUNTS_STATE_ID, ACCOUNTS_KEY, AccountID.PROTOBUF, Account.PROTOBUF, 100);
 
         //noinspection rawtypes
-        schema = new Schema(version(1, 0, 0)) {
+        schema = new Schema<>(version(1, 0, 0), SEMANTIC_VERSION_COMPARATOR) {
             @NonNull
             @Override
             public Set<StateDefinition> statesToCreate() {
@@ -102,7 +103,7 @@ class OnDiskTest extends MerkleTestBase {
         final var copy = map.copy();
 
         // Hash the now immutable map
-        CRYPTO.digestTreeSync(map);
+        map.getHash();
 
         // Flush to disk
         map.enableFlush();
@@ -141,14 +142,14 @@ class OnDiskTest extends MerkleTestBase {
         // release the immutable copy.
         VirtualMap copy = virtualMap.copy(); // throw away the copy, we won't use it
         copy.release();
-        CRYPTO.digestTreeSync(virtualMap);
+        virtualMap.getHash();
 
         final var snapshotDir = LegacyTemporaryFileBuilder.buildTemporaryDirectory("snapshot", CONFIGURATION);
         final byte[] serializedBytes = writeTree(virtualMap, snapshotDir);
 
         // Before we can read the data back, we need to register the data types
         // I plan to deserialize.
-        final var r = new MerkleSchemaRegistry(registry, TokenService.NAME, CONFIGURATION, new SchemaApplications());
+        final var r = new MerkleSchemaRegistry(TokenService.NAME, new SchemaApplications());
         r.register(schema);
 
         virtualMap.release();
