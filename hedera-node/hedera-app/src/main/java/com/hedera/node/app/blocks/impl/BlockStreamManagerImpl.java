@@ -84,6 +84,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import javax.inject.Inject;
@@ -148,6 +149,9 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
 
     private BlockStreamManagerTask worker;
     private final boolean hintsEnabled;
+
+    private final AtomicLong roundStarting = new AtomicLong(-1);
+    private final AtomicLong roundEnding = new AtomicLong(-1);
 
     /**
      * Represents a block pending completion by the block hash signature needed for its block proof.
@@ -268,6 +272,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
 
     @Override
     public void startRound(@NonNull final Round round, @NonNull final State state) {
+        roundStarting.getAndSet(round.getRoundNum());
         if (lastBlockHash == null) {
             throw new IllegalStateException("Last block hash must be initialized before starting a round");
         }
@@ -322,6 +327,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             worker.addItem(BlockItem.newBuilder().blockHeader(header).build());
         }
         consensusTimeLastRound = round.getConsensusTimestamp();
+        roundStarting.getAndSet(-1);
     }
 
     /**
@@ -414,6 +420,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
 
     @Override
     public boolean endRound(@NonNull final State state, final long roundNum) {
+        roundEnding.getAndSet(roundNum);
         final var storeFactory = new ReadableStoreFactory(state);
         final var platformStateStore = storeFactory.getStore(ReadablePlatformStateStore.class);
         final long freezeRoundNumber = platformStateStore.getLatestFreezeRound();
@@ -549,7 +556,13 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             }
             requireNonNull(fatalShutdownFuture).complete(null);
         }
+        roundEnding.getAndSet(-1);
         return closesBlock;
+    }
+
+    @Override
+    public void writeItemNoTimeUpdate(@NonNull final BlockItem item) {
+        worker.addItem(item);
     }
 
     @Override
@@ -559,7 +572,21 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             case TRANSACTION_RESULT -> item.transactionResultOrThrow().consensusTimestampOrThrow();
             default -> lastUsedTime;
         };
-        worker.addItem(item);
+        writeItemNoTimeUpdate(item);
+    }
+
+    @Override
+    public boolean writeItem2(@NonNull final BlockItem item) {
+        if (roundStarting.get() > -1 || roundEnding.get() > -1) {
+            return false; // busy, no block is currently open
+        }
+        lastUsedTime = switch (item.item().kind()) {
+            case STATE_CHANGES -> item.stateChangesOrThrow().consensusTimestampOrThrow();
+            case TRANSACTION_RESULT -> item.transactionResultOrThrow().consensusTimestampOrThrow();
+            default -> lastUsedTime;
+        };
+        writeItemNoTimeUpdate(item);
+        return true;
     }
 
     @Override

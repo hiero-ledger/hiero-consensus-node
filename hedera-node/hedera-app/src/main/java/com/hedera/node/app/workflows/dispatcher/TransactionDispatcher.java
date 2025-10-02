@@ -221,28 +221,7 @@ public class TransactionDispatcher {
                     case FILE_ID -> handlers.fileSystemUndeleteHandler();
                     default -> throw new UnsupportedOperationException(SYSTEM_UNDELETE_WITHOUT_ID_CASE);
                 };
-			case STATE_SIGNATURE_TRANSACTION -> new NoOpHandler();
-
             default -> throw new UnsupportedOperationException(TYPE_NOT_SUPPORTED);
         };
     }
-
-	private static class NoOpHandler implements TransactionHandler {
-		@Override
-		public void preHandle(@NonNull final PreHandleContext context)
-				throws PreCheckException {
-			// no-op
-		}
-
-		@Override
-		public void pureChecks(@NonNull final PureChecksContext context)
-				throws PreCheckException {
-			// no-op
-		}
-
-		@Override
-		public void handle(@NonNull final HandleContext context) throws HandleException {
-			// no-op
-		}
-	}
 }

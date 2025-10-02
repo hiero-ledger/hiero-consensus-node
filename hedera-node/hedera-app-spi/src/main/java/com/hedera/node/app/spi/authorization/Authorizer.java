@@ -58,6 +58,8 @@ public interface Authorizer {
      */
     default boolean hasWaivedFees(
             @NonNull AccountID id, @NonNull HederaFunctionality functionality, @NonNull TransactionBody txBody) {
-        return txBody.hasStateSignatureTransaction() || isSuperUser(id) || hasPrivilegedAuthorization(id, functionality, txBody) == SystemPrivilege.AUTHORIZED;
+        return txBody.hasStateSignatureTransaction()
+                || isSuperUser(id)
+                || hasPrivilegedAuthorization(id, functionality, txBody) == SystemPrivilege.AUTHORIZED;
     }
 }

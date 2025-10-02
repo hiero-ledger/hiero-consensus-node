@@ -80,9 +80,9 @@ public class DispatchValidator {
         if (systemEntitiesCreatedFlag != null && !systemEntitiesCreatedFlag.get()) {
             return newGenesisWaiver(dispatch.creatorInfo().accountId());
         }
-		if (dispatch.txnInfo().functionality() == HederaFunctionality.STATE_SIGNATURE_TRANSACTION) {
-			return newStateSigWaiver(dispatch.creatorInfo().accountId());
-		}
+        if (dispatch.txnInfo().functionality() == HederaFunctionality.STATE_SIGNATURE_TRANSACTION) {
+            return newStateSigWaiver(dispatch.creatorInfo().accountId());
+        }
         final var creatorError = creatorErrorIfKnown(dispatch);
         if (creatorError != null) {
             return newCreatorError(dispatch.creatorInfo().accountId(), creatorError);

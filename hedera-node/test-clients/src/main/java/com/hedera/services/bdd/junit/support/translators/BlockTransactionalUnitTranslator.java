@@ -148,7 +148,7 @@ public class BlockTransactionalUnitTranslator {
                     put(SCHEDULE_CREATE, new ScheduleCreateTranslator());
                     put(SCHEDULE_DELETE, new ScheduleDeleteTranslator());
                     put(SCHEDULE_SIGN, new ScheduleSignTranslator());
-					put(STATE_SIGNATURE_TRANSACTION, NO_EXPLICIT_SIDE_EFFECTS_TRANSLATOR);
+                    put(STATE_SIGNATURE_TRANSACTION, NO_EXPLICIT_SIDE_EFFECTS_TRANSLATOR);
                     put(SYSTEM_DELETE, NO_EXPLICIT_SIDE_EFFECTS_TRANSLATOR);
                     put(SYSTEM_UNDELETE, NO_EXPLICIT_SIDE_EFFECTS_TRANSLATOR);
                     put(TOKEN_AIRDROP, new TokenAirdropTranslator());
@@ -224,9 +224,14 @@ public class BlockTransactionalUnitTranslator {
                     // Remove the traces that are part of this transaction from the following traces
                     followingTraces.removeAll(blockTransactionParts.tracesOrThrow());
                 }
-                final var translation = translator.translate(
-                        blockTransactionParts, baseTranslator, remainingStateChanges, tracesSoFar, followingTraces);
-                translatedRecords.add(translation);
+                if (blockTransactionParts.functionality() == STATE_SIGNATURE_TRANSACTION
+                        || !blockTransactionParts.hasResult()) {
+                    // do nothing
+                } else if (blockTransactionParts.transactionParts() != null) {
+                    final var translation = translator.translate(
+                            blockTransactionParts, baseTranslator, remainingStateChanges, tracesSoFar, followingTraces);
+                    translatedRecords.add(translation);
+                }
             }
         }
         baseTranslator.finishLastUnit();
