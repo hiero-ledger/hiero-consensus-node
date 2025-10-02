@@ -34,7 +34,7 @@ public interface OtterService {
      * @return the schema for the genesis state of this service
      */
     @NonNull
-    Schema genesisSchema(@NonNull SemanticVersion version);
+    Schema<SemanticVersion> genesisSchema(@NonNull SemanticVersion version);
 
     /**
      * Called when the service is initialized. This is called once when the application starts up.

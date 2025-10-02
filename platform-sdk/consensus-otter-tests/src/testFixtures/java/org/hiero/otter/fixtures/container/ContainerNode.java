@@ -5,7 +5,10 @@ import static com.swirlds.platform.event.preconsensus.PcesUtilities.getDatabaseD
 import static java.util.Objects.requireNonNull;
 import static org.hiero.otter.fixtures.container.utils.ContainerConstants.CONTAINER_APP_WORKING_DIR;
 import static org.hiero.otter.fixtures.container.utils.ContainerConstants.CONTAINER_CONTROL_PORT;
+import static org.hiero.otter.fixtures.container.utils.ContainerConstants.HASHSTREAM_LOG_PATH;
+import static org.hiero.otter.fixtures.container.utils.ContainerConstants.METRICS_PATH;
 import static org.hiero.otter.fixtures.container.utils.ContainerConstants.NODE_COMMUNICATION_PORT;
+import static org.hiero.otter.fixtures.container.utils.ContainerConstants.SWIRLDS_LOG_PATH;
 import static org.hiero.otter.fixtures.internal.AbstractNetwork.NODE_IDENTIFIER_FORMAT;
 import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.DESTROYED;
 import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.INIT;
@@ -374,11 +377,12 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
     void destroy() {
         try {
             // copy logs from container to the local filesystem
-            final Path localOutputDirectory = getLocalOutputDirectory(selfId);
-            downloadConsensusLogs(localOutputDirectory);
+            final Path localOutputDirectory =
+                    Path.of("build", "container", NODE_IDENTIFIER_FORMAT.formatted(selfId.id()));
+            downloadConsensusFiles(localOutputDirectory);
             downloadConsistencyServiceFiles(localOutputDirectory);
         } catch (final IOException e) {
-            throw new UncheckedIOException("Failed to copy logs from container", e);
+            throw new UncheckedIOException("Failed to copy files from container", e);
         }
 
         if (lifeCycle == RUNNING) {
@@ -392,20 +396,21 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
         lifeCycle = DESTROYED;
     }
 
-    private Path getLocalOutputDirectory(@NonNull final NodeId selfId) {
-        return Path.of("build", "container", NODE_IDENTIFIER_FORMAT.formatted(selfId.id()), "output");
-    }
-
-    private void downloadConsensusLogs(@NonNull final Path localOutputDirectory) throws IOException {
-        final Path hashStreamDir = localOutputDirectory.resolve("swirlds-hashstream");
-        Files.createDirectories(hashStreamDir);
+    private void downloadConsensusFiles(@NonNull final Path localOutputDirectory) throws IOException {
+        Files.createDirectories(localOutputDirectory.resolve("output/swirlds-hashstream"));
+        Files.createDirectories(localOutputDirectory.resolve("data/stats"));
 
         container.copyFileFromContainer(
-                CONTAINER_APP_WORKING_DIR + "/output/swirlds.log",
-                localOutputDirectory.resolve("swirlds.log").toString());
+                CONTAINER_APP_WORKING_DIR + SWIRLDS_LOG_PATH,
+                localOutputDirectory.resolve(SWIRLDS_LOG_PATH).toString());
         container.copyFileFromContainer(
-                CONTAINER_APP_WORKING_DIR + "/output/swirlds-hashstream/swirlds-hashstream.log",
-                hashStreamDir.resolve("swirlds-hashstream.log").toString());
+                CONTAINER_APP_WORKING_DIR + HASHSTREAM_LOG_PATH,
+                localOutputDirectory.resolve(HASHSTREAM_LOG_PATH).toString());
+        container.copyFileFromContainer(
+                CONTAINER_APP_WORKING_DIR + METRICS_PATH.formatted(selfId.id()),
+                localOutputDirectory
+                        .resolve(METRICS_PATH.formatted(selfId.id()))
+                        .toString());
     }
 
     private void downloadConsistencyServiceFiles(@NonNull final Path localOutputDirectory) {
@@ -437,7 +442,7 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
                 case LOG_ENTRY -> resultsCollector.addLogEntry(ProtobufConverter.toPlatform(event.getLogEntry()));
                 case PLATFORM_STATUS_CHANGE -> handlePlatformChange(event);
                 case CONSENSUS_ROUNDS ->
-                        resultsCollector.addConsensusRounds(ProtobufConverter.toPbj(event.getConsensusRounds()));
+                    resultsCollector.addConsensusRounds(ProtobufConverter.toPbj(event.getConsensusRounds()));
                 case MARKER_FILE_ADDED -> {
                     final ProtocolStringList markerFiles =
                             event.getMarkerFileAdded().getMarkerFileNameList();

@@ -32,7 +32,7 @@ public final class StateMetadata<K, V> {
     private static final String QUEUE_NODE_CLASS_ID_SUFFIX = "QueueNode";
 
     private final String serviceName;
-    private final Schema schema;
+    private final Schema<SemanticVersion> schema;
     private final StateDefinition<K, V> stateDefinition;
     private final long onDiskKeyClassId;
     private final long onDiskKeySerializerClassId;
@@ -50,7 +50,9 @@ public final class StateMetadata<K, V> {
      * @param stateDefinition The {@link StateDefinition}
      */
     public StateMetadata(
-            @NonNull String serviceName, @NonNull Schema schema, @NonNull StateDefinition<K, V> stateDefinition) {
+            @NonNull String serviceName,
+            @NonNull Schema<SemanticVersion> schema,
+            @NonNull StateDefinition<K, V> stateDefinition) {
         this.serviceName = validateServiceName(serviceName);
         this.schema = schema;
         this.stateDefinition = stateDefinition;
@@ -245,7 +247,7 @@ public final class StateMetadata<K, V> {
         return serviceName;
     }
 
-    public Schema schema() {
+    public Schema<SemanticVersion> schema() {
         return schema;
     }
 
