@@ -405,6 +405,7 @@ jobs:
   longevity-tests-wait:
     name: Wait for Longevity test
     runs-on: hiero-citr-linux-large
+    if: ${{ !cancelled() }}
     needs:
       - longevity-tests-start
     strategy:
@@ -551,7 +552,7 @@ jobs:
   longevity-tests-finish:
     name: Read results of Longevity test
     runs-on: hiero-citr-linux-large
-    if: always()
+    if: ${{ !cancelled() }}
     needs:
       - longevity-tests-start
       - longevity-tests-wait
@@ -692,7 +693,7 @@ jobs:
   single-day-longevity-test-result:
     name: Calculate Result
     runs-on: hiero-citr-linux-large
-    if: ${{ always() }}
+    if: ${{ !cancelled() }}
     needs:
       - longevity-tests-finish
     outputs:
