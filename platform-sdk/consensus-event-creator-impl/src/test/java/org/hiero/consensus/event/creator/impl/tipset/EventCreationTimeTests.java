@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.event.creator.impl.tipset;
 
 import static org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreatorTestUtils.buildEventCreator;
@@ -31,7 +32,7 @@ public class EventCreationTimeTests {
     private List<TimestampedTransaction> transactionPool;
 
     @BeforeEach
-    void setup(){
+    void setup() {
         time = new FakeTime();
         // Common test set up. We initialize a network to make it easier to create events.
         final int networkSize = 1;
@@ -50,7 +51,7 @@ public class EventCreationTimeTests {
      * Add a transaction with the given timestamp to the transaction pool.
      * @param timestamp the timestamp of the transaction to add
      */
-    private void addTransaction(@NonNull final Instant timestamp){
+    private void addTransaction(@NonNull final Instant timestamp) {
         transactionPool.add(new TimestampedTransaction(Bytes.EMPTY, timestamp));
     }
 
@@ -58,10 +59,12 @@ public class EventCreationTimeTests {
      * Verifies that the creation time of a genesis event with no inputs is the wall-clock time.
      */
     @Test
-    void genesisWallClock(){
+    void genesisWallClock() {
         final var firstEvent = eventCreator.maybeCreateEvent();
         assertNotNull(firstEvent);
-        assertEquals(time.now(), firstEvent.getTimeCreated(),
+        assertEquals(
+                time.now(),
+                firstEvent.getTimeCreated(),
                 "The genesis event should use the wall-clock time if it has no other inputs");
     }
 
@@ -69,12 +72,14 @@ public class EventCreationTimeTests {
      * Verifies that the creation time of a genesis event with transactions is the max transaction time.
      */
     @Test
-    void genesisWithTransactions(){
+    void genesisWithTransactions() {
         addTransaction(time.now().minusSeconds(1));
         addTransaction(time.now().plusSeconds(1));
         final var firstEvent = eventCreator.maybeCreateEvent();
         assertNotNull(firstEvent);
-        assertEquals(time.now().plusSeconds(1), firstEvent.getTimeCreated(),
+        assertEquals(
+                time.now().plusSeconds(1),
+                firstEvent.getTimeCreated(),
                 "A genesis event with transactions should use the max transaction time");
     }
 
@@ -82,13 +87,15 @@ public class EventCreationTimeTests {
      * Verifies that the creation time of a genesis event with an event window is the event window time.
      */
     @Test
-    void genesisWithEventWindow(){
+    void genesisWithEventWindow() {
         eventCreator.setEventWindow(EventWindow.getGenesisEventWindow());
         final Instant genesisWindowTime = time.now();
         time.tick(Duration.ofSeconds(1));
         final var firstEvent = eventCreator.maybeCreateEvent();
         assertNotNull(firstEvent);
-        assertEquals(genesisWindowTime, firstEvent.getTimeCreated(),
+        assertEquals(
+                genesisWindowTime,
+                firstEvent.getTimeCreated(),
                 "The genesis event should use the event window time if it has no other inputs");
     }
 
@@ -133,7 +140,7 @@ public class EventCreationTimeTests {
      * Verifies that the creation time is always later than the self-parent's creation time.
      */
     @Test
-    void alwaysLaterThanSelfParent(){
+    void alwaysLaterThanSelfParent() {
         // the event window will be an old input
         eventCreator.setEventWindow(EventWindow.getGenesisEventWindow());
         time.tick(Duration.ofSeconds(1));
