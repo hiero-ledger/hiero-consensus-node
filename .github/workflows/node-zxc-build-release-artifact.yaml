@@ -202,7 +202,10 @@ jobs:
 
       - name: Gradle Update Version (Branch Commit)
         if: ${{ inputs.version-policy != 'specified' && !cancelled() && !failure() }}
-        run: ./gradlew versionAsPrefixedCommit -PcommitPrefix=${{ steps.parameters.outputs.commit-prefix }}
+        run: |
+          echo "Prefix is: "
+          echo ${{ steps.parameters.outputs.commit-prefix }}
+          ./gradlew versionAsPrefixedCommit -PcommitPrefix=${{ steps.parameters.outputs.commit-prefix }}
 
       - name: Compute Final Effective Version
         id: effective-version
