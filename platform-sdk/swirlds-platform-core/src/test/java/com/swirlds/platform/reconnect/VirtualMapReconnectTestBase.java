@@ -30,7 +30,6 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Objects;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.hiero.base.constructable.ClassConstructorPair;
 import org.hiero.base.constructable.ConstructableRegistry;
@@ -209,7 +208,7 @@ public abstract class VirtualMapReconnectTestBase {
                 @NonNull final Stream<VirtualLeafBytes> leafRecordsToDelete,
                 final boolean isReconnectContext)
                 throws IOException {
-            final List<VirtualLeafBytes> leaves = leafRecordsToAddOrUpdate.collect(Collectors.toList());
+            final List<VirtualLeafBytes> leaves = leafRecordsToAddOrUpdate.toList();
 
             if (builder.numTimesBroken < builder.numTimesToBreak) {
                 builder.numCalls += leaves.size();
