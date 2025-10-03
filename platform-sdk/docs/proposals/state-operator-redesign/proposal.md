@@ -17,7 +17,7 @@ This proposal outlines a significant update to the State Operator, specifically 
 
 The current validator implementation has two main issues:
 
-1. **Performance**: Each validator performs its own complete traversal of the state data. With states containing billions of key-value pairs and an increasing number of validators, this approach becomes prohibitively slow and resource-intensive. Multiple validators that could conceptually share data access instead perform redundant, expensive operations.
+1. **Performance**: Most of the validators perform their own complete traversal of the state data. With states containing billions of key-value pairs and an increasing number of validators, this approach becomes prohibitively slow and resource-intensive. Multiple validators that could conceptually share data access instead perform redundant, expensive operations.
 2. **Security**: The validator currently depends on the JUnit testing framework as its execution engine. This creates an unnecessary supply-chain attack vector and represents a fundamental architectural mismatch—using a framework designed for testing to power operational tooling.
 
 This proposal addresses both issues by introducing a validation engine that eliminates the JUnit dependency and optimizes state traversal through validator grouping.
@@ -37,7 +37,7 @@ The new design must satisfy the following requirements:
 2. **Specialized Validator Interfaces**: To enable optimization, a set of clear, role-based interfaces for validators is introduced:
 
    * `Validator`: The base interface defining a common lifecycle (`initialize`, `validate`).
-   * `IndexValidator`: For validators that operate on each individual path.
+   * `PathValidator`: For validators that operate on each individual path.
    * `KeyValueValidator`: For validators that operate on the key and value of each leaf.
    * `StateValidator`: For "independent" validators that have their own unique traversal logic.
 3. **Single-Pass Data Access**: The engine performs one traversal over state data, dispatching each element to all compatible validators, eliminating redundant data access.
@@ -62,7 +62,7 @@ The architecture is refactored from a test-runner model to a dedicated engine mo
 - **ValidationEngine**: Central orchestrator managing validator execution and optimization
 - **Validator Interface Hierarchy**:
 - `Validator`: Base interface defining common lifecycle patterns (`initialize`, `validate`)
-- `IndexValidator`: Specialized interface for path-based validation operations
+- `PathValidator`: Specialized interface for path-based validation operations
 - `KeyValueValidator`: Specialized interface for data content validation operations
 - `StateValidator`: Interface for validators with unique traversal requirements
 - `ValidationListener`: Event-driven reporting interface replacing testing framework listeners
