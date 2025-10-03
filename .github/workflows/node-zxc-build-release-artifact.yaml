@@ -138,13 +138,7 @@ jobs:
           REF_CHECK: ${{ github.ref }}
           REPO_URL: "https://github.com/${{ github.repository }}"
         run: |
-          REF_INFO=$(git ls-remote "${REPO_URL}" "${REF_CHECK}")
-          if [[ -n "${REF_INFO/ /}" ]]; then
-            COMMIT_SHA="$(echo "${REF_INFO}" | awk '{print $1}')"
-          else
-            COMMIT_SHA="${REF_CHECK}"
-          fi
-
+          COMMIT_SHA=${{ github.sha }}
           echo "COMMIT SHA is: ${COMMIT_SHA}"
           BRANCH_NAME="${{ github.ref_name }}"
           BRANCH_NAME="${BRANCH_NAME##origin/}"
