@@ -88,7 +88,7 @@ public class GrpcBlockItemWriter implements BlockItemWriter {
     @Override
     public void jumpToBlockAfterFreeze(long blockNumber) {
         logger.debug("Setting target block number to jump to {}", blockNumber);
-        blockNodeConnectionManager.jumpToBlock(blockNumber);
+//        blockNodeConnectionManager.jumpToBlock(blockNumber);
     }
 
     /**

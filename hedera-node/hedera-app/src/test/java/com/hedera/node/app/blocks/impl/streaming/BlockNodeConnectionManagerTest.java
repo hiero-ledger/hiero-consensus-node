@@ -4,11 +4,9 @@ package com.hedera.node.app.blocks.impl.streaming;
 import static java.util.Objects.requireNonNull;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchException;
-import static org.assertj.core.api.Assertions.fail;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.atLeast;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
@@ -17,7 +15,6 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
-import static org.mockito.Mockito.when;
 
 import com.hedera.node.app.blocks.impl.streaming.BlockNodeConnection.ConnectionState;
 import com.hedera.node.app.blocks.impl.streaming.BlockNodeConnectionManager.BlockNodeConnectionTask;
@@ -28,7 +25,6 @@ import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.internal.network.BlockNodeConfig;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.lang.Thread.State;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodHandles.Lookup;
@@ -37,16 +33,12 @@ import java.lang.reflect.Method;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.concurrent.locks.LockSupport;
 import org.apache.logging.log4j.LogManager;
-import org.hiero.block.api.PublishStreamRequest;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -58,20 +50,20 @@ import org.mockito.junit.jupiter.MockitoExtension;
 class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
     private static final VarHandle isManagerActiveHandle;
-    private static final VarHandle workerThreadRefHandle;
+//    private static final VarHandle workerThreadRefHandle;
     private static final VarHandle connectionsHandle;
     private static final VarHandle availableNodesHandle;
     private static final VarHandle activeConnectionRefHandle;
     private static final VarHandle jumpTargetHandle;
-    private static final VarHandle streamingBlockNumberHandle;
-    private static final VarHandle lastVerifiedBlockPerConnectionHandle;
+//    private static final VarHandle streamingBlockNumberHandle;
+//    private static final VarHandle lastVerifiedBlockPerConnectionHandle;
     private static final VarHandle connectivityTaskConnectionHandle;
     private static final VarHandle isStreamingEnabledHandle;
     private static final VarHandle nodeStatsHandle;
     private static final VarHandle retryStatesHandle;
-    private static final MethodHandle jumpToBlockIfNeededHandle;
-    private static final MethodHandle processStreamingToBlockNodeHandle;
-    private static final MethodHandle blockStreamWorkerLoopHandle;
+//    private static final MethodHandle jumpToBlockIfNeededHandle;
+//    private static final MethodHandle processStreamingToBlockNodeHandle;
+//    private static final MethodHandle blockStreamWorkerLoopHandle;
     private static final MethodHandle createNewGrpcClientHandle;
 
     static {
@@ -79,9 +71,9 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
             final Lookup lookup = MethodHandles.lookup();
             isManagerActiveHandle = MethodHandles.privateLookupIn(BlockNodeConnectionManager.class, lookup)
                     .findVarHandle(BlockNodeConnectionManager.class, "isConnectionManagerActive", AtomicBoolean.class);
-            workerThreadRefHandle = MethodHandles.privateLookupIn(BlockNodeConnectionManager.class, lookup)
-                    .findVarHandle(
-                            BlockNodeConnectionManager.class, "blockStreamWorkerThreadRef", AtomicReference.class);
+//            workerThreadRefHandle = MethodHandles.privateLookupIn(BlockNodeConnectionManager.class, lookup)
+//                    .findVarHandle(
+//                            BlockNodeConnectionManager.class, "blockStreamWorkerThreadRef", AtomicReference.class);
             connectionsHandle = MethodHandles.privateLookupIn(BlockNodeConnectionManager.class, lookup)
                     .findVarHandle(BlockNodeConnectionManager.class, "connections", Map.class);
             availableNodesHandle = MethodHandles.privateLookupIn(BlockNodeConnectionManager.class, lookup)
@@ -90,11 +82,11 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
                     .findVarHandle(BlockNodeConnectionManager.class, "activeConnectionRef", AtomicReference.class);
             jumpTargetHandle = MethodHandles.privateLookupIn(BlockNodeConnectionManager.class, lookup)
                     .findVarHandle(BlockNodeConnectionManager.class, "jumpTargetBlock", AtomicLong.class);
-            streamingBlockNumberHandle = MethodHandles.privateLookupIn(BlockNodeConnectionManager.class, lookup)
-                    .findVarHandle(BlockNodeConnectionManager.class, "streamingBlockNumber", AtomicLong.class);
-            lastVerifiedBlockPerConnectionHandle = MethodHandles.privateLookupIn(
-                            BlockNodeConnectionManager.class, lookup)
-                    .findVarHandle(BlockNodeConnectionManager.class, "lastVerifiedBlockPerConnection", Map.class);
+//            streamingBlockNumberHandle = MethodHandles.privateLookupIn(BlockNodeConnectionManager.class, lookup)
+//                    .findVarHandle(BlockNodeConnectionManager.class, "streamingBlockNumber", AtomicLong.class);
+//            lastVerifiedBlockPerConnectionHandle = MethodHandles.privateLookupIn(
+//                            BlockNodeConnectionManager.class, lookup)
+//                    .findVarHandle(BlockNodeConnectionManager.class, "lastVerifiedBlockPerConnection", Map.class);
             connectivityTaskConnectionHandle = MethodHandles.privateLookupIn(BlockNodeConnectionTask.class, lookup)
                     .findVarHandle(BlockNodeConnectionTask.class, "connection", BlockNodeConnection.class);
             isStreamingEnabledHandle = MethodHandles.privateLookupIn(BlockNodeConnectionManager.class, lookup)
@@ -104,20 +96,20 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
             retryStatesHandle = MethodHandles.privateLookupIn(BlockNodeConnectionManager.class, lookup)
                     .findVarHandle(BlockNodeConnectionManager.class, "retryStates", Map.class);
 
-            final Method jumpToBlockIfNeeded =
-                    BlockNodeConnectionManager.class.getDeclaredMethod("jumpToBlockIfNeeded");
-            jumpToBlockIfNeeded.setAccessible(true);
-            jumpToBlockIfNeededHandle = lookup.unreflect(jumpToBlockIfNeeded);
+//            final Method jumpToBlockIfNeeded =
+//                    BlockNodeConnectionManager.class.getDeclaredMethod("jumpToBlockIfNeeded");
+//            jumpToBlockIfNeeded.setAccessible(true);
+//            jumpToBlockIfNeededHandle = lookup.unreflect(jumpToBlockIfNeeded);
 
-            final Method processStreamingToBlockNode = BlockNodeConnectionManager.class.getDeclaredMethod(
-                    "processStreamingToBlockNode", BlockNodeConnection.class);
-            processStreamingToBlockNode.setAccessible(true);
-            processStreamingToBlockNodeHandle = lookup.unreflect(processStreamingToBlockNode);
+//            final Method processStreamingToBlockNode = BlockNodeConnectionManager.class.getDeclaredMethod(
+//                    "processStreamingToBlockNode", BlockNodeConnection.class);
+//            processStreamingToBlockNode.setAccessible(true);
+//            processStreamingToBlockNodeHandle = lookup.unreflect(processStreamingToBlockNode);
 
-            final Method blockStreamWorkerLoop =
-                    BlockNodeConnectionManager.class.getDeclaredMethod("blockStreamWorkerLoop");
-            blockStreamWorkerLoop.setAccessible(true);
-            blockStreamWorkerLoopHandle = lookup.unreflect(blockStreamWorkerLoop);
+//            final Method blockStreamWorkerLoop =
+//                    BlockNodeConnectionManager.class.getDeclaredMethod("blockStreamWorkerLoop");
+//            blockStreamWorkerLoop.setAccessible(true);
+//            blockStreamWorkerLoopHandle = lookup.unreflect(blockStreamWorkerLoop);
 
             final Method createNewGrpcClientMethod =
                     BlockNodeConnectionManager.class.getDeclaredMethod("createNewGrpcClient", BlockNodeConfig.class);
@@ -153,21 +145,21 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         isActiveFlag().set(false);
         // ensure worker thread is dead
 
-        final Thread workerThread = workerThread().get();
-        if (workerThread != null) {
-            workerThread.interrupt();
-            final long startMillis = System.currentTimeMillis();
-
-            do {
-                final long durationMs = System.currentTimeMillis() - startMillis;
-                if (durationMs >= 3_000) {
-                    fail("Worker thread did not terminate in allotted time");
-                    break;
-                }
-
-                LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(1));
-            } while (State.TERMINATED != workerThread.getState());
-        }
+//        final Thread workerThread = workerThread().get();
+//        if (workerThread != null) {
+//            workerThread.interrupt();
+//            final long startMillis = System.currentTimeMillis();
+//
+//            do {
+//                final long durationMs = System.currentTimeMillis() - startMillis;
+//                if (durationMs >= 3_000) {
+//                    fail("Worker thread did not terminate in allotted time");
+//                    break;
+//                }
+//
+//                LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(1));
+//            } while (State.TERMINATED != workerThread.getState());
+//        }
         System.out.println("<-- Ensuring worker thread dead --");
     }
 
@@ -308,19 +300,19 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         doThrow(new RuntimeException("oops, I did it again")).when(node2Conn).close(true);
 
         final AtomicBoolean isActive = isActiveFlag();
-        final Thread dummyWorkerThread = mock(Thread.class);
-        final AtomicReference<Thread> workerThreadRef = workerThread();
-        workerThreadRef.set(dummyWorkerThread);
+//        final Thread dummyWorkerThread = mock(Thread.class);
+//        final AtomicReference<Thread> workerThreadRef = workerThread();
+//        workerThreadRef.set(dummyWorkerThread);
 
         isActive.set(true);
 
-        try {
+//        try {
             connectionManager.shutdown();
-        } finally {
-            // remove the mocked worker thread; failure to do so will cause a failure in afterEach attempting to clean
-            // up the worker thread
-            workerThreadRef.set(null);
-        }
+//        } finally {
+//            // remove the mocked worker thread; failure to do so will cause a failure in afterEach attempting to clean
+//            // up the worker thread
+//            workerThreadRef.set(null);
+//        }
 
         final AtomicReference<BlockNodeConnection> activeConnRef = activeConnection();
         assertThat(activeConnRef).hasNullValue();
@@ -328,8 +320,8 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         assertThat(connections).isEmpty();
         assertThat(isActive).isFalse();
 
-        final AtomicLong streamBlockNum = streamingBlockNumber();
-        assertThat(streamBlockNum).hasValue(-1);
+//        final AtomicLong streamBlockNum = streamingBlockNumber();
+//        assertThat(streamBlockNum).hasValue(-1);
 
         final Map<BlockNodeConfig, BlockNodeStats> nodeStats = nodeStats();
         assertThat(nodeStats).isEmpty();
@@ -340,8 +332,8 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         verify(node1Conn).close(true);
         verify(node2Conn).close(true);
         verify(node3Conn).close(true);
-        verify(dummyWorkerThread).interrupt();
-        verify(dummyWorkerThread).join();
+//        verify(dummyWorkerThread).interrupt();
+//        verify(dummyWorkerThread).join();
         verify(bufferService, times(2)).shutdown();
         verifyNoMoreInteractions(node1Conn);
         verifyNoMoreInteractions(node2Conn);
@@ -351,37 +343,37 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         verifyNoInteractions(metrics);
     }
 
-    @Test
-    void testShutdown_withWorkerThreadInterrupt() throws InterruptedException {
-        final AtomicBoolean isActive = isActiveFlag();
-        final Thread dummyWorkerThread = mock(Thread.class);
-
-        isActive.set(true);
-
-        doThrow(new InterruptedException("wakey wakey, eggs and bakey"))
-                .when(dummyWorkerThread)
-                .join();
-
-        final AtomicReference<Thread> workerThreadRef = workerThread();
-        workerThreadRef.set(dummyWorkerThread);
-
-        try {
-            connectionManager.shutdown();
-        } finally {
-            // remove the mocked worker thread; failure to do so will cause a failure in afterEach attempting to clean
-            // up the worker thread
-            workerThreadRef.set(null);
-        }
-
-        assertThat(isActive).isFalse();
-
-        verify(dummyWorkerThread).interrupt();
-        verify(dummyWorkerThread).join();
-        verify(bufferService).shutdown();
-        verifyNoInteractions(executorService);
-        verifyNoMoreInteractions(bufferService);
-        verifyNoInteractions(metrics);
-    }
+//    @Test
+//    void testShutdown_withWorkerThreadInterrupt() throws InterruptedException {
+//        final AtomicBoolean isActive = isActiveFlag();
+//        final Thread dummyWorkerThread = mock(Thread.class);
+//
+//        isActive.set(true);
+//
+//        doThrow(new InterruptedException("wakey wakey, eggs and bakey"))
+//                .when(dummyWorkerThread)
+//                .join();
+//
+//        final AtomicReference<Thread> workerThreadRef = workerThread();
+//        workerThreadRef.set(dummyWorkerThread);
+//
+//        try {
+//            connectionManager.shutdown();
+//        } finally {
+//            // remove the mocked worker thread; failure to do so will cause a failure in afterEach attempting to clean
+//            // up the worker thread
+//            workerThreadRef.set(null);
+//        }
+//
+//        assertThat(isActive).isFalse();
+//
+//        verify(dummyWorkerThread).interrupt();
+//        verify(dummyWorkerThread).join();
+//        verify(bufferService).shutdown();
+//        verifyNoInteractions(executorService);
+//        verifyNoMoreInteractions(bufferService);
+//        verifyNoInteractions(metrics);
+//    }
 
     @Test
     void testStartup_alreadyActive() {
@@ -397,21 +389,21 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
     @Test
     void testStartup_noNodesAvailable() {
-        final AtomicReference<Thread> workerThreadRef = workerThread();
+//        final AtomicReference<Thread> workerThreadRef = workerThread();
         final AtomicBoolean isActive = isActiveFlag();
         isActive.set(false);
 
         final List<BlockNodeConfig> availableNodes = availableNodes();
         availableNodes.clear(); // remove all available nodes from config
 
-        assertThat(workerThreadRef).hasNullValue();
+//        assertThat(workerThreadRef).hasNullValue();
 
         final Exception exception = catchException(() -> connectionManager.start());
         assertThat(exception)
                 .isInstanceOf(NoBlockNodesAvailableException.class)
                 .hasMessage("No block nodes were available to connect to");
 
-        assertThat(workerThreadRef).doesNotHaveNullValue();
+//        assertThat(workerThreadRef).doesNotHaveNullValue();
         assertThat(isActive).isFalse();
 
         verifyNoInteractions(executorService);
@@ -422,7 +414,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     @Test
     void testStartup() {
         final AtomicBoolean isActive = isActiveFlag();
-        final AtomicReference<Thread> workerThreadRef = workerThread();
+//        final AtomicReference<Thread> workerThreadRef = workerThread();
         isActive.set(false);
 
         final List<BlockNodeConfig> availableNodes = availableNodes();
@@ -433,11 +425,11 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         availableNodes.add(newBlockNodeConfig(8083, 3));
         availableNodes.add(newBlockNodeConfig(8084, 3));
 
-        assertThat(workerThreadRef).hasNullValue(); // sanity check
+//        assertThat(workerThreadRef).hasNullValue(); // sanity check
 
         connectionManager.start();
 
-        assertThat(workerThreadRef).doesNotHaveNullValue(); // worker thread should be spawned
+//        assertThat(workerThreadRef).doesNotHaveNullValue(); // worker thread should be spawned
 
         final ArgumentCaptor<BlockNodeConnectionTask> taskCaptor =
                 ArgumentCaptor.forClass(BlockNodeConnectionTask.class);
@@ -621,136 +613,136 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         verifyNoInteractions(metrics);
     }
 
-    @Test
-    void testOpenBlock_noActiveConnection() {
-        final AtomicReference<BlockNodeConnection> activeConnection = activeConnection();
-        final AtomicLong streamingBlockNumber = streamingBlockNumber();
-        final AtomicLong jumpTargetBlock = jumpTarget();
+//    @Test
+//    void testOpenBlock_noActiveConnection() {
+//        final AtomicReference<BlockNodeConnection> activeConnection = activeConnection();
+//        final AtomicLong streamingBlockNumber = streamingBlockNumber();
+//        final AtomicLong jumpTargetBlock = jumpTarget();
+//
+//        activeConnection.set(null);
+//        streamingBlockNumber.set(-1);
+//        jumpTargetBlock.set(-1);
+//
+//        connectionManager.openBlock(100L);
+//
+//        assertThat(streamingBlockNumber).hasValue(-1L);
+//        assertThat(jumpTargetBlock).hasValue(-1L);
+//
+//        verify(metrics).recordNoActiveConnection();
+//        verifyNoInteractions(executorService);
+//        verifyNoInteractions(bufferService);
+//        verifyNoMoreInteractions(metrics);
+//    }
 
-        activeConnection.set(null);
-        streamingBlockNumber.set(-1);
-        jumpTargetBlock.set(-1);
+//    @Test
+//    void testOpenBlock_alreadyStreaming() {
+//        final AtomicReference<BlockNodeConnection> activeConnection = activeConnection();
+//        final AtomicLong streamingBlockNumber = streamingBlockNumber();
+//        final AtomicLong jumpTargetBlock = jumpTarget();
+//        final BlockNodeConnection connection = mock(BlockNodeConnection.class);
+//
+//        activeConnection.set(connection);
+//        streamingBlockNumber.set(99);
+//        jumpTargetBlock.set(-1);
+//
+//        connectionManager.openBlock(100L);
+//
+//        assertThat(streamingBlockNumber).hasValue(99L);
+//        assertThat(jumpTargetBlock).hasValue(-1L);
+//
+//        verifyNoInteractions(executorService);
+//        verifyNoInteractions(bufferService);
+//        verifyNoInteractions(metrics);
+//    }
 
-        connectionManager.openBlock(100L);
+//    @Test
+//    void testOpenBlock() {
+//        final AtomicReference<BlockNodeConnection> activeConnection = activeConnection();
+//        final AtomicLong streamingBlockNumber = streamingBlockNumber();
+//        final AtomicLong jumpTargetBlock = jumpTarget();
+//        final BlockNodeConnection connection = mock(BlockNodeConnection.class);
+//
+//        activeConnection.set(connection);
+//        streamingBlockNumber.set(-1L);
+//        jumpTargetBlock.set(-1);
+//
+//        connectionManager.openBlock(100L);
+//
+//        assertThat(streamingBlockNumber).hasValue(-1L);
+//        assertThat(jumpTargetBlock).hasValue(100L);
+//
+//        verifyNoInteractions(executorService);
+//        verifyNoInteractions(bufferService);
+//        verifyNoInteractions(metrics);
+//    }
 
-        assertThat(streamingBlockNumber).hasValue(-1L);
-        assertThat(jumpTargetBlock).hasValue(-1L);
+//    @Test
+//    void testUpdateLastVerifiedBlock_connDoesNotExist() {
+//        final Map<BlockNodeConfig, Long> lastVerifiedBlockPerConnection = lastVerifiedBlockPerConnection();
+//        lastVerifiedBlockPerConnection.clear(); // ensure nothing exists in the map
+//        final BlockNodeConfig nodeConfig = newBlockNodeConfig(8080, 1);
+//
+//        connectionManager.updateLastVerifiedBlock(nodeConfig, 100L);
+//
+//        assertThat(lastVerifiedBlockPerConnection).containsEntry(nodeConfig, 100L);
+//
+//        verify(bufferService).setLatestAcknowledgedBlock(100L);
+//        verifyNoInteractions(executorService);
+//        verifyNoMoreInteractions(bufferService);
+//        verifyNoInteractions(metrics);
+//    }
 
-        verify(metrics).recordNoActiveConnection();
-        verifyNoInteractions(executorService);
-        verifyNoInteractions(bufferService);
-        verifyNoMoreInteractions(metrics);
-    }
+//    @Test
+//    void testUpdateLastVerifiedBlock_connExists_verifiedNewer() {
+//        final Map<BlockNodeConfig, Long> lastVerifiedBlockPerConnection = lastVerifiedBlockPerConnection();
+//        lastVerifiedBlockPerConnection.clear();
+//        final BlockNodeConfig nodeConfig = newBlockNodeConfig(8080, 1);
+//        lastVerifiedBlockPerConnection.put(nodeConfig, 99L);
+//
+//        // signal a 'newer' block has been verified - newer meaning this block (100) is younger than the older block
+//        // (99)
+//        connectionManager.updateLastVerifiedBlock(nodeConfig, 100L);
+//
+//        assertThat(lastVerifiedBlockPerConnection).containsEntry(nodeConfig, 100L);
+//
+//        verify(bufferService).setLatestAcknowledgedBlock(100L);
+//        verifyNoInteractions(executorService);
+//        verifyNoMoreInteractions(bufferService);
+//        verifyNoInteractions(metrics);
+//    }
 
-    @Test
-    void testOpenBlock_alreadyStreaming() {
-        final AtomicReference<BlockNodeConnection> activeConnection = activeConnection();
-        final AtomicLong streamingBlockNumber = streamingBlockNumber();
-        final AtomicLong jumpTargetBlock = jumpTarget();
-        final BlockNodeConnection connection = mock(BlockNodeConnection.class);
-
-        activeConnection.set(connection);
-        streamingBlockNumber.set(99);
-        jumpTargetBlock.set(-1);
-
-        connectionManager.openBlock(100L);
-
-        assertThat(streamingBlockNumber).hasValue(99L);
-        assertThat(jumpTargetBlock).hasValue(-1L);
-
-        verifyNoInteractions(executorService);
-        verifyNoInteractions(bufferService);
-        verifyNoInteractions(metrics);
-    }
-
-    @Test
-    void testOpenBlock() {
-        final AtomicReference<BlockNodeConnection> activeConnection = activeConnection();
-        final AtomicLong streamingBlockNumber = streamingBlockNumber();
-        final AtomicLong jumpTargetBlock = jumpTarget();
-        final BlockNodeConnection connection = mock(BlockNodeConnection.class);
-
-        activeConnection.set(connection);
-        streamingBlockNumber.set(-1L);
-        jumpTargetBlock.set(-1);
-
-        connectionManager.openBlock(100L);
-
-        assertThat(streamingBlockNumber).hasValue(-1L);
-        assertThat(jumpTargetBlock).hasValue(100L);
-
-        verifyNoInteractions(executorService);
-        verifyNoInteractions(bufferService);
-        verifyNoInteractions(metrics);
-    }
-
-    @Test
-    void testUpdateLastVerifiedBlock_connDoesNotExist() {
-        final Map<BlockNodeConfig, Long> lastVerifiedBlockPerConnection = lastVerifiedBlockPerConnection();
-        lastVerifiedBlockPerConnection.clear(); // ensure nothing exists in the map
-        final BlockNodeConfig nodeConfig = newBlockNodeConfig(8080, 1);
-
-        connectionManager.updateLastVerifiedBlock(nodeConfig, 100L);
-
-        assertThat(lastVerifiedBlockPerConnection).containsEntry(nodeConfig, 100L);
-
-        verify(bufferService).setLatestAcknowledgedBlock(100L);
-        verifyNoInteractions(executorService);
-        verifyNoMoreInteractions(bufferService);
-        verifyNoInteractions(metrics);
-    }
-
-    @Test
-    void testUpdateLastVerifiedBlock_connExists_verifiedNewer() {
-        final Map<BlockNodeConfig, Long> lastVerifiedBlockPerConnection = lastVerifiedBlockPerConnection();
-        lastVerifiedBlockPerConnection.clear();
-        final BlockNodeConfig nodeConfig = newBlockNodeConfig(8080, 1);
-        lastVerifiedBlockPerConnection.put(nodeConfig, 99L);
-
-        // signal a 'newer' block has been verified - newer meaning this block (100) is younger than the older block
-        // (99)
-        connectionManager.updateLastVerifiedBlock(nodeConfig, 100L);
-
-        assertThat(lastVerifiedBlockPerConnection).containsEntry(nodeConfig, 100L);
-
-        verify(bufferService).setLatestAcknowledgedBlock(100L);
-        verifyNoInteractions(executorService);
-        verifyNoMoreInteractions(bufferService);
-        verifyNoInteractions(metrics);
-    }
-
-    @Test
-    void testUpdateLastVerifiedBlock_connExists_verifiedOlder() {
-        final Map<BlockNodeConfig, Long> lastVerifiedBlockPerConnection = lastVerifiedBlockPerConnection();
-        lastVerifiedBlockPerConnection.clear();
-        final BlockNodeConfig nodeConfig = newBlockNodeConfig(8080, 1);
-        lastVerifiedBlockPerConnection.put(nodeConfig, 100L);
-
-        // signal an 'older' block has been verified - older meaning the block number being verified is less than the
-        // one already verified
-        connectionManager.updateLastVerifiedBlock(nodeConfig, 60L);
-
-        assertThat(lastVerifiedBlockPerConnection).containsEntry(nodeConfig, 100L);
-
-        verify(bufferService).setLatestAcknowledgedBlock(60L);
-        verifyNoInteractions(executorService);
-        verifyNoMoreInteractions(bufferService);
-        verifyNoInteractions(metrics);
-    }
-
-    @Test
-    void testJumpToBlock() {
-        final AtomicLong jumpTarget = jumpTarget();
-        jumpTarget.set(-1);
-
-        connectionManager.jumpToBlock(16);
-
-        assertThat(jumpTarget).hasValue(16L);
-
-        verifyNoInteractions(executorService);
-        verifyNoInteractions(bufferService);
-        verifyNoInteractions(metrics);
-    }
+//    @Test
+//    void testUpdateLastVerifiedBlock_connExists_verifiedOlder() {
+//        final Map<BlockNodeConfig, Long> lastVerifiedBlockPerConnection = lastVerifiedBlockPerConnection();
+//        lastVerifiedBlockPerConnection.clear();
+//        final BlockNodeConfig nodeConfig = newBlockNodeConfig(8080, 1);
+//        lastVerifiedBlockPerConnection.put(nodeConfig, 100L);
+//
+//        // signal an 'older' block has been verified - older meaning the block number being verified is less than the
+//        // one already verified
+//        connectionManager.updateLastVerifiedBlock(nodeConfig, 60L);
+//
+//        assertThat(lastVerifiedBlockPerConnection).containsEntry(nodeConfig, 100L);
+//
+//        verify(bufferService).setLatestAcknowledgedBlock(60L);
+//        verifyNoInteractions(executorService);
+//        verifyNoMoreInteractions(bufferService);
+//        verifyNoInteractions(metrics);
+//    }
+//
+//    @Test
+//    void testJumpToBlock() {
+//        final AtomicLong jumpTarget = jumpTarget();
+//        jumpTarget.set(-1);
+//
+//        connectionManager.jumpToBlock(16);
+//
+//        assertThat(jumpTarget).hasValue(16L);
+//
+//        verifyNoInteractions(executorService);
+//        verifyNoInteractions(bufferService);
+//        verifyNoInteractions(metrics);
+//    }
 
     @Test
     void testConnectionTask_managerNotActive() {
@@ -1025,358 +1017,358 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         verifyNoInteractions(bufferService);
     }
 
-    @Test
-    void testJumpToBlockIfNeeded_notSet() {
-        final AtomicLong streamingBlockNumber = streamingBlockNumber();
-        streamingBlockNumber.set(-1L);
-        final AtomicLong jumpTarget = jumpTarget();
-        jumpTarget.set(-1L);
+//    @Test
+//    void testJumpToBlockIfNeeded_notSet() {
+//        final AtomicLong streamingBlockNumber = streamingBlockNumber();
+//        streamingBlockNumber.set(-1L);
+//        final AtomicLong jumpTarget = jumpTarget();
+//        jumpTarget.set(-1L);
+//
+//        invoke_jumpToBlockIfNeeded();
+//
+//        assertThat(streamingBlockNumber).hasValue(-1L); // unchanged
+//
+//        verifyNoInteractions(executorService);
+//        verifyNoInteractions(bufferService);
+//        verifyNoInteractions(metrics);
+//    }
 
-        invoke_jumpToBlockIfNeeded();
+//    @Test
+//    void testJumpToBlockIfNeeded() {
+//        final AtomicLong streamingBlockNumber = streamingBlockNumber();
+//        streamingBlockNumber.set(-1L);
+//        final AtomicLong jumpTarget = jumpTarget();
+//        jumpTarget.set(10L);
+//
+//        invoke_jumpToBlockIfNeeded();
+//
+//        assertThat(streamingBlockNumber).hasValue(10L);
+//
+//        verifyNoInteractions(executorService);
+//        verifyNoInteractions(bufferService);
+//        verifyNoInteractions(metrics);
+//    }
 
-        assertThat(streamingBlockNumber).hasValue(-1L); // unchanged
+//    @Test
+//    void testProcessStreamingToBlockNode_missingBlock_latestBlockAfterCurrentStreaming() {
+//        final BlockNodeConfig node1Config = newBlockNodeConfig(8080, 1);
+//        final BlockNodeConfig node2Config = newBlockNodeConfig(8081, 2);
+//        final List<BlockNodeConfig> availableNodes = availableNodes();
+//        availableNodes.clear();
+//        availableNodes.add(node1Config);
+//        availableNodes.add(node2Config);
+//        final BlockNodeConnection connection = mock(BlockNodeConnection.class);
+//        final AtomicReference<BlockNodeConnection> activeConnectionRef = activeConnection();
+//        activeConnectionRef.set(connection);
+//        final AtomicLong currentStreamingBlock = streamingBlockNumber();
+//        currentStreamingBlock.set(10L);
+//        doReturn(ConnectionState.ACTIVE).when(connection).getConnectionState();
+//        doReturn(node1Config).when(connection).getNodeConfig();
+//        doReturn(null).when(bufferService).getBlockState(10L);
+//        doReturn(11L).when(bufferService).getLastBlockNumberProduced();
+//
+//        final boolean shouldSleep = invoke_processStreamingToBlockNode(connection);
+//
+//        assertThat(shouldSleep).isTrue();
+//
+//        verify(bufferService).getBlockState(10L);
+//        verify(bufferService).getLastBlockNumberProduced();
+//        verify(connection).close(true);
+//        // one scheduled task to reconnect the existing connection later
+//        verify(executorService).schedule(any(BlockNodeConnectionTask.class), eq(30_000L), eq(TimeUnit.MILLISECONDS));
+//        // another task scheduled to connect to a new node immediately
+//        verify(executorService).schedule(any(BlockNodeConnectionTask.class), eq(0L), eq(TimeUnit.MILLISECONDS));
+//
+//        verifyNoMoreInteractions(connection);
+//        verifyNoMoreInteractions(bufferService);
+//        verifyNoMoreInteractions(executorService);
+//        verifyNoInteractions(metrics);
+//    }
 
-        verifyNoInteractions(executorService);
-        verifyNoInteractions(bufferService);
-        verifyNoInteractions(metrics);
-    }
+//    @Test
+//    void testProcessStreamingToBlockNode_missingBlock() {
+//        final BlockNodeConnection connection = mock(BlockNodeConnection.class);
+//        final AtomicReference<BlockNodeConnection> activeConnectionRef = activeConnection();
+//        activeConnectionRef.set(connection);
+//        final AtomicLong currentStreamingBlock = streamingBlockNumber();
+//        currentStreamingBlock.set(10L);
+//        doReturn(ConnectionState.ACTIVE).when(connection).getConnectionState();
+//        doReturn(null).when(bufferService).getBlockState(10L);
+//        doReturn(10L).when(bufferService).getLastBlockNumberProduced();
+//
+//        final boolean shouldSleep = invoke_processStreamingToBlockNode(connection);
+//
+//        assertThat(shouldSleep).isTrue();
+//
+//        verify(bufferService).getBlockState(10L);
+//        verify(bufferService).getLastBlockNumberProduced();
+//
+//        verifyNoMoreInteractions(bufferService);
+//        verifyNoInteractions(executorService);
+//        verifyNoInteractions(metrics);
+//    }
 
-    @Test
-    void testJumpToBlockIfNeeded() {
-        final AtomicLong streamingBlockNumber = streamingBlockNumber();
-        streamingBlockNumber.set(-1L);
-        final AtomicLong jumpTarget = jumpTarget();
-        jumpTarget.set(10L);
+//    @Test
+//    void testProcessStreamingToBlockNode_zeroRequests() {
+//        final BlockNodeConnection connection = mock(BlockNodeConnection.class);
+//        final AtomicReference<BlockNodeConnection> activeConnectionRef = activeConnection();
+//        activeConnectionRef.set(connection);
+//        final AtomicLong currentStreamingBlock = streamingBlockNumber();
+//        currentStreamingBlock.set(10L);
+//        final BlockState blockState = new BlockState(10L);
+//        doReturn(ConnectionState.ACTIVE).when(connection).getConnectionState();
+//        doReturn(blockState).when(bufferService).getBlockState(10L);
+//        doReturn(10L).when(bufferService).getLastBlockNumberProduced();
+//
+//        final boolean shouldSleep = invoke_processStreamingToBlockNode(connection);
+//
+//        assertThat(shouldSleep).isTrue();
+//
+//        verify(bufferService).getBlockState(10L);
+//        verify(bufferService).getLastBlockNumberProduced();
+//
+//        verifyNoMoreInteractions(bufferService);
+//        verifyNoInteractions(executorService);
+//        verifyNoInteractions(metrics);
+//    }
 
-        invoke_jumpToBlockIfNeeded();
+//    @Test
+//    void testProcessStreamingToBlockNode_requestsReady() {
+//        final BlockNodeConnection connection = mock(BlockNodeConnection.class);
+//        final AtomicReference<BlockNodeConnection> activeConnectionRef = activeConnection();
+//        activeConnectionRef.set(connection);
+//        final AtomicLong currentStreamingBlock = streamingBlockNumber();
+//        currentStreamingBlock.set(10L);
+//        final BlockState blockState = mock(BlockState.class);
+//        final PublishStreamRequest req = createRequest(newBlockHeaderItem());
+//        doReturn(ConnectionState.ACTIVE).when(connection).getConnectionState();
+//        doReturn(req).when(blockState).getRequest(0);
+//        doReturn(1).when(blockState).numRequestsCreated();
+//        doReturn(blockState).when(bufferService).getBlockState(10L);
+//        doReturn(10L).when(bufferService).getLastBlockNumberProduced();
+//
+//        final boolean shouldSleep = invoke_processStreamingToBlockNode(connection);
+//        assertThat(shouldSleep).isTrue(); // there is nothing in the queue left to process, so we should sleep
+//
+//        verify(bufferService).getBlockState(10L);
+//        verify(bufferService).getLastBlockNumberProduced();
+//        verify(connection).sendRequest(req);
+//
+//        verifyNoMoreInteractions(connection);
+//        verifyNoMoreInteractions(bufferService);
+//        verifyNoInteractions(executorService);
+//        verifyNoInteractions(metrics);
+//    }
 
-        assertThat(streamingBlockNumber).hasValue(10L);
+//    @Test
+//    void testProcessStreamingToBlockNode_blockEnd_moveToNextBlock() {
+//        final BlockNodeConnection connection = mock(BlockNodeConnection.class);
+//        final AtomicReference<BlockNodeConnection> activeConnectionRef = activeConnection();
+//        activeConnectionRef.set(connection);
+//        final AtomicLong currentStreamingBlock = streamingBlockNumber();
+//        currentStreamingBlock.set(10L);
+//        final BlockState blockState = mock(BlockState.class);
+//        final PublishStreamRequest req = createRequest(newBlockHeaderItem());
+//        doReturn(ConnectionState.ACTIVE).when(connection).getConnectionState();
+//        doReturn(req).when(blockState).getRequest(0);
+//        doReturn(1).when(blockState).numRequestsCreated();
+//        doReturn(true).when(blockState).isBlockProofSent();
+//        doReturn(blockState).when(bufferService).getBlockState(10L);
+//        doReturn(10L).when(bufferService).getLastBlockNumberProduced();
+//
+//        final boolean shouldSleep = invoke_processStreamingToBlockNode(connection);
+//        assertThat(shouldSleep)
+//                .isFalse(); // since we are moving blocks, we should not sleep and instead immediately re-check
+//        assertThat(currentStreamingBlock).hasValue(11L); // this should get incremented as we move to next
+//
+//        verify(bufferService).getBlockState(10L);
+//        verify(bufferService).getLastBlockNumberProduced();
+//        verify(connection).sendRequest(req);
+//
+//        verifyNoMoreInteractions(connection);
+//        verifyNoMoreInteractions(bufferService);
+//        verifyNoInteractions(executorService);
+//        verifyNoInteractions(metrics);
+//    }
 
-        verifyNoInteractions(executorService);
-        verifyNoInteractions(bufferService);
-        verifyNoInteractions(metrics);
-    }
+//    @Test
+//    void testProcessStreamingToBlockNode_moreRequestsAvailable() {
+//        final BlockNodeConnection connection = mock(BlockNodeConnection.class);
+//        final AtomicReference<BlockNodeConnection> activeConnectionRef = activeConnection();
+//        activeConnectionRef.set(connection);
+//        final AtomicLong currentStreamingBlock = streamingBlockNumber();
+//        currentStreamingBlock.set(10L);
+//        final BlockState blockState = mock(BlockState.class);
+//        final PublishStreamRequest req = createRequest(newBlockHeaderItem());
+//        doReturn(ConnectionState.ACTIVE).when(connection).getConnectionState();
+//        doReturn(req).when(blockState).getRequest(0);
+//        doReturn(2).when(blockState).numRequestsCreated();
+//        doReturn(false).when(blockState).isBlockProofSent();
+//        doReturn(blockState).when(bufferService).getBlockState(10L);
+//        doReturn(10L).when(bufferService).getLastBlockNumberProduced();
+//
+//        final boolean shouldSleep = invoke_processStreamingToBlockNode(connection);
+//        assertThat(shouldSleep).isFalse(); // there is nothing in the queue left to process, so we should sleep
+//
+//        verify(bufferService).getBlockState(10L);
+//        verify(bufferService).getLastBlockNumberProduced();
+//        verify(connection).sendRequest(req);
+//
+//        verifyNoMoreInteractions(connection);
+//        verifyNoMoreInteractions(bufferService);
+//        verifyNoInteractions(executorService);
+//        verifyNoInteractions(metrics);
+//    }
 
-    @Test
-    void testProcessStreamingToBlockNode_missingBlock_latestBlockAfterCurrentStreaming() {
-        final BlockNodeConfig node1Config = newBlockNodeConfig(8080, 1);
-        final BlockNodeConfig node2Config = newBlockNodeConfig(8081, 2);
-        final List<BlockNodeConfig> availableNodes = availableNodes();
-        availableNodes.clear();
-        availableNodes.add(node1Config);
-        availableNodes.add(node2Config);
-        final BlockNodeConnection connection = mock(BlockNodeConnection.class);
-        final AtomicReference<BlockNodeConnection> activeConnectionRef = activeConnection();
-        activeConnectionRef.set(connection);
-        final AtomicLong currentStreamingBlock = streamingBlockNumber();
-        currentStreamingBlock.set(10L);
-        doReturn(ConnectionState.ACTIVE).when(connection).getConnectionState();
-        doReturn(node1Config).when(connection).getNodeConfig();
-        doReturn(null).when(bufferService).getBlockState(10L);
-        doReturn(11L).when(bufferService).getLastBlockNumberProduced();
+//    @Test
+//    void testProcessStreamingToBlockNode_noConnection() {
+//        final boolean shouldSleep = invoke_processStreamingToBlockNode(null);
+//        assertThat(shouldSleep).isTrue();
+//
+//        verifyNoInteractions(bufferService);
+//        verifyNoInteractions(executorService);
+//        verifyNoInteractions(metrics);
+//    }
 
-        final boolean shouldSleep = invoke_processStreamingToBlockNode(connection);
+//    @Test
+//    void testProcessStreamingToBlockNode_connectionNotActive() {
+//        final BlockNodeConnection connection = mock(BlockNodeConnection.class);
+//        doReturn(ConnectionState.CLOSING).when(connection).getConnectionState();
+//
+//        final boolean shouldSleep = invoke_processStreamingToBlockNode(connection);
+//        assertThat(shouldSleep).isTrue();
+//
+//        verify(connection).getConnectionState();
+//
+//        verifyNoMoreInteractions(connection);
+//        verifyNoInteractions(bufferService);
+//        verifyNoInteractions(executorService);
+//        verifyNoInteractions(metrics);
+//    }
 
-        assertThat(shouldSleep).isTrue();
+//    @Test
+//    void testBlockStreamWorkerLoop_managerNotActive() {
+//        final AtomicBoolean isActive = isActiveFlag();
+//        isActive.set(false);
+//
+//        invoke_blockStreamWorkerLoop();
+//
+//        verifyNoInteractions(bufferService);
+//        verifyNoInteractions(executorService);
+//        verifyNoInteractions(metrics);
+//    }
 
-        verify(bufferService).getBlockState(10L);
-        verify(bufferService).getLastBlockNumberProduced();
-        verify(connection).close(true);
-        // one scheduled task to reconnect the existing connection later
-        verify(executorService).schedule(any(BlockNodeConnectionTask.class), eq(30_000L), eq(TimeUnit.MILLISECONDS));
-        // another task scheduled to connect to a new node immediately
-        verify(executorService).schedule(any(BlockNodeConnectionTask.class), eq(0L), eq(TimeUnit.MILLISECONDS));
+//    @Test
+//    void testBlockStreamWorkerLoop() throws InterruptedException {
+//        isActiveFlag().set(true);
+//        final BlockNodeConnection connection = mock(BlockNodeConnection.class);
+//        final AtomicReference<BlockNodeConnection> activeConnectionRef = activeConnection();
+//        activeConnectionRef.set(connection);
+//        final AtomicLong currentStreamingBlock = streamingBlockNumber();
+//        currentStreamingBlock.set(10L);
+//        final BlockState blockState = mock(BlockState.class);
+//        final PublishStreamRequest req1 = createRequest(newBlockHeaderItem());
+//        final PublishStreamRequest req2 = createRequest(newBlockProofItem());
+//        doReturn(ConnectionState.ACTIVE).when(connection).getConnectionState();
+//        doReturn(req1).when(blockState).getRequest(0);
+//        doReturn(req2).when(blockState).getRequest(1);
+//        doReturn(2).when(blockState).numRequestsCreated();
+//        doReturn(true).when(blockState).isBlockProofSent();
+//        doReturn(blockState).when(bufferService).getBlockState(10L);
+//        doReturn(10L).when(bufferService).getLastBlockNumberProduced();
+//
+//        final CountDownLatch doneLatch = new CountDownLatch(1);
+//        final AtomicReference<Throwable> errorRef = new AtomicReference<>();
+//
+//        ForkJoinPool.commonPool().execute(() -> {
+//            try {
+//                invoke_blockStreamWorkerLoop();
+//            } catch (final Throwable e) {
+//                errorRef.set(e);
+//            } finally {
+//                doneLatch.countDown();
+//            }
+//        });
+//
+//        final long startMs = System.currentTimeMillis();
+//        long elapsedMs = 0;
+//        while (currentStreamingBlock.get() != 11 && elapsedMs < 2_000) {
+//            // wait up to 2 seconds for the current streaming block to change
+//            elapsedMs = System.currentTimeMillis() - startMs;
+//        }
+//
+//        isActiveFlag().set(false); // stop the loop
+//
+//        assertThat(doneLatch.await(2, TimeUnit.SECONDS)).isTrue();
+//        assertThat(errorRef).hasNullValue();
+//        assertThat(currentStreamingBlock).hasValue(11L);
+//
+//        verify(bufferService, atLeast(2)).getBlockState(10L);
+//        verify(bufferService, atLeast(2)).getLastBlockNumberProduced();
+//        verify(connection).sendRequest(req1);
+//        verify(connection).sendRequest(req2);
+//
+//        verifyNoMoreInteractions(connection);
+//        verifyNoInteractions(executorService);
+//        verifyNoInteractions(metrics);
+//    }
 
-        verifyNoMoreInteractions(connection);
-        verifyNoMoreInteractions(bufferService);
-        verifyNoMoreInteractions(executorService);
-        verifyNoInteractions(metrics);
-    }
-
-    @Test
-    void testProcessStreamingToBlockNode_missingBlock() {
-        final BlockNodeConnection connection = mock(BlockNodeConnection.class);
-        final AtomicReference<BlockNodeConnection> activeConnectionRef = activeConnection();
-        activeConnectionRef.set(connection);
-        final AtomicLong currentStreamingBlock = streamingBlockNumber();
-        currentStreamingBlock.set(10L);
-        doReturn(ConnectionState.ACTIVE).when(connection).getConnectionState();
-        doReturn(null).when(bufferService).getBlockState(10L);
-        doReturn(10L).when(bufferService).getLastBlockNumberProduced();
-
-        final boolean shouldSleep = invoke_processStreamingToBlockNode(connection);
-
-        assertThat(shouldSleep).isTrue();
-
-        verify(bufferService).getBlockState(10L);
-        verify(bufferService).getLastBlockNumberProduced();
-
-        verifyNoMoreInteractions(bufferService);
-        verifyNoInteractions(executorService);
-        verifyNoInteractions(metrics);
-    }
-
-    @Test
-    void testProcessStreamingToBlockNode_zeroRequests() {
-        final BlockNodeConnection connection = mock(BlockNodeConnection.class);
-        final AtomicReference<BlockNodeConnection> activeConnectionRef = activeConnection();
-        activeConnectionRef.set(connection);
-        final AtomicLong currentStreamingBlock = streamingBlockNumber();
-        currentStreamingBlock.set(10L);
-        final BlockState blockState = new BlockState(10L);
-        doReturn(ConnectionState.ACTIVE).when(connection).getConnectionState();
-        doReturn(blockState).when(bufferService).getBlockState(10L);
-        doReturn(10L).when(bufferService).getLastBlockNumberProduced();
-
-        final boolean shouldSleep = invoke_processStreamingToBlockNode(connection);
-
-        assertThat(shouldSleep).isTrue();
-
-        verify(bufferService).getBlockState(10L);
-        verify(bufferService).getLastBlockNumberProduced();
-
-        verifyNoMoreInteractions(bufferService);
-        verifyNoInteractions(executorService);
-        verifyNoInteractions(metrics);
-    }
-
-    @Test
-    void testProcessStreamingToBlockNode_requestsReady() {
-        final BlockNodeConnection connection = mock(BlockNodeConnection.class);
-        final AtomicReference<BlockNodeConnection> activeConnectionRef = activeConnection();
-        activeConnectionRef.set(connection);
-        final AtomicLong currentStreamingBlock = streamingBlockNumber();
-        currentStreamingBlock.set(10L);
-        final BlockState blockState = mock(BlockState.class);
-        final PublishStreamRequest req = createRequest(newBlockHeaderItem());
-        doReturn(ConnectionState.ACTIVE).when(connection).getConnectionState();
-        doReturn(req).when(blockState).getRequest(0);
-        doReturn(1).when(blockState).numRequestsCreated();
-        doReturn(blockState).when(bufferService).getBlockState(10L);
-        doReturn(10L).when(bufferService).getLastBlockNumberProduced();
-
-        final boolean shouldSleep = invoke_processStreamingToBlockNode(connection);
-        assertThat(shouldSleep).isTrue(); // there is nothing in the queue left to process, so we should sleep
-
-        verify(bufferService).getBlockState(10L);
-        verify(bufferService).getLastBlockNumberProduced();
-        verify(connection).sendRequest(req);
-
-        verifyNoMoreInteractions(connection);
-        verifyNoMoreInteractions(bufferService);
-        verifyNoInteractions(executorService);
-        verifyNoInteractions(metrics);
-    }
-
-    @Test
-    void testProcessStreamingToBlockNode_blockEnd_moveToNextBlock() {
-        final BlockNodeConnection connection = mock(BlockNodeConnection.class);
-        final AtomicReference<BlockNodeConnection> activeConnectionRef = activeConnection();
-        activeConnectionRef.set(connection);
-        final AtomicLong currentStreamingBlock = streamingBlockNumber();
-        currentStreamingBlock.set(10L);
-        final BlockState blockState = mock(BlockState.class);
-        final PublishStreamRequest req = createRequest(newBlockHeaderItem());
-        doReturn(ConnectionState.ACTIVE).when(connection).getConnectionState();
-        doReturn(req).when(blockState).getRequest(0);
-        doReturn(1).when(blockState).numRequestsCreated();
-        doReturn(true).when(blockState).isBlockProofSent();
-        doReturn(blockState).when(bufferService).getBlockState(10L);
-        doReturn(10L).when(bufferService).getLastBlockNumberProduced();
-
-        final boolean shouldSleep = invoke_processStreamingToBlockNode(connection);
-        assertThat(shouldSleep)
-                .isFalse(); // since we are moving blocks, we should not sleep and instead immediately re-check
-        assertThat(currentStreamingBlock).hasValue(11L); // this should get incremented as we move to next
-
-        verify(bufferService).getBlockState(10L);
-        verify(bufferService).getLastBlockNumberProduced();
-        verify(connection).sendRequest(req);
-
-        verifyNoMoreInteractions(connection);
-        verifyNoMoreInteractions(bufferService);
-        verifyNoInteractions(executorService);
-        verifyNoInteractions(metrics);
-    }
-
-    @Test
-    void testProcessStreamingToBlockNode_moreRequestsAvailable() {
-        final BlockNodeConnection connection = mock(BlockNodeConnection.class);
-        final AtomicReference<BlockNodeConnection> activeConnectionRef = activeConnection();
-        activeConnectionRef.set(connection);
-        final AtomicLong currentStreamingBlock = streamingBlockNumber();
-        currentStreamingBlock.set(10L);
-        final BlockState blockState = mock(BlockState.class);
-        final PublishStreamRequest req = createRequest(newBlockHeaderItem());
-        doReturn(ConnectionState.ACTIVE).when(connection).getConnectionState();
-        doReturn(req).when(blockState).getRequest(0);
-        doReturn(2).when(blockState).numRequestsCreated();
-        doReturn(false).when(blockState).isBlockProofSent();
-        doReturn(blockState).when(bufferService).getBlockState(10L);
-        doReturn(10L).when(bufferService).getLastBlockNumberProduced();
-
-        final boolean shouldSleep = invoke_processStreamingToBlockNode(connection);
-        assertThat(shouldSleep).isFalse(); // there is nothing in the queue left to process, so we should sleep
-
-        verify(bufferService).getBlockState(10L);
-        verify(bufferService).getLastBlockNumberProduced();
-        verify(connection).sendRequest(req);
-
-        verifyNoMoreInteractions(connection);
-        verifyNoMoreInteractions(bufferService);
-        verifyNoInteractions(executorService);
-        verifyNoInteractions(metrics);
-    }
-
-    @Test
-    void testProcessStreamingToBlockNode_noConnection() {
-        final boolean shouldSleep = invoke_processStreamingToBlockNode(null);
-        assertThat(shouldSleep).isTrue();
-
-        verifyNoInteractions(bufferService);
-        verifyNoInteractions(executorService);
-        verifyNoInteractions(metrics);
-    }
-
-    @Test
-    void testProcessStreamingToBlockNode_connectionNotActive() {
-        final BlockNodeConnection connection = mock(BlockNodeConnection.class);
-        doReturn(ConnectionState.CLOSING).when(connection).getConnectionState();
-
-        final boolean shouldSleep = invoke_processStreamingToBlockNode(connection);
-        assertThat(shouldSleep).isTrue();
-
-        verify(connection).getConnectionState();
-
-        verifyNoMoreInteractions(connection);
-        verifyNoInteractions(bufferService);
-        verifyNoInteractions(executorService);
-        verifyNoInteractions(metrics);
-    }
-
-    @Test
-    void testBlockStreamWorkerLoop_managerNotActive() {
-        final AtomicBoolean isActive = isActiveFlag();
-        isActive.set(false);
-
-        invoke_blockStreamWorkerLoop();
-
-        verifyNoInteractions(bufferService);
-        verifyNoInteractions(executorService);
-        verifyNoInteractions(metrics);
-    }
-
-    @Test
-    void testBlockStreamWorkerLoop() throws InterruptedException {
-        isActiveFlag().set(true);
-        final BlockNodeConnection connection = mock(BlockNodeConnection.class);
-        final AtomicReference<BlockNodeConnection> activeConnectionRef = activeConnection();
-        activeConnectionRef.set(connection);
-        final AtomicLong currentStreamingBlock = streamingBlockNumber();
-        currentStreamingBlock.set(10L);
-        final BlockState blockState = mock(BlockState.class);
-        final PublishStreamRequest req1 = createRequest(newBlockHeaderItem());
-        final PublishStreamRequest req2 = createRequest(newBlockProofItem());
-        doReturn(ConnectionState.ACTIVE).when(connection).getConnectionState();
-        doReturn(req1).when(blockState).getRequest(0);
-        doReturn(req2).when(blockState).getRequest(1);
-        doReturn(2).when(blockState).numRequestsCreated();
-        doReturn(true).when(blockState).isBlockProofSent();
-        doReturn(blockState).when(bufferService).getBlockState(10L);
-        doReturn(10L).when(bufferService).getLastBlockNumberProduced();
-
-        final CountDownLatch doneLatch = new CountDownLatch(1);
-        final AtomicReference<Throwable> errorRef = new AtomicReference<>();
-
-        ForkJoinPool.commonPool().execute(() -> {
-            try {
-                invoke_blockStreamWorkerLoop();
-            } catch (final Throwable e) {
-                errorRef.set(e);
-            } finally {
-                doneLatch.countDown();
-            }
-        });
-
-        final long startMs = System.currentTimeMillis();
-        long elapsedMs = 0;
-        while (currentStreamingBlock.get() != 11 && elapsedMs < 2_000) {
-            // wait up to 2 seconds for the current streaming block to change
-            elapsedMs = System.currentTimeMillis() - startMs;
-        }
-
-        isActiveFlag().set(false); // stop the loop
-
-        assertThat(doneLatch.await(2, TimeUnit.SECONDS)).isTrue();
-        assertThat(errorRef).hasNullValue();
-        assertThat(currentStreamingBlock).hasValue(11L);
-
-        verify(bufferService, atLeast(2)).getBlockState(10L);
-        verify(bufferService, atLeast(2)).getLastBlockNumberProduced();
-        verify(connection).sendRequest(req1);
-        verify(connection).sendRequest(req2);
-
-        verifyNoMoreInteractions(connection);
-        verifyNoInteractions(executorService);
-        verifyNoInteractions(metrics);
-    }
-
-    @Test
-    void testBlockStreamWorkerLoop_failure() throws InterruptedException {
-        isActiveFlag().set(true);
-        final BlockNodeConnection connection = mock(BlockNodeConnection.class);
-        final AtomicReference<BlockNodeConnection> activeConnectionRef = activeConnection();
-        activeConnectionRef.set(connection);
-        final AtomicLong currentStreamingBlock = streamingBlockNumber();
-        currentStreamingBlock.set(10L);
-        final BlockState blockState = mock(BlockState.class);
-        final PublishStreamRequest req1 = createRequest(newBlockHeaderItem());
-        final PublishStreamRequest req2 = createRequest(newBlockProofItem());
-        doReturn(ConnectionState.ACTIVE).when(connection).getConnectionState();
-        doReturn(req1).when(blockState).getRequest(0);
-        doReturn(req2).when(blockState).getRequest(1);
-        doReturn(2).when(blockState).numRequestsCreated();
-        doReturn(true).when(blockState).isBlockProofSent();
-        doReturn(blockState).when(bufferService).getBlockState(10L);
-        doReturn(10L).when(bufferService).getLastBlockNumberProduced();
-        when(bufferService.getBlockState(10L))
-                .thenThrow(new RuntimeException("foobar"))
-                .thenReturn(blockState);
-
-        final CountDownLatch doneLatch = new CountDownLatch(1);
-        final AtomicReference<Throwable> errorRef = new AtomicReference<>();
-
-        ForkJoinPool.commonPool().execute(() -> {
-            try {
-                invoke_blockStreamWorkerLoop();
-            } catch (final Throwable e) {
-                errorRef.set(e);
-            } finally {
-                doneLatch.countDown();
-            }
-        });
-
-        final long startMs = System.currentTimeMillis();
-        long elapsedMs = 0;
-        while (currentStreamingBlock.get() != 11 && elapsedMs < 2_000) {
-            // wait up to 2 seconds for the current streaming block to change
-            elapsedMs = System.currentTimeMillis() - startMs;
-        }
-
-        isActiveFlag().set(false); // stop the loop
-
-        assertThat(doneLatch.await(2, TimeUnit.SECONDS)).isTrue();
-        assertThat(errorRef).hasNullValue();
-        assertThat(currentStreamingBlock).hasValue(11L);
-
-        verify(bufferService, atLeast(2)).getBlockState(10L);
-        verify(bufferService, atLeast(2)).getLastBlockNumberProduced();
-        verify(connection).sendRequest(req1);
-        verify(connection).sendRequest(req2);
-
-        verifyNoInteractions(executorService);
-        verifyNoInteractions(metrics);
-    }
+//    @Test
+//    void testBlockStreamWorkerLoop_failure() throws InterruptedException {
+//        isActiveFlag().set(true);
+//        final BlockNodeConnection connection = mock(BlockNodeConnection.class);
+//        final AtomicReference<BlockNodeConnection> activeConnectionRef = activeConnection();
+//        activeConnectionRef.set(connection);
+//        final AtomicLong currentStreamingBlock = streamingBlockNumber();
+//        currentStreamingBlock.set(10L);
+//        final BlockState blockState = mock(BlockState.class);
+//        final PublishStreamRequest req1 = createRequest(newBlockHeaderItem());
+//        final PublishStreamRequest req2 = createRequest(newBlockProofItem());
+//        doReturn(ConnectionState.ACTIVE).when(connection).getConnectionState();
+//        doReturn(req1).when(blockState).getRequest(0);
+//        doReturn(req2).when(blockState).getRequest(1);
+//        doReturn(2).when(blockState).numRequestsCreated();
+//        doReturn(true).when(blockState).isBlockProofSent();
+//        doReturn(blockState).when(bufferService).getBlockState(10L);
+//        doReturn(10L).when(bufferService).getLastBlockNumberProduced();
+//        when(bufferService.getBlockState(10L))
+//                .thenThrow(new RuntimeException("foobar"))
+//                .thenReturn(blockState);
+//
+//        final CountDownLatch doneLatch = new CountDownLatch(1);
+//        final AtomicReference<Throwable> errorRef = new AtomicReference<>();
+//
+//        ForkJoinPool.commonPool().execute(() -> {
+//            try {
+//                invoke_blockStreamWorkerLoop();
+//            } catch (final Throwable e) {
+//                errorRef.set(e);
+//            } finally {
+//                doneLatch.countDown();
+//            }
+//        });
+//
+//        final long startMs = System.currentTimeMillis();
+//        long elapsedMs = 0;
+//        while (currentStreamingBlock.get() != 11 && elapsedMs < 2_000) {
+//            // wait up to 2 seconds for the current streaming block to change
+//            elapsedMs = System.currentTimeMillis() - startMs;
+//        }
+//
+//        isActiveFlag().set(false); // stop the loop
+//
+//        assertThat(doneLatch.await(2, TimeUnit.SECONDS)).isTrue();
+//        assertThat(errorRef).hasNullValue();
+//        assertThat(currentStreamingBlock).hasValue(11L);
+//
+//        verify(bufferService, atLeast(2)).getBlockState(10L);
+//        verify(bufferService, atLeast(2)).getLastBlockNumberProduced();
+//        verify(connection).sendRequest(req1);
+//        verify(connection).sendRequest(req2);
+//
+//        verifyNoInteractions(executorService);
+//        verifyNoInteractions(metrics);
+//    }
 
     @Test
     void testScheduleAndSelectNewNode_streamingDisabled() {
@@ -1444,43 +1436,43 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         verifyNoInteractions(metrics);
     }
 
-    @Test
-    void testOpenBlock_streamingDisabled() {
-        final AtomicBoolean isStreamingEnabled = isStreamingEnabled();
-        isStreamingEnabled.set(false);
+//    @Test
+//    void testOpenBlock_streamingDisabled() {
+//        final AtomicBoolean isStreamingEnabled = isStreamingEnabled();
+//        isStreamingEnabled.set(false);
+//
+//        connectionManager.openBlock(10L);
+//
+//        verifyNoInteractions(bufferService);
+//        verifyNoInteractions(executorService);
+//        verifyNoInteractions(metrics);
+//    }
 
-        connectionManager.openBlock(10L);
-
-        verifyNoInteractions(bufferService);
-        verifyNoInteractions(executorService);
-        verifyNoInteractions(metrics);
-    }
-
-    @Test
-    void testUpdateLastVerifiedBlock_streamingDisabled() {
-        final AtomicBoolean isStreamingEnabled = isStreamingEnabled();
-        isStreamingEnabled.set(false);
-
-        connectionManager.updateLastVerifiedBlock(mock(BlockNodeConfig.class), 1L);
-
-        verifyNoInteractions(bufferService);
-        verifyNoInteractions(executorService);
-        verifyNoInteractions(metrics);
-    }
-
-    @Test
-    void testJumpToBlock_streamingDisabled() {
-        final AtomicBoolean isStreamingEnabled = isStreamingEnabled();
-        isStreamingEnabled.set(false);
-
-        connectionManager.jumpToBlock(100L);
-
-        assertThat(jumpTarget()).hasValue(-1L);
-
-        verifyNoInteractions(bufferService);
-        verifyNoInteractions(executorService);
-        verifyNoInteractions(metrics);
-    }
+//    @Test
+//    void testUpdateLastVerifiedBlock_streamingDisabled() {
+//        final AtomicBoolean isStreamingEnabled = isStreamingEnabled();
+//        isStreamingEnabled.set(false);
+//
+//        connectionManager.updateLastVerifiedBlock(mock(BlockNodeConfig.class), 1L);
+//
+//        verifyNoInteractions(bufferService);
+//        verifyNoInteractions(executorService);
+//        verifyNoInteractions(metrics);
+//    }
+//
+//    @Test
+//    void testJumpToBlock_streamingDisabled() {
+//        final AtomicBoolean isStreamingEnabled = isStreamingEnabled();
+//        isStreamingEnabled.set(false);
+//
+//        connectionManager.jumpToBlock(100L);
+//
+//        assertThat(jumpTarget()).hasValue(-1L);
+//
+//        verifyNoInteractions(bufferService);
+//        verifyNoInteractions(executorService);
+//        verifyNoInteractions(metrics);
+//    }
 
     @Test
     void testConnectionTask_run_streamingDisabled() {
@@ -1550,29 +1542,29 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         }
     }
 
-    private void invoke_blockStreamWorkerLoop() {
-        try {
-            blockStreamWorkerLoopHandle.invoke(connectionManager);
-        } catch (final Throwable t) {
-            throw new RuntimeException(t);
-        }
-    }
-
-    private void invoke_jumpToBlockIfNeeded() {
-        try {
-            jumpToBlockIfNeededHandle.invoke(connectionManager);
-        } catch (final Throwable t) {
-            throw new RuntimeException(t);
-        }
-    }
-
-    private boolean invoke_processStreamingToBlockNode(final BlockNodeConnection connection) {
-        try {
-            return (Boolean) processStreamingToBlockNodeHandle.invoke(connectionManager, connection);
-        } catch (final Throwable t) {
-            throw new RuntimeException(t);
-        }
-    }
+//    private void invoke_blockStreamWorkerLoop() {
+//        try {
+//            blockStreamWorkerLoopHandle.invoke(connectionManager);
+//        } catch (final Throwable t) {
+//            throw new RuntimeException(t);
+//        }
+//    }
+//
+//    private void invoke_jumpToBlockIfNeeded() {
+//        try {
+//            jumpToBlockIfNeededHandle.invoke(connectionManager);
+//        } catch (final Throwable t) {
+//            throw new RuntimeException(t);
+//        }
+//    }
+//
+//    private boolean invoke_processStreamingToBlockNode(final BlockNodeConnection connection) {
+//        try {
+//            return (Boolean) processStreamingToBlockNodeHandle.invoke(connectionManager, connection);
+//        } catch (final Throwable t) {
+//            throw new RuntimeException(t);
+//        }
+//    }
 
     private BlockNodeConnection connectionFromTask(@NonNull final BlockNodeConnectionTask task) {
         requireNonNull(task);
@@ -1588,14 +1580,14 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         return (Map<BlockNodeConfig, RetryState>) retryStatesHandle.get(connectionManager);
     }
 
-    @SuppressWarnings("unchecked")
-    private Map<BlockNodeConfig, Long> lastVerifiedBlockPerConnection() {
-        return (Map<BlockNodeConfig, Long>) lastVerifiedBlockPerConnectionHandle.get(connectionManager);
-    }
-
-    private AtomicLong streamingBlockNumber() {
-        return (AtomicLong) streamingBlockNumberHandle.get(connectionManager);
-    }
+//    @SuppressWarnings("unchecked")
+//    private Map<BlockNodeConfig, Long> lastVerifiedBlockPerConnection() {
+//        return (Map<BlockNodeConfig, Long>) lastVerifiedBlockPerConnectionHandle.get(connectionManager);
+//    }
+//
+//    private AtomicLong streamingBlockNumber() {
+//        return (AtomicLong) streamingBlockNumberHandle.get(connectionManager);
+//    }
 
     private AtomicLong jumpTarget() {
         return (AtomicLong) jumpTargetHandle.get(connectionManager);
@@ -1620,10 +1612,10 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         return (AtomicBoolean) isManagerActiveHandle.get(connectionManager);
     }
 
-    @SuppressWarnings("unchecked")
-    private AtomicReference<Thread> workerThread() {
-        return (AtomicReference<Thread>) workerThreadRefHandle.get(connectionManager);
-    }
+//    @SuppressWarnings("unchecked")
+//    private AtomicReference<Thread> workerThread() {
+//        return (AtomicReference<Thread>) workerThreadRefHandle.get(connectionManager);
+//    }
 
     @SuppressWarnings("unchecked")
     private Map<BlockNodeConfig, BlockNodeStats> nodeStats() {

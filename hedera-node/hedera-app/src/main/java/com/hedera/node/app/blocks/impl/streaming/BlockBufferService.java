@@ -316,10 +316,8 @@ public class BlockBufferService {
         }
 
         final BlockState existingBlock = blockBuffer.get(blockNumber);
-        if (existingBlock != null && existingBlock.isBlockProofSent()) {
-            logger.error("Attempted to open block {}, but this block already has the block proof sent", blockNumber);
-            throw new IllegalStateException("Attempted to open block " + blockNumber + ", but this block already has "
-                    + "the block proof sent");
+        if (existingBlock != null && existingBlock.isClosed()) {
+            return;
         }
 
         // Create a new block state
@@ -331,7 +329,6 @@ public class BlockBufferService {
         lastProducedBlockNumber.updateAndGet(old -> Math.max(old, blockNumber));
         blockStreamMetrics.recordLatestBlockOpened(blockNumber);
         blockStreamMetrics.recordBlockOpened();
-        blockNodeConnectionManager.openBlock(blockNumber);
     }
 
     /**
@@ -498,14 +495,12 @@ public class BlockBufferService {
         for (final BufferedBlock bufferedBlock : blocks) {
             final BlockState block = new BlockState(bufferedBlock.blockNumber());
             bufferedBlock.block().items().forEach(block::addItem);
-            // create the requests
-            block.processPendingItems(batchSize);
-            if (bufferedBlock.isProofSent()) {
-                // the proof is sent and since it is the last thing in a block, mark all the requests as sent
-                for (int i = 0; i < block.numRequestsCreated(); ++i) {
-                    block.markRequestSent(i);
-                }
-            }
+//            if (bufferedBlock.isProofSent()) {
+//                // the proof is sent and since it is the last thing in a block, mark all the requests as sent
+//                for (int i = 0; i < block.numRequestsCreated(); ++i) {
+//                    block.markRequestSent(i);
+//                }
+//            }
 
             final Timestamp closedTimestamp = bufferedBlock.closedTimestamp();
             final Instant closedInstant = Instant.ofEpochSecond(closedTimestamp.seconds(), closedTimestamp.nanos());
@@ -537,10 +532,6 @@ public class BlockBufferService {
         // collect all closed blocks
         final List<BlockState> blocksToPersist =
                 blockBuffer.values().stream().filter(BlockState::isClosed).toList();
-
-        // ensure all closed blocks have their items packed in requests before writing them out
-        final int batchSize = blockItemBatchSize();
-        blocksToPersist.forEach(block -> block.processPendingItems(batchSize));
 
         try {
             bufferIO.write(blocksToPersist, highestAckedBlockNumber.get());
