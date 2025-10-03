@@ -182,13 +182,14 @@ class HandleHederaNativeOperationsTest {
     @Test
     void createsHollowAccountByDispatching() {
         final var synthLazyCreate = TransactionBody.newBuilder()
-                .cryptoCreateAccount(synthHollowAccountCreation(CANONICAL_ALIAS))
+                .cryptoCreateAccount(synthHollowAccountCreation(CANONICAL_ALIAS, true))
                 .build();
         given(context.payer()).willReturn(A_NEW_ACCOUNT_ID);
 
         when(context.dispatch(any())).thenReturn(cryptoCreateRecordBuilder);
 
         given(cryptoCreateRecordBuilder.status()).willReturn(OK);
+        given(context.configuration()).willReturn(DEFAULT_CONFIG);
 
         final var status = subject.createHollowAccount(CANONICAL_ALIAS);
         assertEquals(OK, status);
@@ -199,12 +200,13 @@ class HandleHederaNativeOperationsTest {
     @Test
     void createsHollowAccountByDispatchingDoesNotThrowErrors() {
         final var synthLazyCreate = TransactionBody.newBuilder()
-                .cryptoCreateAccount(synthHollowAccountCreation(CANONICAL_ALIAS))
+                .cryptoCreateAccount(synthHollowAccountCreation(CANONICAL_ALIAS, true))
                 .build();
         given(context.payer()).willReturn(A_NEW_ACCOUNT_ID);
         given(context.dispatch(assertArg(options -> assertEquals(synthLazyCreate, options.body()))))
                 .willReturn(cryptoCreateRecordBuilder);
         given(cryptoCreateRecordBuilder.status()).willReturn(MAX_ENTITIES_IN_PRICE_REGIME_HAVE_BEEN_CREATED);
+        given(context.configuration()).willReturn(DEFAULT_CONFIG);
 
         final var status = assertDoesNotThrow(() -> subject.createHollowAccount(CANONICAL_ALIAS));
         assertThat(status).isEqualTo(MAX_ENTITIES_IN_PRICE_REGIME_HAVE_BEEN_CREATED);

@@ -34,13 +34,6 @@ on:
         default: ""
         type: string
         description: 'Add props to application.properties, e.g. "blockStream.streamMode=RECORDS". Newline is "\n"'
-      # For Adhoc runs, we use Chicago:                 k8s.pft.chi.lat.ope.eng.hashgraph.io
-      # For official Single Day tests, we use Dallas:   k8s.pft.dal.lat.ope.eng.hashgraph.io
-      kubernetes-cluster:
-        required: true
-        default: "k8s.pft.chi.lat.ope.eng.hashgraph.io"
-        type: string
-        description: "Kubernetes cluster to run"
       add-settings:
         required: false
         default: ""
@@ -60,6 +53,9 @@ on:
       slack-report-webhook:
         required: true
         description: "Slack webhook for SDPT outputs notifications"
+      rootly-api-token:
+        required: true
+        description: "The rootly api token used for reporting"
     outputs:
       result:
         description: "Result of the SDPT Run"
@@ -77,16 +73,16 @@ env:
   GS_ROOT_DIR: gs://performance-engineering-reports/ephemeral/test_runs
   GS_ROOT_HTTPS: https://perf.analytics.eng.hashgraph.io/ephemeral/test_runs
   #Release version from jFrog
-  NLG_VERSION: 0.6.2
+  NLG_VERSION: 0.7.0
 
   #Thresholds for performance
   #benchmarks
   #CryptoTransfer   HCS   NftTransfer SmartContract HeliSwap CryptoBenchMerkleDb
-  #         20398 23374         12078          8259     1187               20023
+  #         20398 23374         12078          8259     1187               27818
   #-15%
-  #         17338 19867         10266          7020     1008               17019
+  #         17338 19867         10266          7020     1008               23645
   MinNFTscore: 10266
-  MinMerkleDBscore: 17019
+  MinMerkleDBscore: 23645
   MinHCSLoadTest: 19867
   MinCryptoTransferLoadTest: 17338
   MinHeliSwapLoadTest: 1008
@@ -102,6 +98,7 @@ jobs:
       namespace: ${{ steps.set-namespace.outputs.namespace }}
       run-hcn-version: ${{ steps.set-namespace.outputs.run-hcn-version }}
       commit-sha: ${{ steps.hederahash.outputs.sha }}
+      kubernetes-cluster: ${{ steps.set-k8s-cluster.outputs.kubernetes-cluster }}
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
@@ -112,6 +109,16 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           ref: ${{ inputs.ref }}
+
+      - name: Check Test Asset
+        id: set-k8s-cluster
+        run: |
+          K8S_CLUSTER="k8s.pft.dal.lat.ope.eng.hashgraph.io"
+          if [[ "${{ inputs.test-asset }}" =~ ^AdHoc(SD)?[0-9]+$ ]]; then
+            K8S_CLUSTER="k8s.pft.chi.lat.ope.eng.hashgraph.io"
+          fi
+          echo "kubernetes-cluster=${K8S_CLUSTER}" >> "${GITHUB_OUTPUT}"
+          echo "kubernetes-cluster=${K8S_CLUSTER}" >> "${GITHUB_STEP_SUMMARY}"
 
       - name: Install KubeCtl
         uses: step-security/setup-kubectl@2edbf6aff97d814e9dc52827498ac51fe972e6d0 # v4.0.0
@@ -136,12 +143,12 @@ jobs:
         with:
           proxy: hashgraph.teleport.sh:443
           token: gh-citr-performance-svcs-bot
-          kubernetes-cluster: ${{ inputs.kubernetes-cluster }}
+          kubernetes-cluster: ${{ steps.set-k8s-cluster.outputs.kubernetes-cluster }}
           certificate-ttl: 168h
 
       - name: Authenticate to Google Cloud
         id: google-auth
-        uses: google-github-actions/auth@ba79af03959ebeac9769e648f473a284504d9193 # v2.1.10
+        uses: step-security/google-github-auth@40f6deebd366f16c782d7a0ad0844e3b96a032a6 # v2.1.10
         with:
           workload_identity_provider: "projects/716789254648/locations/global/workloadIdentityPools/perf-eng-reports-pool/providers/gh-provider"
           service_account: "gh-perf-report-writer@perf-engineering-reports.iam.gserviceaccount.com"
@@ -238,7 +245,7 @@ jobs:
 
       - name: Install Solo
         run: |
-          npm install -g "@hashgraph/solo@${{ inputs.solo-version }}"
+          npm install -g "@hashgraph/solo@${{ inputs.solo-version || 'latest' }}"
 
           # verify the installation
           solo --version
@@ -246,7 +253,7 @@ jobs:
       - name: Deploy with Solo
         env:
           NAMESPACE_ALIAS: ${{ inputs.test-asset }}
-          CONTEXT: hashgraph.teleport.sh-${{ inputs.kubernetes-cluster }}
+          CONTEXT: hashgraph.teleport.sh-${{ steps.set-k8s-cluster.outputs.kubernetes-cluster }}
         run: |
           set +x
           set +e
@@ -571,7 +578,7 @@ jobs:
           exit ${ec}
 
       - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@ba79af03959ebeac9769e648f473a284504d9193 # v2.1.10
+        uses: step-security/google-github-auth@40f6deebd366f16c782d7a0ad0844e3b96a032a6 # v2.1.10
         with:
           workload_identity_provider: "projects/716789254648/locations/global/workloadIdentityPools/perf-eng-reports-pool/providers/gh-provider"
           service_account: "gh-perf-report-writer@perf-engineering-reports.iam.gserviceaccount.com"
@@ -675,12 +682,12 @@ jobs:
         with:
           proxy: hashgraph.teleport.sh:443
           token: gh-citr-performance-svcs-bot
-          kubernetes-cluster: ${{ inputs.kubernetes-cluster }}
+          kubernetes-cluster: ${{ needs.performance-tests-start.outputs.kubernetes-cluster }}
           certificate-ttl: 20h
 
       - name: Authenticate to Google Cloud
         id: google-auth
-        uses: google-github-actions/auth@ba79af03959ebeac9769e648f473a284504d9193 # v2.1.10
+        uses: step-security/google-github-auth@40f6deebd366f16c782d7a0ad0844e3b96a032a6 # v2.1.10
         with:
           workload_identity_provider: "projects/716789254648/locations/global/workloadIdentityPools/perf-eng-reports-pool/providers/gh-provider"
           service_account: "gh-perf-report-writer@perf-engineering-reports.iam.gserviceaccount.com"
@@ -858,11 +865,11 @@ jobs:
         with:
           proxy: hashgraph.teleport.sh:443
           token: gh-citr-performance-svcs-bot
-          kubernetes-cluster: ${{ inputs.kubernetes-cluster }}
+          kubernetes-cluster: ${{ needs.performance-tests-start.outputs.kubernetes-cluster }}
           certificate-ttl: 20h
 
       - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@ba79af03959ebeac9769e648f473a284504d9193 # v2.1.10
+        uses: step-security/google-github-auth@40f6deebd366f16c782d7a0ad0844e3b96a032a6 # v2.1.10
         with:
           workload_identity_provider: "projects/716789254648/locations/global/workloadIdentityPools/perf-eng-reports-pool/providers/gh-provider"
           service_account: "gh-perf-report-writer@perf-engineering-reports.iam.gserviceaccount.com"
@@ -994,7 +1001,7 @@ jobs:
           grep -E 'Finished .*Test' "${{ github.workspace }}"/report/client.log | sed -e 's/^.*Finished \([A-Za-z0-9][A-ZA-z0-9]*LoadTest\).*TPS[\:][ \t]*\([0-9][0-9]*\)$/value=\2/g'
 
       - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@ba79af03959ebeac9769e648f473a284504d9193 # v2.1.10
+        uses: step-security/google-github-auth@40f6deebd366f16c782d7a0ad0844e3b96a032a6 # v2.1.10
         with:
           workload_identity_provider: "projects/716789254648/locations/global/workloadIdentityPools/perf-eng-reports-pool/providers/gh-provider"
           service_account: "gh-perf-report-writer@perf-engineering-reports.iam.gserviceaccount.com"
@@ -1037,12 +1044,12 @@ jobs:
       - name: Extract benchmark score of CryptoBenchMerkleDb test
         id: CryptoBenchMerkleDbLogs
         run: |
-          result="$(grep 'CryptoBench.transferPrefetch' "${{ github.workspace }}"/report/swirlds-benchmarks.log | tail -n 1 | awk '{print $9}' | awk -F \. '{print $1}')"
+          result=$(grep 'Total transactions:' "${{ github.workspace }}"/report/swirlds-benchmarks.log | tail -n 1 | awk '{print $NF}')
           echo "value=${result}" >> $GITHUB_OUTPUT
           echo "value=${result}"
 
       - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@ba79af03959ebeac9769e648f473a284504d9193 # v2.1.10
+        uses: step-security/google-github-auth@40f6deebd366f16c782d7a0ad0844e3b96a032a6 # v2.1.10
         with:
           workload_identity_provider: "projects/716789254648/locations/global/workloadIdentityPools/perf-eng-reports-pool/providers/gh-provider"
           service_account: "gh-perf-report-writer@perf-engineering-reports.iam.gserviceaccount.com"
@@ -1290,7 +1297,7 @@ jobs:
         uses: pandaswhocode/rootly-alert-action@fdae1529e5aed62040016accf719a0ceb7dae57f # v1.0.0
         continue-on-error: true
         with:
-          api_key: ${{ secrets.ROOTLY_API_TOKEN }}
+          api_key: ${{ secrets.rootly-api-token}}
           summary: ${{ steps.rootly-summary.outputs.title }}
           details: ${{ steps.rootly-summary.outputs.summary }}
           notification_target_type: "Service"
@@ -1300,22 +1307,6 @@ jobs:
           external_id: ${{ github.run_id }}
           external_url: "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
           environments: "CITR"
-
-      - name: Create Rootly Incident
-        if: ${{ steps.check-test-asset.outputs.is-adhoc == 'false' }}
-        uses: pandaswhocode/rootly-incident-action@4327542435bb4c8c48f15fba47efb87a28f8533f # v2.0.1
-        with:
-          api_key: ${{ secrets.ROOTLY_API_TOKEN }}
-          title: ${{ steps.rootly-summary.outputs.title }}
-          kind: "normal"
-          create_public_incident: "false"
-          summary: ${{ steps.rootly-summary.outputs.summary }}
-          severity: "Triage Event"
-          alert_ids: ${{ steps.rootly-alert.outputs.alert_ids }} || '' }}
-          environments: "CITR"
-          incident_types: "Performance Engineering,Platform CI"
-          services: ${{ steps.set-rootly-service.outputs.service }}
-          teams: "Performance Engineering,Platform CI"
 
   performance-report-to-slack:
     runs-on: hiero-citr-linux-medium
@@ -1352,7 +1343,6 @@ jobs:
       - name: Build Slack Payload Message
         id: payload
         run: |
-
           report="\
             NftTransferLoadTest ${{ needs.performance-NftTransferLoadTest-report.outputs.NFTscore }} ${{ env.MinNFTscore }}\n\
             CryptoBench ${{ needs.performance-NftTransferLoadTest-report.outputs.MerkleDBscore }} ${{ env.MinMerkleDBscore }}\n\
@@ -1364,7 +1354,7 @@ jobs:
           # use back-ticks for proper substitution in the json report
           freport=`/usr/bin/echo -e "$report" | awk '{print $1" "$2" "$3}' |\
             perl -ne 'if ($. < 6) {$comma=","} else {$comma="";} ($t,$d,$l)=split(/\s+/,$_,3); $p=int(($d-$l)/100); \
-            $excl=""; if ($p<=0) {$excl="\\\u2757";}
+            $excl=""; if ($d <= $l) {$excl="\\\u2757";}
             printf("{\"type\": \"text\",\"text\": \"%-25s %7d     %5d%% %7d %s\\\n\"}%s",$t,$d,$p,$l,$excl,$comma);'`
           freport="{\"type\": \"text\",\"text\": \"Name                          TPS         Above min\n\"},$freport"
 

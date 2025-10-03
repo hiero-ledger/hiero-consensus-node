@@ -3,11 +3,13 @@ package com.hedera.node.app.service.networkadmin.impl.test;
 
 import static com.hedera.node.app.service.networkadmin.impl.schemas.V0490FreezeSchema.FREEZE_TIME_KEY;
 import static com.hedera.node.app.service.networkadmin.impl.schemas.V0490FreezeSchema.UPGRADE_FILE_HASH_KEY;
+import static com.hedera.node.app.service.networkadmin.impl.schemas.V0490FreezeSchema.UPGRADE_FILE_HASH_STATE_ID;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.Mockito.verify;
 
+import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.node.app.fixtures.state.FakeSchemaRegistry;
 import com.hedera.node.app.fixtures.state.FakeState;
 import com.hedera.node.app.service.networkadmin.FreezeService;
@@ -26,6 +28,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class FreezeServiceImplTest {
+
     @Mock
     private SchemaRegistry registry;
 
@@ -51,7 +54,7 @@ class FreezeServiceImplTest {
     @Test
     void registersExpectedSchema() {
         final var subject = new FreezeServiceImpl();
-        ArgumentCaptor<Schema> schemaCaptor = ArgumentCaptor.forClass(Schema.class);
+        ArgumentCaptor<Schema<SemanticVersion>> schemaCaptor = ArgumentCaptor.forClass(Schema.class);
 
         subject.registerSchemas(registry);
         verify(registry).register(schemaCaptor.capture());
@@ -74,7 +77,7 @@ class FreezeServiceImplTest {
         subject.registerSchemas(registry);
         registry.migrate(FreezeService.NAME, state, startupNetworks);
         final var upgradeFileHashKeyState =
-                state.getReadableStates(FreezeService.NAME).getSingleton(UPGRADE_FILE_HASH_KEY);
+                state.getReadableStates(FreezeService.NAME).getSingleton(UPGRADE_FILE_HASH_STATE_ID);
         assertNull(upgradeFileHashKeyState.get());
     }
 }

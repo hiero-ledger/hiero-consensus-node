@@ -28,6 +28,20 @@ public class YahcliVerbs {
     private static final Pattern REWARD_RATE_PATTERN = Pattern.compile("Reward rate of\\s+(\\d+)");
     private static final Pattern PER_NODE_STAKE_PATTERN = Pattern.compile("staked to node\\d+ for\\s+(\\d+)");
     private static final Pattern BALANCE_PATTERN = Pattern.compile("balance credit of\\s+(\\d+)");
+    private static final Pattern NEW_NODE_STAKE_PATTERN =
+            Pattern.compile("SUCCESS - account \\d+\\.\\d+\\.\\d+ updated, now staked to NODE (\\d+)");
+    private static final Pattern NEW_ACCOUNT_STAKE_PATTERN =
+            Pattern.compile("SUCCESS - account \\d+\\.\\d+\\.\\d+ updated, now staked to ACCOUNT \\d+\\.\\d+\\.(\\d+)");
+    private static final Pattern NEW_KEY_PATTERN = Pattern.compile("The public key is:\\s*([a-fA-F0-9]+)");
+    private static final Pattern KEY_PRINT_PATTERN = Pattern.compile("The public key @ [^ ]+ is *:\\s*([a-fA-F0-9]+)");
+    private static final Pattern FILE_HASH_PATTERN =
+            Pattern.compile("The SHA-384 hash of the software-zip is:\n([a-f0-9]+)");
+    private static final Pattern PUBLIC_KEY_PATTERN = Pattern.compile("public key .+ is: ([a-fA-F0-9]+)");
+    private static final Pattern SCHEDULE_FREEZE_PATTERN =
+            Pattern.compile("freeze scheduled for (\\d{4}-\\d{2}-\\d{2}\\.\\d{2}:\\d{2}:\\d{2})");
+    private static final Pattern ABORT_FREEZE_PATTERN =
+            Pattern.compile("freeze aborted and/or staged upgrade discarded");
+    private static final Pattern SCHEDULE_ID_PATTERN = Pattern.compile(" with schedule ID (\\d+\\.\\d+\\.\\d+)");
 
     public static final AtomicReference<String> DEFAULT_CONFIG_LOC = new AtomicReference<>();
     public static final AtomicReference<String> DEFAULT_WORKING_DIR = new AtomicReference<>();
@@ -47,6 +61,57 @@ public class YahcliVerbs {
         return new YahcliCallOperation(prepend(args, "accounts"));
     }
 
+    public static YahcliCallOperation yahcliSystemFile(@NonNull final String... args) {
+        requireNonNull(args);
+        return new YahcliCallOperation(prepend(args, "sysfiles"));
+    }
+
+    /**
+     * Returns an operation that invokes a yahcli {@code keys} subcommand with the given args,
+     * taking the config location and working directory from defaults if not overridden.
+     *
+     * @param args the arguments to pass to the keys subcommand
+     * @return the operation that will execute the keys subcommand
+     */
+    public static YahcliCallOperation yahcliKey(@NonNull final String... args) {
+        requireNonNull(args);
+        return new YahcliCallOperation(prepend(args, "keys"));
+    }
+
+    /**
+     * Returns an operation that invokes a yahcli {@code schedule} subcommand with the given args,
+     * taking the config location and working directory from defaults if not overridden.
+     *
+     * @param args the arguments to pass to the schedule subcommand
+     * @return the operation that will execute the schedule subcommand
+     */
+    public static YahcliCallOperation yahcliScheduleSign(@NonNull final String... args) {
+        requireNonNull(args);
+        return new YahcliCallOperation(prepend(args, "schedule"));
+    }
+
+    /**
+     * Returns an operation that invokes a yahcli {@code freeze} subcommand with the given args,
+     *
+     * @param args the arguments to pass to the freeze subcommand
+     * @return the operation that will execute the freeze subcommand
+     */
+    public static YahcliCallOperation yahcliFreezeOnly(@NonNull final String... args) {
+        requireNonNull(args);
+        return new YahcliCallOperation(prepend(args, "freeze"));
+    }
+
+    /**
+     * Returns an operation that invokes a yahcli {@code freeze-abort} subcommand with the given args,
+     *
+     * @param args the arguments to pass to the freeze-abort subcommand
+     * @return the operation that will execute the freeze-abort subcommand
+     */
+    public static YahcliCallOperation yahcliFreezeAbort(@NonNull final String... args) {
+        requireNonNull(args);
+        return new YahcliCallOperation(prepend(args, "freeze-abort"));
+    }
+
     /**
      * Returns an operation that invokes a yahcli {@code ivy} subcommand with the given args,
      * taking the config location and working directory from defaults if not overridden.
@@ -55,6 +120,16 @@ public class YahcliVerbs {
     public static YahcliCallOperation yahcliIvy(@NonNull final String... args) {
         requireNonNull(args);
         return new YahcliCallOperation(prepend(args, "ivy"));
+    }
+
+    /**
+     * Returns an operation that invokes a yahcli {@code ivy} subcommand with the given args,
+     * taking the config location and working directory from defaults if not overridden.
+     * @return the operation
+     */
+    public static YahcliCallOperation yahcliKeys(@NonNull final String... args) {
+        requireNonNull(args);
+        return new YahcliCallOperation(prepend(args, "keys"));
     }
 
     /**
@@ -96,6 +171,37 @@ public class YahcliVerbs {
      */
     public static YahcliScenariosConfigOperation deleteYahcliScenariosConfig() {
         return new YahcliScenariosConfigOperation(true, null, null);
+    }
+
+    /**
+     * Returns an operation that invokes a yahcli {@code freeze-upgrade} subcommand with the given args,
+     *
+     * @param args the arguments to pass to the freeze-upgrade subcommand
+     * @return the operation that will execute the freeze-upgrade subcommand
+     */
+    public static YahcliCallOperation yahcliFreezeUpgrade(@NonNull final String... args) {
+        requireNonNull(args);
+        return new YahcliCallOperation(prepend(args, "freeze-upgrade"));
+    }
+
+    /**
+     * Returns an operation that invokes a yahcli {@code prepare-upgrade} subcommand with the given args,
+     * taking the config location and working directory from defaults if not overridden.
+     * @return the operation
+     */
+    public static YahcliCallOperation yahcliPrepareUpgrade(@NonNull final String... args) {
+        requireNonNull(args);
+        return new YahcliCallOperation(prepend(args, "prepare-upgrade"));
+    }
+
+    /**
+     * Returns an operation that invokes a yahcli {@code sysfiles} subcommand with the given args,
+     * taking the config location and working directory from defaults if not overridden.
+     * @return the operation
+     */
+    public static YahcliCallOperation yahcliSysFiles(@NonNull final String... args) {
+        requireNonNull(args);
+        return new YahcliCallOperation(prepend(args, "sysfiles"));
     }
 
     /**
@@ -159,6 +265,17 @@ public class YahcliVerbs {
         };
     }
 
+    public static Consumer<String> newFileHashCapturer(@NonNull final Consumer<String> cb) {
+        return output -> {
+            final var m = Pattern.compile(FILE_HASH_PATTERN.pattern()).matcher(output);
+            if (m.find()) {
+                cb.accept(m.group(1));
+            } else {
+                Assertions.fail("Expected '" + output + "' to contain " + FILE_HASH_PATTERN.pattern() + "'");
+            }
+        };
+    }
+
     /**
      * Returns a callback that will parse multiple account balances in the output, and pass the
      * balances—keyed by account number—to a callback
@@ -215,6 +332,130 @@ public class YahcliVerbs {
 
     // Note: denom can be hbar|kilobar|tinybar or a token number
     public record CryptoTransferOutput(long amount, String denom, long toAcctNum) {}
+
+    /**
+     * Returns a callback that will look for a line indicating the staking of an account to a node,
+     * and pass the new staked node ID to the given callback.
+     * @param cb the callback to capture the new staked node ID
+     * @return the output consumer
+     */
+    public static Consumer<String> newStakedNodeCapturer(@NonNull final LongConsumer cb) {
+        return output -> extractAndAcceptValue(output, NEW_NODE_STAKE_PATTERN, cb);
+    }
+
+    /**
+     * Returns a callback that will look for a line indicating the staking of an account to an account,
+     * and pass the new staked account ID to the given callback.
+     * @param cb the callback to capture the new staked account ID
+     * @return the output consumer
+     */
+    public static Consumer<String> newStakedAccountCapturer(@NonNull final LongConsumer cb) {
+        return output -> extractAndAcceptValue(output, NEW_ACCOUNT_STAKE_PATTERN, cb);
+    }
+
+    /**
+     * Returns a callback that will look for a line indicating the creation of a new key,
+     * and pass the new key to the given callback.
+     * @param cb the callback to capture the new key
+     * @return the output consumer
+     */
+    public static Consumer<String> newKeyCapturer(@NonNull final Consumer<String> cb) {
+        return output -> {
+            final var m = NEW_KEY_PATTERN.matcher(output);
+            if (m.find()) {
+                cb.accept(m.group(1));
+            } else {
+                Assertions.fail("Expected '" + output + "' to contain '" + NEW_KEY_PATTERN.pattern() + "'");
+            }
+        };
+    }
+
+    /**
+     * Returns a callback that will look for a line indicating the printing of a key,
+     * and pass the printed key to the given callback.
+     * @param cb the callback to capture the printed key
+     * @return the output consumer
+     */
+    public static Consumer<String> keyPrintCapturer(@NonNull final Consumer<String> cb) {
+        return output -> {
+            final var m = KEY_PRINT_PATTERN.matcher(output);
+            if (m.find()) {
+                cb.accept(m.group(1));
+            } else {
+                Assertions.fail("Expected '" + output + "' to contain '" + KEY_PRINT_PATTERN.pattern() + "'");
+            }
+        };
+    }
+
+    /**
+     * Returns a callback that will look for a line containing public key information,
+     * and pass the extracted public key to the given callback.
+     *
+     * @param cb the callback to capture the extracted public key
+     * @return the output consumer that processes public key information from command output
+     */
+    public static Consumer<String> publicKeyCapturer(@NonNull final Consumer<String> cb) {
+        return output -> {
+            final var m = PUBLIC_KEY_PATTERN.matcher(output);
+            if (m.find()) {
+                cb.accept(m.group(1));
+            } else {
+                Assertions.fail("Expected '" + output + "' to contain '" + PUBLIC_KEY_PATTERN.pattern() + "'");
+            }
+        };
+    }
+
+    /**
+     * Returns a callback that will look for a line containing scheduled freeze information,
+     * and pass the extracted freeze date to the given callback.
+     *
+     * @param cb the callback to capture the extracted freeze date
+     * @return the output consumer that processes freeze scheduling information from command output
+     */
+    public static Consumer<String> scheduleFreezeCapturer(@NonNull final Consumer<String> cb) {
+        return output -> {
+            final var m = SCHEDULE_FREEZE_PATTERN.matcher(output);
+            if (m.find()) {
+                cb.accept(m.group(1));
+            } else {
+                Assertions.fail("Expected '" + output + "' to contain '" + SCHEDULE_FREEZE_PATTERN.pattern() + "'");
+            }
+        };
+    }
+
+    /**
+     * Returns a callback that will verify if a freeze abort message is present in the output,
+     * and notifies the given callback when found.
+     *
+     * @return the output consumer that processes freeze abort information from command output
+     */
+    public static Consumer<String> freezeAbortIsSuccessful() {
+        return output -> {
+            final var m = ABORT_FREEZE_PATTERN.matcher(output);
+            if (!m.find()) {
+                Assertions.fail("Expected '" + output + "' to contain '" + ABORT_FREEZE_PATTERN.pattern() + "'");
+            }
+        };
+    }
+
+    /**
+     * Returns a callback that extracts the schedule ID from command output.
+     * The callback looks for a pattern matching a schedule ID (format: N.N.N) in the output
+     * and passes the extracted ID to the provided consumer.
+     *
+     * @param cb the consumer that will receive the extracted schedule ID
+     * @return an output consumer that processes and extracts schedule IDs from command output
+     */
+    public static Consumer<String> scheduleIdCapturer(@NonNull final Consumer<String> cb) {
+        return output -> {
+            final var m = SCHEDULE_ID_PATTERN.matcher(output);
+            if (m.find()) {
+                cb.accept(m.group(1));
+            } else {
+                Assertions.fail("Expected '" + output + "' to contain '" + SCHEDULE_FREEZE_PATTERN.pattern() + "'");
+            }
+        };
+    }
 
     /**
      * Prepend the given strings to the front of the given array.

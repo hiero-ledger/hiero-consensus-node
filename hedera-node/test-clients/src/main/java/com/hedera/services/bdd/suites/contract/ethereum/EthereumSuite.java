@@ -92,6 +92,7 @@ import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
 import static org.hiero.base.utility.CommonUtils.unhex;
 import static org.hyperledger.besu.datatypes.Address.contractAddress;
 import static org.hyperledger.besu.datatypes.Address.fromHexString;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.esaulpaugh.headlong.abi.Address;
@@ -103,6 +104,8 @@ import com.hedera.node.app.hapi.utils.ethereum.EthTxData.EthTransactionType;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts;
+import com.hedera.services.bdd.spec.dsl.annotations.Contract;
+import com.hedera.services.bdd.spec.dsl.entities.SpecContract;
 import com.hedera.services.bdd.spec.keys.SigControl;
 import com.hedera.services.bdd.spec.queries.meta.HapiGetTxnRecord;
 import com.hedera.services.bdd.spec.transactions.TxnUtils;
@@ -260,7 +263,9 @@ public class EthereumSuite {
                                                                 .toStringUtf8())))
                                         .ethereumHash(ByteString.copyFrom(
                                                 spec.registry().getBytes(ETH_HASH_KEY)))))),
-                getAliasedAccountInfo(SECP_256K1_SOURCE_KEY).has(accountWith().nonce(1L)),
+                getAliasedAccountInfo(SECP_256K1_SOURCE_KEY)
+                        .has(accountWith().nonce(1L))
+                        .hasMaxAutomaticAssociations(-1),
                 getAccountBalance(RECEIVER).hasTinyBars(FIVE_HBARS),
                 getAutoCreatedAccountBalance(SECP_256K1_SOURCE_KEY)
                         .hasTinyBars(changeFromSnapshot(aliasBalanceSnapshot, -FIVE_HBARS)));
@@ -272,23 +277,23 @@ public class EthereumSuite {
         final long noPayment = 0L;
         final long thirdOfFee = GAS_PRICE / 3;
         final long thirdOfPayment = thirdOfFee * chargedGasLimit;
+        final long thirdOfLimit = thirdOfFee * GAS_LIMIT;
         final long fullAllowance = GAS_PRICE * chargedGasLimit * 5 / 4;
+        final long fullPayment = GAS_PRICE * chargedGasLimit;
         final long ninetyPercentFee = GAS_PRICE * 9 / 10;
-        final boolean charged = true;
-        final boolean notCharged = false;
         return Stream.of(
-                        new Object[] {false, noPayment, noPayment, notCharged},
-                        new Object[] {false, noPayment, thirdOfPayment, notCharged},
-                        new Object[] {true, noPayment, fullAllowance, notCharged},
-                        new Object[] {false, thirdOfFee, noPayment, notCharged},
-                        new Object[] {false, thirdOfFee, thirdOfPayment, notCharged},
-                        new Object[] {true, thirdOfFee, fullAllowance, charged},
-                        new Object[] {true, thirdOfFee, fullAllowance * 9 / 10, charged},
-                        new Object[] {false, ninetyPercentFee, noPayment, notCharged},
-                        new Object[] {true, ninetyPercentFee, thirdOfPayment, charged},
-                        new Object[] {true, GAS_PRICE, noPayment, charged},
-                        new Object[] {true, GAS_PRICE, thirdOfPayment, charged},
-                        new Object[] {true, GAS_PRICE, fullAllowance, charged})
+                        new Object[] {false, noPayment, noPayment, noPayment},
+                        new Object[] {false, noPayment, thirdOfPayment, noPayment},
+                        new Object[] {true, noPayment, fullAllowance, noPayment},
+                        new Object[] {false, thirdOfFee, noPayment, noPayment},
+                        new Object[] {false, thirdOfFee, thirdOfPayment, noPayment},
+                        new Object[] {true, thirdOfFee, fullAllowance, thirdOfLimit},
+                        new Object[] {true, thirdOfFee, fullAllowance * 9 / 10, thirdOfLimit},
+                        new Object[] {false, ninetyPercentFee, noPayment, noPayment},
+                        new Object[] {true, ninetyPercentFee, thirdOfPayment, fullPayment},
+                        new Object[] {true, GAS_PRICE, noPayment, fullPayment},
+                        new Object[] {true, GAS_PRICE, thirdOfPayment, fullPayment},
+                        new Object[] {true, GAS_PRICE, fullAllowance, fullPayment})
                 .map(params ->
                         // [0] - success
                         // [1] - sender gas price
@@ -297,7 +302,7 @@ public class EthereumSuite {
                         // relayer charged amount can easily be calculated via
                         // wholeTransactionFee - senderChargedAmount
                         matrixedPayerRelayerTest(
-                                (boolean) params[0], (long) params[1], (long) params[2], (boolean) params[3]))
+                                (boolean) params[0], (long) params[1], (long) params[2], (long) params[3]))
                 .toList();
     }
 
@@ -362,7 +367,7 @@ public class EthereumSuite {
     }
 
     final Stream<DynamicTest> matrixedPayerRelayerTest(
-            final boolean success, final long senderGasPrice, final long relayerOffered, final boolean senderCharged) {
+            final boolean success, final long senderGasPrice, final long relayerOffered, final long senderCharged) {
         return Stream.of(namedHapiTest(
                 "feePaymentMatrix " + (success ? "Success/" : "Failure/") + senderGasPrice + "/" + relayerOffered,
                 newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
@@ -400,15 +405,14 @@ public class EthereumSuite {
 
                     final long wholeTransactionFee =
                             hapiGetTxnRecord.getResponseRecord().getTransactionFee();
-                    final var senderGasCharged = senderCharged ? (gasUsed.get() * GAS_PRICE) : 0;
                     final var subop4 = getAutoCreatedAccountBalance(SECP_256K1_SOURCE_KEY)
-                            .hasTinyBars(changeFromSnapshot(
-                                    senderBalance, success ? (-DEPOSIT_AMOUNT - senderGasCharged) : 0));
+                            .hasTinyBars(
+                                    changeFromSnapshot(senderBalance, success ? (-DEPOSIT_AMOUNT - senderCharged) : 0));
                     // The relayer is not charged with Hapi fee unless the relayed transaction failed
                     final var subop5 = getAccountBalance(RELAYER)
                             .hasTinyBars(changeFromSnapshot(
                                     payerBalance,
-                                    success ? -(wholeTransactionFee - senderGasCharged) : -wholeTransactionFee));
+                                    success ? -(wholeTransactionFee - senderCharged) : -wholeTransactionFee));
                     allRunFor(spec, subop4, subop5);
                 })));
     }
@@ -526,7 +530,9 @@ public class EthereumSuite {
                             .hasTinyBars(unchangedFromSnapshot(senderSnapshot));
                     allRunFor(spec, relayerBalance, senderBalance);
                 }),
-                getAliasedAccountInfo(SECP_256K1_SOURCE_KEY).has(accountWith().nonce(0L)),
+                getAliasedAccountInfo(SECP_256K1_SOURCE_KEY)
+                        .has(accountWith().nonce(0L))
+                        .hasMaxAutomaticAssociations(-1),
                 // But the failing call attempt is rejected at ingest if the relayer's balance is too low
                 getAccountBalance(RELAYER).exposingBalanceTo(balanceRef::set),
                 sourcing(() ->
@@ -672,7 +678,9 @@ public class EthereumSuite {
                                                                 .toStringUtf8())))
                                         .ethereumHash(ByteString.copyFrom(
                                                 spec.registry().getBytes(ETH_HASH_KEY)))))),
-                getAliasedAccountInfo(SECP_256K1_SOURCE_KEY).has(accountWith().nonce(1L)));
+                getAliasedAccountInfo(SECP_256K1_SOURCE_KEY)
+                        .has(accountWith().nonce(1L))
+                        .hasMaxAutomaticAssociations(-1));
     }
 
     @HapiTest
@@ -862,7 +870,9 @@ public class EthereumSuite {
                                                                 .toStringUtf8())))
                                         .ethereumHash(ByteString.copyFrom(
                                                 spec.registry().getBytes(ETH_HASH_KEY)))))),
-                getAliasedAccountInfo(SECP_256K1_SOURCE_KEY).has(accountWith().nonce(1L)),
+                getAliasedAccountInfo(SECP_256K1_SOURCE_KEY)
+                        .has(accountWith().nonce(1L))
+                        .hasMaxAutomaticAssociations(-1),
                 getAccountBalance(RECEIVER).hasTinyBars(FIVE_HBARS),
                 getAutoCreatedAccountBalance(SECP_256K1_SOURCE_KEY)
                         .hasTinyBars(changeFromSnapshot(aliasBalanceSnapshot, -FIVE_HBARS)));
@@ -1030,7 +1040,8 @@ public class EthereumSuite {
                     // assert account nonce is increased to 1
                     var op4 = getAliasedAccountInfo(ByteString.copyFrom(counterAlias.get()))
                             .logged()
-                            .has(accountWith().nonce(1));
+                            .has(accountWith().nonce(1))
+                            .hasMaxAutomaticAssociations(-1);
 
                     allRunFor(spec, op1, op2, op3, op4);
 
@@ -1049,7 +1060,8 @@ public class EthereumSuite {
 
                     var op2 = getAliasedAccountInfo(ByteString.copyFrom(counterAlias.get()))
                             // TBD: balance should be 4 or 2 hbars
-                            .has(accountWith().nonce(0).balance(2 * ONE_HBAR));
+                            .has(accountWith().nonce(0).balance(2 * ONE_HBAR))
+                            .hasMaxAutomaticAssociations(-1);
 
                     allRunFor(spec, op1, op2);
                 }));
@@ -1294,5 +1306,26 @@ public class EthereumSuite {
                         .gasLimit(2_000_000L * -1)
                         .via(PAY_TXN)
                         .hasPrecheck(INVALID_ETHEREUM_TRANSACTION));
+    }
+
+    // Ensuring that the BLS12 precompile is not working before the Pectra support
+    @HapiTest
+    final Stream<DynamicTest> tryBlsPrecompile(@Contract(contract = "PectraTest") SpecContract contract) {
+        return hapiTest(
+                newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
+                cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, ONE_HUNDRED_HBARS)),
+                contract.getInfo(),
+                cryptoCreate(RELAYER).balance(6 * ONE_MILLION_HBARS),
+                ethereumCall(contract.name(), "callBls12")
+                        .payingWith(RELAYER)
+                        .type(EthTransactionType.EIP1559)
+                        .via("bls12"),
+                getTxnRecord("bls12")
+                        .exposingTo(record -> assertArrayEquals(
+                                record.getContractCallResult()
+                                        .getContractCallResult()
+                                        .substring(32)
+                                        .toByteArray(),
+                                new byte[32])));
     }
 }

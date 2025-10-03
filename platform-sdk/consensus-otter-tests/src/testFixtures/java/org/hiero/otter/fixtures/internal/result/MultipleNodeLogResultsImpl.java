@@ -4,7 +4,6 @@ package org.hiero.otter.fixtures.internal.result;
 import static java.util.Collections.unmodifiableList;
 import static java.util.Objects.requireNonNull;
 
-import com.hedera.hapi.platform.state.NodeId;
 import com.swirlds.logging.legacy.LogMarker;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Collection;
@@ -13,13 +12,13 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.stream.Collectors;
+import org.hiero.consensus.model.node.NodeId;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.result.LogSubscriber;
 import org.hiero.otter.fixtures.result.MultipleNodeLogResults;
 import org.hiero.otter.fixtures.result.OtterResult;
 import org.hiero.otter.fixtures.result.SingleNodeLogResult;
 import org.hiero.otter.fixtures.result.SubscriberAction;
-import org.jetbrains.annotations.NotNull;
 
 /**
  * Default implementation of {@link MultipleNodeLogResults}
@@ -79,7 +78,7 @@ public class MultipleNodeLogResultsImpl implements MultipleNodeLogResults {
     public MultipleNodeLogResults suppressingNode(@NonNull final NodeId nodeId) {
         requireNonNull(nodeId, "nodeId cannot be null");
         final List<SingleNodeLogResult> filteredResults = results.stream()
-                .filter(res -> Objects.equals(res.nodeId(), nodeId))
+                .filter(result -> !Objects.equals(result.nodeId(), nodeId))
                 .toList();
 
         return new MultipleNodeLogResultsImpl(filteredResults);
@@ -89,7 +88,7 @@ public class MultipleNodeLogResultsImpl implements MultipleNodeLogResults {
      * {@inheritDoc}
      */
     @Override
-    public @NotNull MultipleNodeLogResults suppressingNodes(@NotNull final Collection<Node> nodes) {
+    public @NonNull MultipleNodeLogResults suppressingNodes(@NonNull final Collection<Node> nodes) {
         final Set<NodeId> nodeIdsToSuppress = nodes.stream().map(Node::selfId).collect(Collectors.toSet());
         final List<SingleNodeLogResult> filtered = results.stream()
                 .filter(result -> !nodeIdsToSuppress.contains(result.nodeId()))

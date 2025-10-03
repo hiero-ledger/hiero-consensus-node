@@ -13,7 +13,6 @@ import java.util.List;
 import java.util.function.Consumer;
 import org.hiero.consensus.model.event.EventConstants;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.model.roster.AddressBook;
 
 /** A type which orchestrates the generation of events and the validation of the consensus output */
 public class ConsensusTestOrchestrator {
@@ -55,12 +54,9 @@ public class ConsensusTestOrchestrator {
     @SuppressWarnings("unused") // useful for debugging
     public void runGui() {
         final ConsensusTestNode node = nodes.stream().findAny().orElseThrow();
-        final AddressBook addressBook =
-                node.getEventEmitter().getGraphGenerator().getAddressBook();
-
         new TestGuiSource(
                         platformContext,
-                        addressBook,
+                        node.getEventEmitter().getGraphGenerator().getRoster(),
                         new ListEventProvider(node.getOutput().getAddedEvents()))
                 .runGui();
     }

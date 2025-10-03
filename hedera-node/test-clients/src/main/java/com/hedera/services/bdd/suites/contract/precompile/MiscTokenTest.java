@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.precompile;
 
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_CONTRACT_ID;
@@ -30,6 +31,7 @@ public class MiscTokenTest {
 
     @HapiTest
     @DisplayName("cannot transfer value to HTS")
+    @Tag(MATS)
     public Stream<DynamicTest> cannotTransferValueToHts() {
         return hapiTest(internalCall
                 .call("isATokenWithCall", fungibleToken)

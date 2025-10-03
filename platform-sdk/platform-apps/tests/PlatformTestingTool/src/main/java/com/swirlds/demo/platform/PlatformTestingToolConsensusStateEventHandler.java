@@ -1153,7 +1153,7 @@ public class PlatformTestingToolConsensusStateEventHandler
             genesisInit(state);
         }
         state.invalidateHash();
-        TestingAppStateInitializer.DEFAULT.initStates(state);
+        TestingAppStateInitializer.DEFAULT.initConsensusModuleStates(state);
 
         // compute hash
         try {

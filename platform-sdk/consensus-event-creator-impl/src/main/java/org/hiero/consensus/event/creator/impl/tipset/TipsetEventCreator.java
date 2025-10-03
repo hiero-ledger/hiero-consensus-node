@@ -24,13 +24,14 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.Signature;
 import org.hiero.consensus.crypto.PbjStreamHasher;
+import org.hiero.consensus.event.creator.EventCreationConfig;
 import org.hiero.consensus.event.creator.impl.EventCreator;
-import org.hiero.consensus.event.creator.impl.config.EventCreationConfig;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.event.UnsignedEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.consensus.model.transaction.EventTransactionSupplier;
 import org.hiero.consensus.roster.RosterUtils;
 
@@ -85,6 +86,16 @@ public class TipsetEventCreator implements EventCreator {
      * Event hasher for unsigned events.
      */
     private final PbjStreamHasher eventHasher;
+
+    /**
+     * Current QuiescenceCommand of the system
+     */
+    private QuiescenceCommand quiescenceCommand = QuiescenceCommand.DONT_QUIESCE;
+
+    /**
+     * We want to allow creation of only one event to break quiescence until normal events starts flowing through
+     */
+    private boolean breakQuiescenceEventCreated;
 
     /**
      * Create a new tipset event creator.
@@ -178,18 +189,41 @@ public class TipsetEventCreator implements EventCreator {
         childlessOtherEventTracker.pruneOldEvents(eventWindow);
     }
 
+    @Override
+    public void quiescenceCommand(@NonNull final QuiescenceCommand quiescenceCommand) {
+        this.quiescenceCommand = Objects.requireNonNull(quiescenceCommand);
+    }
+
     /**
      * {@inheritDoc}
      */
     @Nullable
     @Override
     public PlatformEvent maybeCreateEvent() {
-        final UnsignedEvent event = maybeCreateUnsignedEvent();
+        if (quiescenceCommand == QuiescenceCommand.QUIESCE) {
+            return null;
+        }
+        UnsignedEvent event = maybeCreateUnsignedEvent();
+        if (event != null) {
+            breakQuiescenceEventCreated = false;
+        } else if (quiescenceCommand == QuiescenceCommand.BREAK_QUIESCENCE && !breakQuiescenceEventCreated) {
+            event = createQuiescenceBreakEvent();
+            breakQuiescenceEventCreated = true;
+        }
         if (event != null) {
             lastSelfEvent = signEvent(event);
             return lastSelfEvent;
         }
         return null;
+    }
+
+    /**
+     * For simplicity, we will always create an event based only on single self parent; this is a special rare case
+     * and it will unblock the network
+     * @return new event based only on self parent
+     */
+    private UnsignedEvent createQuiescenceBreakEvent() {
+        return buildAndProcessEvent(null);
     }
 
     @Nullable
@@ -474,8 +508,7 @@ public class TipsetEventCreator implements EventCreator {
     @FunctionalInterface
     public interface HashSigner {
         /**
-         * @param hash
-         * 		the hash to sign
+         * @param hash the hash to sign
          * @return the signature for the hash provided
          */
         Signature sign(Hash hash);

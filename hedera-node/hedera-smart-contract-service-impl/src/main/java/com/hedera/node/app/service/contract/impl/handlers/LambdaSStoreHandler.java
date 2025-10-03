@@ -3,7 +3,6 @@ package com.hedera.node.app.service.contract.impl.handlers;
 
 import static com.hedera.hapi.node.base.HookEntityId.EntityIdOneOfType.ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.EMPTY_LAMBDA_STORAGE_UPDATE;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOK_DELETED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOK_IS_NOT_A_LAMBDA;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOK_NOT_FOUND;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_HOOK_ID;
@@ -11,9 +10,8 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.LAMBDA_STORAGE_UPDATE_B
 import static com.hedera.hapi.node.base.ResponseCodeEnum.LAMBDA_STORAGE_UPDATE_BYTES_TOO_LONG;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOO_MANY_LAMBDA_STORAGE_UPDATES;
 import static com.hedera.hapi.node.state.hooks.EvmHookType.LAMBDA;
-import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.minimalRepresentationOf;
+import static com.hedera.node.app.hapi.utils.contracts.HookUtils.minimalRepresentationOf;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
-import static com.hedera.node.app.spi.workflows.PreCheckException.validateFalsePreCheck;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
 import static java.util.Objects.requireNonNull;
 
@@ -22,7 +20,7 @@ import com.hedera.hapi.node.base.KeyList;
 import com.hedera.hapi.node.base.ThresholdKey;
 import com.hedera.hapi.node.hooks.LambdaMappingEntry;
 import com.hedera.hapi.node.hooks.LambdaStorageSlot;
-import com.hedera.node.app.service.contract.impl.state.ReadableEvmHookStore;
+import com.hedera.node.app.service.contract.ReadableEvmHookStore;
 import com.hedera.node.app.service.contract.impl.state.WritableEvmHookStore;
 import com.hedera.node.app.service.token.api.TokenServiceApi;
 import com.hedera.node.app.spi.workflows.HandleContext;
@@ -40,7 +38,7 @@ import javax.inject.Singleton;
 
 @Singleton
 public class LambdaSStoreHandler implements TransactionHandler {
-    private static final long MAX_UPDATE_BYTES_LEN = 32L;
+    public static final long MAX_UPDATE_BYTES_LEN = 32L;
 
     @Inject
     public LambdaSStoreHandler() {
@@ -78,7 +76,6 @@ public class LambdaSStoreHandler implements TransactionHandler {
         final var store = context.createStore(ReadableEvmHookStore.class);
         final var hook = store.getEvmHook(op.hookIdOrThrow());
         validateTruePreCheck(hook != null, HOOK_NOT_FOUND);
-        validateFalsePreCheck(hook.deleted(), HOOK_DELETED);
         validateTruePreCheck(hook.type() == LAMBDA, HOOK_IS_NOT_A_LAMBDA);
         final var ownerAccountId = hook.hookIdOrThrow().entityIdOrThrow().accountIdOrThrow();
         if (hook.hasAdminKey()) {

@@ -96,6 +96,12 @@ public class SyncPermitProvider {
     private final SyncPermitMetrics metrics;
 
     /**
+     * When enabled, instead of completely reducing number of syncs when system is unhealthy, we will just stop
+     * receiving and processing remote events, while we still continue sending our own events
+     */
+    private final boolean keepSendingEventsWhenUnhealthy;
+
+    /**
      * Constructor.
      *
      * @param platformContext the platform context
@@ -110,6 +116,7 @@ public class SyncPermitProvider {
         permitsRevokedPerSecond = syncConfig.permitsRevokedPerSecond();
         permitsReturnedPerSecond = syncConfig.permitsReturnedPerSecond();
         unhealthyGracePeriod = syncConfig.unhealthyGracePeriod();
+        keepSendingEventsWhenUnhealthy = syncConfig.keepSendingEventsWhenUnhealthy();
 
         setTotalPermits(totalPermits);
 
@@ -159,8 +166,9 @@ public class SyncPermitProvider {
     }
 
     /**
-     * Check if system is healthy from point of view of permits. If it is not, it might be prudent to return long
-     * held permits
+     * Check if system is healthy from point of view of permits. If it is not, it might be prudent to return long held
+     * permits
+     *
      * @return true if system is health and things are going ok
      */
     public synchronized boolean isHealthy() {
@@ -249,9 +257,12 @@ public class SyncPermitProvider {
                 return;
             }
 
-            final Duration unhealthyDuration = Duration.between(statusStartTime, time.now());
-            final double unhealthySeconds = UNIT_NANOSECONDS.convertTo(unhealthyDuration.toNanos(), UNIT_SECONDS);
-            revokedPermitDelta = Math.min(totalPermits, unhealthySeconds * permitsRevokedPerSecond);
+            // we cannot revoke permits if we want to keep sending events
+            if (!keepSendingEventsWhenUnhealthy) {
+                final Duration unhealthyDuration = Duration.between(statusStartTime, time.now());
+                final double unhealthySeconds = UNIT_NANOSECONDS.convertTo(unhealthyDuration.toNanos(), UNIT_SECONDS);
+                revokedPermitDelta = Math.min(totalPermits, unhealthySeconds * permitsRevokedPerSecond);
+            }
 
             if (revokedPermitDelta == totalPermits) {
                 // We have revoked all permits.
@@ -277,9 +288,10 @@ public class SyncPermitProvider {
 
     /**
      * Modify number of total permits
+     *
      * @param totalPermits new number of total permits
      */
-    public synchronized void setTotalPermits(int totalPermits) {
+    public synchronized void setTotalPermits(final int totalPermits) {
         this.totalPermits = totalPermits;
         this.minimumUnrevokedPermitCount =
                 Math.min(Math.max(totalPermits, 1), syncConfig.minimumHealthyUnrevokedPermitCount());
@@ -287,9 +299,10 @@ public class SyncPermitProvider {
 
     /**
      * Set total number of permits to previous number + passed difference
+     *
      * @param permitsDifference positive to add permits, negative to remove permits
      */
-    public synchronized void adjustTotalPermits(int permitsDifference) {
+    public synchronized void adjustTotalPermits(final int permitsDifference) {
         setTotalPermits(Math.max(0, totalPermits + permitsDifference));
     }
 }

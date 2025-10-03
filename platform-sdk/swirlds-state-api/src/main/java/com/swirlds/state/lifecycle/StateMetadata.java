@@ -6,8 +6,6 @@ import static org.hiero.base.utility.CommonUtils.getNormalisedStringBytes;
 import com.hedera.hapi.node.base.SemanticVersion;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.hiero.base.utility.NonCryptographicHashing;
 
 /**
@@ -32,10 +30,9 @@ public final class StateMetadata<K, V> {
     private static final String IN_MEMORY_VALUE_CLASS_ID_SUFFIX = "InMemoryValue";
     private static final String SINGLETON_CLASS_ID_SUFFIX = "SingletonLeaf";
     private static final String QUEUE_NODE_CLASS_ID_SUFFIX = "QueueNode";
-    private static final Logger logger = LogManager.getLogger(StateMetadata.class);
 
     private final String serviceName;
-    private final Schema schema;
+    private final Schema<SemanticVersion> schema;
     private final StateDefinition<K, V> stateDefinition;
     private final long onDiskKeyClassId;
     private final long onDiskKeySerializerClassId;
@@ -53,7 +50,9 @@ public final class StateMetadata<K, V> {
      * @param stateDefinition The {@link StateDefinition}
      */
     public StateMetadata(
-            @NonNull String serviceName, @NonNull Schema schema, @NonNull StateDefinition<K, V> stateDefinition) {
+            @NonNull String serviceName,
+            @NonNull Schema<SemanticVersion> schema,
+            @NonNull StateDefinition<K, V> stateDefinition) {
         this.serviceName = validateServiceName(serviceName);
         this.schema = schema;
         this.stateDefinition = stateDefinition;
@@ -190,14 +189,27 @@ public final class StateMetadata<K, V> {
     }
 
     /**
-     * Computes the label for a merkle node given the service name and state key
+     * Computes the label for a Merkle node given the service name and state key. The label is computed
+     * as "serviceName.stateKey"
      *
-     * @param serviceName The service name
-     * @param stateKey The state key
-     * @return The computed label
+     * @param serviceName the service name
+     * @param stateKey    the state key
+     * @return the computed label
      */
     public static String computeLabel(@NonNull final String serviceName, @NonNull final String stateKey) {
         return Objects.requireNonNull(serviceName) + "." + Objects.requireNonNull(stateKey);
+    }
+
+    /**
+     * Computes the label for a Merkle node given the service name and state ID. The label is computed
+     * as "serviceName.stateId".
+     *
+     * @param serviceName the service name
+     * @param stateId     the state ID
+     * @return the computed label
+     */
+    public static String computeLabel(@NonNull final String serviceName, final int stateId) {
+        return Objects.requireNonNull(serviceName) + "." + stateId;
     }
 
     /**
@@ -235,7 +247,7 @@ public final class StateMetadata<K, V> {
         return serviceName;
     }
 
-    public Schema schema() {
+    public Schema<SemanticVersion> schema() {
         return schema;
     }
 

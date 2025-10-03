@@ -41,15 +41,6 @@ public class ConfigUtils {
         throw new UnsupportedOperationException("Utility Class");
     }
 
-    public static String asId(String entity) {
-        try {
-            int number = Integer.parseInt(entity);
-            return "0.0." + number;
-        } catch (NumberFormatException ignore) {
-        }
-        return entity;
-    }
-
     public static Optional<File> keyFileFor(String keysLoc, String typedNum) {
         return keyFileAt(keysLoc + File.separator + typedNum);
     }

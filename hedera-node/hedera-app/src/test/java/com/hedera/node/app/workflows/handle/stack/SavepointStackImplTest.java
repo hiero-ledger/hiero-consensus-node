@@ -46,6 +46,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class SavepointStackImplTest extends StateTestBase {
+
     private static final String FOOD_SERVICE = "FOOD_SERVICE";
     private static final AccountID PAYER_ID =
             AccountID.newBuilder().accountNum(666L).build();
@@ -79,7 +80,7 @@ class SavepointStackImplTest extends StateTestBase {
 
     @BeforeEach
     void setup() {
-        final var baseKVState = new MapWritableKVState<>(FRUIT_SERVICE_NAME, FRUIT_STATE_KEY, new HashMap<>(BASE_DATA));
+        final var baseKVState = new MapWritableKVState<>(FRUIT_STATE_ID, FRUIT_STATE_LABEL, new HashMap<>(BASE_DATA));
         final var writableStates =
                 MapWritableStates.builder().state(baseKVState).build();
         when(baseState.getReadableStates(FOOD_SERVICE)).thenReturn(writableStates);
@@ -213,8 +214,8 @@ class SavepointStackImplTest extends StateTestBase {
         final var writableStatesStack = stack.getWritableStates(FOOD_SERVICE);
 
         // when
-        writableStatesStack.get(FRUIT_STATE_KEY).put(A_KEY, ACAI);
-        stack.getWritableStates(FOOD_SERVICE).get(FRUIT_STATE_KEY).put(B_KEY, BLUEBERRY);
+        writableStatesStack.get(FRUIT_STATE_ID).put(A_KEY, ACAI);
+        stack.getWritableStates(FOOD_SERVICE).get(FRUIT_STATE_ID).put(B_KEY, BLUEBERRY);
 
         // then
         assertThat(stack.depth()).isEqualTo(1);
@@ -268,11 +269,11 @@ class SavepointStackImplTest extends StateTestBase {
             final var writableStatesStack = stack.getWritableStates(FOOD_SERVICE);
 
             // when
-            writableStatesStack.get(FRUIT_STATE_KEY).put(A_KEY, ACAI);
-            stack.getWritableStates(FOOD_SERVICE).get(FRUIT_STATE_KEY).put(B_KEY, BLUEBERRY);
+            writableStatesStack.get(FRUIT_STATE_ID).put(A_KEY, ACAI);
+            stack.getWritableStates(FOOD_SERVICE).get(FRUIT_STATE_ID).put(B_KEY, BLUEBERRY);
             stack.createSavepoint();
-            writableStatesStack.get(FRUIT_STATE_KEY).put(C_KEY, CRANBERRY);
-            stack.getWritableStates(FOOD_SERVICE).get(FRUIT_STATE_KEY).put(D_KEY, DRAGONFRUIT);
+            writableStatesStack.get(FRUIT_STATE_ID).put(C_KEY, CRANBERRY);
+            stack.getWritableStates(FOOD_SERVICE).get(FRUIT_STATE_ID).put(D_KEY, DRAGONFRUIT);
 
             // then
             assertThat(stack.depth()).isEqualTo(2);
@@ -301,14 +302,14 @@ class SavepointStackImplTest extends StateTestBase {
             final var writableStatesStack = stack.getWritableStates(FOOD_SERVICE);
 
             // when
-            writableStatesStack.get(FRUIT_STATE_KEY).put(A_KEY, ACAI);
-            stack.getWritableStates(FOOD_SERVICE).get(FRUIT_STATE_KEY).put(B_KEY, BLUEBERRY);
+            writableStatesStack.get(FRUIT_STATE_ID).put(A_KEY, ACAI);
+            stack.getWritableStates(FOOD_SERVICE).get(FRUIT_STATE_ID).put(B_KEY, BLUEBERRY);
             stack.createSavepoint();
-            writableStatesStack.get(FRUIT_STATE_KEY).put(C_KEY, CRANBERRY);
-            stack.getWritableStates(FOOD_SERVICE).get(FRUIT_STATE_KEY).put(D_KEY, DRAGONFRUIT);
+            writableStatesStack.get(FRUIT_STATE_ID).put(C_KEY, CRANBERRY);
+            stack.getWritableStates(FOOD_SERVICE).get(FRUIT_STATE_ID).put(D_KEY, DRAGONFRUIT);
             stack.createSavepoint();
-            writableStatesStack.get(FRUIT_STATE_KEY).put(E_KEY, ELDERBERRY);
-            stack.getWritableStates(FOOD_SERVICE).get(FRUIT_STATE_KEY).put(F_KEY, FEIJOA);
+            writableStatesStack.get(FRUIT_STATE_ID).put(E_KEY, ELDERBERRY);
+            stack.getWritableStates(FOOD_SERVICE).get(FRUIT_STATE_ID).put(F_KEY, FEIJOA);
 
             // then
             assertThat(stack.depth()).isEqualTo(3);
@@ -340,8 +341,8 @@ class SavepointStackImplTest extends StateTestBase {
             final var readableStatesStack = stack.getReadableStates(FOOD_SERVICE);
             final var writableStatesStack = stack.getWritableStates(FOOD_SERVICE);
             stack.createSavepoint();
-            writableStatesStack.get(FRUIT_STATE_KEY).put(A_KEY, ACAI);
-            stack.getWritableStates(FOOD_SERVICE).get(FRUIT_STATE_KEY).put(B_KEY, BLUEBERRY);
+            writableStatesStack.get(FRUIT_STATE_ID).put(A_KEY, ACAI);
+            stack.getWritableStates(FOOD_SERVICE).get(FRUIT_STATE_ID).put(B_KEY, BLUEBERRY);
 
             // when
             stack.commit();
@@ -370,13 +371,13 @@ class SavepointStackImplTest extends StateTestBase {
             final var readableStatesStack = stack.getReadableStates(FOOD_SERVICE);
             final var writableStatesStack = stack.getWritableStates(FOOD_SERVICE);
             stack.createSavepoint();
-            writableStatesStack.get(FRUIT_STATE_KEY).put(A_KEY, ACAI);
-            stack.getWritableStates(FOOD_SERVICE).get(FRUIT_STATE_KEY).put(B_KEY, BLUEBERRY);
+            writableStatesStack.get(FRUIT_STATE_ID).put(A_KEY, ACAI);
+            stack.getWritableStates(FOOD_SERVICE).get(FRUIT_STATE_ID).put(B_KEY, BLUEBERRY);
             stack.commit();
 
             // when
-            writableStatesStack.get(FRUIT_STATE_KEY).put(C_KEY, CRANBERRY);
-            stack.getWritableStates(FOOD_SERVICE).get(FRUIT_STATE_KEY).put(D_KEY, DRAGONFRUIT);
+            writableStatesStack.get(FRUIT_STATE_ID).put(C_KEY, CRANBERRY);
+            stack.getWritableStates(FOOD_SERVICE).get(FRUIT_STATE_ID).put(D_KEY, DRAGONFRUIT);
 
             // then
             assertThat(stack.depth()).isEqualTo(1);
@@ -404,14 +405,14 @@ class SavepointStackImplTest extends StateTestBase {
             final var readableStatesStack = stack.getReadableStates(FOOD_SERVICE);
             final var writableStatesStack = stack.getWritableStates(FOOD_SERVICE);
             stack.createSavepoint();
-            writableStatesStack.get(FRUIT_STATE_KEY).put(A_KEY, ACAI);
-            stack.getWritableStates(FOOD_SERVICE).get(FRUIT_STATE_KEY).put(B_KEY, BLUEBERRY);
+            writableStatesStack.get(FRUIT_STATE_ID).put(A_KEY, ACAI);
+            stack.getWritableStates(FOOD_SERVICE).get(FRUIT_STATE_ID).put(B_KEY, BLUEBERRY);
             stack.commit();
 
             // when
             stack.createSavepoint();
-            writableStatesStack.get(FRUIT_STATE_KEY).put(C_KEY, CRANBERRY);
-            stack.getWritableStates(FOOD_SERVICE).get(FRUIT_STATE_KEY).put(D_KEY, DRAGONFRUIT);
+            writableStatesStack.get(FRUIT_STATE_ID).put(C_KEY, CRANBERRY);
+            stack.getWritableStates(FOOD_SERVICE).get(FRUIT_STATE_ID).put(D_KEY, DRAGONFRUIT);
 
             // then
             assertThat(stack.depth()).isEqualTo(2);
@@ -439,14 +440,14 @@ class SavepointStackImplTest extends StateTestBase {
             final var readableStatesStack = stack.getReadableStates(FOOD_SERVICE);
             final var writableStatesStack = stack.getWritableStates(FOOD_SERVICE);
             stack.createSavepoint();
-            writableStatesStack.get(FRUIT_STATE_KEY).put(A_KEY, ACAI);
-            stack.getWritableStates(FOOD_SERVICE).get(FRUIT_STATE_KEY).put(B_KEY, BLUEBERRY);
+            writableStatesStack.get(FRUIT_STATE_ID).put(A_KEY, ACAI);
+            stack.getWritableStates(FOOD_SERVICE).get(FRUIT_STATE_ID).put(B_KEY, BLUEBERRY);
             stack.createSavepoint();
-            writableStatesStack.get(FRUIT_STATE_KEY).put(C_KEY, CRANBERRY);
-            stack.getWritableStates(FOOD_SERVICE).get(FRUIT_STATE_KEY).put(D_KEY, DRAGONFRUIT);
+            writableStatesStack.get(FRUIT_STATE_ID).put(C_KEY, CRANBERRY);
+            stack.getWritableStates(FOOD_SERVICE).get(FRUIT_STATE_ID).put(D_KEY, DRAGONFRUIT);
             stack.createSavepoint();
-            writableStatesStack.get(FRUIT_STATE_KEY).put(E_KEY, ELDERBERRY);
-            stack.getWritableStates(FOOD_SERVICE).get(FRUIT_STATE_KEY).put(F_KEY, FEIJOA);
+            writableStatesStack.get(FRUIT_STATE_ID).put(E_KEY, ELDERBERRY);
+            stack.getWritableStates(FOOD_SERVICE).get(FRUIT_STATE_ID).put(F_KEY, FEIJOA);
 
             // when
             stack.commit();
@@ -508,8 +509,8 @@ class SavepointStackImplTest extends StateTestBase {
             final var readableStatesStack = stack.getReadableStates(FOOD_SERVICE);
             final var writableStatesStack = stack.getWritableStates(FOOD_SERVICE);
             stack.createSavepoint();
-            writableStatesStack.get(FRUIT_STATE_KEY).put(A_KEY, ACAI);
-            stack.getWritableStates(FOOD_SERVICE).get(FRUIT_STATE_KEY).put(B_KEY, BLUEBERRY);
+            writableStatesStack.get(FRUIT_STATE_ID).put(A_KEY, ACAI);
+            stack.getWritableStates(FOOD_SERVICE).get(FRUIT_STATE_ID).put(B_KEY, BLUEBERRY);
 
             // when
             stack.rollback();
@@ -535,13 +536,13 @@ class SavepointStackImplTest extends StateTestBase {
             final var readableStatesStack = stack.getReadableStates(FOOD_SERVICE);
             final var writableStatesStack = stack.getWritableStates(FOOD_SERVICE);
             stack.createSavepoint();
-            writableStatesStack.get(FRUIT_STATE_KEY).put(A_KEY, ACAI);
-            stack.getWritableStates(FOOD_SERVICE).get(FRUIT_STATE_KEY).put(B_KEY, BLUEBERRY);
+            writableStatesStack.get(FRUIT_STATE_ID).put(A_KEY, ACAI);
+            stack.getWritableStates(FOOD_SERVICE).get(FRUIT_STATE_ID).put(B_KEY, BLUEBERRY);
             stack.rollback();
 
             // when
-            writableStatesStack.get(FRUIT_STATE_KEY).put(C_KEY, CRANBERRY);
-            stack.getWritableStates(FOOD_SERVICE).get(FRUIT_STATE_KEY).put(D_KEY, DRAGONFRUIT);
+            writableStatesStack.get(FRUIT_STATE_ID).put(C_KEY, CRANBERRY);
+            stack.getWritableStates(FOOD_SERVICE).get(FRUIT_STATE_ID).put(D_KEY, DRAGONFRUIT);
 
             // then
             assertThat(stack.depth()).isEqualTo(1);
@@ -567,14 +568,14 @@ class SavepointStackImplTest extends StateTestBase {
             final var readableStatesStack = stack.getReadableStates(FOOD_SERVICE);
             final var writableStatesStack = stack.getWritableStates(FOOD_SERVICE);
             stack.createSavepoint();
-            writableStatesStack.get(FRUIT_STATE_KEY).put(A_KEY, ACAI);
-            stack.getWritableStates(FOOD_SERVICE).get(FRUIT_STATE_KEY).put(B_KEY, BLUEBERRY);
+            writableStatesStack.get(FRUIT_STATE_ID).put(A_KEY, ACAI);
+            stack.getWritableStates(FOOD_SERVICE).get(FRUIT_STATE_ID).put(B_KEY, BLUEBERRY);
             stack.rollback();
 
             // when
             stack.createSavepoint();
-            writableStatesStack.get(FRUIT_STATE_KEY).put(C_KEY, CRANBERRY);
-            stack.getWritableStates(FOOD_SERVICE).get(FRUIT_STATE_KEY).put(D_KEY, DRAGONFRUIT);
+            writableStatesStack.get(FRUIT_STATE_ID).put(C_KEY, CRANBERRY);
+            stack.getWritableStates(FOOD_SERVICE).get(FRUIT_STATE_ID).put(D_KEY, DRAGONFRUIT);
 
             // then
             assertThat(stack.depth()).isEqualTo(2);
@@ -600,14 +601,14 @@ class SavepointStackImplTest extends StateTestBase {
             final var readableStatesStack = stack.getReadableStates(FOOD_SERVICE);
             final var writableStatesStack = stack.getWritableStates(FOOD_SERVICE);
             stack.createSavepoint();
-            writableStatesStack.get(FRUIT_STATE_KEY).put(A_KEY, ACAI);
-            stack.getWritableStates(FOOD_SERVICE).get(FRUIT_STATE_KEY).put(B_KEY, BLUEBERRY);
+            writableStatesStack.get(FRUIT_STATE_ID).put(A_KEY, ACAI);
+            stack.getWritableStates(FOOD_SERVICE).get(FRUIT_STATE_ID).put(B_KEY, BLUEBERRY);
             stack.createSavepoint();
-            writableStatesStack.get(FRUIT_STATE_KEY).put(C_KEY, CRANBERRY);
-            stack.getWritableStates(FOOD_SERVICE).get(FRUIT_STATE_KEY).put(D_KEY, DRAGONFRUIT);
+            writableStatesStack.get(FRUIT_STATE_ID).put(C_KEY, CRANBERRY);
+            stack.getWritableStates(FOOD_SERVICE).get(FRUIT_STATE_ID).put(D_KEY, DRAGONFRUIT);
             stack.createSavepoint();
-            writableStatesStack.get(FRUIT_STATE_KEY).put(E_KEY, ELDERBERRY);
-            stack.getWritableStates(FOOD_SERVICE).get(FRUIT_STATE_KEY).put(F_KEY, FEIJOA);
+            writableStatesStack.get(FRUIT_STATE_ID).put(E_KEY, ELDERBERRY);
+            stack.getWritableStates(FOOD_SERVICE).get(FRUIT_STATE_ID).put(F_KEY, FEIJOA);
 
             // when
             stack.rollback();
@@ -662,9 +663,9 @@ class SavepointStackImplTest extends StateTestBase {
             // given
             final var stack = SavepointStackImpl.newRootStack(
                     baseState, 3, 50, roundStateChangeListener, immediateStateChangeListener, streamMode);
-            final var writableState = stack.getWritableStates(FOOD_SERVICE).get(FRUIT_STATE_KEY);
+            final var writableState = stack.getWritableStates(FOOD_SERVICE).get(FRUIT_STATE_ID);
             writableState.put(A_KEY, ACAI);
-            stack.getWritableStates(FOOD_SERVICE).get(FRUIT_STATE_KEY).put(B_KEY, BLUEBERRY);
+            stack.getWritableStates(FOOD_SERVICE).get(FRUIT_STATE_ID).put(B_KEY, BLUEBERRY);
             assertThat(baseState.getReadableStates(FOOD_SERVICE)).has(content(BASE_DATA));
             assertThat(baseState.getWritableStates(FOOD_SERVICE)).has(content(BASE_DATA));
 
@@ -685,9 +686,9 @@ class SavepointStackImplTest extends StateTestBase {
             final var stack = SavepointStackImpl.newRootStack(
                     baseState, 3, 50, roundStateChangeListener, immediateStateChangeListener, streamMode);
             stack.createSavepoint();
-            final var writableState = stack.getWritableStates(FOOD_SERVICE).get(FRUIT_STATE_KEY);
+            final var writableState = stack.getWritableStates(FOOD_SERVICE).get(FRUIT_STATE_ID);
             writableState.put(A_KEY, ACAI);
-            stack.getWritableStates(FOOD_SERVICE).get(FRUIT_STATE_KEY).put(B_KEY, BLUEBERRY);
+            stack.getWritableStates(FOOD_SERVICE).get(FRUIT_STATE_ID).put(B_KEY, BLUEBERRY);
             assertThat(baseState.getReadableStates(FOOD_SERVICE)).has(content(BASE_DATA));
             assertThat(baseState.getWritableStates(FOOD_SERVICE)).has(content(BASE_DATA));
 
@@ -709,9 +710,9 @@ class SavepointStackImplTest extends StateTestBase {
             final var stack = SavepointStackImpl.newRootStack(
                     baseState, 3, 50, roundStateChangeListener, immediateStateChangeListener, streamMode);
             stack.createSavepoint();
-            final var writableState = stack.getWritableStates(FOOD_SERVICE).get(FRUIT_STATE_KEY);
+            final var writableState = stack.getWritableStates(FOOD_SERVICE).get(FRUIT_STATE_ID);
             writableState.put(A_KEY, ACAI);
-            stack.getWritableStates(FOOD_SERVICE).get(FRUIT_STATE_KEY).put(B_KEY, BLUEBERRY);
+            stack.getWritableStates(FOOD_SERVICE).get(FRUIT_STATE_ID).put(B_KEY, BLUEBERRY);
             assertThat(baseState.getReadableStates(FOOD_SERVICE)).has(content(BASE_DATA));
             assertThat(baseState.getWritableStates(FOOD_SERVICE)).has(content(BASE_DATA));
 
@@ -746,7 +747,7 @@ class SavepointStackImplTest extends StateTestBase {
             // given
             final var stack = SavepointStackImpl.newRootStack(
                     baseState, 3, 50, roundStateChangeListener, immediateStateChangeListener, streamMode);
-            final var writableState = stack.getWritableStates(FOOD_SERVICE).get(FRUIT_STATE_KEY);
+            final var writableState = stack.getWritableStates(FOOD_SERVICE).get(FRUIT_STATE_ID);
             writableState.put(A_KEY, ACAI);
             final var newData = new HashMap<>(BASE_DATA);
             newData.put(A_KEY, ACAI);
@@ -769,7 +770,7 @@ class SavepointStackImplTest extends StateTestBase {
 
     private static Predicate<ReadableStates> contentCheck(Map<ProtoBytes, ProtoBytes> expected) {
         return readableStates -> {
-            final var actual = readableStates.get(FRUIT_STATE_KEY);
+            final var actual = readableStates.get(FRUIT_STATE_ID);
             if (expected.size() != actual.size()) {
                 return false;
             }

@@ -2,10 +2,10 @@
 package org.hiero.otter.fixtures;
 
 import com.hedera.hapi.node.base.SemanticVersion;
-import com.hedera.hapi.platform.state.NodeId;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
+import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
 import org.hiero.otter.fixtures.result.SingleNodeLogResult;
@@ -26,6 +26,14 @@ public interface Node {
      * The default software version of the node when no specific version is set for the node.
      */
     SemanticVersion DEFAULT_VERSION = SemanticVersion.newBuilder().major(1).build();
+
+    /**
+     * Start the node.
+     *
+     * <p>The method will wait for a environment-specific timeout before throwing an exception if the node cannot be
+     * started. The default can be overridden by calling {@link #withTimeout(Duration)}.
+     */
+    void start();
 
     /**
      * Kill the node without prior cleanup.
@@ -75,27 +83,12 @@ public interface Node {
     void stopSyntheticBottleneck();
 
     /**
-     * Start the node.
-     *
-     * <p>The method will wait for a environment-specific timeout before throwing an exception if the node cannot be
-     * started. The default can be overridden by calling {@link #withTimeout(Duration)}.
-     */
-    void start();
-
-    /**
      * Allows to override the default timeout for node operations.
      *
      * @param timeout the duration to wait before considering the operation as failed
      * @return an instance of {@link AsyncNodeActions} that can be used to perform node actions
      */
     AsyncNodeActions withTimeout(@NonNull Duration timeout);
-
-    /**
-     * Submit a transaction to the node.
-     *
-     * @param transaction the transaction to submit
-     */
-    void submitTransaction(@NonNull byte[] transaction);
 
     /**
      * Gets the configuration of the node. The returned object can be used to evaluate the current configuration, but
