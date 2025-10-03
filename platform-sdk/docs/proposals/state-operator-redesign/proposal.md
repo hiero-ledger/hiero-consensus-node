@@ -4,7 +4,7 @@
 
 ## Summary
 
-This proposal outlines a significant update to the State Operator, specifically its validation functionality. It enhances security by mitigating supply-chain attacks through the removal of JUnit dependency and optimizes validation execution time by traversing state data only once for a category of suitable validators.
+This proposal outlines a significant update to the State Operator's validation functionality that optimizes execution time by traversing state data only once for a category of suitable validators.
 
 |      Metadata      |                 Entities                 |
 |--------------------|------------------------------------------|
@@ -15,12 +15,9 @@ This proposal outlines a significant update to the State Operator, specifically 
 
 ## Purpose and Context
 
-The current validator implementation has two main issues:
+The current validator implementation has a performance issue. Most of the validators perform their own complete traversal of the state data. With states containing billions of key-value pairs and an increasing number of validators, this approach becomes prohibitively slow and resource-intensive. Multiple validators that could conceptually share data access instead perform redundant, expensive operations.
 
-1. **Performance**: Most of the validators perform their own complete traversal of the state data. With states containing billions of key-value pairs and an increasing number of validators, this approach becomes prohibitively slow and resource-intensive. Multiple validators that could conceptually share data access instead perform redundant, expensive operations.
-2. **Security**: The validator currently depends on the JUnit testing framework as its execution engine. This creates an unnecessary supply-chain attack vector and represents a fundamental architectural mismatch—using a framework designed for testing to power operational tooling.
-
-This proposal addresses both issues by introducing a validation engine that eliminates the JUnit dependency and optimizes state traversal through validator grouping.
+This proposal addresses it by introducing a validation engine that eliminates the JUnit dependency and optimizes state traversal through validator grouping.
 
 ### Requirements
 
