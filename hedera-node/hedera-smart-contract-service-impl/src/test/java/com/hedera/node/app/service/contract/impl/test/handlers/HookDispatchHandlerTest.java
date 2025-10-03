@@ -50,7 +50,7 @@ class HookDispatchHandlerTest extends ContractHandlerTestBase {
     @Mock
     private HandleContext.SavepointStack savepointStack;
 
-    @MockN
+    @Mock
     protected WritableEvmHookStore evmHookStore;
 
     @Mock
