@@ -15,6 +15,7 @@ import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.TransactionFactory;
 import org.hiero.otter.fixtures.TransactionGenerator;
+import org.hiero.otter.fixtures.app.OtterTransaction;
 
 /**
  * A {@link TransactionGenerator} for the container environment.
@@ -106,10 +107,9 @@ public class ContainerTransactionGenerator implements TransactionGenerator {
 
         for (final Node node : nodes) {
             if (node.platformStatus() == PlatformStatus.ACTIVE) {
-                final byte[] transaction = TransactionFactory.createEmptyTransaction(random.nextLong())
-                        .toByteArray();
+                final OtterTransaction transaction = TransactionFactory.createEmptyTransaction(random.nextLong());
                 try {
-                    node.submitTransaction(transaction);
+                    ((ContainerNode) node).submitTransaction(transaction);
                 } catch (final Exception e) {
                     log.debug("Unable to submit transaction to node {}", node.selfId(), e);
                 }

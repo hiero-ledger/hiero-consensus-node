@@ -13,6 +13,7 @@ import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.TransactionFactory;
 import org.hiero.otter.fixtures.TransactionGenerator;
+import org.hiero.otter.fixtures.app.OtterTransaction;
 
 /**
  * A transaction generator for the Turtle framework.
@@ -85,9 +86,9 @@ public class TurtleTransactionGenerator implements TransactionGenerator {
             for (long i = previousCount; i < currentCount; i++) {
                 for (final Node node : activeNodes) {
                     // Generate a random transaction and submit it to the node.
-                    final byte[] transaction = TransactionFactory.createEmptyTransaction(randotron.nextLong())
-                            .toByteArray();
-                    node.submitTransaction(transaction);
+                    final OtterTransaction transaction =
+                            TransactionFactory.createEmptyTransaction(randotron.nextLong());
+                    ((TurtleNode) node).submitTransaction(transaction);
                 }
             }
         }

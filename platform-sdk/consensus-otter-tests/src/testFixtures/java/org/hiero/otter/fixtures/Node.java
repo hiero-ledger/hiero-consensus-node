@@ -91,13 +91,6 @@ public interface Node {
     AsyncNodeActions withTimeout(@NonNull Duration timeout);
 
     /**
-     * Submit a transaction to the node.
-     *
-     * @param transaction the transaction to submit
-     */
-    void submitTransaction(@NonNull byte[] transaction);
-
-    /**
      * Gets the configuration of the node. The returned object can be used to evaluate the current configuration, but
      * also for modifications.
      *
