@@ -10,12 +10,10 @@ import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.hapi.util.HapiUtils;
 import com.hedera.pbj.runtime.ParseException;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.merkle.map.MerkleMap;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
-import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
@@ -27,7 +25,6 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.event.ConsensusEvent;
 import org.hiero.consensus.model.event.Event;
 import org.hiero.consensus.model.hashgraph.Round;
-import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.roster.AddressBook;
 import org.hiero.consensus.model.transaction.ConsensusTransaction;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
@@ -38,10 +35,13 @@ import org.hiero.consensus.model.transaction.Transaction;
  */
 public class MigrationTestToolConsensusStateEventHandler
         implements ConsensusStateEventHandler<MigrationTestingToolState> {
-    private static final Logger logger = LogManager.getLogger(MigrationTestToolConsensusStateEventHandler.class);
-    public static final Duration DURATION = Duration.ofSeconds(10);
 
-    public NodeId selfId;
+    private static final Logger logger = LogManager.getLogger(MigrationTestToolConsensusStateEventHandler.class);
+
+    /**
+     * Offset added to the round's consensus timestamp when scheduling a freeze.
+     */
+    public static final Duration FREEZE_TIME_OFFSET = Duration.ofSeconds(10);
 
     private MigrationTestingToolConfig configData;
 
@@ -51,19 +51,8 @@ public class MigrationTestToolConsensusStateEventHandler
             @NonNull final Platform platform,
             @NonNull final InitTrigger trigger,
             @Nullable final SemanticVersion previousVersion) {
-        final MerkleMap<AccountID, MapValue> merkleMap = state.getMerkleMap();
-        if (merkleMap != null) {
-            logger.info(STARTUP.getMarker(), "MerkleMap initialized with {} values", merkleMap.size());
-        }
-        final VirtualMap virtualMap = state.getVirtualMap();
-        if (virtualMap != null) {
-            logger.info(STARTUP.getMarker(), "VirtualMap initialized with {} values", virtualMap.size());
-        }
-        selfId = platform.getSelfId();
-
         if (trigger == InitTrigger.GENESIS) {
             logger.warn(STARTUP.getMarker(), "InitTrigger was {} when expecting RESTART or RECONNECT", trigger);
-            selfId = platform.getSelfId();
         }
 
         if (previousVersion == null
@@ -73,11 +62,6 @@ public class MigrationTestToolConsensusStateEventHandler
                     "previousSoftwareVersion was {} when expecting it to be {}",
                     previousVersion,
                     PREVIOUS_SOFTWARE_VERSION);
-        }
-
-        if (trigger == InitTrigger.GENESIS) {
-            logger.info(STARTUP.getMarker(), "Doing genesis initialization");
-            state.genesisInit();
         }
 
         configData = platform.getContext().getConfiguration().getConfigData(MigrationTestingToolConfig.class);
@@ -92,11 +76,11 @@ public class MigrationTestToolConsensusStateEventHandler
 
         // After enough rounds, we set the state to be a freeze state
         if (configData.applyFreezeTimeInRound() > 0 && round.getRoundNum() == configData.applyFreezeTimeInRound()) {
-            final Instant freezeTime = round.getConsensusTimestamp().plus(DURATION);
+            final Instant freezeTime = round.getConsensusTimestamp().plus(FREEZE_TIME_OFFSET);
             logger.info(
                     STARTUP.getMarker(),
                     "Setting freeze time to {} seconds after:{}. Value:{}",
-                    DURATION.getSeconds(),
+                    FREEZE_TIME_OFFSET.getSeconds(),
                     round.getConsensusTimestamp(),
                     freezeTime);
             PlatformStateFacade.DEFAULT_PLATFORM_STATE_FACADE.bulkUpdateOf(state, v -> {
@@ -115,7 +99,7 @@ public class MigrationTestToolConsensusStateEventHandler
 
                 final MigrationTestingToolTransaction mTrans =
                         TransactionUtils.parseTransaction(trans.getApplicationTransaction());
-                mTrans.applyTo(state);
+                mTrans.applyToState(state);
             }
         }
     }
