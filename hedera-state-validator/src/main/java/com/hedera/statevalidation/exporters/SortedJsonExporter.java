@@ -2,7 +2,7 @@
 package com.hedera.statevalidation.exporters;
 
 import static com.hedera.pbj.runtime.ProtoParserTools.TAG_FIELD_OFFSET;
-import static com.hedera.statevalidation.ExportCommand.MAX_OBJ_PER_FILE;
+import static com.hedera.statevalidation.SortedExportCommand.MAX_OBJ_PER_FILE;
 import static com.hedera.statevalidation.exporters.JsonExporter.write;
 
 import com.hedera.hapi.platform.state.SingletonType;
