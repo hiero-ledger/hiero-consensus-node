@@ -747,12 +747,16 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
         } else if (response.hasEndStream()) {
             blockStreamMetrics.recordResponseEndOfStreamReceived(
                     response.endStream().status());
+            blockStreamMetrics.recordLatestBlockEndOfStream(response.endStream().blockNumber());
             handleEndOfStream(response.endStream());
         } else if (response.hasSkipBlock()) {
             blockStreamMetrics.recordResponseReceived(response.response().kind());
+            blockStreamMetrics.recordLatestBlockSkipBlock(response.skipBlock().blockNumber());
             handleSkipBlock(response.skipBlock());
         } else if (response.hasResendBlock()) {
             blockStreamMetrics.recordResponseReceived(response.response().kind());
+            blockStreamMetrics.recordLatestBlockResendBlock(
+                    response.resendBlock().blockNumber());
             handleResendBlock(response.resendBlock());
         } else {
             blockStreamMetrics.recordUnknownResponseReceived();

@@ -46,6 +46,9 @@ public class BlockStreamMetrics {
     private final Map<PublishStreamResponse.ResponseOneOfType, Counter> connRecv_counters =
             new EnumMap<>(PublishStreamResponse.ResponseOneOfType.class);
     private Counter connRecv_unknownCounter;
+    private LongGauge connRecv_latestBlockEndOfStreamGauge;
+    private LongGauge connRecv_latestBlockSkipBlockGauge;
+    private LongGauge connRecv_latestBlockResendBlockGauge;
 
     // connectivity metrics
     private Counter conn_onCompleteCounter;
@@ -389,6 +392,18 @@ public class BlockStreamMetrics {
         final Counter.Config recvUnknownCfg = newCounter(GROUP_CONN_RECV, "unknown")
                 .withDescription("Number of responses received from block nodes that are of unknown types");
         this.connRecv_unknownCounter = metrics.getOrCreate(recvUnknownCfg);
+
+        final LongGauge.Config latestBlockEosCfg = newLongGauge(GROUP_CONN_RECV, "latestBlockEndOfStream")
+                .withDescription("The latest block number received in an EndOfStream response");
+        this.connRecv_latestBlockEndOfStreamGauge = metrics.getOrCreate(latestBlockEosCfg);
+
+        final LongGauge.Config latestBlockSkipCfg = newLongGauge(GROUP_CONN_RECV, "latestBlockSkipBlock")
+                .withDescription("The latest block number received in a SkipBlock response");
+        this.connRecv_latestBlockSkipBlockGauge = metrics.getOrCreate(latestBlockSkipCfg);
+
+        final LongGauge.Config latestBlockResendCfg = newLongGauge(GROUP_CONN_RECV, "latestBlockResendBlock")
+                .withDescription("The latest block number received in a ResendBlock response");
+        this.connRecv_latestBlockResendBlockGauge = metrics.getOrCreate(latestBlockResendCfg);
     }
 
     /**
@@ -418,6 +433,30 @@ public class BlockStreamMetrics {
         if (counter != null) {
             counter.increment();
         }
+    }
+
+    /**
+     * Record the latest block number received in an EndOfStream response.
+     * @param blockNumber the block number from the response
+     */
+    public void recordLatestBlockEndOfStream(final long blockNumber) {
+        connRecv_latestBlockEndOfStreamGauge.set(blockNumber);
+    }
+
+    /**
+     * Record the latest block number received in a SkipBlock response.
+     * @param blockNumber the block number from the response
+     */
+    public void recordLatestBlockSkipBlock(final long blockNumber) {
+        connRecv_latestBlockSkipBlockGauge.set(blockNumber);
+    }
+
+    /**
+     * Record the latest block number received in a ResendBlock response.
+     * @param blockNumber the block number from the response
+     */
+    public void recordLatestBlockResendBlock(final long blockNumber) {
+        connRecv_latestBlockResendBlockGauge.set(blockNumber);
     }
 
     // Connection SEND metrics -----------------------------------------------------------------------------------------
