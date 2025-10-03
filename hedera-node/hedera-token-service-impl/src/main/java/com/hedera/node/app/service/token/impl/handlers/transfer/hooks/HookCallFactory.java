@@ -8,7 +8,6 @@ import static com.hedera.node.app.service.token.impl.handlers.transfer.hooks.Hoo
 import static java.util.Objects.requireNonNull;
 
 import com.esaulpaugh.headlong.abi.Address;
-import com.esaulpaugh.headlong.abi.Single;
 import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.hapi.node.base.AccountAmount;
 import com.hedera.hapi.node.base.AccountID;
@@ -178,7 +177,7 @@ public class HookCallFactory {
         final var tokenTransfers = tokenTransfersList.stream()
                 .map(ttl -> encodeTokenTransfers(ttl, accountStore, preOnly, prePost))
                 .toArray(Tuple[]::new);
-        return Tuple.of(Single.of(hbarXfers), tokenTransfers); // (TransferList(AccountAmount[]), TokenTransferList[])
+        return Tuple.of(hbarXfers, tokenTransfers); // (TransferList(AccountAmount[]), TokenTransferList[])
     }
 
     @NonNull

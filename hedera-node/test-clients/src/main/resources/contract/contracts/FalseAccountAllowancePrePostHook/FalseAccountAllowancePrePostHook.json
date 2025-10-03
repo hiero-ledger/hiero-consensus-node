@@ -40,26 +40,19 @@
               {
                 "components": [
                   {
-                    "components": [
-                      {
-                        "internalType": "address",
-                        "name": "account",
-                        "type": "address"
-                      },
-                      {
-                        "internalType": "int64",
-                        "name": "amount",
-                        "type": "int64"
-                      }
-                    ],
-                    "internalType": "struct IHieroAccountAllowanceHook.AccountAmount[]",
-                    "name": "adjustments",
-                    "type": "tuple[]"
+                    "internalType": "address",
+                    "name": "account",
+                    "type": "address"
+                  },
+                  {
+                    "internalType": "int64",
+                    "name": "amount",
+                    "type": "int64"
                   }
                 ],
-                "internalType": "struct IHieroAccountAllowanceHook.TransferList",
-                "name": "hbar",
-                "type": "tuple"
+                "internalType": "struct IHieroAccountAllowanceHook.AccountAmount[]",
+                "name": "hbarAdjustments",
+                "type": "tuple[]"
               },
               {
                 "components": [
@@ -122,26 +115,19 @@
               {
                 "components": [
                   {
-                    "components": [
-                      {
-                        "internalType": "address",
-                        "name": "account",
-                        "type": "address"
-                      },
-                      {
-                        "internalType": "int64",
-                        "name": "amount",
-                        "type": "int64"
-                      }
-                    ],
-                    "internalType": "struct IHieroAccountAllowanceHook.AccountAmount[]",
-                    "name": "adjustments",
-                    "type": "tuple[]"
+                    "internalType": "address",
+                    "name": "account",
+                    "type": "address"
+                  },
+                  {
+                    "internalType": "int64",
+                    "name": "amount",
+                    "type": "int64"
                   }
                 ],
-                "internalType": "struct IHieroAccountAllowanceHook.TransferList",
-                "name": "hbar",
-                "type": "tuple"
+                "internalType": "struct IHieroAccountAllowanceHook.AccountAmount[]",
+                "name": "hbarAdjustments",
+                "type": "tuple[]"
               },
               {
                 "components": [
@@ -257,26 +243,19 @@
               {
                 "components": [
                   {
-                    "components": [
-                      {
-                        "internalType": "address",
-                        "name": "account",
-                        "type": "address"
-                      },
-                      {
-                        "internalType": "int64",
-                        "name": "amount",
-                        "type": "int64"
-                      }
-                    ],
-                    "internalType": "struct IHieroAccountAllowanceHook.AccountAmount[]",
-                    "name": "adjustments",
-                    "type": "tuple[]"
+                    "internalType": "address",
+                    "name": "account",
+                    "type": "address"
+                  },
+                  {
+                    "internalType": "int64",
+                    "name": "amount",
+                    "type": "int64"
                   }
                 ],
-                "internalType": "struct IHieroAccountAllowanceHook.TransferList",
-                "name": "hbar",
-                "type": "tuple"
+                "internalType": "struct IHieroAccountAllowanceHook.AccountAmount[]",
+                "name": "hbarAdjustments",
+                "type": "tuple[]"
               },
               {
                 "components": [
@@ -339,26 +318,19 @@
               {
                 "components": [
                   {
-                    "components": [
-                      {
-                        "internalType": "address",
-                        "name": "account",
-                        "type": "address"
-                      },
-                      {
-                        "internalType": "int64",
-                        "name": "amount",
-                        "type": "int64"
-                      }
-                    ],
-                    "internalType": "struct IHieroAccountAllowanceHook.AccountAmount[]",
-                    "name": "adjustments",
-                    "type": "tuple[]"
+                    "internalType": "address",
+                    "name": "account",
+                    "type": "address"
+                  },
+                  {
+                    "internalType": "int64",
+                    "name": "amount",
+                    "type": "int64"
                   }
                 ],
-                "internalType": "struct IHieroAccountAllowanceHook.TransferList",
-                "name": "hbar",
-                "type": "tuple"
+                "internalType": "struct IHieroAccountAllowanceHook.AccountAmount[]",
+                "name": "hbarAdjustments",
+                "type": "tuple[]"
               },
               {
                 "components": [

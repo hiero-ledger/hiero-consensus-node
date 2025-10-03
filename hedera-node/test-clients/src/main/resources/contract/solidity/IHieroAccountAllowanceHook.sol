@@ -14,12 +14,6 @@ interface IHieroAccountAllowanceHook {
         int64 amount;
     }
 
-    /// A zero-sum list of balance adjustments for HBAR specifically
-    struct TransferList {
-        // The zero-sum balance adjustments
-        AccountAmount[] adjustments;
-    }
-
     /// A single NFT ownership change
     struct NftTransfer {
         // The address of the sender
@@ -42,8 +36,8 @@ interface IHieroAccountAllowanceHook {
 
     /// Combines HBAR and HTS asset transfers.
     struct Transfers {
-        /// The HBAR transfers
-        TransferList hbar;
+        /// A zero-sum list of balance adjustments for HBAR specifically
+        AccountAmount[] hbarAdjustments;
         /// The HTS token transfers
         TokenTransferList[] tokens;
     }
