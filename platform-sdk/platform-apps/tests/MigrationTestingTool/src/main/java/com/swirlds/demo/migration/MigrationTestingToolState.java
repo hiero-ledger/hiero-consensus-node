@@ -117,7 +117,7 @@ public class MigrationTestingToolState extends MerkleStateRoot<MigrationTestingT
     }
 
     @Override
-    public MerkleNode migrate(@NonNull final Configuration configuration, int version) {
+    public MerkleNode migrate(int version) {
         if (version == ClassVersion.VIRTUAL_MAP) {
             TestingAppStateInitializer.DEFAULT.initRosterState(this);
             return this;

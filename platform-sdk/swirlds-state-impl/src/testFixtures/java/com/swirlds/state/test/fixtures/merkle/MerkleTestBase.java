@@ -215,7 +215,7 @@ public class MerkleTestBase extends StateTestBase {
             throws IOException {
         final var byteInputStream = new ByteArrayInputStream(state);
         try (final var in = new MerkleDataInputStream(byteInputStream)) {
-            return in.readMerkleTree(CONFIGURATION, tempDir, 100);
+            return in.readMerkleTree(tempDir, 100);
         }
     }
 

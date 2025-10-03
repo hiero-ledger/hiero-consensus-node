@@ -206,7 +206,6 @@ class SerializationTest extends MerkleTestBase {
 
         originalTree.init(
                 context.getTime(),
-                context.getConfiguration(),
                 context.getMetrics(),
                 context.getMerkleCryptography(),
                 () -> TEST_PLATFORM_STATE_FACADE
@@ -293,7 +292,7 @@ class SerializationTest extends MerkleTestBase {
                 migrationStateChanges,
                 startupNetworks,
                 TEST_PLATFORM_STATE_FACADE);
-        loadedTree.getRoot().migrate(CONFIGURATION, MINIMUM_SUPPORTED_VERSION);
+        loadedTree.getRoot().migrate(MINIMUM_SUPPORTED_VERSION);
     }
 
     private MerkleNodeState createMerkleHederaState(Schema schemaV1) {

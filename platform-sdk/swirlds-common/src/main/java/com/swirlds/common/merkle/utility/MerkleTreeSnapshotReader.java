@@ -5,7 +5,6 @@ import static com.swirlds.common.io.streams.StreamDebugUtils.deserializeAndDebug
 
 import com.swirlds.common.io.streams.MerkleDataInputStream;
 import com.swirlds.common.merkle.MerkleNode;
-import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.BufferedInputStream;
 import java.io.FileInputStream;
@@ -50,14 +49,12 @@ public class MerkleTreeSnapshotReader {
     /**
      * Reads a state file from disk
      *
-     * @param configuration the configuration for this node
      * @param stateFile the file to read from
      * @return a signed state with it's associated hash (as computed when the state was serialized)
      * @throws IOException if there is any problems with reading from a file
      */
     @NonNull
-    public static StateFileData readStateFileData(
-            @NonNull final Configuration configuration, @NonNull final Path stateFile) throws IOException {
+    public static StateFileData readStateFileData(@NonNull final Path stateFile) throws IOException {
         return deserializeAndDebugOnFailure(
                 () -> new BufferedInputStream(new FileInputStream(stateFile.toFile())),
                 (final MerkleDataInputStream in) -> {
@@ -65,7 +62,7 @@ public class MerkleTreeSnapshotReader {
 
                     final Path directory = stateFile.getParent();
                     if (fileVersion == SIG_SET_SEPARATE_STATE_FILE_VERSION) {
-                        return readStateFileData(configuration, stateFile, in, directory);
+                        return readStateFileData(stateFile, in, directory);
                     } else {
                         throw new IOException("Unsupported state file version: " + fileVersion);
                     }
@@ -77,13 +74,10 @@ public class MerkleTreeSnapshotReader {
      */
     @NonNull
     private static StateFileData readStateFileData(
-            @NonNull final Configuration configuration,
-            @NonNull final Path stateFile,
-            @NonNull final MerkleDataInputStream in,
-            @NonNull final Path directory)
+            @NonNull final Path stateFile, @NonNull final MerkleDataInputStream in, @NonNull final Path directory)
             throws IOException {
         try {
-            final MerkleNode state = in.readMerkleTree(configuration, directory, MAX_MERKLE_NODES_IN_STATE);
+            final MerkleNode state = in.readMerkleTree(directory, MAX_MERKLE_NODES_IN_STATE);
             final Hash hash = in.readSerializable();
             return new StateFileData(state, hash);
 

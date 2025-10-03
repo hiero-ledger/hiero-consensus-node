@@ -17,7 +17,6 @@ import com.swirlds.common.merkle.utility.MerkleTreeSnapshotWriter;
 import com.swirlds.common.utility.Labeled;
 import com.swirlds.common.utility.RuntimeObjectRecord;
 import com.swirlds.common.utility.RuntimeObjectRegistry;
-import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.state.State;
 import com.swirlds.state.StateChangeListener;
@@ -112,10 +111,6 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
         return services;
     }
 
-    private Configuration configuration;
-
-    private Metrics metrics;
-
     /**
      * Metrics for the snapshot creation process
      */
@@ -154,15 +149,8 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
         this.registryRecord = RuntimeObjectRegistry.createRecord(getClass());
     }
 
-    public void init(
-            Time time,
-            Configuration configuration,
-            Metrics metrics,
-            MerkleCryptography merkleCryptography,
-            LongSupplier roundSupplier) {
+    public void init(Time time, Metrics metrics, MerkleCryptography merkleCryptography, LongSupplier roundSupplier) {
         this.time = time;
-        this.configuration = configuration;
-        this.metrics = metrics;
         this.merkleCryptography = merkleCryptography;
         this.roundSupplier = roundSupplier;
         snapshotMetrics = new MerkleRootSnapshotMetrics(metrics);
@@ -870,7 +858,6 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
     @SuppressWarnings("unchecked")
     @Override
     public T loadSnapshot(@NonNull Path targetPath) throws IOException {
-        return (T) MerkleTreeSnapshotReader.readStateFileData(configuration, targetPath)
-                .stateRoot();
+        return (T) MerkleTreeSnapshotReader.readStateFileData(targetPath).stateRoot();
     }
 }

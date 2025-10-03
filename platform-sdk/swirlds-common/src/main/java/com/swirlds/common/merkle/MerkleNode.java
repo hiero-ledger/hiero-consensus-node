@@ -9,8 +9,6 @@ import com.swirlds.common.merkle.iterators.MerkleIterator;
 import com.swirlds.common.merkle.route.MerkleRoute;
 import com.swirlds.common.merkle.route.MerkleRouteIterator;
 import com.swirlds.common.merkle.synchronization.views.MaybeCustomReconnectRoot;
-import com.swirlds.config.api.Configuration;
-import edu.umd.cs.findbugs.annotations.NonNull;
 import org.hiero.base.crypto.Hashable;
 import org.hiero.base.io.SerializableDet;
 
@@ -43,7 +41,7 @@ public interface MerkleNode
      * {@inheritDoc}
      */
     @Override
-    default MerkleNode migrate(@NonNull final Configuration configuration, final int version) {
+    default MerkleNode migrate(final int version) {
         return this;
     }
 

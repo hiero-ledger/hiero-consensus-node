@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.fixtures.state;
 
-import static com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer.CONFIGURATION;
 import static com.swirlds.platform.test.fixtures.state.manager.SignatureVerificationTestUtils.buildFakeSignature;
 import static org.hiero.base.crypto.test.fixtures.CryptoRandomUtils.randomHash;
 import static org.hiero.base.crypto.test.fixtures.CryptoRandomUtils.randomHashBytes;
@@ -157,7 +156,6 @@ public class RandomSignedStateGenerator {
             stateInstance = TestVirtualMapState.createInstanceWithVirtualMapLabel(virtualMapLabel);
             stateInstance.init(
                     Time.getCurrent(),
-                    CONFIGURATION,
                     new NoOpMetrics(),
                     TestMerkleCryptoFactory.getInstance(),
                     () -> platformStateFacade.roundOf(stateInstance));

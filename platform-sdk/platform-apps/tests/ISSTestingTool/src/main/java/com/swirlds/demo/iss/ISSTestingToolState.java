@@ -16,7 +16,6 @@ import static com.swirlds.platform.test.fixtures.state.TestingAppStateInitialize
 
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.merkle.MerkleNode;
-import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
@@ -90,7 +89,6 @@ public class ISSTestingToolState extends MerkleStateRoot<ISSTestingToolState> im
         final PlatformContext platformContext = platform.getContext();
         super.init(
                 platformContext.getTime(),
-                platformContext.getConfiguration(),
                 platformContext.getMetrics(),
                 platformContext.getMerkleCryptography(),
                 () -> DEFAULT_PLATFORM_STATE_FACADE.roundOf(this));
@@ -221,7 +219,7 @@ public class ISSTestingToolState extends MerkleStateRoot<ISSTestingToolState> im
 
     // FUTURE WORK: https://github.com/hiero-ledger/hiero-consensus-node/issues/19002
     @Override
-    public MerkleNode migrate(@NonNull final Configuration configuration, int version) {
+    public MerkleNode migrate(int version) {
         return this;
     }
 }
