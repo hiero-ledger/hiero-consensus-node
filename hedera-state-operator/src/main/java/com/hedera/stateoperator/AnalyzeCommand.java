@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.hedera.statevalidation;
+package com.hedera.stateoperator;
 
-import static com.hedera.statevalidation.analyzer.StateAnalyzer.analyzePathToHashStorage;
-import static com.hedera.statevalidation.analyzer.StateAnalyzer.analyzePathToKeyValueStorage;
+import static com.hedera.stateoperator.analyzer.StateAnalyzer.analyzePathToHashStorage;
+import static com.hedera.stateoperator.analyzer.StateAnalyzer.analyzePathToKeyValueStorage;
 import static java.util.Objects.requireNonNull;
 
-import com.hedera.statevalidation.parameterresolver.StateResolver;
-import com.hedera.statevalidation.reporting.Report;
+import com.hedera.stateoperator.parameterresolver.StateResolver;
+import com.hedera.stateoperator.reporting.Report;
 import com.swirlds.merkledb.MerkleDbDataSource;
 import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.snapshot.DeserializedSignedState;
