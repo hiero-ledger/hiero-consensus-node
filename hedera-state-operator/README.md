@@ -4,7 +4,7 @@ The **Hedera State Operator** is a comprehensive tool for working with the persi
 
 ## Validate
 
-[ValidateCommand](src/main/java/com/hedera/stateoperation/ValidateCommand.java) primary function is to ensure that states are not corrupted and make sure that Hedera nodes can start from existing state snapshots.
+[ValidateCommand](src/main/java/com/hedera/stateoperator/ValidateCommand.java) primary function is to ensure that states are not corrupted and make sure that Hedera nodes can start from existing state snapshots.
 Additionally, it can be utilized for development purposes, such as verifying
 that the node's state remains intact after refactoring or debugging to investigate the root cause
 of a corrupted state.
@@ -22,20 +22,20 @@ of a corrupted state.
 
 ### Validation tags
 
-- [`files`](src/main/java/com/hedera/stateoperation/validators/merkledb/FileLayout.java) - Validates all expected files are present in the state directory.
-- [`stateAnalyzer`](/src/main/java/com/hedera/stateoperation/validators/merkledb/StateAnalyzer.java) - Analyzes the state and calculates metrics such as the percentage of duplicates,
+- [`files`](src/main/java/com/hedera/stateoperator/validators/merkledb/FileLayout.java) - Validates all expected files are present in the state directory.
+- [`stateAnalyzer`](/src/main/java/com/hedera/stateoperator/validators/merkledb/StateAnalyzer.java) - Analyzes the state and calculates metrics such as the percentage of duplicates,
   item count, file count, wasted space in bytes, and total space. These metrics are published in a `report.json` file.
-- [`internal`](/src/main/java/com/hedera/stateoperation/validators/merkledb/ValidateInternalIndex.java) - Validates the consistency of the indices of internal nodes.
-- [`leaf`](/src/main/java/com/hedera/stateoperation/validators/merkledb/ValidateLeafIndex.java) - Validates the consistency of the indices of leaf nodes.
-- [`hdhm`](/src/main/java/com/hedera/stateoperation/validators/merkledb/ValidateLeafIndexHalfDiskHashMap.java) - Validates the consistency of the indices of leaf nodes in the half-disk hashmap.
-- [`rehash`](/src/main/java/com/hedera/stateoperation/validators/state/Rehash.java) - Runs a full rehash of the state.
-- [`account`](/src/main/java/com/hedera/stateoperation/validators/servicesstate/AccountValidator.java) - Ensures all accounts have a positive balance, calculates the total HBAR supply,
+- [`internal`](/src/main/java/com/hedera/stateoperator/validators/merkledb/ValidateInternalIndex.java) - Validates the consistency of the indices of internal nodes.
+- [`leaf`](/src/main/java/com/hedera/stateoperator/validators/merkledb/ValidateLeafIndex.java) - Validates the consistency of the indices of leaf nodes.
+- [`hdhm`](/src/main/java/com/hedera/stateoperator/validators/merkledb/ValidateLeafIndexHalfDiskHashMap.java) - Validates the consistency of the indices of leaf nodes in the half-disk hashmap.
+- [`rehash`](/src/main/java/com/hedera/stateoperator/validators/state/Rehash.java) - Runs a full rehash of the state.
+- [`account`](/src/main/java/com/hedera/stateoperator/validators/servicesstate/AccountValidator.java) - Ensures all accounts have a positive balance, calculates the total HBAR supply,
   and verifies it totals exactly 50 billion HBAR.
-- [`tokenRelations`](/src/main/java/com/hedera/stateoperation/validators/servicesstate/TokenRelationsIntegrity.java) - Verifies that the accounts and tokens for every token relationship exist.
+- [`tokenRelations`](/src/main/java/com/hedera/stateoperator/validators/servicesstate/TokenRelationsIntegrity.java) - Verifies that the accounts and tokens for every token relationship exist.
 
 ## Introspect
 
-[IntrospectCommand](src/main/java/com/hedera/stateoperation/IntrospectCommand.java) allows you to inspect the state of a Hedera node, providing insights into the structure and contents of the state files.
+[IntrospectCommand](src/main/java/com/hedera/stateoperator/IntrospectCommand.java) allows you to inspect the state of a Hedera node, providing insights into the structure and contents of the state files.
 
 ### Usage
 
@@ -53,7 +53,7 @@ of a corrupted state.
 
 ## Export
 
-[ExportCommand](src/main/java/com/hedera/stateoperation/ExportCommand.java) allows you to export the state of a Hedera node into JSON file(s).
+[ExportCommand](src/main/java/com/hedera/stateoperator/ExportCommand.java) allows you to export the state of a Hedera node into JSON file(s).
 
 ### Usage
 
@@ -150,7 +150,7 @@ Notes:
 
 ## Compact
 
-[CompactionCommand](src/main/java/com/hedera/stateoperation/CompactionCommand.java) allows you to perform compaction of state files.
+[CompactionCommand](src/main/java/com/hedera/stateoperator/CompactionCommand.java) allows you to perform compaction of state files.
 
 ### Usage
 

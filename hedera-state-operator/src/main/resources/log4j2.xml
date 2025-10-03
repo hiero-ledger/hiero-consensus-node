@@ -14,7 +14,7 @@
         </RollingFile>
     </Appenders>
     <Loggers>
-        <Logger name="com.hedera.stateoperation.listener.SummaryGeneratingListener" level="INFO">
+        <Logger name="com.hedera.stateoperator.listener.SummaryGeneratingListener" level="INFO">
             <AppenderRef ref="ConsoleAppender"/>
         </Logger>
         <Root level="DEBUG">
