@@ -181,13 +181,13 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
                     recycleBin,
                     version,
                     () -> OtterAppState.createGenesisState(
-                            currentConfiguration, roster(), metrics, version, otterApp.allServices()),
+                            currentConfiguration, metrics, time, roster(), version, otterApp.allServices()),
                     OtterApp.APP_NAME,
                     OtterApp.SWIRLD_NAME,
                     selfId,
                     platformStateFacade,
                     platformContext,
-                    OtterAppState::new);
+                    virtualMap -> new OtterAppState(virtualMap, currentConfiguration, metrics, time));
 
             final ReservedSignedState initialState = reservedState.state();
             final State state = initialState.get().getState();
@@ -208,7 +208,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
                             eventStreamLoc,
                             rosterHistory,
                             platformStateFacade,
-                            OtterAppState::new)
+                            virtualMap -> new OtterAppState(virtualMap, currentConfiguration, metrics, time))
                     .withPlatformContext(platformContext)
                     .withConfiguration(currentConfiguration)
                     .withKeysAndCerts(keysAndCerts)

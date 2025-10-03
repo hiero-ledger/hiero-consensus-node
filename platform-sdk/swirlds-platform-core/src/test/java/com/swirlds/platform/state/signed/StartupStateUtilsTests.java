@@ -3,6 +3,7 @@ package com.swirlds.platform.state.signed;
 
 import static com.swirlds.common.threading.manager.AdHocThreadManager.getStaticThreadManager;
 import static com.swirlds.platform.state.snapshot.SignedStateFileWriter.writeSignedStateToDisk;
+import static com.swirlds.platform.test.fixtures.config.ConfigUtils.CONFIGURATION;
 import static com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer.registerMerkleStateRootClassIds;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -171,7 +172,8 @@ public class StartupStateUtilsTests {
                         selfId,
                         mainClassName,
                         swirldName,
-                        TestVirtualMapState::new,
+                        virtualMap -> new TestVirtualMapState(
+                                virtualMap, CONFIGURATION, new NoOpMetrics(), Time.getCurrent()),
                         currentSoftwareVersion,
                         platformStateFacade,
                         platformContext)
@@ -201,7 +203,8 @@ public class StartupStateUtilsTests {
                         selfId,
                         mainClassName,
                         swirldName,
-                        TestVirtualMapState::new,
+                        virtualMap -> new TestVirtualMapState(
+                                virtualMap, CONFIGURATION, new NoOpMetrics(), Time.getCurrent()),
                         currentSoftwareVersion,
                         platformStateFacade,
                         platformContext)
@@ -236,7 +239,8 @@ public class StartupStateUtilsTests {
                         selfId,
                         mainClassName,
                         swirldName,
-                        TestVirtualMapState::new,
+                        virtualMap -> new TestVirtualMapState(
+                                virtualMap, CONFIGURATION, new NoOpMetrics(), Time.getCurrent()),
                         currentSoftwareVersion,
                         platformStateFacade,
                         platformContext)
@@ -282,7 +286,8 @@ public class StartupStateUtilsTests {
                         selfId,
                         mainClassName,
                         swirldName,
-                        TestVirtualMapState::new,
+                        virtualMap -> new TestVirtualMapState(
+                                virtualMap, CONFIGURATION, new NoOpMetrics(), Time.getCurrent()),
                         currentSoftwareVersion,
                         platformStateFacade,
                         platformContext)

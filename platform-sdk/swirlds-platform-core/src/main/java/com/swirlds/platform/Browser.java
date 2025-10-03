@@ -267,7 +267,7 @@ public class Browser {
                     recycleBin,
                     appMain.getSemanticVersion(),
                     appMain::newStateRoot,
-                    stateRootFromVirtualMap(appMain),
+                    stateRootFromVirtualMap(appMain, configuration, guiMetrics, Time.getCurrent()),
                     appMain.getClass().getName(),
                     appDefinition.getSwirldName(),
                     nodeId,
@@ -312,7 +312,7 @@ public class Browser {
                     String.valueOf(nodeId),
                     rosterHistory,
                     platformStateFacade,
-                    stateRootFromVirtualMap(appMain));
+                    stateRootFromVirtualMap(appMain, configuration, guiMetrics, Time.getCurrent()));
             if (showUi && index == 0) {
                 builder.withPreconsensusEventCallback(guiEventStorage::handlePreconsensusEvent);
                 builder.withConsensusSnapshotOverrideCallback(guiEventStorage::handleSnapshotOverride);
@@ -404,8 +404,17 @@ public class Browser {
      *
      * @return a function that accepts a {@code VirtualMap} and returns the state root object.
      */
-    private static Function<VirtualMap, MerkleNodeState> stateRootFromVirtualMap(@NonNull final SwirldMain appMain) {
+    private static Function<VirtualMap, MerkleNodeState> stateRootFromVirtualMap(
+            @NonNull final SwirldMain appMain,
+            @NonNull final Configuration configuration,
+            @NonNull final Metrics metrics,
+            @NonNull final Time time) {
         Objects.requireNonNull(appMain);
-        return (virtualMap) -> (com.swirlds.platform.state.MerkleNodeState) appMain.stateRootFromVirtualMap();
+        Objects.requireNonNull(configuration);
+        Objects.requireNonNull(metrics);
+        Objects.requireNonNull(time);
+
+        return (virtualMap) -> (com.swirlds.platform.state.MerkleNodeState)
+                appMain.stateRootFromVirtualMap(configuration, metrics, time);
     }
 }

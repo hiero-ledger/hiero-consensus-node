@@ -32,6 +32,7 @@ import com.google.protobuf.ByteString;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.base.time.Time;
 import com.swirlds.base.units.UnitConstants;
 import com.swirlds.base.utility.Pair;
 import com.swirlds.common.merkle.iterators.MerkleIterator;
@@ -40,6 +41,7 @@ import com.swirlds.common.metrics.SpeedometerMetric;
 import com.swirlds.common.threading.framework.config.ThreadConfiguration;
 import com.swirlds.common.utility.AutoCloseableWrapper;
 import com.swirlds.common.utility.StopWatch;
+import com.swirlds.config.api.Configuration;
 import com.swirlds.demo.merkle.map.FCMConfig;
 import com.swirlds.demo.merkle.map.MapValueData;
 import com.swirlds.demo.merkle.map.MapValueFCQ;
@@ -877,7 +879,8 @@ public class PlatformTestingToolMain extends DefaultSwirldMain<PlatformTestingTo
      * </p>
      */
     @Override
-    public Function<VirtualMap, PlatformTestingToolState> stateRootFromVirtualMap() {
+    public Function<VirtualMap, PlatformTestingToolState> stateRootFromVirtualMap(
+            @NonNull final Configuration configuration, @NonNull final Metrics metrics, @NonNull final Time time) {
         throw new UnsupportedOperationException();
     }
 

@@ -134,10 +134,17 @@ class StateFileManagerTests {
 
         assertEquals(-1, originalState.getReservationCount(), "invalid reservation count");
 
-        Configuration configuration =
-                TestPlatformContextBuilder.create().build().getConfiguration();
+        final PlatformContext platformContext =
+                TestPlatformContextBuilder.create().build();
         final DeserializedSignedState deserializedSignedState = readStateFile(
-                stateFile, TestVirtualMapState::new, TEST_PLATFORM_STATE_FACADE, PlatformContext.create(configuration));
+                stateFile,
+                virtualMap -> new TestVirtualMapState(
+                        virtualMap,
+                        platformContext.getConfiguration(),
+                        platformContext.getMetrics(),
+                        platformContext.getTime()),
+                TEST_PLATFORM_STATE_FACADE,
+                platformContext);
         SignedState signedState = deserializedSignedState.reservedSignedState().get();
         hashState(signedState);
 
@@ -301,12 +308,19 @@ class StateFileManagerTests {
 
                     final SavedStateInfo savedStateInfo = currentStatesOnDisk.get(index);
 
+                    PlatformContext platformContext =
+                            TestPlatformContextBuilder.create().build();
+                    Configuration configuration = platformContext.getConfiguration();
                     final SignedState stateFromDisk = assertDoesNotThrow(
                             () -> SignedStateFileReader.readStateFile(
                                             savedStateInfo.stateFile(),
-                                            TestVirtualMapState::new,
+                                            virtualMap -> new TestVirtualMapState(
+                                                    virtualMap,
+                                                    platformContext.getConfiguration(),
+                                                    platformContext.getMetrics(),
+                                                    platformContext.getTime()),
                                             TEST_PLATFORM_STATE_FACADE,
-                                            context)
+                                            platformContext)
                                     .reservedSignedState()
                                     .get(),
                             "should be able to read state on disk");

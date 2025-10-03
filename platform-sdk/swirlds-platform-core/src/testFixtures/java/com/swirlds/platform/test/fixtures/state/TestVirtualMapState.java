@@ -1,6 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.fixtures.state;
 
+import static com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade.TEST_PLATFORM_STATE_FACADE;
+import static com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer.CONFIGURATION;
+
+import com.swirlds.base.time.Time;
+import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.state.MerkleNodeState;
@@ -15,21 +20,27 @@ import edu.umd.cs.findbugs.annotations.NonNull;
  */
 public class TestVirtualMapState extends VirtualMapState<TestVirtualMapState> implements MerkleNodeState {
 
-    public TestVirtualMapState(@NonNull final Configuration configuration, @NonNull final Metrics metrics) {
-        super(configuration, metrics);
-    }
-
     public TestVirtualMapState() {
-        this(VirtualMapUtils.createVirtualMap(VM_LABEL));
+        super(CONFIGURATION, new NoOpMetrics(), Time.getCurrent());
     }
 
-    public TestVirtualMapState(@NonNull final VirtualMap virtualMap) {
-        super(virtualMap);
+    public TestVirtualMapState(
+            @NonNull final Configuration configuration, @NonNull final Metrics metrics, @NonNull final Time time) {
+        super(configuration, metrics, time);
+    }
+
+    public TestVirtualMapState(
+            @NonNull final VirtualMap virtualMap,
+            @NonNull final Configuration configuration,
+            @NonNull final Metrics metrics,
+            @NonNull final Time time) {
+        super(virtualMap, configuration, metrics, time);
     }
 
     protected TestVirtualMapState(@NonNull final TestVirtualMapState from) {
         super(from);
     }
+
     /**
      * {@inheritDoc}
      */
@@ -39,12 +50,28 @@ public class TestVirtualMapState extends VirtualMapState<TestVirtualMapState> im
     }
 
     @Override
-    protected TestVirtualMapState newInstance(@NonNull final VirtualMap virtualMap) {
-        return new TestVirtualMapState(virtualMap);
+    protected TestVirtualMapState newInstance(
+            @NonNull final VirtualMap virtualMap,
+            @NonNull final Configuration configuration,
+            @NonNull final Metrics metrics,
+            @NonNull final Time time) {
+        return new TestVirtualMapState(virtualMap, configuration, metrics, time);
     }
 
-    public static TestVirtualMapState createInstanceWithVirtualMapLabel(@NonNull final String virtualMapLabel) {
+    public static TestVirtualMapState createInstanceWithVirtualMapLabel(
+            @NonNull final String virtualMapLabel,
+            @NonNull final Configuration configuration,
+            @NonNull final Metrics metrics,
+            @NonNull final Time time) {
         final var virtualMap = VirtualMapUtils.createVirtualMap(virtualMapLabel);
-        return new TestVirtualMapState(virtualMap);
+        return new TestVirtualMapState(virtualMap, configuration, metrics, time);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    protected long getRound() {
+        return TEST_PLATFORM_STATE_FACADE.roundOf(this);
     }
 }

@@ -18,6 +18,7 @@ import com.swirlds.merkledb.MerkleDbDataSourceBuilder;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.platform.config.AddressBookConfig;
 import com.swirlds.platform.config.BasicConfig;
+import com.swirlds.platform.config.StateConfig;
 import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.service.PlatformStateService;
 import com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema;
@@ -43,6 +44,7 @@ import java.util.function.Supplier;
 import org.hiero.base.constructable.ClassConstructorPair;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
+import org.hiero.base.crypto.config.CryptoConfig;
 import org.hiero.consensus.roster.RosterStateId;
 
 /**
@@ -59,6 +61,8 @@ public class TestingAppStateInitializer {
             .withConfigDataType(TemporaryFileConfig.class)
             .withConfigDataType(StateCommonConfig.class)
             .withConfigDataType(FileSystemManagerConfig.class)
+            .withConfigDataType(CryptoConfig.class)
+            .withConfigDataType(StateConfig.class)
             .build();
 
     public static final TestingAppStateInitializer DEFAULT = new TestingAppStateInitializer();

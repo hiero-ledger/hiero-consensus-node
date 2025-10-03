@@ -3,12 +3,17 @@ package com.swirlds.demo.consistency;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
+import static com.swirlds.platform.state.service.PlatformStateFacade.DEFAULT_PLATFORM_STATE_FACADE;
+import static com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer.CONFIGURATION;
 import static org.hiero.base.utility.ByteUtils.byteArrayToLong;
 import static org.hiero.base.utility.NonCryptographicHashing.hash64;
 
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.pbj.runtime.ParseException;
+import com.swirlds.base.time.Time;
 import com.swirlds.common.merkle.MerkleNode;
+import com.swirlds.common.merkle.crypto.MerkleCryptographyFactory;
+import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.state.test.fixtures.merkle.MerkleStateRoot;
@@ -83,6 +88,7 @@ public class ConsistencyTestingToolState extends MerkleStateRoot<ConsistencyTest
      * Constructor
      */
     public ConsistencyTestingToolState() {
+        super(CONFIGURATION, new NoOpMetrics(), Time.getCurrent(), MerkleCryptographyFactory.create(CONFIGURATION));
         transactionHandlingHistory = new TransactionHandlingHistory();
         transactionsAwaitingPostHandle = ConcurrentHashMap.newKeySet();
         logger.info(STARTUP.getMarker(), "New State Constructed.");
@@ -103,6 +109,14 @@ public class ConsistencyTestingToolState extends MerkleStateRoot<ConsistencyTest
             logger.info(STARTUP.getMarker(), "State initialized with {} rounds handled.", roundsHandled);
         }
         transactionHandlingHistory.init(logFilePath);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    protected long getRound() {
+        return DEFAULT_PLATFORM_STATE_FACADE.roundOf(this);
     }
 
     /**
