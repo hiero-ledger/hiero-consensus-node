@@ -34,7 +34,8 @@ public class StateOperatorCommand implements Runnable {
     @Override
     public void run() {
         // This runs if no subcommand is provided
-        System.out.println("Specify a subcommand (validate/analyze/introspect/export/sorted-export/compact/apply-blocks).");
+        System.out.println(
+                "Specify a subcommand (validate/analyze/introspect/export/sorted-export/compact/apply-blocks).");
         CommandLine.usage(this, System.out);
     }
 
