@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.addressbook.impl.schemas;
 
+import static com.hedera.hapi.util.HapiUtils.SEMANTIC_VERSION_COMPARATOR;
 import static com.swirlds.state.lifecycle.StateMetadata.computeLabel;
 import static java.util.Collections.emptyMap;
 import static java.util.Objects.requireNonNull;
@@ -33,7 +34,7 @@ import org.apache.logging.log4j.Logger;
 /**
  * Genesis schema of the address book service.
  */
-public class V053AddressBookSchema extends Schema {
+public class V053AddressBookSchema extends Schema<SemanticVersion> {
 
     private static final Logger log = LogManager.getLogger(V053AddressBookSchema.class);
 
@@ -50,7 +51,7 @@ public class V053AddressBookSchema extends Schema {
     public static final String NODES_STATE_LABEL = computeLabel(AddressBookService.NAME, NODES_KEY);
 
     public V053AddressBookSchema() {
-        super(VERSION);
+        super(VERSION, SEMANTIC_VERSION_COMPARATOR);
     }
 
     @NonNull

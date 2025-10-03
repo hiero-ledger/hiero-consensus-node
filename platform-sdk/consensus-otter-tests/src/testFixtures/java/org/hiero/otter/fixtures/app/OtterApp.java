@@ -6,6 +6,7 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.swirlds.common.context.PlatformContext;
+import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
@@ -99,8 +100,8 @@ public class OtterApp implements ConsensusStateEventHandler<OtterAppState> {
         for (final OtterService service : allServices) {
             service.preHandleEvent(event);
         }
-        for (final Iterator<Transaction> transactionIterator = event.transactionIterator();
-                transactionIterator.hasNext(); ) {
+        final Iterator<Transaction> transactionIterator = event.transactionIterator();
+        while (transactionIterator.hasNext()) {
             try {
                 final OtterTransaction transaction = OtterTransaction.parseFrom(
                         transactionIterator.next().getApplicationTransaction().toInputStream());
@@ -125,16 +126,15 @@ public class OtterApp implements ConsensusStateEventHandler<OtterAppState> {
             @NonNull final OtterAppState state,
             @NonNull final Consumer<ScopedSystemTransaction<StateSignatureTransaction>> callback) {
         for (final OtterService service : allServices) {
-            service.handleRound(state.getWritableStates(service.name()), round);
+            service.onRoundStart(state.getWritableStates(service.name()), round);
         }
 
         for (final ConsensusEvent consensusEvent : round) {
             for (final OtterService service : allServices) {
-                service.handleEvent(state.getWritableStates(service.name()), consensusEvent);
+                service.onEventStart(state.getWritableStates(service.name()), consensusEvent);
             }
-            for (final Iterator<ConsensusTransaction> transactionIterator =
-                            consensusEvent.consensusTransactionIterator();
-                    transactionIterator.hasNext(); ) {
+            final Iterator<ConsensusTransaction> transactionIterator = consensusEvent.consensusTransactionIterator();
+            while (transactionIterator.hasNext()) {
                 try {
                     final OtterTransaction transaction = OtterTransaction.parseFrom(transactionIterator
                             .next()
@@ -151,6 +151,14 @@ public class OtterApp implements ConsensusStateEventHandler<OtterAppState> {
                             ex);
                 }
             }
+
+            for (final OtterService service : allServices) {
+                service.onEventComplete(consensusEvent);
+            }
+        }
+
+        for (final OtterService service : allServices) {
+            service.onRoundComplete(round);
         }
 
         state.commitState();
@@ -190,12 +198,14 @@ public class OtterApp implements ConsensusStateEventHandler<OtterAppState> {
             @NonNull final Platform platform,
             @NonNull final InitTrigger trigger,
             @Nullable final SemanticVersion previousVersion) {
+        final Configuration configuration = platform.getContext().getConfiguration();
         if (state.getReadableStates(ConsistencyService.NAME).isEmpty()) {
-            OtterStateInitializer.initOtterAppState(
-                    platform.getContext().getConfiguration(), state, version, appServices);
+            OtterStateInitializer.initOtterAppState(configuration, state, version, appServices);
         }
 
-        consistencyService.initialize();
+        for (final OtterService service : allServices) {
+            service.initialize(trigger, platform.getSelfId(), configuration, state);
+        }
     }
 
     /**
@@ -224,5 +234,11 @@ public class OtterApp implements ConsensusStateEventHandler<OtterAppState> {
      */
     public void updateSyntheticBottleneck(final long millisToSleepPerRound) {
         this.syntheticBottleneckMillis.set(millisToSleepPerRound);
+    }
+
+    public void destroy() {
+        for (final OtterService service : allServices) {
+            service.destroy();
+        }
     }
 }

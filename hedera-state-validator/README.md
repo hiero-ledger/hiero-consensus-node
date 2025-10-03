@@ -23,8 +23,6 @@ of a corrupted state.
 ### Validation tags
 
 - [`files`](src/main/java/com/hedera/statevalidation/validators/merkledb/FileLayout.java) - Validates all expected files are present in the state directory.
-- [`stateAnalyzer`](/src/main/java/com/hedera/statevalidation/validators/merkledb/StateAnalyzer.java) - Analyzes the state and calculates metrics such as the percentage of duplicates,
-  item count, file count, wasted space in bytes, and total space. These metrics are published in a `report.json` file.
 - [`internal`](/src/main/java/com/hedera/statevalidation/validators/merkledb/ValidateInternalIndex.java) - Validates the consistency of the indices of internal nodes.
 - [`leaf`](/src/main/java/com/hedera/statevalidation/validators/merkledb/ValidateLeafIndex.java) - Validates the consistency of the indices of leaf nodes.
 - [`hdhm`](/src/main/java/com/hedera/statevalidation/validators/merkledb/ValidateLeafIndexHalfDiskHashMap.java) - Validates the consistency of the indices of leaf nodes in the half-disk hashmap.
@@ -50,6 +48,60 @@ of a corrupted state.
    Optionally, you can specify `keyInfo` to get information about the values in the virtual map of the service state in a format `keyType:keyJson`:
    `keyType` represents service key type (`TopicID`, `AccountID`, etc.) and `keyJson` represents key value as json.
    If `keyInfo` is not provided, it introspects singleton value of the service state.
+
+## Analyze
+
+[AnalyzeCommand](src/main/java/com/hedera/statevalidation/AnalyzeCommand.java) allows you to analyze the state and generate detailed metrics about storage efficiency, including duplicate percentage, item counts, file counts, wasted space in bytes, and total space usage. These metrics are displayed in the console and also saved to a `state-analysis.log` file.
+
+### Usage
+
+1. Download the state files.
+2. Run the following command to execute the introspection:
+
+   ```shell
+   java -jar ./validator-<version>.jar {path-to-state-round} analyze [--path-to-kv] [--path-to-hash]
+   ```
+
+### Analysis Options
+
+- `--path-to-kv` (or `-p2kv`) - Analyze path-to-key-value storage.
+- `--path-to-hash` (or `-p2h`) - Analyze path-to-hash storage.
+
+If no options are specified, both storage types are analyzed by default.
+
+### Analysis Metrics
+
+The analysis generates comprehensive storage reports that include:
+
+- **Item Count**: Total number of stored items
+- **File Count**: Number of storage files
+- **Storage Size**: Total disk space usage in MB
+- **Waste Percentage**: Percentage of space consumed by duplicate or invalid entries
+- **Duplicate Items**: Number of items that appear multiple times
+- **Path Range**: Minimum and maximum path values in the storage
+
+The results are displayed in the console and saved to a `state-analysis.log` file.
+
+### Sample Output
+
+```terminaloutput
+Report for node: 0
+
+Path-to-Hash Storage:
+  Path Range: 0 to 1482
+  Size: 0 MB
+  Files: 1
+  Items: 0
+  Waste: 0.00%
+
+Path-to-KeyValue Storage:
+  Path Range: 741 to 1482
+  Size: 0 MB
+  Files: 1
+  Items: 742
+  Waste: 0.00%
+
+```
 
 ## Export
 
