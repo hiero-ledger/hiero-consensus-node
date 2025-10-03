@@ -121,16 +121,18 @@ public class BlockNodeStats {
         int consecutiveCount;
         boolean shouldSwitch = false;
 
-        if (isHighLatency) {
-            consecutiveCount = consecutiveHighLatencyEvents.incrementAndGet();
-            if (consecutiveCount >= eventsBeforeSwitching) {
-                shouldSwitch = true;
-                // Reset after indicating switch to prevent repeated triggers without new evidence
+        synchronized (consecutiveHighLatencyEvents) {
+            if (isHighLatency) {
+                consecutiveCount = consecutiveHighLatencyEvents.incrementAndGet();
+                if (consecutiveCount >= eventsBeforeSwitching) {
+                    shouldSwitch = true;
+                    // Reset after indicating switch to prevent repeated triggers without new evidence
+                    consecutiveHighLatencyEvents.set(0);
+                }
+            } else {
                 consecutiveHighLatencyEvents.set(0);
+                consecutiveCount = 0;
             }
-        } else {
-            consecutiveHighLatencyEvents.set(0);
-            consecutiveCount = 0;
         }
 
         return new HighLatencyResult(latencyMs, consecutiveCount, isHighLatency, shouldSwitch);
