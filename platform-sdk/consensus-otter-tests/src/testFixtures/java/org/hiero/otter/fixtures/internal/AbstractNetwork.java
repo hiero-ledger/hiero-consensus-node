@@ -4,7 +4,9 @@ package org.hiero.otter.fixtures.internal;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.consensus.model.status.PlatformStatus.ACTIVE;
 import static org.hiero.consensus.model.status.PlatformStatus.CATASTROPHIC_FAILURE;
+import static org.hiero.consensus.model.status.PlatformStatus.CHECKING;
 import static org.hiero.consensus.model.status.PlatformStatus.FREEZE_COMPLETE;
+import static org.junit.jupiter.api.Assertions.fail;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.ServiceEndpoint;
@@ -73,7 +75,6 @@ import org.hiero.otter.fixtures.result.SingleNodeMarkerFileResult;
 import org.hiero.otter.fixtures.result.SingleNodePcesResult;
 import org.hiero.otter.fixtures.result.SingleNodePlatformStatusResult;
 import org.hiero.otter.fixtures.result.SingleNodeReconnectResult;
-import org.hiero.otter.fixtures.result.SubscriberAction;
 
 /**
  * An abstract base class for a network implementation that provides common functionality shared by the different
@@ -451,8 +452,24 @@ public abstract class AbstractNetwork implements Network {
         final Duration elapsed = Duration.between(start, timeManager().now());
 
         log.debug("Waiting for Catastrophic ISS to trigger...");
-        timeManager().waitForCondition(() -> this.allNodesInStatus(CATASTROPHIC_FAILURE), defaultTimeout.minus(elapsed),
-                "Nodes did not enter CATASTROPHIC_FAILURE before timeout");
+
+        // Depending on the test configuration, some nodes may enter CHECKING when a catastrophic ISS occurs,
+        // but at least one node should always enter CATASTROPHIC_FAILURE.
+        timeManager().waitForCondition(this::allNodesInCheckingOrCatastrophicFailure, defaultTimeout.minus(elapsed),
+                "Not all nodes entered CHECKING or CATASTROPHIC_FAILURE before timeout");
+        final int numInCatastrophicFailure = (int) nodes().stream()
+                .filter(node -> node.platformStatus() == CATASTROPHIC_FAILURE)
+                .count();
+        if (numInCatastrophicFailure < 1) {
+            fail("No node entered CATASTROPHIC_FAILURE");
+        }
+    }
+
+    private boolean allNodesInCheckingOrCatastrophicFailure() {
+        return nodes().stream().allMatch(node -> {
+            final var status = node.platformStatus();
+            return status == CATASTROPHIC_FAILURE || status == CHECKING;
+        });
     }
 
     /**
@@ -502,6 +519,7 @@ public abstract class AbstractNetwork implements Network {
     @Override
     @NonNull
     public Network withConfigValue(@NonNull final String key, @NonNull final String value) {
+        requireNodesBeforeConfigChange();
         nodes().forEach(node -> node.configuration().set(key, value));
         return this;
     }
@@ -512,6 +530,7 @@ public abstract class AbstractNetwork implements Network {
     @Override
     @NonNull
     public Network withConfigValue(@NonNull final String key, final int value) {
+        requireNodesBeforeConfigChange();
         nodes().forEach(node -> node.configuration().set(key, value));
         return this;
     }
@@ -522,6 +541,7 @@ public abstract class AbstractNetwork implements Network {
     @Override
     @NonNull
     public Network withConfigValue(@NonNull final String key, final long value) {
+        requireNodesBeforeConfigChange();
         nodes().forEach(node -> node.configuration().set(key, value));
         return this;
     }
@@ -532,6 +552,7 @@ public abstract class AbstractNetwork implements Network {
     @Override
     @NonNull
     public Network withConfigValue(@NonNull final String key, @NonNull final Path value) {
+        requireNodesBeforeConfigChange();
         nodes().forEach(node -> node.configuration().set(key, value));
         return this;
     }
@@ -542,8 +563,15 @@ public abstract class AbstractNetwork implements Network {
     @Override
     @NonNull
     public Network withConfigValue(@NonNull final String key, final boolean value) {
+        requireNodesBeforeConfigChange();
         nodes().forEach(node -> node.configuration().set(key, value));
         return this;
+    }
+
+    private void requireNodesBeforeConfigChange() {
+        if (nodes().isEmpty()) {
+            throw new IllegalStateException("Cannot update configuration without nodes in the network.");
+        }
     }
 
     /**
