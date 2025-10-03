@@ -353,6 +353,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
      */
     private void handleAcknowledgement(@NonNull final BlockAcknowledgement acknowledgement) {
         final long acknowledgedBlockNumber = acknowledgement.blockNumber();
+        logWithContext(DEBUG, "BlockAcknowledgement received for block {}", acknowledgedBlockNumber);
         acknowledgeBlocks(acknowledgedBlockNumber, true);
 
         // Evaluate latency and high-latency QoS via the connection manager

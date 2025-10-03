@@ -18,6 +18,7 @@ import com.hedera.hapi.node.state.token.Nft;
 import com.hedera.hapi.node.state.token.Token;
 import com.hedera.hapi.node.state.token.TokenRelation;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
+import com.hedera.node.app.service.contract.ReadableEvmHookStore;
 import com.hedera.node.app.service.contract.impl.state.DispatchingEvmFrameState;
 import com.hedera.node.app.service.schedule.ReadableScheduleStore;
 import com.hedera.node.app.service.token.ReadableAccountStore;
@@ -79,6 +80,13 @@ public interface HederaNativeOperations {
      */
     @NonNull
     ReadableScheduleStore readableScheduleStore();
+    /**
+     * Returns the {@link ReadableEvmHookStore} for this {@link HederaNativeOperations}.
+     *
+     * @return the {@link ReadableEvmHookStore}
+     */
+    @NonNull
+    ReadableEvmHookStore readableHookStore();
 
     /**
      * Returns the {@link Account} with the given contract id.

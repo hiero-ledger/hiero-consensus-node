@@ -2,11 +2,14 @@
 package com.hedera.node.app.service.token;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOK_ID_REPEATED_IN_CREATION_DETAILS;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.spi.workflows.DispatchOptions.hookDispatch;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
 
+import com.esaulpaugh.headlong.abi.Function;
+import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HookEntityId;
 import com.hedera.hapi.node.base.HookId;
@@ -17,6 +20,7 @@ import com.hedera.hapi.node.hooks.HookExecution;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.token.records.HookDispatchStreamBuilder;
 import com.hedera.node.app.spi.workflows.HandleContext;
+import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
@@ -88,8 +92,10 @@ public class HookDispatchUtils {
                 HookDispatchStreamBuilder.class));
         validateTrue(streamBuilder.status() == SUCCESS, streamBuilder.status());
     }
+
     /**
      * Validates the hook creation details list, if there are any duplicate hook IDs.
+     *
      * @param details the list of hook creation details
      * @throws PreCheckException if there are duplicate hook IDs
      */
@@ -102,8 +108,10 @@ public class HookDispatchUtils {
             }
         }
     }
+
     /**
      * Validates the hook creation details and deletions list, if there are any duplicate hook IDs.
+     *
      * @param details the list of hook creation details
      * @param hookIdsToDelete the list of hook IDs to delete
      * @throws PreCheckException if there are duplicate hook IDs
@@ -117,13 +125,16 @@ public class HookDispatchUtils {
                     HOOK_ID_REPEATED_IN_CREATION_DETAILS);
         }
     }
+
     /**
      * Dispatches the hook execution to the given context.
      *
      * @param context the handle context
      * @param execution the hook execution to dispatch
+     * @param function the function to decode the result
      */
-    public static void dispatchExecution(final @NonNull HandleContext context, final HookExecution execution) {
+    public static void dispatchExecution(
+            final @NonNull HandleContext context, final HookExecution execution, final Function function) {
         final var hookDispatch =
                 HookDispatchTransactionBody.newBuilder().execution(execution).build();
         final var streamBuilder = context.dispatch(hookDispatch(
@@ -131,5 +142,12 @@ public class HookDispatchUtils {
                 TransactionBody.newBuilder().hookDispatch(hookDispatch).build(),
                 HookDispatchStreamBuilder.class));
         validateTrue(streamBuilder.status() == SUCCESS, streamBuilder.status());
+        final var result = streamBuilder.getEvmCallResult();
+        try {
+            final Tuple decoded = function.getOutputs().decode(result.toByteArray());
+            validateTrue(decoded.get(0), REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK);
+        } catch (final Exception ignore) {
+            throw new HandleException(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK);
+        }
     }
 }

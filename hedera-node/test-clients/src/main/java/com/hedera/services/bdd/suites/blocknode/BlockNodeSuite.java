@@ -670,7 +670,9 @@ public class BlockNodeSuite {
                         time::get,
                         Duration.ofSeconds(20),
                         Duration.ofSeconds(20),
-                        String.format("/localhost:%s/ACTIVE] Acknowledging blocks", portNumbers.getFirst()))),
+                        String.format(
+                                "/localhost:%s/ACTIVE] BlockAcknowledgement received for block",
+                                portNumbers.getFirst()))),
                 blockNode(0).sendEndOfStreamImmediately(Code.BEHIND).withBlockNumber(Long.MAX_VALUE),
                 sourcingContextual(spec -> assertHgcaaLogContainsTimeframe(
                         byNodeId(0),

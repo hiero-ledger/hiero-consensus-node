@@ -4,6 +4,7 @@ package com.hedera.node.app.service.token.impl.handlers.transfer.hooks;
 import static com.esaulpaugh.headlong.abi.Address.toChecksumAddress;
 import static com.hedera.node.app.hapi.utils.CommonUtils.asEvmAddress;
 import static com.hedera.node.app.service.token.AliasUtils.extractEvmAddress;
+import static com.hedera.node.app.service.token.impl.handlers.transfer.hooks.HooksABI.EMPTY_TRANSFERS;
 import static java.util.Objects.requireNonNull;
 
 import com.esaulpaugh.headlong.abi.Address;
@@ -102,7 +103,7 @@ public class HookCallFactory {
             final ReadableAccountStore accountStore,
             final List<AssessedFeeWithPayerDebits> assessedFeeWithPayerDebits) {
         if (assessedFeeWithPayerDebits.isEmpty()) {
-            return Tuple.of(new Tuple[] {}, new Tuple[] {});
+            return EMPTY_TRANSFERS;
         }
         final Map<TokenID, Map<AccountID, Long>> deltas = new LinkedHashMap<>();
         for (final var assessedFee : assessedFeeWithPayerDebits) {
@@ -129,7 +130,6 @@ public class HookCallFactory {
         final var hbarTransfers = TransferList.newBuilder()
                 .accountAmounts(toAccountAmounts(hbarMap))
                 .build();
-
         final var tokenTransfers = deltas.entrySet().stream()
                 .filter(en -> !en.getKey().equals(AssessmentResult.HBAR_TOKEN_ID))
                 .map(en -> TokenTransferList.newBuilder()
@@ -138,7 +138,8 @@ public class HookCallFactory {
                         .build())
                 .toList();
         // Reuse the normal encoder; used empty hook collector as custom fees don't introduce new hooks
-        return encodeTransfers(hbarTransfers, tokenTransfers, accountStore, List.of(), List.of());
+        final var encoded = encodeTransfers(hbarTransfers, tokenTransfers, accountStore, List.of(), List.of());
+        return encoded;
     }
     /**
      * Converts a map of AccountID to Long amounts into a list of AccountAmount,

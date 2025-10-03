@@ -34,7 +34,6 @@ import static com.hedera.node.app.workflows.handle.dispatch.DispatchValidator.Wo
 import static java.util.Objects.requireNonNull;
 import static org.hiero.consensus.model.status.PlatformStatus.ACTIVE;
 
-import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.SignaturePair;
 import com.hedera.hapi.node.base.TokenTransferList;
@@ -43,7 +42,6 @@ import com.hedera.hapi.node.base.TransferList;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.hapi.node.token.TokenAirdropTransactionBody;
-import com.hedera.node.app.annotations.NodeSelfId;
 import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.fees.FeeContextImpl;
 import com.hedera.node.app.fees.FeeManager;
@@ -55,11 +53,13 @@ import com.hedera.node.app.signature.SignatureExpander;
 import com.hedera.node.app.signature.SignatureVerifier;
 import com.hedera.node.app.spi.authorization.Authorizer;
 import com.hedera.node.app.spi.fees.FeeContext;
+import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.signatures.SignatureVerification;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.state.DeduplicationCache;
 import com.hedera.node.app.store.ReadableStoreFactory;
 import com.hedera.node.app.throttle.SynchronizedThrottleAccumulator;
+import com.hedera.node.app.throttle.ThrottleResult;
 import com.hedera.node.app.throttle.ThrottleUsage;
 import com.hedera.node.app.workflows.InnerTransaction;
 import com.hedera.node.app.workflows.OpWorkflowMetrics;
@@ -118,7 +118,7 @@ public final class IngestChecker {
     private final DeduplicationCache deduplicationCache;
     private final TransactionDispatcher dispatcher;
     private final FeeManager feeManager;
-    private final AccountID nodeAccount;
+    private final NetworkInfo networkInfo;
     private final Authorizer authorizer;
     private final SynchronizedThrottleAccumulator synchronizedThrottleAccumulator;
     private final InstantSource instantSource;
@@ -156,7 +156,7 @@ public final class IngestChecker {
     /**
      * Constructor of the {@code IngestChecker}
      *
-     * @param nodeAccount the {@link AccountID} of the node
+     * @param networkInfo the {@link NetworkInfo} that contains information about the network
      * @param currentPlatformStatus the {@link CurrentPlatformStatus} that contains the current status of the platform
      * @param transactionChecker the {@link TransactionChecker} that pre-processes the bytes of a transaction
      * @param solvencyPreCheck the {@link SolvencyPreCheck} that checks payer balance
@@ -171,7 +171,7 @@ public final class IngestChecker {
      */
     @Inject
     public IngestChecker(
-            @NodeSelfId @NonNull final AccountID nodeAccount,
+            @NonNull final NetworkInfo networkInfo,
             @NonNull final CurrentPlatformStatus currentPlatformStatus,
             @NonNull final BlockStreamManager blockStreamManager,
             @NonNull final TransactionChecker transactionChecker,
@@ -186,7 +186,7 @@ public final class IngestChecker {
             @NonNull final InstantSource instantSource,
             @NonNull final OpWorkflowMetrics workflowMetrics,
             @Nullable final AtomicBoolean systemEntitiesCreatedFlag) {
-        this.nodeAccount = requireNonNull(nodeAccount, "nodeAccount must not be null");
+        this.networkInfo = requireNonNull(networkInfo, "networkInfo must not be null");
         this.currentPlatformStatus = requireNonNull(currentPlatformStatus, "currentPlatformStatus must not be null");
         this.blockStreamManager = requireNonNull(blockStreamManager, "blockStreamManager must not be null");
         this.transactionChecker = requireNonNull(transactionChecker, "transactionChecker must not be null");
@@ -276,7 +276,8 @@ public final class IngestChecker {
         final var functionality = txInfo.functionality();
 
         // 1a. Verify the transaction has been sent to *this* node
-        if (!nodeAccount.equals(txBody.nodeAccountID()) && innerTransaction == NO) {
+        final var nodeAccountId = networkInfo.selfNodeInfo().accountId();
+        if (!nodeAccountId.equals(txBody.nodeAccountID()) && innerTransaction == NO) {
             throw new PreCheckException(INVALID_NODE_ACCOUNT);
         }
 
@@ -354,10 +355,16 @@ public final class IngestChecker {
         final var hederaConfig = configuration.getConfigData(HederaConfig.class);
         final var hooksConfig = configuration.getConfigData(HooksConfig.class);
         assertThrottlingPreconditions(txInfo, hederaConfig, hooksConfig);
-        if (hederaConfig.ingestThrottleEnabled()
-                && synchronizedThrottleAccumulator.shouldThrottle(txInfo, state, throttleUsages)) {
-            workflowMetrics.incrementThrottled(txInfo.functionality());
-            throw new PreCheckException(BUSY);
+        if (hederaConfig.ingestThrottleEnabled()) {
+            ThrottleResult throttleResult =
+                    synchronizedThrottleAccumulator.shouldThrottle(txInfo, state, throttleUsages);
+            if (throttleResult.hasValidationError()) {
+                throw new PreCheckException(throttleResult.validationError());
+            }
+            if (throttleResult.shouldThrottle()) {
+                workflowMetrics.incrementThrottled(txInfo.functionality());
+                throw new PreCheckException(BUSY);
+            }
         }
     }
 

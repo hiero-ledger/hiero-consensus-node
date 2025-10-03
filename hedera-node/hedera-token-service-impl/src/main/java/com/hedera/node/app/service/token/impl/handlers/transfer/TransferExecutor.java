@@ -338,7 +338,7 @@ public class TransferExecutor extends BaseTokenHandler {
                             .hookId(hookInvocation.hookId())
                             .build())
                     .build();
-            dispatchExecution(handleContext, execution);
+            dispatchExecution(handleContext, execution, function);
         }
     }
 

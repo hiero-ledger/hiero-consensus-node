@@ -2,6 +2,7 @@
 package com.swirlds.platform.test.fixtures.state;
 
 import static com.swirlds.state.lifecycle.StateMetadata.computeLabel;
+import static com.swirlds.state.test.fixtures.merkle.StateClassIdUtils.singletonClassId;
 import static com.swirlds.state.test.fixtures.merkle.TestStateUtils.registerWithSystem;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
@@ -91,7 +92,7 @@ public class TestingAppStateInitializer {
             @NonNull final String name) {
         schema.statesToCreate().stream()
                 .sorted(Comparator.comparing(StateDefinition::stateKey))
-                .forEach(def -> registerWithSystem(new StateMetadata<>(name, schema, def), registry));
+                .forEach(def -> registerWithSystem(new StateMetadata<>(name, def), registry, schema.getVersion()));
     }
 
     /**
@@ -119,18 +120,18 @@ public class TestingAppStateInitializer {
         final var schema = new V0540PlatformStateSchema(
                 config -> SemanticVersion.newBuilder().minor(1).build());
         schema.statesToCreate().stream()
-                .sorted(Comparator.comparing(StateDefinition::stateKey))
+                .sorted(Comparator.comparing(StateDefinition::stateId))
                 .forEach(def -> {
-                    final var md = new StateMetadata<>(PlatformStateService.NAME, schema, def);
+                    final var md = new StateMetadata<>(PlatformStateService.NAME, def);
                     if (def.singleton()) {
+                        final String serviceName = md.serviceName();
+                        final String stateKey = md.stateDefinition().stateKey();
                         initializeServiceState(
                                 state,
                                 md,
                                 () -> new SingletonNode<>(
-                                        computeLabel(
-                                                md.serviceName(),
-                                                md.stateDefinition().stateKey()),
-                                        md.singletonClassId(),
+                                        computeLabel(serviceName, stateKey),
+                                        singletonClassId(serviceName, stateKey, schema.getVersion()),
                                         md.stateDefinition().valueCodec(),
                                         null));
                     } else {
@@ -160,8 +161,10 @@ public class TestingAppStateInitializer {
         schema.statesToCreate().stream()
                 .sorted(Comparator.comparing(StateDefinition::stateId))
                 .forEach(def -> {
-                    final var md = new StateMetadata<>(RosterStateId.SERVICE_NAME, schema, def);
+                    final var md = new StateMetadata<>(RosterStateId.SERVICE_NAME, def);
                     if (def.singleton()) {
+                        final String serviceName = md.serviceName();
+                        final String stateKey = md.stateDefinition().stateKey();
                         initializeServiceState(
                                 state,
                                 md,
@@ -169,7 +172,7 @@ public class TestingAppStateInitializer {
                                         computeLabel(
                                                 md.serviceName(),
                                                 md.stateDefinition().stateKey()),
-                                        md.singletonClassId(),
+                                        singletonClassId(serviceName, stateKey, schema.getVersion()),
                                         md.stateDefinition().valueCodec(),
                                         null));
                     } else if (def.onDisk()) {
