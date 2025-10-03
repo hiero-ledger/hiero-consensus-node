@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.schedule;
 
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.suites.utils.DynamicTestUtils.extractAllTestAnnotatedMethods;
 
 import com.hedera.services.bdd.junit.HapiTest;
@@ -13,9 +14,11 @@ import java.util.function.Supplier;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.Tag;
 
 // Running all test methods that are specified in ALL_TESTS constant with scheduling.longTermEnabled enabled
 @HapiTestLifecycle
+@Tag(MATS)
 public class AllTestsWithLongTermFlagEnabledTest {
 
     private static final Supplier<?>[] ALL_TESTS = new Supplier<?>[] {

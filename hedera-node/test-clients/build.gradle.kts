@@ -83,7 +83,7 @@ val prCheckTags =
         // Copy vals to the MATS variants
         val originalEntries = toMap() // Create a snapshot of current entries
         originalEntries.forEach { (taskName: String, tags: String) ->
-            put("$taskName$matsSuffix", "($tags)&MATS")
+            put("$taskName$matsSuffix", "($tags)&$matsSuffix")
         }
     }
 val remoteCheckTags =
@@ -353,18 +353,19 @@ tasks.register<Test>("testRemote") {
 
 val prEmbeddedCheckTags =
     buildMap<String, String> {
-        put("hapiEmbeddedMisc", "EMBEDDED")
-
-        // Copy vals to the MATS variants
-        val originalEntries = toMap() // Create a snapshot of current entries
-        originalEntries.forEach { (taskName: String, size: String) ->
-            put("$taskName$matsSuffix", size)
-        }
+        put("hapiEmbeddedToken", "TOKEN&!MATS")
+        put("hapiEmbeddedCrypto", "CRYPTO&!MATS")
+        put("hapiEmbeddedSmartContract", "SMART_CONTRACT&!MATS")
+        put("hapiEmbeddedMisc", "EMBEDDED&!MATS")
+        put("hapiEmbeddedMiscRecords", "($miscTags)")
     }
 
 tasks {
     prEmbeddedCheckTags.forEach { (taskName, _) ->
-        register(taskName) { dependsOn("testEmbedded") }
+        register(taskName) {
+            getByName(taskName).group = "hapi-test-embedded"
+            dependsOn("testEmbedded")
+        }
     }
 }
 
@@ -384,7 +385,8 @@ tasks.register<Test>("testEmbedded") {
         includeTags(
             if (ciTagExpression.isBlank())
                 "none()|!(RESTART|ND_RECONNECT|UPGRADE|REPEATABLE|ONLY_SUBPROCESS|ISS)"
-            else "(${ciTagExpression}|STREAM_VALIDATION|LOG_VALIDATION)&!(INTEGRATION|ISS)"
+            else
+                "(${ciTagExpression}|STREAM_VALIDATION|LOG_VALIDATION)&!(INTEGRATION|ISS|ONLY_SUBPROCESS|REPEATABLE|MATS)"
         )
     }
 
@@ -407,6 +409,13 @@ tasks.register<Test>("testEmbedded") {
     systemProperty("hapi.spec.default.shard", 0)
     systemProperty("hapi.spec.default.realm", 0)
 
+    // Default quiet mode is "false" unless we are running in CI or set it explicitly to "true"
+    systemProperty(
+        "hapi.spec.quiet.mode",
+        System.getProperty("hapi.spec.quiet.mode")
+            ?: if (ciTagExpression.isNotBlank()) "true" else "false",
+    )
+
     // Limit heap and number of processors
     maxHeapSize = "8g"
     jvmArgs("-XX:ActiveProcessorCount=6")
@@ -419,8 +428,8 @@ val prRepeatableCheckTags =
 
         // Copy vals to the MATS variants
         val originalEntries = toMap() // Create a snapshot of current entries
-        originalEntries.forEach { (taskName: String, size: String) ->
-            put("$taskName$matsSuffix", size)
+        originalEntries.forEach { (taskName: String, tags: String) ->
+            put("$taskName$matsSuffix", "($tags)&$matsSuffix")
         }
     }
 
@@ -446,7 +455,7 @@ tasks.register<Test>("testRepeatable") {
     useJUnitPlatform {
         includeTags(
             if (ciTagExpression.isBlank())
-                "none()|!(RESTART|ND_RECONNECT|UPGRADE|EMBEDDED|NOT_REPEATABLE|ONLY_SUBPROCESS|ISS)"
+                "none()|!(RESTART|ND_RECONNECT|UPGRADE|ONLY_EMBEDDED|NOT_REPEATABLE|ONLY_SUBPROCESS|ISS)"
             else "(${ciTagExpression}|STREAM_VALIDATION|LOG_VALIDATION)&!(INTEGRATION|ISS)"
         )
     }

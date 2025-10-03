@@ -3,6 +3,7 @@ package com.hedera.services.bdd.suites.contract.precompile;
 
 import static com.google.protobuf.ByteString.copyFromUtf8;
 import static com.hedera.services.bdd.junit.TestTags.MATS;
+import static com.hedera.services.bdd.junit.TestTags.ONLY_SUBPROCESS;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asDotDelimitedLongArray;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asToken;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
@@ -44,6 +45,7 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
+@Tag(ONLY_SUBPROCESS)
 @SuppressWarnings("java:S1192")
 public class ContractBurnHTSV2SecurityModelSuite {
     private static final long GAS_TO_OFFER = 4_000_000L;
