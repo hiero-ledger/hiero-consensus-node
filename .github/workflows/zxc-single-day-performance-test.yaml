@@ -1341,7 +1341,8 @@ jobs:
     uses: ./.github/workflows/zxc-execute-performance-test.yaml
     with:
       test-asset: "${{ inputs.test-asset }}"
-      ref: "${{ github.ref }}"
+      ref: "${{ inputs.ref }}"
+      gharef: "${{ github.ref }}"
       nlg-accounts: "${{ inputs.nlg-accounts }}"
       nlg-test: "HCSLoadTest"
       nlg-time: "${{ inputs.nlg-time }}"
@@ -1355,7 +1356,8 @@ jobs:
     uses: ./.github/workflows/zxc-execute-performance-test.yaml
     with:
       test-asset: "${{ inputs.test-asset }}"
-      ref: "${{ github.ref }}"
+      ref: "${{ inputs.ref }}"
+      gharef: "${{ github.ref }}"
       nlg-accounts: "${{ inputs.nlg-accounts }}"
       nlg-test: "CryptoTransferLoadTest"
       nlg-time: "${{ inputs.nlg-time }}"
@@ -1369,7 +1371,8 @@ jobs:
     uses: ./.github/workflows/zxc-execute-performance-test.yaml
     with:
       test-asset: "${{ inputs.test-asset }}"
-      ref: "${{ github.ref }}"
+      ref: "${{ inputs.ref }}"
+      gharef: "${{ github.ref }}"
       nlg-accounts: "${{ inputs.nlg-accounts }}"
       nlg-test: "HeliSwapLoadTest"
       nlg-time: "${{ inputs.nlg-time }}"
@@ -1383,7 +1386,8 @@ jobs:
     uses: ./.github/workflows/zxc-execute-performance-test.yaml
     with:
       test-asset: "${{ inputs.test-asset }}"
-      ref: "${{ github.ref }}"
+      ref: "${{ inputs.ref }}"
+      gharef: "${{ github.ref }}"
       nlg-accounts: "${{ inputs.nlg-accounts }}"
       nlg-test: "SmartContractLoadTest"
       nlg-time: "${{ inputs.nlg-time }}"
