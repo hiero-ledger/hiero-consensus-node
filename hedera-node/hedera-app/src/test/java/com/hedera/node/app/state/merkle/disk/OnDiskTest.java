@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.state.merkle.disk;
 
+import static com.hedera.hapi.util.HapiUtils.SEMANTIC_VERSION_COMPARATOR;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_KEY;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_STATE_ID;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_STATE_LABEL;
@@ -80,7 +81,7 @@ class OnDiskTest extends MerkleTestBase {
         def = StateDefinition.onDisk(ACCOUNTS_STATE_ID, ACCOUNTS_KEY, AccountID.PROTOBUF, Account.PROTOBUF, 100);
 
         //noinspection rawtypes
-        schema = new Schema(version(1, 0, 0)) {
+        schema = new Schema<>(version(1, 0, 0), SEMANTIC_VERSION_COMPARATOR) {
             @NonNull
             @Override
             public Set<StateDefinition> statesToCreate() {

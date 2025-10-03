@@ -83,12 +83,6 @@ module com.swirlds.platform.core {
             com.swirlds.common,
             com.swirlds.platform.core.test.fixtures,
             com.hedera.node.test.clients;
-    exports com.swirlds.platform.proof to
-            com.swirlds.common,
-            org.hiero.base.utility;
-    exports com.swirlds.platform.proof.tree to
-            com.swirlds.common,
-            org.hiero.base.utility;
 
     opens com.swirlds.platform.cli to
             info.picocli;

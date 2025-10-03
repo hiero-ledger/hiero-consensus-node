@@ -282,7 +282,11 @@ public final class EmbeddedVerbs {
                     pbjFunction,
                     null);
             int numSchedulable = 0;
-            for (; !throttleAccumulator.checkAndEnforceThrottle(txnInfo, now, state, null); numSchedulable++) {
+            for (;
+                    !throttleAccumulator
+                            .checkAndEnforceThrottle(txnInfo, now, state, null)
+                            .shouldThrottle();
+                    numSchedulable++) {
                 // Count until we are throttled
             }
             observer.accept(numSchedulable);

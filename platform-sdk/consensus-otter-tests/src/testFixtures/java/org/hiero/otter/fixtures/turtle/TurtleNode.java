@@ -40,6 +40,7 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Objects;
+import java.util.Random;
 import java.util.function.Consumer;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
@@ -51,6 +52,7 @@ import org.hiero.otter.fixtures.NodeConfiguration;
 import org.hiero.otter.fixtures.app.OtterApp;
 import org.hiero.otter.fixtures.app.OtterAppState;
 import org.hiero.otter.fixtures.app.OtterExecutionLayer;
+import org.hiero.otter.fixtures.app.OtterTransaction;
 import org.hiero.otter.fixtures.internal.AbstractNode;
 import org.hiero.otter.fixtures.internal.result.NodeResultsCollector;
 import org.hiero.otter.fixtures.internal.result.SingleNodeMarkerFileResultImpl;
@@ -97,6 +99,9 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
 
     @Nullable
     private PlatformComponents platformComponent;
+
+    @Nullable
+    private OtterApp otterApp;
 
     /**
      * Constructor of {@link TurtleNode}.
@@ -170,7 +175,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
                     .withUncaughtExceptionHandler((t, e) -> fail("Unexpected exception in wiring framework", e))
                     .build();
 
-            final OtterApp otterApp = new OtterApp(version);
+            otterApp = new OtterApp(version);
 
             final HashedReservedSignedState reservedState = loadInitialState(
                     recycleBin,
@@ -190,7 +195,8 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
             final RosterHistory rosterHistory = RosterUtils.createRosterHistory(state);
             final String eventStreamLoc = selfId.toString();
 
-            this.executionLayer = new OtterExecutionLayer(platformContext.getMetrics());
+            this.executionLayer =
+                    new OtterExecutionLayer(new Random(randotron.nextLong()), platformContext.getMetrics());
 
             final PlatformBuilder platformBuilder = PlatformBuilder.create(
                             OtterApp.APP_NAME,
@@ -286,7 +292,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
      * {@inheritDoc}
      */
     @Override
-    public void submitTransaction(@NonNull final byte[] transaction) {
+    public void submitTransaction(@NonNull final OtterTransaction transaction) {
         try (final LoggingContextScope ignored = installNodeContext()) {
             throwIfIn(INIT, "Node has not been started yet.");
             throwIfIn(SHUTDOWN, "Node has been shut down.");
@@ -294,7 +300,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
             assert platform != null; // platform must be initialized if lifeCycle is STARTED
             assert executionLayer != null; // executionLayer must be initialized
 
-            executionLayer.submitApplicationTransaction(transaction);
+            executionLayer.submitApplicationTransaction(transaction.toByteArray());
         }
     }
 
@@ -386,6 +392,9 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
 
         try (final LoggingContextScope ignored = installNodeContext()) {
             resultsCollector.destroy();
+            if (otterApp != null) {
+                otterApp.destroy();
+            }
             lifeCycle = DESTROYED;
 
             logging.removeNodeLogging(selfId);
