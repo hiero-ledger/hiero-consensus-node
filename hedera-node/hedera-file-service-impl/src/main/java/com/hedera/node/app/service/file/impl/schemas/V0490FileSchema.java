@@ -2,6 +2,7 @@
 package com.hedera.node.app.service.file.impl.schemas;
 
 import static com.hedera.hapi.node.base.HederaFunctionality.fromString;
+import static com.hedera.hapi.util.HapiUtils.SEMANTIC_VERSION_COMPARATOR;
 import static com.swirlds.state.lifecycle.StateMetadata.computeLabel;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.util.Objects.requireNonNull;
@@ -83,7 +84,7 @@ import org.apache.logging.log4j.Logger;
  * this schema is always correct for the current version of the software.
  */
 @Singleton
-public class V0490FileSchema extends Schema {
+public class V0490FileSchema extends Schema<SemanticVersion> {
 
     private static final Logger logger = LogManager.getLogger(V0490FileSchema.class);
 
@@ -119,7 +120,7 @@ public class V0490FileSchema extends Schema {
      */
     @Inject
     public V0490FileSchema() {
-        super(VERSION);
+        super(VERSION, SEMANTIC_VERSION_COMPARATOR);
     }
 
     @NonNull

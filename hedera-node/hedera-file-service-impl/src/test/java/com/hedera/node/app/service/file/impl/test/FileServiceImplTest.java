@@ -4,6 +4,7 @@ package com.hedera.node.app.service.file.impl.test;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 import static org.mockito.Mockito.verify;
 
+import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.node.app.service.file.FileService;
 import com.hedera.node.app.service.file.impl.FileServiceImpl;
 import com.hedera.node.app.service.file.impl.schemas.V0490FileSchema;
@@ -28,7 +29,7 @@ class FileServiceImplTest {
 
     @Test
     void registersExpectedSchema() {
-        ArgumentCaptor<Schema> schemaCaptor = ArgumentCaptor.forClass(Schema.class);
+        ArgumentCaptor<Schema<SemanticVersion>> schemaCaptor = ArgumentCaptor.forClass(Schema.class);
 
         subject().registerSchemas(registry);
 

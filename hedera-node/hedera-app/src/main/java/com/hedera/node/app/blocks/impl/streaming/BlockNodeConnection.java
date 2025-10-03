@@ -3,10 +3,13 @@ package com.hedera.node.app.blocks.impl.streaming;
 
 import static java.util.Objects.requireNonNull;
 import static org.apache.logging.log4j.Level.DEBUG;
+import static org.apache.logging.log4j.Level.TRACE;
 import static org.apache.logging.log4j.Level.WARN;
 import static org.hiero.block.api.PublishStreamRequest.EndStream.Code.RESET;
+import static org.hiero.block.api.PublishStreamRequest.EndStream.Code.TIMEOUT;
 import static org.hiero.block.api.PublishStreamRequest.EndStream.Code.TOO_FAR_BEHIND;
 
+import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.node.app.metrics.BlockStreamMetrics;
 import com.hedera.node.app.util.LoggingUtilities;
 import com.hedera.node.config.ConfigProvider;
@@ -17,6 +20,7 @@ import com.hedera.pbj.runtime.grpc.Pipeline;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.Objects;
 import java.util.concurrent.Flow;
 import java.util.concurrent.ScheduledExecutorService;
@@ -310,7 +314,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
     private void endStreamAndReschedule(@NonNull final EndStream.Code code) {
         requireNonNull(code, "code must not be null");
         endTheStreamWith(code);
-        blockNodeConnectionManager.rescheduleConnection(this, BlockNodeConnection.THIRTY_SECONDS, null, true);
+        blockNodeConnectionManager.rescheduleConnection(this, THIRTY_SECONDS, null, true);
     }
 
     /**
@@ -350,6 +354,17 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
     private void handleAcknowledgement(@NonNull final BlockAcknowledgement acknowledgement) {
         final long acknowledgedBlockNumber = acknowledgement.blockNumber();
         acknowledgeBlocks(acknowledgedBlockNumber, true);
+
+        // Evaluate latency and high-latency QoS via the connection manager
+        final var result = blockNodeConnectionManager.recordBlockAckAndCheckLatency(
+                blockNodeConfig, acknowledgedBlockNumber, Instant.now());
+        if (result.shouldSwitch() && !blockNodeConnectionManager.isOnlyOneBlockNodeConfigured()) {
+            logWithContext(
+                    DEBUG,
+                    "Block node has exceeded high latency threshold {} times consecutively.",
+                    result.consecutiveHighLatencyEvents());
+            endStreamAndReschedule(TIMEOUT);
+        }
     }
 
     /**
@@ -402,7 +417,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
         // Check if we've exceeded the EndOfStream rate limit
         // Record the EndOfStream event and check if the rate limit has been exceeded.
         // The connection manager maintains persistent stats for each node across connections.
-        if (blockNodeConnectionManager.recordEndOfStreamAndCheckLimit(blockNodeConfig)) {
+        if (blockNodeConnectionManager.recordEndOfStreamAndCheckLimit(blockNodeConfig, Instant.now())) {
             logWithContext(
                     DEBUG,
                     "Block node has exceeded the allowed number of EndOfStream responses (received={}, permitted={}, timeWindow={}). Reconnection scheduled for {}.",
@@ -572,13 +587,18 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                     PublishStreamRequest#protobufSize does the size calculation lazily and thus calling this can incur
                     a performance penality. Therefore, we only want to log the byte size at trace level.
                      */
-                    logger.trace(
+                    logWithContext(
+                            TRACE,
                             "[{}] Sending request to block node (type={}, bytes={})",
                             this,
                             request.request().kind(),
                             request.protobufSize());
                 }
+                final long startMs = System.currentTimeMillis();
                 pipeline.onNext(request);
+                final long durationMs = System.currentTimeMillis() - startMs;
+                blockStreamMetrics.recordRequestLatency(durationMs);
+                logWithContext(TRACE, "[{}] Request took {}ms to send", this, durationMs);
 
                 if (request.hasEndStream()) {
                     blockStreamMetrics.recordRequestEndStreamSent(
@@ -587,6 +607,19 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                     blockStreamMetrics.recordRequestSent(request.request().kind());
                     blockStreamMetrics.recordBlockItemsSent(
                             request.blockItems().blockItems().size());
+                }
+
+                // Record the timestamp when the block is sent
+                if (request.blockItems() != null
+                        && !request.blockItems().blockItems().isEmpty()) {
+                    // Find the first block item
+                    // if it is a block proof, record the time it was sent
+                    final BlockItem firstItem =
+                            request.blockItems().blockItems().getFirst();
+                    if (firstItem.hasBlockProof()) {
+                        blockNodeConnectionManager.recordBlockProofSent(
+                                blockNodeConfig, firstItem.blockProof().block(), Instant.now());
+                    }
                 }
             } catch (final RuntimeException e) {
                 /*
@@ -714,12 +747,16 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
         } else if (response.hasEndStream()) {
             blockStreamMetrics.recordResponseEndOfStreamReceived(
                     response.endStream().status());
+            blockStreamMetrics.recordLatestBlockEndOfStream(response.endStream().blockNumber());
             handleEndOfStream(response.endStream());
         } else if (response.hasSkipBlock()) {
             blockStreamMetrics.recordResponseReceived(response.response().kind());
+            blockStreamMetrics.recordLatestBlockSkipBlock(response.skipBlock().blockNumber());
             handleSkipBlock(response.skipBlock());
         } else if (response.hasResendBlock()) {
             blockStreamMetrics.recordResponseReceived(response.response().kind());
+            blockStreamMetrics.recordLatestBlockResendBlock(
+                    response.resendBlock().blockNumber());
             handleResendBlock(response.resendBlock());
         } else {
             blockStreamMetrics.recordUnknownResponseReceived();

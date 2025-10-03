@@ -34,6 +34,11 @@ public @interface HapiBlockNode {
          * The block node mode for this node.
          */
         BlockNodeMode mode();
+
+        /**
+         * If a block node has high latency before acknowledging block proof.
+         */
+        boolean highLatency() default false;
     }
 
     /**
