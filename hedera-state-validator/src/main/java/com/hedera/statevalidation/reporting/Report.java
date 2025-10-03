@@ -7,9 +7,11 @@ public class Report {
 
     private String nodeName = NODE_NAME;
 
-    private StorageReport pathToHashReport;
-
     private StorageReport pathToKeyValueReport;
+
+    private StorageReport keyToPathReport;
+
+    private StorageReport pathToHashReport;
 
     public String getNodeName() {
         return nodeName;
@@ -17,14 +19,6 @@ public class Report {
 
     public void setNodeName(final String nodeName) {
         this.nodeName = nodeName;
-    }
-
-    public StorageReport pathToHashReport() {
-        return pathToHashReport;
-    }
-
-    public void setPathToHashReport(final StorageReport pathToHashReport) {
-        this.pathToHashReport = pathToHashReport;
     }
 
     public StorageReport pathToKeyValueReport() {
@@ -35,6 +29,22 @@ public class Report {
         this.pathToKeyValueReport = pathToKeyValueReport;
     }
 
+    public StorageReport keyToPathReport() {
+        return keyToPathReport;
+    }
+
+    public void setKeyToPathReport(final StorageReport keyToPathReport) {
+        this.keyToPathReport = keyToPathReport;
+    }
+
+    public StorageReport pathToHashReport() {
+        return pathToHashReport;
+    }
+
+    public void setPathToHashReport(final StorageReport pathToHashReport) {
+        this.pathToHashReport = pathToHashReport;
+    }
+
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder();
@@ -43,6 +53,12 @@ public class Report {
         if (pathToHashReport != null) {
             sb.append("Path-to-Hash Storage:\n");
             sb.append(pathToHashReport);
+            sb.append("\n");
+        }
+
+        if (keyToPathReport != null) {
+            sb.append("Key-to-Path Storage:\n");
+            sb.append(keyToPathReport);
             sb.append("\n");
         }
 
