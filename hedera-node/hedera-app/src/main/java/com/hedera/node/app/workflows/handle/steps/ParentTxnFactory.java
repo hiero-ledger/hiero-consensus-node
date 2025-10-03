@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.handle.steps;
 
-import static com.hedera.hapi.node.base.HederaFunctionality.STATE_SIGNATURE_TRANSACTION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.OK;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.NODE;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.SCHEDULED;
@@ -168,9 +167,9 @@ public class ParentTxnFactory {
      * @param platformTxn the transaction itself
      * @param consensusNow the current consensus time
      * @param stateSignatureTxnCallback a callback to be called when encountering a {@link StateSignatureTransaction}
-     * @return the new user transaction, or {@code null} if the transaction is not a user transaction
+     * @return the new top-level transaction, or {@code null} if the transaction is not parseable
      */
-    public @Nullable ParentTxn createUserTxn(
+    public @Nullable ParentTxn createTopLevelTxn(
             @NonNull final State state,
             @NonNull final NodeInfo creatorInfo,
             @NonNull final ConsensusTransaction platformTxn,
@@ -188,9 +187,6 @@ public class ParentTxnFactory {
         final var txnInfo = preHandleResult.txInfo();
         if (txnInfo == null) {
             log.error("Node {} submitted an unparseable transaction {}", creatorInfo.nodeId(), platformTxn);
-            return null;
-        }
-        if (txnInfo.functionality() == STATE_SIGNATURE_TRANSACTION) {
             return null;
         }
         final var tokenContext = new TokenContextImpl(

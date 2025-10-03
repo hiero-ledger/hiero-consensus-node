@@ -9,7 +9,6 @@ import static java.util.Collections.emptyMap;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -18,7 +17,6 @@ import static org.mockito.BDDMockito.given;
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.Key;
-import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.SignatureMap;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.transaction.ExchangeRateSet;
@@ -143,8 +141,6 @@ class ParentTxnTest {
     @Mock
     private Consumer<StateSignatureTransaction> stateSignatureTxnCallback;
 
-    private SemanticVersion softwareVersionFactory = SemanticVersion.DEFAULT;
-
     @BeforeEach
     void setUp() {
         given(preHandleWorkflow.getCurrentPreHandleResult(
@@ -163,7 +159,7 @@ class ParentTxnTest {
 
         final var factory = createUserTxnFactory();
         final var subject =
-                factory.createUserTxn(state, creatorInfo, PLATFORM_TXN, CONSENSUS_NOW, stateSignatureTxnCallback);
+                factory.createTopLevelTxn(state, creatorInfo, PLATFORM_TXN, CONSENSUS_NOW, stateSignatureTxnCallback);
 
         assertSame(CONSENSUS_CREATE_TOPIC, subject.functionality());
         assertSame(CONSENSUS_NOW, subject.consensusNow());
@@ -180,12 +176,13 @@ class ParentTxnTest {
     }
 
     @Test
-    void returnsNullForStateSignatureTxn() {
+    void returnsNonNullForStateSignatureTxn() {
         given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(BLOCKS_CONFIG, 1));
         given(txnInfo.functionality()).willReturn(STATE_SIGNATURE_TRANSACTION);
 
         final var factory = createUserTxnFactory();
-        assertNull(factory.createUserTxn(state, creatorInfo, PLATFORM_TXN, CONSENSUS_NOW, stateSignatureTxnCallback));
+        assertNotNull(
+                factory.createTopLevelTxn(state, creatorInfo, PLATFORM_TXN, CONSENSUS_NOW, stateSignatureTxnCallback));
     }
 
     @Test
@@ -208,7 +205,7 @@ class ParentTxnTest {
 
         final var factory = createUserTxnFactory();
         final var subject =
-                factory.createUserTxn(state, creatorInfo, PLATFORM_TXN, CONSENSUS_NOW, stateSignatureTxnCallback);
+                factory.createTopLevelTxn(state, creatorInfo, PLATFORM_TXN, CONSENSUS_NOW, stateSignatureTxnCallback);
 
         final var dispatch = factory.createDispatch(subject, ExchangeRateSet.DEFAULT);
 
@@ -241,7 +238,7 @@ class ParentTxnTest {
 
         final var factory = createUserTxnFactory();
         final var subject =
-                factory.createUserTxn(state, creatorInfo, PLATFORM_TXN, CONSENSUS_NOW, stateSignatureTxnCallback);
+                factory.createTopLevelTxn(state, creatorInfo, PLATFORM_TXN, CONSENSUS_NOW, stateSignatureTxnCallback);
 
         final var dispatch = factory.createDispatch(subject, ExchangeRateSet.DEFAULT);
 

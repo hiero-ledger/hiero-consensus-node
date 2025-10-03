@@ -25,6 +25,7 @@ import com.hedera.hapi.block.stream.input.EventHeader;
 import com.hedera.hapi.block.stream.input.ParentEventReference;
 import com.hedera.hapi.block.stream.input.RoundHeader;
 import com.hedera.hapi.block.stream.output.StateChanges;
+import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
 import com.hedera.hapi.node.transaction.ExchangeRateSet;
@@ -342,6 +343,11 @@ public class HandleWorkflow {
         }
     }
 
+    private enum TransactionStrategy {
+        HANDLE,
+        TRANSACTION_ONLY
+    }
+
     /**
      * Applies all effects of the events in the given round to the given state, writing stream items
      * that capture these effects in the process.
@@ -363,22 +369,37 @@ public class HandleWorkflow {
             if (streamMode != RECORDS) {
                 writeEventHeader(event);
             }
+
             final var creator = networkInfo.nodeInfo(event.getCreatorId().id());
-            if (creator == null) {
-                if (event.getEventCore().birthRound() > platformStateStore.getLatestFreezeRound()) {
-                    // We were given an event for a node that does not exist in the address book and was not from
-                    // a strictly earlier birth round number prior to the last freeze round number. This will be logged
-                    // as a warning, as this should never happen, and we will skip the event. The platform should
-                    // guarantee that we never receive an event that isn't associated with the address book, and every
-                    // node in the address book must have an account ID, since you cannot delete an account belonging
-                    // to a node, and you cannot change the address book non-deterministically.
-                    logger.warn(
-                            "Received event with birth round {}, last freeze round is {}, from node {} "
-                                    + "which is not in the address book",
-                            event.getEventCore().birthRound(),
-                            platformStateStore.getLatestFreezeRound(),
-                            event.getCreatorId());
+            TransactionStrategy strategy = TransactionStrategy.HANDLE;
+            if (platformStateStore.getLatestFreezeRound() > 0
+                    && event.getEventCore().birthRound() <= platformStateStore.getLatestFreezeRound()) {
+                strategy = TransactionStrategy.TRANSACTION_ONLY;
+                if (streamMode != RECORDS) {
+                    // include all transactions in the event, BUT NO TRANSACTION RESULTS. we don't want to process
+                    // transactions submitted prior to a freeze round
+                    var iter = event.consensusTransactionIterator();
+                    while (iter.hasNext()) {
+                        var currentTxn = iter.next();
+                        var txnToWrite = BlockItem.newBuilder()
+                                .signedTransaction(currentTxn.getApplicationTransaction())
+                                .build();
+                        blockStreamManager.writeItemNoTimeUpdate(txnToWrite);
+                    }
                 }
+            } else if (creator == null) {
+                // We were given an event for a node that does not exist in the address book and was not from
+                // a strictly earlier birth round number prior to the last freeze round number. This will be logged
+                // as a warning, as this should never happen, and we will skip the event. The platform should
+                // guarantee that we never receive an event that isn't associated with the address book, and every
+                // node in the address book must have an account ID, since you cannot delete an account belonging
+                // to a node, and you cannot change the address book non-deterministically.
+                logger.warn(
+                        "Received event with birth round {}, last freeze round is {}, from node {} "
+                                + "which is not in the address book",
+                        event.getEventCore().birthRound(),
+                        platformStateStore.getLatestFreezeRound(),
+                        event.getCreatorId());
                 continue;
             }
 
@@ -387,32 +408,34 @@ public class HandleWorkflow {
                 stateSignatureTxnCallback.accept(scopedTxn);
             };
 
-            // log start of event to transaction state log
-            logStartEvent(event, creator);
-            // handle each transaction of the event
-            for (final var it = event.consensusTransactionIterator(); it.hasNext(); ) {
-                final var platformTxn = it.next();
-                try {
-                    transactionsDispatched |= handlePlatformTransaction(
-                            state,
-                            creator,
-                            platformTxn,
-                            event.getEventCore().birthRound(),
-                            simplifiedStateSignatureTxnCallback);
-                } catch (final Exception e) {
-                    logger.fatal(
-                            "Possibly CATASTROPHIC failure while running the handle workflow. "
-                                    + "While this node may not die right away, it is in a bad way, most likely fatally.",
-                            e);
+            if (strategy == TransactionStrategy.HANDLE) {
+                // log start of event to transaction state log
+                logStartEvent(event, creator);
+                // handle each transaction of the event
+                for (final var it = event.consensusTransactionIterator(); it.hasNext(); ) {
+                    final var platformTxn = it.next();
+                    try {
+                        transactionsDispatched |= handlePlatformTransaction(
+                                state,
+                                creator,
+                                platformTxn,
+                                event.getEventCore().birthRound(),
+                                simplifiedStateSignatureTxnCallback);
+                    } catch (final Exception e) {
+                        logger.fatal(
+                                "Possibly CATASTROPHIC failure while running the handle workflow. "
+                                        + "While this node may not die right away, it is in a bad way, most likely fatally.",
+                                e);
+                    }
                 }
+                recordCache.maybeCommitReceiptsBatch(
+                        state,
+                        round.getConsensusTimestamp(),
+                        immediateStateChangeListener,
+                        receiptEntriesBatchSize,
+                        blockStreamManager,
+                        streamMode);
             }
-            recordCache.maybeCommitReceiptsBatch(
-                    state,
-                    round.getConsensusTimestamp(),
-                    immediateStateChangeListener,
-                    receiptEntriesBatchSize,
-                    blockStreamManager,
-                    streamMode);
         }
         final boolean isGenesis =
                 switch (streamMode) {
@@ -538,15 +561,24 @@ public class HandleWorkflow {
                 systemAccountCleanupDone = systemTransactions.do066SystemAccountCleanup(consensusNow, state);
             }
         }
-        final var userTxn =
-                parentTxnFactory.createUserTxn(state, creator, txn, consensusNow, stateSignatureTxnCallback);
-        if (userTxn == null) {
+
+        final var topLevelTxn =
+                parentTxnFactory.createTopLevelTxn(state, creator, txn, consensusNow, stateSignatureTxnCallback);
+        if (topLevelTxn == null) {
             return false;
         } else if (streamMode != BLOCKS && startsNewRecordFile) {
             blockRecordManager.startUserTransaction(consensusNow, state);
         }
+        if (streamMode != BLOCKS
+                && topLevelTxn.txnInfo().functionality() == HederaFunctionality.STATE_SIGNATURE_TRANSACTION) {
+            var bi = BlockItem.newBuilder()
+                    .signedTransaction(topLevelTxn.txnInfo().serializedSignedTx())
+                    .build();
+            blockStreamManager.writeItem2(bi);
+            return true;
+        }
 
-        final var handleOutput = executeSubmittedParent(userTxn, eventBirthRound, state);
+        final var handleOutput = executeSubmittedParent(topLevelTxn, eventBirthRound, state);
         if (streamMode != BLOCKS) {
             final var records = ((LegacyListRecordSource) handleOutput.recordSourceOrThrow()).precomputedRecords();
             blockRecordManager.endUserTransaction(records.stream(), state);
@@ -557,33 +589,33 @@ public class HandleWorkflow {
             blockRecordManager.setLastUsedConsensusTime(handleOutput.lastAssignedConsensusTime(), state);
         }
 
-        opWorkflowMetrics.updateDuration(userTxn.functionality(), (int) (System.nanoTime() - handleStart));
-        congestionMetrics.updateMultiplier(userTxn.txnInfo(), userTxn.readableStoreFactory());
+        opWorkflowMetrics.updateDuration(topLevelTxn.functionality(), (int) (System.nanoTime() - handleStart));
+        congestionMetrics.updateMultiplier(topLevelTxn.txnInfo(), topLevelTxn.readableStoreFactory());
 
         var executionStart = streamMode == RECORDS
                 ? blockRecordManager.lastIntervalProcessTime()
                 : blockStreamManager.lastIntervalProcessTime();
         if (executionStart.equals(EPOCH)) {
-            executionStart = userTxn.consensusNow();
+            executionStart = topLevelTxn.consensusNow();
         }
         try {
             // We execute as many schedules expiring in [lastIntervalProcessTime, consensusNow]
             // as there are available consensus times and execution slots (ordinarily there will
             // be more than enough of both, but we must be prepared for the edge cases)
-            executeAsManyScheduled(state, executionStart, userTxn.consensusNow(), userTxn.creatorInfo());
+            executeAsManyScheduled(state, executionStart, topLevelTxn.consensusNow(), topLevelTxn.creatorInfo());
         } catch (Exception e) {
             logger.error(
                     "{} - unhandled exception while executing schedules between [{}, {}]",
                     ALERT_MESSAGE,
                     executionStart,
-                    userTxn.consensusNow(),
+                    topLevelTxn.consensusNow(),
                     e);
             // This should never happen, but if it does, we skip over everything in the interval to
             // avoid being stuck in a crash loop here
             if (streamMode != RECORDS) {
-                blockStreamManager.setLastIntervalProcessTime(userTxn.consensusNow());
+                blockStreamManager.setLastIntervalProcessTime(topLevelTxn.consensusNow());
             } else {
-                blockRecordManager.setLastIntervalProcessTime(userTxn.consensusNow(), state);
+                blockRecordManager.setLastIntervalProcessTime(topLevelTxn.consensusNow(), state);
             }
         }
         return true;
