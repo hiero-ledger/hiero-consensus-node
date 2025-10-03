@@ -235,6 +235,7 @@ jobs:
           set +x
           set +e
           #trim RUN_HCN_VERSION
+          echo "run-hcn-version=$(echo ${{ inputs.ref }} | awk '{print $1}')" >> "${GITHUB_OUTPUT}"
           echo "RUN_HCN_VERSION=$(echo ${{ inputs.ref }} | awk '{print $1}')" >> "${GITHUB_ENV}"
 
           n="$(echo "${{ inputs.test-asset }}" | perl -ne 'print "$2\n" if /^(AdHocSD|AdHoc|SDPT|SDLT)(\d+)$/')"
@@ -731,6 +732,12 @@ jobs:
           ${run_NLGDebugparams} -cp /app/lib/*:\$(ls -1 /app/network-load-generator-*.jar) com.hedera.benchmark.${{ env.run_NLG_Test }} \
           ${NLGargs} -tt 10s > client.log 2>&1 &"
 
+      - name: Start BlockNode Cleaner
+        run: |
+          set +x
+          set +e
+          nohup sh "${{ github.workspace }}"/.github/workflows/support/citr/blockNodeClean.sh "${{ steps.set-namespace.outputs.namespace }}" > ${{ github.workspace }}/report/blockNodeClean.log 2>&1 &
+
       - name: Wait for account creation
         run: |
           set +x
@@ -893,7 +900,7 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
-          ref: ${{ inputs.ref }}
+          ref: ${{ github.ref }}
 
       - name: Print parameters
         run: |
@@ -967,6 +974,12 @@ jobs:
         shell: bash
         run: |
           mkdir "${{ github.workspace }}"/report
+
+      - name: Start BlockNode Cleaner
+        run: |
+          set +x
+          set +e
+          nohup sh "${{ github.workspace }}"/.github/workflows/support/citr/blockNodeClean.sh "${{ needs.performance-tests-start.outputs.namespace }}" > ${{ github.workspace }}/report/blockNodeClean.log 2>&1 &
 
       - name: Wait for NLG Transfer
         run: |
@@ -1078,7 +1091,7 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
-          ref: ${{ inputs.ref }}
+          ref: ${{ github.ref }}
 
       - name: Print parameters
         run: |
@@ -1328,7 +1341,7 @@ jobs:
     uses: ./.github/workflows/zxc-execute-performance-test.yaml
     with:
       test-asset: "${{ inputs.test-asset }}"
-      ref: "${{ inputs.ref }}"
+      ref: "${{ github.ref }}"
       nlg-accounts: "${{ inputs.nlg-accounts }}"
       nlg-test: "HCSLoadTest"
       nlg-time: "${{ inputs.nlg-time }}"
@@ -1342,7 +1355,7 @@ jobs:
     uses: ./.github/workflows/zxc-execute-performance-test.yaml
     with:
       test-asset: "${{ inputs.test-asset }}"
-      ref: "${{ inputs.ref }}"
+      ref: "${{ github.ref }}"
       nlg-accounts: "${{ inputs.nlg-accounts }}"
       nlg-test: "CryptoTransferLoadTest"
       nlg-time: "${{ inputs.nlg-time }}"
@@ -1356,7 +1369,7 @@ jobs:
     uses: ./.github/workflows/zxc-execute-performance-test.yaml
     with:
       test-asset: "${{ inputs.test-asset }}"
-      ref: "${{ inputs.ref }}"
+      ref: "${{ github.ref }}"
       nlg-accounts: "${{ inputs.nlg-accounts }}"
       nlg-test: "HeliSwapLoadTest"
       nlg-time: "${{ inputs.nlg-time }}"
@@ -1370,7 +1383,7 @@ jobs:
     uses: ./.github/workflows/zxc-execute-performance-test.yaml
     with:
       test-asset: "${{ inputs.test-asset }}"
-      ref: "${{ inputs.ref }}"
+      ref: "${{ github.ref }}"
       nlg-accounts: "${{ inputs.nlg-accounts }}"
       nlg-test: "SmartContractLoadTest"
       nlg-time: "${{ inputs.nlg-time }}"

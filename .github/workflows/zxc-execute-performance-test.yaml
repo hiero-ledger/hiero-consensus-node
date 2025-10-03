@@ -258,6 +258,12 @@ jobs:
           ${run_NLGDebugparams} -cp /app/lib/*:\$(ls -1 /app/network-load-generator-*.jar) com.hedera.benchmark.${{ inputs.nlg-test }} \
           ${NLGargs} -tt ${run_NLG_Time}m > client.log 2>&1 &"
 
+      - name: Start BlockNode Cleaner
+        run: |
+          set +x
+          set +e
+          nohup sh "${{ github.workspace }}"/.github/workflows/support/citr/blockNodeClean.sh "${{ steps.set-namespace.outputs.namespace }}" > ${{ github.workspace }}/report/blockNodeClean.log 2>&1 &
+
       - name: Wait for test completion
         run: |
           set +x
