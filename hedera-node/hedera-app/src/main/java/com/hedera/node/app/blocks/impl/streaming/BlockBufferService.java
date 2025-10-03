@@ -280,16 +280,6 @@ public class BlockBufferService {
     }
 
     /**
-     * @return the batch size for a request to send to the block node
-     */
-    private int blockItemBatchSize() {
-        return configProvider
-                .getConfiguration()
-                .getConfigData(BlockStreamConfig.class)
-                .blockItemBatchSize();
-    }
-
-    /**
      * Sets the block node connection manager for notifications.
      *
      * @param blockNodeConnectionManager the block node connection manager
@@ -487,8 +477,6 @@ public class BlockBufferService {
             logger.info("Block buffer will not be repopulated (reason: no blocks found on disk)");
             return;
         }
-
-        final int batchSize = blockItemBatchSize();
 
         logger.info("Block buffer is being restored from disk (blocksRead: {})", blocks.size());
 

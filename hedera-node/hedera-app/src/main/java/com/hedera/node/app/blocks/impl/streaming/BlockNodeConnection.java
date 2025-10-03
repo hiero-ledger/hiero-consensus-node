@@ -350,16 +350,6 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
     }
 
     /**
-     * Helper method to add current instance information for debug logging.
-     */
-    private void logWithContext(Level level, String message, Object... args) {
-        if (logger.isEnabled(level)) {
-            message = String.format("%s %s %s", LoggingUtilities.threadInfo(), this, message);
-            logger.atLevel(level).log(message, args);
-        }
-    }
-
-    /**
      * Construct a new BlockNodeConnection.
      *
      * @param configProvider the configuration to use
@@ -377,7 +367,8 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
             @NonNull final BlockBufferService blockBufferService,
             @NonNull final BlockStreamPublishServiceClient grpcServiceClient,
             @NonNull final BlockStreamMetrics blockStreamMetrics,
-            @NonNull final ScheduledExecutorService executorService) {
+            @NonNull final ScheduledExecutorService executorService,
+            @Nullable final Long initialBlockToStream) {
         requireNonNull(configProvider, "configProvider must not be null");
         this.blockNodeConfig = requireNonNull(nodeConfig, "nodeConfig must not be null");
         this.blockNodeConnectionManager =
@@ -392,6 +383,21 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
         this.streamResetPeriod = blockNodeConnectionConfig.streamResetPeriod();
 
         connectionId = String.format("%04d", connectionIdCounter.incrementAndGet());
+
+        if (initialBlockToStream != null) {
+            streamingBlockNumber.set(initialBlockToStream);
+            logWithContext(INFO, "Block node connection will initially stream with block {}", initialBlockToStream);
+        }
+    }
+
+    /**
+     * Helper method to add current instance information for debug logging.
+     */
+    private void logWithContext(final Level level, final String message, final Object... args) {
+        if (logger.isEnabled(level)) {
+            final String msg = String.format("%s %s %s", LoggingUtilities.threadInfo(), this, message);
+            logger.atLevel(level).log(msg, args);
+        }
     }
 
     /**

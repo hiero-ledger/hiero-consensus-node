@@ -426,28 +426,6 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
     }
 
     @Test
-    void testOpenBlock_existingBlock_proofSent() {
-        blockBufferService = initBufferService(configProvider);
-
-        blockBufferService.openBlock(10);
-        blockBufferService.addItem(10, newBlockProofItem());
-        final BlockState block = blockBufferService.getBlockState(10);
-        assertThat(block).isNotNull();
-//        block.processPendingItems(10); // process the items to create a request
-//        block.markRequestSent(0); // mark the request that was created as sent
-//        assertThat(block.isBlockProofSent()).isTrue();
-
-        // we've sent the block proof, re-opening is not permitted
-        assertThatThrownBy(() -> blockBufferService.openBlock(10))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessage("Attempted to open block 10, but this block already has the block proof sent");
-
-        verify(blockStreamMetrics).recordLatestBlockOpened(10L);
-        verify(blockStreamMetrics).recordBlockOpened();
-        verifyNoMoreInteractions(blockStreamMetrics);
-    }
-
-    @Test
     void testBuffer() throws Throwable {
         final Duration blockTtl = Duration.ofSeconds(5);
         final Configuration config = HederaTestConfigBuilder.create()

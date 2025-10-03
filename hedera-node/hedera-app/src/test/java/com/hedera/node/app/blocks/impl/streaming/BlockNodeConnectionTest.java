@@ -33,6 +33,7 @@ import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodHandles.Lookup;
 import java.lang.invoke.VarHandle;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Flow;
@@ -113,7 +114,8 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
                 bufferService,
                 grpcServiceClient,
                 metrics,
-                executorService);
+                executorService,
+                null);
 
         // To avoid potential non-deterministic effects due to the worker thread, assign a fake worker thread to the
         // connection that does nothing.
@@ -226,12 +228,13 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
 
         assertThat(streamingBlockNumber).hasValue(11); // moved to acked block + 1
 
+        verify(connectionManager).recordBlockAckAndCheckLatency(eq(connection.getNodeConfig()), eq(10L), any(Instant.class));
         verify(bufferService).getLastBlockNumberProduced();
         verify(bufferService).setLatestAcknowledgedBlock(10);
         verify(metrics).recordResponseReceived(ResponseOneOfType.ACKNOWLEDGEMENT);
         verifyNoMoreInteractions(metrics);
         verifyNoMoreInteractions(bufferService);
-        verifyNoInteractions(connectionManager);
+        verifyNoMoreInteractions(connectionManager);
     }
 
     @Test
@@ -1107,7 +1110,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         final BlockItem item7 = newBlockTxItem(100);
         final BlockItem item8 = newBlockTxItem(250);
         final BlockItem item9 = newPreProofBlockStateChangesItem();
-        final BlockItem item10 = newBlockProofItem(1_420_910);
+        final BlockItem item10 = newBlockProofItem(10, 1_420_910);
         block.addItem(item7);
         block.addItem(item8);
         block.addItem(item9);
@@ -1129,11 +1132,13 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
 
         verify(metrics, times(totalRequestsSent)).recordRequestSent(RequestOneOfType.BLOCK_ITEMS);
         verify(metrics, times(totalRequestsSent)).recordBlockItemsSent(anyInt());
+        verify(metrics, times(totalRequestsSent)).recordRequestLatency(anyLong());
+        verify(connectionManager).recordBlockProofSent(eq(connection.getNodeConfig()), eq(10L), any(Instant.class));
         verify(bufferService, atLeastOnce()).getBlockState(10);
         verify(bufferService, atLeastOnce()).getBlockState(11);
         verifyNoMoreInteractions(metrics);
         verifyNoMoreInteractions(bufferService);
-        verifyNoInteractions(connectionManager);
+        verifyNoMoreInteractions(connectionManager);
         verifyNoMoreInteractions(requestPipeline);
     }
 
@@ -1203,6 +1208,8 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
 
         verify(metrics, times(2)).recordRequestSent(RequestOneOfType.BLOCK_ITEMS);
         verify(metrics, times(2)).recordBlockItemsSent(1);
+        verify(metrics, times(2)).recordRequestLatency(anyLong());
+        verify(metrics).recordLatestBlockSkipBlock(10);
         verify(metrics).recordResponseReceived(ResponseOneOfType.SKIP_BLOCK);
         verify(bufferService, atLeastOnce()).getBlockState(10);
         verify(bufferService, atLeastOnce()).getBlockState(11);
@@ -1251,6 +1258,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         verify(metrics).recordRequestSent(RequestOneOfType.BLOCK_ITEMS);
         verify(metrics).recordRequestEndStreamSent(EndStream.Code.ERROR);
         verify(metrics).recordConnectionClosed();
+        verify(metrics, times(2)).recordRequestLatency(anyLong());
         verify(requestPipeline).onComplete();
         verify(bufferService).getEarliestAvailableBlockNumber();
         verify(bufferService).getHighestAckedBlockNumber();

@@ -145,11 +145,12 @@ public abstract class BlockNodeCommunicationTestBase {
                 .build();
     }
 
-    protected static BlockItem newBlockProofItem(final int bytes) {
+    protected static BlockItem newBlockProofItem(final long blockNumber, final int bytes) {
         final byte[] array = new byte[bytes];
         Arrays.fill(array, (byte) 10);
 
         final BlockProof proof = BlockProof.newBuilder()
+                .block(blockNumber)
                 .blockSignature(Bytes.wrap(array))
                 .build();
         return BlockItem.newBuilder()
