@@ -2,6 +2,7 @@
 package org.hiero.otter.fixtures.logging.internal;
 
 import static com.swirlds.logging.legacy.LogMarker.DEMO_INFO;
+import static com.swirlds.logging.legacy.LogMarker.ERROR;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.FREEZE;
 import static com.swirlds.logging.legacy.LogMarker.INVALID_EVENT_ERROR;
@@ -44,6 +45,7 @@ public final class LogConfigHelper {
     /** Markers that are allowed in swirlds.log & console. */
     private static final Set<LogMarker> ALLOWED_MARKERS = Set.of(
             EXCEPTION,
+            ERROR,
             TESTING_EXCEPTIONS,
             SOCKET_EXCEPTIONS,
             INVALID_EVENT_ERROR,

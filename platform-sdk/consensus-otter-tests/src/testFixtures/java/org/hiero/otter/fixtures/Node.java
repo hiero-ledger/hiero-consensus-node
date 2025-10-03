@@ -6,6 +6,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
 import org.hiero.otter.fixtures.result.SingleNodeLogResult;
@@ -81,6 +82,15 @@ public interface Node {
      * @see #startSyntheticBottleneck()
      */
     void stopSyntheticBottleneck();
+
+    /**
+     * Sets the quiescence command of the node.
+     *
+     * <p>The default command is {@link QuiescenceCommand#DONT_QUIESCE}.
+     *
+     * @param command the new quiescence command
+     */
+    void sendQuiescenceCommand(@NonNull QuiescenceCommand command);
 
     /**
      * Allows to override the default timeout for node operations.
