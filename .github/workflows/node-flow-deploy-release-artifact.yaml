@@ -6,12 +6,6 @@ on:
       - "v[0-9]+.[0-9]+.[0-9]+-?*"
   workflow_dispatch:
     inputs:
-      ref:
-        required: true
-        description: "Git Reference (branch, tag, or commit SHA)"
-      ref-name:
-        required: true
-        description: "Git Reference Name (branch name or tag name)"
       dry-run-enabled:
         required: false
         default: false
@@ -77,8 +71,6 @@ jobs:
       new-version: ${{ needs.prepare-tag-release.outputs.version }}
       trigger-env-deploy: none
       release-profile: ${{ needs.prepare-tag-release.outputs.prerelease == 'true' && 'PrereleaseChannel' || 'MavenCentral' }}
-      ref: ${{ github.ref }}
-      ref-name: ${{ github.ref_name }}
     secrets:
       access-token: ${{ secrets.GITHUB_TOKEN }}
       bucket-name: ${{ secrets.RELEASE_ARTIFACT_BUCKET_NAME }}
@@ -112,7 +104,7 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           token: ${{ secrets.GH_ACCESS_TOKEN }}
-          ref: ${{ inputs.ref }}
+          ref: ${{ github.ref }}
           fetch-depth: "0"
 
       - name: Checkout Hedera Protobufs Code
@@ -162,8 +154,6 @@ jobs:
       version-policy: branch-commit
       trigger-env-deploy: integration
       release-profile: DevelopCommit
-      ref: ${{ inputs.ref }}
-      ref-name: ${{ inputs.ref-name }}
       dry-run-enabled: ${{ inputs.dry-run-enabled }}
     secrets:
       access-token: ${{ secrets.GITHUB_TOKEN }}
@@ -199,7 +189,7 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           fetch-depth: "0"
-          ref: ${{ inputs.ref }}
+          ref: ${{ github.ref }}
           token: ${{ secrets.GH_ACCESS_TOKEN }}
 
       - name: Check Prep XTS Job State
@@ -222,7 +212,7 @@ jobs:
           ref: main # ensure we are always using the workflow definition from the main branch
           token: ${{ secrets.GH_ACCESS_TOKEN }}
           inputs: '{
-            "ref": "${{ inputs.ref }}",
+            "ref": "${{ github.ref }}",
             "dry-run-enabled": "${{ inputs.dry-run-enabled }}"
             }'
 
@@ -242,7 +232,7 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           fetch-depth: "0"
-          ref: ${{ inputs.ref }}
+          ref: ${{ github.ref }}
           token: ${{ secrets.GH_ACCESS_TOKEN }}
 
       - name: Check Integration Job State
@@ -285,7 +275,7 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           fetch-depth: "0"
-          ref: ${{ inputs.ref }}
+          ref: ${{ github.ref }}
           token: ${{ secrets.GH_ACCESS_TOKEN }}
 
       - name: Collect run logs in a log file
@@ -316,9 +306,9 @@ jobs:
         id: fetch-commit-info
         continue-on-error: true
         run: |
-          echo "commit-hash=${{ inputs.ref }}" >> "${GITHUB_OUTPUT}"
-          echo "commit-author=$(git show -s --format='%an <%ae>' ${{ inputs.ref }})" >> "${GITHUB_OUTPUT}"
-          echo "commit-email=$(git show -s --format='%ae' ${{ inputs.ref }})" >> "${GITHUB_OUTPUT}"
+          echo "commit-hash=${{ github.ref }}" >> "${GITHUB_OUTPUT}"
+          echo "commit-author=$(git show -s --format='%an <%ae>' ${{ github.ref }})" >> "${GITHUB_OUTPUT}"
+          echo "commit-email=$(git show -s --format='%ae' ${{ github.ref }})" >> "${GITHUB_OUTPUT}"
 
       - name: Find Commit Author in Slack
         id: find-commit-author-slack
@@ -343,7 +333,7 @@ jobs:
       - name: Build Rootly Summary
         id: rootly-summary
         run: |
-          title="Deploy Production Release job failed (${{ inputs.ref-name }} - ${{ inputs.ref }})."
+          title="Deploy Production Release job failed (${{ github.ref_name }} - ${{ github.ref }})."
           echo "title=${title}" >> "${GITHUB_OUTPUT}"
           {
             echo 'summary<<EOF'
