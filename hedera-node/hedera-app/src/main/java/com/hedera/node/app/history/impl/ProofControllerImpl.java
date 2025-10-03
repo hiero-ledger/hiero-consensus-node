@@ -18,7 +18,7 @@ import com.hedera.node.app.history.ReadableHistoryStore.HistorySignaturePublicat
 import com.hedera.node.app.history.ReadableHistoryStore.ProofKeyPublication;
 import com.hedera.node.app.history.WritableHistoryStore;
 import com.hedera.node.app.history.impl.ProofKeysAccessorImpl.SchnorrKeyPair;
-import com.hedera.node.app.roster.RosterTransitionWeights;
+import com.hedera.node.app.service.roster.impl.RosterTransitionWeights;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;

@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.hedera.node.app.roster.schemas;
+package com.hedera.node.app.service.roster.impl.test.schemas;
 
 import static com.hedera.node.app.fixtures.AppTestBase.DEFAULT_CONFIG;
-import static com.hedera.node.app.roster.schemas.V0540RosterSchema.ROSTER_KEY;
-import static com.hedera.node.app.roster.schemas.V0540RosterSchema.ROSTER_STATES_KEY;
+import static com.hedera.node.app.service.roster.impl.schemas.V0540RosterSchema.ROSTER_KEY;
+import static com.hedera.node.app.service.roster.impl.schemas.V0540RosterSchema.ROSTER_STATES_KEY;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
@@ -14,6 +14,7 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
+import com.hedera.node.app.service.roster.impl.schemas.V0540RosterSchema;
 import com.hedera.node.internal.network.Network;
 import com.hedera.node.internal.network.NodeMetadata;
 import com.swirlds.platform.state.service.PlatformStateFacade;

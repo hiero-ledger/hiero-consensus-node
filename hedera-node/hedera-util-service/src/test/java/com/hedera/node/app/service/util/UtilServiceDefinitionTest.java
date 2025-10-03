@@ -22,4 +22,11 @@ class UtilServiceDefinitionTest {
                         new RpcMethodDefinition<>("prng", Transaction.class, TransactionResponse.class),
                         new RpcMethodDefinition<>("atomicBatch", Transaction.class, TransactionResponse.class));
     }
+
+    @Test
+    void instanceCantLoadWithoutImplementation() {
+        Assertions.assertThatExceptionOfType(IllegalStateException.class)
+                .isThrownBy(UtilService::getInstance)
+                .isNotNull();
+    }
 }
