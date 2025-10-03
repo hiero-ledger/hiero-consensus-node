@@ -20,13 +20,13 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
 import java.nio.file.Path;
-import java.util.List;
 import java.util.Random;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Stream;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.core.config.Configurator;
 import org.hiero.base.crypto.Hash;
@@ -146,9 +146,9 @@ public class CloseFlushTest {
                 public void saveRecords(
                         final long firstLeafPath,
                         final long lastLeafPath,
-                        @NonNull final List<VirtualHashRecord> pathHashRecordsToUpdate,
-                        @NonNull final List<VirtualLeafBytes> leafRecordsToAddOrUpdate,
-                        @NonNull final List<VirtualLeafBytes> leafRecordsToDelete,
+                        @NonNull final Stream<VirtualHashRecord> pathHashRecordsToUpdate,
+                        @NonNull final Stream<VirtualLeafBytes> leafRecordsToAddOrUpdate,
+                        @NonNull final Stream<VirtualLeafBytes> leafRecordsToDelete,
                         final boolean isReconnectContext) {
                     try {
                         delegate.saveRecords(

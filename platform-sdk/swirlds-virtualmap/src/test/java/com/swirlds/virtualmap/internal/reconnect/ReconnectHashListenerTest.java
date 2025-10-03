@@ -144,38 +144,17 @@ class ReconnectHashListenerTest {
         public void saveRecords(
                 final long firstLeafPath,
                 final long lastLeafPath,
-                @NonNull final List<VirtualHashRecord> pathHashRecordsToUpdate,
-                @NonNull final List<VirtualLeafBytes> leafRecordsToAddOrUpdate,
-                @NonNull final List<VirtualLeafBytes> leafRecordsToDelete,
-                final boolean isReconnectContext)
-                throws IOException {
-            this.internalRecords.add(pathHashRecordsToUpdate);
-            this.leafRecords.add(leafRecordsToAddOrUpdate);
-            delegate.saveRecords(
-                    firstLeafPath,
-                    lastLeafPath,
-                    pathHashRecordsToUpdate,
-                    leafRecordsToAddOrUpdate,
-                    leafRecordsToDelete,
-                    isReconnectContext);
-        }
-
-        @Override
-        public void saveRecords(
-                final long firstLeafPath,
-                final long lastLeafPath,
                 @NonNull final Stream<VirtualHashRecord> pathHashRecordsToUpdate,
                 @NonNull final Stream<VirtualLeafBytes> leafRecordsToAddOrUpdate,
-                @NonNull final Stream<VirtualLeafBytes> leafRecordsToDelete)
+                @NonNull final Stream<VirtualLeafBytes> leafRecordsToDelete,
+                final boolean isReconnectContext)
                 throws IOException {
-
-            saveRecords(
-                    firstLeafPath,
-                    lastLeafPath,
-                    pathHashRecordsToUpdate.toList(),
-                    leafRecordsToAddOrUpdate.toList(),
-                    leafRecordsToDelete.toList(),
-                    true);
+            final var ir = pathHashRecordsToUpdate.toList();
+            this.internalRecords.add(ir);
+            final var lr = leafRecordsToAddOrUpdate.toList();
+            this.leafRecords.add(lr);
+            delegate.saveRecords(
+                    firstLeafPath, lastLeafPath, ir.stream(), lr.stream(), leafRecordsToDelete, isReconnectContext);
         }
 
         @Override

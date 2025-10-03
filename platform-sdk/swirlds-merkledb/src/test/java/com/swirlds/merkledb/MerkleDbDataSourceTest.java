@@ -32,7 +32,6 @@ import com.swirlds.metrics.api.Metrics;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
 import com.swirlds.virtualmap.datasource.VirtualHashRecord;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
-import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -40,7 +39,6 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Random;
 import java.util.concurrent.CountDownLatch;
@@ -122,7 +120,8 @@ class MerkleDbDataSourceTest {
                     count * 2 - 2,
                     IntStream.range(0, count * 2 - 1).mapToObj(MerkleDbDataSourceTest::createVirtualInternalRecord),
                     Stream.empty(),
-                    Stream.empty());
+                    Stream.empty(),
+                    false);
 
             // check all the node hashes
             for (int i = 0; i < count; i++) {
@@ -171,7 +170,8 @@ class MerkleDbDataSourceTest {
                     testSize * 2,
                     IntStream.range(0, testSize).mapToObj(MerkleDbDataSourceTest::createVirtualInternalRecord),
                     Stream.empty(),
-                    Stream.empty());
+                    Stream.empty(),
+                    false);
             // create 4 lists with random hash updates some *10 hashes
             final IntArrayList[] lists = new IntArrayList[3];
             for (int i = 0; i < lists.length; i++) {
@@ -184,7 +184,8 @@ class MerkleDbDataSourceTest {
                         testSize * 2,
                         list.primitiveStream().mapToObj(i -> new VirtualHashRecord(i, hash(i * 10))),
                         Stream.empty(),
-                        Stream.empty());
+                        Stream.empty(),
+                        false);
             }
             // check all the node hashes
             IntStream.range(0, testSize).forEach(i -> {
@@ -213,7 +214,8 @@ class MerkleDbDataSourceTest {
                             .mapToObj(MerkleDbDataSourceTest::createVirtualInternalRecord),
                     IntStream.range(count - 1, count * 2 - 1)
                             .mapToObj(i -> testType.dataType().createVirtualLeafRecord(i)),
-                    Stream.empty());
+                    Stream.empty(),
+                    false);
             // check all the leaf data
             IntStream.range(count - 1, count * 2 - 1).forEach(i -> assertLeaf(testType, dataSource, i, i));
 
@@ -246,7 +248,8 @@ class MerkleDbDataSourceTest {
                             .mapToObj(MerkleDbDataSourceTest::createVirtualInternalRecord),
                     IntStream.range(incFirstLeafPath, exclLastLeafPath)
                             .mapToObj(i -> testType.dataType().createVirtualLeafRecord(i)),
-                    Stream.empty());
+                    Stream.empty(),
+                    false);
             // check all the leaf data
             IntStream.range(incFirstLeafPath, exclLastLeafPath).forEach(i -> assertLeaf(testType, dataSource, i, i));
             // update all to i+10,000 in a random order
@@ -259,7 +262,8 @@ class MerkleDbDataSourceTest {
                     Arrays.stream(randomInts)
                             .mapToObj(i -> testType.dataType().createVirtualLeafRecord(i, i, i + 10_000))
                             .sorted(Comparator.comparingLong(VirtualLeafBytes::path)),
-                    Stream.empty());
+                    Stream.empty(),
+                    false);
             assertEquals(
                     testType.dataType().createVirtualLeafRecord(100, 100, 100 + 10_000),
                     testType.dataType().createVirtualLeafRecord(100, 100, 100 + 10_000),
@@ -274,7 +278,8 @@ class MerkleDbDataSourceTest {
                     Stream.empty(),
                     Stream.empty(),
                     IntStream.range(incFirstLeafPath + 10, incFirstLeafPath + 20)
-                            .mapToObj(i -> testType.dataType().createVirtualLeafRecord(i)));
+                            .mapToObj(i -> testType.dataType().createVirtualLeafRecord(i)),
+                    false);
             // check deleted items are no longer there
             for (int i = (incFirstLeafPath + 10); i < (incFirstLeafPath + 20); i++) {
                 final Bytes key = testType.dataType().createVirtualLongKey(i);
@@ -303,7 +308,8 @@ class MerkleDbDataSourceTest {
                             .mapToObj(MerkleDbDataSourceTest::createVirtualInternalRecord),
                     IntStream.range(incFirstLeafPath, exclLastLeafPath)
                             .mapToObj(i -> testType.dataType().createVirtualLeafRecord(i)),
-                    Stream.empty());
+                    Stream.empty(),
+                    false);
             // check 250 and 500
             assertLeaf(testType, dataSource, 250, 250);
             assertLeaf(testType, dataSource, 500, 500);
@@ -314,7 +320,7 @@ class MerkleDbDataSourceTest {
             final VirtualLeafBytes vlr500 =
                     testType.dataType().createVirtualLeafRecord(500).withPath(250);
             dataSource.saveRecords(
-                    incFirstLeafPath, exclLastLeafPath, Stream.of(vir500), Stream.of(vlr500), Stream.empty());
+                    incFirstLeafPath, exclLastLeafPath, Stream.of(vir500), Stream.of(vlr500), Stream.empty(), false);
             // check 250 now has 500's data
             assertLeaf(testType, dataSource, 700, 700);
             assertEquals(
@@ -338,7 +344,8 @@ class MerkleDbDataSourceTest {
                             .mapToObj(MerkleDbDataSourceTest::createVirtualInternalRecord),
                     IntStream.range(count - 1, count * 2 - 1)
                             .mapToObj(i -> testType.dataType().createVirtualLeafRecord(i)),
-                    Stream.empty());
+                    Stream.empty(),
+                    false);
             // check all the leaf data
             IntStream.range(count - 1, count * 2 - 1).forEach(i -> assertLeaf(testType, dataSource, i, i));
 
@@ -349,7 +356,8 @@ class MerkleDbDataSourceTest {
                     Stream.empty(),
                     Stream.empty(),
                     IntStream.range(count - 1, count * 2 - 1)
-                            .mapToObj(i -> testType.dataType().createVirtualLeafRecord(i)));
+                            .mapToObj(i -> testType.dataType().createVirtualLeafRecord(i)),
+                    false);
             // check the data source is empty
             for (int i = 0; i < count * 2 - 1; i++) {
                 assertNull(dataSource.loadHash(i));
@@ -400,7 +408,8 @@ class MerkleDbDataSourceTest {
                             .mapToObj(i -> testType.dataType().createVirtualInternalRecord(i)),
                     IntStream.range(count - 1, count * 2 - 1)
                             .mapToObj(i -> testType.dataType().createVirtualLeafRecord(i)),
-                    Stream.empty());
+                    Stream.empty(),
+                    false);
             // check all the leaf data
             IntStream.range(count - 1, count * 2 - 1).forEach(i -> assertLeaf(testType, dataSource, i, i));
             // create a snapshot
@@ -456,7 +465,8 @@ class MerkleDbDataSourceTest {
                         IntStream.range(0, count * 2 - 1).mapToObj(i -> createVirtualInternalRecord(i, i + 1)),
                         IntStream.range(count - 1, count * 2 - 1)
                                 .mapToObj(i -> testType.dataType().createVirtualLeafRecord(i)),
-                        Stream.empty());
+                        Stream.empty(),
+                        false);
                 if (delta != 0) {
                     // create some more, current leaf path range shifted by delta
                     dataSource.saveRecords(
@@ -466,7 +476,8 @@ class MerkleDbDataSourceTest {
                                     .mapToObj(i -> createVirtualInternalRecord(i, i + 1)),
                             IntStream.range(count - 1 + delta, count * 2 - 1 + 2 * delta)
                                     .mapToObj(i -> testType.dataType().createVirtualLeafRecord(i)),
-                            Stream.empty());
+                            Stream.empty(),
+                            false);
                 }
                 // create a snapshot
                 final Path snapshotDbPath =
@@ -583,17 +594,14 @@ class MerkleDbDataSourceTest {
             dataSource.saveRecords(
                     10,
                     20,
-                    IntStream.range(0, 21)
-                            .mapToObj(i -> createVirtualInternalRecord(i, i + 1))
-                            .toList(),
+                    IntStream.range(0, 21).mapToObj(i -> createVirtualInternalRecord(i, i + 1)),
                     IntStream.range(10, 21)
                             .mapToObj(i -> new VirtualLeafBytes(
                                     i,
                                     keys.get(i),
                                     values.get(i),
-                                    testType.dataType().getCodec()))
-                            .toList(),
-                    List.of(),
+                                    testType.dataType().getCodec())),
+                    Stream.empty(),
                     true);
 
             // Load all leaves back from DB
@@ -609,17 +617,14 @@ class MerkleDbDataSourceTest {
             dataSource.saveRecords(
                     10,
                     20,
-                    IntStream.range(0, 21)
-                            .mapToObj(i -> createVirtualInternalRecord(i, i + 2))
-                            .toList(),
+                    IntStream.range(0, 21).mapToObj(i -> createVirtualInternalRecord(i, i + 2)),
                     IntStream.range(10, 21)
                             .mapToObj(i -> new VirtualLeafBytes(
                                     i,
                                     keys.get(i - 5),
                                     values.get(i - 5),
-                                    testType.dataType().getCodec()))
-                            .toList(),
-                    oldLeaves.subList(6, 11),
+                                    testType.dataType().getCodec())),
+                    oldLeaves.subList(6, 11).stream(),
                     true);
 
             // Check data after the first flush
@@ -646,11 +651,9 @@ class MerkleDbDataSourceTest {
             dataSource.saveRecords(
                     10,
                     20,
-                    IntStream.range(0, 21)
-                            .mapToObj(i -> createVirtualInternalRecord(i, i + 3))
-                            .toList(),
-                    List.of(),
-                    oldLeaves.subList(0, 6),
+                    IntStream.range(0, 21).mapToObj(i -> createVirtualInternalRecord(i, i + 3)),
+                    Stream.empty(),
+                    oldLeaves.subList(0, 6).stream(),
                     true);
 
             // Check data after the second flush
@@ -712,7 +715,8 @@ class MerkleDbDataSourceTest {
                     16,
                     IntStream.range(0, 17).mapToObj(i -> createVirtualInternalRecord(i, 2 * i)),
                     IntStream.range(8, 17).mapToObj(i -> testType.dataType().createVirtualLeafRecord(i, i, 3 * i)),
-                    Stream.empty());
+                    Stream.empty(),
+                    false);
             // Flush 2: leaf path range is [9,18]. Note that the list of deleted leaves is empty, so one of the leaves
             // becomes stale in the database. This is not what we have in production, but it will let test rebuilding
             // HDHM bucket index
@@ -721,7 +725,8 @@ class MerkleDbDataSourceTest {
                     18,
                     IntStream.range(0, 19).mapToObj(i -> createVirtualInternalRecord(i, 2 * i)),
                     IntStream.range(9, 19).mapToObj(i -> testType.dataType().createVirtualLeafRecord(i, i, 3 * i)),
-                    Stream.empty());
+                    Stream.empty(),
+                    false);
             // Create snapshots
             dataSource.snapshot(snapshotDbPath1);
             dataSource.snapshot(snapshotDbPath2);
@@ -780,12 +785,12 @@ class MerkleDbDataSourceTest {
                             testType.dataType().getCodec()))
                     .toList();
             // No dirty/deleted leaves - no new files created
-            dataSource.saveRecords(15, 30, List.of(), List.of(), List.of(), false);
+            dataSource.saveRecords(15, 30, Stream.empty(), Stream.empty(), Stream.empty(), false);
             final IntegerGauge sourceCounter = (IntegerGauge)
                     metrics.getMetric(MerkleDbStatistics.STAT_CATEGORY, "ds_files_leavesStoreFileCount_" + label);
             assertEquals(0L, sourceCounter.get());
             // Now save some dirty leaves
-            dataSource.saveRecords(15, 30, List.of(), dirtyLeaves, List.of(), false);
+            dataSource.saveRecords(15, 30, Stream.empty(), dirtyLeaves.stream(), Stream.empty(), false);
             assertEquals(1L, sourceCounter.get());
             final Path copyPath = LegacyTemporaryFileBuilder.buildTemporaryFile("copyStatisticsTest", CONFIGURATION);
             dataSource.snapshot(copyPath);
@@ -797,7 +802,7 @@ class MerkleDbDataSourceTest {
                 copy.copyStatisticsFrom(dataSource);
                 VirtualLeafBytes leaf1 = dirtyLeaves.get(1);
                 leaf1 = leaf1.withPath(4);
-                copy.saveRecords(4, 8, List.of(), List.of(leaf1), List.of(), false);
+                copy.saveRecords(4, 8, Stream.empty(), Stream.of(leaf1), Stream.empty(), false);
                 final IntegerGauge copyCounter = (IntegerGauge)
                         metrics.getMetric(MerkleDbStatistics.STAT_CATEGORY, "ds_files_leavesStoreFileCount_" + label);
                 assertEquals(2L, copyCounter.get());
@@ -843,17 +848,14 @@ class MerkleDbDataSourceTest {
                 dataSource.saveRecords(
                         count - 1,
                         2 * count - 2,
-                        IntStream.range(0, count)
-                                .mapToObj(j -> new VirtualHashRecord(k + j, hash(k + j + 1)))
-                                .toList(),
+                        IntStream.range(0, count).mapToObj(j -> new VirtualHashRecord(k + j, hash(k + j + 1))),
                         IntStream.range(count - 1, count)
                                 .mapToObj(j -> new VirtualLeafBytes(
                                         k + j,
                                         keys.get(k),
                                         values.get((k + j) % count),
-                                        testType.dataType().getCodec()))
-                                .toList(),
-                        List.of(),
+                                        testType.dataType().getCodec())),
+                        Stream.empty(),
                         true);
             } catch (Exception z) {
                 // Print and ignore
@@ -982,32 +984,16 @@ class MerkleDbDataSourceTest {
                 dataSource.saveRecords(
                         1000,
                         2000,
-                        new ArrayList<>(dirtyHashes) {
-                            // Code below relies on MerkleDbDataSource.writeHashes() to use a for-each
-                            // loop to iterate over dirty hashes
-                            @NonNull
-                            @Override
-                            public Iterator<VirtualHashRecord> iterator() {
-                                final Iterator<VirtualHashRecord> it = super.iterator();
-                                return new Iterator<>() {
-                                    @Override
-                                    public boolean hasNext() {
-                                        return it.hasNext();
-                                    }
-
-                                    @Override
-                                    public VirtualHashRecord next() {
-                                        System.out.println("SLOWLY loading record "
-                                                + "in "
-                                                + Thread.currentThread().getName());
-                                        sleepUnchecked(50L);
-                                        return it.next();
-                                    }
-                                };
-                            }
-                        },
-                        List.of(),
-                        List.of(),
+                        IntStream.range(1, 5).mapToObj(i -> {
+                            System.out.println("SLOWLY loading record #"
+                                    + i
+                                    + " in "
+                                    + Thread.currentThread().getName());
+                            sleepUnchecked(50L);
+                            return createVirtualInternalRecord(i);
+                        }),
+                        Stream.empty(),
+                        Stream.empty(),
                         false);
             } catch (final IOException impossible) {
                 /* We don't throw this */

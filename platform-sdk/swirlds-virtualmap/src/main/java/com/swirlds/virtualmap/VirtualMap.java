@@ -956,7 +956,8 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
                     stateToUse.getLastLeafPath(),
                     dirtyHashes,
                     dirtyLeaves,
-                    deletedLeaves);
+                    deletedLeaves,
+                    false);
         } catch (final ClosedByInterruptException ex) {
             logger.info(
                     TESTING_EXCEPTIONS_ACCEPTABLE_RECONNECT.getMarker(),

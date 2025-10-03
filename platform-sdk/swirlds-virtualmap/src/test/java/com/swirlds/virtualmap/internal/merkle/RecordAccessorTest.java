@@ -28,7 +28,6 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
-import java.util.List;
 import java.util.stream.Stream;
 import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.CryptographyProvider;
@@ -83,7 +82,8 @@ public class RecordAccessorTest {
                 12,
                 Stream.of(root, left, right, leftLeft, leftRight, rightLeft),
                 Stream.of(firstLeaf, secondLeaf, thirdLeaf, fourthLeaf, fifthLeaf, sixthLeaf, seventhLeaf),
-                Stream.empty());
+                Stream.empty(),
+                false);
 
         // Prepopulate the cache with some of those records. Some will be deleted, some will be modified, some will
         // not be in the cache.
@@ -308,9 +308,9 @@ public class RecordAccessorTest {
         public void saveRecords(
                 final long firstLeafPath,
                 final long lastLeafPath,
-                @NonNull final List<VirtualHashRecord> pathHashRecordsToUpdate,
-                @NonNull final List<VirtualLeafBytes> leafRecordsToAddOrUpdate,
-                @NonNull final List<VirtualLeafBytes> leafRecordsToDelete,
+                @NonNull final Stream<VirtualHashRecord> pathHashRecordsToUpdate,
+                @NonNull final Stream<VirtualLeafBytes> leafRecordsToAddOrUpdate,
+                @NonNull final Stream<VirtualLeafBytes> leafRecordsToDelete,
                 final boolean isReconnectContext)
                 throws IOException {
             delegate.saveRecords(
