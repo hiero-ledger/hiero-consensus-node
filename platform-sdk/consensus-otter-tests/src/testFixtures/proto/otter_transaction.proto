@@ -29,7 +29,7 @@ message OtterFreezeTransaction {
 
 message OtterIssTransaction {
   repeated HashPartition partition = 1;
-  bool recoverableOnRestart = 2
+  bool recoverableOnRestart = 2;
 }
 
 message HashPartition {

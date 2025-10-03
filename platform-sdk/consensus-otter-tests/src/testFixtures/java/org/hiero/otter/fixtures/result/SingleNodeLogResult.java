@@ -49,6 +49,15 @@ public interface SingleNodeLogResult extends OtterResult {
     SingleNodeLogResult suppressingLogMarker(@NonNull LogMarker marker);
 
     /**
+     * Excludes the log results from the specified logger class from the current results.
+     *
+     * @param clazz the class whose log results are to be excluded
+     * @return a new {@code SingleNodeLogResult} instance with the specified log marker's results removed
+     */
+    @NonNull
+    SingleNodeLogResult suppressingLoggerClass(@NonNull final Class<?> clazz);
+
+    /**
      * Returns the set of unique markers present in the log entries for this node.
      *
      * @return a set of {@link Marker} objects
@@ -85,5 +94,4 @@ public interface SingleNodeLogResult extends OtterResult {
         });
         return found;
     }
-
 }

@@ -8,18 +8,17 @@ import com.swirlds.state.lifecycle.StateDefinition;
 import com.swirlds.state.spi.WritableSingletonState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Set;
-import org.hiero.otter.fixtures.app.model.ConsistencyState;
 import org.hiero.otter.fixtures.app.model.IssState;
 
 import static com.hedera.hapi.util.HapiUtils.SEMANTIC_VERSION_COMPARATOR;
-import static org.hiero.otter.fixtures.app.state.OtterStateId.CONSISTENCY_SINGLETON_STATE_ID;
+import static org.hiero.otter.fixtures.app.state.OtterStateId.ISS_SINGLETON_STATE_ID;
 
 /**
  * Genesis schema for the Consistency service
  */
 public class V1IssStateSchema extends Schema<SemanticVersion> {
 
-    private static final int STATE_ID = CONSISTENCY_SINGLETON_STATE_ID.id();
+    private static final int STATE_ID = ISS_SINGLETON_STATE_ID.id();
     private static final String STATE_KEY = "ISS_STATE_KEY";
 
     /**
@@ -38,7 +37,7 @@ public class V1IssStateSchema extends Schema<SemanticVersion> {
     @NonNull
     @SuppressWarnings("rawtypes")
     public Set<StateDefinition> statesToCreate() {
-        return Set.of(StateDefinition.singleton(STATE_ID, STATE_KEY, ConsistencyState.PROTOBUF));
+        return Set.of(StateDefinition.singleton(STATE_ID, STATE_KEY, IssState.PROTOBUF));
     }
 
     /**

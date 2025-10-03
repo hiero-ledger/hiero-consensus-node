@@ -4,16 +4,13 @@ package org.hiero.otter.fixtures.app.services.iss;
 import com.swirlds.state.spi.WritableSingletonState;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import org.hiero.otter.fixtures.app.model.ConsistencyState;
 import org.hiero.otter.fixtures.app.model.IssState;
-import org.hiero.otter.fixtures.app.services.consistency.ConsistencyService;
 
 import static java.util.Objects.requireNonNull;
-import static org.hiero.base.utility.NonCryptographicHashing.hash64;
-import static org.hiero.otter.fixtures.app.state.OtterStateId.CONSISTENCY_SINGLETON_STATE_ID;
+import static org.hiero.otter.fixtures.app.state.OtterStateId.ISS_SINGLETON_STATE_ID;
 
 /**
- * A writable store for the {@link ConsistencyService}.
+ * A writable store for the {@link IssService}.
  */
 @SuppressWarnings("UnusedReturnValue")
 public class WritableIssStateStore {
@@ -26,7 +23,7 @@ public class WritableIssStateStore {
      * @param writableStates the writable states used to modify the ISS state
      */
     public WritableIssStateStore(@NonNull final WritableStates writableStates) {
-        singletonState = writableStates.getSingleton(CONSISTENCY_SINGLETON_STATE_ID.id());
+        singletonState = writableStates.getSingleton(ISS_SINGLETON_STATE_ID.id());
     }
 
     /**

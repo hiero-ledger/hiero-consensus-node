@@ -81,4 +81,12 @@ public interface MultipleNodeLogResults extends OtterResult {
      */
     @NonNull
     MultipleNodeLogResults suppressingLogMarker(@NonNull LogMarker marker);
+
+    /**
+     * Excludes the log results from the specified logger class from the current results.
+     *
+     * @param clazz the class whose log results are to be excluded
+     * @return a new {@code MultipleNodeLogResults} instance with the specified log marker's results removed
+     */
+    MultipleNodeLogResults suppressingLoggerClass(@NonNull final Class<?> clazz);
 }

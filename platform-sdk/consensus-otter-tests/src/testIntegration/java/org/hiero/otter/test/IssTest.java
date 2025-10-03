@@ -1,6 +1,7 @@
 package org.hiero.otter.test;
 
 import com.swirlds.platform.config.StateConfig_;
+import com.swirlds.platform.state.iss.DefaultIssDetector;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.OtterTest;
@@ -30,6 +31,9 @@ public class IssTest {
         network.start();
 
         network.triggerSingleNodeIss(network.nodes().getFirst());
+
+        assertThat(network.newLogResults().suppressingLoggerClass(DefaultIssDetector.class)).haveNoErrorLevelMessages();
+
     }
 
     @OtterTest
@@ -48,6 +52,7 @@ public class IssTest {
         assertThat(network.newPlatformStatusResults()).haveSteps(
                 target(ACTIVE).requiringInterim(REPLAYING_EVENTS, OBSERVING, CHECKING),
                 target(CATASTROPHIC_FAILURE));
+        assertThat(network.newLogResults().suppressingLoggerClass(DefaultIssDetector.class)).haveNoErrorLevelMessages();
     }
 
     @OtterTest
@@ -66,5 +71,6 @@ public class IssTest {
         assertThat(network.newPlatformStatusResults()).haveSteps(
                 target(ACTIVE).requiringInterim(REPLAYING_EVENTS, OBSERVING, CHECKING),
                 targets(CHECKING, CATASTROPHIC_FAILURE));
+        assertThat(network.newLogResults().suppressingLoggerClass(DefaultIssDetector.class)).haveNoErrorLevelMessages();
     }
 }

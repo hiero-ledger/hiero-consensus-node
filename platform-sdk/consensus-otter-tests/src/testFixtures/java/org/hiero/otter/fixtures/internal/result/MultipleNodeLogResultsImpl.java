@@ -19,6 +19,7 @@ import org.hiero.otter.fixtures.result.MultipleNodeLogResults;
 import org.hiero.otter.fixtures.result.OtterResult;
 import org.hiero.otter.fixtures.result.SingleNodeLogResult;
 import org.hiero.otter.fixtures.result.SubscriberAction;
+import org.jetbrains.annotations.NotNull;
 
 /**
  * Default implementation of {@link MultipleNodeLogResults}
@@ -105,6 +106,15 @@ public class MultipleNodeLogResultsImpl implements MultipleNodeLogResults {
         requireNonNull(marker, "marker cannot be null");
         final List<SingleNodeLogResult> filteredResults =
                 results.stream().map(res -> res.suppressingLogMarker(marker)).toList();
+
+        return new MultipleNodeLogResultsImpl(filteredResults);
+    }
+
+    @Override
+    public MultipleNodeLogResults suppressingLoggerClass(@NotNull final Class<?> clazz) {
+        requireNonNull(clazz, "clazz cannot be null");
+        final List<SingleNodeLogResult> filteredResults =
+                results.stream().map(res -> res.suppressingLoggerClass(clazz)).toList();
 
         return new MultipleNodeLogResultsImpl(filteredResults);
     }
