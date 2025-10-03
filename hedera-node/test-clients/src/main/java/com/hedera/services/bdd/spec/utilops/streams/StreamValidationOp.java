@@ -167,7 +167,7 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
 
         if (spec.targetNetworkType() == SUBPROCESS_NETWORK) {
             log.info("Waiting for simulator block processing to complete...");
-            sleepFor(15000);
+            sleepFor(20000);
         }
         List<Block> simulatorBlocks = readMaybeSimulatorBlocks(spec);
 

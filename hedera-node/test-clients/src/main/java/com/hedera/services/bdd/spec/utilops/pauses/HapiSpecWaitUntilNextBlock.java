@@ -9,6 +9,9 @@ import static com.hedera.services.bdd.suites.HapiSuite.FUNDING;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 
 import com.hedera.node.app.blocks.impl.streaming.FileBlockItemWriter;
+import com.hedera.services.bdd.junit.extensions.NetworkTargetingExtension;
+import com.hedera.services.bdd.junit.hedera.BlockNodeNetwork;
+import com.hedera.services.bdd.junit.hedera.simulator.SimulatedBlockNodeServer;
 import com.hedera.services.bdd.junit.support.BlockStreamAccess;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.utilops.UtilOp;
@@ -17,12 +20,25 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
+import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.jetbrains.annotations.NotNull;
 
+/**
+ * Utility operation that waits until the next block(s) have been created.
+ *
+ * <p>This operation automatically detects the block stream configuration from the spec:
+ * <ul>
+ *   <li><b>Writer Mode</b>: Automatically determines whether to wait for file-based or GRPC-based blocks
+ *       based on the {@code blockStream.writerMode} property.</li>
+ *   <li><b>Block Period</b>: Automatically uses the {@code blockStream.blockPeriod} property for timing.</li>
+ *   <li><b>Block Node ID</b>: Automatically selects the first available simulated block node when in GRPC mode.</li>
+ * </ul>
+ */
 public class HapiSpecWaitUntilNextBlock extends UtilOp {
     private static final Logger log = LogManager.getLogger(HapiSpecWaitUntilNextBlock.class);
     private static final String BLOCK_FILE_EXTENSION = ".blk";
@@ -33,6 +49,7 @@ public class HapiSpecWaitUntilNextBlock extends UtilOp {
     private Duration timeout = Duration.ofSeconds(30);
 
     private boolean backgroundTraffic;
+    private Duration blockPeriod = Duration.ofSeconds(2);
     private int blocksToWaitFor = 1; // Default to waiting for the next single block
 
     public HapiSpecWaitUntilNextBlock withBackgroundTraffic(final boolean backgroundTraffic) {
@@ -57,25 +74,36 @@ public class HapiSpecWaitUntilNextBlock extends UtilOp {
 
     @Override
     protected boolean submitOp(@NonNull final HapiSpec spec) throws Throwable {
-        final var blockDir = spec.targetNetworkOrThrow().nodes().getFirst().getExternalPath(BLOCK_STREAMS_DIR);
-        if (blockDir == null) {
-            throw new IllegalStateException("Block stream directory not available");
+        // Auto-detect writer mode from spec configuration
+        final var writerMode = spec.startupProperties().get("blockStream.writerMode");
+        boolean onBlockNodeSide = "GRPC".equals(writerMode) || "FILE_AND_GRPC".equals(writerMode);
+        log.info("Auto-detected writer mode: {} -> onBlockNodeSide = {}", writerMode, onBlockNodeSide);
+
+        // Auto-detect block period from spec configuration
+        try {
+            this.blockPeriod = spec.startupProperties().getConfigDuration("blockStream.blockPeriod");
+            log.info("Auto-detected block period: {}", blockPeriod);
+        } catch (Exception e) {
+            log.warn("Failed to auto-detect block period, using default: {}", blockPeriod, e);
         }
 
-        // Ensure the directory exists before trying to walk it
-        if (!Files.exists(blockDir)) {
-            log.info("Creating block stream directory at {}", blockDir);
-            Files.createDirectories(blockDir);
+        // Auto-detect block node ID from available simulators
+        long blockNodeId = 0; // Default fallback
+        if (onBlockNodeSide) {
+            final BlockNodeNetwork blockNodeNetwork = NetworkTargetingExtension.SHARED_BLOCK_NODE_NETWORK.get();
+            if (blockNodeNetwork != null
+                    && !blockNodeNetwork.getSimulatedBlockNodeById().isEmpty()) {
+                // Use the first available block node ID
+                blockNodeId = blockNodeNetwork
+                        .getSimulatedBlockNodeById()
+                        .keySet()
+                        .iterator()
+                        .next();
+                log.info("Auto-detected block node ID: {}", blockNodeId);
+            } else {
+                log.warn("No block node network found, using default block node ID: {}", blockNodeId);
+            }
         }
-
-        final var currentBlock = findLatestBlockNumber(blockDir);
-        final var targetBlock = currentBlock + blocksToWaitFor;
-
-        log.info(
-                "Waiting for block {} to appear (current block is {}, waiting for {})",
-                targetBlock,
-                currentBlock,
-                blocksToWaitFor);
 
         // Start background traffic if configured
         final var stopTraffic = new AtomicBoolean(false);
@@ -102,23 +130,51 @@ public class HapiSpecWaitUntilNextBlock extends UtilOp {
         }
 
         try {
-            final var startTime = System.currentTimeMillis();
-            while (true) {
-                if (isBlockComplete(blockDir, targetBlock)) {
-                    log.info("Block {} has been created and completed", targetBlock);
-                    return false;
-                }
-                if (System.currentTimeMillis() - startTime > timeout.toMillis()) {
-                    throw new RuntimeException(String.format(
-                            "Timeout waiting for block %d after %d seconds", targetBlock, timeout.toSeconds()));
-                }
-                spec.sleepConsensusTime(POLL_INTERVAL);
+            if (onBlockNodeSide) {
+                return submitOpGrpc(spec, blockNodeId);
+            } else {
+                return submitOpFile(spec);
             }
         } finally {
             if (trafficFuture != null) {
                 stopTraffic.set(true);
                 trafficFuture.join();
             }
+        }
+    }
+
+    private boolean submitOpFile(@NotNull HapiSpec spec) throws IOException {
+        final var blockDir = spec.targetNetworkOrThrow().nodes().getFirst().getExternalPath(BLOCK_STREAMS_DIR);
+        if (blockDir == null) {
+            throw new IllegalStateException("Block stream directory not available");
+        }
+
+        // Ensure the directory exists before trying to walk it
+        if (!Files.exists(blockDir)) {
+            log.info("Creating block stream directory at {}", blockDir);
+            Files.createDirectories(blockDir);
+        }
+
+        final var currentBlock = findLatestBlockNumber(blockDir);
+        final var targetBlock = currentBlock + blocksToWaitFor;
+
+        log.info(
+                "Waiting for block {} to appear (current block is {}, waiting for {})",
+                targetBlock,
+                currentBlock,
+                blocksToWaitFor);
+
+        final var startTime = System.currentTimeMillis();
+        while (true) {
+            if (isBlockComplete(blockDir, targetBlock)) {
+                log.info("Block {} has been created and completed", targetBlock);
+                return false;
+            }
+            if (System.currentTimeMillis() - startTime > timeout.toMillis()) {
+                throw new RuntimeException(String.format(
+                        "Timeout waiting for block %d after %d seconds", targetBlock, timeout.toSeconds()));
+            }
+            spec.sleepConsensusTime(POLL_INTERVAL);
         }
     }
 
@@ -146,5 +202,40 @@ public class HapiSpecWaitUntilNextBlock extends UtilOp {
         String fileName = path.getFileName().toString();
         return Files.isRegularFile(path)
                 && (fileName.endsWith(BLOCK_FILE_EXTENSION) || fileName.endsWith(COMPRESSED_BLOCK_FILE_EXTENSION));
+    }
+
+    private boolean submitOpGrpc(@NotNull HapiSpec spec, long blockNodeId) {
+        int blocksReceivedBefore = getSimulatorTotalBlocksReceived(blockNodeId);
+        final var startTime = System.currentTimeMillis();
+        // sleep here to avoid multiple simulator check-ups
+        spec.sleepConsensusTime(blockPeriod.multipliedBy(blocksToWaitFor));
+        while (true) {
+            int blocksReceived = getSimulatorTotalBlocksReceived(blockNodeId);
+            if (blocksReceived - blocksReceivedBefore >= blocksToWaitFor) {
+                return false;
+            }
+            if (System.currentTimeMillis() - startTime > timeout.toMillis()) {
+                throw new RuntimeException(String.format(
+                        "Timeout waiting for blocks. Received %d out of %d after %d seconds",
+                        blocksReceived - blocksReceivedBefore, blocksToWaitFor, timeout.toSeconds()));
+            }
+            spec.sleepConsensusTime(blockPeriod);
+        }
+    }
+
+    private Integer getSimulatorTotalBlocksReceived(long blockNodeId) {
+        final BlockNodeNetwork blockNodeNetwork = NetworkTargetingExtension.SHARED_BLOCK_NODE_NETWORK.get();
+        if (blockNodeNetwork == null) {
+            return 0;
+        }
+
+        SimulatedBlockNodeServer simulatedBlockNodeServer =
+                blockNodeNetwork.getSimulatedBlockNodeById().get(blockNodeId);
+        if (Objects.nonNull(simulatedBlockNodeServer)) {
+            int size = simulatedBlockNodeServer.getReceivedBlockNumbers().size();
+            log.info("Read received block size {} from simulator {}", size, blockNodeId);
+            return size;
+        }
+        return 0;
     }
 }
