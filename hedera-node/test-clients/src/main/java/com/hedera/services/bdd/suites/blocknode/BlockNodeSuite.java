@@ -55,221 +55,6 @@ public class BlockNodeSuite {
 
     @HapiTest
     @HapiBlockNode(
-            networkSize = 4,
-            blockNodeConfigs = {@BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.LOCAL_NODE)},
-            subProcessNodeConfigs = {
-                @SubProcessNodeConfig(
-                        nodeId = 0,
-                        blockNodeIds = {0},
-                        blockNodePriorities = {0},
-                        applicationPropertiesOverrides = {
-                            "blockStream.streamMode", "BLOCKS",
-                            "blockStream.writerMode", "GRPC"
-                        }),
-                @SubProcessNodeConfig(
-                        nodeId = 1,
-                        blockNodeIds = {0},
-                        blockNodePriorities = {0},
-                        applicationPropertiesOverrides = {
-                            "blockStream.streamMode", "BLOCKS",
-                            "blockStream.writerMode", "GRPC"
-                        }),
-                @SubProcessNodeConfig(
-                        nodeId = 2,
-                        blockNodeIds = {0},
-                        blockNodePriorities = {0},
-                        applicationPropertiesOverrides = {
-                            "blockStream.streamMode", "BLOCKS",
-                            "blockStream.writerMode", "GRPC"
-                        }),
-                @SubProcessNodeConfig(
-                        nodeId = 3,
-                        blockNodeIds = {0},
-                        blockNodePriorities = {0},
-                        applicationPropertiesOverrides = {
-                            "blockStream.streamMode", "BLOCKS",
-                            "blockStream.writerMode", "GRPC"
-                        })
-            })
-    @Order(0)
-    final Stream<DynamicTest> nodeDeathReconnectBlocksOnlyGrpc() {
-        return nodeDeathTestSteps();
-    }
-
-    @HapiTest
-    @HapiBlockNode(
-            networkSize = 4,
-            blockNodeConfigs = {
-                @BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.SIMULATOR),
-                @BlockNodeConfig(nodeId = 1, mode = BlockNodeMode.SIMULATOR),
-                @BlockNodeConfig(nodeId = 2, mode = BlockNodeMode.SIMULATOR),
-                @BlockNodeConfig(nodeId = 3, mode = BlockNodeMode.SIMULATOR)
-            },
-            subProcessNodeConfigs = {
-                @SubProcessNodeConfig(
-                        nodeId = 0,
-                        blockNodeIds = {0},
-                        blockNodePriorities = {0},
-                        applicationPropertiesOverrides = {
-                            "blockStream.streamMode", "BLOCKS",
-                            "blockStream.writerMode", "FILE_AND_GRPC"
-                        }),
-                @SubProcessNodeConfig(
-                        nodeId = 1,
-                        blockNodeIds = {1},
-                        blockNodePriorities = {0},
-                        applicationPropertiesOverrides = {
-                            "blockStream.streamMode", "BLOCKS",
-                            "blockStream.writerMode", "FILE_AND_GRPC"
-                        }),
-                @SubProcessNodeConfig(
-                        nodeId = 2,
-                        blockNodeIds = {2},
-                        blockNodePriorities = {0},
-                        applicationPropertiesOverrides = {
-                            "blockStream.streamMode", "BLOCKS",
-                            "blockStream.writerMode", "FILE_AND_GRPC"
-                        }),
-                @SubProcessNodeConfig(
-                        nodeId = 3,
-                        blockNodeIds = {3},
-                        blockNodePriorities = {0},
-                        applicationPropertiesOverrides = {
-                            "blockStream.streamMode", "BLOCKS",
-                            "blockStream.writerMode", "FILE_AND_GRPC"
-                        })
-            })
-    @Order(0)
-    final Stream<DynamicTest> nodeDeathReconnectBlocksAndFileAndGrpc() {
-        return nodeDeathTestSteps();
-    }
-
-    @HapiTest
-    @HapiBlockNode(
-            networkSize = 4,
-            blockNodeConfigs = {
-                @BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.SIMULATOR),
-                @BlockNodeConfig(nodeId = 1, mode = BlockNodeMode.SIMULATOR),
-                @BlockNodeConfig(nodeId = 2, mode = BlockNodeMode.SIMULATOR),
-                @BlockNodeConfig(nodeId = 3, mode = BlockNodeMode.SIMULATOR)
-            },
-            subProcessNodeConfigs = {
-                @SubProcessNodeConfig(
-                        nodeId = 0,
-                        blockNodeIds = {0},
-                        blockNodePriorities = {0},
-                        applicationPropertiesOverrides = {
-                            "blockStream.streamMode", "BOTH",
-                            "blockStream.writerMode", "GRPC"
-                        }),
-                @SubProcessNodeConfig(
-                        nodeId = 1,
-                        blockNodeIds = {1},
-                        blockNodePriorities = {0},
-                        applicationPropertiesOverrides = {
-                            "blockStream.streamMode", "BOTH",
-                            "blockStream.writerMode", "GRPC"
-                        }),
-                @SubProcessNodeConfig(
-                        nodeId = 2,
-                        blockNodeIds = {2},
-                        blockNodePriorities = {0},
-                        applicationPropertiesOverrides = {
-                            "blockStream.streamMode", "BOTH",
-                            "blockStream.writerMode", "GRPC"
-                        }),
-                @SubProcessNodeConfig(
-                        nodeId = 3,
-                        blockNodeIds = {3},
-                        blockNodePriorities = {0},
-                        applicationPropertiesOverrides = {
-                            "blockStream.streamMode", "BOTH",
-                            "blockStream.writerMode", "GRPC"
-                        })
-            })
-    @Order(0)
-    final Stream<DynamicTest> nodeDeathReconnectBothAndGrpc() {
-        return nodeDeathTestSteps();
-    }
-
-    @HapiTest
-    @HapiBlockNode(
-            networkSize = 4,
-            blockNodeConfigs = {
-                @BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.SIMULATOR),
-                @BlockNodeConfig(nodeId = 1, mode = BlockNodeMode.SIMULATOR),
-                @BlockNodeConfig(nodeId = 2, mode = BlockNodeMode.SIMULATOR),
-                @BlockNodeConfig(nodeId = 3, mode = BlockNodeMode.SIMULATOR)
-            },
-            subProcessNodeConfigs = {
-                @SubProcessNodeConfig(
-                        nodeId = 0,
-                        blockNodeIds = {0},
-                        blockNodePriorities = {0},
-                        applicationPropertiesOverrides = {
-                            "blockStream.streamMode", "BOTH",
-                            "blockStream.writerMode", "FILE_AND_GRPC"
-                        }),
-                @SubProcessNodeConfig(
-                        nodeId = 1,
-                        blockNodeIds = {1},
-                        blockNodePriorities = {0},
-                        applicationPropertiesOverrides = {
-                            "blockStream.streamMode", "BOTH",
-                            "blockStream.writerMode", "FILE_AND_GRPC"
-                        }),
-                @SubProcessNodeConfig(
-                        nodeId = 2,
-                        blockNodeIds = {2},
-                        blockNodePriorities = {0},
-                        applicationPropertiesOverrides = {
-                            "blockStream.streamMode", "BOTH",
-                            "blockStream.writerMode", "FILE_AND_GRPC"
-                        }),
-                @SubProcessNodeConfig(
-                        nodeId = 3,
-                        blockNodeIds = {3},
-                        blockNodePriorities = {0},
-                        applicationPropertiesOverrides = {
-                            "blockStream.streamMode", "BOTH",
-                            "blockStream.writerMode", "FILE_AND_GRPC"
-                        })
-            })
-    @Order(0)
-    final Stream<DynamicTest> nodeDeathReconnectBothAndFileAndGrpc() {
-        return nodeDeathTestSteps();
-    }
-
-    private Stream<DynamicTest> nodeDeathTestSteps() {
-        final AtomicReference<Instant> timeRef = new AtomicReference<>();
-        return hapiTest(
-                // Validate we can initially submit transactions to node2
-                cryptoCreate("nobody").setNode("5"),
-                // Run some mixed transactions
-                burstOfTps(MIXED_OPS_BURST_TPS, MIXED_OPS_BURST_DURATION),
-                // Stop node 2
-                FakeNmt.shutdownWithin(NodeSelector.byNodeId(2), SHUTDOWN_TIMEOUT),
-                logIt("Node 2 is supposedly down"),
-                sleepFor(PORT_UNBINDING_WAIT_PERIOD.toMillis()),
-                // Submit operations when node 2 is down
-                burstOfTps(MIXED_OPS_BURST_TPS, MIXED_OPS_BURST_DURATION),
-                // Restart node2
-                FakeNmt.restartNode(NodeSelector.byNodeId(2)),
-                // Wait for node2 ACTIVE (BUSY and RECONNECT_COMPLETE are too transient to reliably poll for)
-                waitForActive(NodeSelector.byNodeId(2), RESTART_TO_ACTIVE_TIMEOUT),
-                doingContextual(spec -> timeRef.set(Instant.now())),
-                // Run some more transactions
-                burstOfTps(MIXED_OPS_BURST_TPS, MIXED_OPS_BURST_DURATION),
-                // And validate we can still submit transactions to node2
-                cryptoCreate("somebody").setNode("5"),
-                burstOfTps(MIXED_OPS_BURST_TPS, Duration.ofSeconds(60)),
-                assertHgcaaLogDoesNotContain(byNodeId(0), "ERROR", Duration.ofSeconds(5)),
-                sourcingContextual(spec -> assertHgcaaLogContainsTimeframe(
-                        byNodeId(2), timeRef::get, Duration.ofMinutes(1), Duration.ofSeconds(45), "saturation=0.0%")));
-    }
-
-    @HapiTest
-    @HapiBlockNode(
             networkSize = 1,
             blockNodeConfigs = {@BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.SIMULATOR)},
             subProcessNodeConfigs = {
@@ -285,7 +70,7 @@ public class BlockNodeSuite {
     @Order(0)
     final Stream<DynamicTest> node0StreamingHappyPath() {
         return hapiTest(
-                waitUntilNextBlocks(1000).withBackgroundTraffic(true),
+                waitUntilNextBlocks(20).withBackgroundTraffic(true),
                 assertHgcaaLogDoesNotContain(byNodeId(0), "ERROR", Duration.ofSeconds(5)));
     }
 
@@ -891,5 +676,121 @@ public class BlockNodeSuite {
                                 "/localhost:%s/ACTIVE] Block node requested a ResendBlock for block 9223372036854775807 but that block does not exist on this consensus node. Closing connection and will retry later",
                                 portNumbers.getFirst()))),
                 assertHgcaaLogDoesNotContain(byNodeId(0), "ERROR", Duration.ofSeconds(5)));
+    }
+
+    @HapiTest
+    @HapiBlockNode(
+            networkSize = 4,
+            blockNodeConfigs = {@BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.REAL)},
+            subProcessNodeConfigs = {
+                @SubProcessNodeConfig(
+                        nodeId = 0,
+                        blockNodeIds = {0},
+                        blockNodePriorities = {0},
+                        applicationPropertiesOverrides = {
+                            "blockStream.streamMode", "BLOCKS",
+                            "blockStream.writerMode", "GRPC"
+                        }),
+                @SubProcessNodeConfig(
+                        nodeId = 1,
+                        blockNodeIds = {0},
+                        blockNodePriorities = {0},
+                        applicationPropertiesOverrides = {
+                            "blockStream.streamMode", "BLOCKS",
+                            "blockStream.writerMode", "GRPC"
+                        }),
+                @SubProcessNodeConfig(
+                        nodeId = 2,
+                        blockNodeIds = {0},
+                        blockNodePriorities = {0},
+                        applicationPropertiesOverrides = {
+                            "blockStream.streamMode", "BLOCKS",
+                            "blockStream.writerMode", "GRPC"
+                        }),
+                @SubProcessNodeConfig(
+                        nodeId = 3,
+                        blockNodeIds = {0},
+                        blockNodePriorities = {0},
+                        applicationPropertiesOverrides = {
+                            "blockStream.streamMode", "BLOCKS",
+                            "blockStream.writerMode", "GRPC"
+                        })
+            })
+    @Order(12)
+    final Stream<DynamicTest> nodeDeathReconnectBlocksOnlyGrpc() {
+        return nodeDeathTestSteps();
+    }
+
+    @HapiTest
+    @HapiBlockNode(
+            networkSize = 4,
+            blockNodeConfigs = {
+                @BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.REAL),
+            },
+            subProcessNodeConfigs = {
+                @SubProcessNodeConfig(
+                        nodeId = 0,
+                        blockNodeIds = {0},
+                        blockNodePriorities = {0},
+                        applicationPropertiesOverrides = {
+                            "blockStream.streamMode", "BOTH",
+                            "blockStream.writerMode", "FILE_AND_GRPC"
+                        }),
+                @SubProcessNodeConfig(
+                        nodeId = 1,
+                        blockNodeIds = {0},
+                        blockNodePriorities = {0},
+                        applicationPropertiesOverrides = {
+                            "blockStream.streamMode", "BLOCKS",
+                            "blockStream.writerMode", "FILE_AND_GRPC"
+                        }),
+                @SubProcessNodeConfig(
+                        nodeId = 2,
+                        blockNodeIds = {0},
+                        blockNodePriorities = {0},
+                        applicationPropertiesOverrides = {
+                            "blockStream.streamMode", "BLOCKS",
+                            "blockStream.writerMode", "FILE_AND_GRPC"
+                        }),
+                @SubProcessNodeConfig(
+                        nodeId = 3,
+                        blockNodeIds = {0},
+                        blockNodePriorities = {0},
+                        applicationPropertiesOverrides = {
+                            "blockStream.streamMode", "BLOCKS",
+                            "blockStream.writerMode", "FILE_AND_GRPC"
+                        })
+            })
+    @Order(13)
+    final Stream<DynamicTest> nodeDeathReconnectBothAndFileAndGrpc() {
+        return nodeDeathTestSteps();
+    }
+
+    private Stream<DynamicTest> nodeDeathTestSteps() {
+        final AtomicReference<Instant> timeRef = new AtomicReference<>();
+        return hapiTest(
+                // Validate we can initially submit transactions to node2
+                cryptoCreate("nobody").setNode("5"),
+                // Run some mixed transactions
+                burstOfTps(MIXED_OPS_BURST_TPS, MIXED_OPS_BURST_DURATION),
+                // Stop node 2
+                FakeNmt.shutdownWithin(NodeSelector.byNodeId(2), SHUTDOWN_TIMEOUT),
+                logIt("Node 2 is supposedly down"),
+                sleepFor(PORT_UNBINDING_WAIT_PERIOD.toMillis()),
+                // Submit operations when node 2 is down
+                burstOfTps(MIXED_OPS_BURST_TPS, MIXED_OPS_BURST_DURATION),
+                // Restart node2
+                FakeNmt.restartNode(NodeSelector.byNodeId(2)),
+                // Wait for node2 ACTIVE (BUSY and RECONNECT_COMPLETE are too transient to reliably poll for)
+                waitForActive(NodeSelector.byNodeId(2), RESTART_TO_ACTIVE_TIMEOUT),
+                doingContextual(spec -> timeRef.set(Instant.now())),
+                // Run some more transactions
+                burstOfTps(MIXED_OPS_BURST_TPS, MIXED_OPS_BURST_DURATION),
+                // And validate we can still submit transactions to node2
+                cryptoCreate("somebody").setNode("5"),
+                burstOfTps(MIXED_OPS_BURST_TPS, Duration.ofSeconds(60)),
+                assertHgcaaLogDoesNotContain(byNodeId(0), "ERROR", Duration.ofSeconds(5)),
+                sourcingContextual(spec -> assertHgcaaLogContainsTimeframe(
+                        byNodeId(2), timeRef::get, Duration.ofMinutes(1), Duration.ofSeconds(45), "saturation=0.0%")));
     }
 }
