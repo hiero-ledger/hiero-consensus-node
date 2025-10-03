@@ -127,7 +127,7 @@ public class StatsDemoMain extends DefaultSwirldMain<StatsDemoState> {
     @Override
     public StatsDemoState newStateRoot() {
         final StatsDemoState state = new StatsDemoState();
-        TestingAppStateInitializer.DEFAULT.initConsensusModuleStates(state);
+        TestingAppStateInitializer.initConsensusModuleStates(state);
         return state;
     }
 
@@ -139,7 +139,7 @@ public class StatsDemoMain extends DefaultSwirldMain<StatsDemoState> {
      */
     @Override
     public Function<VirtualMap, StatsDemoState> stateRootFromVirtualMap() {
-        throw new UnsupportedOperationException();
+        return (virtualMap) -> newStateRoot();
     }
 
     @NonNull

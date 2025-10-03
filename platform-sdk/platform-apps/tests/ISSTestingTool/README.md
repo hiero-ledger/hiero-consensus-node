@@ -75,7 +75,7 @@ Check `swirlds.log` and ensure there are no unexpected exceptions or errors.
 
 Validate that the ISSTestingTool has been started by checking the following message:
 
-        -INFO  STARTUP <main> ISSTestingToolMain: ISSTestingToolState is registered with ConstructableRegistry
+        -INFO  STARTUP <main> ISSTestingToolMain: MerkleStateRoot Class Ids are registered with the ConstructableRegistry!
 
 Check that the planned ISSs has been provoked by checking for a log message like this:
 
@@ -111,7 +111,7 @@ Check `swirlds.log` and ensure there are no unexpected exceptions or errors.
 
 Validate that the ISSTestingTool has been started by checking the following message:
 
-        -INFO  STARTUP <main> ISSTestingToolMain: ISSTestingToolState is registered with ConstructableRegistry
+        -INFO  STARTUP <main> ISSTestingToolMain: MerkleStateRoot Class Ids are registered with the ConstructableRegistry!
 
 Check that the planned ISSs has been provoked by checking for a log message like this:
 

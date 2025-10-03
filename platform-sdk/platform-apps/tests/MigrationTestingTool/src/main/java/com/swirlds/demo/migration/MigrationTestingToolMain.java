@@ -171,7 +171,7 @@ public class MigrationTestingToolMain extends DefaultSwirldMain<MigrationTesting
     @Override
     public MigrationTestingToolState newStateRoot() {
         final MigrationTestingToolState state = new MigrationTestingToolState();
-        TestingAppStateInitializer.DEFAULT.initConsensusModuleStates(state);
+        TestingAppStateInitializer.initConsensusModuleStates(state);
         return state;
     }
 
@@ -183,7 +183,7 @@ public class MigrationTestingToolMain extends DefaultSwirldMain<MigrationTesting
      */
     @Override
     public Function<VirtualMap, MigrationTestingToolState> stateRootFromVirtualMap() {
-        throw new UnsupportedOperationException();
+        return (virtualMap) -> newStateRoot();
     }
 
     @Override
