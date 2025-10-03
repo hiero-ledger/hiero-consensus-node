@@ -349,6 +349,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
      */
     private void handleAcknowledgement(@NonNull final BlockAcknowledgement acknowledgement) {
         final long acknowledgedBlockNumber = acknowledgement.blockNumber();
+        logWithContext(DEBUG, "BlockAcknowledgement received for block {}", acknowledgedBlockNumber);
         acknowledgeBlocks(acknowledgedBlockNumber, true);
     }
 
@@ -357,8 +358,6 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
      * @param acknowledgedBlockNumber the block number that has been known to be persisted and verified by the block node
      */
     private void acknowledgeBlocks(final long acknowledgedBlockNumber, final boolean maybeJumpToBlock) {
-        logWithContext(DEBUG, "Acknowledging blocks <= {}.", acknowledgedBlockNumber);
-
         final long currentBlockStreaming = blockNodeConnectionManager.currentStreamingBlockNumber();
         final long currentBlockProducing = blockBufferService.getLastBlockNumberProduced();
 
