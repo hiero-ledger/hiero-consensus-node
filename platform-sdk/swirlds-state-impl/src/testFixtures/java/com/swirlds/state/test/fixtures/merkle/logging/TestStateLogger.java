@@ -32,8 +32,6 @@ import org.apache.logging.log4j.Logger;
 
 /**
  * This utility class provides convenient methods for logging state operations for different types of state types.
- * Contains duplicated code from {@code StateLogger}, but this class is intended for text fixtures only,
- * so it is conscious choice for convenience, and anyway this class will be deleted soon.
  * @deprecated This class should be removed together with {@link MerkleStateRoot}.
  */
 @Deprecated
