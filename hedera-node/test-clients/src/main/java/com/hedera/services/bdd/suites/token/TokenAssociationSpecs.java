@@ -152,6 +152,23 @@ public class TokenAssociationSpecs {
     }
 
     @HapiTest
+    final Stream<DynamicTest> handlesMintingTokenWithoutSetting() {
+        return hapiTest(
+                newKeyNamed(MULTI_KEY),
+                cryptoCreate(TOKEN_TREASURY),
+                cryptoCreate("replacementTreasury"),
+                tokenCreate(TBD_TOKEN)
+                        .adminKey(MULTI_KEY)
+                        .tokenType(NON_FUNGIBLE_UNIQUE)
+                        .initialSupply(0L)
+                        .treasury(TOKEN_TREASURY)
+                        .supplyKey(MULTI_KEY),
+                mintToken(TBD_TOKEN, List.of(ByteString.copyFromUtf8("1"), ByteString.copyFromUtf8("2")))
+                        .setNoToken()
+                        .hasPrecheck(INVALID_TOKEN_ID));
+    }
+
+    @HapiTest
     final Stream<DynamicTest> handlesUseOfDefaultTokenId() {
         return hapiTest(tokenAssociate(DEFAULT_PAYER, "0.0.0").hasPrecheck(INVALID_TOKEN_ID));
     }

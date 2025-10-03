@@ -33,6 +33,7 @@ import com.hederahashgraph.api.proto.java.Timestamp;
 import com.hederahashgraph.api.proto.java.Transaction;
 import com.hederahashgraph.api.proto.java.TransactionBody;
 import edu.umd.cs.findbugs.annotations.Nullable;
+
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -42,6 +43,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
+
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -58,6 +60,7 @@ public class HapiScheduleCreate<T extends HapiTxnOp<T>> extends HapiTxnOp<HapiSc
     private boolean recordScheduledTxn = false;
     private boolean skipRegistryUpdate = false;
     private boolean scheduleNoFunction = false;
+    private boolean noScheduled = false;
     private boolean saveExpectedScheduledTxnId = false;
     private boolean useSentinelKeyListForAdminKey = false;
     private final ByteString bytesSigned = ByteString.EMPTY;
@@ -88,6 +91,12 @@ public class HapiScheduleCreate<T extends HapiTxnOp<T>> extends HapiTxnOp<HapiSc
         sigMapPrefixes(TrieSigMapGenerator.withNature(FULL_PREFIXES));
     }
 
+    public HapiScheduleCreate(String scheduled) {
+        this.scheduleEntity = scheduled;
+        this.scheduled = null;
+        sigMapPrefixes(TrieSigMapGenerator.withNature(FULL_PREFIXES));
+    }
+
     public HapiScheduleCreate<T> asCallableSchedule() {
         asCallableSchedule = true;
         return this;
@@ -115,6 +124,12 @@ public class HapiScheduleCreate<T extends HapiTxnOp<T>> extends HapiTxnOp<HapiSc
 
     public HapiScheduleCreate<T> functionless() {
         scheduleNoFunction = true;
+        return this;
+    }
+
+
+    public HapiScheduleCreate<T> noScheduled() {
+        noScheduled = true;
         return this;
     }
 
@@ -209,12 +224,17 @@ public class HapiScheduleCreate<T extends HapiTxnOp<T>> extends HapiTxnOp<HapiSc
                 .<ScheduleCreateTransactionBody, ScheduleCreateTransactionBody.Builder>body(
                         ScheduleCreateTransactionBody.class, b -> {
                             if (scheduleNoFunction) {
-                                b.setScheduledTransactionBody(SchedulableTransactionBody.getDefaultInstance());
+                                b.setScheduledTransactionBody(SchedulableTransactionBody.newBuilder());
                             } else {
                                 try {
-                                    var deserializedTxn = TransactionBody.parseFrom(subOp.getBodyBytes());
-                                    scheduledTxn.set(ScheduleUtils.fromOrdinary(deserializedTxn));
-                                    b.setScheduledTransactionBody(scheduledTxn.get());
+                                    if (noScheduled) {
+                                        b.setScheduledTransactionBody(SchedulableTransactionBody.newBuilder());
+                                    } else {
+                                        var deserializedTxn = TransactionBody.parseFrom(subOp.getBodyBytes());
+                                        scheduledTxn.set(ScheduleUtils.fromOrdinary(deserializedTxn));
+                                        b.setScheduledTransactionBody(scheduledTxn.get());
+                                    }
+
                                 } catch (InvalidProtocolBufferException fatal) {
                                     throw new IllegalStateException(
                                             "Couldn't deserialize serialized" + " TransactionBody!");
@@ -334,7 +354,7 @@ public class HapiScheduleCreate<T extends HapiTxnOp<T>> extends HapiTxnOp<HapiSc
         if (advertiseCreation) {
             String banner = "\n\n"
                     + bannerWith(String.format(
-                            "Created schedule '%s' with id '%s'.", scheduleEntity, asScheduleString(scheduleId)));
+                    "Created schedule '%s' with id '%s'.", scheduleEntity, asScheduleString(scheduleId)));
             log.info(banner);
         }
         if (asCallableSchedule) {
