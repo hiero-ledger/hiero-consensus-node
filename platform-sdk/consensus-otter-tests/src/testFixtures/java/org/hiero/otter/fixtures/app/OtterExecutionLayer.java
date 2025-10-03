@@ -5,6 +5,7 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.base.time.Time;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.builder.ExecutionLayer;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -12,6 +13,7 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Random;
 import org.hiero.consensus.model.status.PlatformStatus;
+import org.hiero.consensus.model.transaction.TimestampedTransaction;
 import org.hiero.consensus.transaction.TransactionPoolNexus;
 import org.hiero.otter.fixtures.TransactionFactory;
 
@@ -30,12 +32,13 @@ public class OtterExecutionLayer implements ExecutionLayer {
     /**
      * Constructs a new OtterExecutionLayer.
      *
-     * @param random the source of randomness for populating signature transaction nonce values.
+     * @param random  the source of randomness for populating signature transaction nonce values.
      * @param metrics the metrics system to use
+     * @param time    the source of time to use
      */
-    public OtterExecutionLayer(@NonNull final Random random, @NonNull final Metrics metrics) {
+    public OtterExecutionLayer(@NonNull final Random random, @NonNull final Metrics metrics, @NonNull final Time time) {
         this.random = requireNonNull(random);
-        transactionPool = new TransactionPoolNexus(getTransactionLimits(), TX_QUEUE_SIZE, metrics);
+        transactionPool = new TransactionPoolNexus(getTransactionLimits(), TX_QUEUE_SIZE, metrics, time);
     }
 
     /**
@@ -62,7 +65,7 @@ public class OtterExecutionLayer implements ExecutionLayer {
      */
     @NonNull
     @Override
-    public List<Bytes> getTransactionsForEvent() {
+    public List<TimestampedTransaction> getTransactionsForEvent() {
         return transactionPool.getTransactionsForEvent();
     }
 

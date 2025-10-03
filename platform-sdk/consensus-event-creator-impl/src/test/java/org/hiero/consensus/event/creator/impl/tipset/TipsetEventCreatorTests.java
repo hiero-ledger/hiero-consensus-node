@@ -8,7 +8,6 @@ import static org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreatorTe
 import static org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreatorTestUtils.createTestEventWithParent;
 import static org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreatorTestUtils.distributeEvent;
 import static org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreatorTestUtils.generateRandomTransactions;
-import static org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreatorTestUtils.generateTransactions;
 import static org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreatorTestUtils.registerEvent;
 import static org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreatorTestUtils.validateNewEventAndMaybeAdvanceCreatorScore;
 import static org.hiero.consensus.model.hashgraph.ConsensusConstants.ROUND_FIRST;
@@ -19,11 +18,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
-import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import java.time.Duration;
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -40,6 +37,7 @@ import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.consensus.model.test.fixtures.hashgraph.EventWindowBuilder;
+import org.hiero.consensus.model.transaction.TimestampedTransaction;
 import org.hiero.junit.extensions.ParamName;
 import org.hiero.junit.extensions.ParamSource;
 import org.hiero.junit.extensions.ParameterCombinationExtension;
@@ -82,7 +80,7 @@ class TipsetEventCreatorTests {
 
         final FakeTime time = new FakeTime();
 
-        final AtomicReference<List<Bytes>> transactionSupplier = new AtomicReference<>();
+        final AtomicReference<List<TimestampedTransaction>> transactionSupplier = new AtomicReference<>();
 
         final Map<NodeId, SimulatedNode> nodes = buildSimulatedNodes(random, time, roster, transactionSupplier::get);
 
@@ -105,10 +103,6 @@ class TipsetEventCreatorTests {
                 assertNotNull(event);
 
                 assignNGenAndDistributeEvent(nodes, events, event);
-
-                if (advancingClock) {
-                    assertEquals(event.getTimeCreated(), time.now());
-                }
 
                 validateNewEventAndMaybeAdvanceCreatorScore(
                         events, event, transactionSupplier.get(), nodes.get(nodeId), false, false);
@@ -151,7 +145,7 @@ class TipsetEventCreatorTests {
 
         final FakeTime time = new FakeTime();
 
-        final AtomicReference<List<Bytes>> transactionSupplier = new AtomicReference<>();
+        final AtomicReference<List<TimestampedTransaction>> transactionSupplier = new AtomicReference<>();
 
         final Map<NodeId, SimulatedNode> nodes = buildSimulatedNodes(random, time, roster, transactionSupplier::get);
 
@@ -185,9 +179,6 @@ class TipsetEventCreatorTests {
 
                 assignNGenAndDistributeEvent(nodes, events, event);
 
-                if (advancingClock) {
-                    assertEquals(event.getTimeCreated(), time.now());
-                }
                 validateNewEventAndMaybeAdvanceCreatorScore(
                         events, event, transactionSupplier.get(), nodes.get(nodeId), false, false);
             }
@@ -227,7 +218,7 @@ class TipsetEventCreatorTests {
 
         final FakeTime time = new FakeTime();
 
-        final AtomicReference<List<Bytes>> transactionSupplier = new AtomicReference<>();
+        final AtomicReference<List<TimestampedTransaction>> transactionSupplier = new AtomicReference<>();
 
         final Map<NodeId, SimulatedNode> nodes = buildSimulatedNodes(random, time, roster, transactionSupplier::get);
 
@@ -262,9 +253,6 @@ class TipsetEventCreatorTests {
 
                     assignNGenAndDistributeEvent(nodes, events, event);
 
-                    if (advancingClock) {
-                        assertEquals(event.getTimeCreated(), time.now());
-                    }
                     validateNewEventAndMaybeAdvanceCreatorScore(
                             events, event, transactionSupplier.get(), nodes.get(nodeId), false, false);
                 }
@@ -315,7 +303,7 @@ class TipsetEventCreatorTests {
 
         final FakeTime time = new FakeTime();
 
-        final AtomicReference<List<Bytes>> transactionSupplier = new AtomicReference<>();
+        final AtomicReference<List<TimestampedTransaction>> transactionSupplier = new AtomicReference<>();
 
         final Map<NodeId, SimulatedNode> nodes = buildSimulatedNodes(random, time, roster, transactionSupplier::get);
 
@@ -347,9 +335,6 @@ class TipsetEventCreatorTests {
 
                     assignNGenAndDistributeEvent(nodes, events, event);
 
-                    if (advancingClock) {
-                        assertEquals(event.getTimeCreated(), time.now());
-                    }
                     validateNewEventAndMaybeAdvanceCreatorScore(
                             events, event, transactionSupplier.get(), nodes.get(nodeId), false, false);
 
@@ -365,32 +350,23 @@ class TipsetEventCreatorTests {
     /**
      * This test simulates the creation and propagation of events in a small network of simulated nodes (networkSize =
      * 10). It iterates 100 times, and within each iteration, it cycles through all nodes in randomized order. For each
-     * node, it potentially advances a simulated clock (if advancingClock is true), generates random transactions,
-     * triggers the node to create a new event, distributes this event to other nodes, and then validates the newly
-     * created event. The test asserts that every node is always able to create an event and, if the clock is advancing,
-     * that the event's creation time matches the simulated current time. The ancientMode parameter is used to assign a
-     * birthround or a generation at the time the event is being created. Additionally, if event cannot be created due
-     * to eligible parent constraints, it forces the break quiescence event to be generated, to check that it is
-     * possible in case we need that.
+     * node, generates random transactions, triggers the node to create a new event, distributes this event to other
+     * nodes, and then validates the newly created event. The test asserts that every node is always able to create an
+     * event.Additionally, if event cannot be created due to eligible parent constraints, it forces the break quiescence
+     * event to be generated, to check that it is possible in case we need that.
      *
-     * @param advancingClock {@link TipsetEventCreatorTestUtils#booleanValues()}
-     * @param random         {@link RandomUtils#getRandomPrintSeed()}
+     * @param random {@link RandomUtils#getRandomPrintSeed()}
      */
     @TestTemplate
     @ExtendWith(ParameterCombinationExtension.class)
     @UseParameterSources({
-        @ParamSource(
-                param = "advancingClock",
-                fullyQualifiedClass = "org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreatorTestUtils",
-                method = "booleanValues"),
         @ParamSource(
                 param = "random",
                 fullyQualifiedClass = "org.hiero.base.utility.test.fixtures.RandomUtils",
                 method = "getRandomPrintSeed")
     })
     @DisplayName("Create many events including breaking quiescence")
-    void createManyEventsAndBreakQuiescenceTest(
-            @ParamName("advancingClock") final boolean advancingClock, @ParamName("random") final Random random) {
+    void createManyEventsAndBreakQuiescenceTest(@ParamName("random") final Random random) {
 
         final int networkSize = 10;
 
@@ -399,7 +375,7 @@ class TipsetEventCreatorTests {
 
         final FakeTime time = new FakeTime();
 
-        final AtomicReference<List<Bytes>> transactionSupplier = new AtomicReference<>();
+        final AtomicReference<List<TimestampedTransaction>> transactionSupplier = new AtomicReference<>();
 
         final Map<NodeId, SimulatedNode> nodes = buildSimulatedNodes(random, time, roster, transactionSupplier::get);
 
@@ -413,10 +389,6 @@ class TipsetEventCreatorTests {
             boolean atLeastOneEventCreated = false;
 
             for (final RosterEntry address : addresses) {
-                if (advancingClock) {
-                    time.tick(Duration.ofMillis(10));
-                }
-
                 transactionSupplier.set(generateRandomTransactions(random));
 
                 final NodeId nodeId = NodeId.of(address.nodeId());
@@ -449,9 +421,6 @@ class TipsetEventCreatorTests {
 
                 assignNGenAndDistributeEvent(nodes, events, event);
 
-                if (advancingClock) {
-                    assertEquals(event.getTimeCreated(), time.now());
-                }
                 validateNewEventAndMaybeAdvanceCreatorScore(
                         events, event, transactionSupplier.get(), nodes.get(nodeId), false, breakQuiescence);
             }
@@ -500,7 +469,7 @@ class TipsetEventCreatorTests {
 
         final FakeTime time = new FakeTime();
 
-        final AtomicReference<List<Bytes>> transactionSupplier = new AtomicReference<>();
+        final AtomicReference<List<TimestampedTransaction>> transactionSupplier = new AtomicReference<>();
 
         final Map<NodeId, SimulatedNode> nodes = buildSimulatedNodes(random, time, roster, transactionSupplier::get);
 
@@ -547,9 +516,6 @@ class TipsetEventCreatorTests {
 
                 assignNGenAndDistributeEvent(nodes, allEvents, newEvent);
 
-                if (advancingClock) {
-                    assertEquals(newEvent.getTimeCreated(), time.now());
-                }
                 validateNewEventAndMaybeAdvanceCreatorScore(
                         allEvents, newEvent, transactionSupplier.get(), nodes.get(nodeId), false, false);
             }
@@ -608,7 +574,7 @@ class TipsetEventCreatorTests {
 
         final FakeTime time = new FakeTime();
 
-        final AtomicReference<List<Bytes>> transactionSupplier = new AtomicReference<>();
+        final AtomicReference<List<TimestampedTransaction>> transactionSupplier = new AtomicReference<>();
 
         final Map<NodeId, SimulatedNode> nodes = buildSimulatedNodes(random, time, roster, transactionSupplier::get);
 
@@ -675,9 +641,6 @@ class TipsetEventCreatorTests {
                     assignNGenAndDistributeEvent(nodes, allEvents, newEvent);
                 }
 
-                if (advancingClock) {
-                    assertEquals(newEvent.getTimeCreated(), time.now());
-                }
                 validateNewEventAndMaybeAdvanceCreatorScore(
                         allEvents, newEvent, transactionSupplier.get(), nodes.get(nodeId), true, false);
             }
@@ -722,7 +685,7 @@ class TipsetEventCreatorTests {
 
         final FakeTime time = new FakeTime();
 
-        final AtomicReference<List<Bytes>> transactionSupplier = new AtomicReference<>();
+        final AtomicReference<List<TimestampedTransaction>> transactionSupplier = new AtomicReference<>();
 
         final Map<NodeId, SimulatedNode> nodes = buildSimulatedNodes(random, time, roster, transactionSupplier::get);
 
@@ -746,10 +709,6 @@ class TipsetEventCreatorTests {
             assertNotNull(newEvent);
 
             assignNGenAndDistributeEvent(nodes, events, newEvent);
-
-            if (advancingClock) {
-                assertEquals(newEvent.getTimeCreated(), time.now());
-            }
         }
     }
 
@@ -985,7 +944,7 @@ class TipsetEventCreatorTests {
 
         final FakeTime time = new FakeTime();
 
-        final AtomicReference<List<Bytes>> transactionSupplier = new AtomicReference<>();
+        final AtomicReference<List<TimestampedTransaction>> transactionSupplier = new AtomicReference<>();
 
         final Map<NodeId, SimulatedNode> nodes = buildSimulatedNodes(random, time, roster, transactionSupplier::get);
 
@@ -1018,10 +977,6 @@ class TipsetEventCreatorTests {
                 assertNotNull(event);
 
                 assignNGenAndDistributeEvent(nodes, events, event);
-
-                if (advancingClock) {
-                    assertEquals(event.getTimeCreated(), time.now());
-                }
 
                 if (eventIndex == 0) {
                     final long birthRound = event.getEventCore().birthRound();
@@ -1127,154 +1082,6 @@ class TipsetEventCreatorTests {
         assertNotNull(newEvent2);
         assertEquals(newEvent.getDescriptor(), newEvent2.getSelfParent());
         assertEquals(NonDeterministicGeneration.GENERATION_UNDEFINED, newEvent2.getNGen());
-    }
-
-    /**
-     * This test verifies that the event creator assigns the propper creationTime in the following scenario: - the
-     * parent has no transactions - current time (wall clock) is after the parent's creation time We expect the new
-     * event creation time to be the current time.
-     *
-     * @param random {@link RandomUtils#getRandomPrintSeed()}
-     */
-    @TestTemplate
-    @ExtendWith(ParameterCombinationExtension.class)
-    @UseParameterSources({
-        @ParamSource(
-                param = "random",
-                fullyQualifiedClass = "org.hiero.base.utility.test.fixtures.RandomUtils",
-                method = "getRandomPrintSeed")
-    })
-    @DisplayName("calculateNewEventCreationTime Test()")
-    void eventCreationTime_testCurrentTimeAfterParentCreationTimeParentHasNoTransactions(
-            @ParamName("random") final Random random) {
-
-        // Common test set up. We initialize a network to make it easier to create events.
-        final int networkSize = 1;
-        final Roster roster =
-                RandomRosterBuilder.create(random).withSize(networkSize).build();
-
-        final AtomicReference<List<Bytes>> transactionSupplier = new AtomicReference<>(List.of());
-        final FakeTime time = new FakeTime();
-
-        final EventCreator eventCreator =
-                buildEventCreator(random, time, roster, NodeId.of(0), transactionSupplier::get);
-
-        var lastEvent = eventCreator.maybeCreateEvent();
-        // Move the time forward
-        time.tick(100);
-        lastEvent = eventCreator.maybeCreateEvent();
-        assertNotNull(lastEvent);
-        Instant present = time.now();
-        assertEquals(present, lastEvent.getTimeCreated());
-    }
-
-    /**
-     * This test verifies that the event creator assigns the propper creationTime for an event in the following
-     * scenario: - the parent has transactions - current time (wall clock) is after the parent's last transaction time
-     * We expect the new event creation time to be the current time.
-     *
-     * @param random {@link RandomUtils#getRandomPrintSeed()}
-     */
-    @TestTemplate
-    @ExtendWith(ParameterCombinationExtension.class)
-    @UseParameterSources({
-        @ParamSource(
-                param = "random",
-                fullyQualifiedClass = "org.hiero.base.utility.test.fixtures.RandomUtils",
-                method = "getRandomPrintSeed")
-    })
-    @DisplayName("calculateNewEventCreationTime Test()")
-    void eventCreationTimeTest_currentTimeIsAfterParentLatestTransaction(@ParamName("random") final Random random) {
-
-        // Common test set up. We initialize a network to make it easier to create events.
-        final int networkSize = 1;
-        final Roster roster =
-                RandomRosterBuilder.create(random).withSize(networkSize).build();
-
-        final AtomicReference<List<Bytes>> transactionSupplier = new AtomicReference<>(List.of());
-        final FakeTime time = new FakeTime();
-        final EventCreator eventCreator =
-                buildEventCreator(random, time, roster, NodeId.of(0), transactionSupplier::get);
-
-        transactionSupplier.set(generateTransactions(random, 10));
-        var lastEvent = eventCreator.maybeCreateEvent();
-        time.tick(100); // Move the time forward
-        lastEvent = eventCreator.maybeCreateEvent();
-        assertNotNull(lastEvent);
-        Instant present = time.now();
-        assertEquals(present, lastEvent.getTimeCreated());
-    }
-
-    /**
-     * This test verifies that the event creator assigns the propper creationTime for an event in the following
-     * scenario: - the parent has transactions - current time (wall clock) is before the parent's last transaction time
-     * We expect the new event creation time to be set to the parent's creation time + number of transactions.
-     *
-     * @param random {@link RandomUtils#getRandomPrintSeed()}
-     */
-    @TestTemplate
-    @ExtendWith(ParameterCombinationExtension.class)
-    @UseParameterSources({
-        @ParamSource(
-                param = "random",
-                fullyQualifiedClass = "org.hiero.base.utility.test.fixtures.RandomUtils",
-                method = "getRandomPrintSeed")
-    })
-    @DisplayName("calculateNewEventCreationTime Test()")
-    void eventCreationTimeTestCurrenTimeIsBeforeParentLatestTransaction(@ParamName("random") final Random random) {
-
-        // Common test set up. We initialize a network to make it easier to create events.
-        final int networkSize = 1;
-        final Roster roster =
-                RandomRosterBuilder.create(random).withSize(networkSize).build();
-
-        final AtomicReference<List<Bytes>> transactionSupplier = new AtomicReference<>(List.of());
-        final FakeTime time = new FakeTime();
-        final EventCreator eventCreator =
-                buildEventCreator(random, time, roster, NodeId.of(0), transactionSupplier::get);
-
-        transactionSupplier.set(generateTransactions(random, 100));
-        // the self-parent
-        var parentEvent = eventCreator.maybeCreateEvent();
-        assertNotNull(parentEvent);
-        // Move the time forward but just not enough to reach the parent's last transaction time
-        time.tick(59);
-        var lastEvent = eventCreator.maybeCreateEvent();
-        assertNotNull(lastEvent);
-        assertEquals(parentEvent.getTimeCreated().plusNanos(100), lastEvent.getTimeCreated());
-    }
-
-    /**
-     * This test verifies that the event creator assigns the propper creationTime for an event in the following
-     * scenarioi: - the parent has no transactions - current time (wall clock) is the same as the parent's creation time
-     * We expect the new event creation time to be set to the parent's creation time + a fixed delta.
-     *
-     * @param random {@link RandomUtils#getRandomPrintSeed()}
-     */
-    @TestTemplate
-    @ExtendWith(ParameterCombinationExtension.class)
-    @UseParameterSources({
-        @ParamSource(
-                param = "random",
-                fullyQualifiedClass = "org.hiero.base.utility.test.fixtures.RandomUtils",
-                method = "getRandomPrintSeed")
-    })
-    @DisplayName("calculateNewEventCreationTime Test()")
-    void eventCreationTimeTest(@ParamName("random") final Random random) {
-
-        // Common test set up. We initialize a network to make it easier to create events.
-        final int networkSize = 1;
-        final Roster roster =
-                RandomRosterBuilder.create(random).withSize(networkSize).build();
-        final AtomicReference<List<Bytes>> transactionSupplier = new AtomicReference<>(List.of());
-        final EventCreator eventCreator =
-                buildEventCreator(random, new FakeTime(), roster, NodeId.of(0), transactionSupplier::get);
-
-        var parentEvent = eventCreator.maybeCreateEvent(); // the self-parent
-        assertNotNull(parentEvent);
-        var lastEvent = eventCreator.maybeCreateEvent();
-        assertNotNull(lastEvent);
-        assertEquals(parentEvent.getTimeCreated().plusNanos(1), lastEvent.getTimeCreated());
     }
 
     /**

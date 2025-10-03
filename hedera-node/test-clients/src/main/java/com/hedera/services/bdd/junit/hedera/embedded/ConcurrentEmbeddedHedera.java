@@ -36,6 +36,7 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.event.ConsensusEvent;
 import org.hiero.consensus.model.hashgraph.Round;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
+import org.hiero.consensus.model.transaction.TimestampedTransaction;
 
 /**
  * An embedded Hedera node that can be used in concurrent tests.
@@ -207,6 +208,7 @@ class ConcurrentEmbeddedHedera extends AbstractEmbeddedHedera implements Embedde
                 queue.drainTo(newEvents);
                 // Also create events from transactions that were submitted to the hedera node
                 hedera.getTransactionsForEvent().stream()
+                        .map(TimestampedTransaction::transaction)
                         .map(TransactionWrapperUtils::createAppPayloadWrapper)
                         .map(t -> new FakeEvent(defaultNodeId, now(), t))
                         .forEach(newEvents::add);
