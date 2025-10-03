@@ -1124,15 +1124,8 @@ public class RecordStreamBuilder
     }
 
     @Override
-    public EvmTransactionResult getEvmTransactionResult() {
-        requireNonNull(contractFunctionResult);
-        return new EvmTransactionResult(
-                contractFunctionResult.senderId(),
-                contractFunctionResult.contractID(),
-                contractFunctionResult.contractCallResult(),
-                contractFunctionResult.errorMessage(),
-                contractFunctionResult.gasUsed(),
-                null); //  Do we need to construct this?
+    public Bytes getEvmCallResult() {
+        return requireNonNull(contractFunctionResult).contractCallResult();
     }
 
     /**

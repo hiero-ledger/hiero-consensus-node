@@ -142,10 +142,9 @@ public class HookDispatchUtils {
                 TransactionBody.newBuilder().hookDispatch(hookDispatch).build(),
                 HookDispatchStreamBuilder.class));
         validateTrue(streamBuilder.status() == SUCCESS, streamBuilder.status());
-        final var result = streamBuilder.getEvmTransactionResult();
+        final var result = streamBuilder.getEvmCallResult();
         try {
-            final Tuple decoded =
-                    function.getOutputs().decode(result.resultData().toByteArray());
+            final Tuple decoded = function.getOutputs().decode(result.toByteArray());
             validateTrue(decoded.get(0), REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK);
         } catch (final Exception ignore) {
             throw new HandleException(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK);

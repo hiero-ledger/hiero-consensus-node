@@ -14,8 +14,6 @@ import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePr
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.HookId;
-import com.hedera.node.app.hapi.utils.fee.SigValueObj;
-import com.hedera.node.app.hapi.utils.fee.SmartContractFeeBuilder;
 import com.hedera.node.app.service.contract.impl.ContractServiceComponent;
 import com.hedera.node.app.service.contract.impl.exec.CallOutcome;
 import com.hedera.node.app.service.contract.impl.exec.TransactionComponent;
@@ -33,8 +31,6 @@ import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
 import com.hedera.node.config.data.HooksConfig;
-import com.hederahashgraph.api.proto.java.FeeData;
-import com.hederahashgraph.api.proto.java.TransactionBody;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import javax.inject.Inject;
 import javax.inject.Provider;
@@ -110,7 +106,7 @@ public class HookDispatchHandler extends AbstractContractTransactionHandler impl
 
                 // Build the strategy that will produce a HookEvmFrameStateFactory for this transaction
                 final EvmFrameStates evmFrameStates = (ops, nativeOps, codeFactory) ->
-                        new HookEvmFrameStateFactory(ops, nativeOps, codeFactory, evmHookStore, hookKey);
+                        new HookEvmFrameStateFactory(ops, nativeOps, codeFactory, hook);
 
                 // Create the transaction-scoped component. Use ContractCall functionality since
                 // we are just calling a contract (the hook)
@@ -130,15 +126,5 @@ public class HookDispatchHandler extends AbstractContractTransactionHandler impl
     public Fees calculateFees(@NonNull final FeeContext feeContext) {
         // All charges are upfront in CryptoTransfer, so no fees here
         return Fees.FREE;
-    }
-
-    @NonNull
-    @Override
-    protected FeeData getFeeMatrices(
-            @NonNull final SmartContractFeeBuilder usageEstimator,
-            @NonNull final TransactionBody txBody,
-            @NonNull final SigValueObj sigValObj) {
-        // No fees for HookDispatch
-        return FeeData.getDefaultInstance();
     }
 }

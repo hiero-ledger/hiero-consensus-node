@@ -22,6 +22,13 @@ import org.hyperledger.besu.evm.code.CodeFactory;
  * <p>
  * Responsible for retrieving the contract byte code from hook's contract. Always returns the address of the
  * Allowance hook address (0x16d). Otherwise, use all the information from the owner of the hook.
+ * A hook "blends" three pieces:
+ * <ol>
+ *      <li>The bytecode of a deployed <b>contract</b>.</li>
+ *      <li>The account state of the hook's owner <b>account</b>.</li>
+ *      <li>The storage of the <b>hook itself</b>.</li>
+ * </ol>
+ *  Only (1) and (2) are implemented now. Future PRs will fully integrate (3).
  */
 public class ProxyEvmHook extends AbstractProxyEvmAccount {
     private final EvmHookState hookState;

@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.records;
 
-import com.hedera.hapi.node.contract.EvmTransactionResult;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 
 /**
  * A {@link StreamBuilder} that can record the next hook ID to be used in the stream.
@@ -24,9 +24,9 @@ public interface HookDispatchStreamBuilder extends StreamBuilder {
     long getNextHookId();
 
     /**
-     * Returns the EVM transaction result to be recorded in the record stream
+     * Returns the EVM transaction call result to be recorded in the record stream
      *
-     * @return the EVM transaction result
+     * @return the EVM transaction call result
      */
-    EvmTransactionResult getEvmTransactionResult();
+    Bytes getEvmCallResult();
 }

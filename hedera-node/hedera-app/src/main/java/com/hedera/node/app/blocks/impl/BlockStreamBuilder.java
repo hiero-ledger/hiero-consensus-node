@@ -1309,8 +1309,8 @@ public class BlockStreamBuilder
     }
 
     @Override
-    public EvmTransactionResult getEvmTransactionResult() {
-        return requireNonNull(evmTransactionResult);
+    public Bytes getEvmCallResult() {
+        return requireNonNull(evmTransactionResult).resultData();
     }
 
     @Override

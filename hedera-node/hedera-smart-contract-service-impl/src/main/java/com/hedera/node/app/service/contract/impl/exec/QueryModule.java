@@ -122,17 +122,9 @@ public interface QueryModule {
     @Provides
     @QueryScope
     static EvmFrameStateFactory provideEvmFrameStateFactory(
-            @NonNull final EvmFrameStates evmFrameStates,
             @NonNull final CodeFactory codeFactory,
             @NonNull final HederaOperations operations,
             @NonNull final HederaNativeOperations nativeOperations) {
-        return evmFrameStates.from(operations, nativeOperations, codeFactory);
-    }
-
-    @Provides
-    @QueryScope
-    static EvmFrameStates provideDefaultEvmFrameStatesForQuery() {
-        // All queries use the default EVM frame state behavior
-        return EvmFrameStates.DEFAULT;
+        return EvmFrameStates.DEFAULT.from(operations, nativeOperations, codeFactory);
     }
 }

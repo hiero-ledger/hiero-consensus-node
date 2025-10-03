@@ -695,7 +695,7 @@ public class PairedStreamBuilder
     }
 
     @Override
-    public EvmTransactionResult getEvmTransactionResult() {
-        return blockStreamBuilder.getEvmTransactionResult();
+    public Bytes getEvmCallResult() {
+        return blockStreamBuilder.getEvmCallResult();
     }
 }
