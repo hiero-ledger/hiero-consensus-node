@@ -140,7 +140,7 @@ public class BlockNodeSuite {
                         })
             })
     @Order(0)
-    final Stream<DynamicTest> nodeDeathReconnectBlcoksAndFileAndGrpc() {
+    final Stream<DynamicTest> nodeDeathReconnectBlocksAndFileAndGrpc() {
         return nodeDeathTestSteps();
     }
 
@@ -241,6 +241,7 @@ public class BlockNodeSuite {
     }
 
     private Stream<DynamicTest> nodeDeathTestSteps() {
+        final AtomicReference<Instant> timeRef = new AtomicReference<>();
         return hapiTest(
                 // Validate we can initially submit transactions to node2
                 cryptoCreate("nobody").setNode("5"),
@@ -256,12 +257,15 @@ public class BlockNodeSuite {
                 FakeNmt.restartNode(NodeSelector.byNodeId(2)),
                 // Wait for node2 ACTIVE (BUSY and RECONNECT_COMPLETE are too transient to reliably poll for)
                 waitForActive(NodeSelector.byNodeId(2), RESTART_TO_ACTIVE_TIMEOUT),
+                doingContextual(spec -> timeRef.set(Instant.now())),
                 // Run some more transactions
                 burstOfTps(MIXED_OPS_BURST_TPS, MIXED_OPS_BURST_DURATION),
                 // And validate we can still submit transactions to node2
                 cryptoCreate("somebody").setNode("5"),
                 burstOfTps(MIXED_OPS_BURST_TPS, Duration.ofSeconds(60)),
-                assertHgcaaLogDoesNotContain(byNodeId(0), "ERROR", Duration.ofSeconds(5)));
+                assertHgcaaLogDoesNotContain(byNodeId(0), "ERROR", Duration.ofSeconds(5)),
+                sourcingContextual(spec -> assertHgcaaLogContainsTimeframe(
+                        byNodeId(2), timeRef::get, Duration.ofMinutes(1), Duration.ofSeconds(45), "saturation=0.0%")));
     }
 
     @HapiTest
