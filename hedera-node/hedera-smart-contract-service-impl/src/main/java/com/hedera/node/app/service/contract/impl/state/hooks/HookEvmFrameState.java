@@ -5,7 +5,6 @@ import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.Hts
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.HtsSystemContract.HTS_HOOKS_16D_CONTRACT_ID;
 import static java.util.Objects.requireNonNull;
 
-import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HookId;
 import com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations;
 import com.hedera.node.app.service.contract.impl.state.ContractStateStore;
@@ -49,19 +48,19 @@ public class HookEvmFrameState extends DispatchingEvmFrameState {
      * Otherwise, delegate to the parent class to handle.
      */
     @Override
-    protected @Nullable MutableAccount getAccountInternal(final AccountID accountID, final Address address) {
+    public @Nullable MutableAccount getMutableAccount(@NonNull final Address address) {
         if (address.equals(HTS_HOOKS_16D_CONTRACT_ADDRESS)) {
             final var evmHookState = requireNonNull(evmHookStore.getEvmHook(hookId));
             return new ProxyEvmHook(this, evmHookState, codeFactory);
         }
-        return super.getAccountInternal(accountID, address);
+        return super.getMutableAccount(address);
     }
 
     @Override
-    protected @Nullable Address getAddressInternal(final long number) {
+    public @Nullable Address getAddress(final long number) {
         if (number == HTS_HOOKS_16D_CONTRACT_ID.contractNumOrThrow()) {
             return HTS_HOOKS_16D_CONTRACT_ADDRESS;
         }
-        return super.getAddressInternal(number);
+        return super.getAddress(number);
     }
 }

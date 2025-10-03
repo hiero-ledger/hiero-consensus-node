@@ -78,7 +78,7 @@ public class DispatchingEvmFrameState implements EvmFrameState {
     public static final Key HOLLOW_ACCOUNT_KEY =
             Key.newBuilder().keyList(KeyList.DEFAULT).build();
 
-    protected final HederaNativeOperations nativeOperations;
+    private final HederaNativeOperations nativeOperations;
     private final ContractStateStore contractStateStore;
     private final CodeFactory codeFactory;
 
@@ -351,11 +351,16 @@ public class DispatchingEvmFrameState implements EvmFrameState {
      */
     @Override
     public @Nullable Address getAddress(final long number) {
-        final var evmAddress = getAddressInternal(number);
-        if (evmAddress != null) {
-            return evmAddress;
-        }
+        final AccountID accountID = entityIdFactory().newAccountId(number);
+        final var account = nativeOperations.getAccount(accountID);
+        if (account != null) {
+            if (account.deleted()) {
+                return null;
+            }
 
+            final var evmAddress = extractEvmAddress(account.alias());
+            return evmAddress == null ? asLongZeroAddress(number) : pbjToBesuAddress(evmAddress);
+        }
         final var token = nativeOperations.getToken(entityIdFactory().newTokenId(number));
         final var schedule = nativeOperations.getSchedule(entityIdFactory().newScheduleId(number));
         if (token != null || schedule != null) {
@@ -549,9 +554,16 @@ public class DispatchingEvmFrameState implements EvmFrameState {
             return null;
         }
         final AccountID accountID = entityIdFactory().newAccountId(number);
-        final var account = getAccountInternal(accountID, address);
+        final var account = nativeOperations.getAccount(accountID);
         if (account != null) {
-            return account;
+            if (account.deleted() || account.expiredAndPendingRemoval() || isNotPriority(address, account)) {
+                return null;
+            }
+            if (account.smartContract()) {
+                return new ProxyEvmContract(account.accountId(), this, codeFactory);
+            } else {
+                return new ProxyEvmAccount(account.accountId(), this);
+            }
         }
         final var token = nativeOperations.getToken(entityIdFactory().newTokenId(number));
         if (token != null) {
@@ -576,7 +588,7 @@ public class DispatchingEvmFrameState implements EvmFrameState {
         return maybeEvmAddress != null && !address.equals(pbjToBesuAddress(maybeEvmAddress));
     }
 
-    protected com.hedera.hapi.node.state.token.Account validatedAccount(final AccountID accountID) {
+    private com.hedera.hapi.node.state.token.Account validatedAccount(final AccountID accountID) {
         final var account = nativeOperations.getAccount(accountID);
         if (account == null) {
             throw new IllegalArgumentException("No account has id " + accountID);
@@ -584,55 +596,12 @@ public class DispatchingEvmFrameState implements EvmFrameState {
         return account;
     }
 
-    protected com.hedera.hapi.node.state.token.Account validatedAccount(final ContractID contractID) {
+    private com.hedera.hapi.node.state.token.Account validatedAccount(final ContractID contractID) {
         final var account = nativeOperations.getAccount(contractID);
         if (account == null) {
             throw new IllegalArgumentException("No account found for contract ID " + contractID);
         }
         return account;
-    }
-    /**
-     * Returns the mutable account for the given account ID and address, or null if the account is
-     * deleted, expired-and-pending-removal, or (if the account has an EVM address) the given
-     * address is not the priority address for the account.
-     *
-     * @param accountID the account ID of the desired account
-     * @param address   the address to use to disambiguate (if necessary)
-     * @return the mutable account, or null if not found or not valid for use
-     */
-    protected @Nullable MutableAccount getAccountInternal(final AccountID accountID, final Address address) {
-        final var account = nativeOperations.getAccount(accountID);
-        if (account != null) {
-            if (account.deleted() || account.expiredAndPendingRemoval() || isNotPriority(address, account)) {
-                return null;
-            }
-            if (account.smartContract()) {
-                return new ProxyEvmContract(account.accountId(), this, codeFactory);
-            } else {
-                return new ProxyEvmAccount(account.accountId(), this);
-            }
-        }
-        return null;
-    }
-    /**
-     * Returns the EVM address for the given account number, or null if no such account exists or
-     * the account is deleted. If the account has no alias, returns the "long zero" address
-     * corresponding to the account number.
-     *
-     * @param number the account number
-     * @return the EVM address, or null if no such account exists or the account is deleted
-     */
-    protected @Nullable Address getAddressInternal(final long number) {
-        final AccountID accountID = entityIdFactory().newAccountId(number);
-        final var account = nativeOperations.getAccount(accountID);
-        if (account != null) {
-            if (account.deleted()) {
-                return null;
-            }
-            final var evmAddress = extractEvmAddress(account.alias());
-            return evmAddress == null ? asLongZeroAddress(number) : pbjToBesuAddress(evmAddress);
-        }
-        return null;
     }
 
     private UInt256 valueOrZero(@Nullable final SlotValue slotValue) {

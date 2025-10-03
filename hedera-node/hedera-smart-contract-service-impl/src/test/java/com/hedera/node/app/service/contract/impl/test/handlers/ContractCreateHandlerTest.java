@@ -143,7 +143,7 @@ class ContractCreateHandlerTest extends ContractHandlerTestBase {
         final var account = mock(Account.class);
         final var builder = Account.newBuilder();
 
-        given(factory.create(context, HederaFunctionality.CONTRACT_CREATE, evmFrameStates))
+        given(factory.create(context, HederaFunctionality.CONTRACT_CREATE, EvmFrameStates.DEFAULT))
                 .willReturn(component);
         given(component.contextTransactionProcessor()).willReturn(processor);
         given(context.savepointStack()).willReturn(stack);
@@ -192,7 +192,7 @@ class ContractCreateHandlerTest extends ContractHandlerTestBase {
 
     @Test
     void delegatesToCreatedComponentAndThrowsFailure() {
-        given(factory.create(context, HederaFunctionality.CONTRACT_CREATE, evmFrameStates))
+        given(factory.create(context, HederaFunctionality.CONTRACT_CREATE, EvmFrameStates.DEFAULT))
                 .willReturn(component);
         given(component.contextTransactionProcessor()).willReturn(processor);
         given(component.hederaOperations()).willReturn(hederaOperations);

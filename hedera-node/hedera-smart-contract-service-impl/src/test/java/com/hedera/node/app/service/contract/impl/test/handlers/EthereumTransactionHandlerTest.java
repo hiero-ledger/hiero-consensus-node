@@ -219,7 +219,8 @@ class EthereumTransactionHandlerTest {
 
     @Test
     void delegatesToCreatedComponentAndExposesEthTxDataCallWithToAddress() {
-        given(factory.create(context, ETHEREUM_TRANSACTION, evmFrameStates)).willReturn(component);
+        given(factory.create(context, ETHEREUM_TRANSACTION, EvmFrameStates.DEFAULT))
+                .willReturn(component);
         given(component.hydratedEthTxData()).willReturn(HydratedEthTxData.successFrom(ETH_DATA_WITH_TO_ADDRESS, false));
         given(component.hederaOperations()).willReturn(hederaOperations);
         setUpTransactionProcessing();
@@ -258,7 +259,8 @@ class EthereumTransactionHandlerTest {
 
     @Test
     void setsEthHashOnThrottledContext() {
-        given(factory.create(context, ETHEREUM_TRANSACTION, evmFrameStates)).willReturn(component);
+        given(factory.create(context, ETHEREUM_TRANSACTION, EvmFrameStates.DEFAULT))
+                .willReturn(component);
         given(component.hydratedEthTxData()).willReturn(HydratedEthTxData.successFrom(ETH_DATA_WITH_TO_ADDRESS, false));
         given(context.savepointStack()).willReturn(stack);
         given(stack.getBaseBuilder(EthereumTransactionStreamBuilder.class)).willReturn(recordBuilder);
@@ -270,7 +272,8 @@ class EthereumTransactionHandlerTest {
 
     @Test
     void delegatesToCreatedComponentAndExposesEthTxDataCreateWithoutToAddress() {
-        given(factory.create(context, ETHEREUM_TRANSACTION, evmFrameStates)).willReturn(component);
+        given(factory.create(context, ETHEREUM_TRANSACTION, EvmFrameStates.DEFAULT))
+                .willReturn(component);
         given(component.hydratedEthTxData())
                 .willReturn(HydratedEthTxData.successFrom(ETH_DATA_WITHOUT_TO_ADDRESS, false));
         given(component.hederaOperations()).willReturn(hederaOperations);
@@ -426,7 +429,8 @@ class EthereumTransactionHandlerTest {
     @Test
     @SuppressWarnings("unchecked")
     void handleSetsNewSenderNonceWhenPresent() {
-        given(factory.create(context, ETHEREUM_TRANSACTION, evmFrameStates)).willReturn(component);
+        given(factory.create(context, ETHEREUM_TRANSACTION, EvmFrameStates.DEFAULT))
+                .willReturn(component);
         given(component.hydratedEthTxData())
                 .willReturn(HydratedEthTxData.successFrom(ETH_DATA_WITHOUT_TO_ADDRESS, false));
         given(component.hederaOperations()).willReturn(hederaOperations);
