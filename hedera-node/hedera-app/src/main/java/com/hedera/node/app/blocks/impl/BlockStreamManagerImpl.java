@@ -773,9 +773,9 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                             TRANSACTION_OUTPUT,
                             STATE_CHANGES,
                             ROUND_HEADER,
-                            BLOCK_HEADER,
-                            BLOCK_FOOTER,
-                            BLOCK_PROOF -> {
+                            BLOCK_HEADER
+							// Also EndBlock?
+							-> {
                         MessageDigest digest = sha384DigestOrThrow();
                         bytes.writeTo(digest);
                         hash = ByteBuffer.wrap(digest.digest());

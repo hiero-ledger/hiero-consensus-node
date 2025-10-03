@@ -115,7 +115,7 @@ class BlockStreamManagerImplTest {
     private static final BlockItem FAKE_STATE_CHANGES = BlockItem.newBuilder()
             .stateChanges(StateChanges.newBuilder().consensusTimestamp(CONSENSUS_THEN))
             .build();
-    // TODO: remove, or replace with wrapped record file item
+	// TODO: remove, or replace with wrapped record file item
     private static final BlockItem FAKE_RECORD_FILE_ITEM = null;
     private final InitialStateHash hashInfo = new InitialStateHash(completedFuture(ZERO_BLOCK_HASH), 0);
 
@@ -313,6 +313,7 @@ class BlockStreamManagerImplTest {
         subject.writeItem(FAKE_SIGNED_TRANSACTION);
         subject.writeItem(FAKE_TRANSACTION_RESULT);
         subject.writeItem(FAKE_STATE_CHANGES);
+        subject.writeItem(FAKE_RECORD_FILE_ITEM);
 
         // Immediately resolve to the expected ledger signature
         given(blockHashSigner.signFuture(any())).willReturn(mockSigningFuture);
@@ -397,6 +398,7 @@ class BlockStreamManagerImplTest {
         subject.writeItem(FAKE_SIGNED_TRANSACTION);
         subject.writeItem(FAKE_TRANSACTION_RESULT);
         subject.writeItem(FAKE_STATE_CHANGES);
+        subject.writeItem(FAKE_RECORD_FILE_ITEM);
 
         // End the round (which cannot close the block since signer isn't ready)
         subject.endRound(state, ROUND_NO);
@@ -444,6 +446,7 @@ class BlockStreamManagerImplTest {
         subject.writeItem(FAKE_SIGNED_TRANSACTION);
         subject.writeItem(FAKE_TRANSACTION_RESULT);
         subject.writeItem(FAKE_STATE_CHANGES);
+        subject.writeItem(FAKE_RECORD_FILE_ITEM);
 
         // Immediately resolve to the expected ledger signature
         given(blockHashSigner.signFuture(any())).willReturn(completedFuture(FIRST_FAKE_SIGNATURE));
@@ -490,6 +493,7 @@ class BlockStreamManagerImplTest {
         subject.writeItem(FAKE_SIGNED_TRANSACTION);
         subject.writeItem(FAKE_TRANSACTION_RESULT);
         subject.writeItem(FAKE_STATE_CHANGES);
+        subject.writeItem(FAKE_RECORD_FILE_ITEM);
 
         // End the round
         subject.endRound(state, ROUND_NO);
@@ -536,7 +540,9 @@ class BlockStreamManagerImplTest {
         subject.writeItem(FAKE_TRANSACTION_RESULT);
         assertEquals(Bytes.fromHex("bb".repeat(48)), subject.prngSeed());
         subject.writeItem(FAKE_STATE_CHANGES);
-        for (int i = 0; i < 8; i++) {}
+        for (int i = 0; i < 8; i++) {
+            subject.writeItem(FAKE_RECORD_FILE_ITEM);
+        }
 
         // Immediately resolve to the expected ledger signature
         given(blockHashSigner.signFuture(any())).willReturn(mockSigningFuture);
@@ -621,6 +627,7 @@ class BlockStreamManagerImplTest {
         subject.writeItem(FAKE_SIGNED_TRANSACTION);
         subject.writeItem(FAKE_TRANSACTION_RESULT);
         subject.writeItem(FAKE_STATE_CHANGES);
+        subject.writeItem(FAKE_RECORD_FILE_ITEM);
         final CompletableFuture<Bytes> firstSignature = (CompletableFuture<Bytes>) mock(CompletableFuture.class);
         final CompletableFuture<Bytes> secondSignature = (CompletableFuture<Bytes>) mock(CompletableFuture.class);
         given(blockHashSigner.signFuture(any())).willReturn(firstSignature).willReturn(secondSignature);
@@ -639,6 +646,7 @@ class BlockStreamManagerImplTest {
         subject.writeItem(FAKE_SIGNED_TRANSACTION);
         subject.writeItem(FAKE_TRANSACTION_RESULT);
         subject.writeItem(FAKE_STATE_CHANGES);
+        subject.writeItem(FAKE_RECORD_FILE_ITEM);
         // End the round in block N+1
         subject.endRound(state, ROUND_NO + 1);
 

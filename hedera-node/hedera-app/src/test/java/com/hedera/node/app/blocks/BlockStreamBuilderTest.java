@@ -10,6 +10,7 @@ import static com.hedera.hapi.util.HapiUtils.asTimestamp;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.USER;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.ReversingBehavior.REVERSIBLE;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.SignedTxCustomizer.NOOP_SIGNED_TX_CUSTOMIZER;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -140,12 +141,12 @@ public class BlockStreamBuilderTest {
         assertTrue(output.hasContractCall());
 
         final var traceItem = blockItems.get(3);
-        // TODO: assert trace data
-        //        assertTrue(traceItem.hasTraceData());
-        //        final var trace = traceItem.traceDataOrThrow();
-        //        assertTrue(trace.hasEvmTraceData());
-        //        final var evmTrace = trace.evmTraceDataOrThrow();
-        //        assertEquals(usages, evmTrace.contractSlotUsages());
+		// TODO: assert trace data
+//        assertTrue(traceItem.hasTraceData());
+//        final var trace = traceItem.traceDataOrThrow();
+//        assertTrue(trace.hasEvmTraceData());
+//        final var evmTrace = trace.evmTraceDataOrThrow();
+//        assertEquals(usages, evmTrace.contractSlotUsages());
     }
 
     @Test
@@ -161,15 +162,15 @@ public class BlockStreamBuilderTest {
         final var blockItems = itemsBuilder.build(false, List.of()).blockItems();
 
         final var traceItem = blockItems.get(2);
-        // TODO: assert trace data
-        //        assertThat(traceItem.hasTraceData()).isTrue();
-        //        final var trace = traceItem.traceDataOrThrow();
-        //
-        //        assertThat(trace.hasAutoAssociateTraceData()).isTrue();
-        //        final var autoAssociateTraceData = trace.autoAssociateTraceData();
-        //        assertThat(autoAssociateTraceData).isNotNull();
-        //        assertThat(autoAssociateTraceData.automaticTokenAssociations().accountNum())
-        //                .isEqualTo(2);
+		// TODO: assert trace data
+//        assertThat(traceItem.hasTraceData()).isTrue();
+//        final var trace = traceItem.traceDataOrThrow();
+//
+//        assertThat(trace.hasAutoAssociateTraceData()).isTrue();
+//        final var autoAssociateTraceData = trace.autoAssociateTraceData();
+//        assertThat(autoAssociateTraceData).isNotNull();
+//        assertThat(autoAssociateTraceData.automaticTokenAssociations().accountNum())
+//                .isEqualTo(2);
     }
 
     @Test
@@ -180,14 +181,14 @@ public class BlockStreamBuilderTest {
         final var blockItems = itemsBuilder.build(false, List.of()).blockItems();
 
         final var traceItem = blockItems.get(2);
-        // TODO: assert trace data
-        //        assertThat(traceItem.hasTraceData()).isTrue();
-        //        final var trace = traceItem.traceDataOrThrow();
-        //
-        //        assertThat(trace.hasSubmitMessageTraceData()).isTrue();
-        //        final var submitMessageTraceData = trace.submitMessageTraceData();
-        //        assertThat(submitMessageTraceData).isNotNull();
-        //        assertThat(submitMessageTraceData.sequenceNumber()).isEqualTo(66);
+		// TODO: assert trace data
+//        assertThat(traceItem.hasTraceData()).isTrue();
+//        final var trace = traceItem.traceDataOrThrow();
+//
+//        assertThat(trace.hasSubmitMessageTraceData()).isTrue();
+//        final var submitMessageTraceData = trace.submitMessageTraceData();
+//        assertThat(submitMessageTraceData).isNotNull();
+//        assertThat(submitMessageTraceData.sequenceNumber()).isEqualTo(66);
     }
 
     @Test

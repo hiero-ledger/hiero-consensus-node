@@ -543,7 +543,7 @@ public class BlockStreamBuilder
                 }
                 List<EvmTransactionLog> logs = null;
                 for (final var item : blockItems.subList(j, n)) {
-                    // TODO: new trace data implementation
+					// TODO: new trace data implementation
                 }
                 return (T)
                         switch (view) {
@@ -669,7 +669,7 @@ public class BlockStreamBuilder
                 builder.logs(logs);
             }
             blockItems.add(BlockItem.newBuilder()
-                    // TODO: re-add trace data
+					// TODO: re-add trace data
                     .build());
         }
 
@@ -681,7 +681,7 @@ public class BlockStreamBuilder
                         .automaticTokenAssociations(
                                 automaticTokenAssociations.getLast().accountId());
                 blockItems.add(BlockItem.newBuilder()
-                        // TODO: re-add trace data
+						// TODO: re-add trace data
                         .build());
             }
             // message submit trace data
@@ -690,7 +690,7 @@ public class BlockStreamBuilder
                         .sequenceNumber(sequenceNumber)
                         .runningHash(runningHash);
                 blockItems.add(BlockItem.newBuilder()
-                        // TODO: re-add trace data
+						// TODO: re-add trace data
                         .build());
             }
         }
