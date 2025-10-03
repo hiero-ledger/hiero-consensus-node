@@ -63,10 +63,14 @@ tasks.test {
     jvmArgs("-XX:+UseParallelGC", "-XX:GCTimeRatio=90")
 }
 
-// Future work: figure out why some Block Node protobuf files appear twice. Probably because PBJ can now
-// import .protos from .jars automatically. So perhaps need to remove some manual setup in this Gradle script.
+// Future work: figure out why some Block Node protobuf files appear twice. Probably because PBJ can
+// now
+// import .protos from .jars automatically. So perhaps need to remove some manual setup in this
+// Gradle script.
 tasks.processResources { duplicatesStrategy = DuplicatesStrategy.WARN }
 
-// In generated PublishStreamRequestUnparsedTest , PBJ wouldn't import EndStreamTest, but only the EndStream itself.
-// Looks like a bug in PBJ, so disable tests generation for now. See https://github.com/hashgraph/pbj/issues/641
+// In generated PublishStreamRequestUnparsedTest , PBJ wouldn't import EndStreamTest, but only the
+// EndStream itself.
+// Looks like a bug in PBJ, so disable tests generation for now. See
+// https://github.com/hashgraph/pbj/issues/641
 pbj { generateTestClasses = false }
