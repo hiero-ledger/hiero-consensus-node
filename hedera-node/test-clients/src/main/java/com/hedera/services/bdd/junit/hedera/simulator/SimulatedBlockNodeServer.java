@@ -347,7 +347,6 @@ public class SimulatedBlockNodeServer {
 
                         if (request.hasEndStream()) {
                             log.debug("Received end of stream from stream {}", replies.hashCode());
-                            lastVerifiedBlockNumber.set(request.endStream().earliestBlockNumber());
                             serviceImpl.removeStreamFromTracking(replies);
                         } else if (request.hasBlockItems()) {
                             // Iterate through each BlockItem in the request
