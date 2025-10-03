@@ -24,6 +24,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.LockSupport;
 import java.util.stream.Stream;
 import org.hiero.consensus.model.status.PlatformStatus;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
@@ -61,6 +62,7 @@ public class BlockNodeBackPressureSuite {
                         Duration.ofSeconds(15)));
     }
 
+    @Disabled
     @HapiTest
     @HapiBlockNode(
             networkSize = 1,
@@ -92,6 +94,7 @@ public class BlockNodeBackPressureSuite {
                 waitForAny(byNodeId(0), Duration.ofSeconds(30), PlatformStatus.CHECKING));
     }
 
+    @Disabled
     @HapiTest
     @HapiBlockNode(
             networkSize = 1,

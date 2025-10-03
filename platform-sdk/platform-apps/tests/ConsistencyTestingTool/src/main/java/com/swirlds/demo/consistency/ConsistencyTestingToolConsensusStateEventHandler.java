@@ -81,7 +81,7 @@ public class ConsistencyTestingToolConsensusStateEventHandler
 
         state.initState(logFilePath);
 
-        TestingAppStateInitializer.DEFAULT.initStates(state);
+        TestingAppStateInitializer.DEFAULT.initConsensusModuleStates(state);
     }
 
     /**

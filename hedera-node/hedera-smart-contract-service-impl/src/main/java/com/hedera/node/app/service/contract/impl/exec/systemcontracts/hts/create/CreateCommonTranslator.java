@@ -11,13 +11,14 @@ import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethod
 import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethodRegistry;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.util.HashMap;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
 
 public abstract class CreateCommonTranslator extends AbstractCallTranslator<HtsCallAttempt> {
 
     // Map with classic create methods and their respective decoders
-    protected HashMap<SystemContractMethod, CreateDecoderFunction> createMethodsMap = new HashMap<>();
+    protected ConcurrentHashMap<SystemContractMethod, CreateDecoderFunction> createMethodsMap =
+            new ConcurrentHashMap<>();
 
     protected CreateCommonTranslator(
             @NonNull SystemContract systemContractKind,

@@ -18,7 +18,6 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hss.HssCal
 import com.hedera.node.app.service.contract.impl.utils.ConversionUtils;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.math.BigInteger;
 import java.util.Set;
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -47,30 +46,31 @@ public class ScheduleCallDecoder {
         // read parameters
         final Tuple call;
         final Address to;
-        final AccountID sender;
+        final AccountID payer;
         final boolean waitForExpiry;
         int paramIndex = 0;
         if (attempt.isSelector(ScheduleCallTranslator.SCHEDULE_CALL)) {
             call = ScheduleCallTranslator.SCHEDULE_CALL.decodeCall(attempt.inputBytes());
             to = call.get(paramIndex++);
-            sender = attempt.addressIdConverter().convertSender(attempt.senderAddress());
+            payer = attempt.senderId();
             waitForExpiry = true;
-        } else if (attempt.isSelector(ScheduleCallTranslator.SCHEDULE_CALL_WITH_SENDER)) {
-            call = ScheduleCallTranslator.SCHEDULE_CALL_WITH_SENDER.decodeCall(attempt.inputBytes());
+        } else if (attempt.isSelector(ScheduleCallTranslator.SCHEDULE_CALL_WITH_PAYER)) {
+            call = ScheduleCallTranslator.SCHEDULE_CALL_WITH_PAYER.decodeCall(attempt.inputBytes());
             to = call.get(paramIndex++);
-            sender = attempt.addressIdConverter().convert(call.get(paramIndex++));
+            payer = attempt.addressIdConverter().convert(call.get(paramIndex++));
             waitForExpiry = true;
-        } else if (attempt.isSelector(ScheduleCallTranslator.EXECUTE_CALL_ON_SENDER_SIGNATURE)) {
-            call = ScheduleCallTranslator.EXECUTE_CALL_ON_SENDER_SIGNATURE.decodeCall(attempt.inputBytes());
+        } else if (attempt.isSelector(ScheduleCallTranslator.EXECUTE_CALL_ON_PAYER_SIGNATURE)) {
+            call = ScheduleCallTranslator.EXECUTE_CALL_ON_PAYER_SIGNATURE.decodeCall(attempt.inputBytes());
             to = call.get(paramIndex++);
-            sender = attempt.addressIdConverter().convert(call.get(paramIndex++));
+            payer = attempt.addressIdConverter().convert(call.get(paramIndex++));
             waitForExpiry = false;
         } else {
             throw new IllegalStateException("Unexpected function selector");
         }
-        final BigInteger expirySecond = call.get(paramIndex++);
-        final BigInteger gasLimit = call.get(paramIndex++);
-        final BigInteger value = call.get(paramIndex++);
+
+        final long expirySecond = ConversionUtils.asLongLimitedToZeroOrMax(call.get(paramIndex++));
+        final long gasLimit = ConversionUtils.asLongLimitedToZeroOrMax(call.get(paramIndex++));
+        final long value = ConversionUtils.asLongLimitedToZeroOrMax(call.get(paramIndex++));
         final byte[] callData = call.get(paramIndex);
 
         // convert parameters
@@ -83,7 +83,7 @@ public class ScheduleCallDecoder {
                         scheduledTransactionBodyFor(contractId, gasLimit, value, callData),
                         keys,
                         expirySecond,
-                        sender,
+                        payer,
                         waitForExpiry));
     }
 
@@ -92,9 +92,9 @@ public class ScheduleCallDecoder {
      * <br>
      * - {@code scheduleCall(address,uint256,uint256,uint64,bytes)}
      * <br>
-     * - {@code scheduleCallWithSender(address,address,uint256,uint256,uint64,bytes)}
+     * - {@code scheduleCallWithPayer(address,address,uint256,uint256,uint64,bytes)}
      * <br>
-     * - {@code executeCallOnSenderSignature(address,address,uint256,uint256,uint64,bytes)}
+     * - {@code executeCallOnPayerSignature(address,address,uint256,uint256,uint64,bytes)}
      *
      * @param attempt           the HSS call attempt
      * @param scheduleCreateTrx the 'schedule create' transaction body
@@ -116,14 +116,14 @@ public class ScheduleCallDecoder {
      * <br>
      * - {@code scheduleCall(address,uint256,uint256,uint64,bytes)}
      * <br>
-     * - {@code scheduleCallWithSender(address,address,uint256,uint256,uint64,bytes)}
+     * - {@code scheduleCallWithPayer(address,address,uint256,uint256,uint64,bytes)}
      * <br>
-     * - {@code executeCallOnSenderSignature(address,address,uint256,uint256,uint64,bytes)}
+     * - {@code executeCallOnPayerSignature(address,address,uint256,uint256,uint64,bytes)}
      *
      * @param scheduleTrx   scheduled transaction body for this schedule create
      * @param keys          the key set for scheduled calls
      * @param expirySecond  an expiration time of the future call
-     * @param sender        an account identifier of a `payer` for the scheduled transaction
+     * @param payer        an account identifier of a `payer` for the scheduled transaction
      * @param waitForExpiry a flag to delay execution until expiration
      * @return the 'schedule create' transaction body
      */
@@ -131,19 +131,18 @@ public class ScheduleCallDecoder {
     public ScheduleCreateTransactionBody scheduleCreateTransactionBodyFor(
             @NonNull final SchedulableTransactionBody scheduleTrx,
             @NonNull final Set<Key> keys,
-            @NonNull final BigInteger expirySecond,
-            @NonNull final AccountID sender,
+            final long expirySecond,
+            @NonNull final AccountID payer,
             boolean waitForExpiry) {
         requireNonNull(scheduleTrx);
         requireNonNull(keys);
-        requireNonNull(expirySecond);
-        requireNonNull(sender);
+        requireNonNull(payer);
         return ScheduleCreateTransactionBody.newBuilder()
                 .scheduledTransactionBody(scheduleTrx)
                 // we need to set adminKey for make schedule not immutable and to be able to delete schedule
                 .adminKey(keys.stream().findFirst().orElse(null))
-                .expirationTime(Timestamp.newBuilder().seconds(expirySecond.longValueExact()))
-                .payerAccountID(sender)
+                .expirationTime(Timestamp.newBuilder().seconds(expirySecond))
+                .payerAccountID(payer)
                 .waitForExpiry(waitForExpiry)
                 .build();
     }
@@ -153,9 +152,9 @@ public class ScheduleCallDecoder {
      * <br>
      * - {@code scheduleCall(address,uint256,uint256,uint64,bytes)}
      * <br>
-     * - {@code scheduleCallWithSender(address,address,uint256,uint256,uint64,bytes)}
+     * - {@code scheduleCallWithPayer(address,address,uint256,uint256,uint64,bytes)}
      * <br>
-     * - {@code executeCallOnSenderSignature(address,address,uint256,uint256,uint64,bytes)}
+     * - {@code executeCallOnPayerSignature(address,address,uint256,uint256,uint64,bytes)}
      *
      * @param contractId contract id for the future call
      * @param gasLimit   a maximum limit to the amount of gas to use for future call
@@ -167,19 +166,14 @@ public class ScheduleCallDecoder {
      */
     @VisibleForTesting
     public SchedulableTransactionBody scheduledTransactionBodyFor(
-            @NonNull final ContractID contractId,
-            @NonNull final BigInteger gasLimit,
-            @NonNull final BigInteger value,
-            @NonNull byte[] callData) {
+            @NonNull final ContractID contractId, final long gasLimit, final long value, @NonNull byte[] callData) {
         requireNonNull(contractId);
-        requireNonNull(gasLimit);
-        requireNonNull(value);
         requireNonNull(callData);
         return SchedulableTransactionBody.newBuilder()
                 .contractCall(ContractCallTransactionBody.newBuilder()
                         .contractID(contractId)
-                        .gas(gasLimit.longValueExact())
-                        .amount(value.longValueExact())
+                        .gas(gasLimit)
+                        .amount(value)
                         .functionParameters(Bytes.wrap(callData)))
                 .build();
     }

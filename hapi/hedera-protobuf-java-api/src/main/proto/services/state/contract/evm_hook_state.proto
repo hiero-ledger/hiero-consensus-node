@@ -46,16 +46,11 @@ message EvmHookState {
   proto.ContractID hook_contract_id = 4;
 
   /**
-   * True if the hook has been deleted.
-   */
-  bool deleted = 5;
-
-  /**
    * If set, a key that that can be used to remove or replace the hook; or (if
    * applicable, as with a lambda EVM hook) perform transactions that customize
    * the hook.
    */
-  proto.Key admin_key = 6;
+  proto.Key admin_key = 5;
 
   /**
    * For a lambda, its first storage key. Must be the minimal
@@ -64,24 +59,24 @@ message EvmHookState {
    * slot was at the zero key can be differentiated by checking
    * the `num_storage_slots` field.
    */
-  bytes first_contract_storage_key = 7;
+  bytes first_contract_storage_key = 6;
 
   /**
    * If set, the id of the hook preceding this one in the owner's
    * doubly-linked list of hooks.
    */
-  google.protobuf.Int64Value previous_hook_id = 8;
+  google.protobuf.Int64Value previous_hook_id = 7;
 
   /**
    * If set, the id of the hook following this one in the owner's
    * doubly-linked list of hooks.
    */
-  google.protobuf.Int64Value next_hook_id = 9;
+  google.protobuf.Int64Value next_hook_id = 8;
 
   /**
    * The number of storage slots a lambda is using.
    */
-  uint32 num_storage_slots = 10;
+  uint32 num_storage_slots = 9;
 }
 
 /**

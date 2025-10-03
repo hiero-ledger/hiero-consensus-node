@@ -22,11 +22,13 @@ public class TransactionFactory {
     /**
      * Creates a new empty transaction.
      *
+     * @param nonce the nonce for the empty transaction
      * @return an empty transaction
      */
-    public static OtterTransaction createEmptyTransaction(final int nonce) {
+    public static OtterTransaction createEmptyTransaction(final long nonce) {
         final EmptyTransaction emptyTransaction = EmptyTransaction.newBuilder().build();
         return OtterTransaction.newBuilder()
+                .setNonce(nonce)
                 .setEmptyTransaction(emptyTransaction)
                 .build();
     }
@@ -34,14 +36,16 @@ public class TransactionFactory {
     /**
      * Creates a freeze transaction with the specified freeze time.
      *
+     * @param nonce the nonce for the transaction
      * @param freezeTime the freeze time for the transaction
      * @return a FreezeTransaction with the provided freeze time
      */
-    public static OtterTransaction createFreezeTransaction(@NonNull final Instant freezeTime) {
+    public static OtterTransaction createFreezeTransaction(final long nonce, @NonNull final Instant freezeTime) {
         final Timestamp timestamp = CommonPbjConverters.fromPbj(CommonUtils.toPbjTimestamp(freezeTime));
         final OtterFreezeTransaction freezeTransaction =
                 OtterFreezeTransaction.newBuilder().setFreezeTime(timestamp).build();
         return OtterTransaction.newBuilder()
+                .setNonce(nonce)
                 .setFreezeTransaction(freezeTransaction)
                 .build();
     }
@@ -49,10 +53,12 @@ public class TransactionFactory {
     /**
      * Creates a transaction with the specified inner StateSignatureTransaction.
      *
+     * @param nonce the nonce for the transaction
      * @param innerTxn the StateSignatureTransaction
      * @return a TurtleTransaction with the specified inner transaction
      */
-    public static OtterTransaction createStateSignatureTransaction(@NonNull final StateSignatureTransaction innerTxn) {
+    public static OtterTransaction createStateSignatureTransaction(
+            final long nonce, @NonNull final StateSignatureTransaction innerTxn) {
         final com.hedera.hapi.platform.event.legacy.StateSignatureTransaction legacyInnerTxn =
                 com.hedera.hapi.platform.event.legacy.StateSignatureTransaction.newBuilder()
                         .setRound(innerTxn.round())
@@ -60,6 +66,7 @@ public class TransactionFactory {
                         .setHash(ByteString.copyFrom(innerTxn.hash().toByteArray()))
                         .build();
         return OtterTransaction.newBuilder()
+                .setNonce(nonce)
                 .setStateSignatureTransaction(legacyInnerTxn)
                 .build();
     }

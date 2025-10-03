@@ -10,11 +10,8 @@ import com.swirlds.base.function.CheckedSupplier;
 import com.swirlds.common.threading.framework.config.ThreadConfiguration;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
-import com.swirlds.virtualmap.internal.RecordAccessor;
 import com.swirlds.virtualmap.internal.merkle.VirtualMapStatistics;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.io.IOException;
-import java.nio.file.Path;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.CountDownLatch;
@@ -362,50 +359,6 @@ public class VirtualPipeline {
             scheduleWork();
         }
         return ret;
-    }
-
-    /**
-     * Put a copy into a detached state. A detached copy will split off from the regular chain of caches. This
-     * allows for merges and flushes to continue even if this copy is long-lived.
-     *
-     * <p>This method waits for the current pipeline job to complete, then puts the pipeline on hold, and
-     * calls copy's {@link VirtualRoot#detach()} method on the current thread. It prevents any merging of
-     * flushing while the snapshot is being taken. Then the pipeline is resumed.
-     *
-     * @param copy
-     * 		the copy to detach
-     * @return a reference to the detached state
-     */
-    public RecordAccessor detachCopy(final VirtualRoot copy) {
-        validatePipelineRegistration(copy);
-        final RecordAccessor ret = pausePipelineAndExecute("detach", copy::detach);
-        if (alive) {
-            scheduleWork();
-        }
-        return ret;
-    }
-
-    /**
-     * Takes a snapshot of the given copy to the specified directory.
-     *
-     * <p>This method waits for the current pipeline job to complete, then puts the pipeline on hold, and
-     * calls copy's {@link VirtualRoot#detach()} method on the current thread. It prevents any merging of
-     * flushing while the snapshot is being taken. Then the pipeline is resumed.
-     *
-     * @param copy
-     * 		The copy. Cannot be null. Should be a member of this pipeline, but technically doesn't need to be.
-     * @param targetDirectory
-     * 		the location where detached files are written. If null then default location is used.
-     */
-    public void snapshot(final VirtualRoot copy, final Path targetDirectory) throws IOException {
-        validatePipelineRegistration(copy);
-        pausePipelineAndExecute("snapshot", () -> {
-            copy.snapshot(targetDirectory);
-            return null;
-        });
-        if (alive) {
-            scheduleWork();
-        }
     }
 
     /**

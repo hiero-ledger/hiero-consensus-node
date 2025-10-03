@@ -58,10 +58,10 @@ import com.swirlds.platform.state.signer.DefaultStateSigner;
 import com.swirlds.platform.state.signer.StateSigner;
 import com.swirlds.platform.state.snapshot.DefaultStateSnapshotManager;
 import com.swirlds.platform.state.snapshot.StateSnapshotManager;
+import com.swirlds.platform.system.DefaultPlatformMonitor;
 import com.swirlds.platform.system.Platform;
+import com.swirlds.platform.system.PlatformMonitor;
 import com.swirlds.platform.system.SystemExitUtils;
-import com.swirlds.platform.system.status.DefaultStatusStateMachine;
-import com.swirlds.platform.system.status.StatusStateMachine;
 import com.swirlds.platform.util.MetricsDocUtils;
 import com.swirlds.platform.wiring.components.Gossip;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -107,7 +107,7 @@ public class PlatformComponentBuilder {
     private ConsensusEngine consensusEngine;
     private ConsensusEventStream consensusEventStream;
     private SignedStateSentinel signedStateSentinel;
-    private StatusStateMachine statusStateMachine;
+    private PlatformMonitor platformMonitor;
     private TransactionPrehandler transactionPrehandler;
     private InlinePcesWriter inlinePcesWriter;
     private IssDetector issDetector;
@@ -525,35 +525,35 @@ public class PlatformComponentBuilder {
     }
 
     /**
-     * Provide a status state machine in place of the platform's default status state machine.
+     * Provide a platform monitor in place of the platform's default platform monitor.
      *
-     * @param statusStateMachine the status state machine to use
+     * @param platformMonitor the platform monitor to use
      * @return this builder
      */
     @NonNull
-    public PlatformComponentBuilder withStatusStateMachine(@NonNull final StatusStateMachine statusStateMachine) {
+    public PlatformComponentBuilder withPlatformMonitor(@NonNull final PlatformMonitor platformMonitor) {
         throwIfAlreadyUsed();
-        if (this.statusStateMachine != null) {
+        if (this.platformMonitor != null) {
             throw new IllegalStateException("Status state machine has already been set");
         }
-        this.statusStateMachine = Objects.requireNonNull(statusStateMachine);
+        this.platformMonitor = Objects.requireNonNull(platformMonitor);
         return this;
     }
 
     /**
-     * Build the status state machine if it has not yet been built. If one has been provided via
-     * {@link #withStatusStateMachine(StatusStateMachine)}, that state machine will be used. If this method is called
-     * more than once, only the first call will build the status state machine. Otherwise, the default state machine
+     * Build the platform monitor if it has not yet been built. If one has been provided via
+     * {@link #withPlatformMonitor(PlatformMonitor)}, that platform monitor will be used. If this method is called
+     * more than once, only the first call will build the platform monitor. Otherwise, the default platform monitor
      * will be created and returned.
      *
-     * @return the status state machine
+     * @return the platform monitor
      */
     @NonNull
-    public StatusStateMachine buildStatusStateMachine() {
-        if (statusStateMachine == null) {
-            statusStateMachine = new DefaultStatusStateMachine(blocks.platformContext());
+    public PlatformMonitor buildPlatformMonitor() {
+        if (platformMonitor == null) {
+            platformMonitor = new DefaultPlatformMonitor(blocks.platformContext(), blocks.selfId());
         }
-        return statusStateMachine;
+        return platformMonitor;
     }
 
     /**

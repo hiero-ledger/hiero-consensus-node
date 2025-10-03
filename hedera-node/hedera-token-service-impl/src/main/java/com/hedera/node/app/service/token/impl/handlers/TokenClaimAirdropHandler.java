@@ -33,6 +33,7 @@ import com.hedera.node.app.service.token.impl.WritableAirdropStore;
 import com.hedera.node.app.service.token.impl.WritableTokenRelationStore;
 import com.hedera.node.app.service.token.impl.handlers.transfer.TransferContextImpl;
 import com.hedera.node.app.service.token.impl.handlers.transfer.TransferExecutor;
+import com.hedera.node.app.service.token.impl.handlers.transfer.hooks.HookCallFactory;
 import com.hedera.node.app.service.token.impl.util.AirdropHandlerHelper;
 import com.hedera.node.app.service.token.impl.util.PendingAirdropUpdater;
 import com.hedera.node.app.service.token.impl.validators.CryptoTransferValidator;
@@ -72,8 +73,9 @@ public class TokenClaimAirdropHandler extends TransferExecutor implements Transa
     public TokenClaimAirdropHandler(
             @NonNull final TokenAirdropValidator validator,
             @NonNull final CryptoTransferValidator cryptoTransferValidator,
-            @NonNull final PendingAirdropUpdater pendingAirdropUpdater) {
-        super(cryptoTransferValidator);
+            @NonNull final PendingAirdropUpdater pendingAirdropUpdater,
+            @NonNull final HookCallFactory hookCallFactory) {
+        super(cryptoTransferValidator, hookCallFactory);
         this.validator = validator;
         this.pendingAirdropUpdater = pendingAirdropUpdater;
     }

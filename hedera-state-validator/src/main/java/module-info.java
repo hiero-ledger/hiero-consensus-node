@@ -39,7 +39,6 @@ module com.hedera.state.validator {
     requires org.hiero.consensus.model;
     requires com.fasterxml.jackson.databind;
     requires com.github.spotbugs.annotations;
-    requires com.google.gson;
     requires info.picocli;
     requires org.apache.logging.log4j;
     requires org.junit.jupiter.api;

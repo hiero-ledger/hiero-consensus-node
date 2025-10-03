@@ -3,11 +3,6 @@ package com.swirlds.state.merkle.disk;
 
 import static com.swirlds.state.merkle.StateUtils.getStateKeyForKv;
 import static com.swirlds.state.merkle.StateUtils.getStateValueForKv;
-import static com.swirlds.state.merkle.logging.StateLogger.logMapGet;
-import static com.swirlds.state.merkle.logging.StateLogger.logMapGetSize;
-import static com.swirlds.state.merkle.logging.StateLogger.logMapIterate;
-import static com.swirlds.state.merkle.logging.StateLogger.logMapPut;
-import static com.swirlds.state.merkle.logging.StateLogger.logMapRemove;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.pbj.runtime.Codec;
@@ -66,18 +61,13 @@ public final class OnDiskWritableKVState<K, V> extends WritableKVStateBase<K, V>
     protected V readFromDataSource(@NonNull K key) {
         final Bytes stateKey = getStateKeyForKv(stateId, key, keyCodec);
         final StateValue<V> stateValue = virtualMap.get(stateKey, stateValueCodec);
-        final V value = stateValue != null ? stateValue.value() : null;
-        // Log to transaction state log, what was read
-        logMapGet(label, key, value);
-        return value;
+        return stateValue != null ? stateValue.value() : null;
     }
 
     /** {@inheritDoc} */
     @NonNull
     @Override
     protected Iterator<K> iterateFromDataSource() {
-        // Log to transaction state log, what was iterated
-        logMapIterate(label, virtualMap, keyCodec);
         return new OnDiskIterator<>(virtualMap, keyCodec, stateId);
     }
 
@@ -90,8 +80,6 @@ public final class OnDiskWritableKVState<K, V> extends WritableKVStateBase<K, V>
         final StateValue<V> stateValue = getStateValueForKv(stateId, value);
 
         virtualMap.put(keyBytes, stateValue, stateValueCodec);
-        // Log to transaction state log, what was put
-        logMapPut(label, key, value);
     }
 
     /** {@inheritDoc} */
@@ -100,16 +88,11 @@ public final class OnDiskWritableKVState<K, V> extends WritableKVStateBase<K, V>
         final Bytes stateKey = getStateKeyForKv(stateId, key, keyCodec);
         final StateValue<V> stateValue = virtualMap.remove(stateKey, stateValueCodec);
         final var removedValue = stateValue != null ? stateValue.value() : null;
-        // Log to transaction state log, what was removed
-        logMapRemove(label, key, removedValue);
     }
 
     /** {@inheritDoc} */
     @Override
     public long sizeOfDataSource() {
-        final var size = virtualMap.size();
-        // Log to transaction state log, size of map
-        logMapGetSize(label, size);
-        return size;
+        return virtualMap.size();
     }
 }

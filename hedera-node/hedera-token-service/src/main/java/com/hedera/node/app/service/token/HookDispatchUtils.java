@@ -13,6 +13,7 @@ import com.hedera.hapi.node.base.HookId;
 import com.hedera.hapi.node.hooks.HookCreation;
 import com.hedera.hapi.node.hooks.HookCreationDetails;
 import com.hedera.hapi.node.hooks.HookDispatchTransactionBody;
+import com.hedera.hapi.node.hooks.HookExecution;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.token.records.HookDispatchStreamBuilder;
 import com.hedera.node.app.spi.workflows.HandleContext;
@@ -115,5 +116,20 @@ public class HookDispatchUtils {
                     hookIdsToDelete.stream().distinct().count() == hookIdsToDelete.size(),
                     HOOK_ID_REPEATED_IN_CREATION_DETAILS);
         }
+    }
+    /**
+     * Dispatches the hook execution to the given context.
+     *
+     * @param context the handle context
+     * @param execution the hook execution to dispatch
+     */
+    public static void dispatchExecution(final @NonNull HandleContext context, final HookExecution execution) {
+        final var hookDispatch =
+                HookDispatchTransactionBody.newBuilder().execution(execution).build();
+        final var streamBuilder = context.dispatch(hookDispatch(
+                context.payer(),
+                TransactionBody.newBuilder().hookDispatch(hookDispatch).build(),
+                HookDispatchStreamBuilder.class));
+        validateTrue(streamBuilder.status() == SUCCESS, streamBuilder.status());
     }
 }

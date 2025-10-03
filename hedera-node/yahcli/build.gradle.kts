@@ -15,6 +15,7 @@ mainModuleInfo {
 }
 
 testModuleInfo {
+    requires("com.fasterxml.jackson.databind")
     requires("org.assertj.core")
     requires("org.junit.jupiter.params")
     requires("org.junit.platform.launcher")

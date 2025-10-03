@@ -7,9 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.statevalidation.parameterresolver.HashInfo;
 import com.hedera.statevalidation.parameterresolver.HashInfoResolver;
-import com.hedera.statevalidation.parameterresolver.ReportResolver;
 import com.hedera.statevalidation.parameterresolver.StateResolver;
-import com.hedera.statevalidation.reporting.Report;
 import com.hedera.statevalidation.reporting.SlackReportGenerator;
 import com.swirlds.common.merkle.hash.FutureMerkleHash;
 import com.swirlds.logging.legacy.LogMarker;
@@ -34,7 +32,7 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
-@ExtendWith({StateResolver.class, ReportResolver.class, SlackReportGenerator.class, HashInfoResolver.class})
+@ExtendWith({StateResolver.class, SlackReportGenerator.class, HashInfoResolver.class})
 @Tag("rehash")
 public class Rehash {
 
@@ -68,11 +66,10 @@ public class Rehash {
      * This test validates the Merkle tree structure of the state.
      *
      * @param deserializedSignedState The deserialized signed state, propagated by the StateResolver.
-     * @param report                  The report object, propagated by the ReportResolver.
      * @param hashInfo                The hash info object, propagated by the HashInfoResolver.
      */
     @Test
-    void validateMerkleTree(DeserializedSignedState deserializedSignedState, Report report, HashInfo hashInfo) {
+    void validateMerkleTree(DeserializedSignedState deserializedSignedState, HashInfo hashInfo) {
 
         var platformStateFacade = PlatformStateFacade.DEFAULT_PLATFORM_STATE_FACADE;
         var infoStringFromState = platformStateFacade.getInfoString(

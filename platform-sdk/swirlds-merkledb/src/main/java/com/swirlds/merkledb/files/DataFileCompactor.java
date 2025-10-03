@@ -191,7 +191,9 @@ public class DataFileCompactor {
             return Collections.emptyList();
         }
 
-        interruptFlag = false;
+        if (interruptFlag) {
+            return Collections.emptyList();
+        }
 
         // create a merge time stamp, this timestamp is the newest time of the set of files we are
         // merging

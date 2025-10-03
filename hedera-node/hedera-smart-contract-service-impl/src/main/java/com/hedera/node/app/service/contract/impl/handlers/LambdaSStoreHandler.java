@@ -3,7 +3,6 @@ package com.hedera.node.app.service.contract.impl.handlers;
 
 import static com.hedera.hapi.node.base.HookEntityId.EntityIdOneOfType.ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.EMPTY_LAMBDA_STORAGE_UPDATE;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOK_DELETED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOK_IS_NOT_A_LAMBDA;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOK_NOT_FOUND;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_HOOK_ID;
@@ -13,7 +12,6 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.TOO_MANY_LAMBDA_STORAGE
 import static com.hedera.hapi.node.state.hooks.EvmHookType.LAMBDA;
 import static com.hedera.node.app.hapi.utils.contracts.HookUtils.minimalRepresentationOf;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
-import static com.hedera.node.app.spi.workflows.PreCheckException.validateFalsePreCheck;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
 import static java.util.Objects.requireNonNull;
 
@@ -78,7 +76,6 @@ public class LambdaSStoreHandler implements TransactionHandler {
         final var store = context.createStore(ReadableEvmHookStore.class);
         final var hook = store.getEvmHook(op.hookIdOrThrow());
         validateTruePreCheck(hook != null, HOOK_NOT_FOUND);
-        validateFalsePreCheck(hook.deleted(), HOOK_DELETED);
         validateTruePreCheck(hook.type() == LAMBDA, HOOK_IS_NOT_A_LAMBDA);
         final var ownerAccountId = hook.hookIdOrThrow().entityIdOrThrow().accountIdOrThrow();
         if (hook.hasAdminKey()) {

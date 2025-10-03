@@ -46,8 +46,9 @@ import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.TimeManager;
 import org.hiero.otter.fixtures.TransactionFactory;
 import org.hiero.otter.fixtures.TransactionGenerator;
+import org.hiero.otter.fixtures.app.OtterTransaction;
 import org.hiero.otter.fixtures.internal.network.ConnectionKey;
-import org.hiero.otter.fixtures.internal.network.MeshTopologyImpl;
+import org.hiero.otter.fixtures.internal.network.GeoMeshTopologyImpl;
 import org.hiero.otter.fixtures.internal.result.MultipleNodeConsensusResultsImpl;
 import org.hiero.otter.fixtures.internal.result.MultipleNodeLogResultsImpl;
 import org.hiero.otter.fixtures.internal.result.MultipleNodeMarkerFileResultsImpl;
@@ -100,7 +101,7 @@ public abstract class AbstractNetwork implements Network {
 
     private final Random random;
     private final Map<NodeId, PartitionImpl> partitions = new HashMap<>();
-    private final Topology topology = new MeshTopologyImpl(this::createNodes, this::createInstrumentedNode);
+    private final Topology topology;
 
     protected State state = State.INIT;
     protected WeightGenerator weightGenerator = WeightGenerators.GAUSSIAN;
@@ -112,6 +113,7 @@ public abstract class AbstractNetwork implements Network {
 
     protected AbstractNetwork(@NonNull final Random random) {
         this.random = requireNonNull(random);
+        this.topology = new GeoMeshTopologyImpl(random, this::createNodes, this::createInstrumentedNode);
     }
 
     /**
@@ -160,8 +162,8 @@ public abstract class AbstractNetwork implements Network {
     }
 
     /**
-     * Creates a new node with the given ID and keys and certificates. This is a factory method that must be
-     * implemented by subclasses to create nodes specific to the environment.
+     * Creates a new node with the given ID and keys and certificates. This is a factory method that must be implemented
+     * by subclasses to create nodes specific to the environment.
      *
      * @param nodeId the ID of the node to create
      * @param keysAndCerts the keys and certificates for the node
@@ -410,12 +412,12 @@ public abstract class AbstractNetwork implements Network {
         throwIfInState(State.SHUTDOWN, "Network has been shut down.");
 
         log.info("Sending freeze transaction...");
-        final byte[] freezeTransaction = TransactionFactory.createFreezeTransaction(
-                        timeManager().now().plus(FREEZE_DELAY))
-                .toByteArray();
+        final OtterTransaction freezeTransaction = TransactionFactory.createFreezeTransaction(
+                random.nextLong(), timeManager().now().plus(FREEZE_DELAY));
         nodes().stream()
                 .filter(Node::isActive)
                 .findFirst()
+                .map(node -> (AbstractNode) node)
                 .orElseThrow(() -> new AssertionError("No active node found to send freeze transaction to."))
                 .submitTransaction(freezeTransaction);
 

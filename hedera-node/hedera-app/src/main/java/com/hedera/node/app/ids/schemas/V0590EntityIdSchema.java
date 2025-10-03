@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.ids.schemas;
 
+import static com.hedera.hapi.util.HapiUtils.SEMANTIC_VERSION_COMPARATOR;
 import static com.swirlds.state.lifecycle.StateMetadata.computeLabel;
 
 import com.hedera.hapi.node.base.SemanticVersion;
@@ -13,7 +14,7 @@ import com.swirlds.state.lifecycle.StateDefinition;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Set;
 
-public class V0590EntityIdSchema extends Schema {
+public class V0590EntityIdSchema extends Schema<SemanticVersion> {
 
     /**
      * The version of the schema.
@@ -26,7 +27,7 @@ public class V0590EntityIdSchema extends Schema {
     public static final String ENTITY_COUNTS_STATE_LABEL = computeLabel(EntityIdService.NAME, ENTITY_COUNTS_KEY);
 
     public V0590EntityIdSchema() {
-        super(VERSION);
+        super(VERSION, SEMANTIC_VERSION_COMPARATOR);
     }
 
     /**

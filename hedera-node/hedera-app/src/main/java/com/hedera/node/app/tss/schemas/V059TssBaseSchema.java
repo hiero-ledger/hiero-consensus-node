@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.tss.schemas;
 
+import static com.hedera.hapi.util.HapiUtils.SEMANTIC_VERSION_COMPARATOR;
+
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.swirlds.state.lifecycle.Schema;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -10,13 +12,13 @@ import java.util.Set;
  * Schema removing the states added in {@code 0.56.0} and {@code 0.58.0} for the inexact weights TSS scheme.
  */
 @Deprecated(forRemoval = true, since = "0.59.0")
-public class V059TssBaseSchema extends Schema {
+public class V059TssBaseSchema extends Schema<SemanticVersion> {
 
     private static final SemanticVersion VERSION =
             SemanticVersion.newBuilder().major(0).minor(59).build();
 
     public V059TssBaseSchema() {
-        super(VERSION);
+        super(VERSION, SEMANTIC_VERSION_COMPARATOR);
     }
 
     @NonNull

@@ -34,6 +34,12 @@ public class CryptoTransferValidationHelper {
             final PreHandleContext meta,
             final ReadableAccountStore accountStore)
             throws PreCheckException {
+        final var hasSenderHook =
+                nftTransfer.hasPreTxSenderAllowanceHook() || nftTransfer.hasPrePostTxSenderAllowanceHook();
+        if (hasSenderHook) {
+            // If there is a sender hook, we skip the sender checks, as the hook will handle them.
+            return;
+        }
 
         // Lookup the sender account and verify it.
         final var senderAccount = accountStore.getAliasedAccountById(senderId);
@@ -66,6 +72,8 @@ public class CryptoTransferValidationHelper {
             final ReadableAccountStore accountStore,
             final TransferExecutor.OptionalKeyCheck receiverKeyCheck)
             throws PreCheckException {
+        final var hasReceiverHook =
+                nftTransfer.hasPreTxReceiverAllowanceHook() || nftTransfer.hasPrePostTxReceiverAllowanceHook();
 
         // Lookup the receiver account and verify it.
         final var receiverAccount = accountStore.getAliasedAccountById(receiverId);
@@ -84,26 +92,28 @@ public class CryptoTransferValidationHelper {
             // If the receiver account has no key, then fail with INVALID_ACCOUNT_ID.
             // NOTE: should change to ACCOUNT_IS_IMMUTABLE after modularization
             throw new PreCheckException(INVALID_ACCOUNT_ID);
-        } else if (receiverAccount.receiverSigRequired()) {
-            if (receiverKeyCheck == RECEIVER_KEY_IS_OPTIONAL) {
-                meta.optionalKey(receiverKey);
-            } else {
-                // If receiverSigRequired is set, and if there is no key on the receiver's account, then fail with
-                // INVALID_TRANSFER_ACCOUNT_ID. Otherwise, add the key.
-                meta.requireKeyOrThrow(receiverKey, INVALID_TRANSFER_ACCOUNT_ID);
-            }
-        } else if (tokenMeta.hasRoyaltyWithFallback()) {
-            // For airdrops, we don't support tokens with royalties with fallback
-            if (op == null) {
-                throw new PreCheckException(INVALID_TRANSACTION);
-            } else if (!receivesFungibleValue(nftTransfer.senderAccountID(), op, accountStore)) {
-                // It may be that this transfer has royalty fees associated with it. If it does, then we need
-                // to check that the receiver signed the transaction, UNLESS the sender or receiver is
-                // the treasury, in which case fallback fees will not be applied when the transaction is handled,
-                // so the receiver key does not need to sign.
-                final var treasuryId = tokenMeta.treasuryAccountId();
-                if (!treasuryId.equals(senderId) && !treasuryId.equals(receiverId)) {
-                    meta.requireKeyOrThrow(receiverId, INVALID_TREASURY_ACCOUNT_FOR_TOKEN);
+        } else if (!hasReceiverHook) {
+            if (receiverAccount.receiverSigRequired()) {
+                if (receiverKeyCheck == RECEIVER_KEY_IS_OPTIONAL) {
+                    meta.optionalKey(receiverKey);
+                } else {
+                    // If receiverSigRequired is set, and if there is no key on the receiver's account, then fail with
+                    // INVALID_TRANSFER_ACCOUNT_ID. Otherwise, add the key.
+                    meta.requireKeyOrThrow(receiverKey, INVALID_TRANSFER_ACCOUNT_ID);
+                }
+            } else if (tokenMeta.hasRoyaltyWithFallback()) {
+                // For airdrops, we don't support tokens with royalties with fallback
+                if (op == null) {
+                    throw new PreCheckException(INVALID_TRANSACTION);
+                } else if (!receivesFungibleValue(nftTransfer.senderAccountID(), op, accountStore)) {
+                    // It may be that this transfer has royalty fees associated with it. If it does, then we need
+                    // to check that the receiver signed the transaction, UNLESS the sender or receiver is
+                    // the treasury, in which case fallback fees will not be applied when the transaction is handled,
+                    // so the receiver key does not need to sign.
+                    final var treasuryId = tokenMeta.treasuryAccountId();
+                    if (!treasuryId.equals(senderId) && !treasuryId.equals(receiverId)) {
+                        meta.requireKeyOrThrow(receiverId, INVALID_TREASURY_ACCOUNT_FOR_TOKEN);
+                    }
                 }
             }
         }

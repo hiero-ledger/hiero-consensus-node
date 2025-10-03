@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.suites.staking;
 
 import static com.hedera.services.bdd.junit.TestTags.CRYPTO;
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.dsl.operations.transactions.TouchBalancesOperation.touchBalanceOf;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoUpdate;
@@ -35,6 +36,7 @@ public class CreateStakersTest {
     static SpecAccount NODE2_STAKER;
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> createStakers() {
         return hapiTest(
                 ensureStakingActivated(),

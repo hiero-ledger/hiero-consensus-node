@@ -37,8 +37,8 @@ import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
 import org.hiero.consensus.roster.RosterUtils;
 import org.hiero.otter.fixtures.internal.network.ConnectionKey;
-import org.hiero.otter.fixtures.network.BandwidthLimit;
 import org.hiero.otter.fixtures.network.Topology.ConnectionData;
+import org.hiero.otter.fixtures.network.utils.BandwidthLimit;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 

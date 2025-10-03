@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.blocks.schemas;
 
+import static com.hedera.hapi.util.HapiUtils.SEMANTIC_VERSION_COMPARATOR;
 import static com.hedera.node.app.blocks.impl.BlockImplUtils.appendHash;
 import static com.hedera.node.app.records.impl.BlockRecordInfoUtils.blockHashByBlockNumber;
 import static com.swirlds.state.lifecycle.StateMetadata.computeLabel;
@@ -42,7 +43,7 @@ import java.util.function.Consumer;
  *     <li>The <b>trailing 256 block hashes</b>, used to implement the EVM {@code BLOCKHASH} opcode.</li>
  * </ol>
  */
-public class V0560BlockStreamSchema extends Schema {
+public class V0560BlockStreamSchema extends Schema<SemanticVersion> {
 
     /**
      * The block stream manager increments the previous number when starting a block; so to start
@@ -72,7 +73,7 @@ public class V0560BlockStreamSchema extends Schema {
      * Schema constructor.
      */
     public V0560BlockStreamSchema(@NonNull final Consumer<Bytes> migratedBlockHashConsumer) {
-        super(VERSION);
+        super(VERSION, SEMANTIC_VERSION_COMPARATOR);
         this.migratedBlockHashConsumer = requireNonNull(migratedBlockHashConsumer);
     }
 
@@ -83,7 +84,7 @@ public class V0560BlockStreamSchema extends Schema {
     }
 
     @Override
-    public void restart(@NonNull final MigrationContext ctx) {
+    public void restart(@NonNull final MigrationContext<SemanticVersion> ctx) {
         requireNonNull(ctx);
         final var state = ctx.newStates().getSingleton(BLOCK_STREAM_INFO_STATE_ID);
         if (ctx.isGenesis()) {

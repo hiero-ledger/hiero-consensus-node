@@ -65,6 +65,7 @@ class BlockBufferRestartIntegrationTest extends BlockNodeCommunicationTestBase {
     private static final VarHandle blockBufferHandle;
     private static final VarHandle execSvcHandle;
     private static final VarHandle backPressureFutureRefHandle;
+    private static final VarHandle isStartedHandle;
     private static final MethodHandle persistBufferHandle;
     private static final MethodHandle checkBufferHandle;
 
@@ -77,6 +78,8 @@ class BlockBufferRestartIntegrationTest extends BlockNodeCommunicationTestBase {
                     .findVarHandle(BlockBufferService.class, "execSvc", ScheduledExecutorService.class);
             backPressureFutureRefHandle = MethodHandles.privateLookupIn(BlockBufferService.class, lookup)
                     .findVarHandle(BlockBufferService.class, "backpressureCompletableFutureRef", AtomicReference.class);
+            isStartedHandle = MethodHandles.privateLookupIn(BlockBufferService.class, lookup)
+                    .findVarHandle(BlockBufferService.class, "isStarted", AtomicBoolean.class);
 
             final var persistBufferMethod = BlockBufferService.class.getDeclaredMethod("persistBuffer");
             persistBufferMethod.setAccessible(true);
@@ -142,8 +145,7 @@ class BlockBufferRestartIntegrationTest extends BlockNodeCommunicationTestBase {
         final Configuration config = createConfigWithPersistence();
         when(configProvider.getConfiguration()).thenReturn(new VersionedConfigImpl(config, 1));
 
-        blockBufferService = new BlockBufferService(configProvider, blockStreamMetrics);
-        blockBufferService.setBlockNodeConnectionManager(connectionManager);
+        blockBufferService = initBufferService(configProvider);
 
         // Step 1: Create several blocks in buffer
         final int numBlocks = 10;
@@ -232,8 +234,7 @@ class BlockBufferRestartIntegrationTest extends BlockNodeCommunicationTestBase {
         final Configuration config = createConfigWithPersistence();
         when(configProvider.getConfiguration()).thenReturn(new VersionedConfigImpl(config, 1));
 
-        blockBufferService = new BlockBufferService(configProvider, blockStreamMetrics);
-        blockBufferService.setBlockNodeConnectionManager(connectionManager);
+        blockBufferService = initBufferService(configProvider);
 
         // Step 1: Create enough blocks to saturate the buffer
         final int maxBufferSize = (int) BLOCK_TTL.dividedBy(BLOCK_PERIOD); // Should be 150 blocks
@@ -358,8 +359,7 @@ class BlockBufferRestartIntegrationTest extends BlockNodeCommunicationTestBase {
         final Configuration config = createConfigWithPersistence();
         when(configProvider.getConfiguration()).thenReturn(new VersionedConfigImpl(config, 1));
 
-        blockBufferService = new BlockBufferService(configProvider, blockStreamMetrics);
-        blockBufferService.setBlockNodeConnectionManager(connectionManager);
+        blockBufferService = initBufferService(configProvider);
 
         // Step 1: Create blocks and simulate normal operation
         final long startBlockNumber = 300L;
@@ -471,10 +471,6 @@ class BlockBufferRestartIntegrationTest extends BlockNodeCommunicationTestBase {
         }
     }
 
-    private void checkBuffer() throws Throwable {
-        checkBufferHandle.invoke(blockBufferService);
-    }
-
     private static void cleanupDirectory() throws IOException {
         if (!Files.exists(TEST_DIR_FILE.toPath())) {
             return;
@@ -493,5 +489,20 @@ class BlockBufferRestartIntegrationTest extends BlockNodeCommunicationTestBase {
                 return FileVisitResult.CONTINUE;
             }
         });
+    }
+
+    private AtomicBoolean isStarted(final BlockBufferService bufferService) {
+        return (AtomicBoolean) isStartedHandle.get(bufferService);
+    }
+
+    private BlockBufferService initBufferService(final ConfigProvider configProvider) {
+        final BlockBufferService svc = new BlockBufferService(configProvider, blockStreamMetrics);
+        svc.setBlockNodeConnectionManager(connectionManager);
+
+        // "fake" starting the service
+        final AtomicBoolean isStarted = isStarted(svc);
+        isStarted.set(true);
+
+        return svc;
     }
 }

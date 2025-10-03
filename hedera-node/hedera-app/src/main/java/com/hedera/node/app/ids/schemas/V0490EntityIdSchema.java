@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.ids.schemas;
 
+import static com.hedera.hapi.util.HapiUtils.SEMANTIC_VERSION_COMPARATOR;
 import static com.swirlds.state.lifecycle.StateMetadata.computeLabel;
 
 import com.hedera.hapi.node.base.SemanticVersion;
@@ -17,7 +18,7 @@ import java.util.Set;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-public class V0490EntityIdSchema extends Schema {
+public class V0490EntityIdSchema extends Schema<SemanticVersion> {
 
     private static final Logger log = LogManager.getLogger(V0490EntityIdSchema.class);
 
@@ -32,7 +33,7 @@ public class V0490EntityIdSchema extends Schema {
     public static final String ENTITY_ID_STATE_LABEL = computeLabel(EntityIdService.NAME, ENTITY_ID_KEY);
 
     public V0490EntityIdSchema() {
-        super(VERSION);
+        super(VERSION, SEMANTIC_VERSION_COMPARATOR);
     }
 
     /**

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.hints.schemas;
 
+import static com.hedera.hapi.util.HapiUtils.SEMANTIC_VERSION_COMPARATOR;
 import static com.swirlds.state.lifecycle.StateMetadata.computeLabel;
 
 import com.hedera.hapi.node.base.SemanticVersion;
@@ -34,7 +35,7 @@ import java.util.Set;
  *     construction.</li>
  * </ul>
  */
-public class V059HintsSchema extends Schema {
+public class V059HintsSchema extends Schema<SemanticVersion> {
 
     private static final SemanticVersion VERSION =
             SemanticVersion.newBuilder().minor(59).build();
@@ -66,7 +67,7 @@ public class V059HintsSchema extends Schema {
             computeLabel(HintsService.NAME, PREPROCESSING_VOTES_KEY);
 
     public V059HintsSchema() {
-        super(VERSION);
+        super(VERSION, SEMANTIC_VERSION_COMPARATOR);
     }
 
     @Override

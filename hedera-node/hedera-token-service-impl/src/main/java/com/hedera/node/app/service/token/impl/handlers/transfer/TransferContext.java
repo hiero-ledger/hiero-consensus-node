@@ -4,6 +4,7 @@ package com.hedera.node.app.service.token.impl.handlers.transfer;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.TokenAssociation;
 import com.hedera.hapi.node.transaction.AssessedCustomFee;
+import com.hedera.node.app.service.token.impl.handlers.transfer.customfees.AssessedFeeWithPayerDebits;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.util.List;
@@ -80,7 +81,7 @@ public interface TransferContext {
      * records at the end of the transaction handling.
      * @param assessedCustomFee the assessed custom fee
      */
-    void addToAssessedCustomFee(AssessedCustomFee assessedCustomFee);
+    void addToAssessedCustomFee(AssessedFeeWithPayerDebits assessedCustomFee);
 
     /**
      * Returns the custom fees assessed so far in this transfer context.
@@ -88,6 +89,13 @@ public interface TransferContext {
      * @return the custom fees assessed so far in this transfer context
      */
     List<AssessedCustomFee> getAssessedCustomFees();
+
+    /**
+     * Returns the custom fees with multi-payer deltas (for fractional fee) assessed so far in this transfer context.
+     *
+     * @return the custom fees assessed so far in this transfer context with multi-payer deltas for fractional fees
+     */
+    List<AssessedFeeWithPayerDebits> getAssessedFeesWithPayerDebits();
 
     /**
      * Indicates if this transfer context enforces mono-service

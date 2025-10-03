@@ -1,9 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.state.merkle.disk;
 
-import static com.swirlds.state.merkle.logging.StateLogger.logQueueAdd;
-import static com.swirlds.state.merkle.logging.StateLogger.logQueueIterate;
-import static com.swirlds.state.merkle.logging.StateLogger.logQueueRemove;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.pbj.runtime.Codec;
@@ -50,8 +47,6 @@ public class OnDiskWritableQueueState<V> extends WritableQueueStateBase<V> {
         onDiskQueueHelper.addToStore(state.tail(), value);
         // increment tail and update state
         onDiskQueueHelper.updateState(state.elementAdded());
-        // Log to transaction state log, what was added
-        logQueueAdd(label, value);
     }
 
     /** {@inheritDoc} */
@@ -62,12 +57,8 @@ public class OnDiskWritableQueueState<V> extends WritableQueueStateBase<V> {
             final V removedValue = onDiskQueueHelper.removeFromStore(state.head());
             // increment head and update state
             onDiskQueueHelper.updateState(state.elementRemoved());
-            // Log to transaction state log, what was removed
-            logQueueRemove(label, removedValue);
         } else {
             // Should it be considered an error?
-            // Log to transaction state log, what was removed
-            logQueueRemove(label, null);
         }
     }
 
@@ -80,10 +71,7 @@ public class OnDiskWritableQueueState<V> extends WritableQueueStateBase<V> {
             // Empty iterator
             return onDiskQueueHelper.iterateOnDataSource(0, 0);
         } else {
-            final Iterator<V> it = onDiskQueueHelper.iterateOnDataSource(state.head(), state.tail());
-            // Log to transaction state log, what was iterated
-            logQueueIterate(label, state.tail() - state.head(), it);
-            return it;
+            return onDiskQueueHelper.iterateOnDataSource(state.head(), state.tail());
         }
     }
 }

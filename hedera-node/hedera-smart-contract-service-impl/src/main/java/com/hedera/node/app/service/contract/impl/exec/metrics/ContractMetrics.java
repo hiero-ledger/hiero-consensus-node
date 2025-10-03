@@ -53,8 +53,9 @@ public class ContractMetrics {
 
     // Counters that are the P1 metrics
 
-    private final HashMap<HederaFunctionality, Counter> rejectedTxsCounters = new HashMap<>();
-    private final HashMap<HederaFunctionality, Counter> rejectedTxsLackingIntrinsicGas = new HashMap<>();
+    private final ConcurrentHashMap<HederaFunctionality, Counter> rejectedTxsCounters = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<HederaFunctionality, Counter> rejectedTxsLackingIntrinsicGas =
+            new ConcurrentHashMap<>();
     private Counter rejectedEthType3Counter;
 
     private enum MethodMetricType {
@@ -79,22 +80,26 @@ public class ContractMetrics {
     // Counters that are the P2 metrics, and maps that take `SystemContractMethods` into the specific counters
 
     // Counters for SystemContract usage (i.e., calls to HAS, HSS, HTS)
-    private final Map<SystemContractMethod.SystemContract, Counter[]> systemContractMethodCounters = new HashMap<>();
+    private final Map<SystemContractMethod.SystemContract, Counter[]> systemContractMethodCounters =
+            new ConcurrentHashMap<>();
 
     // Counters for DIRECT vs PROXY usage
-    private final Map<SystemContractMethod.CallVia, Counter[]> systemContractMethodCountersVia = new HashMap<>();
+    private final Map<SystemContractMethod.CallVia, Counter[]> systemContractMethodCountersVia =
+            new ConcurrentHashMap<>();
 
     // Counters for ERC-20 and ERC-721 usage (there's overlap as some methods are defined in _both_), plus the map
     // that takes a `SystemContract` to the ERC types (if any)
     private final Map<SystemContractMethod, EnumSet<SystemContractMethod.Category>> systemContractMethodErcMembers =
-            new HashMap<>();
-    private final Map<SystemContractMethod.Category, Counter[]> systemContractERCTypeCounters = new HashMap<>();
+            new ConcurrentHashMap<>();
+    private final Map<SystemContractMethod.Category, Counter[]> systemContractERCTypeCounters =
+            new ConcurrentHashMap<>();
 
     // Counters for the "method groups" (e.g., transfers vs creates vs burns etc), plus the map that takes a
     // `SystemContract` to the method group(s) it is part of
     private final Map<SystemContractMethod, EnumSet<SystemContractMethod.Category>> systemContractMethodGroupMembers =
-            new HashMap<>();
-    private final Map<SystemContractMethod.Category, Counter[]> systemContractMethodGroupCounters = new HashMap<>();
+            new ConcurrentHashMap<>();
+    private final Map<SystemContractMethod.Category, Counter[]> systemContractMethodGroupCounters =
+            new ConcurrentHashMap<>();
 
     private static final Map<HederaFunctionality, String> POSSIBLE_FAILING_TX_TYPES = Map.of(
             CONTRACT_CALL, "contractCallTx", CONTRACT_CREATE, "contractCreateTx", ETHEREUM_TRANSACTION, "ethereumTx");

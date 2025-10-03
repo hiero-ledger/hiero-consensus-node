@@ -122,6 +122,21 @@ public class SingleNodeLogResultContinuousAssert
         return haveNoMessageWithLevelHigherThan(Level.WARN);
     }
 
+    /**
+     * Verifies that no log message contains the specified substring.
+     *
+     * @param searchString the substring that should not be present
+     * @return this assertion object for method chaining
+     */
+    @NonNull
+    public SingleNodeLogResultContinuousAssert hasNoMessageContaining(@NonNull final String searchString) {
+        return checkContinuously(logEntry -> {
+            if (logEntry.message().contains(searchString)) {
+                failWithMessage("Expected no message containing '%s', but found in %n%s", searchString, logEntry);
+            }
+        });
+    }
+
     private SingleNodeLogResultContinuousAssert checkContinuously(final Consumer<StructuredLog> check) {
         isNotNull();
 

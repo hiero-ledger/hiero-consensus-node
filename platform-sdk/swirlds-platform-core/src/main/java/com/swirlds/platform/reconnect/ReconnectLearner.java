@@ -193,6 +193,7 @@ public class ReconnectLearner {
 
         final ReconnectConfig reconnectConfig =
                 platformContext.getConfiguration().getConfigData(ReconnectConfig.class);
+
         final LearningSynchronizer synchronizer = new LearningSynchronizer(
                 threadManager,
                 in,

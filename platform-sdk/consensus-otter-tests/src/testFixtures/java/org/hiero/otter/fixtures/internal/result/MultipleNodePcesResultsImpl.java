@@ -11,7 +11,6 @@ import org.hiero.consensus.model.node.NodeId;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.result.MultipleNodePcesResults;
 import org.hiero.otter.fixtures.result.SingleNodePcesResult;
-import org.jetbrains.annotations.NotNull;
 
 /**
  * Default implementation of {@link MultipleNodePcesResults}
@@ -28,7 +27,7 @@ public record MultipleNodePcesResultsImpl(@NonNull List<SingleNodePcesResult> pc
     @NonNull
     public MultipleNodePcesResults suppressingNode(@NonNull final NodeId nodeId) {
         final List<SingleNodePcesResult> filtered = pcesResults.stream()
-                .filter(it -> Objects.equals(it.nodeId(), nodeId))
+                .filter(result -> !Objects.equals(result.nodeId(), nodeId))
                 .toList();
         return new MultipleNodePcesResultsImpl(filtered);
     }
@@ -37,7 +36,7 @@ public record MultipleNodePcesResultsImpl(@NonNull List<SingleNodePcesResult> pc
      * {@inheritDoc}
      */
     @Override
-    public @NotNull MultipleNodePcesResults suppressingNodes(@NotNull final Collection<Node> nodes) {
+    public @NonNull MultipleNodePcesResults suppressingNodes(@NonNull final Collection<Node> nodes) {
         final Set<NodeId> nodeIdsToSuppress = nodes.stream().map(Node::selfId).collect(Collectors.toSet());
         final List<SingleNodePcesResult> filtered = pcesResults.stream()
                 .filter(result -> !nodeIdsToSuppress.contains(result.nodeId()))

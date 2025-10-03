@@ -70,6 +70,7 @@ import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 
 /**
  * The swirlds consensus node platform. Responsible for the creation, gossip, and consensus of events. Also manages the
@@ -428,6 +429,11 @@ public class SwirldsPlatform implements Platform {
     @NonNull
     public Signature sign(@NonNull final byte[] data) {
         return new PlatformSigner(keysAndCerts).sign(data);
+    }
+
+    @Override
+    public void quiescenceCommand(@NonNull final QuiescenceCommand quiescenceCommand) {
+        platformCoordinator.quiescenceCommand(quiescenceCommand);
     }
 
     /**

@@ -82,11 +82,14 @@ public class HapiContractUpdate extends HapiTxnOp<HapiContractUpdate> {
         return this;
     }
 
-    public HapiContractUpdate withHooks(final Function<HapiSpec, HookCreationDetails>... hookFactory) {
+    @SafeVarargs
+    public final HapiContractUpdate withHooks(final Function<HapiSpec, HookCreationDetails>... hookFactory) {
         if (this.hookFactories.isEmpty()) {
             this.hookFactories = new ArrayList<>();
         }
-        this.hookFactories.addAll(List.of(hookFactory));
+        for (final var hook : hookFactory) {
+            hookFactories.add(hook);
+        }
         return this;
     }
 

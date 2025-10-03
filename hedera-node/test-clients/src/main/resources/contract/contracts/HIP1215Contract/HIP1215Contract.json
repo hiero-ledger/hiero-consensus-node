@@ -41,7 +41,7 @@
     "inputs": [
       {
         "internalType": "address",
-        "name": "sender",
+        "name": "payer",
         "type": "address"
       },
       {
@@ -50,7 +50,7 @@
         "type": "uint256"
       }
     ],
-    "name": "executeCallOnSenderSignatureExample",
+    "name": "executeCallOnPayerSignatureExample",
     "outputs": [
       {
         "internalType": "int64",
@@ -89,7 +89,7 @@
     "inputs": [
       {
         "internalType": "uint256",
-        "name": "expiry",
+        "name": "expirySecond",
         "type": "uint256"
       },
       {
@@ -160,8 +160,37 @@
   {
     "inputs": [
       {
+        "internalType": "uint256",
+        "name": "expirySecond",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "gasLimit",
+        "type": "uint256"
+      }
+    ],
+    "name": "scheduleCallWithDefaultCallData",
+    "outputs": [
+      {
+        "internalType": "int64",
+        "name": "responseCode",
+        "type": "int64"
+      },
+      {
         "internalType": "address",
-        "name": "sender",
+        "name": "scheduleAddress",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "payable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "payer",
         "type": "address"
       },
       {
@@ -170,7 +199,7 @@
         "type": "uint256"
       }
     ],
-    "name": "scheduleCallWithSenderExample",
+    "name": "scheduleCallWithPayerExample",
     "outputs": [
       {
         "internalType": "int64",

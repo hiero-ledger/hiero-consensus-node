@@ -3,6 +3,7 @@ package com.hedera.node.app.hints.schemas;
 
 import static com.hedera.hapi.node.state.hints.CRSStage.COMPLETED;
 import static com.hedera.hapi.node.state.hints.CRSStage.GATHERING_CONTRIBUTIONS;
+import static com.hedera.hapi.util.HapiUtils.SEMANTIC_VERSION_COMPARATOR;
 import static com.hedera.node.app.hints.schemas.V059HintsSchema.ACTIVE_HINTS_CONSTRUCTION_STATE_ID;
 import static com.hedera.node.app.hints.schemas.V059HintsSchema.NEXT_HINTS_CONSTRUCTION_STATE_ID;
 import static com.swirlds.state.lifecycle.StateMetadata.computeLabel;
@@ -27,7 +28,7 @@ import java.util.Set;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-public class V060HintsSchema extends Schema {
+public class V060HintsSchema extends Schema<SemanticVersion> {
 
     private static final SemanticVersion VERSION =
             SemanticVersion.newBuilder().minor(60).build();
@@ -49,7 +50,7 @@ public class V060HintsSchema extends Schema {
     private final HintsLibrary library;
 
     public V060HintsSchema(@NonNull final HintsContext signingContext, @NonNull final HintsLibrary library) {
-        super(VERSION);
+        super(VERSION, SEMANTIC_VERSION_COMPARATOR);
         this.signingContext = requireNonNull(signingContext);
         this.library = requireNonNull(library);
     }

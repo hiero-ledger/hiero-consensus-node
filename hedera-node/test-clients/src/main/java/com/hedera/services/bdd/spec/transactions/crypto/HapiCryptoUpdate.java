@@ -31,7 +31,6 @@ import com.hedera.services.bdd.spec.transactions.TxnUtils;
 import com.hedera.services.bdd.suites.HapiSuite;
 import com.hederahashgraph.api.proto.java.*;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
@@ -96,11 +95,14 @@ public class HapiCryptoUpdate extends HapiTxnOp<HapiCryptoUpdate> {
         return this;
     }
 
-    public HapiCryptoUpdate withHooks(final Function<HapiSpec, HookCreationDetails>... hooks) {
+    @SafeVarargs
+    public final HapiCryptoUpdate withHooks(final Function<HapiSpec, HookCreationDetails>... hooks) {
         if (this.hookFactories.isEmpty()) {
             this.hookFactories = new ArrayList<>();
         }
-        this.hookFactories.addAll(Arrays.asList(hooks));
+        for (final var hook : hooks) {
+            hookFactories.add(hook);
+        }
         return this;
     }
 

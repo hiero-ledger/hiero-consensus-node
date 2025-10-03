@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.schemas;
 
+import static com.hedera.hapi.util.HapiUtils.SEMANTIC_VERSION_COMPARATOR;
 import static com.swirlds.state.lifecycle.StateMetadata.computeLabel;
 
 import com.hedera.hapi.node.base.PendingAirdropId;
@@ -13,7 +14,7 @@ import com.swirlds.state.lifecycle.StateDefinition;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Set;
 
-public class V0530TokenSchema extends Schema {
+public class V0530TokenSchema extends Schema<SemanticVersion> {
 
     private static final long MAX_PENDING_AIRDROPS = 1_000_000L;
 
@@ -25,7 +26,7 @@ public class V0530TokenSchema extends Schema {
             SemanticVersion.newBuilder().major(0).minor(53).patch(0).build();
 
     public V0530TokenSchema() {
-        super(VERSION);
+        super(VERSION, SEMANTIC_VERSION_COMPARATOR);
     }
 
     @SuppressWarnings("rawtypes")

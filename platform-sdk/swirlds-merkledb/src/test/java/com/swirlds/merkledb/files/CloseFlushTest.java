@@ -17,6 +17,7 @@ import com.swirlds.virtualmap.datasource.VirtualDataSourceBuilder;
 import com.swirlds.virtualmap.datasource.VirtualHashRecord;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Random;
@@ -130,7 +131,11 @@ public class CloseFlushTest {
 
         @NonNull
         @Override
-        public VirtualDataSource build(final String label, final boolean withDbCompactionEnabled) {
+        public VirtualDataSource build(
+                final String label,
+                @Nullable final Path sourceDir,
+                final boolean compactionEnabled,
+                final boolean offlineUse) {
             return new VirtualDataSource() {
                 @Override
                 public void close(boolean keepData) throws IOException {

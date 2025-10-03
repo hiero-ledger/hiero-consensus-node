@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.gui.hashgraph;
 
+import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.platform.gui.GuiEventStorage;
 import com.swirlds.platform.internal.EventImpl;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
-import org.hiero.consensus.model.roster.AddressBook;
 
 /**
  * Provides the {@code HashgraphGui} information it needs to render an image of the hashgraph
@@ -22,18 +22,13 @@ public interface HashgraphGuiSource {
      *
      * @param startGeneration the start generation of events returned
      * @param numGenerations  the number of generations to be returned
-     * @return an array of requested events
+     * @return an list of requested events
      */
     @NonNull
     List<EventImpl> getEvents(final long startGeneration, final int numGenerations);
 
-    /**
-     * Get the Address Book
-     *
-     * @return AddressBook
-     */
     @NonNull
-    AddressBook getAddressBook();
+    Roster getRoster();
 
     /**
      * @return true if the source is ready to return data

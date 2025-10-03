@@ -395,7 +395,7 @@ jobs:
         env:
           LC_ALL: en.UTF-8
           LANG: en_US.UTF-8
-        run: ${GRADLE_EXEC} hapiTestCrypto
+        run: ${GRADLE_EXEC} hapiTestCrypto${{ inputs.mats-suffix || '' }}
 
       - name: Publish HAPI Test (Crypto) Report
         uses: step-security/publish-unit-test-result-action@5d195d4dec0b9fa7b51a3dbc4298362a021247c7 # v2.20.4

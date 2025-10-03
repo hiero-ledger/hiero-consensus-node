@@ -101,8 +101,46 @@ public class SingleNodeLogResultAssert extends AbstractAssert<SingleNodeLogResul
      *
      * @return this assertion object for method chaining
      */
+    @NonNull
     public SingleNodeLogResultAssert hasNoErrorLevelMessages() {
         return hasNoMessagesWithLevelHigherThan(Level.WARN);
+    }
+
+    /**
+     * Verifies that at least one log message contains the specified substring.
+     *
+     * @param expectedMessage the substring to search for in log messages
+     * @return this assertion object for method chaining
+     */
+    @NonNull
+    public SingleNodeLogResultAssert hasMessageContaining(@NonNull final String expectedMessage) {
+        isNotNull();
+        final List<StructuredLog> logs = actual.logs().stream()
+                .filter(log -> log.message().contains(expectedMessage))
+                .toList();
+        if (logs.isEmpty()) {
+            failWithMessage("Expected to find a message containing '%s', but did not", expectedMessage);
+        }
+        return this;
+    }
+
+    /**
+     * Verifies that no log message contains the specified substring.
+     *
+     * @param searchString the substring that should not be present
+     * @return this assertion object for method chaining
+     */
+    @NonNull
+    public SingleNodeLogResultAssert hasNoMessageContaining(@NonNull final String searchString) {
+        isNotNull();
+        final List<StructuredLog> logs = actual.logs().stream()
+                .filter(log -> log.message().contains(searchString))
+                .toList();
+        if (!logs.isEmpty()) {
+            final String message = String.format("Expected to find no message containing '%s'", searchString);
+            failWithMessage(message, logs);
+        }
+        return this;
     }
 
     /**

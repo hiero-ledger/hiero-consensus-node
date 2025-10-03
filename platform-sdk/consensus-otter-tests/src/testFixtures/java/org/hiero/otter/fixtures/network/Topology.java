@@ -7,6 +7,7 @@ import java.util.List;
 import org.assertj.core.data.Percentage;
 import org.hiero.otter.fixtures.InstrumentedNode;
 import org.hiero.otter.fixtures.Node;
+import org.hiero.otter.fixtures.network.utils.BandwidthLimit;
 
 /**
  * Interface representing a network topology.

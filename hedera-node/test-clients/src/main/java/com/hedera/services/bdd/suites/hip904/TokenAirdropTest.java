@@ -4,6 +4,7 @@ package com.hedera.services.bdd.suites.hip904;
 import static com.hedera.node.app.hapi.utils.EthSigsUtils.recoverAddressFromPubKey;
 import static com.hedera.services.bdd.junit.ContextRequirement.PROPERTY_OVERRIDES;
 import static com.hedera.services.bdd.junit.TestTags.CRYPTO;
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.defaultHapiSpec;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.includingFungibleMovement;
@@ -220,6 +221,7 @@ public class TokenAirdropTest extends TokenAirdropBase {
             }
 
             @HapiTest
+            @Tag(MATS)
             final Stream<DynamicTest> nftAirdropToExistingAccountsTransfers() {
                 return hapiTest(
                         // receivers with free auto association slots
@@ -256,6 +258,7 @@ public class TokenAirdropTest extends TokenAirdropBase {
         @DisplayName("without free auto associations slots")
         class AirdropToExistingAccountsWithoutFreeAutoAssociations {
             @HapiTest
+            @Tag(MATS)
             final Stream<DynamicTest> tokenAirdropToExistingAccountsPending() {
                 return hapiTest(
                         tokenAirdrop(
@@ -448,6 +451,7 @@ public class TokenAirdropTest extends TokenAirdropBase {
 
             @HapiTest
             @DisplayName("with multiple tokens")
+            @Tag(MATS)
             final Stream<DynamicTest> tokenAirdropMultipleTokens() {
                 return hapiTest(
                         createTokenWithName("FT1"),
@@ -541,6 +545,7 @@ public class TokenAirdropTest extends TokenAirdropBase {
 
         @HapiTest
         @DisplayName("airdrop to contract with admin key")
+        @Tag(MATS)
         final Stream<DynamicTest> airdropToContractWithAdminKey() {
             final var testContract = "ToyMaker";
             final var key = "key";
@@ -1264,6 +1269,7 @@ public class TokenAirdropTest extends TokenAirdropBase {
 
         @HapiTest
         @DisplayName("SECP256K1 key account")
+        @Tag(MATS)
         final Stream<DynamicTest> airdropToNonExistingSECP256K1Account() {
             var secp256K1 = "secp256K1";
             return hapiTest(
@@ -1361,6 +1367,7 @@ public class TokenAirdropTest extends TokenAirdropBase {
 
         @HapiTest
         @DisplayName("containing multiple senders")
+        @Tag(MATS)
         final Stream<DynamicTest> airdropWithMultipleSenders() {
             return hapiTest(
                     cryptoCreate("sender1"),
@@ -1483,6 +1490,7 @@ public class TokenAirdropTest extends TokenAirdropBase {
 
         @HapiTest
         @DisplayName("NFT with allowance")
+        @Tag(MATS)
         final Stream<DynamicTest> airdropNftWithAllowance() {
             var spender = "spender";
             return hapiTest(
@@ -2282,6 +2290,7 @@ public class TokenAirdropTest extends TokenAirdropBase {
         // 2 EOA airdrops multiple tokens to a contract that is associated to all of them
         @HapiTest
         @DisplayName("multiple tokens to associated contract should transfer")
+        @Tag(MATS)
         final Stream<DynamicTest> multipleTokensToAssociatedContract() {
             var mutableContract = "PayReceivable";
             return hapiTest(flattened(
@@ -2599,6 +2608,7 @@ public class TokenAirdropTest extends TokenAirdropBase {
 
         @HapiTest
         @DisplayName("when token is frozen")
+        @Tag(MATS)
         final Stream<DynamicTest> whenTokenIsFrozen() {
             final String ALICE = "alice";
             var mutableContract = "PayReceivable";

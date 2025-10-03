@@ -15,17 +15,14 @@ import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.common.test.fixtures.Randotron;
 import com.swirlds.platform.consensus.SyntheticSnapshot;
 import com.swirlds.platform.system.status.actions.FreezePeriodEnteredAction;
-import com.swirlds.platform.system.status.actions.SelfEventReachedConsensusAction;
-import com.swirlds.platform.test.fixtures.addressbook.RandomAddressBookBuilder;
+import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import java.util.List;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.model.event.ConsensusEvent;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
-import org.hiero.consensus.model.roster.AddressBook;
 import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
-import org.hiero.consensus.roster.RosterRetriever;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -38,17 +35,15 @@ import org.mockito.ArgumentCaptor;
  */
 class DefaultTransactionHandlerTests {
     private Randotron random;
-    private AddressBook addressBook;
     private Roster roster;
 
     @BeforeEach
     void setUp() {
         random = Randotron.create();
-        addressBook = RandomAddressBookBuilder.create(random)
+        roster = RandomRosterBuilder.create(random)
                 .withRealKeysEnabled(false)
                 .withSize(4)
                 .build();
-        roster = RosterRetriever.buildRoster(addressBook);
     }
 
     /**
@@ -93,7 +88,7 @@ class DefaultTransactionHandlerTests {
     @ParameterizedTest
     @CsvSource({"false", "true"})
     void normalOperation(final boolean pcesRound) throws InterruptedException {
-        final TransactionHandlerTester tester = new TransactionHandlerTester(addressBook);
+        final TransactionHandlerTester tester = new TransactionHandlerTester(roster);
         final ConsensusRound consensusRound = newConsensusRound(pcesRound);
 
         final TransactionHandlerResult handlerOutput =
@@ -108,11 +103,7 @@ class DefaultTransactionHandlerTests {
                         .getReservationCount(),
                 "state should be returned with a reservation");
 
-        // only the self event reaching consensus should be reported, no freeze action.
-        assertEquals(1, tester.getSubmittedActions().size(), "the freeze status should not have been submitted");
-        assertEquals(
-                SelfEventReachedConsensusAction.class,
-                tester.getSubmittedActions().getFirst().getClass());
+        assertEquals(0, tester.getSubmittedActions().size(), "the freeze status should not have been submitted");
 
         assertEquals(1, tester.getHandledRounds().size(), "a round should have been handled");
         assertSame(
@@ -160,7 +151,7 @@ class DefaultTransactionHandlerTests {
     @Test
     @DisplayName("Round in freeze period")
     void freezeHandling() throws InterruptedException {
-        final TransactionHandlerTester tester = new TransactionHandlerTester(addressBook);
+        final TransactionHandlerTester tester = new TransactionHandlerTester(roster);
         final ConsensusRound consensusRound = newConsensusRound(false);
         when(tester.getPlatformStateFacade().freezeTimeOf(tester.getConsensusState()))
                 .thenReturn(consensusRound.getConsensusTimestamp());
@@ -176,8 +167,7 @@ class DefaultTransactionHandlerTests {
                         .get()
                         .getReservationCount(),
                 "state should be returned with a reservation");
-        // In addition to the freeze action, the uptime tracker reports a self event coming to consensus in the round.
-        assertEquals(2, tester.getSubmittedActions().size(), "the freeze status should have been submitted");
+        assertEquals(1, tester.getSubmittedActions().size(), "the freeze status should have been submitted");
         // The freeze action is the first action submitted.
         assertEquals(
                 FreezePeriodEnteredAction.class,
@@ -191,7 +181,7 @@ class DefaultTransactionHandlerTests {
                 tester.getTransactionHandler().handleConsensusRound(postFreezeConsensusRound);
         assertNull(postFreezeOutput, "no state should be created after freeze period");
 
-        assertEquals(2, tester.getSubmittedActions().size(), "no new status should have been submitted");
+        assertEquals(1, tester.getSubmittedActions().size(), "no new status should have been submitted");
         assertEquals(1, tester.getHandledRounds().size(), "no new rounds should have been handled");
         assertSame(consensusRound, tester.getHandledRounds().getFirst(), "it should same round as before");
         ArgumentCaptor<Hash> hashCaptor = ArgumentCaptor.forClass(Hash.class);

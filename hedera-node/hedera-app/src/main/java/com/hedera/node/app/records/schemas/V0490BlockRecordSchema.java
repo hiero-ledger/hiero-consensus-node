@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.records.schemas;
 
+import static com.hedera.hapi.util.HapiUtils.SEMANTIC_VERSION_COMPARATOR;
 import static com.hedera.node.app.records.BlockRecordService.EPOCH;
 import static com.swirlds.state.lifecycle.StateMetadata.computeLabel;
 
@@ -16,7 +17,7 @@ import com.swirlds.state.lifecycle.StateDefinition;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Set;
 
-public class V0490BlockRecordSchema extends Schema {
+public class V0490BlockRecordSchema extends Schema<SemanticVersion> {
 
     /** {@link RunningHashes} state */
     public static final String RUNNING_HASHES_KEY = "RUNNING_HASHES";
@@ -39,7 +40,7 @@ public class V0490BlockRecordSchema extends Schema {
             SemanticVersion.newBuilder().major(0).minor(49).patch(0).build();
 
     public V0490BlockRecordSchema() {
-        super(VERSION);
+        super(VERSION, SEMANTIC_VERSION_COMPARATOR);
     }
 
     /**

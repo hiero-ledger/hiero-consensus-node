@@ -2,11 +2,12 @@
 package com.hedera.node.app.service.contract.impl.handlers;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOKS_NOT_ENABLED;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOK_DELETED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOK_ID_IN_USE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOK_NOT_FOUND;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_HOOK_ADMIN_KEY;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_HOOK_CALL;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK;
 import static com.hedera.node.app.service.contract.impl.utils.HookValidationUtils.validateHook;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
@@ -43,6 +44,9 @@ public class HookDispatchHandler implements TransactionHandler {
         validateTruePreCheck(op.hasCreation() || op.hasExecution() || op.hasHookIdToDelete(), INVALID_TRANSACTION_BODY);
         if (op.hasCreation()) {
             validateHook(op.creationOrThrow().details());
+        } else if (op.hasExecution()) {
+            validateTrue(op.executionOrThrow().hasCall(), INVALID_HOOK_CALL);
+            validateTrue(op.executionOrThrow().callOrThrow().hasHookId(), INVALID_HOOK_CALL);
         }
     }
 
@@ -71,14 +75,24 @@ public class HookDispatchHandler implements TransactionHandler {
                 final var deletion = op.hookIdToDeleteOrThrow();
                 final var hook = evmHookStore.getEvmHook(new HookId(deletion.entityId(), deletion.hookId()));
                 validateTrue(hook != null, HOOK_NOT_FOUND);
-                validateTrue(!hook.deleted(), HOOK_DELETED);
+                evmHookStore.remove(op.hookIdToDeleteOrThrow());
                 // Set the next available hook ID of the deleted hook to the record builder. This will be used by
                 // the caller to set the next available hook ID in the account if the deleted hook is the head
-                recordBuilder.nextHookId(hook.nextHookId());
-
-                evmHookStore.removeOrMarkDeleted(op.hookIdToDeleteOrThrow());
+                if (hook.nextHookId() != null) {
+                    recordBuilder.nextHookId(hook.nextHookId());
+                }
             }
-            case EXECUTION -> throw new UnsupportedOperationException("EVM hook execution not implemented yet");
+            case EXECUTION -> {
+                final var execution = op.executionOrThrow();
+                final var call = execution.callOrThrow();
+                final var hookKey = new HookId(execution.hookEntityId(), call.hookIdOrThrow());
+
+                final var hook = evmHookStore.getEvmHook(new HookId(
+                        execution.hookEntityId(), execution.callOrThrow().hookIdOrThrow()));
+                validateTrue(hook != null, HOOK_NOT_FOUND);
+                // TODO: Remove this check in next PR and add proper logic to handle executing hooks
+                validateTrue(hookKey.hookId() % 2 == 0, REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK);
+            }
         }
     }
 }

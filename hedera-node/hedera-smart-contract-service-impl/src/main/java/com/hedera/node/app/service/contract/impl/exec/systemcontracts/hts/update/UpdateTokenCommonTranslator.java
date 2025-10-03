@@ -12,15 +12,15 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.HtsCal
 import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethod;
 import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethodRegistry;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class UpdateTokenCommonTranslator extends AbstractCallTranslator<HtsCallAttempt> {
 
     protected static final String UPDATE_TOKEN_INFO_STRING = "updateTokenInfo(address,";
 
-    protected final Map<SystemContractMethod, UpdateDecoderFunction> updateMethodsMap = new HashMap<>();
+    protected final Map<SystemContractMethod, UpdateDecoderFunction> updateMethodsMap = new ConcurrentHashMap<>();
 
     public UpdateTokenCommonTranslator(
             @NonNull final SystemContractMethodRegistry systemContractMethodRegistry,

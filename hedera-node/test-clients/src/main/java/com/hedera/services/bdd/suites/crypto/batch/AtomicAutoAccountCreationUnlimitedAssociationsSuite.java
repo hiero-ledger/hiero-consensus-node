@@ -3,6 +3,7 @@ package com.hedera.services.bdd.suites.crypto.batch;
 
 import static com.hedera.node.app.hapi.utils.EthSigsUtils.recoverAddressFromPubKey;
 import static com.hedera.services.bdd.junit.TestTags.CRYPTO;
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.customizedHapiTest;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.accountWith;
@@ -435,6 +436,7 @@ public class AtomicAutoAccountCreationUnlimitedAssociationsSuite {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> transferNftToEVMAddressAliasUnlimitedAssociations() {
         final AtomicReference<AccountID> partyId = new AtomicReference<>();
         final AtomicReference<byte[]> partyAlias = new AtomicReference<>();

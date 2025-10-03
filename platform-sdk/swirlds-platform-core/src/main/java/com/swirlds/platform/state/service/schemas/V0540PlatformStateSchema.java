@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state.service.schemas;
 
+import static com.hedera.hapi.util.HapiUtils.SEMANTIC_VERSION_COMPARATOR;
 import static com.swirlds.state.lifecycle.StateMetadata.computeLabel;
 import static java.util.Objects.requireNonNull;
 
@@ -26,7 +27,7 @@ import java.util.function.Function;
 /**
  * Defines the {@link PlatformState} singleton and initializes it at genesis.
  */
-public class V0540PlatformStateSchema extends Schema {
+public class V0540PlatformStateSchema extends Schema<SemanticVersion> {
 
     private static final Function<Configuration, SemanticVersion> UNAVAILABLE_VERSION_FN = config -> {
         throw new IllegalStateException("No version information available");
@@ -55,7 +56,7 @@ public class V0540PlatformStateSchema extends Schema {
     }
 
     public V0540PlatformStateSchema(@NonNull final Function<Configuration, SemanticVersion> versionFn) {
-        super(VERSION);
+        super(VERSION, SEMANTIC_VERSION_COMPARATOR);
         this.versionFn = requireNonNull(versionFn);
     }
 

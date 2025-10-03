@@ -462,6 +462,10 @@ message HookEntityId {
          * An account using a hook.
          */
         AccountID account_id = 1;
+        /**
+         * A contract using a hook.
+         */
+        ContractID contract_id = 2;
     }
 }
 

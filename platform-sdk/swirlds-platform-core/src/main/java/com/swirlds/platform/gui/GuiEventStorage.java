@@ -3,6 +3,7 @@ package com.swirlds.platform.gui;
 
 import static org.hiero.consensus.model.event.EventConstants.FIRST_GENERATION;
 
+import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.event.GossipEvent;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.common.context.PlatformContext;
@@ -22,8 +23,6 @@ import java.util.Map;
 import java.util.Objects;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
-import org.hiero.consensus.model.roster.AddressBook;
-import org.hiero.consensus.roster.RosterRetriever;
 
 /**
  * This class is responsible for storing events utilized by the GUI.
@@ -45,15 +44,14 @@ public class GuiEventStorage {
      * Creates an empty instance
      *
      * @param configuration this node's configuration
-     * @param addressBook   the network's address book
+     * @param roster   the network's roster
      */
-    public GuiEventStorage(@NonNull final Configuration configuration, @NonNull final AddressBook addressBook) {
+    public GuiEventStorage(@NonNull final Configuration configuration, @NonNull final Roster roster) {
 
         this.configuration = Objects.requireNonNull(configuration);
         final PlatformContext platformContext = PlatformContext.create(configuration);
 
-        this.consensus = new ConsensusImpl(
-                platformContext, new NoOpConsensusMetrics(), RosterRetriever.buildRoster(addressBook));
+        this.consensus = new ConsensusImpl(platformContext, new NoOpConsensusMetrics(), roster);
         this.linker = new SimpleLinker();
     }
 

@@ -10,6 +10,8 @@ import "services/timestamp.proto";
 
 message OtterTransaction {
 
+  uint64 nonce = 1;
+
   oneof data {
     EmptyTransaction emptyTransaction = 100;
     OtterFreezeTransaction freezeTransaction = 101;
@@ -18,7 +20,6 @@ message OtterTransaction {
 }
 
 message EmptyTransaction {
-  uint64 nonce = 1;
 }
 
 message OtterFreezeTransaction {

@@ -11,6 +11,7 @@ import static com.hedera.hapi.node.freeze.FreezeType.FREEZE_UPGRADE;
 import static com.hedera.hapi.node.freeze.FreezeType.PREPARE_UPGRADE;
 import static com.hedera.hapi.node.freeze.FreezeType.TELEMETRY_UPGRADE;
 import static com.hedera.hapi.node.freeze.FreezeType.UNKNOWN_FREEZE_TYPE;
+import static com.hedera.node.app.hapi.utils.CommonUtils.noThrowSha384HashOf;
 import static com.hedera.node.app.spi.fixtures.Assertions.assertThrowsPreCheck;
 import static com.hedera.node.app.spi.fixtures.workflows.ExceptionConditions.responseCode;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -57,6 +58,9 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class FreezeHandlerTest {
+    private static final Bytes UPGRADE_FILE_CONTENTS = Bytes.wrap("Upgrade file bytes".getBytes());
+    private static final Bytes UPGRADE_FILE_HASH = Bytes.wrap(noThrowSha384HashOf(UPGRADE_FILE_CONTENTS.toByteArray()));
+
     @Mock(strictness = LENIENT)
     ReadableUpgradeFileStore upgradeFileStore;
 
@@ -283,10 +287,10 @@ class FreezeHandlerTest {
 
     @Test
     void rejectOnInvalidFile() throws IOException {
-        // these freeze types require a valid update file to have been set via FileService
+        // These freeze types require a valid update file to have been sent via FileService
         FreezeType[] freezeTypes = {PREPARE_UPGRADE, TELEMETRY_UPGRADE};
 
-        // set up the file store to return a fake upgrade file
+        // Set up the file store to return an empty fake upgrade file
         given(upgradeFileStore.peek(fileUpgradeFileId))
                 .willReturn(File.newBuilder().build());
         given(upgradeFileStore.getFull(fileUpgradeFileId)).willThrow(IOException.class);
@@ -302,14 +306,12 @@ class FreezeHandlerTest {
                             .freezeType(freezeType)
                             .startTime(Timestamp.newBuilder().seconds(2000).build())
                             .updateFile(FileID.newBuilder().fileNum(150L))
+                            // The file hash used here doesn't really matter
                             .fileHash(Bytes.wrap(new byte[48]))
                             .build())
                     .build();
             given(preHandleContext.body()).willReturn(txn);
-            assertDoesNotThrow(() -> subject.preHandle(preHandleContext));
-
-            given(handleContext.body()).willReturn(txn);
-            assertThatThrownBy(() -> subject.handle(handleContext)).isInstanceOf(IllegalStateException.class);
+            assertThrowsPreCheck(() -> subject.preHandle(preHandleContext), FREEZE_UPDATE_FILE_DOES_NOT_EXIST);
         }
     }
 
@@ -361,14 +363,14 @@ class FreezeHandlerTest {
     @Test
     @SuppressWarnings("unchecked")
     void happyPathFreezeUpgradeOrTelemetryUpgrade() throws IOException {
-        // when using these freeze types, it is required to set an update file and file hash and they must match
-        // also must set start time to a time after the effective consensus time
+        // When using these freeze types, it is required to set an update file with a matching
+        // file hash. The start time must be strictly after the effective consensus time.
         FreezeType[] freezeTypes = {FREEZE_UPGRADE, TELEMETRY_UPGRADE};
 
-        // set up the file store to return a fake upgrade file
+        // Set up the file store to return a fake upgrade file
         given(upgradeFileStore.peek(fileUpgradeFileId))
                 .willReturn(File.newBuilder().build());
-        given(upgradeFileStore.getFull(fileUpgradeFileId)).willReturn(Bytes.wrap("Upgrade file bytes"));
+        given(upgradeFileStore.getFull(fileUpgradeFileId)).willReturn(UPGRADE_FILE_CONTENTS);
         given(nodeStore.keys()).willReturn(mock(List.class));
 
         for (FreezeType freezeType : freezeTypes) {
@@ -382,7 +384,7 @@ class FreezeHandlerTest {
                             .freezeType(freezeType)
                             .startTime(Timestamp.newBuilder().seconds(2000).build())
                             .updateFile(FileID.newBuilder().fileNum(150L))
-                            .fileHash(Bytes.wrap(new byte[48]))
+                            .fileHash(UPGRADE_FILE_HASH)
                             .build())
                     .build();
             given(preHandleContext.body()).willReturn(txn);
@@ -400,7 +402,7 @@ class FreezeHandlerTest {
         // set up the file store to return a fake upgrade file
         given(upgradeFileStore.peek(fileUpgradeFileId))
                 .willReturn(File.newBuilder().build());
-        given(upgradeFileStore.getFull(fileUpgradeFileId)).willReturn(Bytes.wrap("Upgrade file bytes"));
+        given(upgradeFileStore.getFull(fileUpgradeFileId)).willReturn(UPGRADE_FILE_CONTENTS);
         given(nodeStore.keys()).willReturn(List.of(new EntityNumber(0)));
         given(nodeStore.sizeOfState()).willReturn(1L);
 
@@ -413,7 +415,7 @@ class FreezeHandlerTest {
                 .freeze(FreezeTransactionBody.newBuilder()
                         .freezeType(PREPARE_UPGRADE)
                         .updateFile(FileID.newBuilder().fileNum(150L))
-                        .fileHash(Bytes.wrap(new byte[48]))
+                        .fileHash(UPGRADE_FILE_HASH)
                         .build())
                 .build();
         given(preHandleContext.body()).willReturn(txn);
@@ -430,7 +432,7 @@ class FreezeHandlerTest {
         // set up the file store to return a fake upgrade file
         given(upgradeFileStore.peek(anotherFileUpgradeFileId))
                 .willReturn(File.newBuilder().build());
-        given(upgradeFileStore.getFull(anotherFileUpgradeFileId)).willReturn(Bytes.wrap("Upgrade file bytes"));
+        given(upgradeFileStore.getFull(anotherFileUpgradeFileId)).willReturn(UPGRADE_FILE_CONTENTS);
         given(nodeStore.keys()).willReturn(List.of(new EntityNumber(0)));
         given(nodeStore.sizeOfState()).willReturn(1L);
 
@@ -443,7 +445,7 @@ class FreezeHandlerTest {
                 .freeze(FreezeTransactionBody.newBuilder()
                         .freezeType(PREPARE_UPGRADE)
                         .updateFile(FileID.newBuilder().fileNum(157L))
-                        .fileHash(Bytes.wrap(new byte[48]))
+                        .fileHash(UPGRADE_FILE_HASH)
                         .build())
                 .build();
         given(preHandleContext.body()).willReturn(txn);
@@ -456,7 +458,6 @@ class FreezeHandlerTest {
     @Test
     void happyPathFreezeOnly() {
         // for FREEZE_ONLY, start time is required and it must be in the future
-
         TransactionID txnId = TransactionID.newBuilder()
                 .accountID(nonAdminAccount)
                 .transactionValidStart(Timestamp.newBuilder().seconds(1000).build())

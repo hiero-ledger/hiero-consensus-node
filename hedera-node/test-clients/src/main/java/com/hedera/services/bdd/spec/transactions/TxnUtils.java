@@ -164,7 +164,7 @@ public class TxnUtils {
      * @param hookContract the name of the contract to use as the hook
      * @return the factory
      */
-    public static Function<HapiSpec, com.hedera.hapi.node.hooks.HookCreationDetails> lambdaAccountAllowanceHook(
+    public static Function<HapiSpec, com.hedera.hapi.node.hooks.HookCreationDetails> accountAllowanceHook(
             final long hookId, @NonNull final String hookContract) {
         return spec -> {
             final var registry = spec.registry();

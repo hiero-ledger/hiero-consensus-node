@@ -125,6 +125,16 @@ public abstract class AbstractProxyEvmAccount extends AbstractMutableEvmAccount 
     }
 
     /**
+     * {@inheritDoc}
+     */
+    @Override
+    public boolean isStorageEmpty() {
+        final com.hedera.pbj.runtime.io.buffer.Bytes key =
+                state.getNativeAccount(accountID).firstContractStorageKey();
+        return key.length() == 0;
+    }
+
+    /**
      * Returns the number of treasury titles held by this account.
      *
      * @return the number of treasury titles held by this account

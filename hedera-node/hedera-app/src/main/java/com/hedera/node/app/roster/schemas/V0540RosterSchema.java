@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.roster.schemas;
 
+import static com.hedera.hapi.util.HapiUtils.SEMANTIC_VERSION_COMPARATOR;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.SemanticVersion;
@@ -34,7 +35,7 @@ import org.hiero.consensus.roster.WritableRosterStore;
  *     they were adopted; along with the hash of a candidate roster if there is one.</li>
  * </ol>
  */
-public class V0540RosterSchema extends Schema implements RosterTransplantSchema {
+public class V0540RosterSchema extends Schema<SemanticVersion> implements RosterTransplantSchema {
     private static final Logger log = LogManager.getLogger(V0540RosterSchema.class);
 
     public static final String ROSTER_KEY = "ROSTERS";
@@ -73,7 +74,7 @@ public class V0540RosterSchema extends Schema implements RosterTransplantSchema 
             @NonNull final Function<WritableStates, WritableRosterStore> rosterStoreFactory,
             @NonNull final Supplier<State> stateSupplier,
             @NonNull final PlatformStateFacade platformStateFacade) {
-        super(VERSION);
+        super(VERSION, SEMANTIC_VERSION_COMPARATOR);
         this.onAdopt = requireNonNull(onAdopt);
         this.canAdopt = requireNonNull(canAdopt);
         this.rosterStoreFactory = requireNonNull(rosterStoreFactory);

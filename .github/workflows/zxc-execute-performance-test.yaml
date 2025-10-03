@@ -57,7 +57,7 @@ env:
   GS_ROOT_DIR: gs://performance-engineering-reports/ephemeral/test_runs
   GS_ROOT_HTTPS: https://perf.analytics.eng.hashgraph.io/ephemeral/test_runs
   #Release version from jFrog
-  NLG_VERSION: 0.6.3
+  NLG_VERSION: 0.7.0
 
 defaults:
   run:
@@ -182,7 +182,7 @@ jobs:
           certificate-ttl: 20h
 
       - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@ba79af03959ebeac9769e648f473a284504d9193 # v2.1.10
+        uses: step-security/google-github-auth@40f6deebd366f16c782d7a0ad0844e3b96a032a6 # v2.1.10
         with:
           workload_identity_provider: "projects/716789254648/locations/global/workloadIdentityPools/perf-eng-reports-pool/providers/gh-provider"
           service_account: "gh-perf-report-writer@perf-engineering-reports.iam.gserviceaccount.com"
@@ -223,7 +223,7 @@ jobs:
       - name: Start test
         run: |
           run_NLGDparams="" # e.g. -Dbenchmark.maxtps=8000
-          run_NLGDebugparams="" # e.g. -Dorg.slf4j.simpleLogger.defaultLogLevel=debug
+          run_NLGDebugparams="-Dorg.slf4j.simpleLogger.defaultLogLevel=debug" # e.g. -Dorg.slf4j.simpleLogger.defaultLogLevel=debug
 
           nlgpod=`sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods | grep nlg-network-load-generator| awk '{print $1}'`
 
@@ -351,7 +351,7 @@ jobs:
           grep -E 'Finished .*Test' "${{ github.workspace }}"/report/client.log | sed -e 's/^.*Finished \([A-Za-z0-9][A-ZA-z0-9]*LoadTest\).*TPS[\:][ \t]*\([0-9][0-9]*\)$/value=\2/g' >> $GITHUB_OUTPUT
 
       - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@ba79af03959ebeac9769e648f473a284504d9193 # v2.1.10
+        uses: step-security/google-github-auth@40f6deebd366f16c782d7a0ad0844e3b96a032a6 # v2.1.10
         with:
           workload_identity_provider: "projects/716789254648/locations/global/workloadIdentityPools/perf-eng-reports-pool/providers/gh-provider"
           service_account: "gh-perf-report-writer@perf-engineering-reports.iam.gserviceaccount.com"

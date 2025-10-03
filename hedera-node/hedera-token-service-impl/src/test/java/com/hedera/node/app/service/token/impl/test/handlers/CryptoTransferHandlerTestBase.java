@@ -22,6 +22,7 @@ import com.hedera.node.app.ids.AppEntityIdFactory;
 import com.hedera.node.app.service.token.impl.handlers.CryptoTransferHandler;
 import com.hedera.node.app.service.token.impl.handlers.TokenAirdropHandler;
 import com.hedera.node.app.service.token.impl.handlers.TokenClaimAirdropHandler;
+import com.hedera.node.app.service.token.impl.handlers.transfer.hooks.HookCallFactory;
 import com.hedera.node.app.service.token.impl.test.handlers.transfer.StepsBase;
 import com.hedera.node.app.service.token.impl.util.PendingAirdropUpdater;
 import com.hedera.node.app.service.token.impl.validators.CryptoTransferValidator;
@@ -80,16 +81,19 @@ class CryptoTransferHandlerTestBase extends StepsBase {
     @Mock
     protected HandleContext.SavepointStack stack;
 
+    @Mock
+    protected HookCallFactory hookCallFactory;
+
     @BeforeEach
     public void setUp() {
         super.setUp();
         validator = new CryptoTransferValidator(new AppEntityIdFactory(configuration));
         tokenAirdropValidator = new TokenAirdropValidator();
-        subject = new CryptoTransferHandler(validator);
-        tokenAirdropHandler = new TokenAirdropHandler(tokenAirdropValidator, validator);
+        subject = new CryptoTransferHandler(validator, hookCallFactory);
+        tokenAirdropHandler = new TokenAirdropHandler(tokenAirdropValidator, validator, hookCallFactory);
         pendingAirdropUpdater = new PendingAirdropUpdater();
         tokenClaimAirdropHandler =
-                new TokenClaimAirdropHandler(tokenAirdropValidator, validator, pendingAirdropUpdater);
+                new TokenClaimAirdropHandler(tokenAirdropValidator, validator, pendingAirdropUpdater, hookCallFactory);
     }
 
     protected TransactionBody newCryptoTransfer(final AccountAmount... acctAmounts) {

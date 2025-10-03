@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.services;
 
+import static com.hedera.hapi.util.HapiUtils.SEMANTIC_VERSION_COMPARATOR;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.SemanticVersion;
@@ -13,6 +14,7 @@ import com.swirlds.state.spi.ReadableStates;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.util.Comparator;
 import java.util.Map;
 
 /**
@@ -32,7 +34,7 @@ public record MigrationContextImpl(
         long roundNumber,
         @NonNull Map<String, Object> sharedValues,
         @NonNull StartupNetworks startupNetworks)
-        implements MigrationContext {
+        implements MigrationContext<SemanticVersion> {
     public MigrationContextImpl {
         requireNonNull(previousStates);
         requireNonNull(newStates);
@@ -50,5 +52,15 @@ public record MigrationContextImpl(
         } else {
             throw new UnsupportedOperationException("On-disk state is inaccessible");
         }
+    }
+
+    @Override
+    public SemanticVersion getDefaultVersion() {
+        return SemanticVersion.DEFAULT;
+    }
+
+    @Override
+    public Comparator<SemanticVersion> getVersionComparator() {
+        return SEMANTIC_VERSION_COMPARATOR;
     }
 }
