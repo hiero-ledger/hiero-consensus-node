@@ -138,8 +138,9 @@ jobs:
           REF_CHECK: ${{ github.ref }}
           REPO_URL: "https://github.com/${{ github.repository }}"
         run: |
-          COMMIT_SHA=${{ github.sha }}
           echo "COMMIT SHA is: ${COMMIT_SHA}"
+          echo "BRANCH NAME is: ${BRANCH_NAME}"
+          COMMIT_SHA=${{ github.sha }}
           BRANCH_NAME="${{ github.ref_name }}"
           BRANCH_NAME="${BRANCH_NAME##origin/}"
           BRANCH_NAME_LOWER="$(echo "${BRANCH_NAME}" | tr '[:upper:]' '[:lower:]')"
