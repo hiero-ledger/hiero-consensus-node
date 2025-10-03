@@ -1,10 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.state.test.fixtures.merkle.queue;
 
-import static com.swirlds.state.test.fixtures.merkle.logging.TestStateLogger.logQueueAdd;
-import static com.swirlds.state.test.fixtures.merkle.logging.TestStateLogger.logQueueIterate;
-import static com.swirlds.state.test.fixtures.merkle.logging.TestStateLogger.logQueuePeek;
-import static com.swirlds.state.test.fixtures.merkle.logging.TestStateLogger.logQueueRemove;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.pbj.runtime.Codec;
@@ -100,30 +96,22 @@ public class QueueNode<E> extends PartialBinaryMerkleInternal implements Labeled
     /** Adds an element to this queue. */
     public void add(E element) {
         getQueue().add(new ValueLeaf<>(leafClassId, codec, element));
-        // Log to transaction state log, what was added
-        logQueueAdd(getLabel(), element);
     }
 
     /** Peek an element */
     public E peek() {
         final var valueLeaf = getQueue().peek();
-        // Log to transaction state log, what was peeked
-        logQueuePeek(getLabel(), valueLeaf);
         return valueLeaf == null ? null : valueLeaf.getValue();
     }
 
     /** Retrieve and remove an element */
     public E remove() {
         final var valueLeaf = getQueue().remove();
-        // Log to transaction state log, what was added
-        logQueueRemove(getLabel(), valueLeaf);
         return valueLeaf == null ? null : valueLeaf.getValue();
     }
 
     /** Iterate over all elements */
     public Iterator<E> iterator() {
-        // Log to transaction state log, what was iterated
-        logQueueIterate(getLabel(), getRight());
         final var itr = getQueue().stream().iterator();
         return new Iterator<>() {
             @Override

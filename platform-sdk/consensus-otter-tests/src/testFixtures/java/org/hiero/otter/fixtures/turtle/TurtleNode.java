@@ -52,6 +52,7 @@ import org.hiero.otter.fixtures.NodeConfiguration;
 import org.hiero.otter.fixtures.app.OtterApp;
 import org.hiero.otter.fixtures.app.OtterAppState;
 import org.hiero.otter.fixtures.app.OtterExecutionLayer;
+import org.hiero.otter.fixtures.app.OtterTransaction;
 import org.hiero.otter.fixtures.internal.AbstractNode;
 import org.hiero.otter.fixtures.internal.result.NodeResultsCollector;
 import org.hiero.otter.fixtures.internal.result.SingleNodeMarkerFileResultImpl;
@@ -291,7 +292,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
      * {@inheritDoc}
      */
     @Override
-    public void submitTransaction(@NonNull final byte[] transaction) {
+    public void submitTransaction(@NonNull final OtterTransaction transaction) {
         try (final LoggingContextScope ignored = installNodeContext()) {
             throwIfIn(INIT, "Node has not been started yet.");
             throwIfIn(SHUTDOWN, "Node has been shut down.");
@@ -299,7 +300,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
             assert platform != null; // platform must be initialized if lifeCycle is STARTED
             assert executionLayer != null; // executionLayer must be initialized
 
-            executionLayer.submitApplicationTransaction(transaction);
+            executionLayer.submitApplicationTransaction(transaction.toByteArray());
         }
     }
 

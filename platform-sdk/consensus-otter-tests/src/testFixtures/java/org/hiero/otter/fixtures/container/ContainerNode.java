@@ -16,7 +16,6 @@ import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.RUNNING;
 import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.SHUTDOWN;
 import static org.junit.jupiter.api.Assertions.fail;
 
-import com.google.protobuf.ByteString;
 import com.google.protobuf.ProtocolStringList;
 import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.config.api.Configuration;
@@ -42,6 +41,7 @@ import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.otter.fixtures.KeysAndCertsConverter;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.ProtobufConverter;
+import org.hiero.otter.fixtures.app.OtterTransaction;
 import org.hiero.otter.fixtures.app.services.consistency.ConsistencyServiceConfig;
 import org.hiero.otter.fixtures.container.proto.ContainerControlServiceGrpc;
 import org.hiero.otter.fixtures.container.proto.EventMessage;
@@ -250,14 +250,14 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
      * {@inheritDoc}
      */
     @Override
-    public void submitTransaction(@NonNull final byte[] transaction) {
+    public void submitTransaction(@NonNull final OtterTransaction transaction) {
         throwIfIn(INIT, "Node has not been started yet.");
         throwIfIn(SHUTDOWN, "Node has been shut down.");
         throwIfIn(DESTROYED, "Node has been destroyed.");
 
         try {
             final TransactionRequest request = TransactionRequest.newBuilder()
-                    .setPayload(ByteString.copyFrom(transaction))
+                    .setPayload(transaction.toByteString())
                     .build();
 
             final TransactionRequestAnswer answer = nodeCommBlockingStub.submitTransaction(request);
