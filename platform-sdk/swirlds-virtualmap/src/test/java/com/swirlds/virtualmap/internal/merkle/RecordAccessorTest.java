@@ -269,7 +269,7 @@ public class RecordAccessorTest {
 
     private static final class BreakableDataSource implements VirtualDataSource {
 
-        private final InMemoryDataSource delegate = new InMemoryBuilder().build("delegate", true);
+        private final InMemoryDataSource delegate = new InMemoryBuilder().build("delegate", null, true, false);
         boolean throwExceptionOnLoadLeafRecordByKey = false;
         boolean throwExceptionOnLoadLeafRecordByPath = false;
         boolean throwExceptionOnLoadHashByPath = false;
