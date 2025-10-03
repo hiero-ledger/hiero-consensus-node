@@ -66,6 +66,7 @@ import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.state.DeduplicationCache;
 import com.hedera.node.app.state.recordcache.DeduplicationCacheImpl;
 import com.hedera.node.app.throttle.SynchronizedThrottleAccumulator;
+import com.hedera.node.app.throttle.ThrottleResult;
 import com.hedera.node.app.workflows.OpWorkflowMetrics;
 import com.hedera.node.app.workflows.SolvencyPreCheck;
 import com.hedera.node.app.workflows.TransactionChecker;
@@ -178,6 +179,10 @@ class IngestCheckerTest extends AppTestBase {
 
         when(solvencyPreCheck.getPayerAccount(any(), eq(ALICE.accountID()))).thenReturn(ALICE.account());
         when(dispatcher.dispatchComputeFees(any())).thenReturn(DEFAULT_FEES);
+
+        // Default throttle behavior - allow transactions unless explicitly overridden in specific tests
+        when(synchronizedThrottleAccumulator.shouldThrottle(any(), any(), any()))
+                .thenReturn(ThrottleResult.allowed());
 
         subject = new IngestChecker(
                 nodeSelfAccountId,
@@ -364,10 +369,10 @@ class IngestCheckerTest extends AppTestBase {
 
         @Test
         @DisplayName("When the transaction is throttled, the transaction should be rejected")
-        void testThrottleFails() {
+        void testThrottleFails() throws Exception {
             // Given a throttle on CONSENSUS_CREATE_TOPIC transactions (i.e. it is time to throttle)
             when(synchronizedThrottleAccumulator.shouldThrottle(eq(transactionInfo), eq(state), any()))
-                    .thenReturn(true);
+                    .thenReturn(ThrottleResult.throttled());
 
             // When the transaction is submitted
             assertThatThrownBy(
@@ -441,7 +446,7 @@ class IngestCheckerTest extends AppTestBase {
 
         @Test
         @DisplayName("If some random exception is thrown from HapiThrottling, the exception is bubbled up")
-        void randomException() {
+        void randomException() throws Exception {
             // Given a HapiThrottling that will throw a RuntimeException
             when(synchronizedThrottleAccumulator.shouldThrottle(eq(transactionInfo), eq(state), any()))
                     .thenThrow(new RuntimeException("shouldThrottle exception"));

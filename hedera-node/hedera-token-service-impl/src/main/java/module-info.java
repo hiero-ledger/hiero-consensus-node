@@ -13,15 +13,18 @@ module com.hedera.node.app.service.token.impl {
     requires transitive com.swirlds.config.api;
     requires transitive com.swirlds.metrics.api;
     requires transitive com.swirlds.state.api;
+    requires transitive com.esaulpaugh.headlong;
     requires transitive dagger;
     requires transitive javax.inject;
+    requires transitive org.apache.commons.lang3;
     requires com.swirlds.base;
     requires com.swirlds.common;
     requires com.github.spotbugs.annotations;
     requires com.google.common;
-    requires org.apache.commons.lang3;
     requires org.apache.logging.log4j;
     requires org.bouncycastle.provider;
+    requires org.slf4j;
+    requires tuweni.bytes;
 
     exports com.hedera.node.app.service.token.impl.handlers;
     exports com.hedera.node.app.service.token.impl;
@@ -32,4 +35,6 @@ module com.hedera.node.app.service.token.impl {
     exports com.hedera.node.app.service.token.impl.handlers.transfer;
     exports com.hedera.node.app.service.token.impl.schemas;
     exports com.hedera.node.app.service.token.impl.comparator;
+    exports com.hedera.node.app.service.token.impl.handlers.transfer.hooks;
+    exports com.hedera.node.app.service.token.impl.handlers.transfer.customfees;
 }

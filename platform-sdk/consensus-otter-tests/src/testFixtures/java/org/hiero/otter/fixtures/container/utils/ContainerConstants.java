@@ -12,7 +12,22 @@ public class ContainerConstants {
     /**
      * Working directory of the container
      */
-    public static final String CONTAINER_APP_WORKING_DIR = "/opt/DockerApp";
+    public static final String CONTAINER_APP_WORKING_DIR = "/opt/DockerApp/";
+
+    /**
+     * Path to {@code swirdls.log} file
+     */
+    public static final String SWIRLDS_LOG_PATH = "output/swirlds.log";
+
+    /**
+     * Path to {@code swirlds-hashstream.log} file
+     */
+    public static final String HASHSTREAM_LOG_PATH = "output/swirlds-hashstream/swirlds-hashstream.log";
+
+    /**
+     * Path to {@code MainNetStats{nodeId}.csv} file
+     */
+    public static final String METRICS_PATH = "data/stats/MainNetStats%d.csv";
 
     /**
      * The port to open to allow connections to the

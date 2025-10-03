@@ -183,7 +183,7 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
      * stake weights change each stake period boundary.
      * @param stakerIds the set of staker IDs to use
      */
-    public static void setStakerIds(@NonNull final Set<AccountID> stakerIds) {
+    public static void setStakerIds(@Nullable final Set<AccountID> stakerIds) {
         HapiSpec.stakerIds = stakerIds;
     }
 

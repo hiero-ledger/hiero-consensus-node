@@ -108,8 +108,9 @@ public class HevmStaticTransactionFactory {
     }
 
     private void assertValidCall(@NonNull final ContractCallLocalQuery body) {
+        // TODO: Revisit baselineGas with Pectra support epic
         final var minGasLimit =
-                Math.max(INTRINSIC_GAS_LOWER_BOUND, gasCalculator.transactionIntrinsicGasCost(EMPTY, false));
+                Math.max(INTRINSIC_GAS_LOWER_BOUND, gasCalculator.transactionIntrinsicGasCost(EMPTY, false, 0L));
         validateTrue(body.gas() >= minGasLimit, INSUFFICIENT_GAS);
         validateTrue(body.gas() <= getMaxGasLimit(contractsConfig), MAX_GAS_LIMIT_EXCEEDED);
     }
