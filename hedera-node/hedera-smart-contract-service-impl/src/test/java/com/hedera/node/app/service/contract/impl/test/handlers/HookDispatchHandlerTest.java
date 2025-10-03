@@ -26,6 +26,7 @@ import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.app.spi.validation.AttributeValidator;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
+import com.hedera.node.config.data.HooksConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.swirlds.config.api.Configuration;
 import org.hyperledger.besu.evm.gascalculator.GasCalculator;
@@ -49,7 +50,7 @@ class HookDispatchHandlerTest extends ContractHandlerTestBase {
     @Mock
     private HandleContext.SavepointStack savepointStack;
 
-    @Mock
+    @MockN
     protected WritableEvmHookStore evmHookStore;
 
     @Mock
@@ -71,8 +72,7 @@ class HookDispatchHandlerTest extends ContractHandlerTestBase {
             .withValue("hooks.hooksEnabled", true)
             .getOrCreateConfig();
 
-    private HookDispatchHandler subject =
-            new HookDispatchHandler(() -> factory, gasCalculator, contractServiceComponent);
+    private HookDispatchHandler subject;
 
     @BeforeEach
     void setUp() {
@@ -82,6 +82,11 @@ class HookDispatchHandlerTest extends ContractHandlerTestBase {
         given(handleContext.configuration()).willReturn(config);
         given(handleContext.savepointStack()).willReturn(savepointStack);
         given(savepointStack.getBaseBuilder(HookDispatchStreamBuilder.class)).willReturn(recordBuilder);
+        lenient()
+                .when(gasCalculator.transactionIntrinsicGasCost(
+                        org.apache.tuweni.bytes.Bytes.wrap(new byte[0]), false, 0L))
+                .thenReturn((long) config.getConfigData(HooksConfig.class).lambdaIntrinsicGasCost());
+        subject = new HookDispatchHandler(() -> factory, gasCalculator, contractServiceComponent);
     }
 
     @Test

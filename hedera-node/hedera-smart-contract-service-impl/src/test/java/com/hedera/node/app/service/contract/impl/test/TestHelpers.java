@@ -85,6 +85,7 @@ import com.hedera.node.config.data.AccountsConfig;
 import com.hedera.node.config.data.ContractsConfig;
 import com.hedera.node.config.data.EntitiesConfig;
 import com.hedera.node.config.data.HederaConfig;
+import com.hedera.node.config.data.HooksConfig;
 import com.hedera.node.config.data.LedgerConfig;
 import com.hedera.node.config.data.OpsDurationConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
@@ -137,6 +138,7 @@ public class TestHelpers {
     public static final ContractsConfig DEFAULT_CONTRACTS_CONFIG = DEFAULT_CONFIG.getConfigData(ContractsConfig.class);
     public static final EntitiesConfig DEFAULT_ENTITIES_CONFIG = DEFAULT_CONFIG.getConfigData(EntitiesConfig.class);
     public static final AccountsConfig DEFAULT_ACCOUNTS_CONFIG = DEFAULT_CONFIG.getConfigData(AccountsConfig.class);
+    public static final HooksConfig DEFAULT_HOOKS_CONFIG = DEFAULT_CONFIG.getConfigData(HooksConfig.class);
     public static final OpsDurationConfig DEFAULT_OPS_DURATION_CONFIG =
             DEFAULT_CONFIG.getConfigData(OpsDurationConfig.class);
 
