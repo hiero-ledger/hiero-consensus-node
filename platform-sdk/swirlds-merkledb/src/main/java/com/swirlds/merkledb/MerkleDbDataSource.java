@@ -563,7 +563,7 @@ public final class MerkleDbDataSource implements VirtualDataSource {
             }
 
             // Functionally, leaves don't have to be sorted. However, performance wise, sorting
-            // is beneficial, as adjacent leaves are written together, which reduced the number
+            // is beneficial, as adjacent leaves are written together, which reduces the number
             // of random reads later
             final List<VirtualLeafBytes> sortedDirtyLeaves = leafRecordsToAddOrUpdate
                     .parallel()
