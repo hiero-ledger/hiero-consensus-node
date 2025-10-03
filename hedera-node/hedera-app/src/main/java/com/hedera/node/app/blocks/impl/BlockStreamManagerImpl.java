@@ -71,7 +71,6 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.EnumSet;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -130,7 +129,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     // All this state is scoped to producing the current block
     private long blockNumber;
     private int eventIndex = 0;
-    private final Map<Hash, Integer> eventIndexInBlock = new HashMap<>();
+    private final Map<Hash, Integer> eventIndexInBlock = new ConcurrentHashMap<>();
     // The last non-empty (i.e., not skipped) round number that will eventually get a start-of-state hash
     private long lastRoundOfPrevBlock;
     private Bytes lastBlockHash;

@@ -1386,22 +1386,17 @@ class VirtualMapTests extends VirtualTestBase {
     @Test
     @DisplayName("Snapshot Test")
     void snapshotTest() throws IOException {
-        final List<Path> paths = new LinkedList<>();
-        paths.add(Path.of("asdf"));
-        for (final Path destination : paths) {
-            final VirtualMap original = new VirtualMap("test", new InMemoryBuilder(), CONFIGURATION);
-            final VirtualMap copy = original.copy();
+        final VirtualMap original = new VirtualMap("test", new InMemoryBuilder(), CONFIGURATION);
+        final VirtualMap copy = original.copy();
 
-            original.getHash(); // forces copy to become hashed
-            original.getPipeline().pausePipelineAndRun("snapshot", () -> {
-                original.snapshot(destination);
-                return null;
-            });
-            assertTrue(original.isDetached(), "root should be detached");
+        original.getHash(); // forces copy to become hashed
+        final RecordAccessor snapshot = original.getPipeline().pausePipelineAndRun("snapshot", () -> {
+            return original.detach();
+        });
+        assertTrue(original.isDetached(), "root should be detached");
 
-            original.release();
-            copy.release();
-        }
+        original.release();
+        copy.release();
     }
 
     @Test

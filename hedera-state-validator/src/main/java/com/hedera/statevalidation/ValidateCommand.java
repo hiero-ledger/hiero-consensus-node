@@ -4,7 +4,6 @@ package com.hedera.statevalidation;
 import static org.junit.platform.engine.discovery.DiscoverySelectors.selectPackage;
 
 import com.hedera.statevalidation.listener.LoggingTestExecutionListener;
-import com.hedera.statevalidation.listener.ReportingListener;
 import com.hedera.statevalidation.listener.SummaryGeneratingListener;
 import java.util.concurrent.Callable;
 import org.junit.platform.launcher.Launcher;
@@ -36,11 +35,8 @@ public class ValidateCommand implements Callable<Integer> {
 
     @CommandLine.Parameters(
             arity = "1..*",
-            description =
-                    "Tag to run: [stateAnalyzer, internal, leaf, hdhm, account, tokenRelations, rehash, files, entityIds]")
-    private String[] tags = {
-        "stateAnalyzer", "internal", "leaf", "hdhm", "account", "tokenRelations", "rehash", "files", "entityIds"
-    };
+            description = "Tag to run: [internal, leaf, hdhm, account, tokenRelations, rehash, files, entityIds]")
+    private String[] tags = {"internal", "leaf", "hdhm", "account", "tokenRelations", "rehash", "files", "entityIds"};
 
     @Override
     public Integer call() {
@@ -55,8 +51,7 @@ public class ValidateCommand implements Callable<Integer> {
         SummaryGeneratingListener summaryGeneratingListener = new SummaryGeneratingListener();
         try (LauncherSession session = LauncherFactory.openSession()) {
             Launcher launcher = session.getLauncher();
-            launcher.registerTestExecutionListeners(
-                    new ReportingListener(), summaryGeneratingListener, new LoggingTestExecutionListener());
+            launcher.registerTestExecutionListeners(summaryGeneratingListener, new LoggingTestExecutionListener());
             testPlan = launcher.discover(request);
             launcher.execute(testPlan);
         }
