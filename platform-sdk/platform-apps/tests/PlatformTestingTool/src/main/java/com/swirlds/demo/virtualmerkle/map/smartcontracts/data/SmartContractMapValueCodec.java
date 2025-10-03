@@ -22,7 +22,7 @@ public class SmartContractMapValueCodec implements Codec<SmartContractMapValue> 
     @NonNull
     @Override
     public SmartContractMapValue parse(
-            @NonNull ReadableSequentialData in, boolean strictMode, boolean parseUnknownFields, int maxDepth) {
+            @NonNull ReadableSequentialData in, boolean strictMode, boolean parseUnknownFields, int maxDepth, int maxSize) {
         return new SmartContractMapValue(in);
     }
 

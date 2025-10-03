@@ -3,7 +3,7 @@ plugins {
     id("org.hiero.gradle.module.library")
     id("org.hiero.gradle.feature.protobuf")
     id("org.hiero.gradle.feature.test-fixtures")
-    id("com.hedera.pbj.pbj-compiler") version "0.11.15"
+    id("com.hedera.pbj.pbj-compiler") version "0.12.0"
     // ATTENTION: keep in sync with pbj version in 'hiero-dependency-versions/build.gradle.kts'
 }
 
@@ -24,7 +24,7 @@ tasks.generatePbjSource { dependsOn(tasks.extractProto) }
 
 sourceSets {
     val protoApiSrc = "../hedera-protobuf-java-api/src/main/proto"
-    val blockNodeApiSrc = layout.buildDirectory.dir("./extracted-protos/main/block-node/api")
+    val blockNodeApiSrc = layout.buildDirectory.dir("./extracted-protos/main")
     main {
         pbj {
             srcDir(layout.projectDirectory.dir(protoApiSrc))
@@ -62,3 +62,11 @@ tasks.test {
     // and allow GC to use 40% of CPU if needed
     jvmArgs("-XX:+UseParallelGC", "-XX:GCTimeRatio=90")
 }
+
+// Future work: figure out why some Block Node protobuf files appear twice. Probably because PBJ can now
+// import .protos from .jars automatically. So perhaps need to remove some manual setup in this Gradle script.
+tasks.processResources { duplicatesStrategy = DuplicatesStrategy.WARN }
+
+// In generated PublishStreamRequestUnparsedTest , PBJ wouldn't import EndStreamTest, but only the EndStream itself.
+// Looks like a bug in PBJ, so disable tests generation for now. See https://github.com/hashgraph/pbj/issues/641
+pbj { generateTestClasses = false }
