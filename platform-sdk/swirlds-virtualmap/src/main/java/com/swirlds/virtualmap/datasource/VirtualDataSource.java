@@ -7,6 +7,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.stream.Stream;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
@@ -65,11 +66,11 @@ public interface VirtualDataSource {
      * @param lastLeafPath
      *      the tree path for last leaf
      * @param pathHashRecordsToUpdate
-     * 		stream of dirty hash records to update
+     * 		list of dirty hash records to update
      * @param leafRecordsToAddOrUpdate
-     * 		stream of new and updated leaf node bytes
+     * 		list of new and updated leaf node bytes
      * @param leafRecordsToDelete
-     * 		stream of new leaf node bytes to delete, The leaf record's key and path have to be
+     * 		list of new leaf node bytes to delete, The leaf record's key and path have to be
      * 		populated, all other data can be null
      * @throws IOException If there was a problem saving changes to data source
      */
@@ -83,9 +84,9 @@ public interface VirtualDataSource {
         saveRecords(
                 firstLeafPath,
                 lastLeafPath,
-                pathHashRecordsToUpdate,
-                leafRecordsToAddOrUpdate,
-                leafRecordsToDelete,
+                pathHashRecordsToUpdate.toList(),
+                leafRecordsToAddOrUpdate.toList(),
+                leafRecordsToDelete.toList(),
                 false);
     }
 
@@ -110,9 +111,9 @@ public interface VirtualDataSource {
     void saveRecords(
             final long firstLeafPath,
             final long lastLeafPath,
-            @NonNull final Stream<VirtualHashRecord> pathHashRecordsToUpdate,
-            @NonNull final Stream<VirtualLeafBytes> leafRecordsToAddOrUpdate,
-            @NonNull final Stream<VirtualLeafBytes> leafRecordsToDelete,
+            @NonNull final List<VirtualHashRecord> pathHashRecordsToUpdate,
+            @NonNull final List<VirtualLeafBytes> leafRecordsToAddOrUpdate,
+            @NonNull final List<VirtualLeafBytes> leafRecordsToDelete,
             final boolean isReconnectContext)
             throws IOException;
 

@@ -9,9 +9,9 @@ import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.stream.Stream;
 import org.hiero.base.crypto.Hash;
 
 /**
@@ -77,9 +77,9 @@ public class InMemoryDataSource implements VirtualDataSource {
     public void saveRecords(
             final long firstLeafPath,
             final long lastLeafPath,
-            @NonNull final Stream<VirtualHashRecord> pathHashRecordsToUpdate,
-            @NonNull final Stream<VirtualLeafBytes> leafRecordsToAddOrUpdate,
-            @NonNull final Stream<VirtualLeafBytes> leafRecordsToDelete,
+            @NonNull final List<VirtualHashRecord> pathHashRecordsToUpdate,
+            @NonNull final List<VirtualLeafBytes> leafRecordsToAddOrUpdate,
+            @NonNull final List<VirtualLeafBytes> leafRecordsToDelete,
             final boolean isReconnectContext)
             throws IOException {
         if (failureOnSave) {
@@ -227,11 +227,10 @@ public class InMemoryDataSource implements VirtualDataSource {
     // =================================================================================================================
     // private methods
 
-    private void saveInternalRecords(final long maxValidPath, final Stream<VirtualHashRecord> pathHashRecords)
+    private void saveInternalRecords(final long maxValidPath, final List<VirtualHashRecord> pathHashRecords)
             throws IOException {
         final var itr = pathHashRecords.iterator();
-        while (itr.hasNext()) {
-            final var rec = itr.next();
+        for (var rec : pathHashRecords) {
             final var path = rec.path();
             final var hash = Objects.requireNonNull(rec.hash(), "The hash of a saved internal record cannot be null");
 
@@ -249,11 +248,10 @@ public class InMemoryDataSource implements VirtualDataSource {
     }
 
     private void saveLeafRecords(
-            final long firstLeafPath, final long lastLeafPath, final Stream<VirtualLeafBytes> leafRecords)
+            final long firstLeafPath, final long lastLeafPath, final List<VirtualLeafBytes> leafRecords)
             throws IOException {
         final var itr = leafRecords.iterator();
-        while (itr.hasNext()) {
-            final var rec = itr.next();
+        for (var rec : leafRecords) {
             final var path = rec.path();
             final var key = Objects.requireNonNull(rec.keyBytes(), "Key cannot be null");
             final var value = rec.valueBytes(); // Not sure if this can be null or not.
@@ -278,11 +276,9 @@ public class InMemoryDataSource implements VirtualDataSource {
         }
     }
 
-    private void deleteLeafRecords(
-            final Stream<VirtualLeafBytes> leafRecordsToDelete, final boolean isReconnectContext) {
+    private void deleteLeafRecords(final List<VirtualLeafBytes> leafRecordsToDelete, final boolean isReconnectContext) {
         final var itr = leafRecordsToDelete.iterator();
-        while (itr.hasNext()) {
-            final var rec = itr.next();
+        for (var rec : leafRecordsToDelete) {
             final long path = rec.path();
             final Bytes key = rec.keyBytes();
             final Long oldPath = keyToPathMap.get(key);

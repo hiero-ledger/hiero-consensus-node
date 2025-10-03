@@ -174,13 +174,7 @@ public class ReconnectHashLeafFlusher {
             // flush it down
             final long start = System.currentTimeMillis();
             try {
-                dataSource.saveRecords(
-                        firstLeafPath,
-                        lastLeafPath,
-                        hashesToFlush.stream(),
-                        leavesToFlush.stream(),
-                        leavesToDelete.stream(),
-                        true);
+                dataSource.saveRecords(firstLeafPath, lastLeafPath, hashesToFlush, leavesToFlush, leavesToDelete, true);
                 final long end = System.currentTimeMillis();
                 statistics.recordFlush(end - start);
                 logger.debug(VIRTUAL_MERKLE_STATS.getMarker(), "Flushed in {} ms", end - start);
