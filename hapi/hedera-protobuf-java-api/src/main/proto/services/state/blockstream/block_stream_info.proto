@@ -102,13 +102,9 @@ message BlockStreamInfo {
     uint32 num_preceding_state_changes_items = 7;
 
     /**
-     * A concatenation of SHA2-384 hash values.<br/>
-     * This is the "rightmost" values of the "output" subtree.
-     * <p>
-     * The subtree containing these hashes SHALL be constructed from all "output"
-     * `BlockItem`s in this block that _precede_ the update to this singleton.
+     * TODO
      */
-    repeated bytes rightmost_preceding_state_changes_tree_hashes = 8;
+    repeated bytes intermediate_previous_block_root_hashes = 8;
 
     /**
      * A block-end consensus time stamp.
@@ -150,20 +146,27 @@ message BlockStreamInfo {
     proto.Timestamp last_handle_time = 13;
 
     /**
-    * A SHA2-384 hash value.<br/>
-    * This is the hash of the "consensus headers" subtree for this block.
+    * TODO
     */
-    bytes consensus_header_tree_root_hash = 14;
+    repeated bytes intermediate_consensus_header_hashes = 14;
 
     /**
-    * A SHA2-384 hash value.<br/>
-    * This is the hash of the "trace data" subtree for this block.
+    * TODO
     */
-    bytes trace_data_tree_root_hash = 15;
+    repeated bytes intermediate_input_block_item_hashes = 15;
 
     /**
-   * A SHA2-384 hash value.<br/>
-   * This is the hash of the "output" subtree for this block.
-   */
-    bytes output_tree_root_hash = 16;
+    * TODO
+    */
+    repeated bytes intermediate_output_block_item_hashes = 16;
+
+    /**
+    * TODO
+    */
+    repeated bytes intermediate_state_change_block_item_hashes = 17;
+
+    /**
+    * TODO
+    */
+    repeated bytes intermediate_trace_data_hashes = 18;
 }
