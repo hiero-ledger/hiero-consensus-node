@@ -77,7 +77,7 @@ env:
 
   #Release version from jFrog
   NLG_VERSION: 0.7.0
-  (44564) and acceptable performance should be within 5% (42336)
+
   #Thresholds for performance
   #benchmarks
   #CryptoTransfer   HCS   NftTransfer SmartContract HeliSwap CryptoBenchMerkleDb
