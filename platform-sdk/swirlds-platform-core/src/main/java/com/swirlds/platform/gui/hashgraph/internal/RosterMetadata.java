@@ -1,19 +1,20 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.gui.hashgraph.internal;
 
+import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.platform.internal.EventImpl;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Objects;
-import org.hiero.consensus.model.roster.AddressBook;
+import org.hiero.consensus.roster.RosterUtils;
 
 /**
- * Metadata that is calculated based on a {@link AddressBook} that is used to aid in drawing a hashgraph
+ * Metadata that is calculated based on a {@link Roster} that is used to aid in drawing a hashgraph
  */
-public class AddressBookMetadata {
-    /** the address book that this metadata is based on */
-    private final AddressBook addressBook;
-    /** the number of members in the addressBook */
+public class RosterMetadata {
+    /** the roster that this metadata is based on */
+    private final Roster roster;
+    /** the number of members in the roster */
     private final int numMembers;
     /** the labels of all the members */
     private final String[] memberLabels;
@@ -31,16 +32,16 @@ public class AddressBookMetadata {
      * cross), we need several data tables. So fill in four arrays: numMembers, mems2col, col2mems, and
      * names, if they haven't already been filled in, or if the number of members has changed.
      */
-    public AddressBookMetadata(@NonNull final AddressBook addressBook, final boolean expand) {
-        this.addressBook = Objects.requireNonNull(addressBook, "addressBook must not be null");
-        final int m = addressBook.getSize();
+    public RosterMetadata(@NonNull final Roster roster, final boolean expand) {
+        this.roster = Objects.requireNonNull(roster, "roster must not be null");
+        final int m = roster.rosterEntries().size();
         numMembers = m;
         memberLabels = new String[m];
         for (int i = 0; i < m; i++) {
             memberLabels[i] = "ID:%d W:%d"
                     .formatted(
-                            addressBook.getNodeId(i).id(),
-                            addressBook.getAddress(addressBook.getNodeId(i)).getWeight());
+                            roster.rosterEntries().get(i).nodeId(),
+                            roster.rosterEntries().get(i).weight());
         }
 
         // fix corner cases missed by the formulas here
@@ -111,11 +112,11 @@ public class AddressBookMetadata {
      */
     public int mems2col(@Nullable final EventImpl e1, @NonNull final EventImpl e2) {
         Objects.requireNonNull(e2, "e2 must not be null");
-        // To support Noncontiguous NodeId in the address book,
-        // the mems2col array is now based on indexes of NodeIds in the address book.
-        final int e2Index = addressBook.getIndexOfNodeId(e2.getCreatorId());
+        // To support Noncontiguous NodeId in the roster,
+        // the mems2col array is now based on indexes of NodeIds in the roster.
+        final int e2Index = RosterUtils.getIndex(roster, e2.getCreatorId().id());
         if (e1 != null) {
-            final int e1Index = addressBook.getIndexOfNodeId(e1.getCreatorId());
+            final int e1Index = RosterUtils.getIndex(roster, e1.getCreatorId().id());
             return mems2col[e1Index][e2Index];
         }
         // there is no e1, so pick one of the e2 columns arbitrarily (next to 0 or 1). If there is only 1

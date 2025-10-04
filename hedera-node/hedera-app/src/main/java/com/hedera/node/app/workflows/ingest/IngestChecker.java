@@ -60,6 +60,7 @@ import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.state.DeduplicationCache;
 import com.hedera.node.app.store.ReadableStoreFactory;
 import com.hedera.node.app.throttle.SynchronizedThrottleAccumulator;
+import com.hedera.node.app.throttle.ThrottleResult;
 import com.hedera.node.app.throttle.ThrottleUsage;
 import com.hedera.node.app.workflows.InnerTransaction;
 import com.hedera.node.app.workflows.OpWorkflowMetrics;
@@ -354,10 +355,16 @@ public final class IngestChecker {
         final var hederaConfig = configuration.getConfigData(HederaConfig.class);
         final var hooksConfig = configuration.getConfigData(HooksConfig.class);
         assertThrottlingPreconditions(txInfo, hederaConfig, hooksConfig);
-        if (hederaConfig.ingestThrottleEnabled()
-                && synchronizedThrottleAccumulator.shouldThrottle(txInfo, state, throttleUsages)) {
-            workflowMetrics.incrementThrottled(txInfo.functionality());
-            throw new PreCheckException(BUSY);
+        if (hederaConfig.ingestThrottleEnabled()) {
+            ThrottleResult throttleResult =
+                    synchronizedThrottleAccumulator.shouldThrottle(txInfo, state, throttleUsages);
+            if (throttleResult.hasValidationError()) {
+                throw new PreCheckException(throttleResult.validationError());
+            }
+            if (throttleResult.shouldThrottle()) {
+                workflowMetrics.incrementThrottled(txInfo.functionality());
+                throw new PreCheckException(BUSY);
+            }
         }
     }
 
