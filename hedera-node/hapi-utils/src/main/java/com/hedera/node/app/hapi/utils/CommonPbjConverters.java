@@ -296,6 +296,7 @@ public class CommonPbjConverters {
             case SCHEDULE_CREATE_CONTRACT_CALL -> SubType.SCHEDULE_CREATE_CONTRACT_CALL;
             case TOPIC_CREATE_WITH_CUSTOM_FEES -> SubType.TOPIC_CREATE_WITH_CUSTOM_FEES;
             case SUBMIT_MESSAGE_WITH_CUSTOM_FEES -> SubType.SUBMIT_MESSAGE_WITH_CUSTOM_FEES;
+            case CRYPTO_TRANSFER_WITH_HOOKS -> SubType.CRYPTO_TRANSFER_WITH_HOOKS;
             case UNRECOGNIZED -> throw new IllegalArgumentException("Unknown subType UNRECOGNIZED");
         };
     }

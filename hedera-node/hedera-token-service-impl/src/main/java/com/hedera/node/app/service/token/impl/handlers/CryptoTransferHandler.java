@@ -5,15 +5,18 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.CUSTOM_FEE_CHARGING_EXC
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE_FOR_CUSTOM_FEE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_SENDER_ACCOUNT_BALANCE_FOR_CUSTOM_FEE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
+import static com.hedera.hapi.node.base.SubType.CRYPTO_TRANSFER_WITH_HOOKS;
 import static com.hedera.hapi.node.base.SubType.DEFAULT;
 import static com.hedera.hapi.node.base.SubType.TOKEN_FUNGIBLE_COMMON;
 import static com.hedera.hapi.node.base.SubType.TOKEN_FUNGIBLE_COMMON_WITH_CUSTOM_FEES;
 import static com.hedera.hapi.node.base.SubType.TOKEN_NON_FUNGIBLE_UNIQUE;
 import static com.hedera.hapi.node.base.SubType.TOKEN_NON_FUNGIBLE_UNIQUE_WITH_CUSTOM_FEES;
 import static com.hedera.node.app.hapi.fees.usage.SingletonUsageProperties.USAGE_PROPERTIES;
+import static com.hedera.node.app.hapi.fees.usage.crypto.CryptoOpsUsage.HOUR_TO_SECOND_MULTIPLIER;
 import static com.hedera.node.app.hapi.fees.usage.crypto.CryptoOpsUsage.LONG_ACCOUNT_AMOUNT_BYTES;
 import static com.hedera.node.app.hapi.fees.usage.token.TokenOpsUsage.LONG_BASIC_ENTITY_ID_SIZE;
 import static com.hedera.node.app.hapi.fees.usage.token.entities.TokenEntitySizes.TOKEN_ENTITY_SIZES;
+import static com.hedera.node.app.hapi.utils.CommonUtils.clampedAdd;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
 import static java.util.Objects.requireNonNull;
 
@@ -266,13 +269,24 @@ public class CryptoTransferHandler extends TransferExecutor implements Transacti
                 + TOKEN_ENTITY_SIZES.bytesUsedToRecordTokenTransfers(
                         weightedTokensInvolved, weightedTokenXfers, numNftOwnershipChanges);
 
+        final var hookInfo = getHookInfo(op);
         /* Get subType based on the above information */
         final var subType = getSubType(
                 numNftOwnershipChanges,
                 totalTokenTransfers,
                 customFeeHbarTransfers,
                 customFeeTokenTransfers,
-                triedAndFailedToUseCustomFees);
+                triedAndFailedToUseCustomFees,
+                hookInfo.usesHooks());
+        if (hookInfo.usesHooks()) {
+            return feeContext
+                    .feeCalculatorFactory()
+                    .feeCalculator(subType)
+                    .addVerificationsPerTransaction(Math.max(0, feeContext.numTxnSignatures() - 1))
+                    .addStorageBytesSeconds(HOUR_TO_SECOND_MULTIPLIER)
+                    .addGas(hookInfo.totalGasLimitOfHooks())
+                    .calculate();
+        }
         return feeContext
                 .feeCalculatorFactory()
                 .feeCalculator(subType)
@@ -282,16 +296,99 @@ public class CryptoTransferHandler extends TransferExecutor implements Transacti
     }
 
     /**
+     * Sums the gas limits offered by any EVM allowance hooks present on:
+     * HBAR account transfers (pre-tx and pre+post), Fungible token account transfers (pre-tx and pre+post),
+     * NFT transfers for sender and receiver (pre-tx and pre+post)
+     * Each increment uses {@code clampedAdd} to avoid overflow.
+     */
+    public static HookInfo getHookInfo(final CryptoTransferTransactionBody op) {
+        var hookInfo = HookInfo.NO_HOOKS;
+        for (final var aa : op.transfersOrElse(TransferList.DEFAULT).accountAmounts()) {
+            hookInfo = merge(hookInfo, getTotalHookGasIfAny(aa));
+        }
+        for (final var ttl : op.tokenTransfers()) {
+            for (final var aa : ttl.transfers()) {
+                hookInfo = merge(hookInfo, getTotalHookGasIfAny(aa));
+            }
+            for (final var nft : ttl.nftTransfers()) {
+                hookInfo = merge(hookInfo, addNftHookGas(nft));
+            }
+        }
+        return hookInfo;
+    }
+
+    /**
+     * Adds gas from pre-tx and pre+post allowance hooks on an account transfer.
+     */
+    private static HookInfo getTotalHookGasIfAny(final AccountAmount aa) {
+        final var hasPreTxHook = aa.hasPreTxAllowanceHook();
+        final var hasPrePostTxHook = aa.hasPrePostTxAllowanceHook();
+        if (!hasPreTxHook && !hasPrePostTxHook) {
+            return HookInfo.NO_HOOKS;
+        }
+        long gas = 0L;
+        if (hasPreTxHook) {
+            gas = clampedAdd(
+                    gas, aa.preTxAllowanceHookOrThrow().evmHookCallOrThrow().gasLimit());
+        }
+        if (hasPrePostTxHook) {
+            gas = clampedAdd(
+                    gas, aa.prePostTxAllowanceHookOrThrow().evmHookCallOrThrow().gasLimit());
+        }
+        return new HookInfo(true, gas);
+    }
+
+    /**
+     * Adds gas from sender/receiver allowance hooks (pre-tx and pre+post) on an NFT transfer.
+     */
+    private static HookInfo addNftHookGas(final NftTransfer nft) {
+        final var hasSenderPre = nft.hasPreTxSenderAllowanceHook();
+        final var hasSenderPrePost = nft.hasPrePostTxSenderAllowanceHook();
+        final var hasReceiverPre = nft.hasPreTxReceiverAllowanceHook();
+        final var hasReceiverPrePost = nft.hasPrePostTxReceiverAllowanceHook();
+        if (!(hasSenderPre || hasSenderPrePost || hasReceiverPre || hasReceiverPrePost)) {
+            return HookInfo.NO_HOOKS;
+        }
+        long gas = 0L;
+        if (hasSenderPre) {
+            gas = clampedAdd(
+                    gas,
+                    nft.preTxSenderAllowanceHookOrThrow().evmHookCallOrThrow().gasLimit());
+        }
+        if (hasSenderPrePost) {
+            gas = clampedAdd(
+                    gas,
+                    nft.prePostTxSenderAllowanceHookOrThrow()
+                            .evmHookCallOrThrow()
+                            .gasLimit());
+        }
+        if (hasReceiverPre) {
+            gas = clampedAdd(
+                    gas,
+                    nft.preTxReceiverAllowanceHookOrThrow().evmHookCallOrThrow().gasLimit());
+        }
+        if (hasReceiverPrePost) {
+            gas = clampedAdd(
+                    gas,
+                    nft.prePostTxReceiverAllowanceHookOrThrow()
+                            .evmHookCallOrThrow()
+                            .gasLimit());
+        }
+        return new HookInfo(true, gas);
+    }
+
+    /**
      * Get the subType based on the number of NFT ownership changes, number of fungible token transfers,
      * number of custom fee hbar transfers, number of custom fee token transfers and whether the transaction
      * tried and failed to use custom fees.
+     *
      * @param numNftOwnershipChanges number of NFT ownership changes
      * @param numFungibleTokenTransfers number of fungible token transfers
      * @param customFeeHbarTransfers number of custom fee hbar transfers
      * @param customFeeTokenTransfers number of custom fee token transfers
      * @param triedAndFailedToUseCustomFees whether the transaction tried and failed while validating custom fees.
-     *                                      If the failure includes custom fee error codes, the fee charged should not
-     *                                      use SubType.DEFAULT.
+     * If the failure includes custom fee error codes, the fee charged should not
+     * use SubType.DEFAULT.
      * @return the subType
      */
     private static SubType getSubType(
@@ -299,7 +396,11 @@ public class CryptoTransferHandler extends TransferExecutor implements Transacti
             final int numFungibleTokenTransfers,
             final int customFeeHbarTransfers,
             final int customFeeTokenTransfers,
-            final boolean triedAndFailedToUseCustomFees) {
+            final boolean triedAndFailedToUseCustomFees,
+            final boolean withHooks) {
+        if (withHooks) {
+            return CRYPTO_TRANSFER_WITH_HOOKS;
+        }
         if (triedAndFailedToUseCustomFees) {
             return TOKEN_FUNGIBLE_COMMON_WITH_CUSTOM_FEES;
         }
@@ -316,5 +417,20 @@ public class CryptoTransferHandler extends TransferExecutor implements Transacti
             return TOKEN_FUNGIBLE_COMMON;
         }
         return DEFAULT;
+    }
+
+    /**
+     * Utility to merge two partial HookInfo results.
+     */
+    private static HookInfo merge(final HookInfo a, final HookInfo b) {
+        return new HookInfo(
+                a.usesHooks() || b.usesHooks(), clampedAdd(a.totalGasLimitOfHooks(), b.totalGasLimitOfHooks()));
+    }
+
+    /**
+     * Summary of hook usage and total gas.
+     */
+    public record HookInfo(boolean usesHooks, long totalGasLimitOfHooks) {
+        public static final HookInfo NO_HOOKS = new HookInfo(false, 0L);
     }
 }

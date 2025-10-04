@@ -157,9 +157,7 @@ public class ContractUpdateHandler implements TransactionHandler {
             final ContractUpdateTransactionBody op,
             final Account.Builder builder,
             final Account originalAccount) {
-
-        long currentHead = originalAccount.firstHookId();
-        long headAfterDeletes = currentHead;
+        long headAfterDeletes = originalAccount.firstHookId();
         // Dispatch all the hooks to delete
         if (!op.hookIdsToDelete().isEmpty()) {
             HookDispatchUtils.dispatchHookDeletions(

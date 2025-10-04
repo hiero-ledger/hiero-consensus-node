@@ -171,4 +171,18 @@ public final class CommonUtils {
                 .setScheduleNum(address.value().longValueExact())
                 .build();
     }
+
+    /**
+     * Adds two longs, returning {@link Long#MAX_VALUE} or {@link Long#MIN_VALUE} if overflow or underflow occurs.
+     * @param addendA the first addend
+     * @param addendB the second addend
+     * @return the sum, or {@link Long#MAX_VALUE} or {@link Long#MIN_VALUE} if overflow or underflow occurs
+     */
+    public static long clampedAdd(final long addendA, final long addendB) {
+        try {
+            return Math.addExact(addendA, addendB);
+        } catch (final ArithmeticException ae) {
+            return addendA > 0 ? Long.MAX_VALUE : Long.MIN_VALUE;
+        }
+    }
 }

@@ -293,7 +293,7 @@ public class BlockStreamBuilder
      * The next hook ID after the hook dispatch.
      * This is useful to set the first hookId on the account if the head is deleted
      */
-    private long nextHookId;
+    private Long nextHookId;
 
     // --- Fields used to build the TransactionOutput(s) ---
     /**
@@ -1299,12 +1299,12 @@ public class BlockStreamBuilder
     }
 
     @Override
-    public void nextHookId(final long nextHookId) {
+    public void nextHookId(final Long nextHookId) {
         this.nextHookId = nextHookId;
     }
 
     @Override
-    public long getNextHookId() {
+    public Long getNextHookId() {
         return nextHookId;
     }
 

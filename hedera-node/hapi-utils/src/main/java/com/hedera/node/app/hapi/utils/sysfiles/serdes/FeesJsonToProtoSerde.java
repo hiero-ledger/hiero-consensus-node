@@ -30,7 +30,7 @@ public class FeesJsonToProtoSerde {
     private static final String HEDERA_FUNCTION_KEY = "hederaFunctionality";
     private static final String[] FEE_COMPONENT_KEYS = {"nodedata", "networkdata", "servicedata"};
     private static final String[] RESOURCE_KEYS = {
-        "constant", "bpt", "vpt", "rbh", "sbh", "gas", "bpr", "sbpr", "min", "max"
+        "constant", "bpt", "vpt", "rbh", "sbh", "gas", "bpr", "sbpr", "min", "max", "tv"
     };
 
     private FeesJsonToProtoSerde() {
@@ -171,7 +171,7 @@ public class FeesJsonToProtoSerde {
                     feeComponents,
                     resource,
                     long.class,
-                    Long.parseLong(rawFeeComponents.get(resource) + ""));
+                    Long.parseLong(rawFeeComponents.get(resource) == null ? "0" : rawFeeComponents.get(resource) + ""));
         }
         return feeComponents.build();
     }
