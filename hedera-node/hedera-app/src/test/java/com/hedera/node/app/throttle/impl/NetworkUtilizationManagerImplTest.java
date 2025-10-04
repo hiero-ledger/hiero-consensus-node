@@ -2,6 +2,7 @@
 package com.hedera.node.app.throttle.impl;
 
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_TRANSFER;
+import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
 
 import com.hedera.hapi.node.base.AccountID;
@@ -10,8 +11,10 @@ import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.fees.congestion.CongestionMultipliers;
+import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.throttle.NetworkUtilizationManagerImpl;
 import com.hedera.node.app.throttle.ThrottleAccumulator;
+import com.hedera.node.app.throttle.ThrottleResult;
 import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.State;
@@ -46,7 +49,11 @@ class NetworkUtilizationManagerImplTest {
     }
 
     @Test
-    void verifyTrackTxn() {
+    void verifyTrackTxn() throws Exception, PreCheckException {
+        // given
+        given(throttleAccumulator.checkAndEnforceThrottle(transactionInfo, consensusNow, state, null))
+                .willReturn(ThrottleResult.allowed());
+
         // when
         subject.trackTxn(transactionInfo, consensusNow, state);
 
@@ -56,7 +63,7 @@ class NetworkUtilizationManagerImplTest {
     }
 
     @Test
-    void verifyTrackFeePayments() {
+    void verifyTrackFeePayments() throws Exception, PreCheckException {
         // given
         final var expectedTxnToBeChargedFor = new TransactionInfo(
                 SignedTransaction.DEFAULT,
@@ -67,6 +74,9 @@ class NetworkUtilizationManagerImplTest {
                 Bytes.EMPTY,
                 CRYPTO_TRANSFER,
                 null);
+
+        given(throttleAccumulator.checkAndEnforceThrottle(expectedTxnToBeChargedFor, consensusNow, state, null))
+                .willReturn(ThrottleResult.allowed());
 
         // when
         subject.trackFeePayments(consensusNow, state);
