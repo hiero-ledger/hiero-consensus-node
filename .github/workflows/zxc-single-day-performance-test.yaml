@@ -81,11 +81,11 @@ env:
   #Thresholds for performance
   #benchmarks
   #CryptoTransfer   HCS   NftTransfer SmartContract HeliSwap CryptoBenchMerkleDb
-  #         20398 23374         12078          7000     1187               27818
+  #         20398 23374         12078          7000     1187               44564
   #-15%
-  #         17338 19867         10266          5950     1008               23645
+  #         17338 19867         10266          5950     1008               42336
   MinNFTscore: 10266
-  MinMerkleDBscore: 23645
+  MinMerkleDBscore: 42336
   MinHCSLoadTest: 19867
   MinCryptoTransferLoadTest: 17338
   MinHeliSwapLoadTest: 1008
