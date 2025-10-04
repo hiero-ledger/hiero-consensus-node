@@ -13,6 +13,7 @@ import com.hedera.node.app.hapi.fees.usage.state.UsageAccumulator;
 import com.hedera.node.app.hapi.fees.usage.token.TokenOpsUsage;
 import com.hedera.node.app.hapi.utils.fee.SigValueObj;
 import com.hedera.services.bdd.spec.HapiSpec;
+import com.hedera.services.bdd.spec.SpecOperation;
 import com.hedera.services.bdd.spec.fees.AdapterUtils;
 import com.hedera.services.bdd.spec.keys.KeyRole;
 import com.hedera.services.bdd.spec.transactions.HapiTxnOp;
@@ -40,6 +41,7 @@ public class HapiTokenMint extends HapiTxnOp<HapiTokenMint> {
     private boolean rememberingNothing = false;
     private final List<ByteString> metadata;
     private SubType subType;
+    private boolean setNoToken = false;
 
     private TokenInfo info;
 
@@ -124,7 +126,9 @@ public class HapiTokenMint extends HapiTxnOp<HapiTokenMint> {
         final var tId = TxnUtils.asTokenId(token, spec);
         final TokenMintTransactionBody opBody = spec.txns()
                 .<TokenMintTransactionBody, TokenMintTransactionBody.Builder>body(TokenMintTransactionBody.class, b -> {
-                    b.setToken(tId);
+                    if(!setNoToken){
+                        b.setToken(tId);
+                    }
                     b.setAmount(amount);
                     b.addAllMetadata(metadata);
                 });
@@ -156,5 +160,10 @@ public class HapiTokenMint extends HapiTxnOp<HapiTokenMint> {
         final MoreObjects.ToStringHelper helper =
                 super.toStringHelper().add("token", token).add("amount", amount).add("metadata", metadata);
         return helper;
+    }
+
+    public HapiTokenMint setNoToken() {
+        setNoToken = true;
+        return this;
     }
 }

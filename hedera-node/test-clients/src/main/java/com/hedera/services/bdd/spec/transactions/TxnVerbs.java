@@ -456,6 +456,10 @@ public class TxnVerbs {
         return new HapiScheduleCreate<>(scheduled, cryptoCreate("doomed")).functionless();
     }
 
+    public static HapiScheduleCreate<HapiCryptoCreate> scheduleCreateWithoutScheduled(String scheduled) {
+        return new HapiScheduleCreate<>(scheduled, cryptoCreate("doomed")).noScheduled();
+    }
+
     public static HapiScheduleDelete scheduleDelete(String schedule) {
         return new HapiScheduleDelete(schedule);
     }
