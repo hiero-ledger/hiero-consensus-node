@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.state.lifecycle;
+package com.hedera.node.app.services;
 
 import com.hedera.node.internal.network.Network;
 import com.swirlds.config.api.Configuration;
@@ -9,6 +9,7 @@ import java.util.Optional;
 /**
  * Encapsulates the {@link Network} information that may or may not be present on disk
  * when starting a node.
+ *
  */
 public interface StartupNetworks {
     /**
@@ -19,7 +20,7 @@ public interface StartupNetworks {
     Network genesisNetworkOrThrow(@NonNull Configuration platformConfig);
 
     /**
-     * Called by a node at a restart boundary to check if there is an override {@link Network}
+     * Called by a node at a restart boundary to check if there is an override {@code Network}
      * that applies to the current round. This permits transplanting the state of one network
      * onto another nt network with a different roster and TSS keys.
      *

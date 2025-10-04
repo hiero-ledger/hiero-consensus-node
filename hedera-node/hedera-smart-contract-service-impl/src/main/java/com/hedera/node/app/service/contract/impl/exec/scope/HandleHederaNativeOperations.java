@@ -15,6 +15,7 @@ import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.node.app.service.contract.ReadableEvmHookStore;
 import com.hedera.node.app.service.contract.impl.annotations.TransactionScope;
 import com.hedera.node.app.service.schedule.ReadableScheduleStore;
 import com.hedera.node.app.service.schedule.ScheduleServiceApi;
@@ -97,6 +98,14 @@ public class HandleHederaNativeOperations implements HederaNativeOperations {
     @Override
     public @NonNull ReadableScheduleStore readableScheduleStore() {
         return context.storeFactory().readableStore(ReadableScheduleStore.class);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @NonNull
+    public ReadableEvmHookStore readableHookStore() {
+        return context.storeFactory().readableStore(ReadableEvmHookStore.class);
     }
 
     /**

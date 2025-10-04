@@ -1,14 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.state.test.fixtures.merkle;
 
-import static com.swirlds.state.lifecycle.StateMetadata.computeClassId;
 import static com.swirlds.state.lifecycle.StateMetadata.computeLabel;
 import static com.swirlds.state.merkle.StateUtils.getStateKeyForKv;
 import static com.swirlds.state.merkle.StateUtils.getStateKeyForSingleton;
 import static com.swirlds.state.merkle.StateUtils.getStateValueForKv;
 import static com.swirlds.state.merkle.StateUtils.getStateValueForSingleton;
+import static com.swirlds.state.test.fixtures.merkle.StateClassIdUtils.computeClassId;
 import static com.swirlds.virtualmap.constructable.ConstructableUtils.registerVirtualMapConstructables;
 
+import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -68,6 +69,9 @@ import org.junit.jupiter.params.provider.Arguments;
  * create a {@link VirtualMap} automatically, but does provide APIs to make it easy to create them.
  */
 public class MerkleTestBase extends StateTestBase {
+
+    public static final SemanticVersion TEST_VERSION =
+            SemanticVersion.newBuilder().major(1).build();
 
     protected final Configuration CONFIGURATION = ConfigurationBuilder.create()
             .withConfigDataType(VirtualMapConfig.class)
@@ -213,6 +217,11 @@ public class MerkleTestBase extends StateTestBase {
         try (final var in = new MerkleDataInputStream(byteInputStream)) {
             return in.readMerkleTree(CONFIGURATION, tempDir, 100);
         }
+    }
+
+    /** A convenience method for creating {@link SemanticVersion}. */
+    protected SemanticVersion version(int major, int minor, int patch) {
+        return new SemanticVersion(major, minor, patch, null, null);
     }
 
     public static Stream<Arguments> illegalServiceNames() {

@@ -8,9 +8,7 @@ import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_CREATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_GET_ACCOUNT_BALANCE;
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_TRANSFER;
 import static com.hedera.hapi.node.base.HederaFunctionality.ETHEREUM_TRANSACTION;
-import static com.hedera.hapi.node.base.HederaFunctionality.SCHEDULE_CREATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_ASSOCIATE_TO_ACCOUNT;
-import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_MINT;
 import static com.hedera.hapi.util.HapiUtils.functionOf;
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
 import static com.hedera.node.app.hapi.utils.ethereum.EthTxData.populateEthTxData;
@@ -31,7 +29,6 @@ import com.hedera.hapi.node.base.AccountAmount;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.NftTransfer;
-import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.base.TransactionID;
@@ -57,7 +54,6 @@ import com.hedera.node.app.service.schedule.impl.ReadableScheduleStoreImpl;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.ReadableTokenRelationStore;
 import com.hedera.node.app.spi.workflows.HandleException;
-import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.store.ReadableStoreFactory;
 import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.config.data.AccountsConfig;
@@ -171,37 +167,31 @@ public class ThrottleAccumulator {
     }
 
     /**
-     * Tries to claim throttle capacity for the given transaction and returns the throttle result.
+     * Tries to claim throttle capacity for the given transaction and returns whether the transaction
+     * should be throttled if there is no capacity.
      *
      * @param txnInfo the transaction to update the throttle requirements for
      * @param now the instant of time the transaction throttling should be checked for
      * @param state the current state of the node
      * @param throttleUsages if not null, a list to accumulate throttle usages into
-     * @return the throttle result containing throttling decision and any validation errors
+     * @return whether the transaction should be throttled
      */
-    public ThrottleResult checkAndEnforceThrottle(
+    public boolean checkAndEnforceThrottle(
             @NonNull final TransactionInfo txnInfo,
             @NonNull final Instant now,
             @NonNull final State state,
             @Nullable final List<ThrottleUsage> throttleUsages) {
         if (throttleType == NOOP_THROTTLE) {
-            return ThrottleResult.allowed();
+            return false;
         }
         resetLastAllowedUse();
         lastTxnWasGasThrottled = false;
-        try {
-            if (shouldThrottleTxn(false, txnInfo, now, state, throttleUsages)) {
-                reclaimLastAllowedUse();
-                if (lastTxnWasGasThrottled) {
-                    return ThrottleResult.gasThrottled();
-                }
-                return ThrottleResult.throttled();
-            }
-            return ThrottleResult.allowed();
-        } catch (PreCheckException e) {
+        if (shouldThrottleTxn(false, txnInfo, now, state, throttleUsages)) {
             reclaimLastAllowedUse();
-            return ThrottleResult.invalid(e.responseCode());
+            return true;
         }
+
+        return false;
     }
 
     /**
@@ -422,10 +412,8 @@ public class ThrottleAccumulator {
             @NonNull final TransactionInfo txnInfo,
             @NonNull final Instant now,
             @NonNull final State state,
-            List<ThrottleUsage> throttleUsages)
-            throws PreCheckException {
+            List<ThrottleUsage> throttleUsages) {
         final var function = txnInfo.functionality();
-        validateTransactionBody(txnInfo.txBody(), function);
         final var configuration = configSupplier.get();
         final boolean isJumboTransactionsEnabled =
                 configuration.getConfigData(JumboTransactionsConfig.class).isEnabled();
@@ -494,48 +482,6 @@ public class ThrottleAccumulator {
             }
             default -> !manager.allReqsMetAt(now, throttleUsages);
         };
-    }
-
-    /**
-     * Validates the transaction body for required fields to prevent malformed transactions
-     * from causing busy waiting on the client. Throws PreCheckException for immediate rejection.
-     *
-     * @param txnBody the transaction body to validate
-     * @param function the transaction functionality type
-     * @throws PreCheckException if validation fails for malformed transactions
-     */
-    private void validateTransactionBody(
-            @NonNull final TransactionBody txnBody, @NonNull final HederaFunctionality function)
-            throws PreCheckException {
-        switch (function) {
-            case SCHEDULE_CREATE -> {
-                if (!txnBody.hasScheduleCreate()) {
-                    throw new PreCheckException(ResponseCodeEnum.INVALID_TRANSACTION_BODY);
-                }
-                final var scheduleCreate = txnBody.scheduleCreate();
-                if (!scheduleCreate.hasScheduledTransactionBody()) {
-                    throw new PreCheckException(ResponseCodeEnum.INVALID_TRANSACTION_BODY);
-                }
-            }
-            case TOKEN_MINT -> {
-                if (!txnBody.hasTokenMint()) {
-                    throw new PreCheckException(ResponseCodeEnum.INVALID_TRANSACTION_BODY);
-                }
-                final var tokenMint = txnBody.tokenMint();
-                if (!tokenMint.hasToken()) {
-                    throw new PreCheckException(ResponseCodeEnum.INVALID_TRANSACTION_BODY);
-                }
-            }
-            case ETHEREUM_TRANSACTION -> {
-                if (!txnBody.hasEthereumTransaction()) {
-                    throw new PreCheckException(ResponseCodeEnum.INVALID_TRANSACTION_BODY);
-                }
-                final var ethTxn = txnBody.ethereumTransaction();
-                if (ethTxn.ethereumData() == null || ethTxn.ethereumData().length() == 0) {
-                    throw new PreCheckException(ResponseCodeEnum.INVALID_TRANSACTION_BODY);
-                }
-            }
-        }
     }
 
     private boolean shouldThrottleScheduleCreate(
