@@ -66,7 +66,7 @@ import org.junit.jupiter.api.Tag;
 
 // Wrapping the most important tests from this package with an atomic batch
 @HapiTestLifecycle
-public class AtomicOpCodesSuite {
+class AtomicOpCodesSuite {
 
     private static final String BATCH_OPERATOR = "batchOperator";
     private static final String CREATE_CONTRACT = "FactoryContract";
@@ -91,8 +91,6 @@ public class AtomicOpCodesSuite {
 
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
-        testLifecycle.overrideInClass(
-                Map.of("atomicBatch.isEnabled", "true", "atomicBatch.maxNumberOfTransactions", "50"));
         testLifecycle.doAdhoc(cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS));
         testLifecycle.overrideInClass(Map.of("contracts.evm.version", "v0.50"));
         testLifecycle.doAdhoc(
@@ -358,7 +356,7 @@ public class AtomicOpCodesSuite {
     static SpecContract gasPriceContract;
 
     @HapiTest
-    public Stream<DynamicTest> getGasPrice() {
+    Stream<DynamicTest> getGasPrice() {
         return hapiTest(gasPriceContract
                 .call("getTxGasPrice")
                 .wrappedInBatchOperation(BATCH_OPERATOR)
@@ -369,7 +367,7 @@ public class AtomicOpCodesSuite {
     }
 
     @HapiTest
-    public Stream<DynamicTest> getLastGasPrice() {
+    Stream<DynamicTest> getLastGasPrice() {
         return hapiTest(
                 gasPriceContract
                         .call("getLastTxGasPrice")

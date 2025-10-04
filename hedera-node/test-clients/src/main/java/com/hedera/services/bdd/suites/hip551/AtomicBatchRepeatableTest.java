@@ -46,17 +46,11 @@ import org.junit.jupiter.api.Tag;
 @Tag(INTEGRATION)
 @HapiTestLifecycle
 @TargetEmbeddedMode(REPEATABLE)
-public class AtomicBatchRepeatableTest {
+class AtomicBatchRepeatableTest {
 
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
-        testLifecycle.overrideInClass(Map.of(
-                "atomicBatch.isEnabled",
-                "true",
-                "scheduling.maxExpirySecsToCheckPerUserTxn",
-                "" + Integer.MAX_VALUE,
-                "atomicBatch.maxNumberOfTransactions",
-                "50"));
+        testLifecycle.overrideInClass(Map.of("scheduling.maxExpirySecsToCheckPerUserTxn", "" + Integer.MAX_VALUE));
     }
 
     @LeakyRepeatableHapiTest({NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION})

@@ -42,19 +42,13 @@ import org.junit.jupiter.api.Tag;
 @Tag(SMART_CONTRACT)
 @DisplayName("evmValidation")
 @HapiTestLifecycle
-public class AtomicEvmValidationTest {
+class AtomicEvmValidationTest {
 
     private static final String BATCH_OPERATOR = "batchOperator";
 
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
-        testLifecycle.overrideInClass(Map.of(
-                "atomicBatch.isEnabled",
-                "true",
-                "atomicBatch.maxNumberOfTransactions",
-                "50",
-                "contracts.throttle.throttleByGas",
-                "false"));
+        testLifecycle.overrideInClass(Map.of("contracts.throttle.throttleByGas", "false"));
         testLifecycle.doAdhoc(cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS));
     }
 
@@ -68,7 +62,7 @@ public class AtomicEvmValidationTest {
         @HapiTest
         @DisplayName("succeeds on non-existent contract")
         @Tag(MATS)
-        public Stream<DynamicTest> canCallBalanceOperationNonExtantContract() {
+        Stream<DynamicTest> canCallBalanceOperationNonExtantContract() {
             final var INVALID_ADDRESS = "0x0000000000000000000000000000000000123456";
             return hapiTest(balanceChecker46Version
                     .call("balanceOf", asHeadlongAddress(INVALID_ADDRESS))
@@ -94,21 +88,21 @@ public class AtomicEvmValidationTest {
 
             @HapiTest
             @DisplayName("when transferring value to long zero address 00000000000000000000000000000000001117d0 ")
-            public Stream<DynamicTest> lazyCreateToLongZeroFails() {
+            Stream<DynamicTest> lazyCreateToLongZeroFails() {
                 final Function<HapiSpec, String> longZeroAddress = (spec) -> toAddressString("1117d0");
                 return callContractWithValue(longZeroAddress, CONTRACT_REVERT_EXECUTED);
             }
 
             @HapiTest
             @DisplayName("when transferring value to long zero burn address 000000000000000000000000000000000000dEaD ")
-            public Stream<DynamicTest> lazyCreateToLongZeroBurnAddressFails() {
+            Stream<DynamicTest> lazyCreateToLongZeroBurnAddressFails() {
                 final Function<HapiSpec, String> longZeroBurnAddress = (spec) -> toAddressString("dEaD");
                 return callContractWithValue(longZeroBurnAddress, CONTRACT_REVERT_EXECUTED);
             }
 
             @HapiTest
             @DisplayName("when transferring value to all zero address 0000000000000000000000000000000000000000 ")
-            public Stream<DynamicTest> lazyCreateToAllZeroFails() {
+            Stream<DynamicTest> lazyCreateToAllZeroFails() {
                 final var ALL_ZERO_ADDRESS = "0000000000000000000000000000000000000000";
                 return callContractWithValue(ALL_ZERO_ADDRESS, INVALID_CONTRACT_ID);
             }
@@ -120,14 +114,14 @@ public class AtomicEvmValidationTest {
 
             @HapiTest
             @DisplayName("when transferring value to evm address 0000000100000000000000020000000000000003")
-            public Stream<DynamicTest> lazyCreateToEvmAddressSucceeds() {
+            Stream<DynamicTest> lazyCreateToEvmAddressSucceeds() {
                 final var EVM_ADDRESS = "0000000100000000000000020000000000000003";
                 return callContractWithValue(EVM_ADDRESS, ResponseCodeEnum.SUCCESS);
             }
 
             @HapiTest
             @DisplayName("when transferring value to realistic evm address 388C818CA8B9251b393131C08a736A67ccB19297")
-            public Stream<DynamicTest> lazyCreateToRealisticEvmAddressSucceeds() {
+            Stream<DynamicTest> lazyCreateToRealisticEvmAddressSucceeds() {
                 final var REALISTIC_EVM_ADDRESS = "388C818CA8B9251b393131C08a736A67ccB19297";
                 return callContractWithValue(REALISTIC_EVM_ADDRESS, ResponseCodeEnum.SUCCESS);
             }
@@ -169,7 +163,7 @@ public class AtomicEvmValidationTest {
 
         @HapiTest
         @DisplayName("should fail to deploy")
-        public Stream<DynamicTest> canCallBalanceOperationNonExtantContract() {
+        Stream<DynamicTest> canCallBalanceOperationNonExtantContract() {
             return hapiTest(
                     uploadInitCode(emptyContract),
                     atomicBatch(contractCreate(emptyContract)

@@ -100,7 +100,6 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.math.BigInteger;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
@@ -113,7 +112,7 @@ import org.junit.jupiter.api.Tag;
  */
 @Tag(CRYPTO)
 @HapiTestLifecycle
-public class AtomicBatchApproveAllowanceTest {
+class AtomicBatchApproveAllowanceTest {
     private static final String OWNER = "owner";
     private static final String SPENDER = "spender";
     private static final String RECEIVER = "receiver";
@@ -138,8 +137,6 @@ public class AtomicBatchApproveAllowanceTest {
 
     @BeforeAll
     public static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
-        testLifecycle.overrideInClass(
-                Map.of("atomicBatch.isEnabled", "true", "atomicBatch.maxNumberOfTransactions", "50"));
         testLifecycle.doAdhoc(cryptoCreate(DEFAULT_BATCH_OPERATOR).balance(ONE_MILLION_HBARS));
     }
 
@@ -149,7 +146,7 @@ public class AtomicBatchApproveAllowanceTest {
      */
     @HapiTest
     @Tag(MATS)
-    public final Stream<DynamicTest> transferErc20TokenFromContractWithApproval() {
+    final Stream<DynamicTest> transferErc20TokenFromContractWithApproval() {
         final var transferFromOtherContractWithSignaturesTxn = "transferFromOtherContractWithSignaturesTxn";
         final var nestedContract = "NestedERC20Contract";
         final var tokenAddress = new AtomicReference<Address>();
@@ -267,7 +264,7 @@ public class AtomicBatchApproveAllowanceTest {
      */
     @HapiTest
     @Tag(MATS)
-    public final Stream<DynamicTest> cannotPayForAnyTransactionWithContractAccount() {
+    final Stream<DynamicTest> cannotPayForAnyTransactionWithContractAccount() {
         final var cryptoAdminKey = "cryptoAdminKey";
         final var contract = "PayableConstructor";
         return hapiTest(
@@ -286,7 +283,7 @@ public class AtomicBatchApproveAllowanceTest {
      * @return hapi test
      */
     @HapiTest
-    public final Stream<DynamicTest> transferringMissingNftViaApprovalFailsWithInvalidNftId() {
+    final Stream<DynamicTest> transferringMissingNftViaApprovalFailsWithInvalidNftId() {
         return hapiTest(
                 newKeyNamed(SUPPLY_KEY),
                 cryptoCreate(OWNER).balance(ONE_HUNDRED_HBARS).maxAutomaticTokenAssociations(10),
@@ -333,7 +330,7 @@ public class AtomicBatchApproveAllowanceTest {
      * @return hapi test
      */
     @HapiTest
-    public final Stream<DynamicTest> deleteAllowanceFromDeletedSpender() {
+    final Stream<DynamicTest> deleteAllowanceFromDeletedSpender() {
         return hapiTest(
                 newKeyNamed(SUPPLY_KEY),
                 cryptoCreate(OWNER).balance(ONE_HUNDRED_HBARS).maxAutomaticTokenAssociations(10),
@@ -419,7 +416,7 @@ public class AtomicBatchApproveAllowanceTest {
      * @return hapi test
      */
     @HapiTest
-    public final Stream<DynamicTest> duplicateKeysAndSerialsInSameTxnDoesntThrow() {
+    final Stream<DynamicTest> duplicateKeysAndSerialsInSameTxnDoesntThrow() {
         return hapiTest(
                 newKeyNamed(SUPPLY_KEY),
                 cryptoCreate(OWNER).balance(ONE_HUNDRED_HBARS).maxAutomaticTokenAssociations(10),
@@ -491,7 +488,7 @@ public class AtomicBatchApproveAllowanceTest {
      * @return hapi test
      */
     @HapiTest
-    public final Stream<DynamicTest> approveForAllSpenderCanDelegateOnNft() {
+    final Stream<DynamicTest> approveForAllSpenderCanDelegateOnNft() {
         final String delegatingSpender = "delegatingSpender";
         final String newSpender = "newSpender";
         return hapiTest(
@@ -555,7 +552,7 @@ public class AtomicBatchApproveAllowanceTest {
      * @return hapi test
      */
     @HapiTest
-    public final Stream<DynamicTest> grantFungibleAllowancesWithTreasuryOwner() {
+    final Stream<DynamicTest> grantFungibleAllowancesWithTreasuryOwner() {
         return hapiTest(
                 newKeyNamed(SUPPLY_KEY),
                 cryptoCreate(TOKEN_TREASURY),
@@ -592,7 +589,7 @@ public class AtomicBatchApproveAllowanceTest {
      * @return hapi test
      */
     @HapiTest
-    public final Stream<DynamicTest> grantNftAllowancesWithTreasuryOwner() {
+    final Stream<DynamicTest> grantNftAllowancesWithTreasuryOwner() {
         return hapiTest(
                 newKeyNamed(SUPPLY_KEY),
                 cryptoCreate(TOKEN_TREASURY),
@@ -636,7 +633,7 @@ public class AtomicBatchApproveAllowanceTest {
      * @return hapi test
      */
     @HapiTest
-    public final Stream<DynamicTest> invalidOwnerFails() {
+    final Stream<DynamicTest> invalidOwnerFails() {
         return hapiTest(
                 newKeyNamed(SUPPLY_KEY),
                 cryptoCreate(OWNER).balance(ONE_HUNDRED_HBARS).maxAutomaticTokenAssociations(10),
@@ -702,7 +699,7 @@ public class AtomicBatchApproveAllowanceTest {
      * @return hapi test
      */
     @HapiTest
-    public final Stream<DynamicTest> invalidSpenderFails() {
+    final Stream<DynamicTest> invalidSpenderFails() {
         return hapiTest(
                 newKeyNamed(SUPPLY_KEY),
                 cryptoCreate(OWNER).balance(ONE_HUNDRED_HBARS).maxAutomaticTokenAssociations(10),
@@ -760,7 +757,7 @@ public class AtomicBatchApproveAllowanceTest {
      * @return hapi test
      */
     @HapiTest
-    public final Stream<DynamicTest> noOwnerDefaultsToPayer() {
+    final Stream<DynamicTest> noOwnerDefaultsToPayer() {
         return hapiTest(
                 newKeyNamed(SUPPLY_KEY),
                 cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS).maxAutomaticTokenAssociations(10),
@@ -817,7 +814,7 @@ public class AtomicBatchApproveAllowanceTest {
      * @return hapi test
      */
     @HapiTest
-    public final Stream<DynamicTest> multipleOwners() {
+    final Stream<DynamicTest> multipleOwners() {
         return hapiTest(
                 newKeyNamed(SUPPLY_KEY),
                 cryptoCreate(OWNER).balance(ONE_HUNDRED_HBARS).maxAutomaticTokenAssociations(10),
@@ -914,7 +911,7 @@ public class AtomicBatchApproveAllowanceTest {
      * @return hapi test
      */
     @HapiTest
-    public final Stream<DynamicTest> serialsInAscendingOrder() {
+    final Stream<DynamicTest> serialsInAscendingOrder() {
         return hapiTest(
                 newKeyNamed(SUPPLY_KEY),
                 cryptoCreate(OWNER).balance(ONE_HUNDRED_HBARS).maxAutomaticTokenAssociations(10),
@@ -961,7 +958,7 @@ public class AtomicBatchApproveAllowanceTest {
      * @return hapi test
      */
     @HapiTest
-    public final Stream<DynamicTest> succeedsWhenTokenPausedFrozenKycRevoked() {
+    final Stream<DynamicTest> succeedsWhenTokenPausedFrozenKycRevoked() {
         return hapiTest(
                 newKeyNamed(SUPPLY_KEY),
                 newKeyNamed(ADMIN_KEY),
@@ -1052,7 +1049,7 @@ public class AtomicBatchApproveAllowanceTest {
      * @return hapi test
      */
     @HapiTest
-    public final Stream<DynamicTest> tokenExceedsMaxSupplyFails() {
+    final Stream<DynamicTest> tokenExceedsMaxSupplyFails() {
         return hapiTest(
                 newKeyNamed(SUPPLY_KEY),
                 cryptoCreate(OWNER).balance(ONE_HUNDRED_HBARS).maxAutomaticTokenAssociations(10),
@@ -1081,7 +1078,7 @@ public class AtomicBatchApproveAllowanceTest {
      * @return hapi test
      */
     @HapiTest
-    public final Stream<DynamicTest> validatesSerialNums() {
+    final Stream<DynamicTest> validatesSerialNums() {
         return hapiTest(
                 newKeyNamed(SUPPLY_KEY),
                 cryptoCreate(OWNER).balance(ONE_HUNDRED_HBARS).maxAutomaticTokenAssociations(10),
@@ -1132,7 +1129,7 @@ public class AtomicBatchApproveAllowanceTest {
      * @return hapi test
      */
     @HapiTest
-    public final Stream<DynamicTest> invalidTokenTypeFails() {
+    final Stream<DynamicTest> invalidTokenTypeFails() {
         return hapiTest(
                 newKeyNamed(SUPPLY_KEY),
                 cryptoCreate(OWNER).balance(ONE_HUNDRED_HBARS).maxAutomaticTokenAssociations(10),
@@ -1182,7 +1179,7 @@ public class AtomicBatchApproveAllowanceTest {
      * @return hapi test
      */
     @HapiTest
-    public final Stream<DynamicTest> emptyAllowancesRejected() {
+    final Stream<DynamicTest> emptyAllowancesRejected() {
         return hapiTest(
                 cryptoCreate(OWNER).balance(ONE_HUNDRED_HBARS).maxAutomaticTokenAssociations(10),
                 atomicBatchDefaultOperator(cryptoApproveAllowance()
@@ -1196,7 +1193,7 @@ public class AtomicBatchApproveAllowanceTest {
      * @return hapi test
      */
     @HapiTest
-    public final Stream<DynamicTest> tokenNotAssociatedToAccountFails() {
+    final Stream<DynamicTest> tokenNotAssociatedToAccountFails() {
         return hapiTest(
                 newKeyNamed(SUPPLY_KEY),
                 cryptoCreate(OWNER).balance(ONE_HUNDRED_HBARS).maxAutomaticTokenAssociations(10),
@@ -1249,7 +1246,7 @@ public class AtomicBatchApproveAllowanceTest {
      * @return hapi test
      */
     @HapiTest
-    public final Stream<DynamicTest> negativeAmountFailsForFungible() {
+    final Stream<DynamicTest> negativeAmountFailsForFungible() {
         return hapiTest(
                 newKeyNamed(SUPPLY_KEY),
                 cryptoCreate(OWNER).balance(ONE_HUNDRED_HBARS).maxAutomaticTokenAssociations(10),
@@ -1307,7 +1304,7 @@ public class AtomicBatchApproveAllowanceTest {
      * @return hapi test
      */
     @HapiTest
-    public final Stream<DynamicTest> chargedUsdScalesWithAllowances() {
+    final Stream<DynamicTest> chargedUsdScalesWithAllowances() {
         final var batchTxn = "batchTxn";
         return hapiTest(
                 newKeyNamed(SUPPLY_KEY),
@@ -1347,7 +1344,7 @@ public class AtomicBatchApproveAllowanceTest {
      * @return hapi test
      */
     @HapiTest
-    public final Stream<DynamicTest> happyPathWorks() {
+    final Stream<DynamicTest> happyPathWorks() {
         final var batchTxn = "batchTxn";
         return hapiTest(
                 newKeyNamed(SUPPLY_KEY),
@@ -1413,7 +1410,7 @@ public class AtomicBatchApproveAllowanceTest {
      * @return hapi test
      */
     @HapiTest
-    public final Stream<DynamicTest> duplicateEntriesGetsReplacedWithDifferentTxn() {
+    final Stream<DynamicTest> duplicateEntriesGetsReplacedWithDifferentTxn() {
         return hapiTest(
                 newKeyNamed(SUPPLY_KEY),
                 cryptoCreate(OWNER).balance(ONE_HUNDRED_HBARS).maxAutomaticTokenAssociations(10),
@@ -1483,7 +1480,7 @@ public class AtomicBatchApproveAllowanceTest {
      */
     @HapiTest
     @Tag(MATS)
-    public final Stream<DynamicTest> cannotHaveMultipleAllowedSpendersForTheSameNftSerial() {
+    final Stream<DynamicTest> cannotHaveMultipleAllowedSpendersForTheSameNftSerial() {
         return hapiTest(
                 newKeyNamed(SUPPLY_KEY),
                 cryptoCreate(OWNER).balance(ONE_HUNDRED_HBARS).maxAutomaticTokenAssociations(10),
@@ -1573,7 +1570,7 @@ public class AtomicBatchApproveAllowanceTest {
      * @return hapi test
      */
     @HapiTest
-    public final Stream<DynamicTest> approveForAllDoesNotSetExplicitNftSpender() {
+    final Stream<DynamicTest> approveForAllDoesNotSetExplicitNftSpender() {
         return hapiTest(
                 newKeyNamed(SUPPLY_KEY),
                 cryptoCreate(OWNER).balance(ONE_HUNDRED_HBARS).maxAutomaticTokenAssociations(10),
@@ -1613,7 +1610,7 @@ public class AtomicBatchApproveAllowanceTest {
      * @return hapi test
      */
     @HapiTest
-    public final Stream<DynamicTest> approveNegativeCases() {
+    final Stream<DynamicTest> approveNegativeCases() {
         final var tryApprovingTheSender = "tryApprovingTheSender";
         final var tryApprovingAboveBalance = "tryApprovingAboveBalance";
         final var tryApprovingNftToOwner = "tryApprovingNFTToOwner";
@@ -1690,7 +1687,7 @@ public class AtomicBatchApproveAllowanceTest {
      * @return hapi test
      */
     @HapiTest
-    public final Stream<DynamicTest> approveAllowanceForDeletedToken() {
+    final Stream<DynamicTest> approveAllowanceForDeletedToken() {
         return hapiTest(
                 newKeyNamed(SUPPLY_KEY),
                 cryptoCreate(OWNER).balance(ONE_HUNDRED_HBARS).maxAutomaticTokenAssociations(10),
@@ -1734,7 +1731,7 @@ public class AtomicBatchApproveAllowanceTest {
      * @return hapi test
      */
     @HapiTest
-    public final Stream<DynamicTest> approveAllowanceToOwner() {
+    final Stream<DynamicTest> approveAllowanceToOwner() {
         return hapiTest(
                 newKeyNamed(SUPPLY_KEY),
                 cryptoCreate(OWNER).balance(ONE_HUNDRED_HBARS).maxAutomaticTokenAssociations(10),
@@ -1768,7 +1765,7 @@ public class AtomicBatchApproveAllowanceTest {
      * @return hapi test
      */
     @HapiTest
-    public final Stream<DynamicTest> delegateAllowanceFromDeletedSpender() {
+    final Stream<DynamicTest> delegateAllowanceFromDeletedSpender() {
         return hapiTest(
                 newKeyNamed(SUPPLY_KEY),
                 cryptoCreate(OWNER).balance(ONE_HUNDRED_HBARS).maxAutomaticTokenAssociations(10),

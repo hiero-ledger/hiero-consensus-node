@@ -157,7 +157,7 @@ import org.junit.jupiter.api.Tag;
 @SuppressWarnings("java:S1192") // "string literal should not be duplicated" - this rule makes test suites worse
 @OrderedInIsolation
 @HapiTestLifecycle
-public class AtomicLeakyContractTestsSuite {
+class AtomicLeakyContractTestsSuite {
     public static final String CREATE_TX = "createTX";
     public static final String CREATE_TX_REC = "createTXRec";
     public static final String FALSE = "false";
@@ -193,15 +193,8 @@ public class AtomicLeakyContractTestsSuite {
 
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
-        testLifecycle.overrideInClass(Map.of(
-                "atomicBatch.isEnabled",
-                "true",
-                "atomicBatch.maxNumberOfTransactions",
-                "50",
-                "contracts.throttle.throttleByGas",
-                "false",
-                "cryptoCreateWithAlias.enabled",
-                "false"));
+        testLifecycle.overrideInClass(
+                Map.of("contracts.throttle.throttleByGas", "false", "cryptoCreateWithAlias.enabled", "false"));
         testLifecycle.doAdhoc(cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS));
     }
 

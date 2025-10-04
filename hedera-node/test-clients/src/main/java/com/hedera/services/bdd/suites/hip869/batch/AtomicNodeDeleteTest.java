@@ -43,7 +43,6 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.security.cert.CertificateEncodingException;
 import java.security.cert.X509Certificate;
 import java.util.List;
-import java.util.Map;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -53,7 +52,7 @@ import org.junit.jupiter.api.Tag;
 // This test cases are direct copies of NodeDeleteTest. The difference here is that
 // we are wrapping the operations in an atomic batch to confirm that everything works as expected.
 @HapiTestLifecycle
-public class AtomicNodeDeleteTest {
+class AtomicNodeDeleteTest {
 
     private static List<X509Certificate> gossipCertificates;
 
@@ -61,8 +60,6 @@ public class AtomicNodeDeleteTest {
 
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
-        testLifecycle.overrideInClass(
-                Map.of("atomicBatch.isEnabled", "true", "atomicBatch.maxNumberOfTransactions", "50"));
         testLifecycle.doAdhoc(cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS));
 
         gossipCertificates = generateX509Certificates(1);

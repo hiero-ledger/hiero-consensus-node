@@ -45,7 +45,6 @@ import com.hederahashgraph.api.proto.java.TokenSupplyType;
 import com.hederahashgraph.api.proto.java.TokenType;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
-import java.util.Map;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
@@ -56,7 +55,7 @@ import org.junit.jupiter.api.Tag;
 @HapiTestLifecycle
 @Tag(TOKEN)
 @Tag(MATS)
-public class AtomicHip17UnhappyTokensSuite {
+class AtomicHip17UnhappyTokensSuite {
 
     private static final String ANOTHER_USER = "AnotherUser";
     private static final String ANOTHER_KEY = "AnotherKey";
@@ -87,8 +86,6 @@ public class AtomicHip17UnhappyTokensSuite {
 
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
-        testLifecycle.overrideInClass(
-                Map.of("atomicBatch.isEnabled", "true", "atomicBatch.maxNumberOfTransactions", "50"));
         testLifecycle.doAdhoc(cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS));
     }
 

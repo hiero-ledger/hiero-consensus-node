@@ -42,7 +42,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
 
 @HapiTestLifecycle
-public class AtomicBatchAddress167Test {
+class AtomicBatchAddress167Test {
     private static final String DEFAULT_BATCH_OPERATOR = "defaultBatchOperator";
     private static final String ACCOUNT = "account";
     private static final String TOKEN_AND_TYPE_CHECK_CONTRACT = "TokenAndTypeCheck";
@@ -52,11 +52,7 @@ public class AtomicBatchAddress167Test {
 
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
-        // enable atomic batch
-        testLifecycle.overrideInClass(Map.of(
-                "atomicBatch.isEnabled", "true",
-                "atomicBatch.maxNumberOfTransactions", "50",
-                "contracts.throttle.throttleByGas", "false"));
+        testLifecycle.overrideInClass(Map.of("contracts.throttle.throttleByGas", "false"));
         // create default batch operator
         testLifecycle.doAdhoc(cryptoCreate(DEFAULT_BATCH_OPERATOR).balance(ONE_MILLION_HBARS));
     }

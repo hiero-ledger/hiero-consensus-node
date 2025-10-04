@@ -43,27 +43,21 @@ import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
 import com.google.protobuf.ByteString;
 import com.hedera.node.app.hapi.utils.ByteStringUtils;
 import com.hedera.services.bdd.junit.HapiTest;
-import com.hedera.services.bdd.junit.HapiTestLifecycle;
-import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.SpecOperation;
 import com.hedera.services.bdd.spec.transactions.consensus.HapiTopicCreate;
 import com.hedera.services.bdd.spec.transactions.token.HapiTokenCreate;
 import com.hedera.services.bdd.spec.transactions.token.HapiTokenMint;
 import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
 import com.hederahashgraph.api.proto.java.TopicID;
-import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
-import java.util.Map;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 
-@HapiTestLifecycle
-public class AtomicBatchEndToEndConsensusAndTokenServiceTests {
+class AtomicBatchEndToEndConsensusAndTokenServiceTests {
     private static final double BASE_FEE_BATCH_TRANSACTION = 0.001;
     private static final long HBAR_FEE = 1L;
     private static final String FT_FOR_END_TO_END = "ftForEndToEnd";
@@ -97,11 +91,6 @@ public class AtomicBatchEndToEndConsensusAndTokenServiceTests {
     private static final String irrelevantKey2 = "irrelevantKey2";
     private static final String irrelevantKey3 = "irrelevantKey3";
 
-    @BeforeAll
-    static void beforeAll(@NonNull final TestLifecycle lifecycle) {
-        lifecycle.overrideInClass(Map.of("atomicBatch.isEnabled", "true", "atomicBatch.maxNumberOfTransactions", "50"));
-    }
-
     @Nested
     @DisplayName(
             "Atomic Batch End-to-End Test Cases for Consensus and Token Service with Token Operations and Topic Message Submissions")
@@ -110,8 +99,7 @@ public class AtomicBatchEndToEndConsensusAndTokenServiceTests {
         @DisplayName(
                 "Token Transfer From Treasury to Receiver and Submit Message to Topic with the Transfer Details Success "
                         + "in Atomic Batch")
-        public Stream<DynamicTest>
-                tokenTransferFromTreasuryAndSubmitMessageToTopicWithTheTransferDetailsSuccessInBatch() {
+        Stream<DynamicTest> tokenTransferFromTreasuryAndSubmitMessageToTopicWithTheTransferDetailsSuccessInBatch() {
 
             // token transfer inner transaction
             final var transferTokensToAssociatedAccount = cryptoTransfer(
@@ -155,7 +143,7 @@ public class AtomicBatchEndToEndConsensusAndTokenServiceTests {
         @HapiTest
         @DisplayName("Token Transfer From Account to Receiver and Submit Message to Topic with the Transfer "
                 + "Details Success in Atomic Batch")
-        public Stream<DynamicTest>
+        Stream<DynamicTest>
                 tokenTransferFromAccountToReceiverAndSubmitMessageToTopicWithTheTransferDetailsSuccessInBatch() {
 
             // token transfers inner transactions
@@ -210,7 +198,7 @@ public class AtomicBatchEndToEndConsensusAndTokenServiceTests {
 
         @HapiTest
         @DisplayName("Mint NFT with Metadata and Submit Message to Topic with the NFT Metadata Success in Atomic Batch")
-        public Stream<DynamicTest> mintNFTWithMetadataAndSubmitMessageToTopicWithTheNFTMetadataSuccessInBatch() {
+        Stream<DynamicTest> mintNFTWithMetadataAndSubmitMessageToTopicWithTheNFTMetadataSuccessInBatch() {
 
             final var nftMetadata = "ipfs://test-nft-uri-1";
             final var metadataBytes = nftMetadata.getBytes();
@@ -253,7 +241,7 @@ public class AtomicBatchEndToEndConsensusAndTokenServiceTests {
 
         @HapiTest
         @DisplayName("Submit Messages to Topic for FT and NFT and Create and Mint the Tokens Success in Atomic Batch")
-        public Stream<DynamicTest> submitMessageToTopicForFT_And_NFTCreateAndMintTokensSuccessInBatch() {
+        Stream<DynamicTest> submitMessageToTopicForFT_And_NFTCreateAndMintTokensSuccessInBatch() {
 
             final var nftMetadata = "ipfs://test-nft-uri-1";
             final var metadataBytes = nftMetadata.getBytes();
@@ -318,7 +306,7 @@ public class AtomicBatchEndToEndConsensusAndTokenServiceTests {
 
         @HapiTest
         @DisplayName("Token Associate and Submit Message to Topic with the Association Details Success in Atomic Batch")
-        public Stream<DynamicTest> tokenAssociateAndSubmitMessageToTopicWithTheAssociationDetailsSuccessInBatch() {
+        Stream<DynamicTest> tokenAssociateAndSubmitMessageToTopicWithTheAssociationDetailsSuccessInBatch() {
 
             // token associate inner transaction
             final var tokensAssociateToAccount = tokenAssociate(RECEIVER_ASSOCIATED_FIRST, FT_FOR_END_TO_END)
@@ -359,7 +347,7 @@ public class AtomicBatchEndToEndConsensusAndTokenServiceTests {
         @HapiTest
         @DisplayName(
                 "Grant KYC to Account and Submit Message to Topic with the Transfer Details Success in Atomic Batch")
-        public Stream<DynamicTest> grantKYCToAccountAndSubmitMessageToTopicWithTheKYCDetailsSuccessInBatch() {
+        Stream<DynamicTest> grantKYCToAccountAndSubmitMessageToTopicWithTheKYCDetailsSuccessInBatch() {
 
             // grant KYC inner transaction
             final var grantKYCToAccount = grantTokenKyc(FT_FOR_TOKEN_KYC, RECEIVER_ASSOCIATED_FIRST)
@@ -402,8 +390,7 @@ public class AtomicBatchEndToEndConsensusAndTokenServiceTests {
         @HapiTest
         @DisplayName(
                 "Associate Token, Grant KYC to Account and Submit Message to Topic with the Transfer Details Success in Atomic Batch")
-        public Stream<DynamicTest>
-                associateTokenGrantKYCToAccountAndSubmitMessageToTopicWithTheKYCDetailsSuccessInBatch() {
+        Stream<DynamicTest> associateTokenGrantKYCToAccountAndSubmitMessageToTopicWithTheKYCDetailsSuccessInBatch() {
 
             // associate token inner transaction
             final var associateTokenToAccount = tokenAssociate(RECEIVER_ASSOCIATED_FIRST, FT_FOR_TOKEN_KYC)
@@ -452,8 +439,7 @@ public class AtomicBatchEndToEndConsensusAndTokenServiceTests {
         @DisplayName(
                 "Submit Message to Topic, Token Transfer From Treasury to Receiver, Submit New Message to Topic with the Transfer Details"
                         + "and delete the topic Success in Atomic Batch")
-        public Stream<DynamicTest>
-                submitMessageToTopicTokenTransferSubmitSecondMessageAndDeleteTheTopicSuccessInBatch() {
+        Stream<DynamicTest> submitMessageToTopicTokenTransferSubmitSecondMessageAndDeleteTheTopicSuccessInBatch() {
 
             // token transfer inner transaction
             final var transferTokensToAssociatedAccount = cryptoTransfer(
@@ -516,7 +502,7 @@ public class AtomicBatchEndToEndConsensusAndTokenServiceTests {
 
         @HapiTest
         @DisplayName("Token Transfer and Submit Message to Topic created without Submit Key Success in Atomic Batch")
-        public Stream<DynamicTest> tokenTransferAndSubmitMessageToTopicCreatedWithoutSubmitKeySuccessInBatch() {
+        Stream<DynamicTest> tokenTransferAndSubmitMessageToTopicCreatedWithoutSubmitKeySuccessInBatch() {
 
             // token transfer inner transaction
             final var transferTokensToAssociatedAccount = cryptoTransfer(
@@ -561,8 +547,7 @@ public class AtomicBatchEndToEndConsensusAndTokenServiceTests {
         @DisplayName(
                 "Submit Messages to Multiple Topics with Custom Fees and Transfer the collected fees from the Collector "
                         + "Account Success in Atomic Batch")
-        public Stream<DynamicTest>
-                submitMessagesToMultipleTopicsWithCustomFeesAndTransferTheCollectedFeesSuccessInBatch() {
+        Stream<DynamicTest> submitMessagesToMultipleTopicsWithCustomFeesAndTransferTheCollectedFeesSuccessInBatch() {
 
             // submit message to topics inner transactions
             final var submitMessageToFirstTopic = submitMessageTo(TEST_TOPIC)
@@ -628,8 +613,7 @@ public class AtomicBatchEndToEndConsensusAndTokenServiceTests {
         @DisplayName(
                 "Token Transfer From Treasury to Receiver and Submit Message to Topic with Insufficient Payer Balance "
                         + "Fails in Atomic Batch")
-        public Stream<DynamicTest>
-                tokenTransferFromTreasuryAndSubmitMessageToTopicWithInsufficientPayerBalanceFailsInBatch() {
+        Stream<DynamicTest> tokenTransferFromTreasuryAndSubmitMessageToTopicWithInsufficientPayerBalanceFailsInBatch() {
 
             // token transfer inner transaction
             final var transferTokensToAssociatedAccount = cryptoTransfer(
@@ -672,8 +656,7 @@ public class AtomicBatchEndToEndConsensusAndTokenServiceTests {
         @HapiTest
         @DisplayName(
                 "Token Transfer From Treasury to Not Associated Receiver and Submit Message to Topic Fails in Atomic Batch")
-        public Stream<DynamicTest>
-                tokenTransferFromTreasuryToNotAssociatedReceiverAndSubmitMessageToTopicFailsInBatch() {
+        Stream<DynamicTest> tokenTransferFromTreasuryToNotAssociatedReceiverAndSubmitMessageToTopicFailsInBatch() {
 
             // token transfer inner transaction
             final var transferTokensToNotAssociatedAccount = cryptoTransfer(
@@ -717,7 +700,7 @@ public class AtomicBatchEndToEndConsensusAndTokenServiceTests {
         @DisplayName(
                 "Token Transfer From Treasury to Associated Receiver and Submit Message to Topic Not Signed by Payer "
                         + "Fails in Atomic Batch")
-        public Stream<DynamicTest> tokenTransferFromTreasuryToAssociatedReceiverNotSignedByPayerFailsInBatch() {
+        Stream<DynamicTest> tokenTransferFromTreasuryToAssociatedReceiverNotSignedByPayerFailsInBatch() {
 
             // token transfer inner transaction
             final var transferTokensToAssociatedAccount = cryptoTransfer(
@@ -762,7 +745,7 @@ public class AtomicBatchEndToEndConsensusAndTokenServiceTests {
         @DisplayName(
                 "Token Transfer From Treasury to Associated Receiver and Submit Message to Topic Not Signed by Submit Key "
                         + "Fails in Atomic Batch")
-        public Stream<DynamicTest> tokenTransferFromTreasuryToAssociatedReceiverNotSignedBySubmitKeyFailsInBatch() {
+        Stream<DynamicTest> tokenTransferFromTreasuryToAssociatedReceiverNotSignedBySubmitKeyFailsInBatch() {
 
             // token transfer inner transaction
             final var transferTokensToAssociatedAccount = cryptoTransfer(
@@ -806,7 +789,7 @@ public class AtomicBatchEndToEndConsensusAndTokenServiceTests {
 
         @HapiTest
         @DisplayName("Mint NFT and Submit Too Long Message to Topic Fails in Atomic Batch")
-        public Stream<DynamicTest> mintNFTAndSubmitTooLongMessageToTopicFailsInBatch() {
+        Stream<DynamicTest> mintNFTAndSubmitTooLongMessageToTopicFailsInBatch() {
 
             final var tooLongMessageContent = "a".repeat(2000);
 
@@ -847,7 +830,7 @@ public class AtomicBatchEndToEndConsensusAndTokenServiceTests {
 
         @HapiTest
         @DisplayName("Mint NFT and Submit Empty Message to Topic Fails in Atomic Batch")
-        public Stream<DynamicTest> mintNFTAndSubmitEmptyMessageToTopicFailsInBatch() {
+        Stream<DynamicTest> mintNFTAndSubmitEmptyMessageToTopicFailsInBatch() {
 
             // mint NFT inner transaction
             final var mintNftInnerTxn = mintNFT(NFT_FOR_END_TO_END, 0, 10)
@@ -886,7 +869,7 @@ public class AtomicBatchEndToEndConsensusAndTokenServiceTests {
         @DisplayName(
                 "Token Transfer to Associated Receiver and Submit Message to Topic signed with Multiple Irrelevant Keys "
                         + "Fails in Atomic Batch")
-        public Stream<DynamicTest> tokenTransferAndSendMessageToTopicSignedByMultipleIrrelevantKeysFailsInBatch() {
+        Stream<DynamicTest> tokenTransferAndSendMessageToTopicSignedByMultipleIrrelevantKeysFailsInBatch() {
 
             // token transfer inner transaction
             final var transferTokensToAssociatedAccount = cryptoTransfer(
@@ -928,7 +911,7 @@ public class AtomicBatchEndToEndConsensusAndTokenServiceTests {
 
         @HapiTest
         @DisplayName("Token Transfer and Submit Message to Invalid Topic ID Fails in Atomic Batch")
-        public Stream<DynamicTest> tokenTransferAndSendMessageToInvalidTopicIdFailsInBatch() {
+        Stream<DynamicTest> tokenTransferAndSendMessageToInvalidTopicIdFailsInBatch() {
 
             // token transfer inner transaction
             final var transferTokensToAssociatedAccount = cryptoTransfer(
@@ -972,7 +955,7 @@ public class AtomicBatchEndToEndConsensusAndTokenServiceTests {
 
         @HapiTest
         @DisplayName("Delete Topic and Submit Message to the Deleted Topic Fails in Atomic Batch")
-        public Stream<DynamicTest> deleteTopicAndSubmitMessageToTheDeletedTopicFailsInBatch() {
+        Stream<DynamicTest> deleteTopicAndSubmitMessageToTheDeletedTopicFailsInBatch() {
 
             // delete topic inner transaction
             final var deleteTopic = deleteTopic(TEST_TOPIC)
@@ -1012,7 +995,7 @@ public class AtomicBatchEndToEndConsensusAndTokenServiceTests {
 
         @HapiTest
         @DisplayName("Token Transfer and Submit Message to Topic with Wrong Submit Key Fails in Atomic Batch")
-        public Stream<DynamicTest> tokenTransferAndSubmitMessageWithWrongSubmitKeyFailsInBatch() {
+        Stream<DynamicTest> tokenTransferAndSubmitMessageWithWrongSubmitKeyFailsInBatch() {
 
             // token transfer inner transaction
             final var transferTokensToAssociatedAccount = cryptoTransfer(
@@ -1057,7 +1040,7 @@ public class AtomicBatchEndToEndConsensusAndTokenServiceTests {
         @DisplayName(
                 "Submit Invalid Messages to Multiple Topics with Custom Fees and Transfer the collected fees from the Collector "
                         + "Account Fails in Atomic Batch")
-        public Stream<DynamicTest>
+        Stream<DynamicTest>
                 submitInvalidMessagesToMultipleTopicsWithCustomFeesAndTransferTheCollectedFeesFailsInBatch() {
 
             // submit invalid messages to topics inner transactions
@@ -1126,7 +1109,7 @@ public class AtomicBatchEndToEndConsensusAndTokenServiceTests {
         @HapiTest
         @DisplayName(
                 "Update Token Admin Key and Submit Message to Topic with the Updated Token Details Success in Atomic Batch")
-        public Stream<DynamicTest> updateTokenAdminKeyAndSubmitMessageToTopicSuccessInBatch() {
+        Stream<DynamicTest> updateTokenAdminKeyAndSubmitMessageToTopicSuccessInBatch() {
 
             // token update inner transaction
             final var updateToken = tokenUpdate(FT_FOR_END_TO_END)
@@ -1169,8 +1152,7 @@ public class AtomicBatchEndToEndConsensusAndTokenServiceTests {
         @DisplayName(
                 "Update Token Treasury, Token Transfer from new Treasury and Submit Message to Topic with the Update Details"
                         + " Success in Atomic Batch")
-        public Stream<DynamicTest>
-                updateTokenTreasuryTokenTransferFromNewTreasuryAndSubmitMessageToTopicSuccessInBatch() {
+        Stream<DynamicTest> updateTokenTreasuryTokenTransferFromNewTreasuryAndSubmitMessageToTopicSuccessInBatch() {
 
             // token update inner transaction
             final var updateToken = tokenUpdate(FT_FOR_END_TO_END)
@@ -1225,7 +1207,7 @@ public class AtomicBatchEndToEndConsensusAndTokenServiceTests {
                 "Update Topic Submit Key, Token Transfer and Submit Message to the Updated Topic with the Transfer Details"
                         + " Success in Atomic Batch")
         @Tag(MATS)
-        public Stream<DynamicTest> updateTopicTokenTransferAndSubmitMessageToTopicSuccessInBatch() {
+        Stream<DynamicTest> updateTopicTokenTransferAndSubmitMessageToTopicSuccessInBatch() {
 
             // topic update inner transaction
             final var updateTopic = updateTopic(TEST_TOPIC)
@@ -1279,7 +1261,7 @@ public class AtomicBatchEndToEndConsensusAndTokenServiceTests {
         @DisplayName(
                 "Update Token Treasury, Update Topic, Token Transfer from new Treasury and Submit Message to Topic with the Update Details"
                         + " Success in Atomic Batch")
-        public Stream<DynamicTest>
+        Stream<DynamicTest>
                 updateTokenTreasuryUpdateTokenTransferTokenFromNewTreasuryAndSubmitMessageToTopicSuccessInBatch() {
 
             // token update inner transaction
@@ -1343,7 +1325,7 @@ public class AtomicBatchEndToEndConsensusAndTokenServiceTests {
         @DisplayName(
                 "Update Token Treasury, Token Transfer from new Treasury, Update Topic and Submit Message to Topic with the Update Details"
                         + " Success in Atomic Batch")
-        public Stream<DynamicTest>
+        Stream<DynamicTest>
                 updateTokenTreasuryTransferTokenFromNewTreasuryUpdateTokenAndSubmitMessageToTopicSuccessInBatch() {
 
             // token update inner transaction
@@ -1407,7 +1389,7 @@ public class AtomicBatchEndToEndConsensusAndTokenServiceTests {
         @DisplayName(
                 "Update Topic Admin Key, Update Topic Submit Key, Token Transfer and Submit Message to Topic with the "
                         + "Transfer Details Success in Atomic Batch")
-        public Stream<DynamicTest>
+        Stream<DynamicTest>
                 updateTopicAdminKeyUpdateTopicSubmitKeyTransferTokenAndSubmitMessageToTopicSuccessInBatch() {
 
             // topic update inner transactions
@@ -1476,8 +1458,7 @@ public class AtomicBatchEndToEndConsensusAndTokenServiceTests {
         @DisplayName(
                 "Update Topic Submit Key, Token Transfer and Submit Message to the Updated Topic Signed by the old "
                         + "Submit Key Fails in Atomic Batch")
-        public Stream<DynamicTest>
-                updateTopicSubmitKeyTokenTransferAndSubmitMessageToTopicSignedByOldSubmitKeyFailsInBatch() {
+        Stream<DynamicTest> updateTopicSubmitKeyTokenTransferAndSubmitMessageToTopicSignedByOldSubmitKeyFailsInBatch() {
 
             // topic update inner transaction
             final var updateTopic = updateTopic(TEST_TOPIC)
@@ -1532,7 +1513,7 @@ public class AtomicBatchEndToEndConsensusAndTokenServiceTests {
         @DisplayName(
                 "Update Topic Admin Key, Update Topic Submit Key not signed with New Admin Key, Token Transfer and Submit Message to Topic "
                         + "Fails in Atomic Batch")
-        public Stream<DynamicTest>
+        Stream<DynamicTest>
                 updateTopicAdminKeyUpdateTopicSubmitKeySignedWithOldAdminKeyTransferTokenAndSubmitMessageToTopicFailsInBatch() {
 
             // topic update inner transactions
@@ -1602,7 +1583,7 @@ public class AtomicBatchEndToEndConsensusAndTokenServiceTests {
         @DisplayName(
                 "Update Topic Admin Key not Signed By New Admin Key, Update Topic Submit Key, Token Transfer and Submit Message to Topic "
                         + "Fails in Atomic Batch")
-        public Stream<DynamicTest>
+        Stream<DynamicTest>
                 updateTopicAdminKeySignedWithOldAdminKeyOnlyUpdateTopicSubmitKeyTransferTokenAndSubmitMessageToTopicFailsInBatch() {
 
             // topic update inner transactions

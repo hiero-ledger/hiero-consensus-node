@@ -52,7 +52,6 @@ import com.hederahashgraph.api.proto.java.TokenSupplyType;
 import com.hederahashgraph.api.proto.java.TokenType;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
-import java.util.Map;
 import java.util.stream.Stream;
 import org.hiero.base.utility.CommonUtils;
 import org.junit.jupiter.api.BeforeAll;
@@ -65,7 +64,7 @@ import org.junit.jupiter.api.Tag;
 // we are wrapping the operations in an atomic batch to confirm the fees are the same
 @HapiTestLifecycle
 @DisplayName("Topic custom fees update")
-public class AtomicTopicCustomFeeUpdateTest extends TopicCustomFeeBase {
+class AtomicTopicCustomFeeUpdateTest extends TopicCustomFeeBase {
 
     private static final long FIFTY_BILLION = 50_000_000_000L;
     private static final String BATCH_OPERATOR = "batchOperator";
@@ -73,7 +72,6 @@ public class AtomicTopicCustomFeeUpdateTest extends TopicCustomFeeBase {
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle lifecycle) {
         lifecycle.doAdhoc(setupBaseForUpdate());
-        lifecycle.overrideInClass(Map.of("atomicBatch.isEnabled", "true", "atomicBatch.maxNumberOfTransactions", "50"));
     }
 
     @Nested

@@ -28,31 +28,20 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNAT
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 
 import com.hedera.services.bdd.junit.HapiTest;
-import com.hedera.services.bdd.junit.HapiTestLifecycle;
-import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.keys.KeyShape;
 import com.hedera.services.bdd.spec.keys.SigControl;
 import com.hedera.services.bdd.spec.transactions.consensus.HapiTopicUpdate;
-import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Stream;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
-@HapiTestLifecycle
-public class AtomicBatchConsensusServiceTest {
-
-    @BeforeAll
-    static void beforeAll(@NonNull final TestLifecycle lifecycle) {
-        lifecycle.overrideInClass(Map.of("atomicBatch.isEnabled", "true", "atomicBatch.maxNumberOfTransactions", "50"));
-    }
+class AtomicBatchConsensusServiceTest {
 
     // Submit Message to Topic with Submit Key tests
 
     @HapiTest
-    public Stream<DynamicTest> topicSubmitMessageWithSubmitKeyValidSignatureSuccessInBatch() {
+    Stream<DynamicTest> topicSubmitMessageWithSubmitKeyValidSignatureSuccessInBatch() {
         final double BASE_FEE_BATCH_TRANSACTION = 0.001;
 
         // Define a threshold submit key that requires two simple keys signatures
@@ -80,7 +69,7 @@ public class AtomicBatchConsensusServiceTest {
     }
 
     @HapiTest
-    public Stream<DynamicTest> topicSubmitMessageWithSubmitKeyInvalidSignatureInBatch() {
+    Stream<DynamicTest> topicSubmitMessageWithSubmitKeyInvalidSignatureInBatch() {
         final double BASE_FEE_BATCH_TRANSACTION = 0.001;
 
         // Define a threshold submit key that requires two simple keys signatures
@@ -108,7 +97,7 @@ public class AtomicBatchConsensusServiceTest {
     }
 
     @HapiTest
-    public Stream<DynamicTest> topicSubmitMessageWithSubmitKeyInvalidAndValidSignatureInBatch() {
+    Stream<DynamicTest> topicSubmitMessageWithSubmitKeyInvalidAndValidSignatureInBatch() {
         final double BASE_FEE_BATCH_TRANSACTION = 0.001;
 
         // Define a threshold submit key that requires two simple keys signatures
@@ -142,7 +131,7 @@ public class AtomicBatchConsensusServiceTest {
     }
 
     @HapiTest
-    public Stream<DynamicTest> topicSubmitMessageWithSubmitKeyValidAndInvalidSignatureInBatch() {
+    Stream<DynamicTest> topicSubmitMessageWithSubmitKeyValidAndInvalidSignatureInBatch() {
         final double BASE_FEE_BATCH_TRANSACTION = 0.001;
 
         // Define a threshold submit key that requires two simple keys signatures
@@ -176,7 +165,7 @@ public class AtomicBatchConsensusServiceTest {
     }
 
     @HapiTest
-    public Stream<DynamicTest> topicSubmitMessageWithSubmitKeyAllInvalidSignaturesInBatch() {
+    Stream<DynamicTest> topicSubmitMessageWithSubmitKeyAllInvalidSignaturesInBatch() {
         final double BASE_FEE_BATCH_TRANSACTION = 0.001;
 
         // Define a threshold submit key that requires two simple keys signatures
@@ -209,7 +198,7 @@ public class AtomicBatchConsensusServiceTest {
     }
 
     @HapiTest
-    public Stream<DynamicTest> topicSubmitMessageToPublicTopicSuccessInBatch() {
+    Stream<DynamicTest> topicSubmitMessageToPublicTopicSuccessInBatch() {
         final double BASE_FEE_BATCH_TRANSACTION = 0.001;
 
         final var submitMessage_innerTxn = submitMessageTo("testTopic")

@@ -45,8 +45,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import com.google.protobuf.ByteString;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.HapiTest;
-import com.hedera.services.bdd.junit.HapiTestLifecycle;
-import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.SpecOperation;
 import com.hedera.services.bdd.spec.keys.KeyShape;
@@ -58,21 +56,17 @@ import com.hederahashgraph.api.proto.java.Key;
 import com.hederahashgraph.api.proto.java.KeyList;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import com.hederahashgraph.api.proto.java.ThresholdKey;
-import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 
-@HapiTestLifecycle
-public class AtomicBatchAutoAccountCreationEndToEndTests {
+class AtomicBatchAutoAccountCreationEndToEndTests {
 
     private static final double BASE_FEE_BATCH_TRANSACTION = 0.001;
     private static final String FT_FOR_AUTO_ACCOUNT = "ftForAutoAccount";
@@ -100,18 +94,13 @@ public class AtomicBatchAutoAccountCreationEndToEndTests {
     private static final String nftSupplyKey = "nftSupplyKey";
     private static final String adminKey = "adminKey";
 
-    @BeforeAll
-    static void beforeAll(@NonNull final TestLifecycle lifecycle) {
-        lifecycle.overrideInClass(Map.of("atomicBatch.isEnabled", "true", "atomicBatch.maxNumberOfTransactions", "50"));
-    }
-
     @Nested
     @DisplayName("Atomic Batch Auto Account Creation End-to-End Tests - Multiple Accounts and Transfers Test Cases ")
     class AtomicBatchAutoAccountCreationMultipleAccountsAndTransfersTests {
         @HapiTest
         @DisplayName(
                 "Auto Create Multiple Public Key and EVM Alias Accounts with Token Transfers success in Atomic Batch")
-        public Stream<DynamicTest> autoCreateMultipleAccountsWithTokenTransfersSuccessInBatch() {
+        Stream<DynamicTest> autoCreateMultipleAccountsWithTokenTransfersSuccessInBatch() {
 
             final AtomicReference<ByteString> evmAliasFirst = new AtomicReference<>();
             final AtomicReference<ByteString> evmAliasSecond = new AtomicReference<>();
@@ -295,7 +284,7 @@ public class AtomicBatchAutoAccountCreationEndToEndTests {
         @HapiTest
         @DisplayName(
                 "Auto Create Multiple EVM Alias Hollow Accounts with Multiple NFT Transfers success in Atomic Batch")
-        public Stream<DynamicTest> autoCreateMultipleEVMAliasHollowAccountsWithMultipleNFTTransfersSuccessInBatch() {
+        Stream<DynamicTest> autoCreateMultipleEVMAliasHollowAccountsWithMultipleNFTTransfersSuccessInBatch() {
 
             final AtomicReference<ByteString> evmAliasFirst = new AtomicReference<>();
             final AtomicReference<ByteString> evmAliasSecond = new AtomicReference<>();
@@ -474,7 +463,7 @@ public class AtomicBatchAutoAccountCreationEndToEndTests {
         @DisplayName(
                 "Auto Create Accounts with Multiple Transfers to valid Public Keys and evm alias with failing Transfer - "
                         + "Fails in Atomic Batch and no accounts are created")
-        public Stream<DynamicTest> autoCreateECDSAAccountWithFailingTokenTransferFailsInBatch() {
+        Stream<DynamicTest> autoCreateECDSAAccountWithFailingTokenTransferFailsInBatch() {
 
             final AtomicReference<ByteString> evmAliasFirst = new AtomicReference<>();
             final AtomicReference<ByteString> evmAliasSecond = new AtomicReference<>();
@@ -617,7 +606,7 @@ public class AtomicBatchAutoAccountCreationEndToEndTests {
 
         @HapiTest
         @DisplayName("Auto Create Hollow Account in one Batch and Finalize it in Another Atomic Batch")
-        public Stream<DynamicTest> autoCreateHollowAccountInOneBatchAndFinalizeInAnotherBatch() {
+        Stream<DynamicTest> autoCreateHollowAccountInOneBatchAndFinalizeInAnotherBatch() {
 
             final AtomicReference<ByteString> evmAlias = new AtomicReference<>();
 
@@ -726,7 +715,7 @@ public class AtomicBatchAutoAccountCreationEndToEndTests {
         @HapiTest
         @DisplayName("Auto Create Hollow Account in one Batch, Finalize it and Token Transfer in Another Atomic Batch")
         @Tag(MATS)
-        public Stream<DynamicTest> autoCreateHollowAccountInOneBatchFinalizeAndTokenTransferInAnotherBatch() {
+        Stream<DynamicTest> autoCreateHollowAccountInOneBatchFinalizeAndTokenTransferInAnotherBatch() {
 
             final AtomicReference<ByteString> evmAlias = new AtomicReference<>();
 
@@ -847,7 +836,7 @@ public class AtomicBatchAutoAccountCreationEndToEndTests {
 
         @HapiTest
         @DisplayName("Auto Create Hollow Account in one Batch, Finalize it Outside Atomic Batch")
-        public Stream<DynamicTest> autoCreateHollowAccountInOneBatchFinalizeOutsideBatch() {
+        Stream<DynamicTest> autoCreateHollowAccountInOneBatchFinalizeOutsideBatch() {
 
             final AtomicReference<ByteString> evmAlias = new AtomicReference<>();
 
@@ -961,7 +950,7 @@ public class AtomicBatchAutoAccountCreationEndToEndTests {
         @HapiTest
         @DisplayName(
                 "Auto Create Hollow Account in one Batch and Finalize it in another Batch Inner Transaction Fails in Atomic Batch")
-        public Stream<DynamicTest> autoCreateHollowAccountAndFinalizeInInnerTxnFailsInBatch() {
+        Stream<DynamicTest> autoCreateHollowAccountAndFinalizeInInnerTxnFailsInBatch() {
 
             final AtomicReference<ByteString> evmAlias = new AtomicReference<>();
 
@@ -1078,7 +1067,7 @@ public class AtomicBatchAutoAccountCreationEndToEndTests {
         @HapiTest
         @DisplayName(
                 "Mint Token and Transfer it to Public key and evm alias auto-creating accounts success in Atomic Batch")
-        public Stream<DynamicTest> autoCreateAccountsWithTokenMintAndTransfersSuccessInBatch() {
+        Stream<DynamicTest> autoCreateAccountsWithTokenMintAndTransfersSuccessInBatch() {
 
             final AtomicReference<ByteString> evmAliasFirst = new AtomicReference<>();
 
@@ -1201,8 +1190,7 @@ public class AtomicBatchAutoAccountCreationEndToEndTests {
         @HapiTest
         @DisplayName("Mint Token, Transfer to Public key alias and Transfer from the auto-created account to new alias"
                 + " success in Atomic Batch")
-        public Stream<DynamicTest>
-                autoCreateAccountWithTokenMintAndTransferAndNewTransferToPublicKeyAliasSuccessInBatch() {
+        Stream<DynamicTest> autoCreateAccountWithTokenMintAndTransferAndNewTransferToPublicKeyAliasSuccessInBatch() {
 
             // create NFT transfers to ED25519 and ECDSA aliases in a batch
             final var tokenTransferFT_To_ED25519 = cryptoTransfer(
@@ -1314,7 +1302,7 @@ public class AtomicBatchAutoAccountCreationEndToEndTests {
         @HapiTest
         @DisplayName("Mint Token, Transfer to Public key alias and transfer from the auto-created account to evm alias"
                 + "creating hollow account success in Atomic Batch")
-        public Stream<DynamicTest> autoCreateAccountWithTokenMintAndTransferAndNewTransferToEvmAliasSuccessInBatch() {
+        Stream<DynamicTest> autoCreateAccountWithTokenMintAndTransferAndNewTransferToEvmAliasSuccessInBatch() {
 
             final AtomicReference<ByteString> evmAliasFirst = new AtomicReference<>();
 
@@ -1431,7 +1419,7 @@ public class AtomicBatchAutoAccountCreationEndToEndTests {
         @DisplayName(
                 "Auto Create Account in one batch, edit Account Key and transfer from the edited account in second "
                         + "batch success in Atomic Batch")
-        public Stream<DynamicTest> autoCreateAccountEditAccountKeyAndTransferFromEditedAccountSuccessInBatch() {
+        Stream<DynamicTest> autoCreateAccountEditAccountKeyAndTransferFromEditedAccountSuccessInBatch() {
 
             // create FT transfer to ED25519 alias in a batch
             final var tokenTransferNFT_To_ED25519 = cryptoTransfer(
@@ -1538,7 +1526,7 @@ public class AtomicBatchAutoAccountCreationEndToEndTests {
         @DisplayName(
                 "Auto Create Account in one batch, edit Account Key with the same key and transfer in second batch "
                         + "success in Atomic Batch")
-        public Stream<DynamicTest> autoCreateAccountEditAccountKeyWithSameKeyAndTransferSuccessInBatch() {
+        Stream<DynamicTest> autoCreateAccountEditAccountKeyWithSameKeyAndTransferSuccessInBatch() {
 
             // create FT transfer to ED25519 alias in a batch
             final var tokenTransferNFT_To_ED25519 = cryptoTransfer(
@@ -1645,7 +1633,7 @@ public class AtomicBatchAutoAccountCreationEndToEndTests {
         @DisplayName(
                 "Auto Create Account in one batch, increase Auto-Association limit and Auto-Associate the edited account in second "
                         + "batch success in Atomic Batch")
-        public Stream<DynamicTest> autoCreateAccountEditAutoAssociationLimitAndAssociateEditedAccountSuccessInBatch() {
+        Stream<DynamicTest> autoCreateAccountEditAutoAssociationLimitAndAssociateEditedAccountSuccessInBatch() {
 
             // create FT transfer to ED25519 alias in a batch
             final var tokenTransferNFT_To_ED25519 = cryptoTransfer(
@@ -1744,7 +1732,7 @@ public class AtomicBatchAutoAccountCreationEndToEndTests {
         @DisplayName(
                 "Auto Create Account in one batch, edit both Account Key and Auto-Association limit in second batch "
                         + "success in Atomic Batch")
-        public Stream<DynamicTest> autoCreateAccountEditBothAccountKeyAndAutoAssociationLimitSuccessInBatch() {
+        Stream<DynamicTest> autoCreateAccountEditBothAccountKeyAndAutoAssociationLimitSuccessInBatch() {
 
             // create FT transfer to ED25519 alias in a batch
             final var tokenTransferNFT_To_ED25519 = cryptoTransfer(
@@ -1850,7 +1838,7 @@ public class AtomicBatchAutoAccountCreationEndToEndTests {
 
         @HapiTest
         @DisplayName("Auto Create Hollow Account in one batch and edit its key in second batch success in Atomic Batch")
-        public Stream<DynamicTest> autoCreateHollowAccountEditKeySuccessInBatch() {
+        Stream<DynamicTest> autoCreateHollowAccountEditKeySuccessInBatch() {
 
             final AtomicReference<ByteString> evmAlias = new AtomicReference<>();
 
@@ -1979,8 +1967,7 @@ public class AtomicBatchAutoAccountCreationEndToEndTests {
         @DisplayName(
                 "Auto Create Account in one batch, edit Account Key with Threshold Key and Transfer from the edited account in second "
                         + "batch success in Atomic Batch")
-        public Stream<DynamicTest>
-                autoCreateAccountEditAccountKeyWithThresholdAndTransferFromEditedAccountSuccessInBatch() {
+        Stream<DynamicTest> autoCreateAccountEditAccountKeyWithThresholdAndTransferFromEditedAccountSuccessInBatch() {
 
             // create FT transfer to ED25519 alias in a batch
             final var tokenTransferNFT_To_ED25519 = cryptoTransfer(
@@ -2095,7 +2082,7 @@ public class AtomicBatchAutoAccountCreationEndToEndTests {
         @HapiTest
         @DisplayName("Auto Create Account in one batch, edit Account Key with new Key and edit again with the Old Key "
                 + "success in Atomic Batch")
-        public Stream<DynamicTest> autoCreateAccountEditAccountKeyWithNewAndEditAgainWithOldKeysSuccessInBatch() {
+        Stream<DynamicTest> autoCreateAccountEditAccountKeyWithNewAndEditAgainWithOldKeysSuccessInBatch() {
 
             // create FT transfer to ED25519 alias in a batch
             final var tokenTransferNFT_To_ED25519 = cryptoTransfer(
@@ -2214,8 +2201,7 @@ public class AtomicBatchAutoAccountCreationEndToEndTests {
         @HapiTest
         @DisplayName(
                 "Auto Create Account in one batch and edit Auto-Association limit to 0 in second batch fails in Atomic Batch")
-        public Stream<DynamicTest>
-                autoCreateAccountEditAutoAssociationLimitToZeroAndAssociateEditedAccountFailsInBatch() {
+        Stream<DynamicTest> autoCreateAccountEditAutoAssociationLimitToZeroAndAssociateEditedAccountFailsInBatch() {
 
             // create FT transfer to ED25519 alias in a batch
             final var tokenTransferNFT_To_ED25519 = cryptoTransfer(
@@ -2300,7 +2286,7 @@ public class AtomicBatchAutoAccountCreationEndToEndTests {
         @DisplayName(
                 "Auto Create Account in one batch, edit Auto-Association limit to 1 and Associate exceeding the edited limit "
                         + "in second batch fails in Atomic Batch")
-        public Stream<DynamicTest> autoCreateAccountEditAutoAssociationLimitAndExceedAssociationNumberFailsInBatch() {
+        Stream<DynamicTest> autoCreateAccountEditAutoAssociationLimitAndExceedAssociationNumberFailsInBatch() {
 
             // create FT transfer to ED25519 alias in a batch
             final var tokenTransferNFT_To_ED25519 = cryptoTransfer(
@@ -2400,8 +2386,7 @@ public class AtomicBatchAutoAccountCreationEndToEndTests {
         @DisplayName(
                 "Auto Create Account in one batch, edit Account Key and sign transfer from the edited account in second "
                         + "batch with old key fails in Atomic Batch")
-        public Stream<DynamicTest>
-                autoCreateAccountEditAccountKeyAndSignTransferFromEditedAccountWithOldKeyFailsInBatch() {
+        Stream<DynamicTest> autoCreateAccountEditAccountKeyAndSignTransferFromEditedAccountWithOldKeyFailsInBatch() {
 
             // create FT transfer to ED25519 alias in a batch
             final var tokenTransferNFT_To_ED25519 = cryptoTransfer(
@@ -2509,7 +2494,7 @@ public class AtomicBatchAutoAccountCreationEndToEndTests {
         @DisplayName(
                 "Auto Create Account in one batch, edit Account Key and do not sign the edit with the new key in second "
                         + "batch fails in Atomic Batch")
-        public Stream<DynamicTest> autoCreateAccountEditAccountKeyAndDoNotSignEditTxnWithNewKeyFailsInBatch() {
+        Stream<DynamicTest> autoCreateAccountEditAccountKeyAndDoNotSignEditTxnWithNewKeyFailsInBatch() {
 
             // create FT transfer to ED25519 alias in a batch
             final var tokenTransferNFT_To_ED25519 = cryptoTransfer(
@@ -2588,7 +2573,7 @@ public class AtomicBatchAutoAccountCreationEndToEndTests {
 
         @HapiTest
         @DisplayName("Auto Create Account in one batch, edit Account Key with Invalid Key fails in Atomic Batch")
-        public Stream<DynamicTest> autoCreateAccountEditAccountKeyWithInvalidKeyFailsInBatch() {
+        Stream<DynamicTest> autoCreateAccountEditAccountKeyWithInvalidKeyFailsInBatch() {
 
             final Key invalidKey =
                     Key.newBuilder().setKeyList(KeyList.newBuilder()).build();
@@ -2672,7 +2657,7 @@ public class AtomicBatchAutoAccountCreationEndToEndTests {
         @HapiTest
         @DisplayName(
                 "Auto Create Account in one batch, edit Account Key with Invalid Threshold Key fails in Atomic Batch")
-        public Stream<DynamicTest> autoCreateAccountEditAccountKeyWithInvalidThresholdKeyFailsInBatch() {
+        Stream<DynamicTest> autoCreateAccountEditAccountKeyWithInvalidThresholdKeyFailsInBatch() {
 
             // create FT transfer to ED25519 alias in a batch
             final var tokenTransferNFT_To_ED25519 = cryptoTransfer(
@@ -2778,7 +2763,7 @@ public class AtomicBatchAutoAccountCreationEndToEndTests {
         @HapiTest
         @DisplayName("Auto Create Account in one batch, edit Account Key with Valid Threshold Key and sign with Old Key"
                 + " fails in Atomic Batch")
-        public Stream<DynamicTest> autoCreateAccountEditAccountKeyWithThresholdKeyAndSignWithOldFailsInBatch() {
+        Stream<DynamicTest> autoCreateAccountEditAccountKeyWithThresholdKeyAndSignWithOldFailsInBatch() {
 
             // create FT transfer to ED25519 alias in a batch
             final var tokenTransferNFT_To_ED25519 = cryptoTransfer(
