@@ -3,20 +3,21 @@ package com.hedera.node.app.fixtures.state;
 
 import static com.hedera.hapi.util.HapiUtils.SEMANTIC_VERSION_COMPARATOR;
 import static com.hedera.node.app.fixtures.AppTestBase.DEFAULT_CONFIG;
+import static com.hedera.node.app.spi.fixtures.TestSchema.CURRENT_VERSION;
 import static com.hedera.node.app.state.merkle.SchemaApplicationType.MIGRATION;
 import static com.hedera.node.app.state.merkle.SchemaApplicationType.RESTART;
 import static com.hedera.node.app.state.merkle.SchemaApplicationType.STATE_DEFINITIONS;
-import static com.swirlds.state.test.fixtures.merkle.TestSchema.CURRENT_VERSION;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.util.HapiUtils;
+import com.hedera.node.app.services.HederaMigrationContext;
+import com.hedera.node.app.services.StartupNetworks;
 import com.hedera.node.app.state.merkle.SchemaApplications;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.lifecycle.SchemaRegistry;
-import com.swirlds.state.lifecycle.StartupNetworks;
 import com.swirlds.state.spi.FilteredReadableStates;
 import com.swirlds.state.spi.FilteredWritableStates;
 import com.swirlds.state.spi.ReadableStates;
@@ -169,7 +170,7 @@ public class FakeSchemaRegistry implements SchemaRegistry<SemanticVersion> {
             @NonNull final Configuration platformConfig,
             @NonNull final Map<String, Object> sharedValues,
             @NonNull final StartupNetworks startupNetworks) {
-        return new MigrationContext<SemanticVersion>() {
+        return new HederaMigrationContext() {
             @Override
             public void copyAndReleaseOnDiskState(final int stateId) {
                 // No-op
@@ -218,11 +219,6 @@ public class FakeSchemaRegistry implements SchemaRegistry<SemanticVersion> {
             @Override
             public Map<String, Object> sharedValues() {
                 return sharedValues;
-            }
-
-            @Override
-            public SemanticVersion getDefaultVersion() {
-                return SemanticVersion.DEFAULT;
             }
 
             @Override

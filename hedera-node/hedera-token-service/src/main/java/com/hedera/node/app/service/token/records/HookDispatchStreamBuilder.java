@@ -2,6 +2,7 @@
 package com.hedera.node.app.service.token.records;
 
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 
 /**
  * A {@link StreamBuilder} that can record the next hook ID to be used in the stream.
@@ -21,4 +22,11 @@ public interface HookDispatchStreamBuilder extends StreamBuilder {
      * @return the next hook id
      */
     long getNextHookId();
+
+    /**
+     * Returns the EVM transaction call result to be recorded in the record stream
+     *
+     * @return the EVM transaction call result
+     */
+    Bytes getEvmCallResult();
 }
