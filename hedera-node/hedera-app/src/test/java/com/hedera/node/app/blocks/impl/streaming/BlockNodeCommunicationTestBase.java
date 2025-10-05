@@ -35,8 +35,6 @@ import org.hiero.block.api.PublishStreamResponse.SkipBlock;
  */
 public abstract class BlockNodeCommunicationTestBase {
 
-    protected static final int BATCH_SIZE = 5;
-
     @NonNull
     protected static PublishStreamResponse createSkipBlock(final long blockNumber) {
         final SkipBlock skipBlock =
@@ -90,7 +88,6 @@ public abstract class BlockNodeCommunicationTestBase {
         return HederaTestConfigBuilder.create()
                 .withValue("blockStream.writerMode", "FILE_AND_GRPC")
                 .withValue("blockNode.blockNodeConnectionFileDir", configPath)
-                .withValue("blockStream.blockItemBatchSize", BATCH_SIZE)
                 .withValue("blockNode.highLatencyEventsBeforeSwitching", 3)
                 .withValue("blockNode.highLatencyThresholdMs", 500);
     }
@@ -106,12 +103,8 @@ public abstract class BlockNodeCommunicationTestBase {
     }
 
     protected static BlockItem newBlockHeaderItem(final long blockNumber) {
-        final BlockHeader header = BlockHeader.newBuilder()
-                .number(blockNumber)
-                .build();
-        return BlockItem.newBuilder()
-                .blockHeader(header)
-                .build();
+        final BlockHeader header = BlockHeader.newBuilder().number(blockNumber).build();
+        return BlockItem.newBuilder().blockHeader(header).build();
     }
 
     protected static BlockItem newBlockTxItem() {
@@ -122,8 +115,7 @@ public abstract class BlockNodeCommunicationTestBase {
         final byte[] array = new byte[bytes];
         Arrays.fill(array, (byte) 10);
 
-        return BlockItem.newBuilder().signedTransaction(Bytes.wrap(array))
-                .build();
+        return BlockItem.newBuilder().signedTransaction(Bytes.wrap(array)).build();
     }
 
     protected static BlockItem newPreProofBlockStateChangesItem() {
@@ -153,9 +145,7 @@ public abstract class BlockNodeCommunicationTestBase {
                 .block(blockNumber)
                 .blockSignature(Bytes.wrap(array))
                 .build();
-        return BlockItem.newBuilder()
-                .blockProof(proof)
-                .build();
+        return BlockItem.newBuilder().blockProof(proof).build();
     }
 
     protected static BlockNodeConfig newBlockNodeConfig(final int port, final int priority) {

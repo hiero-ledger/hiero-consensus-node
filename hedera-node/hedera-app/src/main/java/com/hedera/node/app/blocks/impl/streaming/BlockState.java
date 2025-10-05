@@ -52,7 +52,7 @@ public class BlockState {
      * @param item the block item
      * @param type the type of block item
      */
-    record ItemData(BlockItem item, ItemType type) { }
+    record ItemData(BlockItem item, ItemType type) {}
 
     /**
      * Create a new block state object.
@@ -79,11 +79,12 @@ public class BlockState {
         }
 
         final int index = itemIndex.incrementAndGet();
-        final ItemType type = switch(item.item().kind()) {
-            case BLOCK_HEADER -> ItemType.HEADER;
-            case BLOCK_PROOF -> ItemType.PROOF;
-            default -> ItemType.OTHER;
-        };
+        final ItemType type =
+                switch (item.item().kind()) {
+                    case BLOCK_HEADER -> ItemType.HEADER;
+                    case BLOCK_PROOF -> ItemType.PROOF;
+                    default -> ItemType.OTHER;
+                };
 
         if (ItemType.PROOF == type) {
             blockProofIndex = index;

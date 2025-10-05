@@ -233,7 +233,6 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         final List<BlockNodeConfig> availableNodes = availableNodes();
         availableNodes.clear(); // remove all available nodes from config
 
-
         final Exception exception = catchException(() -> connectionManager.start());
         assertThat(exception)
                 .isInstanceOf(NoBlockNodesAvailableException.class)

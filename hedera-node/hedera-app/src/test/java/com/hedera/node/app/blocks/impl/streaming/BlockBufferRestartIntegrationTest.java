@@ -60,7 +60,6 @@ class BlockBufferRestartIntegrationTest extends BlockNodeCommunicationTestBase {
     private static final File TEST_DIR_FILE = new File(TEST_DIR);
     private static final Duration BLOCK_TTL = Duration.ofMinutes(5);
     private static final Duration BLOCK_PERIOD = Duration.ofSeconds(2);
-    private static final int BATCH_SIZE = 10;
 
     // Reflection handles for accessing private fields
     private static final VarHandle blockBufferHandle;
@@ -283,17 +282,17 @@ class BlockBufferRestartIntegrationTest extends BlockNodeCommunicationTestBase {
         final AtomicBoolean platformStartupBlocked = new AtomicBoolean(true);
         final CountDownLatch acknowledgmentLatch = new CountDownLatch(1);
 
-//        // Setup mock to simulate block node providing acknowledgments
-//        doAnswer(invocation -> {
-//                    // Simulate that when we try to open a block, we need acknowledgments first
-//                    if (platformStartupBlocked.get()) {
-//                        // Block until we get some acknowledgments
-//                        acknowledgmentLatch.await(5, TimeUnit.SECONDS);
-//                    }
-//                    return null;
-//                })
-//                .when(connectionManager)
-//                .openBlock(anyLong());
+        //        // Setup mock to simulate block node providing acknowledgments
+        //        doAnswer(invocation -> {
+        //                    // Simulate that when we try to open a block, we need acknowledgments first
+        //                    if (platformStartupBlocked.get()) {
+        //                        // Block until we get some acknowledgments
+        //                        acknowledgmentLatch.await(5, TimeUnit.SECONDS);
+        //                    }
+        //                    return null;
+        //                })
+        //                .when(connectionManager)
+        //                .openBlock(anyLong());
 
         // Step 4: Start the service (this should load the full buffer from disk)
         blockBufferService.start();
@@ -428,7 +427,6 @@ class BlockBufferRestartIntegrationTest extends BlockNodeCommunicationTestBase {
                 .withValue("blockStream.writerMode", "GRPC")
                 .withValue("blockStream.streamMode", "BLOCKS")
                 .withValue("blockStream.blockPeriod", BLOCK_PERIOD)
-                .withValue("blockStream.blockItemBatchSize", BATCH_SIZE)
                 .withValue("blockStream.buffer.blockTtl", BLOCK_TTL)
                 .withValue("blockStream.buffer.isBufferPersistenceEnabled", true)
                 .withValue("blockStream.buffer.bufferDirectory", TEST_DIR)

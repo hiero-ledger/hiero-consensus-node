@@ -205,7 +205,8 @@ public class BlockNodeConnectionManager {
     /**
      * Helper method to add current connection information for debug logging.
      */
-    private void logWithContext(final Level level, final String message, final BlockNodeConnection connection, final Object... args) {
+    private void logWithContext(
+            final Level level, final String message, final BlockNodeConnection connection, final Object... args) {
         if (logger.isEnabled(level)) {
             final String msg = String.format("%s %s %s", LoggingUtilities.threadInfo(), connection.toString(), message);
             logger.atLevel(level).log(msg, args);
@@ -409,7 +410,7 @@ public class BlockNodeConnectionManager {
     }
 
     /**
-     * Connection initiated a periodic reset of the stream
+     * Connection initiated a reset of the stream
      * @param connection the connection that initiated the reset of the stream
      */
     public void connectionResetsTheStream(@NonNull final BlockNodeConnection connection) {
@@ -450,7 +451,8 @@ public class BlockNodeConnectionManager {
         final long delayMillis = Math.max(0, initialDelay.toMillis());
         final BlockNodeConnection newConnection = createConnection(blockNodeConfig, initialBlockToStream);
 
-        logWithContext(DEBUG, "Scheduling reconnection for node in {} ms (force={}).", newConnection, delayMillis, force);
+        logWithContext(
+                DEBUG, "Scheduling reconnection for node in {} ms (force={}).", newConnection, delayMillis, force);
 
         // Schedule the first attempt using the connectionExecutor
         try {
@@ -618,7 +620,8 @@ public class BlockNodeConnectionManager {
      * @param nodeConfig the configuration of the node to connect to.
      */
     @NonNull
-    private BlockNodeConnection createConnection(@NonNull final BlockNodeConfig nodeConfig, @Nullable Long initialBlockToStream) {
+    private BlockNodeConnection createConnection(
+            @NonNull final BlockNodeConfig nodeConfig, @Nullable Long initialBlockToStream) {
         requireNonNull(nodeConfig);
 
         // Create the connection object with a fresh gRPC client
@@ -652,7 +655,8 @@ public class BlockNodeConnectionManager {
          */
         private void logWithContext(final Level level, final String message, final Object... args) {
             if (logger.isEnabled(level)) {
-                final String msg = String.format("%s %s %s", LoggingUtilities.threadInfo(), connection.toString(), message);
+                final String msg =
+                        String.format("%s %s %s", LoggingUtilities.threadInfo(), connection.toString(), message);
                 logger.atLevel(level).log(msg, args);
             }
         }

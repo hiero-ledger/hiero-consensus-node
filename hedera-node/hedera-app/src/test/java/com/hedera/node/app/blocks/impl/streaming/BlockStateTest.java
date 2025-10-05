@@ -164,8 +164,7 @@ class BlockStateTest {
         assertThat(block.isClosed()).isFalse();
         assertThat(block.closedTimestamp()).isNull();
 
-        assertThatThrownBy(() -> block.closeBlock(null))
-                .isInstanceOf(NullPointerException.class);
+        assertThatThrownBy(() -> block.closeBlock(null)).isInstanceOf(NullPointerException.class);
 
         assertThat(block.isClosed()).isFalse();
         assertThat(block.closedTimestamp()).isNull();
@@ -177,5 +176,4 @@ class BlockStateTest {
     private ConcurrentMap<Integer, ItemData> blockItems() {
         return (ConcurrentMap<Integer, ItemData>) blockItemsHandle.get(block);
     }
-
 }

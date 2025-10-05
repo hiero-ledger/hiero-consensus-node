@@ -40,13 +40,9 @@ public class BlockTestUtils {
             throws IOException {
         final List<BlockItem> items = new ArrayList<>();
 
-//        for (int i = 0; i < block.numRequestsCreated(); ++i) {
-//            final PublishStreamRequest req = block.getRequest(i);
-//            if (req != null) {
-//                final BlockItemSet bis = req.blockItemsOrElse(BlockItemSet.DEFAULT);
-//                items.addAll(bis.blockItems());
-//            }
-//        }
+        for (int i = 0; i < block.itemCount(); ++i) {
+            items.add(block.blockItem(i));
+        }
 
         final Block blk = new Block(items);
         final Instant closedInstant = block.closedTimestamp();
@@ -58,7 +54,6 @@ public class BlockTestUtils {
         final BufferedBlock bufferedBlock = BufferedBlock.newBuilder()
                 .blockNumber(block.blockNumber())
                 .closedTimestamp(closedTimestamp)
-//                .isProofSent(block.isBlockProofSent())
                 .isAcknowledged(isAcked)
                 .block(blk)
                 .build();
@@ -77,17 +72,10 @@ public class BlockTestUtils {
                 StandardOpenOption.TRUNCATE_EXISTING);
     }
 
-    public static BlockState toBlockState(final BufferedBlock bufferedBlock, final int batchSize) {
+    public static BlockState toBlockState(final BufferedBlock bufferedBlock) {
         final BlockState block = new BlockState(bufferedBlock.blockNumber());
 
         bufferedBlock.block().items().forEach(block::addItem);
-//        block.processPendingItems(batchSize);
-//
-//        if (bufferedBlock.isProofSent()) {
-//            for (int i = 0; i < block.numRequestsCreated(); ++i) {
-//                block.markRequestSent(i);
-//            }
-//        }
 
         final Timestamp closedTimestamp = bufferedBlock.closedTimestamp();
         final Instant closedInstant = Instant.ofEpochSecond(closedTimestamp.seconds(), closedTimestamp.nanos());
@@ -96,17 +84,17 @@ public class BlockTestUtils {
         return block;
     }
 
-    public static List<BlockState> generateRandomBlocks(final int numBlocks, final int batchSize) {
+    public static List<BlockState> generateRandomBlocks(final int numBlocks) {
         final List<BlockState> blocks = new ArrayList<>(numBlocks);
 
         for (int blockNumber = 0; blockNumber < numBlocks; ++blockNumber) {
-            blocks.add(generateRandomBlock(blockNumber, batchSize));
+            blocks.add(generateRandomBlock(blockNumber));
         }
 
         return blocks;
     }
 
-    public static BlockState generateRandomBlock(final long blockNumber, final int batchSize) {
+    public static BlockState generateRandomBlock(final long blockNumber) {
         final int numItems = ThreadLocalRandom.current().nextInt(25, 250);
         final BlockState block = new BlockState(blockNumber);
         block.addItem(newBlockHeader(blockNumber));
@@ -115,7 +103,6 @@ public class BlockTestUtils {
         }
         block.addItem(newBlockProof(blockNumber));
         block.closeBlock();
-//        block.processPendingItems(batchSize);
 
         return block;
     }

@@ -228,7 +228,8 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
 
         assertThat(streamingBlockNumber).hasValue(11); // moved to acked block + 1
 
-        verify(connectionManager).recordBlockAckAndCheckLatency(eq(connection.getNodeConfig()), eq(10L), any(Instant.class));
+        verify(connectionManager)
+                .recordBlockAckAndCheckLatency(eq(connection.getNodeConfig()), eq(10L), any(Instant.class));
         verify(bufferService).getLastBlockNumberProduced();
         verify(bufferService).setLatestAcknowledgedBlock(10);
         verify(metrics).recordResponseReceived(ResponseOneOfType.ACKNOWLEDGEMENT);
@@ -309,27 +310,27 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
     }
 
     // Tests acknowledgement equal to current streaming/producing blocks (should not jump)
-//    @Test
-//    void testOnNext_acknowledgement_equalToCurrentStreamingAndProducing() {
-//        final PublishStreamResponse response = createBlockAckResponse(10L);
-//
-//        when(connectionManager.currentStreamingBlockNumber()).thenReturn(10L);
-//        when(bufferService.getLastBlockNumberProduced()).thenReturn(10L);
-//        when(connectionManager.recordBlockAckAndCheckLatency(eq(connection.getNodeConfig()), eq(10L), any()))
-//                .thenReturn(latencyResult);
-//        when(latencyResult.shouldSwitch()).thenReturn(false);
-//
-//        connection.updateConnectionState(ConnectionState.ACTIVE);
-//        connection.onNext(response);
-//
-//        verify(connectionManager).currentStreamingBlockNumber();
-//        verify(bufferService).getLastBlockNumberProduced();
-//        verify(connectionManager).updateLastVerifiedBlock(connection.getNodeConfig(), 10L);
-//        verify(metrics).recordResponseReceived(ResponseOneOfType.ACKNOWLEDGEMENT);
-//        // Should not jump to block since acknowledgement is not newer
-//        verifyNoMoreInteractions(connectionManager);
-//        verifyNoMoreInteractions(metrics);
-//    }
+    //    @Test
+    //    void testOnNext_acknowledgement_equalToCurrentStreamingAndProducing() {
+    //        final PublishStreamResponse response = createBlockAckResponse(10L);
+    //
+    //        when(connectionManager.currentStreamingBlockNumber()).thenReturn(10L);
+    //        when(bufferService.getLastBlockNumberProduced()).thenReturn(10L);
+    //        when(connectionManager.recordBlockAckAndCheckLatency(eq(connection.getNodeConfig()), eq(10L), any()))
+    //                .thenReturn(latencyResult);
+    //        when(latencyResult.shouldSwitch()).thenReturn(false);
+    //
+    //        connection.updateConnectionState(ConnectionState.ACTIVE);
+    //        connection.onNext(response);
+    //
+    //        verify(connectionManager).currentStreamingBlockNumber();
+    //        verify(bufferService).getLastBlockNumberProduced();
+    //        verify(connectionManager).updateLastVerifiedBlock(connection.getNodeConfig(), 10L);
+    //        verify(metrics).recordResponseReceived(ResponseOneOfType.ACKNOWLEDGEMENT);
+    //        // Should not jump to block since acknowledgement is not newer
+    //        verifyNoMoreInteractions(connectionManager);
+    //        verifyNoMoreInteractions(metrics);
+    //    }
 
     @Test
     void testScheduleStreamResetTask() {
@@ -748,26 +749,26 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
     }
 
     // Tests exception handling during close operation (should catch and log RuntimeException)
-//    @Test
-//    void testClose_exceptionDuringClose() {
-//        openConnectionAndResetMocks();
-//        connection.updateConnectionState(ConnectionState.ACTIVE);
-//
-//        // Mock jumpToBlock to throw a RuntimeException to trigger the catch block
-//        doThrow(new RuntimeException("Simulated close error"))
-//                .when(connectionManager)
-//                .jumpToBlock(-1L);
-//
-//        // This should not throw an exception - it should be caught and logged
-//        connection.close(true);
-//
-//        // Verify the exception handling path was taken
-//        verify(connectionManager).jumpToBlock(-1L);
-//        verify(requestPipeline).onComplete(); // closePipeline should still be called before the exception
-//
-//        // Connection state should still be CLOSED even after the exception
-//        assertThat(connection.getConnectionState()).isEqualTo(ConnectionState.CLOSED);
-//    }
+    //    @Test
+    //    void testClose_exceptionDuringClose() {
+    //        openConnectionAndResetMocks();
+    //        connection.updateConnectionState(ConnectionState.ACTIVE);
+    //
+    //        // Mock jumpToBlock to throw a RuntimeException to trigger the catch block
+    //        doThrow(new RuntimeException("Simulated close error"))
+    //                .when(connectionManager)
+    //                .jumpToBlock(-1L);
+    //
+    //        // This should not throw an exception - it should be caught and logged
+    //        connection.close(true);
+    //
+    //        // Verify the exception handling path was taken
+    //        verify(connectionManager).jumpToBlock(-1L);
+    //        verify(requestPipeline).onComplete(); // closePipeline should still be called before the exception
+    //
+    //        // Connection state should still be CLOSED even after the exception
+    //        assertThat(connection.getConnectionState()).isEqualTo(ConnectionState.CLOSED);
+    //    }
 
     // Tests exception handling during pipeline completion (should catch and log Exception)
     @Test
@@ -960,10 +961,8 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         workerThreadRef.set(null); // clear out the fake worker thread so a real one can be initialized
         final AtomicLong streamingBlockNumber = streamingBlockNumber();
 
-        doReturn(100L)
-                .when(bufferService).getHighestAckedBlockNumber();
-        doReturn(new BlockState(101))
-                .when(bufferService).getBlockState(101);
+        doReturn(100L).when(bufferService).getHighestAckedBlockNumber();
+        doReturn(new BlockState(101)).when(bufferService).getBlockState(101);
 
         assertThat(streamingBlockNumber).hasValue(-1);
 
@@ -988,12 +987,9 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         workerThreadRef.set(null); // clear out the fake worker thread so a real one can be initialized
         final AtomicLong streamingBlockNumber = streamingBlockNumber();
 
-        doReturn(-1L)
-                .when(bufferService).getHighestAckedBlockNumber();
-        doReturn(12L)
-                .when(bufferService).getEarliestAvailableBlockNumber();
-        doReturn(new BlockState(12))
-                .when(bufferService).getBlockState(12);
+        doReturn(-1L).when(bufferService).getHighestAckedBlockNumber();
+        doReturn(12L).when(bufferService).getEarliestAvailableBlockNumber();
+        doReturn(new BlockState(12)).when(bufferService).getBlockState(12);
 
         assertThat(streamingBlockNumber).hasValue(-1);
 
@@ -1019,10 +1015,8 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         workerThreadRef.set(null); // clear out the fake worker thread so a real one can be initialized
         final AtomicLong streamingBlockNumber = streamingBlockNumber();
 
-        doReturn(-1L)
-                .when(bufferService).getHighestAckedBlockNumber();
-        doReturn(-1L)
-                .when(bufferService).getEarliestAvailableBlockNumber();
+        doReturn(-1L).when(bufferService).getHighestAckedBlockNumber();
+        doReturn(-1L).when(bufferService).getEarliestAvailableBlockNumber();
 
         assertThat(streamingBlockNumber).hasValue(-1);
 
@@ -1051,8 +1045,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
 
         final BlockState block = new BlockState(10);
 
-        doReturn(block)
-                .when(bufferService).getBlockState(10);
+        doReturn(block).when(bufferService).getBlockState(10);
 
         final ArgumentCaptor<PublishStreamRequest> requestCaptor = ArgumentCaptor.forClass(PublishStreamRequest.class);
 
@@ -1151,8 +1144,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
 
         streamingBlockNumber.set(10);
 
-        doReturn(new BlockState(10))
-                .when(bufferService).getBlockState(10);
+        doReturn(new BlockState(10)).when(bufferService).getBlockState(10);
 
         connection.updateConnectionState(ConnectionState.ACTIVE);
         // sleep to let the worker detect the state change and start doing work
@@ -1183,10 +1175,8 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         final BlockState block11 = new BlockState(11);
         final BlockItem block11Header = newBlockHeaderItem(11);
         block11.addItem(block11Header);
-        doReturn(block10)
-                .when(bufferService).getBlockState(10);
-        doReturn(block11)
-                .when(bufferService).getBlockState(11);
+        doReturn(block10).when(bufferService).getBlockState(10);
+        doReturn(block11).when(bufferService).getBlockState(11);
 
         connection.updateConnectionState(ConnectionState.ACTIVE);
         // sleep to let the worker detect the state change and start doing work
@@ -1214,7 +1204,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         verify(bufferService, atLeastOnce()).getBlockState(10);
         verify(bufferService, atLeastOnce()).getBlockState(11);
         verifyNoMoreInteractions(bufferService);
-        verifyNoInteractions(connectionManager);
+        verifyNoMoreInteractions(connectionManager);
         verifyNoMoreInteractions(metrics);
         verifyNoMoreInteractions(requestPipeline);
     }
@@ -1233,8 +1223,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         final BlockItem hugeItem = newBlockTxItem(3_000_000);
         block.addItem(blockHeader);
         block.addItem(hugeItem);
-        doReturn(block)
-                .when(bufferService).getBlockState(10);
+        doReturn(block).when(bufferService).getBlockState(10);
 
         connection.updateConnectionState(ConnectionState.ACTIVE);
         // sleep to let the worker detect the state change and start doing work
@@ -1716,7 +1705,8 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         assertRequestContainsItems(List.of(request), expectedItems);
     }
 
-    private void assertRequestContainsItems(final List<PublishStreamRequest> requests, final BlockItem... expectedItems) {
+    private void assertRequestContainsItems(
+            final List<PublishStreamRequest> requests, final BlockItem... expectedItems) {
         final List<BlockItem> actualItems = new ArrayList<>();
         for (final PublishStreamRequest request : requests) {
             final BlockItemSet bis = request.blockItems();
