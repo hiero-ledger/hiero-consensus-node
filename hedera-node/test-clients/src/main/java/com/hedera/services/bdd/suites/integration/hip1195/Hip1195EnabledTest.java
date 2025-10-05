@@ -64,8 +64,17 @@ import org.junit.jupiter.api.Tag;
 @HapiTestLifecycle
 @TargetEmbeddedMode(CONCURRENT)
 public class Hip1195EnabledTest {
-    @Contract(contract = "PayableConstructor")
-    static SpecContract HOOK_CONTRACT;
+    @Contract(contract = "FalseAccountAllowanceHook", creationGas = 5_000_000)
+    static SpecContract FALSE_ALLOWANCE_HOOK;
+
+    @Contract(contract = "TrueAccountAllowanceHook", creationGas = 5_000_000)
+    static SpecContract TRUE_ALLOWANCE_HOOK;
+
+    @Contract(contract = "TrueAccountAllowancePrePostHook", creationGas = 5_000_000)
+    static SpecContract TRUE_PRE_POST_ALLOWANCE_HOOK;
+
+    @Contract(contract = "FalseAccountAllowancePrePostHook", creationGas = 5_000_000)
+    static SpecContract FALSE_PRE_POST_ALLOWANCE_HOOK;
 
     @Contract(contract = "SmartContractsFees")
     static SpecContract HOOK_UPDATE_CONTRACT;
@@ -73,8 +82,11 @@ public class Hip1195EnabledTest {
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
         testLifecycle.overrideInClass(Map.of("hooks.hooksEnabled", "true"));
-        testLifecycle.doAdhoc(HOOK_CONTRACT.getInfo());
+        testLifecycle.doAdhoc(FALSE_ALLOWANCE_HOOK.getInfo());
         testLifecycle.doAdhoc(HOOK_UPDATE_CONTRACT.getInfo());
+        testLifecycle.doAdhoc(TRUE_ALLOWANCE_HOOK.getInfo());
+        testLifecycle.doAdhoc(TRUE_PRE_POST_ALLOWANCE_HOOK.getInfo());
+        testLifecycle.doAdhoc(FALSE_PRE_POST_ALLOWANCE_HOOK.getInfo());
     }
 
     @HapiTest
@@ -82,14 +94,14 @@ public class Hip1195EnabledTest {
         return hapiTest(
                 cryptoCreate("testAccount")
                         .withHooks(
-                                accountAllowanceHook(123L, HOOK_CONTRACT.name()),
-                                accountAllowanceHook(124L, HOOK_CONTRACT.name())),
+                                accountAllowanceHook(123L, FALSE_ALLOWANCE_HOOK.name()),
+                                accountAllowanceHook(124L, TRUE_ALLOWANCE_HOOK.name())),
                 cryptoTransfer(TokenMovement.movingHbar(10).between("testAccount", GENESIS))
                         .withPreHookFor("testAccount", 123L, 25_000L, "")
                         .signedBy(DEFAULT_PAYER)
                         .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK),
                 cryptoTransfer(TokenMovement.movingHbar(10).between("testAccount", GENESIS))
-                        .withPreHookFor("testAccount", 124L, 25_000L, "")
+                        .withPreHookFor("testAccount", 124L, 1_000_000L, "")
                         .signedBy(DEFAULT_PAYER));
     }
 
@@ -98,8 +110,8 @@ public class Hip1195EnabledTest {
         return hapiTest(
                 cryptoCreate("testAccount")
                         .withHooks(
-                                accountAllowanceHook(123L, HOOK_CONTRACT.name()),
-                                accountAllowanceHook(124L, HOOK_CONTRACT.name()))
+                                accountAllowanceHook(123L, FALSE_ALLOWANCE_HOOK.name()),
+                                accountAllowanceHook(124L, TRUE_ALLOWANCE_HOOK.name()))
                         .receiverSigRequired(true),
                 cryptoTransfer(TokenMovement.movingHbar(10).between(GENESIS, "testAccount"))
                         .signedBy(DEFAULT_PAYER)
@@ -118,8 +130,8 @@ public class Hip1195EnabledTest {
         return hapiTest(
                 cryptoCreate("testAccount")
                         .withHooks(
-                                accountAllowanceHook(123L, HOOK_CONTRACT.name()),
-                                accountAllowanceHook(124L, HOOK_CONTRACT.name())),
+                                accountAllowanceHook(123L, FALSE_PRE_POST_ALLOWANCE_HOOK.name()),
+                                accountAllowanceHook(124L, TRUE_PRE_POST_ALLOWANCE_HOOK.name())),
                 cryptoTransfer(TokenMovement.movingHbar(10).between("testAccount", GENESIS))
                         .withPrePostHookFor("testAccount", 123L, 25_000L, "")
                         .signedBy(DEFAULT_PAYER)
@@ -132,11 +144,12 @@ public class Hip1195EnabledTest {
     @HapiTest
     final Stream<DynamicTest> accessingWrongHookFails() {
         return hapiTest(
-                cryptoCreate("accountWithDifferentHooks").withHooks(accountAllowanceHook(125L, HOOK_CONTRACT.name())),
+                cryptoCreate("accountWithDifferentHooks")
+                        .withHooks(accountAllowanceHook(125L, FALSE_ALLOWANCE_HOOK.name())),
                 cryptoCreate("testAccount")
                         .withHooks(
-                                accountAllowanceHook(123L, HOOK_CONTRACT.name()),
-                                accountAllowanceHook(124L, HOOK_CONTRACT.name())),
+                                accountAllowanceHook(123L, FALSE_ALLOWANCE_HOOK.name()),
+                                accountAllowanceHook(124L, TRUE_ALLOWANCE_HOOK.name())),
                 cryptoTransfer(TokenMovement.movingHbar(10).between("testAccount", GENESIS))
                         .withPrePostHookFor("testAccount", 125L, 25_000L, "")
                         .signedBy(DEFAULT_PAYER)
@@ -152,8 +165,8 @@ public class Hip1195EnabledTest {
         return hapiTest(
                 cryptoCreate("testAccount")
                         .withHooks(
-                                accountAllowanceHook(123L, HOOK_CONTRACT.name()),
-                                accountAllowanceHook(124L, HOOK_CONTRACT.name()))
+                                accountAllowanceHook(123L, FALSE_PRE_POST_ALLOWANCE_HOOK.name()),
+                                accountAllowanceHook(124L, TRUE_PRE_POST_ALLOWANCE_HOOK.name()))
                         .receiverSigRequired(true),
                 cryptoTransfer(TokenMovement.movingHbar(10).between(GENESIS, "testAccount"))
                         .signedBy(DEFAULT_PAYER)
@@ -172,8 +185,8 @@ public class Hip1195EnabledTest {
         return hapiTest(
                 cryptoCreate("testAccount")
                         .withHooks(
-                                accountAllowanceHook(123L, HOOK_CONTRACT.name()),
-                                accountAllowanceHook(124L, HOOK_CONTRACT.name()))
+                                accountAllowanceHook(123L, FALSE_ALLOWANCE_HOOK.name()),
+                                accountAllowanceHook(124L, TRUE_ALLOWANCE_HOOK.name()))
                         .receiverSigRequired(true),
                 cryptoTransfer(TokenMovement.movingHbar(10).between(GENESIS, "testAccount"))
                         .signedBy(DEFAULT_PAYER)
@@ -193,8 +206,8 @@ public class Hip1195EnabledTest {
                 newKeyNamed("supplyKey"),
                 cryptoCreate("testAccount")
                         .withHooks(
-                                accountAllowanceHook(123L, HOOK_CONTRACT.name()),
-                                accountAllowanceHook(124L, HOOK_CONTRACT.name())),
+                                accountAllowanceHook(123L, FALSE_ALLOWANCE_HOOK.name()),
+                                accountAllowanceHook(124L, TRUE_ALLOWANCE_HOOK.name())),
                 tokenCreate("token")
                         .treasury("testAccount")
                         .supplyType(TokenSupplyType.FINITE)
@@ -217,8 +230,8 @@ public class Hip1195EnabledTest {
                 newKeyNamed("supplyKey"),
                 cryptoCreate("testAccount")
                         .withHooks(
-                                accountAllowanceHook(123L, HOOK_CONTRACT.name()),
-                                accountAllowanceHook(124L, HOOK_CONTRACT.name())),
+                                accountAllowanceHook(123L, FALSE_ALLOWANCE_HOOK.name()),
+                                accountAllowanceHook(124L, TRUE_ALLOWANCE_HOOK.name())),
                 tokenCreate("token")
                         .treasury("testAccount")
                         .supplyType(TokenSupplyType.FINITE)
@@ -255,9 +268,9 @@ public class Hip1195EnabledTest {
         return hapiTest(
                 newKeyNamed(supplyKey),
                 cryptoCreate(alice)
-                        .withHooks(accountAllowanceHook(123L, HOOK_CONTRACT.name()))
+                        .withHooks(accountAllowanceHook(123L, FALSE_ALLOWANCE_HOOK.name()))
                         .balance(10 * ONE_HUNDRED_HBARS),
-                cryptoCreate(amelie).withHooks(accountAllowanceHook(124L, HOOK_CONTRACT.name())),
+                cryptoCreate(amelie).withHooks(accountAllowanceHook(124L, TRUE_ALLOWANCE_HOOK.name())),
                 cryptoCreate(usdcTreasury),
                 cryptoCreate(usdcCollector),
                 cryptoCreate(westWindTreasury),
@@ -300,8 +313,8 @@ public class Hip1195EnabledTest {
                 newKeyNamed("supplyKey"),
                 cryptoCreate("testAccount")
                         .withHooks(
-                                accountAllowanceHook(123L, HOOK_CONTRACT.name()),
-                                accountAllowanceHook(124L, HOOK_CONTRACT.name())),
+                                accountAllowanceHook(123L, FALSE_PRE_POST_ALLOWANCE_HOOK.name()),
+                                accountAllowanceHook(124L, TRUE_PRE_POST_ALLOWANCE_HOOK.name())),
                 tokenCreate("token")
                         .treasury("testAccount")
                         .supplyType(TokenSupplyType.FINITE)
@@ -324,8 +337,8 @@ public class Hip1195EnabledTest {
                 newKeyNamed("supplyKey"),
                 cryptoCreate("testAccount")
                         .withHooks(
-                                accountAllowanceHook(123L, HOOK_CONTRACT.name()),
-                                accountAllowanceHook(124L, HOOK_CONTRACT.name()))
+                                accountAllowanceHook(123L, FALSE_PRE_POST_ALLOWANCE_HOOK.name()),
+                                accountAllowanceHook(124L, TRUE_PRE_POST_ALLOWANCE_HOOK.name()))
                         .receiverSigRequired(true),
                 tokenCreate("token")
                         .treasury(GENESIS)
@@ -353,8 +366,8 @@ public class Hip1195EnabledTest {
                 newKeyNamed("supplyKey"),
                 cryptoCreate("testAccount")
                         .withHooks(
-                                accountAllowanceHook(123L, HOOK_CONTRACT.name()),
-                                accountAllowanceHook(124L, HOOK_CONTRACT.name()))
+                                accountAllowanceHook(123L, FALSE_ALLOWANCE_HOOK.name()),
+                                accountAllowanceHook(124L, TRUE_ALLOWANCE_HOOK.name()))
                         .receiverSigRequired(true),
                 tokenCreate("token")
                         .treasury(GENESIS)
@@ -382,8 +395,8 @@ public class Hip1195EnabledTest {
                 newKeyNamed("supplyKey"),
                 cryptoCreate("testAccount")
                         .withHooks(
-                                accountAllowanceHook(123L, HOOK_CONTRACT.name()),
-                                accountAllowanceHook(124L, HOOK_CONTRACT.name())),
+                                accountAllowanceHook(123L, FALSE_ALLOWANCE_HOOK.name()),
+                                accountAllowanceHook(124L, TRUE_ALLOWANCE_HOOK.name())),
                 tokenCreate("token")
                         .treasury("testAccount")
                         .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
@@ -412,8 +425,8 @@ public class Hip1195EnabledTest {
                 newKeyNamed("supplyKey"),
                 cryptoCreate("testAccount")
                         .withHooks(
-                                accountAllowanceHook(123L, HOOK_CONTRACT.name()),
-                                accountAllowanceHook(124L, HOOK_CONTRACT.name())),
+                                accountAllowanceHook(123L, FALSE_PRE_POST_ALLOWANCE_HOOK.name()),
+                                accountAllowanceHook(124L, TRUE_PRE_POST_ALLOWANCE_HOOK.name())),
                 tokenCreate("token")
                         .treasury("testAccount")
                         .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
@@ -442,8 +455,8 @@ public class Hip1195EnabledTest {
                 newKeyNamed("supplyKey"),
                 cryptoCreate("testAccount")
                         .withHooks(
-                                accountAllowanceHook(123L, HOOK_CONTRACT.name()),
-                                accountAllowanceHook(124L, HOOK_CONTRACT.name()))
+                                accountAllowanceHook(123L, FALSE_ALLOWANCE_HOOK.name()),
+                                accountAllowanceHook(124L, TRUE_ALLOWANCE_HOOK.name()))
                         .receiverSigRequired(true),
                 tokenCreate("token")
                         .treasury(GENESIS)
@@ -480,8 +493,8 @@ public class Hip1195EnabledTest {
                 newKeyNamed("supplyKey"),
                 cryptoCreate("testAccount")
                         .withHooks(
-                                accountAllowanceHook(123L, HOOK_CONTRACT.name()),
-                                accountAllowanceHook(124L, HOOK_CONTRACT.name()))
+                                accountAllowanceHook(123L, FALSE_PRE_POST_ALLOWANCE_HOOK.name()),
+                                accountAllowanceHook(124L, TRUE_PRE_POST_ALLOWANCE_HOOK.name()))
                         .receiverSigRequired(true),
                 tokenCreate("token")
                         .treasury(GENESIS)
@@ -518,8 +531,8 @@ public class Hip1195EnabledTest {
                 newKeyNamed("supplyKey"),
                 cryptoCreate("testAccount")
                         .withHooks(
-                                accountAllowanceHook(123L, HOOK_CONTRACT.name()),
-                                accountAllowanceHook(124L, HOOK_CONTRACT.name()))
+                                accountAllowanceHook(123L, FALSE_ALLOWANCE_HOOK.name()),
+                                accountAllowanceHook(124L, TRUE_ALLOWANCE_HOOK.name()))
                         .receiverSigRequired(true),
                 tokenCreate("token")
                         .treasury(GENESIS)
@@ -544,8 +557,8 @@ public class Hip1195EnabledTest {
     @HapiTest
     final Stream<DynamicTest> duplicateHookIdsInOneListFailsPrecheck() {
         final var OWNER = "acctDupIds";
-        final var H1 = accountAllowanceHook(7L, HOOK_CONTRACT.name());
-        final var H2 = accountAllowanceHook(7L, HOOK_CONTRACT.name());
+        final var H1 = accountAllowanceHook(7L, FALSE_ALLOWANCE_HOOK.name());
+        final var H2 = accountAllowanceHook(7L, FALSE_ALLOWANCE_HOOK.name());
 
         return hapiTest(
                 newKeyNamed("k"),
@@ -564,7 +577,10 @@ public class Hip1195EnabledTest {
 
         return hapiTest(
                 newKeyNamed("k"),
-                cryptoCreate(OWNER).key("k").balance(1L).withHooks(accountAllowanceHook(A, HOOK_CONTRACT.name())),
+                cryptoCreate(OWNER)
+                        .key("k")
+                        .balance(1L)
+                        .withHooks(accountAllowanceHook(A, FALSE_ALLOWANCE_HOOK.name())),
                 cryptoUpdate(OWNER).removingHooks(A));
     }
 
@@ -579,20 +595,20 @@ public class Hip1195EnabledTest {
                         .key("k")
                         .balance(1L)
                         .withHooks(
-                                accountAllowanceHook(A, HOOK_CONTRACT.name()),
-                                accountAllowanceHook(B, HOOK_CONTRACT.name()),
-                                accountAllowanceHook(C, HOOK_CONTRACT.name())),
+                                accountAllowanceHook(A, FALSE_ALLOWANCE_HOOK.name()),
+                                accountAllowanceHook(B, FALSE_ALLOWANCE_HOOK.name()),
+                                accountAllowanceHook(C, FALSE_ALLOWANCE_HOOK.name())),
                 cryptoUpdate(OWNER)
                         .withHooks(
-                                accountAllowanceHook(A, HOOK_CONTRACT.name()),
-                                accountAllowanceHook(E, HOOK_CONTRACT.name()))
+                                accountAllowanceHook(A, FALSE_ALLOWANCE_HOOK.name()),
+                                accountAllowanceHook(E, FALSE_ALLOWANCE_HOOK.name()))
                         .hasKnownStatus(HOOK_ID_IN_USE),
                 // Delete A,B (at head) and add D,E. Head should become D (the first in the creation list)
                 cryptoUpdate(OWNER)
                         .removingHooks(A, B)
                         .withHooks(
-                                accountAllowanceHook(D, HOOK_CONTRACT.name()),
-                                accountAllowanceHook(E, HOOK_CONTRACT.name())),
+                                accountAllowanceHook(D, FALSE_ALLOWANCE_HOOK.name()),
+                                accountAllowanceHook(E, FALSE_ALLOWANCE_HOOK.name())),
                 viewAccount(OWNER, (Account a) -> {
                     assertEquals(D, a.firstHookId());
                     // started with 3; minus 2 deletes; plus 2 adds -> 3 again
@@ -600,9 +616,9 @@ public class Hip1195EnabledTest {
                 }),
                 cryptoUpdate(OWNER)
                         .removingHooks(A)
-                        .withHooks(accountAllowanceHook(A, HOOK_CONTRACT.name()))
+                        .withHooks(accountAllowanceHook(A, FALSE_ALLOWANCE_HOOK.name()))
                         .hasKnownStatus(HOOK_NOT_FOUND),
-                cryptoUpdate(OWNER).removingHooks(D).withHooks(accountAllowanceHook(D, HOOK_CONTRACT.name())));
+                cryptoUpdate(OWNER).removingHooks(D).withHooks(accountAllowanceHook(D, FALSE_ALLOWANCE_HOOK.name())));
     }
 
     @HapiTest
@@ -616,9 +632,9 @@ public class Hip1195EnabledTest {
                         .key("k")
                         .balance(1L)
                         .withHooks(
-                                accountAllowanceHook(A, HOOK_CONTRACT.name()),
-                                accountAllowanceHook(B, HOOK_CONTRACT.name()),
-                                accountAllowanceHook(C, HOOK_CONTRACT.name())),
+                                accountAllowanceHook(A, FALSE_ALLOWANCE_HOOK.name()),
+                                accountAllowanceHook(B, FALSE_ALLOWANCE_HOOK.name()),
+                                accountAllowanceHook(C, FALSE_ALLOWANCE_HOOK.name())),
                 viewAccount(OWNER, (Account a) -> {
                     assertEquals(A, a.firstHookId());
                     assertEquals(3, a.numberHooksInUse());
@@ -630,9 +646,9 @@ public class Hip1195EnabledTest {
                 }),
                 cryptoUpdate(OWNER)
                         .removingHooks(A)
-                        .withHooks(accountAllowanceHook(A, HOOK_CONTRACT.name()))
+                        .withHooks(accountAllowanceHook(A, FALSE_ALLOWANCE_HOOK.name()))
                         .hasKnownStatus(HOOK_NOT_FOUND),
-                cryptoUpdate(OWNER).withHooks(accountAllowanceHook(D, HOOK_CONTRACT.name())),
+                cryptoUpdate(OWNER).withHooks(accountAllowanceHook(D, FALSE_ALLOWANCE_HOOK.name())),
                 viewAccount(OWNER, (Account a) -> {
                     assertEquals(4L, a.firstHookId());
                     assertEquals(1, a.numberHooksInUse());
@@ -648,7 +664,10 @@ public class Hip1195EnabledTest {
         final Bytes D = Bytes.fromHex("dddd");
         return hapiTest(
                 newKeyNamed("k"),
-                cryptoCreate(OWNER).key("k").balance(1L).withHooks(accountAllowanceHook(1L, HOOK_CONTRACT.name())),
+                cryptoCreate(OWNER)
+                        .key("k")
+                        .balance(1L)
+                        .withHooks(accountAllowanceHook(1L, FALSE_ALLOWANCE_HOOK.name())),
                 viewAccount(OWNER, (Account a) -> {
                     assertEquals(1L, a.firstHookId());
                     assertEquals(1, a.numberHooksInUse());

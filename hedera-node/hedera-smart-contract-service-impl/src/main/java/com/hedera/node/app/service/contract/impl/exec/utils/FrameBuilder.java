@@ -11,6 +11,7 @@ import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.AC
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.BYTECODE_SIDECARS_VARIABLE;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.CONFIG_CONTEXT_VARIABLE;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.HAPI_RECORD_BUILDER_CONTEXT_VARIABLE;
+import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.IS_HOOK_VARIABLE;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.OPS_DURATION_COUNTER;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.PENDING_CREATION_BUILDER_CONTEXT_VARIABLE;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.PROPAGATED_CALL_FAILURE_CONTEXT_VARIABLE;
@@ -66,16 +67,16 @@ public class FrameBuilder {
     /**
      * Builds the initial {@link MessageFrame} instance for a transaction.
      *
-     * @param transaction  the transaction
+     * @param transaction the transaction
      * @param worldUpdater the world updater for the transaction
-     * @param context      the Hedera EVM context (gas price, block values, etc.)
-     * @param config       the active Hedera configuration
+     * @param context the Hedera EVM context (gas price, block values, etc.)
+     * @param config the active Hedera configuration
      * @param featureFlags the feature flag currently used
-     * @param from         the sender of the transaction
-     * @param to           the recipient of the transaction
+     * @param from the sender of the transaction
+     * @param to the recipient of the transaction
      * @param intrinsicGas the intrinsic gas cost, needed to calculate remaining gas
-     * @param codeFactory  the factory used to construct an instance of {@link org.hyperledger.besu.evm.Code}
-     *      *                    from raw bytecode.
+     * @param codeFactory the factory used to construct an instance of {@link org.hyperledger.besu.evm.Code}
+     * *                    from raw bytecode.
      * @return the initial frame
      */
     @SuppressWarnings("java:S107")
@@ -93,7 +94,8 @@ public class FrameBuilder {
         final var value = transaction.weiValue();
         final var ledgerConfig = config.getConfigData(LedgerConfig.class);
         final var nominalCoinbase = asLongZeroAddress(ledgerConfig.fundingAccount());
-        final var contextVariables = contextVariablesFrom(config, opsDurationCounter, context);
+        final var contextVariables =
+                contextVariablesFrom(config, opsDurationCounter, context, transaction.isHookDispatch());
         final var builder = MessageFrame.builder()
                 .maxStackSize(MAX_STACK_SIZE)
                 .worldUpdater(worldUpdater.updater())
@@ -127,7 +129,8 @@ public class FrameBuilder {
     private Map<String, Object> contextVariablesFrom(
             @NonNull final Configuration config,
             @NonNull final OpsDurationCounter opsDurationCounter,
-            @NonNull final HederaEvmContext context) {
+            @NonNull final HederaEvmContext context,
+            final boolean hookDispatch) {
         final Map<String, Object> contextEntries = new HashMap<>();
         contextEntries.put(CONFIG_CONTEXT_VARIABLE, config);
         contextEntries.put(TINYBAR_VALUES_CONTEXT_VARIABLE, context.tinybarValues());
@@ -153,6 +156,9 @@ public class FrameBuilder {
                     PENDING_CREATION_BUILDER_CONTEXT_VARIABLE, context.pendingCreationRecordBuilderReference());
         }
         contextEntries.put(OPS_DURATION_COUNTER, opsDurationCounter);
+        if (hookDispatch) {
+            contextEntries.put(IS_HOOK_VARIABLE, true);
+        }
         return contextEntries;
     }
 

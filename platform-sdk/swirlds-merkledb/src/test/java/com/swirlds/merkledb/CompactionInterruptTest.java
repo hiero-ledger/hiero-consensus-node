@@ -210,7 +210,8 @@ class CompactionInterruptTest {
                     IntStream.range(start, end).mapToObj(MerkleDbDataSourceTest::createVirtualInternalRecord),
                     IntStream.range(COUNT + start, COUNT + end)
                             .mapToObj(i -> TestType.variable_variable.dataType().createVirtualLeafRecord(i)),
-                    Stream.empty());
+                    Stream.empty(),
+                    false);
         }
     }
 }
