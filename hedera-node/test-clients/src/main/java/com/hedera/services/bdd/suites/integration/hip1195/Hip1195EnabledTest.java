@@ -49,11 +49,13 @@ import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
 import com.hederahashgraph.api.proto.java.TokenSupplyType;
 import com.hederahashgraph.api.proto.java.TokenType;
 import edu.umd.cs.findbugs.annotations.NonNull;
+
 import java.util.List;
 import java.util.Map;
 import java.util.OptionalLong;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
+
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Order;
@@ -76,6 +78,9 @@ public class Hip1195EnabledTest {
     @Contract(contract = "FalseAccountAllowancePrePostHook", creationGas = 5_000_000)
     static SpecContract FALSE_PRE_POST_ALLOWANCE_HOOK;
 
+    @Contract(contract = "StorageAccessAccountAllowanceHook", creationGas = 5_000_000)
+    static SpecContract STORAGE_ACCESS_ALLOWANCE_HOOK;
+
     @Contract(contract = "SmartContractsFees")
     static SpecContract HOOK_UPDATE_CONTRACT;
 
@@ -87,6 +92,7 @@ public class Hip1195EnabledTest {
         testLifecycle.doAdhoc(TRUE_ALLOWANCE_HOOK.getInfo());
         testLifecycle.doAdhoc(TRUE_PRE_POST_ALLOWANCE_HOOK.getInfo());
         testLifecycle.doAdhoc(FALSE_PRE_POST_ALLOWANCE_HOOK.getInfo());
+        testLifecycle.doAdhoc(STORAGE_ACCESS_ALLOWANCE_HOOK.getInfo());
     }
 
     @HapiTest
@@ -178,6 +184,21 @@ public class Hip1195EnabledTest {
                 cryptoTransfer(TokenMovement.movingHbar(10).between(GENESIS, "testAccount"))
                         .withPrePostHookFor("testAccount", 124L, 25_000L, "")
                         .signedBy(DEFAULT_PAYER));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> storageAccessWorks() {
+        return hapiTest(
+                cryptoCreate("testAccount")
+                        .withHooks(accountAllowanceHook(124L, STORAGE_ACCESS_ALLOWANCE_HOOK.name()))
+                        .receiverSigRequired(true),
+                accountLambdaSStore("testAccount", 124L)
+                        .putSlot(Bytes.wrap("0"), Bytes.wrap("1"))
+                        .signedBy(DEFAULT_PAYER, "testAccount"),
+                cryptoTransfer(TokenMovement.movingHbar(10).between("testAccount", GENESIS))
+                        .withPreHookFor("testAccount", 124L, 25_000L, "")
+                        .signedBy(DEFAULT_PAYER)
+                        .via("storageAccessTxn"));
     }
 
     @HapiTest
@@ -296,9 +317,9 @@ public class Hip1195EnabledTest {
                         .fee(ONE_HBAR)
                         .via(txnFromTreasury),
                 cryptoTransfer(
-                                movingUnique(westWindArt, 1L).between(amelie, alice),
-                                moving(200, usdc).distributing(alice, amelie, "receiverUsdc"),
-                                movingHbar(10 * ONE_HUNDRED_HBARS).between(alice, amelie))
+                        movingUnique(westWindArt, 1L).between(amelie, alice),
+                        moving(200, usdc).distributing(alice, amelie, "receiverUsdc"),
+                        movingHbar(10 * ONE_HUNDRED_HBARS).between(alice, amelie))
                         .withPreHookFor("AMELIE", 124L, 25_000L, "")
                         .signedBy(amelie, alice)
                         .payingWith(amelie)

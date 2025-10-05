@@ -5,12 +5,14 @@ import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.Hts
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.HtsSystemContract.HTS_HOOKS_16D_CONTRACT_ID;
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.state.hooks.EvmHookState;
 import com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations;
 import com.hedera.node.app.service.contract.impl.state.ContractStateStore;
 import com.hedera.node.app.service.contract.impl.state.DispatchingEvmFrameState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import org.apache.tuweni.units.bigints.UInt256;
 import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.evm.account.MutableAccount;
 import org.hyperledger.besu.evm.code.CodeFactory;
@@ -57,5 +59,13 @@ public class HookEvmFrameState extends DispatchingEvmFrameState {
             return HTS_HOOKS_16D_CONTRACT_ADDRESS;
         }
         return super.getAddress(number);
+    }
+
+    @Override
+    public @NonNull UInt256 getStorageValue(final ContractID contractID, @NonNull final UInt256 key) {
+        if (HTS_HOOKS_16D_CONTRACT_ID.equals(contractID)) {
+            return getStorageValue(hook.hookContractId(), key);
+        }
+        return super.getStorageValue(contractID, key);
     }
 }
