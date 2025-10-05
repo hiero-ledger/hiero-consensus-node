@@ -483,12 +483,6 @@ public class BlockBufferService {
         for (final BufferedBlock bufferedBlock : blocks) {
             final BlockState block = new BlockState(bufferedBlock.blockNumber());
             bufferedBlock.block().items().forEach(block::addItem);
-//            if (bufferedBlock.isProofSent()) {
-//                // the proof is sent and since it is the last thing in a block, mark all the requests as sent
-//                for (int i = 0; i < block.numRequestsCreated(); ++i) {
-//                    block.markRequestSent(i);
-//                }
-//            }
 
             final Timestamp closedTimestamp = bufferedBlock.closedTimestamp();
             final Instant closedInstant = Instant.ofEpochSecond(closedTimestamp.seconds(), closedTimestamp.nanos());

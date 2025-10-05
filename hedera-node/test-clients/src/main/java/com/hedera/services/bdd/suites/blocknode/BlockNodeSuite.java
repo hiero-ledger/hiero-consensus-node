@@ -693,7 +693,7 @@ public class BlockNodeSuite {
                         Duration.ofSeconds(20),
                         Duration.ofSeconds(20),
                         String.format(
-                                "/localhost:%s/ACTIVE] Received SkipBlock response for block 9223372036854775807, but we are streaming block",
+                                "/localhost:%s/ACTIVE] Received SkipBlock response (blockToSkip=9223372036854775807), but we've moved on to another block. Ignoring skip request",
                                 portNumbers.getFirst()))),
                 blockNode(0).sendResendBlockImmediately(Long.MAX_VALUE),
                 sourcingContextual(spec -> assertHgcaaLogContainsTimeframe(

@@ -184,6 +184,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
 
         @Override
         public void run() {
+            logWithContext(INFO, "Worker thread started");
             while(true) {
                 try {
                     doWork();
@@ -456,7 +457,6 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
             // start worker thread to handle sending requests
             final Thread workerThread = new Thread(new ConnectionWorkerLoopTask(), "bn-conn-worker-" + connectionId);
             if (workerThreadRef.compareAndSet(null, workerThread)) {
-                logger.info("[{}] Starting worker thread ({})", this, workerThread.getName());
                 workerThread.start();
             }
         } else {
@@ -578,7 +578,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
      * @param acknowledgedBlockNumber the block number that has been known to be persisted and verified by the block node
      */
     private void acknowledgeBlocks(final long acknowledgedBlockNumber, final boolean maybeJumpToBlock) {
-        logWithContext(DEBUG, "Acknowledging blocks <= {}.", acknowledgedBlockNumber);
+        logWithContext(DEBUG, "Acknowledging blocks <= {}", acknowledgedBlockNumber);
         final long currentBlockStreaming = streamingBlockNumber.get();
         final long currentBlockProducing = blockBufferService.getLastBlockNumberProduced();
 
@@ -711,10 +711,11 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
             final long nextBlock = skipBlockNumber + 1;
             if(streamingBlockNumber.compareAndSet(activeBlock, nextBlock)) {
                 logWithContext(DEBUG, "Received SkipBlock response; skipping to block {}", nextBlock);
-            } else {
-                logWithContext(DEBUG, "Received SkipBlock response (blockToSkip={}), but we've moved on to another block. Ignoring skip request", skipBlockNumber);
+                return;
             }
         }
+
+        logWithContext(DEBUG, "Received SkipBlock response (blockToSkip={}), but we've moved on to another block. Ignoring skip request", skipBlockNumber);
     }
 
     /**

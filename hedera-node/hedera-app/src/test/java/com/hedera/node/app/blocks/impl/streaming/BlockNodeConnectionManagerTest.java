@@ -166,60 +166,6 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         verifyNoMoreInteractions(connection);
     }
 
-//    @Test
-//    void testScheduleConnectionAttempt() {
-//        final BlockNodeConnection connection = mock(BlockNodeConnection.class);
-//        final BlockNodeConfig nodeConfig = newBlockNodeConfig(8080, 1);
-//        doReturn(nodeConfig).when(connection).getNodeConfig();
-//
-//        connectionManager.scheduleConnectionAttempt(connection.getNodeConfig(), Duration.ofSeconds(2), 100L);
-//
-//        verify(executorService).schedule(any(BlockNodeConnectionTask.class), eq(2_000L), eq(TimeUnit.MILLISECONDS));
-//        verifyNoMoreInteractions(connection);
-//        verifyNoInteractions(bufferService);
-//        verifyNoInteractions(metrics);
-//        verifyNoMoreInteractions(executorService);
-//    }
-//
-//    @Test
-//    void testScheduleConnectionAttempt_negativeDelay() {
-//        final BlockNodeConnection connection = mock(BlockNodeConnection.class);
-//        final BlockNodeConfig nodeConfig = newBlockNodeConfig(8080, 1);
-//        doReturn(nodeConfig).when(connection).getNodeConfig();
-//
-//        connectionManager.scheduleConnectionAttempt(connection.getNodeConfig(), Duration.ofSeconds(-2), 100L);
-//
-//        verify(executorService).schedule(any(BlockNodeConnectionTask.class), eq(0L), eq(TimeUnit.MILLISECONDS));
-//        verifyNoInteractions(bufferService);
-//        verifyNoInteractions(metrics);
-//        verifyNoMoreInteractions(executorService);
-//        verifyNoMoreInteractions(connection);
-//    }
-//
-//    @Test
-//    void testScheduleConnectionAttempt_failure() {
-//        final var logCaptor = new LogCaptor(LogManager.getLogger(BlockNodeConnectionManager.class));
-//        final BlockNodeConnection connection = mock(BlockNodeConnection.class);
-//        final BlockNodeConfig nodeConfig = newBlockNodeConfig(8080, 1);
-//        doReturn(nodeConfig).when(connection).getNodeConfig();
-//        doThrow(new RuntimeException("what the..."))
-//                .when(executorService)
-//                .schedule(any(Runnable.class), anyLong(), any(TimeUnit.class));
-//
-//        connectionManager.scheduleConnectionAttempt(connection.getNodeConfig(), Duration.ofSeconds(2), 100L);
-//
-//        assertThat(logCaptor.warnLogs())
-//                .anyMatch(msg -> msg.contains("Failed to schedule connection task for block node."));
-//
-//        verify(executorService).schedule(any(BlockNodeConnectionTask.class), eq(2_000L), eq(TimeUnit.MILLISECONDS));
-//        verify(metrics).recordConnectionClosed();
-//
-//        verifyNoInteractions(bufferService);
-//        verifyNoMoreInteractions(metrics);
-//        verifyNoMoreInteractions(executorService);
-//        verifyNoMoreInteractions(connection);
-//    }
-
     @Test
     void testShutdown() {
         final Map<BlockNodeConfig, BlockNodeConnection> connections = connections();
