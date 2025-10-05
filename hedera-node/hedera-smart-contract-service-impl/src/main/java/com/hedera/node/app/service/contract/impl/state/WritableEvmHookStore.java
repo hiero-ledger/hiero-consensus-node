@@ -33,7 +33,6 @@ import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -337,7 +336,7 @@ public class WritableEvmHookStore extends ReadableEvmHookStoreImpl {
 
     public static Bytes minimalKey(@NonNull final Bytes key) {
         final var len = key.length();
-        if(len == 0) {
+        if (len == 0) {
             return ZERO_KEY;
         }
         int i = 0;

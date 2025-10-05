@@ -2,7 +2,6 @@
 package com.hedera.services.bdd.suites.integration.hip1195;
 
 import static com.google.protobuf.ByteString.copyFromUtf8;
-import static com.hedera.node.app.hapi.utils.contracts.HookUtils.leftPad32;
 import static com.hedera.services.bdd.junit.TestTags.INTEGRATION;
 import static com.hedera.services.bdd.junit.hedera.embedded.EmbeddedMode.CONCURRENT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
@@ -51,13 +50,11 @@ import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
 import com.hederahashgraph.api.proto.java.TokenSupplyType;
 import com.hederahashgraph.api.proto.java.TokenType;
 import edu.umd.cs.findbugs.annotations.NonNull;
-
 import java.util.List;
 import java.util.Map;
 import java.util.OptionalLong;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
-
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Order;
@@ -201,7 +198,7 @@ public class Hip1195EnabledTest {
                         .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK),
                 // Change the hook storage's zero slot to 0x01 so that the hook returns true
                 accountLambdaSStore("testAccount", 124L)
-                        .putSlot(Bytes.EMPTY, Bytes.wrap(new byte[]{(byte) 0x01}))
+                        .putSlot(Bytes.EMPTY, Bytes.wrap(new byte[] {(byte) 0x01}))
                         .signedBy(DEFAULT_PAYER, "testAccount"),
                 // now the transfer works
                 cryptoTransfer(TokenMovement.movingHbar(10).between("testAccount", GENESIS))
@@ -216,16 +213,17 @@ public class Hip1195EnabledTest {
                 cryptoCreate("receiver").balance(0L),
                 cryptoCreate("testAccount")
                         .balance(ONE_HUNDRED_HBARS)
-                        .withHooks(
-                                accountAllowanceHook(124L, TRANSFER_HOOK.name()))
-                        .receiverSigRequired(true),
-                cryptoTransfer(TokenMovement.movingHbar(10).between("testAccount", "receiver"))
+                        .withHooks(accountAllowanceHook(124L, TRANSFER_HOOK.name())),
+                cryptoTransfer(TokenMovement.movingHbar(10 * ONE_HBAR).between("testAccount", "receiver"))
                         .withPreHookFor("testAccount", 124L, 25_000L, "")
                         .payingWith("payer")
                         .signedBy("payer"),
-                getAccountBalance("testAccount").logged(),
-                getAccountBalance("payer").logged(),
-                getAccountBalance("receiver").logged());
+                // even though the hook says msg.sender transfers 10 hbars to receiver,
+                // the owner of the hook transfers 1 tinybar in addition to the 10 hbars
+                getAccountBalance("testAccount")
+                        .hasTinyBars(ONE_HUNDRED_HBARS - 10 * ONE_HBAR - 1)
+                        .logged(),
+                getAccountBalance("receiver").hasTinyBars(10 * ONE_HBAR).logged());
     }
 
     @HapiTest
@@ -344,9 +342,9 @@ public class Hip1195EnabledTest {
                         .fee(ONE_HBAR)
                         .via(txnFromTreasury),
                 cryptoTransfer(
-                        movingUnique(westWindArt, 1L).between(amelie, alice),
-                        moving(200, usdc).distributing(alice, amelie, "receiverUsdc"),
-                        movingHbar(10 * ONE_HUNDRED_HBARS).between(alice, amelie))
+                                movingUnique(westWindArt, 1L).between(amelie, alice),
+                                moving(200, usdc).distributing(alice, amelie, "receiverUsdc"),
+                                movingHbar(10 * ONE_HUNDRED_HBARS).between(alice, amelie))
                         .withPreHookFor("AMELIE", 124L, 25_000L, "")
                         .signedBy(amelie, alice)
                         .payingWith(amelie)
