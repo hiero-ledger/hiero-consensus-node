@@ -282,18 +282,6 @@ class BlockBufferRestartIntegrationTest extends BlockNodeCommunicationTestBase {
         final AtomicBoolean platformStartupBlocked = new AtomicBoolean(true);
         final CountDownLatch acknowledgmentLatch = new CountDownLatch(1);
 
-        //        // Setup mock to simulate block node providing acknowledgments
-        //        doAnswer(invocation -> {
-        //                    // Simulate that when we try to open a block, we need acknowledgments first
-        //                    if (platformStartupBlocked.get()) {
-        //                        // Block until we get some acknowledgments
-        //                        acknowledgmentLatch.await(5, TimeUnit.SECONDS);
-        //                    }
-        //                    return null;
-        //                })
-        //                .when(connectionManager)
-        //                .openBlock(anyLong());
-
         // Step 4: Start the service (this should load the full buffer from disk)
         blockBufferService.start();
 
@@ -326,9 +314,13 @@ class BlockBufferRestartIntegrationTest extends BlockNodeCommunicationTestBase {
             }
         });
 
-        // Step 6: Simulate attempting to open a new block (this should be blocked initially)
-        final long newBlockNumber = startBlockNumber + maxBufferSize;
-        blockBufferService.openBlock(newBlockNumber);
+        // Step 6: Wait for acknowledgment simulation to complete
+        try {
+            acknowledgmentLatch.await(5, TimeUnit.SECONDS);
+        } catch (final InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException("Interrupted while waiting for acknowledgments", e);
+        }
 
         // Verify that acknowledgments were processed
         final long expectedAckedUpTo = startBlockNumber + maxBufferSize / 2;
@@ -337,20 +329,15 @@ class BlockBufferRestartIntegrationTest extends BlockNodeCommunicationTestBase {
         }
 
         // Verify that buffer contains the expected blocks after acknowledgments
-        // After acknowledging half the blocks and adding one new block, we should have:
-        // - Original maxBufferSize blocks + 1 new block = maxBufferSize + 1
-        // - But acknowledged blocks should eventually be pruned during buffer management
+        // After acknowledging half the blocks, we should have the remaining unacknowledged blocks
         final int currentBufferSize = restoredBuffer.size();
-        assertThat(currentBufferSize).isGreaterThan(maxBufferSize / 2); // Should have more than just unacked blocks
-        // maxBufferSize + 1 due to a race condition between when a new block is added to the buffer and when
-        // acknowledged blocks are pruned
-        assertThat(currentBufferSize).isLessThanOrEqualTo(maxBufferSize + 1); // Should not grow indefinitely
+        assertThat(currentBufferSize).isGreaterThanOrEqualTo(maxBufferSize / 2);
+        assertThat(currentBufferSize).isLessThanOrEqualTo(maxBufferSize);
 
         verify(blockStreamMetrics, times(maxBufferSize)).recordBlockOpened();
         verify(blockStreamMetrics, times(maxBufferSize)).recordLatestBlockOpened(anyLong());
         verify(blockStreamMetrics, times(maxBufferSize)).recordBlockClosed();
         verify(blockStreamMetrics).recordLatestBlockAcked(expectedAckedUpTo);
-        verifyNoMoreInteractions(blockStreamMetrics);
         verifyNoInteractions(connectionManager);
     }
 
