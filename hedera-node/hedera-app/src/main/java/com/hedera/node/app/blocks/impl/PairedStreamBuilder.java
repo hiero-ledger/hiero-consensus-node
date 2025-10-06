@@ -693,4 +693,9 @@ public class PairedStreamBuilder
     public long getNextHookId() {
         return blockStreamBuilder.getNextHookId();
     }
+
+    @Override
+    public Bytes getEvmCallResult() {
+        return blockStreamBuilder.getEvmCallResult();
+    }
 }

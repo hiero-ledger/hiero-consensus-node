@@ -6,8 +6,11 @@ import static com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade.T
 import static com.swirlds.state.test.fixtures.merkle.MerkleStateRoot.MINIMUM_SUPPORTED_VERSION;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.node.app.services.MigrationStateChanges;
+import com.hedera.node.app.services.StartupNetworks;
+import com.hedera.node.app.spi.fixtures.TestSchema;
 import com.hedera.node.config.data.HederaConfig;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
@@ -24,7 +27,6 @@ import com.swirlds.platform.test.fixtures.state.TestVirtualMapState;
 import com.swirlds.state.State;
 import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.lifecycle.Schema;
-import com.swirlds.state.lifecycle.StartupNetworks;
 import com.swirlds.state.lifecycle.StateDefinition;
 import com.swirlds.state.merkle.disk.OnDiskReadableKVState;
 import com.swirlds.state.merkle.disk.OnDiskWritableKVState;
@@ -34,7 +36,6 @@ import com.swirlds.state.spi.ReadableSingletonState;
 import com.swirlds.state.spi.WritableKVState;
 import com.swirlds.state.spi.WritableQueueState;
 import com.swirlds.state.spi.WritableSingletonState;
-import com.swirlds.state.test.fixtures.merkle.TestSchema;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
 import com.swirlds.virtualmap.config.VirtualMapConfig_;
@@ -86,7 +87,7 @@ class SerializationTest extends MerkleTestBase {
     }
 
     Schema createV1Schema() {
-        return new TestSchema(v1) {
+        return new TestSchema(1) {
             @NonNull
             @Override
             @SuppressWarnings("rawtypes")
@@ -260,7 +261,7 @@ class SerializationTest extends MerkleTestBase {
         return loadedTree;
     }
 
-    private void initServices(Schema schemaV1, MerkleNodeState loadedTree) {
+    private void initServices(Schema<SemanticVersion> schemaV1, MerkleNodeState loadedTree) {
         final var newRegistry = new MerkleSchemaRegistry(FIRST_SERVICE, new SchemaApplications());
         newRegistry.register(schemaV1);
         newRegistry.migrate(
