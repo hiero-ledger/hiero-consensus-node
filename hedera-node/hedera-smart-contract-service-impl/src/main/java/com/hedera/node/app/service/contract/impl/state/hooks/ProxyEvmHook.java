@@ -2,6 +2,7 @@
 package com.hedera.node.app.service.contract.impl.state.hooks;
 
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.HtsSystemContract.HTS_HOOKS_16D_CONTRACT_ADDRESS;
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.HtsSystemContract.HTS_HOOKS_16D_CONTRACT_ID;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
@@ -12,6 +13,7 @@ import com.hedera.node.app.service.contract.impl.state.AbstractProxyEvmAccount;
 import com.hedera.node.app.service.contract.impl.state.EvmFrameState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.apache.tuweni.bytes.Bytes;
+import org.apache.tuweni.units.bigints.UInt256;
 import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.datatypes.Hash;
 import org.hyperledger.besu.evm.Code;
@@ -59,6 +61,11 @@ public class ProxyEvmHook extends AbstractProxyEvmAccount {
     @Override
     public @NonNull Hash getCodeHash() {
         return state.getCodeHash(hookState.hookContractIdOrThrow(), codeFactory);
+    }
+
+    @Override
+    public @NonNull UInt256 getStorageValue(@NonNull final UInt256 key) {
+        return state.getStorageValue(HTS_HOOKS_16D_CONTRACT_ID, key);
     }
 
     @NonNull

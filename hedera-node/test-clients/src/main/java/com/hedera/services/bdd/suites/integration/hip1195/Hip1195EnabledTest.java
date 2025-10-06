@@ -5,6 +5,7 @@ import static com.google.protobuf.ByteString.copyFromUtf8;
 import static com.hedera.services.bdd.junit.TestTags.INTEGRATION;
 import static com.hedera.services.bdd.junit.hedera.embedded.EmbeddedMode.CONCURRENT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.accountAllowanceHook;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.accountLambdaSStore;
@@ -76,17 +77,21 @@ public class Hip1195EnabledTest {
     @Contract(contract = "FalseAccountAllowancePrePostHook", creationGas = 5_000_000)
     static SpecContract FALSE_PRE_POST_ALLOWANCE_HOOK;
 
-    @Contract(contract = "SmartContractsFees")
-    static SpecContract HOOK_UPDATE_CONTRACT;
+    @Contract(contract = "StorageAccessAccountAllowanceHook", creationGas = 5_000_000)
+    static SpecContract STORAGE_ACCESS_ALLOWANCE_HOOK;
+
+    @Contract(contract = "TransferAccountAllowanceHook", creationGas = 5_000_000)
+    static SpecContract TRANSFER_HOOK;
 
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
         testLifecycle.overrideInClass(Map.of("hooks.hooksEnabled", "true"));
         testLifecycle.doAdhoc(FALSE_ALLOWANCE_HOOK.getInfo());
-        testLifecycle.doAdhoc(HOOK_UPDATE_CONTRACT.getInfo());
         testLifecycle.doAdhoc(TRUE_ALLOWANCE_HOOK.getInfo());
         testLifecycle.doAdhoc(TRUE_PRE_POST_ALLOWANCE_HOOK.getInfo());
         testLifecycle.doAdhoc(FALSE_PRE_POST_ALLOWANCE_HOOK.getInfo());
+        testLifecycle.doAdhoc(STORAGE_ACCESS_ALLOWANCE_HOOK.getInfo());
+        testLifecycle.doAdhoc(TRANSFER_HOOK.getInfo());
     }
 
     @HapiTest
@@ -178,6 +183,47 @@ public class Hip1195EnabledTest {
                 cryptoTransfer(TokenMovement.movingHbar(10).between(GENESIS, "testAccount"))
                         .withPrePostHookFor("testAccount", 124L, 25_000L, "")
                         .signedBy(DEFAULT_PAYER));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> storageAccessWorks() {
+        return hapiTest(
+                cryptoCreate("testAccount")
+                        .withHooks(accountAllowanceHook(124L, STORAGE_ACCESS_ALLOWANCE_HOOK.name()))
+                        .receiverSigRequired(true),
+                // gets rejected because the return value from the allow function is false bye default
+                cryptoTransfer(TokenMovement.movingHbar(10).between("testAccount", GENESIS))
+                        .withPreHookFor("testAccount", 124L, 25_000L, "")
+                        .signedBy(DEFAULT_PAYER)
+                        .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK),
+                // Change the hook storage's zero slot to 0x01 so that the hook returns true
+                accountLambdaSStore("testAccount", 124L)
+                        .putSlot(Bytes.EMPTY, Bytes.wrap(new byte[] {(byte) 0x01}))
+                        .signedBy(DEFAULT_PAYER, "testAccount"),
+                // now the transfer works
+                cryptoTransfer(TokenMovement.movingHbar(10).between("testAccount", GENESIS))
+                        .withPreHookFor("testAccount", 124L, 25_000L, "")
+                        .signedBy(DEFAULT_PAYER));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> transferWorksFromOwnerOfTheHook() {
+        return hapiTest(
+                cryptoCreate("payer").balance(ONE_HUNDRED_HBARS),
+                cryptoCreate("receiver").balance(0L),
+                cryptoCreate("testAccount")
+                        .balance(ONE_HUNDRED_HBARS)
+                        .withHooks(accountAllowanceHook(124L, TRANSFER_HOOK.name())),
+                cryptoTransfer(TokenMovement.movingHbar(10 * ONE_HBAR).between("testAccount", "receiver"))
+                        .withPreHookFor("testAccount", 124L, 25_000L, "")
+                        .payingWith("payer")
+                        .signedBy("payer"),
+                // even though the hook says msg.sender transfers 10 hbars to receiver,
+                // the owner of the hook transfers 1 tinybar in addition to the 10 hbars
+                getAccountBalance("testAccount")
+                        .hasTinyBars(ONE_HUNDRED_HBARS - 10 * ONE_HBAR - 1)
+                        .logged(),
+                getAccountBalance("receiver").hasTinyBars(10 * ONE_HBAR).logged());
     }
 
     @HapiTest
