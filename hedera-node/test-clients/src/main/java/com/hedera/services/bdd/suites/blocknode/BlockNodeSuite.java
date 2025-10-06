@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.suites.blocknode;
 
 import static com.hedera.services.bdd.junit.TestTags.BLOCK_NODE;
+import static com.hedera.services.bdd.junit.hedera.ExternalPath.DATA_CONFIG_DIR;
 import static com.hedera.services.bdd.junit.hedera.NodeSelector.allNodes;
 import static com.hedera.services.bdd.junit.hedera.NodeSelector.byNodeId;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
@@ -15,12 +16,17 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitForAny;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitUntilNextBlocks;
 import static com.hedera.services.bdd.suites.regression.system.LifecycleTest.restartAtNextConfigVersion;
 
+import com.hedera.node.internal.network.BlockNodeConnectionInfo;
 import com.hedera.services.bdd.HapiBlockNode;
 import com.hedera.services.bdd.HapiBlockNode.BlockNodeConfig;
 import com.hedera.services.bdd.HapiBlockNode.SubProcessNodeConfig;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.OrderedInIsolation;
 import com.hedera.services.bdd.junit.hedera.BlockNodeMode;
+
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -28,6 +34,8 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.LockSupport;
 import java.util.stream.Stream;
+
+import com.hedera.services.bdd.junit.hedera.NodeSelector;
 import org.hiero.block.api.PublishStreamResponse.EndOfStream.Code;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.junit.jupiter.api.Disabled;
@@ -42,6 +50,92 @@ import org.junit.jupiter.api.Tag;
 @Tag(BLOCK_NODE)
 @OrderedInIsolation
 public class BlockNodeSuite {
+
+    @HapiTest
+    @HapiBlockNode(
+            networkSize = 1,
+            blockNodeConfigs = {@BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.REAL)},
+            subProcessNodeConfigs = {
+                    @SubProcessNodeConfig(
+                            nodeId = 0,
+                            applicationPropertiesOverrides = {
+                                    "blockStream.streamMode", "BOTH",
+                                    "blockStream.writerMode", "FILE_AND_GRPC"
+                            })
+            })
+    @Order(0)
+    final Stream<DynamicTest> node0SupportsDynamicBlockNodeConnectionInfo() {
+        return hapiTest(
+                waitUntilNextBlocks(15).withBackgroundTraffic(true),
+                // Create block-nodes.json
+                doingContextual((spec) -> {
+                        // Create a new block-nodes.json file at runtime with localhost and the correct port
+                        final var node0Port = spec.getBlockNodePortById(0);
+                        List<com.hedera.node.internal.network.BlockNodeConfig> blockNodes = new ArrayList<>();
+                        blockNodes.add(new com.hedera.node.internal.network.BlockNodeConfig("localhost", node0Port, 0));
+                        BlockNodeConnectionInfo connectionInfo = new BlockNodeConnectionInfo(blockNodes);
+                        try {
+                            // Write the config to this consensus node's block-nodes.json
+                            Path configPath = spec.getNetworkNodes().getFirst().getExternalPath(DATA_CONFIG_DIR).resolve("block-nodes.json");
+                            Files.writeString(configPath, BlockNodeConnectionInfo.JSON.toJSON(connectionInfo));
+                        } catch (IOException e) {
+                            throw new RuntimeException(e);
+                        }
+                    }),
+                waitUntilNextBlocks(15).withBackgroundTraffic(true),
+                // Update block-nodes.json to have an invalid entry
+                doingContextual((spec) -> {
+                    List<com.hedera.node.internal.network.BlockNodeConfig> blockNodes = new ArrayList<>();
+                    blockNodes.add(new com.hedera.node.internal.network.BlockNodeConfig("26dsfg2364", 1234, 0));
+                    BlockNodeConnectionInfo connectionInfo = new BlockNodeConnectionInfo(blockNodes);
+                    try {
+                        // Write the config to this consensus node's block-nodes.json
+                        Path configPath = spec.getNetworkNodes().getFirst().getExternalPath(DATA_CONFIG_DIR).resolve("block-nodes.json");
+                        Files.writeString(configPath, BlockNodeConnectionInfo.JSON.toJSON(connectionInfo));
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
+                }),
+                waitUntilNextBlocks(15).withBackgroundTraffic(true),
+                // Delete block-nodes.json
+                doingContextual((spec) -> {
+                    try {
+                        Path configPath = spec.getNetworkNodes().getFirst().getExternalPath(DATA_CONFIG_DIR).resolve("block-nodes.json");
+                        Files.delete(configPath);
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
+                }),
+                waitUntilNextBlocks(5).withBackgroundTraffic(true),
+                // Unparsable block-nodes.json
+                doingContextual((spec) -> {
+                    try {
+                        Path configPath = spec.getNetworkNodes().getFirst().getExternalPath(DATA_CONFIG_DIR).resolve("block-nodes.json");
+                        Files.writeString(configPath, "{ this is not valid json");
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
+                }),
+                waitUntilNextBlocks(5).withBackgroundTraffic(true),
+                // Create valid block-nodes.json again
+                doingContextual((spec) -> {
+                    // Create a new block-nodes.json file at runtime with localhost and the correct port
+                    final var node0Port = spec.getBlockNodePortById(0);
+                    List<com.hedera.node.internal.network.BlockNodeConfig> blockNodes = new ArrayList<>();
+                    blockNodes.add(new com.hedera.node.internal.network.BlockNodeConfig("localhost", node0Port, 0));
+                    BlockNodeConnectionInfo connectionInfo = new BlockNodeConnectionInfo(blockNodes);
+                    try {
+                        // Write the config to this consensus node's block-nodes.json
+                        Path configPath = spec.getNetworkNodes().getFirst().getExternalPath(DATA_CONFIG_DIR).resolve("block-nodes.json");
+                        Files.writeString(configPath, BlockNodeConnectionInfo.JSON.toJSON(connectionInfo));
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
+                }),
+                waitUntilNextBlocks(10).withBackgroundTraffic(true),
+                assertHgcaaLogDoesNotContain(byNodeId(0), "ERROR", Duration.ofSeconds(5)));
+    }
+
 
     @HapiTest
     @HapiBlockNode(

@@ -1260,7 +1260,7 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
                                             .orElseGet(() -> startBlockHashFrom(state));
                             });
             migrationStateChanges = null;
-            initializeBlockNodeConnections();
+            //initializeBlockNodeConnections();
         }
     }
 
