@@ -1,14 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app;
 
+import static com.swirlds.platform.state.service.PlatformStateFacade.DEFAULT_PLATFORM_STATE_FACADE;
 import static com.swirlds.state.lifecycle.StateMetadata.computeLabel;
 
 import com.hedera.hapi.platform.state.QueueState;
 import com.hedera.hapi.platform.state.StateValue;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import static com.swirlds.platform.state.service.PlatformStateFacade.DEFAULT_PLATFORM_STATE_FACADE;
-
 import com.swirlds.base.time.Time;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.utility.Mnemonics;

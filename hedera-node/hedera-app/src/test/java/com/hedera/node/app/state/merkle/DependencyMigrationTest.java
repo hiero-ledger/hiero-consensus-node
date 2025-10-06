@@ -7,8 +7,8 @@ import static com.hedera.node.app.ids.schemas.V0490EntityIdSchema.ENTITY_ID_KEY;
 import static com.hedera.node.app.ids.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_ID;
 import static com.hedera.node.app.ids.schemas.V0590EntityIdSchema.ENTITY_COUNTS_KEY;
 import static com.hedera.node.app.ids.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
-import static com.swirlds.platform.test.fixtures.config.ConfigUtils.CONFIGURATION;
 import static com.hedera.node.app.spi.fixtures.TestSchema.CURRENT_VERSION;
+import static com.swirlds.platform.test.fixtures.config.ConfigUtils.CONFIGURATION;
 import static com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade.TEST_PLATFORM_STATE_FACADE;
 import static org.mockito.Mockito.mock;
 
