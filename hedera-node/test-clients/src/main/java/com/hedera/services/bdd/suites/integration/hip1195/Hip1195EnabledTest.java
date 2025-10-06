@@ -2,8 +2,10 @@
 package com.hedera.services.bdd.suites.integration.hip1195;
 
 import static com.google.protobuf.ByteString.copyFromUtf8;
+import static com.hedera.node.app.service.contract.impl.state.WritableEvmHookStore.minimalKey;
 import static com.hedera.services.bdd.junit.TestTags.INTEGRATION;
 import static com.hedera.services.bdd.junit.hedera.embedded.EmbeddedMode.CONCURRENT;
+import static com.hedera.services.bdd.spec.HapiPropertySource.asAccount;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
@@ -24,10 +26,13 @@ import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movi
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingUnique;
 import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.viewAccount;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
+import static com.hedera.services.bdd.suites.contract.Utils.asHexedSolidityAddress;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.HOOK_DELETION_REQUIRES_ZERO_STORAGE_SLOTS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.HOOK_ID_IN_USE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.HOOK_ID_REPEATED_IN_CREATION_DETAILS;
@@ -35,9 +40,11 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.HOOK_NOT_FOUND
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK;
 import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
+import static org.hiero.base.utility.CommonUtils.unhex;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.google.protobuf.ByteString;
+import com.hedera.hapi.node.hooks.LambdaMappingEntry;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.HapiTest;
@@ -53,6 +60,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import java.util.Map;
 import java.util.OptionalLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
@@ -83,6 +91,9 @@ public class Hip1195EnabledTest {
     @Contract(contract = "TransferAccountAllowanceHook", creationGas = 5_000_000)
     static SpecContract TRANSFER_HOOK;
 
+    @Contract(contract = "StorageMappingAllowanceHook", creationGas = 5_000_000)
+    static SpecContract STORAGE_MAPPING_HOOK;
+
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
         testLifecycle.overrideInClass(Map.of("hooks.hooksEnabled", "true"));
@@ -92,6 +103,7 @@ public class Hip1195EnabledTest {
         testLifecycle.doAdhoc(FALSE_PRE_POST_ALLOWANCE_HOOK.getInfo());
         testLifecycle.doAdhoc(STORAGE_ACCESS_ALLOWANCE_HOOK.getInfo());
         testLifecycle.doAdhoc(TRANSFER_HOOK.getInfo());
+        testLifecycle.doAdhoc(STORAGE_MAPPING_HOOK.getInfo());
     }
 
     @HapiTest
@@ -699,6 +711,35 @@ public class Hip1195EnabledTest {
                     assertEquals(4L, a.firstHookId());
                     assertEquals(1, a.numberHooksInUse());
                 }));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> storageAccessFromMappingWorks() {
+        final var mappingSlot = Bytes.EMPTY;
+        final AtomicReference<byte[]> defaultPayerMirror = new AtomicReference<>();
+
+        return hapiTest(
+                cryptoCreate("testAccount").withHooks(accountAllowanceHook(124L, STORAGE_MAPPING_HOOK.name())),
+                withOpContext(
+                        (spec, opLog) -> defaultPayerMirror.set(unhex(asHexedSolidityAddress(asAccount(spec, 2))))),
+                cryptoTransfer(TokenMovement.movingHbar(10).between("testAccount", GENESIS))
+                        .withPreHookFor("testAccount", 124L, 25_000L, "")
+                        .signedBy(DEFAULT_PAYER)
+                        .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK),
+                // Change the hook storage's mapping slot to have key 0x00 -> 0x01 so that the hook returns true
+                // (the hook reads the mapping at slot 0, with key msg.sender; if the value is true, it
+                // returns true)
+                sourcing(() -> accountLambdaSStore("testAccount", 124L)
+                        .putMappingEntry(
+                                mappingSlot,
+                                LambdaMappingEntry.newBuilder()
+                                        .key(minimalKey(Bytes.wrap(defaultPayerMirror.get())))
+                                        .value(Bytes.wrap(new byte[] {(byte) 0x01}))
+                                        .build())
+                        .signedBy(DEFAULT_PAYER, "testAccount")),
+                cryptoTransfer(TokenMovement.movingHbar(10).between("testAccount", GENESIS))
+                        .withPreHookFor("testAccount", 124L, 25_000L, "")
+                        .signedBy(DEFAULT_PAYER));
     }
 
     @HapiTest

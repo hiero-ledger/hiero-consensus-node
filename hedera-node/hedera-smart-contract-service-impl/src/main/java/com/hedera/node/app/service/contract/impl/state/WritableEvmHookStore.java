@@ -89,6 +89,11 @@ public class WritableEvmHookStore extends ReadableEvmHookStoreImpl {
                 }
             }
         }
+        return applyStorageMutations(hookId, keys, values);
+    }
+
+    private int applyStorageMutations(
+            @NonNull final HookId hookId, @NonNull final List<Bytes> keys, @NonNull final List<Bytes> values) {
         final var view = getView(hookId, keys);
         var firstKey = view.firstStorageKey();
         int removals = 0;
@@ -128,6 +133,28 @@ public class WritableEvmHookStore extends ReadableEvmHookStoreImpl {
             return delta;
         }
         return 0;
+    }
+    /**
+     * Puts the given slot value for the given lambda, ensuring storage linked list pointers are preserved.
+     * If the new value is {@link Bytes#EMPTY}, the slot is removed.
+     *
+     * @param key the slot key
+     * @param value the new slot value
+     * @return {@code 1} if a new slot was created, {@code -1} if an existing slot was removed,
+     *         or {@code 0} if an existing slot was updated or no change was made
+     * @throws HandleException if the lambda ID is not found
+     */
+    public int updateStorage(@NonNull final LambdaSlotKey key, @NonNull final SlotValue value) {
+        requireNonNull(key);
+        requireNonNull(value);
+
+        final var hookId = key.hookId();
+        Bytes newValue = value.value();
+        if (isAllZeroWord(newValue)) {
+            // if value is empty we remove the slot
+            newValue = Bytes.EMPTY;
+        }
+        return applyStorageMutations(hookId, List.of(key.key()), List.of(newValue));
     }
 
     /**
@@ -345,6 +372,13 @@ public class WritableEvmHookStore extends ReadableEvmHookStoreImpl {
         }
         // All zeros -> ZERO_KEY, otherwise strip leading zeros
         return (i == len) ? ZERO_KEY : key.slice(i, len - i);
+    }
+
+    private static boolean isAllZeroWord(@NonNull final Bytes val) {
+        for (long i = 0, n = val.length(); i < n; i++) {
+            if (val.getByte(i) != 0) return false;
+        }
+        return true;
     }
 
     @NonNull
