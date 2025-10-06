@@ -117,7 +117,7 @@ public class PrngPrecompileSuite {
                             .getTransactionRecord(emptyInputCall)
                             .getContractCallResult()
                             .getGasUsed();
-                    assertEquals(320000, gasUsed);
+                    assertEquals(21_070L, gasUsed);
                 }));
     }
 
@@ -142,7 +142,7 @@ public class PrngPrecompileSuite {
                             .getTransactionRecord(largeInputCall)
                             .getContractCallResult()
                             .getGasUsed();
-                    assertEquals(320000, gasUsed);
+                    assertEquals(26_134L, gasUsed);
                 }));
     }
 
@@ -190,7 +190,7 @@ public class PrngPrecompileSuite {
                             .getTransactionRecord(lessThan4Bytes)
                             .getContractCallResult()
                             .getGasUsed();
-                    assertEquals(320000, gasUsed);
+                    assertEquals(21_118L, gasUsed);
                 }));
     }
 
