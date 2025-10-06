@@ -348,8 +348,10 @@ public class BlockState {
 
         logger.trace("[Block {}] Created new request (index={}, numItems={})", blockNumber, index, blockItems.size());
 
-        if(sendEndOfBlock) {
-            final var eobRequest = PublishStreamRequest.newBuilder().endOfBlock(BlockEnd.newBuilder().blockNumber(blockNumber)).build();
+        if (sendEndOfBlock) {
+            final var eobRequest = PublishStreamRequest.newBuilder()
+                    .endOfBlock(BlockEnd.newBuilder().blockNumber(blockNumber))
+                    .build();
             final var eobRequestIndex = requestIdxCtr.getAndIncrement();
             final RequestWrapper rsEnd = new RequestWrapper(eobRequestIndex, eobRequest, new AtomicBoolean(false));
             requestsByIndex.put(eobRequestIndex, rsEnd);

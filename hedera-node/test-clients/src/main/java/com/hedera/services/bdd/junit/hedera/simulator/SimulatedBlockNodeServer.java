@@ -455,8 +455,8 @@ public class SimulatedBlockNodeServer {
                                                 currentBlockNumber,
                                                 streamingBlocks.get(blockNumber) != null
                                                         ? streamingBlocks
-                                                        .get(blockNumber)
-                                                        .hashCode()
+                                                                .get(blockNumber)
+                                                                .hashCode()
                                                         : "none");
                                         // Continue to the next BlockItem in the request
                                         continue;
@@ -474,7 +474,6 @@ public class SimulatedBlockNodeServer {
                                         blockNumber,
                                         replies.hashCode(),
                                         port);
-
 
                                 // Mark block as fully received
                                 blocksWithHeadersOnly.remove(blockNumber);
