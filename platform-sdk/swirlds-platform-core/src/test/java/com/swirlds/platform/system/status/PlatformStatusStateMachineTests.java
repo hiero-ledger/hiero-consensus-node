@@ -139,11 +139,12 @@ class PlatformStatusStateMachineTests {
                 stateMachine.submitStatusAction(new TimeElapsedAction(
                         time.now(), new TimeElapsedAction.QuiescingStatus(quiescing, time.now()))));
         assertEquals(ACTIVE, stateMachine.submitStatusAction(new SelfEventReachedConsensusAction(time.now())));
+        final var before = time.now();
         time.tick(Duration.ofSeconds(11));
         assertEquals(
                 CHECKING,
-                stateMachine.submitStatusAction(new TimeElapsedAction(
-                        time.now(), new TimeElapsedAction.QuiescingStatus(quiescing, time.now()))));
+                stateMachine.submitStatusAction(
+                        new TimeElapsedAction(time.now(), new TimeElapsedAction.QuiescingStatus(quiescing, before))));
     }
 
     @Test
@@ -376,10 +377,8 @@ class PlatformStatusStateMachineTests {
         assertEquals(ACTIVE, stateMachine.submitStatusAction(new SelfEventReachedConsensusAction(time.now())));
         time.tick(Duration.ofSeconds(15));
         // When quiescing, should remain ACTIVE despite time elapsed
-        assertEquals(
-                ACTIVE,
-                stateMachine.submitStatusAction(
-                        new TimeElapsedAction(time.now(), new TimeElapsedAction.QuiescingStatus(true, time.now()))));
+        assertNull(stateMachine.submitStatusAction(
+                new TimeElapsedAction(time.now(), new TimeElapsedAction.QuiescingStatus(true, time.now()))));
     }
 
     @Test
@@ -393,13 +392,11 @@ class PlatformStatusStateMachineTests {
                 stateMachine.submitStatusAction(
                         new TimeElapsedAction(time.now(), new TimeElapsedAction.QuiescingStatus(false, time.now()))));
         assertEquals(ACTIVE, stateMachine.submitStatusAction(new SelfEventReachedConsensusAction(time.now())));
-        time.tick(Duration.ofSeconds(15));
+        final var before = time.now();
+        time.tick(Duration.ofSeconds(5));
         // Should remain ACTIVE when not enough time has passed since quiescence command (5s < 10s delay)
-        assertEquals(
-                ACTIVE,
-                stateMachine.submitStatusAction(new TimeElapsedAction(
-                        time.now(),
-                        new TimeElapsedAction.QuiescingStatus(false, time.now().minus(Duration.ofSeconds(5))))));
+        assertNull(stateMachine.submitStatusAction(
+                new TimeElapsedAction(time.now(), new TimeElapsedAction.QuiescingStatus(false, before))));
     }
 
     @Test
