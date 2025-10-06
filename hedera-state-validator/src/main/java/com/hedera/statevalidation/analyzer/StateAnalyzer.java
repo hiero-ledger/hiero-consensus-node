@@ -80,8 +80,8 @@ public final class StateAnalyzer {
             @NonNull final Function<ReadableSequentialData, ?> deserializer) {
         final StorageReport storageReport = createStoreReport(dataFileCollection, indexSize, deserializer);
         final KeyRange validKeyRange = dataFileCollection.getValidKeyRange();
-        storageReport.setMinPath(validKeyRange.getMinValidKey());
-        storageReport.setMaxPath(validKeyRange.getMaxValidKey());
+        storageReport.setMinKey(validKeyRange.getMinValidKey());
+        storageReport.setMaxKey(validKeyRange.getMaxValidKey());
         vmReportUpdater.accept(report, storageReport);
     }
 
