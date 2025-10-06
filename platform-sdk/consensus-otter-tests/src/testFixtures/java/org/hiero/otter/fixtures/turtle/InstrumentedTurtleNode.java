@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.turtle;
 
-import com.swirlds.base.time.Time;
 import com.swirlds.common.test.fixtures.Randotron;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.Path;

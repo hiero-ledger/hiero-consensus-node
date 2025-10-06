@@ -417,7 +417,7 @@ public abstract class AbstractNetwork implements Network {
 
         log.info("Sending freeze transaction...");
         final OtterTransaction freezeTransaction = TransactionFactory.createFreezeTransaction(
-                        random.nextLong(), timeManager().now().plus(FREEZE_DELAY));
+                random.nextLong(), timeManager().now().plus(FREEZE_DELAY));
         submitTransaction(freezeTransaction);
 
         log.debug("Waiting for nodes to freeze...");
@@ -452,8 +452,11 @@ public abstract class AbstractNetwork implements Network {
 
         // Depending on the test configuration, some nodes may enter CHECKING when a catastrophic ISS occurs,
         // but at least one node should always enter CATASTROPHIC_FAILURE.
-        timeManager().waitForCondition(this::allNodesInCheckingOrCatastrophicFailure, defaultTimeout.minus(elapsed),
-                "Not all nodes entered CHECKING or CATASTROPHIC_FAILURE before timeout");
+        timeManager()
+                .waitForCondition(
+                        this::allNodesInCheckingOrCatastrophicFailure,
+                        defaultTimeout.minus(elapsed),
+                        "Not all nodes entered CHECKING or CATASTROPHIC_FAILURE before timeout");
         final int numInCatastrophicFailure = (int) nodes().stream()
                 .filter(node -> node.platformStatus() == CATASTROPHIC_FAILURE)
                 .count();
@@ -468,7 +471,6 @@ public abstract class AbstractNetwork implements Network {
             return status == CATASTROPHIC_FAILURE || status == CHECKING;
         });
     }
-
 
     /**
      * Submits the transaction to the first active node found in the network.

@@ -68,9 +68,8 @@ public class ISSTestingToolConsensusStateEventHandler implements ConsensusStateE
         state.initState(trigger, platform);
 
         this.selfId = platform.getSelfId();
-        this.scratchPad =
-                Scratchpad.create(platform.getContext().getConfiguration(), selfId, IssTestingToolScratchpad.class,
-                        "ISSTestingTool");
+        this.scratchPad = Scratchpad.create(
+                platform.getContext().getConfiguration(), selfId, IssTestingToolScratchpad.class, "ISSTestingTool");
     }
 
     /**

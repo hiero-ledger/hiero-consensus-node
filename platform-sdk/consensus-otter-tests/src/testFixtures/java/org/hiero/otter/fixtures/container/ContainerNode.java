@@ -69,7 +69,6 @@ import org.hiero.otter.fixtures.result.SingleNodeMarkerFileResult;
 import org.hiero.otter.fixtures.result.SingleNodePcesResult;
 import org.hiero.otter.fixtures.result.SingleNodePlatformStatusResult;
 import org.hiero.otter.fixtures.result.SingleNodeReconnectResult;
-import org.jetbrains.annotations.NotNull;
 import org.testcontainers.containers.Container.ExecResult;
 import org.testcontainers.containers.Network;
 import org.testcontainers.images.builder.ImageFromDockerfile;
@@ -473,7 +472,7 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
                 case LOG_ENTRY -> resultsCollector.addLogEntry(ProtobufConverter.toPlatform(event.getLogEntry()));
                 case PLATFORM_STATUS_CHANGE -> handlePlatformChange(event);
                 case CONSENSUS_ROUNDS ->
-                        resultsCollector.addConsensusRounds(ProtobufConverter.toPbj(event.getConsensusRounds()));
+                    resultsCollector.addConsensusRounds(ProtobufConverter.toPbj(event.getConsensusRounds()));
                 case MARKER_FILE_ADDED -> {
                     final ProtocolStringList markerFiles =
                             event.getMarkerFileAdded().getMarkerFileNameList();

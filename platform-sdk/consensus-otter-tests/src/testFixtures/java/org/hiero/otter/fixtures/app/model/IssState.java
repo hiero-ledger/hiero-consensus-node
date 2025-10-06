@@ -1,6 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.app.model;
 
+import static com.hedera.pbj.runtime.ProtoWriterTools.sizeOfBoolean;
+import static com.hedera.pbj.runtime.ProtoWriterTools.sizeOfLong;
+import static com.hedera.pbj.runtime.ProtoWriterTools.sizeOfVarInt32;
+
 import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.JsonCodec;
 import com.hedera.pbj.runtime.ProtoParserTools;
@@ -9,10 +13,6 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Collections;
 import java.util.List;
 import org.hiero.otter.fixtures.app.model.schema.IssStateSchema;
-
-import static com.hedera.pbj.runtime.ProtoWriterTools.sizeOfBoolean;
-import static com.hedera.pbj.runtime.ProtoWriterTools.sizeOfLong;
-import static com.hedera.pbj.runtime.ProtoWriterTools.sizeOfVarInt32;
 
 /**
  * IssState
@@ -35,7 +35,6 @@ public final class IssState {
     private int $protobufEncodedSize = -1;
 
     private final List<UnknownField> $unknownFields;
-
 
     /**
      * Create a pre-populated IssState.
@@ -123,8 +122,8 @@ public final class IssState {
             if ($unknownFields != null) {
                 for (int i = 0; i < $unknownFields.size(); i++) {
                     final UnknownField uf = $unknownFields.get(i);
-                    _size += sizeOfVarInt32(
-                            (uf.field() << ProtoParserTools.TAG_FIELD_OFFSET) | uf.wireType().ordinal());
+                    _size += sizeOfVarInt32((uf.field() << ProtoParserTools.TAG_FIELD_OFFSET)
+                            | uf.wireType().ordinal());
                     _size += Math.toIntExact(uf.bytes().length());
                 }
             }
@@ -237,7 +236,6 @@ public final class IssState {
                 + "]";
     }
 
-
     /**
      * Return a builder for building a copy of this model object. It will be pre-populated with all the data from this
      * model object.
@@ -269,7 +267,9 @@ public final class IssState {
         /**
          * Create an empty builder
          */
-        public Builder() {$unknownFields = null;}
+        public Builder() {
+            $unknownFields = null;
+        }
 
         /**
          * Create a pre-populated Builder.
@@ -326,6 +326,4 @@ public final class IssState {
             return this;
         }
     }
-
-
 }

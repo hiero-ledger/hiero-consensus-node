@@ -140,13 +140,15 @@ public class OtterApp implements ConsensusStateEventHandler<OtterAppState> {
             while (transactionIterator.hasNext()) {
                 final ConsensusTransaction consensusTransaction = transactionIterator.next();
                 try {
-                    final OtterTransaction transaction = OtterTransaction.parseFrom(consensusTransaction
-                            .getApplicationTransaction()
-                            .toInputStream());
+                    final OtterTransaction transaction = OtterTransaction.parseFrom(
+                            consensusTransaction.getApplicationTransaction().toInputStream());
                     for (final OtterService service : allServices) {
                         service.handleTransaction(
-                                state.getWritableStates(service.name()), consensusEvent, transaction,
-                                consensusTransaction.getConsensusTimestamp(), callback);
+                                state.getWritableStates(service.name()),
+                                consensusEvent,
+                                transaction,
+                                consensusTransaction.getConsensusTimestamp(),
+                                callback);
                     }
                 } catch (final IOException ex) {
                     log.error(

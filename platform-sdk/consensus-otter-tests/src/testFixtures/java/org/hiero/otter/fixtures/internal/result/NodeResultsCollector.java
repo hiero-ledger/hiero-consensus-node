@@ -206,7 +206,8 @@ public class NodeResultsCollector {
      */
     @NonNull
     public List<StructuredLog> currentLogEntries(
-            final long startIndex, @NonNull final Set<Marker> suppressedLogMarkers,
+            final long startIndex,
+            @NonNull final Set<Marker> suppressedLogMarkers,
             @NonNull final Set<String> suppressedLoggerNames) {
         return logEntries.stream()
                 .skip(startIndex)

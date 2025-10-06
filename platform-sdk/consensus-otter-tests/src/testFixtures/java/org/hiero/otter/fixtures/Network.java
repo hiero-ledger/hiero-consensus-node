@@ -12,7 +12,6 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Set;
 import org.hiero.consensus.model.status.PlatformStatus;
-import org.hiero.otter.fixtures.internal.PartitionImpl;
 import org.hiero.otter.fixtures.internal.helpers.Utils;
 import org.hiero.otter.fixtures.network.Partition;
 import org.hiero.otter.fixtures.network.Topology;

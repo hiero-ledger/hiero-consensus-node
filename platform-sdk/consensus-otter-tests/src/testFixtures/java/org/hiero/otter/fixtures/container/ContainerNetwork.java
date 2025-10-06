@@ -97,7 +97,8 @@ public class ContainerNetwork extends AbstractNetwork {
     @NonNull
     protected ContainerNode doCreateNode(@NonNull final NodeId nodeId, @NonNull final KeysAndCerts keysAndCerts) {
         final Path outputDir = rootOutputDirectory.resolve(NODE_IDENTIFIER_FORMAT.formatted(nodeId.id()));
-        final ContainerNode node = new ContainerNode(nodeId, timeManager, keysAndCerts, network, dockerImage, outputDir);
+        final ContainerNode node =
+                new ContainerNode(nodeId, timeManager, keysAndCerts, network, dockerImage, outputDir);
         timeManager.addTimeTickReceiver(node);
         return node;
     }

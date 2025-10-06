@@ -29,7 +29,6 @@ public class RegularTimeManager extends AbstractTimeManager {
         return Instant.now();
     }
 
-
     /**
      * {@inheritDoc}
      */

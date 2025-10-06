@@ -12,7 +12,6 @@ import com.swirlds.common.config.StateCommonConfig_;
 import com.swirlds.common.io.utility.FileUtils;
 import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
 import com.swirlds.common.merkle.utility.SerializableLong;
-import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import java.io.File;

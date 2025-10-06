@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.turtle;
 
-import static java.util.Objects.requireNonNull;
-
 import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.base.time.Time;
 import edu.umd.cs.findbugs.annotations.NonNull;

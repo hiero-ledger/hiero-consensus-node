@@ -1,4 +1,7 @@
+// SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.app.services.iss;
+
+import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
@@ -22,8 +25,6 @@ import org.hiero.otter.fixtures.app.OtterIssTransaction;
 import org.hiero.otter.fixtures.app.OtterService;
 import org.hiero.otter.fixtures.app.OtterTransaction;
 
-import static com.swirlds.logging.legacy.LogMarker.STARTUP;
-
 /**
  * A service that can trigger ISSes based on transactions it receives.
  */
@@ -44,8 +45,11 @@ public class IssService implements OtterService {
      * {@inheritDoc}
      */
     @Override
-    public void initialize(@NonNull final InitTrigger trigger, @NonNull final NodeId selfId,
-            @NonNull final Configuration configuration, @NonNull final OtterAppState state) {
+    public void initialize(
+            @NonNull final InitTrigger trigger,
+            @NonNull final NodeId selfId,
+            @NonNull final Configuration configuration,
+            @NonNull final OtterAppState state) {
         this.selfId = selfId;
         this.scratchPad = Scratchpad.create(configuration, selfId, IssServiceScratchpad.class, NAME);
     }
@@ -54,7 +58,8 @@ public class IssService implements OtterService {
      * {@inheritDoc}
      */
     @Override
-    public void handleTransaction(@NonNull final WritableStates writableStates,
+    public void handleTransaction(
+            @NonNull final WritableStates writableStates,
             @NonNull final ConsensusEvent event,
             @NonNull final OtterTransaction transaction,
             @NonNull final Instant timestamp,
@@ -77,16 +82,17 @@ public class IssService implements OtterService {
              * the value with all other nodes.
              */
             if (partition.getNodeIdList().contains(selfId.id()) && !previouslyTriggered(timestamp)) {
-                log.info("Triggering ISS - selfId: {}, partition index: {}, partition nodes: {}",
-                        selfId.id(), i, partition.getNodeIdList());
+                log.info(
+                        "Triggering ISS - selfId: {}, partition index: {}, partition nodes: {}",
+                        selfId.id(),
+                        i,
+                        partition.getNodeIdList());
                 final WritableIssStateStore store = new WritableIssStateStore(writableStates);
                 store.setStateValue(i + 1);
 
                 if (issTransaction.getRecoverableOnRestart()) {
                     // Record the consensus time at which this ISS was provoked
-                    scratchPad.set(
-                            IssServiceScratchpad.PROVOKED_ISS,
-                            new SerializableLong(timestamp.toEpochMilli()));
+                    scratchPad.set(IssServiceScratchpad.PROVOKED_ISS, new SerializableLong(timestamp.toEpochMilli()));
                 }
             }
         }

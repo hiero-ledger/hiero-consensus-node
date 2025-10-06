@@ -8,8 +8,6 @@ import com.hederahashgraph.api.proto.java.Timestamp;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.List;
-import java.util.Set;
-import java.util.stream.Collectors;
 import org.hiero.base.utility.CommonUtils;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.otter.fixtures.app.EmptyTransaction;
@@ -17,7 +15,6 @@ import org.hiero.otter.fixtures.app.HashPartition;
 import org.hiero.otter.fixtures.app.OtterFreezeTransaction;
 import org.hiero.otter.fixtures.app.OtterIssTransaction;
 import org.hiero.otter.fixtures.app.OtterTransaction;
-import org.hiero.otter.fixtures.network.Partition;
 
 /**
  * Utility class for transaction-related operations.
@@ -67,9 +64,8 @@ public class TransactionFactory {
      */
     @NonNull
     public static OtterTransaction createSelfIssTransaction(final long nonce, @NonNull final NodeId nodeId) {
-        final HashPartition hashPartition = HashPartition.newBuilder()
-                .addNodeId(nodeId.id())
-                .build();
+        final HashPartition hashPartition =
+                HashPartition.newBuilder().addNodeId(nodeId.id()).build();
         final OtterIssTransaction issTransaction =
                 OtterIssTransaction.newBuilder().addPartition(hashPartition).build();
         return OtterTransaction.newBuilder()
@@ -77,7 +73,6 @@ public class TransactionFactory {
                 .setIssTransaction(issTransaction)
                 .build();
     }
-
 
     /**
      * Creates an ISS transaction that will cause the specified nodes to calculate different hashes for the round this
@@ -91,9 +86,8 @@ public class TransactionFactory {
     @NonNull
     public static OtterTransaction createIssTransaction(final long nonce, @NonNull final List<Node> nodes) {
         final List<HashPartition> hashPartitions = nodes.stream()
-                .map(node -> HashPartition.newBuilder()
-                        .addNodeId(node.selfId().id())
-                        .build())
+                .map(node ->
+                        HashPartition.newBuilder().addNodeId(node.selfId().id()).build())
                 .toList();
         final OtterIssTransaction issTransaction =
                 OtterIssTransaction.newBuilder().addAllPartition(hashPartitions).build();

@@ -13,23 +13,23 @@ public final class IssStateSchema implements Schema {
     /**
      * Private constructor to prevent instantiation.
      */
-     private IssStateSchema() {
-         // no-op
-     }
+    private IssStateSchema() {
+        // no-op
+    }
 
     // -- FIELD DEFINITIONS ---------------------------------------------
 
     /**
-     * <b>(1)</b> 
+     * <b>(1)</b>
      */
-    public static final FieldDefinition ISS_STATE = new FieldDefinition("iss_state", FieldType.UINT64, false, false, false, 1);
-
+    public static final FieldDefinition ISS_STATE =
+            new FieldDefinition("iss_state", FieldType.UINT64, false, false, false, 1);
 
     /**
-     * <b>(2)</b> 
+     * <b>(2)</b>
      */
-    public static final FieldDefinition RECOVERABLE_ON_RESTART = new FieldDefinition("recoverable_on_restart", FieldType.BOOL, false, false, false, 2);
-
+    public static final FieldDefinition RECOVERABLE_ON_RESTART =
+            new FieldDefinition("recoverable_on_restart", FieldType.BOOL, false, false, false, 2);
 
     // -- OTHER METHODS -------------------------------------------------
 
@@ -43,19 +43,17 @@ public final class IssStateSchema implements Schema {
         return f != null && getField(f.number()) == f;
     }
 
-/**
- * Get a field definition given a field number
- *
- * @param fieldNumber the fields number to get def for
- * @return field def or null if field number does not exist
- */
-public static FieldDefinition getField(final int fieldNumber) {
-    return switch(fieldNumber) {
-        case 1 -> ISS_STATE;
+    /**
+     * Get a field definition given a field number
+     *
+     * @param fieldNumber the fields number to get def for
+     * @return field def or null if field number does not exist
+     */
+    public static FieldDefinition getField(final int fieldNumber) {
+        return switch (fieldNumber) {
+            case 1 -> ISS_STATE;
             case 2 -> RECOVERABLE_ON_RESTART;
-        default -> null;
-    };
-}
-
-
+            default -> null;
+        };
+    }
 }

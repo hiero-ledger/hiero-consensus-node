@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.scratchpad;
 
-import com.swirlds.common.context.PlatformContext;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.scratchpad.internal.StandardScratchpad;
 import edu.umd.cs.findbugs.annotations.NonNull;

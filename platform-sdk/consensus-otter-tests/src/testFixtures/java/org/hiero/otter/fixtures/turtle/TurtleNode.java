@@ -1,6 +1,19 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.turtle;
 
+import static com.swirlds.common.threading.manager.AdHocThreadManager.getStaticThreadManager;
+import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.getMetricsProvider;
+import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.setupGlobalMetrics;
+import static com.swirlds.platform.state.signed.StartupStateUtils.loadInitialState;
+import static java.util.Objects.requireNonNull;
+import static org.assertj.core.api.Assertions.fail;
+import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.DESTROYED;
+import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.INIT;
+import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.RUNNING;
+import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.SHUTDOWN;
+import static org.hiero.otter.fixtures.result.SubscriberAction.CONTINUE;
+import static org.hiero.otter.fixtures.result.SubscriberAction.UNSUBSCRIBE;
+
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.filesystem.FileSystemManager;
 import com.swirlds.common.io.utility.RecycleBin;
@@ -57,19 +70,6 @@ import org.hiero.otter.fixtures.turtle.gossip.SimulatedGossip;
 import org.hiero.otter.fixtures.turtle.gossip.SimulatedNetwork;
 import org.hiero.otter.fixtures.turtle.logging.TurtleLogging;
 import org.hiero.otter.fixtures.util.SecureRandomBuilder;
-
-import static com.swirlds.common.threading.manager.AdHocThreadManager.getStaticThreadManager;
-import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.getMetricsProvider;
-import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.setupGlobalMetrics;
-import static com.swirlds.platform.state.signed.StartupStateUtils.loadInitialState;
-import static java.util.Objects.requireNonNull;
-import static org.assertj.core.api.Assertions.fail;
-import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.DESTROYED;
-import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.INIT;
-import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.RUNNING;
-import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.SHUTDOWN;
-import static org.hiero.otter.fixtures.result.SubscriberAction.CONTINUE;
-import static org.hiero.otter.fixtures.result.SubscriberAction.UNSUBSCRIBE;
 
 /**
  * A node in the turtle network.
@@ -160,7 +160,12 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
             final Metrics metrics = getMetricsProvider().createPlatformMetrics(selfId);
             final FileSystemManager fileSystemManager = FileSystemManager.create(currentConfiguration);
             final RecycleBin recycleBin = RecycleBin.create(
-                    metrics, currentConfiguration, getStaticThreadManager(), timeManager.time(), fileSystemManager, selfId);
+                    metrics,
+                    currentConfiguration,
+                    getStaticThreadManager(),
+                    timeManager.time(),
+                    fileSystemManager,
+                    selfId);
 
             platformContext = TestPlatformContextBuilder.create()
                     .withTime(timeManager.time())

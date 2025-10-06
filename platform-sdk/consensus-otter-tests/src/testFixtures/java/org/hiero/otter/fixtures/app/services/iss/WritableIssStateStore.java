@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.app.services.iss;
 
+import static java.util.Objects.requireNonNull;
+import static org.hiero.otter.fixtures.app.state.OtterStateId.ISS_SINGLETON_STATE_ID;
+
 import com.swirlds.state.spi.WritableSingletonState;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.hiero.otter.fixtures.app.model.IssState;
-
-import static java.util.Objects.requireNonNull;
-import static org.hiero.otter.fixtures.app.state.OtterStateId.ISS_SINGLETON_STATE_ID;
 
 /**
  * A writable store for the {@link IssService}.
@@ -35,10 +35,8 @@ public class WritableIssStateStore {
     @NonNull
     public WritableIssStateStore setStateValue(final long value) {
         final IssState issState = requireNonNull(singletonState.get());
-        singletonState.put(
-                issState.copyBuilder().issState(value).build());
+        singletonState.put(issState.copyBuilder().issState(value).build());
 
         return this;
     }
-
 }

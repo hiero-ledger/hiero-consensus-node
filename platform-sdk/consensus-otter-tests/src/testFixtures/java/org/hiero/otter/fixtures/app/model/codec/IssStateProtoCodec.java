@@ -1,6 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.app.model.codec;
 
+import static com.hedera.pbj.runtime.ProtoConstants.TAG_WIRE_TYPE_MASK;
+import static com.hedera.pbj.runtime.ProtoParserTools.TAG_FIELD_OFFSET;
+import static com.hedera.pbj.runtime.ProtoParserTools.extractField;
+import static com.hedera.pbj.runtime.ProtoParserTools.readBool;
+import static com.hedera.pbj.runtime.ProtoParserTools.readUint64;
+import static com.hedera.pbj.runtime.ProtoParserTools.skipField;
+import static com.hedera.pbj.runtime.ProtoWriterTools.writeBoolean;
+import static com.hedera.pbj.runtime.ProtoWriterTools.writeLong;
+
 import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.ProtoConstants;
@@ -16,15 +25,6 @@ import java.util.Collections;
 import java.util.List;
 import org.hiero.otter.fixtures.app.model.IssState;
 import org.hiero.otter.fixtures.app.model.schema.IssStateSchema;
-
-import static com.hedera.pbj.runtime.ProtoConstants.TAG_WIRE_TYPE_MASK;
-import static com.hedera.pbj.runtime.ProtoParserTools.TAG_FIELD_OFFSET;
-import static com.hedera.pbj.runtime.ProtoParserTools.extractField;
-import static com.hedera.pbj.runtime.ProtoParserTools.readBool;
-import static com.hedera.pbj.runtime.ProtoParserTools.readUint64;
-import static com.hedera.pbj.runtime.ProtoParserTools.skipField;
-import static com.hedera.pbj.runtime.ProtoWriterTools.writeBoolean;
-import static com.hedera.pbj.runtime.ProtoWriterTools.writeLong;
 
 /**
  * Protobuf Codec for IssState model object. Generated based on protobuf schema.
@@ -42,11 +42,9 @@ public final class IssStateProtoCodec implements Codec<IssState> {
     /**
      * Empty constructor
      */
-     public IssStateProtoCodec() {
-         // no-op
-     }
-
-
+    public IssStateProtoCodec() {
+        // no-op
+    }
 
     /**
      * Parses a IssState object from ProtoBuf bytes in a {@link ReadableSequentialData}. Throws if in strict mode ONLY.
@@ -66,93 +64,92 @@ public final class IssStateProtoCodec implements Codec<IssState> {
             @NonNull final ReadableSequentialData input,
             final boolean strictMode,
             final boolean parseUnknownFields,
-            final int maxDepth) throws ParseException {
+            final int maxDepth)
+            throws ParseException {
         if (maxDepth < 0) {
             throw new ParseException("Reached maximum allowed depth of nested messages");
         }
         try {
             // -- TEMP STATE FIELDS --------------------------------------
-                long temp_iss_state = 0;
-        boolean temp_recoverable_on_restart = false;
+            long temp_iss_state = 0;
+            boolean temp_recoverable_on_restart = false;
             List<UnknownField> $unknownFields = null;
-    
-                        // -- PARSE LOOP ---------------------------------------------
-                // Continue to parse bytes out of the input stream until we get to the end.
-                while (input.hasRemaining()) {
-                    // Note: ReadableStreamingData.hasRemaining() won't flip to false
-                    // until the end of stream is actually hit with a read operation.
-                    // So we catch this exception here and **only** here, because an EOFException
-                    // anywhere else suggests that we're processing malformed data and so
-                    // we must re-throw the exception then.
-                    final int tag;
-                    try {
-                        // Read the "tag" byte which gives us the field number for the next field to read
-                        // and the wire type (way it is encoded on the wire).
-                        tag = input.readVarInt(false);
-                    } catch (EOFException e) {
-                        // There's no more fields. Stop the parsing loop.
-                        break;
+
+            // -- PARSE LOOP ---------------------------------------------
+            // Continue to parse bytes out of the input stream until we get to the end.
+            while (input.hasRemaining()) {
+                // Note: ReadableStreamingData.hasRemaining() won't flip to false
+                // until the end of stream is actually hit with a read operation.
+                // So we catch this exception here and **only** here, because an EOFException
+                // anywhere else suggests that we're processing malformed data and so
+                // we must re-throw the exception then.
+                final int tag;
+                try {
+                    // Read the "tag" byte which gives us the field number for the next field to read
+                    // and the wire type (way it is encoded on the wire).
+                    tag = input.readVarInt(false);
+                } catch (EOFException e) {
+                    // There's no more fields. Stop the parsing loop.
+                    break;
+                }
+
+                // The field is the top 5 bits of the byte. Read this off
+                final int field = tag >>> TAG_FIELD_OFFSET;
+
+                // Ask the Schema to inform us what field this represents.
+                final var f = IssStateSchema.getField(field);
+
+                // Given the wire type and the field type, parse the field
+                switch (tag) {
+                    case 8 /* type=0 [UINT64] field=1 [iss_state] */ -> {
+                        final var value = readUint64(input);
+                        temp_iss_state = value;
                     }
-        
-                    // The field is the top 5 bits of the byte. Read this off
-                    final int field = tag >>> TAG_FIELD_OFFSET;
-        
-                    // Ask the Schema to inform us what field this represents.
-                    final var f = IssStateSchema.getField(field);
-        
-                    // Given the wire type and the field type, parse the field
-                    switch (tag) {
-                        case 8 /* type=0 [UINT64] field=1 [iss_state] */ -> {
-                            final var value = readUint64(input);
-                            temp_iss_state = value;
+                    case 16 /* type=0 [BOOL] field=2 [recoverable_on_restart] */ -> {
+                        final var value = readBool(input);
+                        temp_recoverable_on_restart = value;
+                    }
+
+                    default -> {
+                        // The wire type is the bottom 3 bits of the byte. Read that off
+                        final int wireType = tag & TAG_WIRE_TYPE_MASK;
+                        // handle error cases here, so we do not do if statements in normal loop
+                        // Validate the field number is valid (must be > 0)
+                        if (field == 0) {
+                            throw new IOException("Bad protobuf encoding. We read a field value of " + field);
                         }
-                        case 16 /* type=0 [BOOL] field=2 [recoverable_on_restart] */ -> {
-                            final var value = readBool(input);
-                            temp_recoverable_on_restart = value;
+                        // Validate the wire type is valid (must be >=0 && <= 5).
+                        // Otherwise we cannot parse this.
+                        // Note: it is always >= 0 at this point (see code above where it is defined).
+                        if (wireType > 5) {
+                            throw new IOException("Cannot understand wire_type of " + wireType);
                         }
-        
-                        default -> {
-                            // The wire type is the bottom 3 bits of the byte. Read that off
-                            final int wireType = tag & TAG_WIRE_TYPE_MASK;
-                            // handle error cases here, so we do not do if statements in normal loop
-                            // Validate the field number is valid (must be > 0)
-                            if (field == 0) {
-                                throw new IOException("Bad protobuf encoding. We read a field value of "
-                                    + field);
-                            }
-                            // Validate the wire type is valid (must be >=0 && <= 5).
-                            // Otherwise we cannot parse this.
-                            // Note: it is always >= 0 at this point (see code above where it is defined).
-                            if (wireType > 5) {
-                                throw new IOException("Cannot understand wire_type of " + wireType);
-                            }
-                            // It may be that the parser subclass doesn't know about this field
-                            if (f == null) {
-                                if (strictMode) {
-                                    // Since we are parsing is strict mode, this is an exceptional condition.
-                                    throw new UnknownFieldException(field);
-                                } else if (parseUnknownFields) {
-                                    if ($unknownFields == null) {
-                                        $unknownFields = new ArrayList<>($initialSizeOfUnknownFieldsArray);
-                                    }
-                                    $unknownFields.add(new UnknownField(
-                                            field,
-                                            ProtoConstants.get(wireType),
-                                            extractField(input, ProtoConstants.get(wireType), 2097152)
-                                    ));
-                                } else {
-                                    // We just need to read off the bytes for this field to skip it
-                                    // and move on to the next one.
-                                    skipField(input, ProtoConstants.get(wireType), 2097152);
+                        // It may be that the parser subclass doesn't know about this field
+                        if (f == null) {
+                            if (strictMode) {
+                                // Since we are parsing is strict mode, this is an exceptional condition.
+                                throw new UnknownFieldException(field);
+                            } else if (parseUnknownFields) {
+                                if ($unknownFields == null) {
+                                    $unknownFields = new ArrayList<>($initialSizeOfUnknownFieldsArray);
                                 }
+                                $unknownFields.add(new UnknownField(
+                                        field,
+                                        ProtoConstants.get(wireType),
+                                        extractField(input, ProtoConstants.get(wireType), 2097152)));
                             } else {
-                                throw new IOException("Bad tag [" + tag + "], field [" + field
-                                        + "] wireType [" + wireType + "]");
+                                // We just need to read off the bytes for this field to skip it
+                                // and move on to the next one.
+                                skipField(input, ProtoConstants.get(wireType), 2097152);
                             }
+                        } else {
+                            throw new IOException(
+                                    "Bad tag [" + tag + "], field [" + field + "] wireType [" + wireType + "]");
                         }
                     }
                 }
-    
+            }
+
             if ($unknownFields != null) {
                 Collections.sort($unknownFields);
                 $initialSizeOfUnknownFieldsArray = Math.max($initialSizeOfUnknownFieldsArray, $unknownFields.size());
@@ -174,11 +171,11 @@ public final class IssStateProtoCodec implements Codec<IssState> {
      * @throws IOException If there is a problem writing
      */
     public void write(@NonNull IssState data, @NonNull final WritableSequentialData out) throws IOException {
-            // [1] - iss_state
+        // [1] - iss_state
         writeLong(out, IssStateSchema.ISS_STATE, data.issState(), true);
         // [2] - recoverable_on_restart
         writeBoolean(out, IssStateSchema.RECOVERABLE_ON_RESTART, data.recoverableOnRestart(), true);
-    
+
         // Check if not-empty to avoid creating a lambda if there's nothing to write.
         if (!data.getUnknownFields().isEmpty()) {
             data.getUnknownFields().forEach(uf -> {
@@ -202,7 +199,7 @@ public final class IssStateProtoCodec implements Codec<IssState> {
         final var start = input.position();
         parse(input);
         final var end = input.position();
-        return (int)(end - start);
+        return (int) (end - start);
     }
 
     /**
@@ -227,7 +224,8 @@ public final class IssStateProtoCodec implements Codec<IssState> {
      * @return true if the bytes represent the item, false otherwise.
      * @throws ParseException If parsing fails
      */
-    public boolean fastEquals(@NonNull IssState item, @NonNull final ReadableSequentialData input) throws ParseException {
+    public boolean fastEquals(@NonNull IssState item, @NonNull final ReadableSequentialData input)
+            throws ParseException {
         return item.equals(parse(input));
     }
 
@@ -240,6 +238,4 @@ public final class IssStateProtoCodec implements Codec<IssState> {
     public IssState getDefaultInstance() {
         return IssState.DEFAULT;
     }
-
-
 }

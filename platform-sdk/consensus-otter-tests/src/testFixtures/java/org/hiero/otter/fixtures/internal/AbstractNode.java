@@ -54,7 +54,6 @@ public abstract class AbstractNode implements Node {
     protected final NodeId selfId;
     protected final KeysAndCerts keysAndCerts;
 
-
     private Roster roster;
     private long weight;
 
