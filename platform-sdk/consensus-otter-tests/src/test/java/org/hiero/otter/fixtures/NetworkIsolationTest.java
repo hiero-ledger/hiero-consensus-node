@@ -22,6 +22,7 @@ import org.junit.jupiter.params.provider.MethodSource;
  */
 class NetworkIsolationTest {
 
+    private static final String SAVED_STATE = "";
     private static final long RANDOM_SEED = 0L;
 
     /**
@@ -30,7 +31,7 @@ class NetworkIsolationTest {
      * @return a stream of {@link TestEnvironment} instances
      */
     public static Stream<TestEnvironment> environments() {
-        return Stream.of(new TurtleTestEnvironment(RANDOM_SEED), new ContainerTestEnvironment());
+        return Stream.of(new TurtleTestEnvironment(SAVED_STATE, RANDOM_SEED), new ContainerTestEnvironment());
     }
 
     /**
@@ -128,7 +129,7 @@ class NetworkIsolationTest {
      */
     @Test
     void testIsolateMultipleNodesSequentially() {
-        final TestEnvironment env = new TurtleTestEnvironment(RANDOM_SEED);
+        final TestEnvironment env = new TurtleTestEnvironment(SAVED_STATE, RANDOM_SEED);
         try {
             final Network network = env.network();
             final TimeManager timeManager = env.timeManager();
@@ -180,7 +181,7 @@ class NetworkIsolationTest {
      */
     @Test
     void testIsolateAlreadyPartitionedNode() {
-        final TestEnvironment env = new TurtleTestEnvironment(RANDOM_SEED);
+        final TestEnvironment env = new TurtleTestEnvironment(SAVED_STATE, RANDOM_SEED);
         try {
             final Network network = env.network();
             final TimeManager timeManager = env.timeManager();
@@ -229,7 +230,7 @@ class NetworkIsolationTest {
      */
     @Test
     void testRejoinNonIsolatedNode() {
-        final TestEnvironment env = new TurtleTestEnvironment(RANDOM_SEED);
+        final TestEnvironment env = new TurtleTestEnvironment(SAVED_STATE, RANDOM_SEED);
         try {
             final Network network = env.network();
             final TimeManager timeManager = env.timeManager();
@@ -261,7 +262,7 @@ class NetworkIsolationTest {
      */
     @Test
     void testIsolateAndRejoinMultipleNodes() {
-        final TestEnvironment env = new TurtleTestEnvironment(RANDOM_SEED);
+        final TestEnvironment env = new TurtleTestEnvironment(SAVED_STATE, RANDOM_SEED);
         try {
             final Network network = env.network();
             final TimeManager timeManager = env.timeManager();
@@ -331,7 +332,7 @@ class NetworkIsolationTest {
      */
     @Test
     void testRestoreConnectivityWithIsolatedNodes() {
-        final TestEnvironment env = new TurtleTestEnvironment(RANDOM_SEED);
+        final TestEnvironment env = new TurtleTestEnvironment(SAVED_STATE, RANDOM_SEED);
         try {
             final Network network = env.network();
             final TimeManager timeManager = env.timeManager();
@@ -382,7 +383,7 @@ class NetworkIsolationTest {
      */
     @Test
     void testIsolationAndPartitionInteraction() {
-        final TestEnvironment env = new TurtleTestEnvironment(RANDOM_SEED);
+        final TestEnvironment env = new TurtleTestEnvironment(SAVED_STATE, RANDOM_SEED);
         try {
             final Network network = env.network();
             final TimeManager timeManager = env.timeManager();

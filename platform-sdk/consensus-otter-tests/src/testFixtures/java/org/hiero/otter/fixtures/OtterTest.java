@@ -27,4 +27,11 @@ public @interface OtterTest {
      * @return an array of required capabilities
      */
     Capability[] requires() default {};
+
+    /**
+     * Directory to the state directory relative to the resource directory. If empty a new genesis state will be generated.
+     *
+     * @return the relative path
+     */
+    String savedState() default "";
 }

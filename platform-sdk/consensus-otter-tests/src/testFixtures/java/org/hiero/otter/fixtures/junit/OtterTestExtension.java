@@ -261,11 +261,15 @@ public class OtterTestExtension
      */
     @NonNull
     private TestEnvironment createTurtleTestEnvironment(@NonNull final ExtensionContext extensionContext) {
+        final Optional<OtterTest> otterTest =
+                AnnotationSupport.findAnnotation(extensionContext.getElement(), OtterTest.class);
+        final String savedState = otterTest.map(OtterTest::savedState).orElse("");
+
         final Optional<TurtleSpecs> turtleSpecs =
                 AnnotationSupport.findAnnotation(extensionContext.getElement(), TurtleSpecs.class);
         final long randomSeed = turtleSpecs.map(TurtleSpecs::randomSeed).orElse(0L);
 
-        return new TurtleTestEnvironment(randomSeed);
+        return new TurtleTestEnvironment(savedState, randomSeed);
     }
 
     /**

@@ -52,9 +52,10 @@ public class TurtleTestEnvironment implements TestEnvironment {
     /**
      * Constructor for the {@link TurtleTestEnvironment} class.
      *
+     * @param savedStateDirectory the directory for the saved state, relative to the resource directory; if empty, a genesis state will be generated
      * @param randomSeed the seed for the PRNG; if {@code 0}, a random seed will be generated
      */
-    public TurtleTestEnvironment(final long randomSeed) {
+    public TurtleTestEnvironment(@NonNull final String savedStateDirectory, final long randomSeed) {
         final Path rootOutputDirectory = Path.of("build", "turtle");
         try {
             if (Files.exists(rootOutputDirectory)) {
@@ -63,6 +64,15 @@ public class TurtleTestEnvironment implements TestEnvironment {
             Files.createDirectories(rootOutputDirectory);
         } catch (final IOException ex) {
             log.warn("Failed to delete directory: {}", rootOutputDirectory, ex);
+        }
+        final Path savedState;
+        if (!savedStateDirectory.isEmpty()) {
+            savedState = Path.of("src", "testFixtures", "resources", savedStateDirectory);
+            if (!Files.exists(savedState)) {
+                throw new IllegalArgumentException("Saved state directory not found");
+            }
+        } else {
+            savedState = null;
         }
 
         final Randotron randotron = randomSeed == 0L ? Randotron.create() : Randotron.create(randomSeed);
@@ -87,9 +97,11 @@ public class TurtleTestEnvironment implements TestEnvironment {
         }
 
         timeManager = new TurtleTimeManager(time, GRANULARITY);
+        timeManager.advanceTime(Duration.ofHours(1));
 
         transactionGenerator = new TurtleTransactionGenerator(randotron);
-        network = new TurtleNetwork(randotron, timeManager, logging, rootOutputDirectory, transactionGenerator);
+        network = new TurtleNetwork(
+                savedState, randotron, timeManager, logging, rootOutputDirectory, transactionGenerator);
 
         timeManager.addTimeTickReceiver(network);
     }

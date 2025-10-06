@@ -2,16 +2,23 @@
 package org.hiero.otter.fixtures.turtle;
 
 import static java.util.Objects.requireNonNull;
+import static org.hiero.otter.fixtures.tools.GenerateStateTool.PCES_DIRECTORY;
 
 import com.hedera.hapi.node.state.roster.Roster;
+import com.swirlds.common.io.utility.FileUtils;
 import com.swirlds.common.test.fixtures.Randotron;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
+import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.node.KeysAndCerts;
@@ -20,6 +27,7 @@ import org.hiero.otter.fixtures.InstrumentedNode;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.TimeManager;
 import org.hiero.otter.fixtures.TransactionGenerator;
+import org.hiero.otter.fixtures.app.OtterApp;
 import org.hiero.otter.fixtures.internal.AbstractNetwork;
 import org.hiero.otter.fixtures.internal.AbstractTimeManager.TimeTickReceiver;
 import org.hiero.otter.fixtures.internal.network.ConnectionKey;
@@ -37,6 +45,7 @@ public class TurtleNetwork extends AbstractNetwork implements TimeTickReceiver {
 
     private static final Logger log = LogManager.getLogger();
 
+    private final Path savedState;
     private final Randotron randotron;
     private final TurtleTimeManager timeManager;
     private final TurtleLogging logging;
@@ -49,6 +58,7 @@ public class TurtleNetwork extends AbstractNetwork implements TimeTickReceiver {
     /**
      * Constructor for TurtleNetwork.
      *
+     * @param savedState           the directory to the saved state, if empty a genesis state gets generated
      * @param randotron            the random generator
      * @param timeManager          the time manager
      * @param logging              the logging utility
@@ -56,12 +66,14 @@ public class TurtleNetwork extends AbstractNetwork implements TimeTickReceiver {
      * @param transactionGenerator the transaction generator that generates a steady flow of transactions to all nodes
      */
     public TurtleNetwork(
+            @Nullable final Path savedState,
             @NonNull final Randotron randotron,
             @NonNull final TurtleTimeManager timeManager,
             @NonNull final TurtleLogging logging,
             @NonNull final Path rootOutputDirectory,
             @NonNull final TurtleTransactionGenerator transactionGenerator) {
         super(randotron);
+        this.savedState = savedState;
         this.randotron = requireNonNull(randotron);
         this.timeManager = requireNonNull(timeManager);
         this.logging = requireNonNull(logging);
@@ -104,8 +116,49 @@ public class TurtleNetwork extends AbstractNetwork implements TimeTickReceiver {
     protected TurtleNode doCreateNode(@NonNull final NodeId nodeId, @NonNull final KeysAndCerts keysAndCerts) {
         simulatedNetwork.addNode(nodeId);
         final Path outputDir = rootOutputDirectory.resolve(NODE_IDENTIFIER_FORMAT.formatted(nodeId.id()));
+        if (savedState != null) {
+            copySaveState(nodeId, outputDir);
+        }
         return new TurtleNode(
                 randotron, timeManager.time(), nodeId, keysAndCerts, simulatedNetwork, logging, outputDir);
+    }
+
+    private void copySaveState(@NonNull NodeId nodeId, @NonNull final Path outputDir) {
+        Objects.requireNonNull(nodeId);
+        Objects.requireNonNull(outputDir);
+        Objects.requireNonNull(savedState);
+
+        final Path targetPath = outputDir.resolve("data").resolve("saved");
+        try {
+            FileUtils.copyDirectory(savedState, targetPath);
+        } catch (final IOException exception) {
+            log.error("Failed to copy saved state", exception);
+        }
+
+        final Path appPath = targetPath.resolve(OtterApp.APP_NAME);
+        final Path pcesPath = targetPath.resolve(PCES_DIRECTORY);
+        renameToNodeId(nodeId, appPath);
+        renameToNodeId(nodeId, pcesPath);
+    }
+
+    private static void renameToNodeId(final @NonNull NodeId nodeId, final Path appPath) {
+        try (final Stream<Path> stream = Files.list(appPath)) {
+            stream.filter(Files::isDirectory)
+                    .filter(p -> p.getFileName().toString().matches("\\d+"))
+                    .findFirst()
+                    .ifPresent(dir -> {
+                        try {
+                            int number = Integer.parseInt(dir.getFileName().toString());
+                            if (number != nodeId.id()) {
+                                FileUtils.moveDirectory(dir, appPath.resolve(nodeId.id() + ""));
+                            }
+                        } catch (IOException e) {
+                            throw new RuntimeException(e);
+                        }
+                    });
+        } catch (final IOException | RuntimeException exception) {
+            log.error("Failed to rename directory", exception);
+        }
     }
 
     /**
