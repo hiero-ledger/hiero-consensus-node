@@ -26,6 +26,7 @@ import org.hiero.otter.fixtures.TransactionGenerator;
 import org.hiero.otter.fixtures.logging.internal.InMemorySubscriptionManager;
 import org.hiero.otter.fixtures.turtle.logging.TurtleLogClock;
 import org.hiero.otter.fixtures.turtle.logging.TurtleLogging;
+import org.hiero.otter.fixtures.util.OtterUtils;
 
 /**
  * A test environment for the Turtle framework.
@@ -65,15 +66,7 @@ public class TurtleTestEnvironment implements TestEnvironment {
         } catch (final IOException ex) {
             log.warn("Failed to delete directory: {}", rootOutputDirectory, ex);
         }
-        final Path savedState;
-        if (!savedStateDirectory.isEmpty()) {
-            savedState = Path.of("src", "testFixtures", "resources", savedStateDirectory);
-            if (!Files.exists(savedState)) {
-                throw new IllegalArgumentException("Saved state directory not found");
-            }
-        } else {
-            savedState = null;
-        }
+        final Path savedState = OtterUtils.findSaveState(savedStateDirectory);
 
         final Randotron randotron = randomSeed == 0L ? Randotron.create() : Randotron.create(randomSeed);
 
@@ -97,6 +90,7 @@ public class TurtleTestEnvironment implements TestEnvironment {
         }
 
         timeManager = new TurtleTimeManager(time, GRANULARITY);
+        // Fix for "Timestamp must never decrease" issue
         timeManager.advanceTime(Duration.ofHours(1));
 
         transactionGenerator = new TurtleTransactionGenerator(randotron);

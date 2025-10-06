@@ -10,7 +10,9 @@ import static com.swirlds.platform.state.signed.StartupStateUtils.loadInitialSta
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
+import com.hedera.hapi.node.state.roster.RoundRosterPair;
 import com.hedera.hapi.platform.state.NodeId;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.filesystem.FileSystemManager;
@@ -24,7 +26,6 @@ import com.swirlds.platform.builder.PlatformBuildingBlocks;
 import com.swirlds.platform.builder.PlatformComponentBuilder;
 import com.swirlds.platform.config.PathsConfig;
 import com.swirlds.platform.listeners.PlatformStatusChangeListener;
-import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.HashedReservedSignedState;
 import com.swirlds.platform.state.signed.ReservedSignedState;
@@ -36,6 +37,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Executor;
@@ -133,9 +135,14 @@ public class ConsensusNodeManager {
                 platformContext,
                 OtterAppState::new);
         final ReservedSignedState initialState = reservedState.state();
-        final MerkleNodeState state = initialState.get().getState();
 
-        final RosterHistory rosterHistory = RosterUtils.createRosterHistory(state);
+        final Bytes rosterHash = RosterUtils.hash(genesisRoster).getBytes();
+        final RosterHistory rosterHistory = new RosterHistory(
+                List.of(RoundRosterPair.newBuilder()
+                        .roundNumber(0)
+                        .activeRosterHash(rosterHash)
+                        .build()),
+                Map.of(rosterHash, genesisRoster));
         executionCallback = new OtterExecutionLayer(new Random(), metrics);
         final PlatformBuilder builder = PlatformBuilder.create(
                         OtterApp.APP_NAME,

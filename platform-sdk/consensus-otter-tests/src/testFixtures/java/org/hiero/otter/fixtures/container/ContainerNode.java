@@ -16,10 +16,15 @@ import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.RUNNING;
 import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.SHUTDOWN;
 import static org.junit.jupiter.api.Assertions.fail;
 
+import com.github.dockerjava.api.DockerClient;
+import com.github.dockerjava.api.async.ResultCallbackTemplate;
+import com.github.dockerjava.api.command.ExecCreateCmdResponse;
+import com.github.dockerjava.api.model.Frame;
 import com.google.protobuf.ProtocolStringList;
 import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 import io.grpc.Status.Code;
@@ -66,9 +71,12 @@ import org.hiero.otter.fixtures.result.SingleNodeMarkerFileResult;
 import org.hiero.otter.fixtures.result.SingleNodePcesResult;
 import org.hiero.otter.fixtures.result.SingleNodePlatformStatusResult;
 import org.hiero.otter.fixtures.result.SingleNodeReconnectResult;
+import org.hiero.otter.fixtures.util.OtterUtils;
+import org.testcontainers.DockerClientFactory;
 import org.testcontainers.containers.Container.ExecResult;
 import org.testcontainers.containers.Network;
 import org.testcontainers.images.builder.ImageFromDockerfile;
+import org.testcontainers.utility.MountableFile;
 
 /**
  * Implementation of {@link Node} for a container environment.
@@ -118,7 +126,8 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
             @NonNull final KeysAndCerts keysAndCerts,
             @NonNull final Network network,
             @NonNull final ImageFromDockerfile dockerImage,
-            @NonNull final Path outputDirectory) {
+            @NonNull final Path outputDirectory,
+            @Nullable final Path savedStateDirectory) {
         super(selfId, keysAndCerts);
 
         this.localOutputDirectory = requireNonNull(outputDirectory, "outputDirectory must not be null");
@@ -128,6 +137,33 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
 
         container = new ContainerImage(dockerImage, network, selfId);
         container.start();
+
+        if (savedStateDirectory != null) {
+            try {
+                final Path tempDir = Files.createTempDirectory("state-");
+                OtterUtils.copySaveState(selfId, savedStateDirectory, tempDir);
+                final Path dockerPath = Path.of(CONTAINER_APP_WORKING_DIR, "data", "saved");
+
+                container.copyFileToContainer(
+                        MountableFile.forHostPath(tempDir.resolve("data/saved")), dockerPath.toString());
+                final DockerClient client = DockerClientFactory.instance().client();
+                final ExecCreateCmdResponse exec = client.execCreateCmd(container.getContainerId())
+                        .withUser("root")
+                        .withCmd("sh", "-lc", "chown -R appuser:appuser " + CONTAINER_APP_WORKING_DIR)
+                        .exec();
+
+                try (final ResultCallbackTemplate<?, Frame> stream =
+                        client.execStartCmd(exec.getId()).start()) {
+                    stream.awaitCompletion();
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
+
+            } catch (final IOException | RuntimeException exception) {
+                log.error("Unable to copy saved state directory", exception);
+            }
+        }
+
         containerControlChannel = ManagedChannelBuilder.forAddress(
                         container.getHost(), container.getMappedPort(CONTAINER_CONTROL_PORT))
                 .maxInboundMessageSize(32 * 1024 * 1024)

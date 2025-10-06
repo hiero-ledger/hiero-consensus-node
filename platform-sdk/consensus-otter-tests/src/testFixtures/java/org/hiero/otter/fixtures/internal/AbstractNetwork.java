@@ -215,7 +215,10 @@ public abstract class AbstractNetwork implements Network {
     private NodeId getNextNodeId() {
         final NodeId nextId = nextNodeId;
         // randomly advance between 1 and 3 steps
-        final int randomAdvance = random.nextInt(3);
+        // final int randomAdvance = random.nextInt(3);
+
+        // Fix random nodes issue for container
+        final int randomAdvance = 0;
         nextNodeId = nextNodeId.getOffset(randomAdvance + 1L);
         return nextId;
     }

@@ -11,6 +11,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.stream.Stream;
 import org.hiero.otter.fixtures.Capability;
+import org.hiero.otter.fixtures.OtterSpecs;
 import org.hiero.otter.fixtures.OtterTest;
 import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.container.ContainerTestEnvironment;
@@ -261,9 +262,9 @@ public class OtterTestExtension
      */
     @NonNull
     private TestEnvironment createTurtleTestEnvironment(@NonNull final ExtensionContext extensionContext) {
-        final Optional<OtterTest> otterTest =
-                AnnotationSupport.findAnnotation(extensionContext.getElement(), OtterTest.class);
-        final String savedState = otterTest.map(OtterTest::savedState).orElse("");
+        final Optional<OtterSpecs> otterSpecs =
+                AnnotationSupport.findAnnotation(extensionContext.getElement(), OtterSpecs.class);
+        final String savedState = otterSpecs.map(OtterSpecs::savedState).orElse("");
 
         final Optional<TurtleSpecs> turtleSpecs =
                 AnnotationSupport.findAnnotation(extensionContext.getElement(), TurtleSpecs.class);
@@ -281,7 +282,11 @@ public class OtterTestExtension
      */
     @NonNull
     private TestEnvironment createContainerTestEnvironment(@NonNull final ExtensionContext extensionContext) {
-        return new ContainerTestEnvironment();
+        final Optional<OtterSpecs> otterSpecs =
+                AnnotationSupport.findAnnotation(extensionContext.getElement(), OtterSpecs.class);
+        final String savedState = otterSpecs.map(OtterSpecs::savedState).orElse("");
+
+        return new ContainerTestEnvironment(savedState);
     }
 
     /**

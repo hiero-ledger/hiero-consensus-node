@@ -2,6 +2,7 @@
 package org.hiero.otter.fixtures.container;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.file.Path;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -32,8 +33,9 @@ public class InstrumentedContainerNode extends ContainerNode implements Instrume
             @NonNull final KeysAndCerts keysAndCerts,
             @NonNull final Network network,
             @NonNull final ImageFromDockerfile dockerImage,
-            @NonNull final Path outputDirectory) {
-        super(selfId, keysAndCerts, network, dockerImage, outputDirectory);
+            @NonNull final Path outputDirectory,
+            @Nullable final Path savedStateDirectory) {
+        super(selfId, keysAndCerts, network, dockerImage, outputDirectory, savedStateDirectory);
     }
 
     /**

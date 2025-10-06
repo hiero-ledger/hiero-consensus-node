@@ -31,7 +31,8 @@ class NetworkIsolationTest {
      * @return a stream of {@link TestEnvironment} instances
      */
     public static Stream<TestEnvironment> environments() {
-        return Stream.of(new TurtleTestEnvironment(SAVED_STATE, RANDOM_SEED), new ContainerTestEnvironment());
+        return Stream.of(
+                new TurtleTestEnvironment(SAVED_STATE, RANDOM_SEED), new ContainerTestEnvironment(SAVED_STATE));
     }
 
     /**

@@ -2,23 +2,18 @@
 package org.hiero.otter.fixtures.turtle;
 
 import static java.util.Objects.requireNonNull;
-import static org.hiero.otter.fixtures.tools.GenerateStateTool.PCES_DIRECTORY;
 
 import com.hedera.hapi.node.state.roster.Roster;
-import com.swirlds.common.io.utility.FileUtils;
 import com.swirlds.common.test.fixtures.Randotron;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.util.Map;
-import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.node.KeysAndCerts;
@@ -27,7 +22,6 @@ import org.hiero.otter.fixtures.InstrumentedNode;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.TimeManager;
 import org.hiero.otter.fixtures.TransactionGenerator;
-import org.hiero.otter.fixtures.app.OtterApp;
 import org.hiero.otter.fixtures.internal.AbstractNetwork;
 import org.hiero.otter.fixtures.internal.AbstractTimeManager.TimeTickReceiver;
 import org.hiero.otter.fixtures.internal.network.ConnectionKey;
@@ -37,6 +31,7 @@ import org.hiero.otter.fixtures.logging.context.NodeLoggingContext.LoggingContex
 import org.hiero.otter.fixtures.network.Topology.ConnectionData;
 import org.hiero.otter.fixtures.turtle.gossip.SimulatedNetwork;
 import org.hiero.otter.fixtures.turtle.logging.TurtleLogging;
+import org.hiero.otter.fixtures.util.OtterUtils;
 
 /**
  * An implementation of {@link Network} that is based on the Turtle framework.
@@ -117,48 +112,14 @@ public class TurtleNetwork extends AbstractNetwork implements TimeTickReceiver {
         simulatedNetwork.addNode(nodeId);
         final Path outputDir = rootOutputDirectory.resolve(NODE_IDENTIFIER_FORMAT.formatted(nodeId.id()));
         if (savedState != null) {
-            copySaveState(nodeId, outputDir);
+            try {
+                OtterUtils.copySaveState(nodeId, savedState, outputDir);
+            } catch (final IOException exception) {
+                log.error("Failed to copy save state to output directory", exception);
+            }
         }
         return new TurtleNode(
                 randotron, timeManager.time(), nodeId, keysAndCerts, simulatedNetwork, logging, outputDir);
-    }
-
-    private void copySaveState(@NonNull NodeId nodeId, @NonNull final Path outputDir) {
-        Objects.requireNonNull(nodeId);
-        Objects.requireNonNull(outputDir);
-        Objects.requireNonNull(savedState);
-
-        final Path targetPath = outputDir.resolve("data").resolve("saved");
-        try {
-            FileUtils.copyDirectory(savedState, targetPath);
-        } catch (final IOException exception) {
-            log.error("Failed to copy saved state", exception);
-        }
-
-        final Path appPath = targetPath.resolve(OtterApp.APP_NAME);
-        final Path pcesPath = targetPath.resolve(PCES_DIRECTORY);
-        renameToNodeId(nodeId, appPath);
-        renameToNodeId(nodeId, pcesPath);
-    }
-
-    private static void renameToNodeId(final @NonNull NodeId nodeId, final Path appPath) {
-        try (final Stream<Path> stream = Files.list(appPath)) {
-            stream.filter(Files::isDirectory)
-                    .filter(p -> p.getFileName().toString().matches("\\d+"))
-                    .findFirst()
-                    .ifPresent(dir -> {
-                        try {
-                            int number = Integer.parseInt(dir.getFileName().toString());
-                            if (number != nodeId.id()) {
-                                FileUtils.moveDirectory(dir, appPath.resolve(nodeId.id() + ""));
-                            }
-                        } catch (IOException e) {
-                            throw new RuntimeException(e);
-                        }
-                    });
-        } catch (final IOException | RuntimeException exception) {
-            log.error("Failed to rename directory", exception);
-        }
     }
 
     /**
