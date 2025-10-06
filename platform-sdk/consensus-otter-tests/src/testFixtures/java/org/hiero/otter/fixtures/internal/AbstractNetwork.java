@@ -783,6 +783,14 @@ public abstract class AbstractNetwork implements Network {
         public void shutdown() {
             doShutdown(timeout);
         }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public void triggerCatastrophicIss() {
+            doTriggerCatastrophicIss(timeout);
+        }
     }
 
     private static class PartitionImpl implements Partition {

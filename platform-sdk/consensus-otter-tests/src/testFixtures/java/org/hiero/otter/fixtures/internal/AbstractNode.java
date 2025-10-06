@@ -361,5 +361,13 @@ public abstract class AbstractNode implements Node {
         public void stopSyntheticBottleneck() {
             doStopSyntheticBottleneck(timeout);
         }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public void triggerSingleNodeIss() {
+            doTriggerSelfIss(timeout);
+        }
     }
 }

@@ -7,6 +7,7 @@ import java.time.Duration;
 /**
  * Interface for performing asynchronous node actions with a specified timeout.
  */
+@SuppressWarnings("unused")
 public interface AsyncNodeActions {
 
     /**
@@ -37,4 +38,9 @@ public interface AsyncNodeActions {
      * {@link #startSyntheticBottleneck(Duration)}.
      */
     void stopSyntheticBottleneck();
+
+    /**
+     * Triggers a self-ISS on this node.
+     */
+    void triggerSingleNodeIss();
 }

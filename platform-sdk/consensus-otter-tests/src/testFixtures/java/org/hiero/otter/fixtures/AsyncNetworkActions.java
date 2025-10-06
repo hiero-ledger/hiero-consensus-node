@@ -28,4 +28,9 @@ public interface AsyncNetworkActions {
      * @see Network#shutdown()
      */
     void shutdown();
+
+    /**
+     * Triggers a catastrophic ISS. All nodes in the network will calculate different hashes for an upcoming round.
+     */
+    void triggerCatastrophicIss();
 }
