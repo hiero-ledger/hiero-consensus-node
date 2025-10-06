@@ -376,18 +376,23 @@ public class BlockNodeConnectionManager {
     private @NonNull BlockStreamPublishServiceClient createNewGrpcClient(@NonNull final BlockNodeConfig nodeConfig) {
         requireNonNull(nodeConfig);
 
+        final Duration timeoutDuration = configProvider
+                .getConfiguration()
+                .getConfigData(BlockNodeConnectionConfig.class)
+                .grpcOverallTimeout();
+
         final Tls tls = Tls.builder().enabled(false).build();
         final PbjGrpcClientConfig grpcConfig =
-                new PbjGrpcClientConfig(Duration.ofSeconds(30), tls, Optional.of(""), "application/grpc");
+                new PbjGrpcClientConfig(timeoutDuration, tls, Optional.of(""), "application/grpc");
 
         final WebClient webClient = WebClient.builder()
                 .baseUri("http://" + nodeConfig.address() + ":" + nodeConfig.port())
                 .tls(tls)
                 .protocolConfigs(List.of(GrpcClientProtocolConfig.builder()
                         .abortPollTimeExpired(false)
-                        .pollWaitTime(Duration.ofSeconds(30))
+                        .pollWaitTime(timeoutDuration)
                         .build()))
-                .connectTimeout(Duration.ofSeconds(10))
+                .connectTimeout(timeoutDuration)
                 .build();
         logWithContext(
                 DEBUG, "Created BlockStreamPublishServiceClient for {}:{}.", nodeConfig.address(), nodeConfig.port());
