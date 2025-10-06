@@ -310,27 +310,30 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
     }
 
     // Tests acknowledgement equal to current streaming/producing blocks (should not jump)
-    //    @Test
-    //    void testOnNext_acknowledgement_equalToCurrentStreamingAndProducing() {
-    //        final PublishStreamResponse response = createBlockAckResponse(10L);
-    //
-    //        when(connectionManager.currentStreamingBlockNumber()).thenReturn(10L);
-    //        when(bufferService.getLastBlockNumberProduced()).thenReturn(10L);
-    //        when(connectionManager.recordBlockAckAndCheckLatency(eq(connection.getNodeConfig()), eq(10L), any()))
-    //                .thenReturn(latencyResult);
-    //        when(latencyResult.shouldSwitch()).thenReturn(false);
-    //
-    //        connection.updateConnectionState(ConnectionState.ACTIVE);
-    //        connection.onNext(response);
-    //
-    //        verify(connectionManager).currentStreamingBlockNumber();
-    //        verify(bufferService).getLastBlockNumberProduced();
-    //        verify(connectionManager).updateLastVerifiedBlock(connection.getNodeConfig(), 10L);
-    //        verify(metrics).recordResponseReceived(ResponseOneOfType.ACKNOWLEDGEMENT);
-    //        // Should not jump to block since acknowledgement is not newer
-    //        verifyNoMoreInteractions(connectionManager);
-    //        verifyNoMoreInteractions(metrics);
-    //    }
+    @Test
+    void testOnNext_acknowledgement_equalToCurrentStreamingAndProducing() {
+        final AtomicLong streamingBlockNumber = streamingBlockNumber();
+        streamingBlockNumber.set(10); // pretend we are streaming block 10
+        final PublishStreamResponse response = createBlockAckResponse(10L);
+
+        when(bufferService.getLastBlockNumberProduced()).thenReturn(10L);
+        when(connectionManager.recordBlockAckAndCheckLatency(eq(connection.getNodeConfig()), eq(10L), any()))
+                .thenReturn(latencyResult);
+        when(latencyResult.shouldSwitch()).thenReturn(false);
+
+        connection.updateConnectionState(ConnectionState.ACTIVE);
+        connection.onNext(response);
+
+        // Should not jump to block since acknowledgement is not newer
+        assertThat(streamingBlockNumber).hasValue(10L);
+
+        verify(bufferService).getLastBlockNumberProduced();
+        verify(bufferService).setLatestAcknowledgedBlock(10L);
+        verify(metrics).recordResponseReceived(ResponseOneOfType.ACKNOWLEDGEMENT);
+        verifyNoMoreInteractions(connectionManager);
+        verifyNoMoreInteractions(metrics);
+        verifyNoMoreInteractions(bufferService);
+    }
 
     @Test
     void testScheduleStreamResetTask() {
@@ -749,26 +752,25 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
     }
 
     // Tests exception handling during close operation (should catch and log RuntimeException)
-    //    @Test
-    //    void testClose_exceptionDuringClose() {
-    //        openConnectionAndResetMocks();
-    //        connection.updateConnectionState(ConnectionState.ACTIVE);
-    //
-    //        // Mock jumpToBlock to throw a RuntimeException to trigger the catch block
-    //        doThrow(new RuntimeException("Simulated close error"))
-    //                .when(connectionManager)
-    //                .jumpToBlock(-1L);
-    //
-    //        // This should not throw an exception - it should be caught and logged
-    //        connection.close(true);
-    //
-    //        // Verify the exception handling path was taken
-    //        verify(connectionManager).jumpToBlock(-1L);
-    //        verify(requestPipeline).onComplete(); // closePipeline should still be called before the exception
-    //
-    //        // Connection state should still be CLOSED even after the exception
-    //        assertThat(connection.getConnectionState()).isEqualTo(ConnectionState.CLOSED);
-    //    }
+    @Test
+    void testClose_exceptionDuringClose() {
+        openConnectionAndResetMocks();
+        connection.updateConnectionState(ConnectionState.ACTIVE);
+
+        // Mock Pipeline#onComplete to throw a RuntimeException to trigger the catch block
+        doThrow(new RuntimeException("Simulated close error"))
+                .when(requestPipeline)
+                .onComplete();
+
+        // This should not throw an exception - it should be caught and logged
+        connection.close(true);
+
+        // Verify the exception handling path was taken
+        verify(requestPipeline).onComplete(); // closePipeline should still be called before the exception
+
+        // Connection state should still be CLOSED even after the exception
+        assertThat(connection.getConnectionState()).isEqualTo(ConnectionState.CLOSED);
+    }
 
     // Tests exception handling during pipeline completion (should catch and log Exception)
     @Test
