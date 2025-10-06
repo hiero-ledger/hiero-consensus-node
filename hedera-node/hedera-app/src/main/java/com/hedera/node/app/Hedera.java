@@ -529,7 +529,7 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
                 transactionLimits,
                 bootstrapConfig.getConfigData(HederaConfig.class).throttleTransactionQueueSize(),
                 metrics,
-                Time.getCurrent());
+                instantSource);
 
         // Register all service schema RuntimeConstructable factories before platform init
         Set.of(

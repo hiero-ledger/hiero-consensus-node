@@ -4,11 +4,11 @@ package org.hiero.consensus.transaction;
 import static org.hiero.base.CompareTo.isLessThan;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.base.time.Time;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
+import java.time.InstantSource;
 import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
@@ -78,7 +78,7 @@ public class TransactionPoolNexus implements EventTransactionSupplier {
     /**
      * Time source for timestamping transactions.
      */
-    private final Time time;
+    private final InstantSource time;
 
     /**
      * Creates a new transaction pool for transactions waiting to be put in an event.
@@ -93,7 +93,7 @@ public class TransactionPoolNexus implements EventTransactionSupplier {
             @NonNull final TransactionLimits transactionLimits,
             final int throttleTransactionQueueSize,
             @NonNull final Metrics metrics,
-            @NonNull final Time time) {
+            @NonNull final InstantSource time) {
         maxTransactionBytesPerEvent = transactionLimits.maxTransactionBytesPerEvent();
         this.throttleTransactionQueueSize = throttleTransactionQueueSize;
         this.time = Objects.requireNonNull(time, "time must not be null");
@@ -170,7 +170,7 @@ public class TransactionPoolNexus implements EventTransactionSupplier {
             transactionPoolMetrics.recordAcceptedAppTransaction();
         }
 
-        final TimestampedTransaction timestampedTransaction = new TimestampedTransaction(transaction, time.now());
+        final TimestampedTransaction timestampedTransaction = new TimestampedTransaction(transaction, time.instant());
 
         if (priority) {
             priorityBufferedTransactions.add(timestampedTransaction);
