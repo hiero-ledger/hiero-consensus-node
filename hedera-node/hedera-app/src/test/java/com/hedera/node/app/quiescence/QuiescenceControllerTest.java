@@ -49,7 +49,7 @@ class QuiescenceControllerTest {
     void setUp() {
         pendingTransactions.set(0);
         time = new FakeTime();
-        controller = new QuiescenceController(CONFIG, time, pendingTransactions::get);
+        controller = new QuiescenceController(CONFIG, time::now, pendingTransactions::get);
     }
 
     @Test

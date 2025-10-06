@@ -11,10 +11,10 @@ import com.hedera.hapi.util.HapiUtils;
 import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.base.time.Time;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
+import java.time.InstantSource;
 import java.util.Iterator;
 import java.util.Objects;
 import java.util.Optional;
@@ -36,7 +36,7 @@ public class QuiescenceController {
     private static final Logger logger = LogManager.getLogger(QuiescenceController.class);
 
     private final QuiescenceConfig config;
-    private final Time time;
+    private final InstantSource time;
     private final LongSupplier pendingTransactionCount;
 
     private final Function<Bytes, TransactionBody> transactionBodyParser;
@@ -53,7 +53,7 @@ public class QuiescenceController {
      *                                yet included put into an event
      */
     public QuiescenceController(
-            final QuiescenceConfig config, final Time time, final LongSupplier pendingTransactionCount) {
+            final QuiescenceConfig config, final InstantSource time, final LongSupplier pendingTransactionCount) {
         this.config = Objects.requireNonNull(config);
         this.time = Objects.requireNonNull(time);
         this.pendingTransactionCount = Objects.requireNonNull(pendingTransactionCount);
@@ -162,7 +162,7 @@ public class QuiescenceController {
             return QuiescenceCommand.DONT_QUIESCE;
         }
         final Instant tct = nextTct.get();
-        if (tct != null && tct.minus(config.tctDuration()).isBefore(time.now())) {
+        if (tct != null && tct.minus(config.tctDuration()).isBefore(time.instant())) {
             return QuiescenceCommand.DONT_QUIESCE;
         }
         if (pendingTransactionCount.getAsLong() > 0) {
