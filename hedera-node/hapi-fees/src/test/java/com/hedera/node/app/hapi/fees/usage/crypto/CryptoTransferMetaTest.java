@@ -10,7 +10,7 @@ class CryptoTransferMetaTest {
 
     @Test
     void setterWith4ParamsWorks() {
-        final var subject = new CryptoTransferMeta(1, 2, 3, 4);
+        final var subject = new CryptoTransferMeta(1, 2, 3, 4, false);
 
         // when:
         subject.setCustomFeeHbarTransfers(10);
@@ -29,7 +29,7 @@ class CryptoTransferMetaTest {
 
     @Test
     void getSubTypePrioritizesNFT() {
-        var subject = new CryptoTransferMeta(1, 2, 3, 4);
+        var subject = new CryptoTransferMeta(1, 2, 3, 4, false);
 
         assertEquals(SubType.TOKEN_NON_FUNGIBLE_UNIQUE, subject.getSubType());
 
@@ -41,7 +41,7 @@ class CryptoTransferMetaTest {
         subject.setCustomFeeTokenTransfers(0);
         assertEquals(SubType.TOKEN_NON_FUNGIBLE_UNIQUE_WITH_CUSTOM_FEES, subject.getSubType());
 
-        subject = new CryptoTransferMeta(1, 2, 3, 0);
+        subject = new CryptoTransferMeta(1, 2, 3, 0, false);
 
         assertEquals(SubType.TOKEN_FUNGIBLE_COMMON, subject.getSubType());
 
@@ -53,7 +53,7 @@ class CryptoTransferMetaTest {
         subject.setCustomFeeTokenTransfers(0);
         assertEquals(SubType.TOKEN_FUNGIBLE_COMMON_WITH_CUSTOM_FEES, subject.getSubType());
 
-        subject = new CryptoTransferMeta(1, 0, 0, 0);
+        subject = new CryptoTransferMeta(1, 0, 0, 0, false);
 
         assertEquals(SubType.DEFAULT, subject.getSubType());
     }

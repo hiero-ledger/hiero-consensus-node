@@ -2,14 +2,9 @@
 package com.hedera.node.app.throttle;
 
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_TRANSFER;
-import static com.hedera.hapi.node.base.HederaFunctionality.ETHEREUM_TRANSACTION;
-import static com.hedera.hapi.node.base.HederaFunctionality.SCHEDULE_CREATE;
-import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_MINT;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION;
 import static com.hedera.node.app.throttle.ThrottleAccumulator.ThrottleType.BACKEND_THROTTLE;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
@@ -20,19 +15,15 @@ import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.SignatureMap;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.base.TransactionID;
-import com.hedera.hapi.node.contract.EthereumTransactionBody;
-import com.hedera.hapi.node.scheduled.ScheduleCreateTransactionBody;
 import com.hedera.hapi.node.state.throttles.ThrottleUsageSnapshot;
 import com.hedera.hapi.node.state.throttles.ThrottleUsageSnapshots;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
-import com.hedera.hapi.node.token.TokenMintTransactionBody;
 import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.ThrottleDefinitions;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.hapi.utils.throttles.DeterministicThrottle;
 import com.hedera.node.app.hapi.utils.throttles.LeakyBucketDeterministicThrottle;
 import com.hedera.node.app.hapi.utils.throttles.OpsDurationDeterministicThrottle;
-import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
@@ -109,7 +100,7 @@ class AppThrottleFactoryTest {
     }
 
     @Test
-    void initializesAccumulatorFromCurrentConfigAndGivenDefinitions() throws PreCheckException {
+    void initializesAccumulatorFromCurrentConfigAndGivenDefinitions() {
         given(throttleAccumulatorFactory.newThrottleAccumulator(
                         eq(config), argThat((IntSupplier i) -> i.getAsInt() == SPLIT_FACTOR), eq(BACKEND_THROTTLE)))
                 .willReturn(throttleAccumulator);
@@ -126,7 +117,7 @@ class AppThrottleFactoryTest {
         verify(gasThrottle).resetUsageTo(FAKE_SNAPSHOTS.gasThrottleOrThrow());
 
         given(throttleAccumulator.checkAndEnforceThrottle(TXN_INFO, CONSENSUS_NOW, state, null))
-                .willReturn(ThrottleResult.throttled());
+                .willReturn(true);
         assertThat(throttle.allow(PAYER_ID, TXN_INFO.txBody(), TXN_INFO.functionality(), CONSENSUS_NOW))
                 .isFalse();
 
@@ -137,103 +128,5 @@ class AppThrottleFactoryTest {
         given(gasThrottle.usageSnapshot()).willReturn(FAKE_SNAPSHOTS.gasThrottleOrThrow());
         given(opsDurationThrottle.usageSnapshot()).willReturn(FAKE_SNAPSHOTS.evmOpsDurationThrottleOrThrow());
         assertEquals(FAKE_SNAPSHOTS, throttle.usageSnapshots());
-    }
-
-    @Test
-    void throttleAllowRejectsMalformedScheduleCreate() throws Exception {
-        // Given a throttle with malformed SCHEDULE_CREATE transaction (missing scheduledTransactionBody)
-        final var malformedScheduleCreate = ScheduleCreateTransactionBody.newBuilder()
-                .waitForExpiry(false)
-                .build(); // Missing scheduledTransactionBody
-
-        final var malformedTxBody = TransactionBody.newBuilder()
-                .transactionID(TransactionID.newBuilder().accountID(PAYER_ID).build())
-                .scheduleCreate(malformedScheduleCreate)
-                .build();
-
-        // Set up throttle accumulator factory mock
-        given(throttleAccumulatorFactory.newThrottleAccumulator(
-                        eq(config), argThat((IntSupplier i) -> i.getAsInt() == SPLIT_FACTOR), eq(BACKEND_THROTTLE)))
-                .willReturn(throttleAccumulator);
-
-        // Set up mocks
-        given(throttleAccumulator.checkAndEnforceThrottle(
-                        argThat(txnInfo -> txnInfo.functionality() == SCHEDULE_CREATE),
-                        eq(CONSENSUS_NOW),
-                        eq(state),
-                        eq(null)))
-                .willReturn(ThrottleResult.invalid(INVALID_TRANSACTION));
-
-        final var throttle = subject.newThrottle(SPLIT_FACTOR, null);
-
-        // When & Then - Invalid transaction should return false (not allowed)
-        final var result = throttle.allow(PAYER_ID, malformedTxBody, SCHEDULE_CREATE, CONSENSUS_NOW);
-
-        assertFalse(result);
-    }
-
-    @Test
-    void throttleAllowRejectsMalformedTokenMint() throws Exception {
-        // Given a throttle with malformed TOKEN_MINT transaction (missing token)
-        final var malformedTokenMint =
-                TokenMintTransactionBody.newBuilder().amount(100L).build(); // Missing token field
-
-        final var malformedTxBody = TransactionBody.newBuilder()
-                .transactionID(TransactionID.newBuilder().accountID(PAYER_ID).build())
-                .tokenMint(malformedTokenMint)
-                .build();
-
-        // Set up throttle accumulator factory mock
-        given(throttleAccumulatorFactory.newThrottleAccumulator(
-                        eq(config), argThat((IntSupplier i) -> i.getAsInt() == SPLIT_FACTOR), eq(BACKEND_THROTTLE)))
-                .willReturn(throttleAccumulator);
-
-        // Set up mocks
-        given(throttleAccumulator.checkAndEnforceThrottle(
-                        argThat(txnInfo -> txnInfo.functionality() == TOKEN_MINT),
-                        eq(CONSENSUS_NOW),
-                        eq(state),
-                        eq(null)))
-                .willReturn(ThrottleResult.invalid(INVALID_TRANSACTION));
-
-        final var throttle = subject.newThrottle(SPLIT_FACTOR, null);
-
-        // When & Then - Invalid transaction should return false (not allowed)
-        final var result = throttle.allow(PAYER_ID, malformedTxBody, TOKEN_MINT, CONSENSUS_NOW);
-
-        assertFalse(result);
-    }
-
-    @Test
-    void throttleAllowRejectsMalformedEthereumTransaction() throws Exception {
-        // Given a throttle with malformed ETHEREUM_TRANSACTION (empty ethereumData)
-        final var malformedEthTxn = EthereumTransactionBody.newBuilder()
-                .ethereumData(Bytes.EMPTY) // Empty ethereum data
-                .build();
-
-        final var malformedTxBody = TransactionBody.newBuilder()
-                .transactionID(TransactionID.newBuilder().accountID(PAYER_ID).build())
-                .ethereumTransaction(malformedEthTxn)
-                .build();
-
-        // Set up throttle accumulator factory mock
-        given(throttleAccumulatorFactory.newThrottleAccumulator(
-                        eq(config), argThat((IntSupplier i) -> i.getAsInt() == SPLIT_FACTOR), eq(BACKEND_THROTTLE)))
-                .willReturn(throttleAccumulator);
-
-        // Set up mocks
-        given(throttleAccumulator.checkAndEnforceThrottle(
-                        argThat(txnInfo -> txnInfo.functionality() == ETHEREUM_TRANSACTION),
-                        eq(CONSENSUS_NOW),
-                        eq(state),
-                        eq(null)))
-                .willReturn(ThrottleResult.invalid(INVALID_TRANSACTION));
-
-        final var throttle = subject.newThrottle(SPLIT_FACTOR, null);
-
-        // When & Then - Invalid transaction should return false (not allowed)
-        final var result = throttle.allow(PAYER_ID, malformedTxBody, ETHEREUM_TRANSACTION, CONSENSUS_NOW);
-
-        assertFalse(result);
     }
 }
