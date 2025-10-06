@@ -303,23 +303,24 @@ public class WritableEvmHookStore extends ReadableEvmHookStoreImpl {
             @NonNull final Bytes value) {
         requireNonNull(key);
         requireNonNull(value);
+        final var minimalKey = minimalKey(key);
         try {
             if (!Bytes.EMPTY.equals(firstKey)) {
-                updatePrevFor(new LambdaSlotKey(hookId, firstKey), key);
+                updatePrevFor(new LambdaSlotKey(hookId, firstKey), minimalKey);
             }
         } catch (Exception irreparable) {
             // Since maintaining linked lists is not mission-critical, just log the error and continue
             log.error(
                     "Failed link management when inserting {}; will be unable to expire all slots for contract {}",
-                    key,
+                    minimalKey,
                     hookId,
                     irreparable);
         }
-        storage.put(minimalKey(hookId, key), new SlotValue(value, Bytes.EMPTY, firstKey));
-        return key;
+        storage.put(new LambdaSlotKey(hookId, minimalKey), new SlotValue(value, Bytes.EMPTY, firstKey));
+        return minimalKey;
     }
 
-    private LambdaSlotKey minimalKey(@NonNull final HookId hookId, @NonNull final Bytes key) {
+    public static LambdaSlotKey minimalKey(@NonNull final HookId hookId, @NonNull final Bytes key) {
         return new LambdaSlotKey(hookId, minimalKey(key));
     }
 
@@ -333,8 +334,17 @@ public class WritableEvmHookStore extends ReadableEvmHookStoreImpl {
         storage.put(key, value.copyBuilder().nextKey(newNextKey).build());
     }
 
-    private Bytes minimalKey(@NonNull final Bytes key) {
-        return Bytes.EMPTY.equals(key) ? ZERO_KEY : key;
+    public static Bytes minimalKey(@NonNull final Bytes key) {
+        final var len = key.length();
+        if (len == 0) {
+            return ZERO_KEY;
+        }
+        int i = 0;
+        while (i < len && key.getByte(i) == 0) {
+            i++;
+        }
+        // All zeros -> ZERO_KEY, otherwise strip leading zeros
+        return (i == len) ? ZERO_KEY : key.slice(i, len - i);
     }
 
     @NonNull

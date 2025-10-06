@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.tss.schemas;
 
+import static com.hedera.hapi.util.HapiUtils.SEMANTIC_VERSION_COMPARATOR;
+
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.tss.TssMessageMapKey;
 import com.hedera.hapi.node.state.tss.TssVoteMapKey;
@@ -16,7 +18,7 @@ import java.util.Set;
  * Schema for the TSS service.
  */
 @Deprecated(forRemoval = true, since = "0.59.0")
-public class V0560TssBaseSchema extends Schema {
+public class V0560TssBaseSchema extends Schema<SemanticVersion> {
 
     public static final String TSS_MESSAGES_KEY = "TSS_MESSAGES";
     public static final int TSS_MESSAGES_STATE_ID = StateKey.KeyOneOfType.TSSBASESERVICE_I_TSS_MESSAGES.protoOrdinal();
@@ -42,7 +44,7 @@ public class V0560TssBaseSchema extends Schema {
      * Create a new instance
      */
     public V0560TssBaseSchema() {
-        super(VERSION);
+        super(VERSION, SEMANTIC_VERSION_COMPARATOR);
     }
 
     @NonNull

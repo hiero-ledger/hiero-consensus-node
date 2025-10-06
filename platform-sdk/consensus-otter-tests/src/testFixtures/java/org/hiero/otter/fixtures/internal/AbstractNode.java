@@ -15,6 +15,7 @@ import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.otter.fixtures.AsyncNodeActions;
 import org.hiero.otter.fixtures.Node;
+import org.hiero.otter.fixtures.app.OtterTransaction;
 
 /**
  * Base implementation of the {@link Node} interface that provides common functionality.
@@ -197,6 +198,13 @@ public abstract class AbstractNode implements Node {
      * @param timeout the maximum duration to wait for the node to stop
      */
     protected abstract void doKillImmediately(@NonNull Duration timeout);
+
+    /**
+     * Submit a transaction to the node.
+     *
+     * @param transaction the transaction to submit
+     */
+    protected abstract void submitTransaction(@NonNull OtterTransaction transaction);
 
     /**
      * {@inheritDoc}

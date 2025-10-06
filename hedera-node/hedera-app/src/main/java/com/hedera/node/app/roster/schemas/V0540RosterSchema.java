@@ -1,10 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.roster.schemas;
 
+import static com.hedera.hapi.util.HapiUtils.SEMANTIC_VERSION_COMPARATOR;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
+import com.hedera.node.app.services.HederaMigrationContext;
+import com.hedera.node.app.services.StartupNetworks;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.VersionConfig;
 import com.swirlds.platform.state.service.PlatformStateFacade;
@@ -34,7 +37,7 @@ import org.hiero.consensus.roster.WritableRosterStore;
  *     they were adopted; along with the hash of a candidate roster if there is one.</li>
  * </ol>
  */
-public class V0540RosterSchema extends Schema implements RosterTransplantSchema {
+public class V0540RosterSchema extends Schema<SemanticVersion> implements RosterTransplantSchema {
     private static final Logger log = LogManager.getLogger(V0540RosterSchema.class);
 
     public static final String ROSTER_KEY = "ROSTERS";
@@ -73,7 +76,7 @@ public class V0540RosterSchema extends Schema implements RosterTransplantSchema 
             @NonNull final Function<WritableStates, WritableRosterStore> rosterStoreFactory,
             @NonNull final Supplier<State> stateSupplier,
             @NonNull final PlatformStateFacade platformStateFacade) {
-        super(VERSION);
+        super(VERSION, SEMANTIC_VERSION_COMPARATOR);
         this.onAdopt = requireNonNull(onAdopt);
         this.canAdopt = requireNonNull(canAdopt);
         this.rosterStoreFactory = requireNonNull(rosterStoreFactory);
@@ -87,10 +90,11 @@ public class V0540RosterSchema extends Schema implements RosterTransplantSchema 
     }
 
     @Override
-    public void restart(@NonNull final MigrationContext ctx) {
+    public void restart(@NonNull final MigrationContext<SemanticVersion> ctx) {
         requireNonNull(ctx);
-        if (!RosterTransplantSchema.super.restart(ctx, onAdopt, rosterStoreFactory)) {
-            final var startupNetworks = ctx.startupNetworks();
+        final HederaMigrationContext hederaCtx = (HederaMigrationContext) ctx;
+        if (!RosterTransplantSchema.super.restart(hederaCtx, onAdopt, rosterStoreFactory)) {
+            final StartupNetworks startupNetworks = hederaCtx.startupNetworks();
             final var rosterStore = rosterStoreFactory.apply(ctx.newStates());
             final var activeRoundNumber = ctx.roundNumber() + 1;
             if (ctx.isGenesis()) {

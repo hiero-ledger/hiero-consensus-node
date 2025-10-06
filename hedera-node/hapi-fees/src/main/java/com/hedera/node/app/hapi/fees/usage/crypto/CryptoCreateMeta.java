@@ -13,17 +13,20 @@ public class CryptoCreateMeta {
     private final long baseSize;
     private final long lifeTime;
     private final int maxAutomaticAssociations;
+    private final long numHooks;
 
     public CryptoCreateMeta(final CryptoCreateTransactionBody cryptoCreateTxnBody) {
         baseSize = getCryptoCreateTxnBaseSize(cryptoCreateTxnBody);
         lifeTime = cryptoCreateTxnBody.getAutoRenewPeriod().getSeconds();
         maxAutomaticAssociations = cryptoCreateTxnBody.getMaxAutomaticTokenAssociations();
+        numHooks = cryptoCreateTxnBody.getHookCreationDetailsCount();
     }
 
     public CryptoCreateMeta(final Builder builder) {
         this.baseSize = builder.baseSize;
         this.lifeTime = builder.lifeTime;
         this.maxAutomaticAssociations = builder.maxAutomaticAssociations;
+        this.numHooks = builder.numHooks;
     }
 
     private long getCryptoCreateTxnBaseSize(final CryptoCreateTransactionBody op) {
@@ -47,10 +50,15 @@ public class CryptoCreateMeta {
         return maxAutomaticAssociations;
     }
 
+    public long getNumHooks() {
+        return numHooks;
+    }
+
     public static class Builder {
         private long baseSize;
         private long lifeTime;
         private int maxAutomaticAssociations;
+        private long numHooks;
 
         public Builder() {
             // empty here on purpose.
@@ -68,6 +76,11 @@ public class CryptoCreateMeta {
 
         public CryptoCreateMeta.Builder maxAutomaticAssociations(final int maxAutomaticAssociations) {
             this.maxAutomaticAssociations = maxAutomaticAssociations;
+            return this;
+        }
+
+        public CryptoCreateMeta.Builder numHooks(final long numHooks) {
+            this.numHooks = numHooks;
             return this;
         }
 
@@ -92,6 +105,7 @@ public class CryptoCreateMeta {
                 .add("baseSize", baseSize)
                 .add("lifeTime", lifeTime)
                 .add("maxAutomaticAssociations", maxAutomaticAssociations)
+                .add("numHooks", numHooks)
                 .toString();
     }
 }

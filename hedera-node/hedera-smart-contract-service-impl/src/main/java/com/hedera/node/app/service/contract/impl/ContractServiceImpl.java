@@ -3,7 +3,6 @@ package com.hedera.node.app.service.contract.impl;
 
 import static java.util.Objects.requireNonNull;
 
-import com.google.common.annotations.VisibleForTesting;
 import com.hedera.node.app.service.contract.ContractService;
 import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
 import com.hedera.node.app.service.contract.impl.exec.scope.DefaultVerificationStrategies;
@@ -23,10 +22,8 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.TreeMap;
 import java.util.function.Supplier;
 import org.hyperledger.besu.evm.operation.Operation;
 import org.hyperledger.besu.evm.tracing.OperationTracer;
@@ -125,13 +122,5 @@ public class ContractServiceImpl implements ContractService {
         allCallTranslators.addAll(component.hssCallTranslators().get());
         allCallTranslators.addAll(component.htsCallTranslators().get());
         return allCallTranslators;
-    }
-
-    @VisibleForTesting
-    private Map<String, String> metricsInventory() {
-        final var inventory = new TreeMap<String, String>();
-        inventory.put("methods", component.systemContractMethodRegistry().allMethodsAsTable());
-        inventory.put("metrics", component.contractMetrics().allCountersAsTable());
-        return inventory;
     }
 }
