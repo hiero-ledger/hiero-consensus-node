@@ -29,17 +29,7 @@ public class TurtleTimeManager extends AbstractTimeManager {
      */
     public TurtleTimeManager(@NonNull final FakeTime time, @NonNull final Duration granularity) {
         super(granularity);
-        this.time = requireNonNull(time);
-    }
-
-    /**
-     * Returns the time source for this simulation.
-     *
-     * @return the time source
-     */
-    @NonNull
-    public Time time() {
-        return time;
+        this.time = time;
     }
 
     /**
@@ -57,5 +47,14 @@ public class TurtleTimeManager extends AbstractTimeManager {
     @Override
     protected void advanceTime(@NonNull final Duration duration) {
         time.tick(duration);
+    }
+
+    /**
+     * Returns the underlying {@link Time} instance.
+     *
+     * @return the underlying {@link Time} instance
+     */
+    public Time time() {
+        return time;
     }
 }

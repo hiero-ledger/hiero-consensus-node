@@ -6,15 +6,23 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
+import com.swirlds.logging.legacy.payload.IssPayload;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.security.cert.X509Certificate;
 import java.time.Duration;
+import java.time.Instant;
+import java.util.Random;
+import java.util.concurrent.atomic.AtomicBoolean;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.otter.fixtures.AsyncNodeActions;
 import org.hiero.otter.fixtures.Node;
+import org.hiero.otter.fixtures.TimeManager;
+import org.hiero.otter.fixtures.TransactionFactory;
 import org.hiero.otter.fixtures.app.OtterTransaction;
 
 /**
@@ -39,10 +47,13 @@ public abstract class AbstractNode implements Node {
         DESTROYED
     }
 
+    private static final Logger log = LogManager.getLogger();
+
     private static final Duration DEFAULT_TIMEOUT = Duration.ofMinutes(1);
 
     protected final NodeId selfId;
     protected final KeysAndCerts keysAndCerts;
+
 
     private Roster roster;
     private long weight;
@@ -73,6 +84,22 @@ public abstract class AbstractNode implements Node {
         this.selfId = requireNonNull(selfId);
         this.keysAndCerts = requireNonNull(keysAndCerts);
     }
+
+    /**
+     * Gets the time manager associated with this node.
+     *
+     * @return the time manager
+     */
+    @NonNull
+    protected abstract TimeManager timeManager();
+
+    /**
+     * Gets a random number generator associated with this node.
+     *
+     * @return the random number generator
+     */
+    @NonNull
+    protected abstract Random random();
 
     /**
      * Gets the roster associated with this node.
@@ -146,8 +173,8 @@ public abstract class AbstractNode implements Node {
      */
     @Override
     public void version(@NonNull final SemanticVersion version) {
-        throwIfIn(LifeCycle.RUNNING, "Cannot set version while the node is running");
-        throwIfIn(LifeCycle.DESTROYED, "Cannot set version after the node has been destroyed");
+        throwIfInLifecycle(LifeCycle.RUNNING, "Cannot set version while the node is running");
+        throwIfInLifecycle(LifeCycle.DESTROYED, "Cannot set version after the node has been destroyed");
 
         this.version = requireNonNull(version);
     }
@@ -157,8 +184,8 @@ public abstract class AbstractNode implements Node {
      */
     @Override
     public void bumpConfigVersion() {
-        throwIfIn(LifeCycle.RUNNING, "Cannot bump version while the node is running");
-        throwIfIn(LifeCycle.DESTROYED, "Cannot bump version after the node has been destroyed");
+        throwIfInLifecycle(LifeCycle.RUNNING, "Cannot bump version while the node is running");
+        throwIfInLifecycle(LifeCycle.DESTROYED, "Cannot bump version after the node has been destroyed");
 
         int newBuildNumber;
         try {
@@ -233,6 +260,34 @@ public abstract class AbstractNode implements Node {
     /**
      * {@inheritDoc}
      */
+    @Override
+    public void triggerSingleNodeIss() {
+        doTriggerSelfIss(DEFAULT_TIMEOUT);
+    }
+
+    private void doTriggerSelfIss(@NonNull final Duration timeout) {
+        throwIfInLifecycle(LifeCycle.INIT, "Network has not been started yet.");
+        throwIfInLifecycle(LifeCycle.SHUTDOWN, "Network has been shut down.");
+
+        log.info("Sending Self ISS triggering transaction...");
+        final Instant start = timeManager().now();
+        final OtterTransaction issTransaction = TransactionFactory.createSelfIssTransaction(random().nextLong(),
+                selfId);
+
+        final AtomicBoolean issPayloadFound = newLogResult().findNextLogPayload(IssPayload.class.getName());
+
+        submitTransaction(issTransaction);
+        final Duration elapsed = Duration.between(start, timeManager().now());
+
+        log.debug("Waiting for Self ISS to trigger...");
+
+        timeManager().waitForCondition(issPayloadFound::get, timeout.minus(elapsed),
+                "Did not receive IssPayload log before timeout");
+    }
+
+    /**
+     * {@inheritDoc}
+     */
     public AsyncNodeActions withTimeout(@NonNull final Duration timeout) {
         return new AsyncNodeActionsImpl(timeout);
     }
@@ -248,9 +303,9 @@ public abstract class AbstractNode implements Node {
      * Throws an {@link IllegalStateException} if the node is in the specified lifecycle state.
      *
      * @param expected throw if the node is in this lifecycle state
-     * @param message  the message for the exception
+     * @param message the message for the exception
      */
-    protected void throwIfIn(@NonNull final LifeCycle expected, @NonNull final String message) {
+    protected void throwIfInLifecycle(@NonNull final LifeCycle expected, @NonNull final String message) {
         if (lifeCycle == expected) {
             throw new IllegalStateException(message);
         }
@@ -260,7 +315,7 @@ public abstract class AbstractNode implements Node {
      * Throws an {@link IllegalStateException} if the node is not in the specified lifecycle state.
      *
      * @param expected throw if the lifecycle is not in this state
-     * @param message  the message for the exception
+     * @param message the message for the exception
      */
     protected void throwIfNotIn(@NonNull final LifeCycle expected, @NonNull final String message) {
         if (lifeCycle != expected) {

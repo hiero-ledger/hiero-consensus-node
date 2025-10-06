@@ -80,7 +80,7 @@ public class IssService implements OtterService {
                 log.info("Triggering ISS - selfId: {}, partition index: {}, partition nodes: {}",
                         selfId.id(), i, partition.getNodeIdList());
                 final WritableIssStateStore store = new WritableIssStateStore(writableStates);
-                store.increaseStateValue(i + 1);
+                store.setStateValue(i + 1);
 
                 if (issTransaction.getRecoverableOnRestart()) {
                     // Record the consensus time at which this ISS was provoked

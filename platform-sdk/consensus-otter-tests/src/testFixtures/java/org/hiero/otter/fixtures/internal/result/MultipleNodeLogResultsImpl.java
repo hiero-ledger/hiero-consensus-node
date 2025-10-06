@@ -111,10 +111,19 @@ public class MultipleNodeLogResultsImpl implements MultipleNodeLogResults {
     }
 
     @Override
-    public MultipleNodeLogResults suppressingLoggerClass(@NotNull final Class<?> clazz) {
+    public MultipleNodeLogResults suppressingLoggerName(@NotNull final Class<?> clazz) {
         requireNonNull(clazz, "clazz cannot be null");
         final List<SingleNodeLogResult> filteredResults =
-                results.stream().map(res -> res.suppressingLoggerClass(clazz)).toList();
+                results.stream().map(res -> res.suppressingLoggerName(clazz)).toList();
+
+        return new MultipleNodeLogResultsImpl(filteredResults);
+    }
+
+    @Override
+    public MultipleNodeLogResults suppressingLoggerName(@NotNull final String loggerName) {
+        requireNonNull(loggerName, "loggerName cannot be null");
+        final List<SingleNodeLogResult> filteredResults =
+                results.stream().map(res -> res.suppressingLoggerName(loggerName)).toList();
 
         return new MultipleNodeLogResultsImpl(filteredResults);
     }

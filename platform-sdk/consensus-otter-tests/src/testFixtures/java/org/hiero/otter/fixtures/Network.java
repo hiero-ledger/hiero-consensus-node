@@ -281,14 +281,6 @@ public interface Network {
     void freeze();
 
     /**
-     * Triggers a self-ISS for the specified node. The node will calculate a different hash from all other nodes for an
-     * upcoming round.
-     *
-     * @param node the node to trigger a self ISS for
-     */
-    void triggerSingleNodeIss(@NonNull Node node);
-
-    /**
      * Triggers a catastrophic ISS. All nodes in the network will calculate different hashes for an upcoming round.
      */
     void triggerCatastrophicIss();

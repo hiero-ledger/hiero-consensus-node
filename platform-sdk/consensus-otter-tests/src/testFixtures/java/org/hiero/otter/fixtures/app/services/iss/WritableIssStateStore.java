@@ -27,19 +27,16 @@ public class WritableIssStateStore {
     }
 
     /**
-     * Updates the state value by the given value.
+     * Sets the state value to the given value.
      *
-     * @param value the value to increase the state by
+     * @param value the value to set
      * @return this store for chaining
      */
     @NonNull
-    public WritableIssStateStore increaseStateValue(final long value) {
+    public WritableIssStateStore setStateValue(final long value) {
         final IssState issState = requireNonNull(singletonState.get());
-
-        final long stateValue = issState.issState();
-
         singletonState.put(
-                issState.copyBuilder().issState(stateValue + value).build());
+                issState.copyBuilder().issState(value).build());
 
         return this;
     }

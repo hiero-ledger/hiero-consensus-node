@@ -79,11 +79,20 @@ public class SingleNodeLogResultImpl implements SingleNodeLogResult {
      * {@inheritDoc}
      */
     @Override
-    public @NonNull SingleNodeLogResult suppressingLoggerClass(@NonNull final Class<?> clazz) {
+    public @NonNull SingleNodeLogResult suppressingLoggerName(@NonNull final Class<?> clazz) {
         requireNonNull(clazz, "clazz cannot be null");
+        return suppressingLoggerName(clazz.getCanonicalName());
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public @NotNull SingleNodeLogResult suppressingLoggerName(@NotNull final String loggerName) {
+        requireNonNull(loggerName, "loggerName cannot be null");
 
         final Set<String> loggerNames = new HashSet<>(suppressedLoggerNames);
-        loggerNames.add(clazz.getCanonicalName());
+        loggerNames.add(loggerName);
 
         return new SingleNodeLogResultImpl(collector, suppressedLogMarkers, loggerNames);
     }

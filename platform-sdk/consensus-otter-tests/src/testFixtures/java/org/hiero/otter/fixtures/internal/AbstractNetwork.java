@@ -16,7 +16,6 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.test.fixtures.WeightGenerator;
 import com.swirlds.common.test.fixtures.WeightGenerators;
 import com.swirlds.common.utility.Threshold;
-import com.swirlds.logging.legacy.payload.IssPayload;
 import com.swirlds.platform.crypto.CryptoStatic;
 import com.swirlds.platform.gossip.shadowgraph.SyncFallenBehindStatus;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -37,7 +36,6 @@ import java.util.Map;
 import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import org.apache.logging.log4j.LogManager;
@@ -85,7 +83,7 @@ public abstract class AbstractNetwork implements Network {
     /**
      * The state of the network.
      */
-    protected enum State {
+    protected enum Lifecycle {
         INIT,
         RUNNING,
         SHUTDOWN
@@ -109,7 +107,7 @@ public abstract class AbstractNetwork implements Network {
     private final Map<NodeId, PartitionImpl> networkPartitions = new HashMap<>();
     private final Topology topology;
 
-    protected State state = State.INIT;
+    protected Lifecycle lifecycle = Lifecycle.INIT;
     protected WeightGenerator weightGenerator = WeightGenerators.GAUSSIAN;
 
     @Nullable
@@ -178,8 +176,8 @@ public abstract class AbstractNetwork implements Network {
     protected abstract Node doCreateNode(@NonNull final NodeId nodeId, @NonNull final KeysAndCerts keysAndCerts);
 
     private List<Node> createNodes(final int count) {
-        throwIfInState(State.RUNNING, "Cannot add nodes while the network is running.");
-        throwIfInState(State.SHUTDOWN, "Cannot add nodes after the network has been started.");
+        throwIfInLifecycle(Lifecycle.RUNNING, "Cannot add nodes while the network is running.");
+        throwIfInLifecycle(Lifecycle.SHUTDOWN, "Cannot add nodes after the network has been started.");
 
         try {
             final List<NodeId> nodeIds =
@@ -204,8 +202,8 @@ public abstract class AbstractNetwork implements Network {
             @NonNull final NodeId nodeId, @NonNull final KeysAndCerts keysAndCerts);
 
     private InstrumentedNode createInstrumentedNode() {
-        throwIfInState(State.RUNNING, "Cannot add nodes while the network is running.");
-        throwIfInState(State.SHUTDOWN, "Cannot add nodes after the network has been started.");
+        throwIfInLifecycle(Lifecycle.RUNNING, "Cannot add nodes while the network is running.");
+        throwIfInLifecycle(Lifecycle.SHUTDOWN, "Cannot add nodes after the network has been started.");
 
         try {
             final NodeId nodeId = getNextNodeId();
@@ -245,7 +243,7 @@ public abstract class AbstractNetwork implements Network {
     protected abstract void preStartHook(@NonNull final Roster roster);
 
     private void doStart(@NonNull final Duration timeout) {
-        throwIfInState(State.RUNNING, "Network is already running.");
+        throwIfInLifecycle(Lifecycle.RUNNING, "Network is already running.");
         log.info("Starting network...");
 
         final int count = nodes().size();
@@ -260,7 +258,7 @@ public abstract class AbstractNetwork implements Network {
 
         preStartHook(roster);
 
-        state = State.RUNNING;
+        lifecycle = Lifecycle.RUNNING;
         updateConnections();
         for (final Node node : nodes()) {
             ((AbstractNode) node).roster(roster);
@@ -414,8 +412,8 @@ public abstract class AbstractNetwork implements Network {
     }
 
     private void doFreeze(@NonNull final Duration timeout) {
-        throwIfInState(State.INIT, "Network has not been started yet.");
-        throwIfInState(State.SHUTDOWN, "Network has been shut down.");
+        throwIfInLifecycle(Lifecycle.INIT, "Network has not been started yet.");
+        throwIfInLifecycle(Lifecycle.SHUTDOWN, "Network has been shut down.");
 
         log.info("Sending freeze transaction...");
         final OtterTransaction freezeTransaction = TransactionFactory.createFreezeTransaction(
@@ -441,8 +439,8 @@ public abstract class AbstractNetwork implements Network {
     }
 
     private void doTriggerCatastrophicIss(@NonNull final Duration defaultTimeout) {
-        throwIfInState(State.INIT, "Network has not been started yet.");
-        throwIfInState(State.SHUTDOWN, "Network has been shut down.");
+        throwIfInLifecycle(Lifecycle.INIT, "Network has not been started yet.");
+        throwIfInLifecycle(Lifecycle.SHUTDOWN, "Network has been shut down.");
 
         log.info("Sending Catastrophic ISS triggering transaction...");
         final Instant start = timeManager().now();
@@ -471,32 +469,6 @@ public abstract class AbstractNetwork implements Network {
         });
     }
 
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void triggerSingleNodeIss(@NonNull final Node node) {
-        doTriggerSelfIss(DEFAULT_TIMEOUT, node);
-    }
-
-    private void doTriggerSelfIss(@NonNull final Duration timeout, @NonNull final Node node) {
-        throwIfInState(State.INIT, "Network has not been started yet.");
-        throwIfInState(State.SHUTDOWN, "Network has been shut down.");
-
-        log.info("Sending Self ISS triggering transaction...");
-        final Instant start = timeManager().now();
-        final OtterTransaction issTransaction = TransactionFactory.createSelfIssTransaction(random.nextLong(), node);
-
-        final AtomicBoolean issPayloadFound = node.newLogResult().findNextLogPayload(IssPayload.class.getName());
-
-        submitTransaction(issTransaction);
-        final Duration elapsed = Duration.between(start, timeManager().now());
-
-        log.debug("Waiting for Self ISS to trigger...");
-
-        timeManager().waitForCondition(issPayloadFound::get, timeout.minus(elapsed),
-                "Did not receive IssPayload log before timeout");
-    }
 
     /**
      * Submits the transaction to the first active node found in the network.
@@ -582,15 +554,15 @@ public abstract class AbstractNetwork implements Network {
     }
 
     private void doShutdown(@NonNull final Duration timeout) {
-        throwIfInState(State.INIT, "Network has not been started yet.");
-        throwIfInState(State.SHUTDOWN, "Network has already been shut down.");
+        throwIfInLifecycle(Lifecycle.INIT, "Network has not been started yet.");
+        throwIfInLifecycle(Lifecycle.SHUTDOWN, "Network has already been shut down.");
 
         log.info("Killing nodes immediately...");
         for (final Node node : nodes()) {
             node.killImmediately();
         }
 
-        state = State.SHUTDOWN;
+        lifecycle = Lifecycle.SHUTDOWN;
 
         transactionGenerator().stop();
     }
@@ -737,8 +709,8 @@ public abstract class AbstractNetwork implements Network {
      * @param message the message to include in the exception
      * @throws IllegalStateException if the network is in the expected state
      */
-    protected void throwIfInState(@NonNull final State expected, @NonNull final String message) {
-        if (state == expected) {
+    protected void throwIfInLifecycle(@NonNull final Lifecycle expected, @NonNull final String message) {
+        if (lifecycle == expected) {
             throw new IllegalStateException(message);
         }
     }

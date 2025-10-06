@@ -4,9 +4,9 @@ import com.swirlds.platform.config.StateConfig_;
 import com.swirlds.platform.state.iss.DefaultIssDetector;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.hiero.otter.fixtures.Network;
+import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.OtterTest;
 import org.hiero.otter.fixtures.TestEnvironment;
-import org.hiero.otter.fixtures.TimeManager;
 
 import static org.hiero.consensus.model.status.PlatformStatus.ACTIVE;
 import static org.hiero.consensus.model.status.PlatformStatus.CATASTROPHIC_FAILURE;
@@ -30,12 +30,19 @@ public class IssTest {
 
         network.start();
 
-        network.triggerSingleNodeIss(network.nodes().getFirst());
+        final Node issNode = network.nodes().getFirst();
+        issNode.triggerSingleNodeIss();
 
-        assertThat(network.newLogResults().suppressingLoggerClass(DefaultIssDetector.class)).haveNoErrorLevelMessages();
-
+        assertThat(issNode.newLogResult().suppressingLoggerName(DefaultIssDetector.class)).hasNoErrorLevelMessages();
+        assertThat(network.newLogResults().suppressingNode(issNode)).haveNoErrorLevelMessages();
     }
 
+    /**
+     * Triggers a catastrophic ISS and verifies that all nodes in the network enter the CATASTROPHIC_FAILURE state. This
+     * is expected when the network is not configured to halt on such an ISS.
+     *
+     * @param env the environment to test in
+     */
     @OtterTest
     void testCatastrophicIssWithoutHalt(@NonNull final TestEnvironment env) {
         final Network network = env.network();
@@ -52,14 +59,21 @@ public class IssTest {
         assertThat(network.newPlatformStatusResults()).haveSteps(
                 target(ACTIVE).requiringInterim(REPLAYING_EVENTS, OBSERVING, CHECKING),
                 target(CATASTROPHIC_FAILURE));
-        assertThat(network.newLogResults().suppressingLoggerClass(DefaultIssDetector.class)).haveNoErrorLevelMessages();
+        assertThat(network.newLogResults().suppressingLoggerName(DefaultIssDetector.class)).haveNoErrorLevelMessages();
     }
 
+    /**
+     * Triggers a catastrophic ISS and verifies that all nodes in the network enter the CATASTROPHIC_FAILURE or CHECKING
+     * state. This is expected when the network is configured to halt on such an ISS. One node will be the first to
+     * detect the catastrophic ISS and halt gossip. Once enough nodes have done this, the other nodes will not be able
+     * to proceed in consensus and may not detect the ISS. Therefore, they enter CHECKING instead.
+     *
+     * @param env the environment to test in
+     */
     @OtterTest
     void testCatastrophicIssWithHalt(@NonNull final TestEnvironment env) {
         final Network network = env.network();
 
-        // Setup simulation
         network.addNodes(4);
 
         network.withConfigValue(StateConfig_.HALT_ON_CATASTROPHIC_ISS, true);
@@ -71,6 +85,6 @@ public class IssTest {
         assertThat(network.newPlatformStatusResults()).haveSteps(
                 target(ACTIVE).requiringInterim(REPLAYING_EVENTS, OBSERVING, CHECKING),
                 targets(CHECKING, CATASTROPHIC_FAILURE));
-        assertThat(network.newLogResults().suppressingLoggerClass(DefaultIssDetector.class)).haveNoErrorLevelMessages();
+        assertThat(network.newLogResults().suppressingLoggerName(DefaultIssDetector.class)).haveNoErrorLevelMessages();
     }
 }

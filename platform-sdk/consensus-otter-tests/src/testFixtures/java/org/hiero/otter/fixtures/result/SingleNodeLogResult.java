@@ -2,17 +2,15 @@
 package org.hiero.otter.fixtures.result;
 
 import com.swirlds.logging.legacy.LogMarker;
-import com.swirlds.logging.legacy.payload.IssPayload;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import org.apache.logging.log4j.Marker;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.otter.fixtures.container.proto.LogEntry;
 import org.hiero.otter.fixtures.logging.StructuredLog;
+import org.jetbrains.annotations.NotNull;
 
 /**
  * Interface that provides access to the log results of a single node.
@@ -55,7 +53,16 @@ public interface SingleNodeLogResult extends OtterResult {
      * @return a new {@code SingleNodeLogResult} instance with the specified log marker's results removed
      */
     @NonNull
-    SingleNodeLogResult suppressingLoggerClass(@NonNull final Class<?> clazz);
+    SingleNodeLogResult suppressingLoggerName(@NonNull final Class<?> clazz);
+
+    /**
+     * Excludes the log results from the specified logger name from the current results.
+     *
+     * @param loggerName the name of the logger whose log results are to be excluded
+     * @return a new {@code SingleNodeLogResult} instance with the specified logger's results removed
+     */
+    @NonNull
+    SingleNodeLogResult suppressingLoggerName(@NotNull String loggerName);
 
     /**
      * Returns the set of unique markers present in the log entries for this node.
@@ -77,8 +84,8 @@ public interface SingleNodeLogResult extends OtterResult {
     void subscribe(@NonNull LogSubscriber subscriber);
 
     /**
-     * Sets up a temporary subscription to find the next log entry that contains the specified string payload. When
-     * the next match is found, the subscription is canceled and the returned AtomicBoolean is set to true.
+     * Sets up a temporary subscription to find the next log entry that contains the specified string payload. When the
+     * next match is found, the subscription is canceled and the returned AtomicBoolean is set to true.
      *
      * @param payload the payload to search for
      * @return an AtomicBoolean that will be set to true if/when a matching log entry is found

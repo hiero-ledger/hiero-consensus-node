@@ -83,6 +83,11 @@ public interface Node {
     void stopSyntheticBottleneck();
 
     /**
+     * Triggers a self-ISS on this node.
+     */
+    void triggerSingleNodeIss();
+
+    /**
      * Allows to override the default timeout for node operations.
      *
      * @param timeout the duration to wait before considering the operation as failed

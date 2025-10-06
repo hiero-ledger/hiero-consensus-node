@@ -11,6 +11,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.hiero.base.utility.CommonUtils;
+import org.hiero.consensus.model.node.NodeId;
 import org.hiero.otter.fixtures.app.EmptyTransaction;
 import org.hiero.otter.fixtures.app.HashPartition;
 import org.hiero.otter.fixtures.app.OtterFreezeTransaction;
@@ -65,9 +66,9 @@ public class TransactionFactory {
      * @return the created ISS transaction
      */
     @NonNull
-    public static OtterTransaction createSelfIssTransaction(final long nonce, @NonNull final Node node) {
+    public static OtterTransaction createSelfIssTransaction(final long nonce, @NonNull final NodeId nodeId) {
         final HashPartition hashPartition = HashPartition.newBuilder()
-                .addNodeId(node.selfId().id())
+                .addNodeId(nodeId.id())
                 .build();
         final OtterIssTransaction issTransaction =
                 OtterIssTransaction.newBuilder().addPartition(hashPartition).build();

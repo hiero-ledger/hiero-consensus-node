@@ -29,8 +29,10 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.SecureRandom;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Random;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import org.apache.logging.log4j.LogManager;
@@ -41,6 +43,7 @@ import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.otter.fixtures.KeysAndCertsConverter;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.ProtobufConverter;
+import org.hiero.otter.fixtures.TimeManager;
 import org.hiero.otter.fixtures.app.OtterTransaction;
 import org.hiero.otter.fixtures.app.services.consistency.ConsistencyServiceConfig;
 import org.hiero.otter.fixtures.container.proto.ContainerControlServiceGrpc;
@@ -66,6 +69,7 @@ import org.hiero.otter.fixtures.result.SingleNodeMarkerFileResult;
 import org.hiero.otter.fixtures.result.SingleNodePcesResult;
 import org.hiero.otter.fixtures.result.SingleNodePlatformStatusResult;
 import org.hiero.otter.fixtures.result.SingleNodeReconnectResult;
+import org.jetbrains.annotations.NotNull;
 import org.testcontainers.containers.Container.ExecResult;
 import org.testcontainers.containers.Network;
 import org.testcontainers.images.builder.ImageFromDockerfile;
@@ -76,6 +80,9 @@ import org.testcontainers.images.builder.ImageFromDockerfile;
 public class ContainerNode extends AbstractNode implements Node, TimeTickReceiver {
 
     private static final Logger log = LogManager.getLogger();
+
+    /** The time manager to use for this node */
+    private final TimeManager timeManager;
 
     /** The image used to run the consensus node. */
     private final ContainerImage container;
@@ -104,6 +111,9 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
     /** A collector of the various test run related events stored as strongly typed objects use for assertions. */
     private final NodeResultsCollector resultsCollector;
 
+    /** A source of randomness for the node */
+    private final Random random;
+
     /**
      * Constructor for the {@link ContainerNode} class.
      *
@@ -115,6 +125,7 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
      */
     public ContainerNode(
             @NonNull final NodeId selfId,
+            @NonNull final TimeManager timeManager,
             @NonNull final KeysAndCerts keysAndCerts,
             @NonNull final Network network,
             @NonNull final ImageFromDockerfile dockerImage,
@@ -122,9 +133,11 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
         super(selfId, keysAndCerts);
 
         this.localOutputDirectory = requireNonNull(outputDirectory, "outputDirectory must not be null");
+        this.timeManager = requireNonNull(timeManager, "timeManager must not be null");
 
         this.resultsCollector = new NodeResultsCollector(selfId);
         this.nodeConfiguration = new ContainerNodeConfiguration(() -> lifeCycle);
+        this.random = new SecureRandom();
 
         container = new ContainerImage(dockerImage, network, selfId);
         container.start();
@@ -145,8 +158,8 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
 
     @Override
     protected void doStart(@NonNull final Duration timeout) {
-        throwIfIn(LifeCycle.RUNNING, "Node has already been started.");
-        throwIfIn(LifeCycle.DESTROYED, "Node has already been destroyed.");
+        throwIfInLifecycle(LifeCycle.RUNNING, "Node has already been started.");
+        throwIfInLifecycle(LifeCycle.DESTROYED, "Node has already been destroyed.");
 
         log.info("Starting node {}...", selfId);
 
@@ -251,9 +264,9 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
      */
     @Override
     public void submitTransaction(@NonNull final OtterTransaction transaction) {
-        throwIfIn(INIT, "Node has not been started yet.");
-        throwIfIn(SHUTDOWN, "Node has been shut down.");
-        throwIfIn(DESTROYED, "Node has been destroyed.");
+        throwIfInLifecycle(INIT, "Node has not been started yet.");
+        throwIfInLifecycle(SHUTDOWN, "Node has been shut down.");
+        throwIfInLifecycle(DESTROYED, "Node has been destroyed.");
 
         try {
             final TransactionRequest request = TransactionRequest.newBuilder()
@@ -429,6 +442,24 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
                 localOutputDirectory
                         .resolve(consistencyServiceConfig.historyFileName())
                         .toString());
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
+    protected TimeManager timeManager() {
+        return timeManager;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
+    protected Random random() {
+        return random;
     }
 
     /**
