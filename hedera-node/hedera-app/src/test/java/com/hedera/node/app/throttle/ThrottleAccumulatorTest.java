@@ -1804,6 +1804,52 @@ class ThrottleAccumulatorTest {
         verify(throttleMetrics).updateAllMetrics();
     }
 
+    @Test
+    void scheduleCreateWithoutScheduledTransactionBodyIsThrottled() throws IOException, ParseException {
+        // given
+        given(configProvider.getConfiguration()).willReturn(configuration);
+        given(configuration.getConfigData(AccountsConfig.class)).willReturn(accountsConfig);
+        given(accountsConfig.lastThrottleExempt()).willReturn(100L);
+        given(configuration.getConfigData(ContractsConfig.class)).willReturn(contractsConfig);
+        given(contractsConfig.throttleThrottleByGas()).willReturn(false);
+        given(contractsConfig.maxGasPerSec()).willReturn(10_000_000L);
+        given(configuration.getConfigData(JumboTransactionsConfig.class)).willReturn(jumboTransactionsConfig);
+        given(jumboTransactionsConfig.isEnabled()).willReturn(false);
+
+        subject = new ThrottleAccumulator(configProvider::getConfiguration, () -> CAPACITY_SPLIT, FRONTEND_THROTTLE);
+        subject.applyGasConfig();
+        final var defs = getThrottleDefs("bootstrap/schedule-create-throttles.json");
+        subject.rebuildFor(defs);
+
+        // Create a ScheduleCreate transaction WITHOUT scheduledTransactionBody to trigger NPE
+        final var scheduleWithoutBody = ScheduleCreateTransactionBody.newBuilder()
+                .waitForExpiry(false)
+                .build(); // Missing .scheduledTransactionBody(...)
+        final var body = TransactionBody.newBuilder()
+                .transactionID(TransactionID.newBuilder().accountID(PAYER_ID).build())
+                .scheduleCreate(scheduleWithoutBody)
+                .build();
+        final var signedTx = SignedTransaction.newBuilder()
+                .bodyBytes(TransactionBody.PROTOBUF.toBytes(body))
+                .build();
+        final var txnInfo = new TransactionInfo(
+                signedTx,
+                body,
+                TransactionID.newBuilder().accountID(PAYER_ID).build(),
+                PAYER_ID,
+                SignatureMap.DEFAULT,
+                Bytes.EMPTY,
+                SCHEDULE_CREATE,
+                null);
+
+        // when - should not throw NPE, should throttle instead
+        final var shouldThrottle =
+                assertDoesNotThrow(() -> subject.checkAndEnforceThrottle(txnInfo, TIME_INSTANT, state, null));
+
+        // then - transaction should be throttled (returns true)
+        assertTrue(shouldThrottle, "ScheduleCreate without scheduledTransactionBody should be throttled");
+    }
+
     @NonNull
     private static Bytes keyToBytes(Key key) throws IOException, ParseException {
         final var dataBuffer = getThreadLocalDataBuffer();
