@@ -32,8 +32,10 @@ import com.swirlds.state.spi.WritableKVState;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+
 import java.util.ArrayList;
 import java.util.List;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -134,14 +136,15 @@ public class WritableEvmHookStore extends ReadableEvmHookStoreImpl {
         }
         return 0;
     }
+
     /**
-     * Puts the given slot value for the given lambda, ensuring storage linked list pointers are preserved.
+     * Puts the given single slot value for the given lambda, ensuring storage linked list pointers are preserved.
      * If the new value is {@link Bytes#EMPTY}, the slot is removed.
      *
      * @param key the slot key
      * @param value the new slot value
      * @return {@code 1} if a new slot was created, {@code -1} if an existing slot was removed,
-     *         or {@code 0} if an existing slot was updated or no change was made
+     * or {@code 0} if an existing slot was updated or no change was made
      * @throws HandleException if the lambda ID is not found
      */
     public int updateStorage(@NonNull final LambdaSlotKey key, @NonNull final SlotValue value) {

@@ -89,10 +89,6 @@ public class HookEvmFrameState extends DispatchingEvmFrameState {
         if (HTS_HOOKS_16D_CONTRACT_ID.equals(contractID)) {
             final var slotKey = minimalKey(hook.hookId(), Bytes.wrap(key.toArrayUnsafe()));
             final var oldSlotValue = writableEvmHookStore.getSlotValue(slotKey);
-            if (oldSlotValue == null && value.isZero()) {
-                // Small optimization---don't put zero into an empty slot
-                return;
-            }
             final var slotValue = new SlotValue(
                     tuweniToPbjBytes(requireNonNull(value)),
                     oldSlotValue == null ? com.hedera.pbj.runtime.io.buffer.Bytes.EMPTY : oldSlotValue.previousKey(),
