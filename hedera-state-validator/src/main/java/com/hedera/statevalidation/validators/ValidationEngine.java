@@ -70,6 +70,7 @@ public class ValidationEngine {
         log.info("Executing independent validators...");
 
         // Only one for PoC simplicity...
+        // Can be some discovery mechanism
         List<StateValidator> independentValidators = Arrays.asList(new ValidateLeafIndexHalfDiskHashMap());
 
         for (StateValidator validator : independentValidators) {
@@ -82,8 +83,6 @@ public class ValidationEngine {
                     validator.validate();
                     notifyValidationCompleted(validator.getTag());
                 } catch (ValidationException e) {
-                    // remove tag from the list, so failed validation won't be validated again
-                    tags.remove(validator.getTag());
                     notifyValidationFailed(e);
                 }
             }
@@ -97,6 +96,7 @@ public class ValidationEngine {
 
         // Only two for PoC simplicity...
         // There would be more validators, which will share path range traversal
+        // Can be some discovery mechanism
         final List<IndexValidator> indexValidators = Arrays.asList(new ValidateLeafIndex());
         final List<KeyValueValidator> kvValidators = Arrays.asList(new AccountValidator());
         final List<Validator> validators = new ArrayList<>() {
@@ -137,7 +137,6 @@ public class ValidationEngine {
         LongConsumer indexProcessor = path -> {
             // 1. delegate to index based validators
             for (IndexValidator validator : indexValidators) {
-                // either pick only those which can handle index or k/v will be no-op
                 if (tags.contains(validator.getTag())) {
                     try {
                         validator.processIndex(path);
@@ -160,7 +159,6 @@ public class ValidationEngine {
                     final Bytes valueBytes = leafRecord.valueBytes();
 
                     for (KeyValueValidator validator : kvValidators) {
-                        // either pick only those which can handle k/v or index will be no-op
                         if (tags.contains(validator.getTag())) {
                             try {
                                 validator.processKeyValue(keyBytes, valueBytes);
