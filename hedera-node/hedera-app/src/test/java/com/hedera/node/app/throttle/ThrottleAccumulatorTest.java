@@ -1850,6 +1850,100 @@ class ThrottleAccumulatorTest {
         assertTrue(shouldThrottle, "ScheduleCreate without scheduledTransactionBody should be throttled");
     }
 
+    @Test
+    void tokenMintWithoutTokenMintBodyIsThrottled() throws IOException, ParseException {
+        // given
+        given(configProvider.getConfiguration()).willReturn(configuration);
+        given(configuration.getConfigData(AccountsConfig.class)).willReturn(accountsConfig);
+        given(accountsConfig.lastThrottleExempt()).willReturn(100L);
+        given(configuration.getConfigData(ContractsConfig.class)).willReturn(contractsConfig);
+        given(contractsConfig.throttleThrottleByGas()).willReturn(false);
+        given(contractsConfig.maxGasPerSec()).willReturn(10_000_000L);
+        given(configuration.getConfigData(JumboTransactionsConfig.class)).willReturn(jumboTransactionsConfig);
+        given(jumboTransactionsConfig.isEnabled()).willReturn(false);
+
+        subject = new ThrottleAccumulator(
+                configProvider::getConfiguration,
+                () -> CAPACITY_SPLIT,
+                FRONTEND_THROTTLE);
+        subject.applyGasConfig();
+        final var defs = getThrottleDefs("bootstrap/throttles.json");
+        subject.rebuildFor(defs);
+
+        // Create a TokenMint transaction WITHOUT tokenMint body
+        final var body = TransactionBody.newBuilder()
+                .transactionID(TransactionID.newBuilder().accountID(PAYER_ID).build())
+                .build(); // Missing .tokenMint(...)
+        final var signedTx = SignedTransaction.newBuilder()
+                .bodyBytes(TransactionBody.PROTOBUF.toBytes(body))
+                .build();
+        final var txnInfo = new TransactionInfo(
+                signedTx,
+                body,
+                TransactionID.newBuilder().accountID(PAYER_ID).build(),
+                PAYER_ID,
+                SignatureMap.DEFAULT,
+                Bytes.EMPTY,
+                TOKEN_MINT,
+                null);
+
+        // when - should not throw NPE, should throttle instead
+        final var shouldThrottle =
+                assertDoesNotThrow(() -> subject.checkAndEnforceThrottle(txnInfo, TIME_INSTANT, state, null));
+
+        // then - transaction should be throttled (returns true)
+        assertTrue(shouldThrottle, "TokenMint without tokenMint body should be throttled");
+    }
+
+    @Test
+    void tokenMintWithoutTokenIdIsThrottled() throws IOException, ParseException {
+        // given
+        given(configProvider.getConfiguration()).willReturn(configuration);
+        given(configuration.getConfigData(AccountsConfig.class)).willReturn(accountsConfig);
+        given(accountsConfig.lastThrottleExempt()).willReturn(100L);
+        given(configuration.getConfigData(ContractsConfig.class)).willReturn(contractsConfig);
+        given(contractsConfig.throttleThrottleByGas()).willReturn(false);
+        given(contractsConfig.maxGasPerSec()).willReturn(10_000_000L);
+        given(configuration.getConfigData(JumboTransactionsConfig.class)).willReturn(jumboTransactionsConfig);
+        given(jumboTransactionsConfig.isEnabled()).willReturn(false);
+
+        subject = new ThrottleAccumulator(
+                configProvider::getConfiguration,
+                () -> CAPACITY_SPLIT,
+                FRONTEND_THROTTLE);
+        subject.applyGasConfig();
+        final var defs = getThrottleDefs("bootstrap/throttles.json");
+        subject.rebuildFor(defs);
+
+        // Create a TokenMint transaction WITHOUT token field
+        final var mintOp = TokenMintTransactionBody.newBuilder()
+                .amount(1000L)
+                .build(); // Missing .token(...)
+        final var body = TransactionBody.newBuilder()
+                .transactionID(TransactionID.newBuilder().accountID(PAYER_ID).build())
+                .tokenMint(mintOp)
+                .build();
+        final var signedTx = SignedTransaction.newBuilder()
+                .bodyBytes(TransactionBody.PROTOBUF.toBytes(body))
+                .build();
+        final var txnInfo = new TransactionInfo(
+                signedTx,
+                body,
+                TransactionID.newBuilder().accountID(PAYER_ID).build(),
+                PAYER_ID,
+                SignatureMap.DEFAULT,
+                Bytes.EMPTY,
+                TOKEN_MINT,
+                null);
+
+        // when - should not throw NPE, should throttle instead
+        final var shouldThrottle =
+                assertDoesNotThrow(() -> subject.checkAndEnforceThrottle(txnInfo, TIME_INSTANT, state, null));
+
+        // then - transaction should be throttled (returns true)
+        assertTrue(shouldThrottle, "TokenMint without token field should be throttled");
+    }
+
     @NonNull
     private static Bytes keyToBytes(Key key) throws IOException, ParseException {
         final var dataBuffer = getThreadLocalDataBuffer();
