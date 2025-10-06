@@ -1,15 +1,28 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app;
 
+import static com.swirlds.state.lifecycle.StateMetadata.computeLabel;
+
+import com.hedera.hapi.platform.state.QueueState;
+import com.hedera.hapi.platform.state.StateValue;
+import com.hedera.pbj.runtime.ParseException;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.merkle.MerkleNode;
+import com.swirlds.common.utility.Mnemonics;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.state.State;
+import com.swirlds.state.lifecycle.StateDefinition;
+import com.swirlds.state.merkle.StateKeyUtils;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.virtualmap.VirtualMap;
+import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
+import com.swirlds.virtualmap.internal.RecordAccessor;
+import com.swirlds.virtualmap.internal.merkle.VirtualMapMetadata;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.hiero.base.constructable.ConstructableIgnored;
+import org.json.JSONObject;
 
 /**
  * This class sole purpose is to extend the {@link VirtualMapState} class and implement the {@link MerkleNodeState}.
@@ -52,5 +65,66 @@ public class HederaVirtualMapState extends VirtualMapState<HederaVirtualMapState
     @Override
     protected HederaVirtualMapState newInstance(@NonNull final VirtualMap virtualMap) {
         return new HederaVirtualMapState(virtualMap);
+    }
+
+    @Override
+    public String getInfoJson() {
+        final JSONObject rootJson = new JSONObject();
+
+        final RecordAccessor recordAccessor = virtualMap.getRecords();
+        final VirtualMapMetadata virtualMapMetadata = virtualMap.getMetadata();
+
+        final JSONObject virtualMapMetadataJson = new JSONObject();
+        virtualMapMetadataJson.put("firstLeafPath", virtualMapMetadata.getFirstLeafPath());
+        virtualMapMetadataJson.put("lastLeafPath", virtualMapMetadata.getLastLeafPath());
+
+        rootJson.put("VirtualMapMetadata", virtualMapMetadataJson);
+
+        final JSONObject singletons = new JSONObject();
+        final JSONObject queues = new JSONObject();
+
+        services.forEach((key, value) -> {
+            value.forEach((s, stateMetadata) -> {
+                final String serviceName = stateMetadata.serviceName();
+                final StateDefinition<?, ?> stateDefinition = stateMetadata.stateDefinition();
+                final int stateId = stateDefinition.stateId();
+                final String stateKey = stateDefinition.stateKey();
+
+                if (stateDefinition.singleton()) {
+                    final Bytes singletonKey = StateKeyUtils.singletonKey(stateId);
+                    final VirtualLeafBytes<?> leafBytes = recordAccessor.findLeafRecord(singletonKey);
+                    if (leafBytes != null) {
+                        final var hash = recordAccessor.findHash(leafBytes.path());
+                        final JSONObject singletonJson = new JSONObject();
+                        if (hash != null) {
+                            singletonJson.put("mnemonic", Mnemonics.generateMnemonic(hash));
+                        }
+                        singletonJson.put("path", leafBytes.path());
+                        singletons.put(computeLabel(serviceName, stateKey), singletonJson);
+                    }
+                } else if (stateDefinition.queue()) {
+                    final Bytes queueStateKey = StateKeyUtils.queueStateKey(stateId);
+                    final VirtualLeafBytes<?> leafBytes = recordAccessor.findLeafRecord(queueStateKey);
+                    if (leafBytes != null) {
+                        try {
+                            final StateValue stateValue = StateValue.PROTOBUF.parse(leafBytes.valueBytes());
+                            final QueueState queueState = stateValue.queueState();
+                            final JSONObject queueJson = new JSONObject();
+                            queueJson.put("head", queueState.head());
+                            queueJson.put("tail", queueState.tail());
+                            queueJson.put("path", leafBytes.path());
+                            queues.put(computeLabel(serviceName, stateKey), queueJson);
+                        } catch (ParseException e) {
+                            throw new RuntimeException(e);
+                        }
+                    }
+                }
+            });
+        });
+
+        rootJson.put("Singletons", singletons);
+        rootJson.put("Queues (Queue States)", queues);
+
+        return rootJson.toString();
     }
 }

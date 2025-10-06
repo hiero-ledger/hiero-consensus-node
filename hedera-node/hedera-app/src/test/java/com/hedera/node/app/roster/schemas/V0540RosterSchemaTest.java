@@ -14,12 +14,12 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
+import com.hedera.node.app.services.HederaMigrationContext;
+import com.hedera.node.app.services.StartupNetworks;
 import com.hedera.node.internal.network.Network;
 import com.hedera.node.internal.network.NodeMetadata;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.state.State;
-import com.swirlds.state.lifecycle.MigrationContext;
-import com.swirlds.state.lifecycle.StartupNetworks;
 import com.swirlds.state.lifecycle.StateDefinition;
 import com.swirlds.state.spi.WritableStates;
 import java.util.List;
@@ -50,7 +50,7 @@ class V0540RosterSchemaTest {
             .toList());
 
     @Mock
-    private MigrationContext ctx;
+    private HederaMigrationContext ctx;
 
     @Mock
     private WritableStates writableStates;
