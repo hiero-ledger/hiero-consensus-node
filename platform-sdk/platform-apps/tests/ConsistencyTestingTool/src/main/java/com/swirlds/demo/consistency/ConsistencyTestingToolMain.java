@@ -8,15 +8,13 @@ import static com.swirlds.platform.test.fixtures.state.TestingAppStateInitialize
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
-import com.swirlds.merkledb.MerkleDbDataSourceBuilder;
-import com.swirlds.merkledb.config.MerkleDbConfig;
+import com.swirlds.config.extensions.sources.SimpleConfigSource;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.system.DefaultSwirldMain;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer;
 import com.swirlds.virtualmap.VirtualMap;
-import com.swirlds.virtualmap.datasource.VirtualDataSourceBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.security.SecureRandom;
@@ -86,7 +84,14 @@ public class ConsistencyTestingToolMain extends DefaultSwirldMain<ConsistencyTes
     @Override
     @NonNull
     public ConsistencyTestingToolState newStateRoot() {
-        return createConsistencyTestingToolState(createVirtualMap());
+        final Configuration configuration = ConfigurationBuilder.create()
+                .autoDiscoverExtensions()
+                .withSource(new SimpleConfigSource().withValue("merkleDb.initialCapacity", 1000000))
+                .build();
+
+        final ConsistencyTestingToolState state = new ConsistencyTestingToolState(configuration, getGlobalMetrics());
+        TestingAppStateInitializer.initConsensusModuleStates(state);
+        return state;
     }
 
     /**
@@ -94,20 +99,11 @@ public class ConsistencyTestingToolMain extends DefaultSwirldMain<ConsistencyTes
      */
     @Override
     public Function<VirtualMap, ConsistencyTestingToolState> stateRootFromVirtualMap() {
-        return this::createConsistencyTestingToolState;
-    }
-
-    /**
-     * Creates a new ConsistencyTestingToolState with the given VirtualMap and initializes
-     * the consensus module states.
-     *
-     * @param virtualMap the virtual map to use for the state
-     * @return a new initialized ConsistencyTestingToolState
-     */
-    private ConsistencyTestingToolState createConsistencyTestingToolState(@NonNull final VirtualMap virtualMap) {
-        final ConsistencyTestingToolState state = new ConsistencyTestingToolState(virtualMap);
-        TestingAppStateInitializer.initConsensusModuleStates(state);
-        return state;
+        return virtualMap -> {
+            final ConsistencyTestingToolState state = new ConsistencyTestingToolState(virtualMap);
+            TestingAppStateInitializer.initConsensusModuleStates(state);
+            return state;
+        };
     }
 
     /**
@@ -136,21 +132,5 @@ public class ConsistencyTestingToolMain extends DefaultSwirldMain<ConsistencyTes
     @Override
     public List<Class<? extends Record>> getConfigDataTypes() {
         return List.of(ConsistencyTestingToolConfig.class);
-    }
-
-    /**
-     * Create a virtual map for the case of genesis state initialization via {@link ConsistencyTestingToolMain#newStateRoot()}
-     *
-     * @return pre-configured empty Virtual Map with metrics
-     */
-    private static VirtualMap createVirtualMap() {
-        final Configuration configuration =
-                ConfigurationBuilder.create().autoDiscoverExtensions().build();
-        final MerkleDbConfig merkleDbConfig = configuration.getConfigData(MerkleDbConfig.class);
-        final VirtualDataSourceBuilder dsBuilder =
-                new MerkleDbDataSourceBuilder(configuration, 1_000_000, merkleDbConfig.hashesRamToDiskThreshold());
-        final VirtualMap virtualMap = new VirtualMap("ConsistencyTestingTool", dsBuilder, configuration);
-        virtualMap.registerMetrics(getGlobalMetrics());
-        return virtualMap;
     }
 }

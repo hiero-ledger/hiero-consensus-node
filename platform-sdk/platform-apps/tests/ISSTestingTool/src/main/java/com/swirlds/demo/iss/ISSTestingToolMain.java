@@ -8,15 +8,13 @@ import static com.swirlds.platform.test.fixtures.state.TestingAppStateInitialize
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
-import com.swirlds.merkledb.MerkleDbDataSourceBuilder;
-import com.swirlds.merkledb.config.MerkleDbConfig;
+import com.swirlds.config.extensions.sources.SimpleConfigSource;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.system.DefaultSwirldMain;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.state.notifications.IssListener;
 import com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer;
 import com.swirlds.virtualmap.VirtualMap;
-import com.swirlds.virtualmap.datasource.VirtualDataSourceBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
@@ -92,7 +90,14 @@ public class ISSTestingToolMain extends DefaultSwirldMain<ISSTestingToolState> {
     @Override
     @NonNull
     public ISSTestingToolState newStateRoot() {
-        return createISSTestingToolState(createVirtualMap());
+        final Configuration configuration = ConfigurationBuilder.create()
+                .autoDiscoverExtensions()
+                .withSource(new SimpleConfigSource().withValue("merkleDb.initialCapacity", 1000000))
+                .build();
+
+        final ISSTestingToolState state = new ISSTestingToolState(configuration, getGlobalMetrics());
+        TestingAppStateInitializer.initConsensusModuleStates(state);
+        return state;
     }
 
     /**
@@ -100,20 +105,11 @@ public class ISSTestingToolMain extends DefaultSwirldMain<ISSTestingToolState> {
      */
     @Override
     public Function<VirtualMap, ISSTestingToolState> stateRootFromVirtualMap() {
-        return this::createISSTestingToolState;
-    }
-
-    /**
-     * Creates a new ISSTestingToolState with the given VirtualMap and initializes
-     * the consensus module states.
-     *
-     * @param virtualMap the virtual map to use for the state
-     * @return a new initialized ISSTestingToolState
-     */
-    private ISSTestingToolState createISSTestingToolState(@NonNull final VirtualMap virtualMap) {
-        final ISSTestingToolState state = new ISSTestingToolState(virtualMap);
-        TestingAppStateInitializer.initConsensusModuleStates(state);
-        return state;
+        return virtualMap -> {
+            final ISSTestingToolState state = new ISSTestingToolState(virtualMap);
+            TestingAppStateInitializer.initConsensusModuleStates(state);
+            return state;
+        };
     }
 
     @Override
@@ -136,21 +132,5 @@ public class ISSTestingToolMain extends DefaultSwirldMain<ISSTestingToolState> {
     @Override
     public List<Class<? extends Record>> getConfigDataTypes() {
         return List.of(ISSTestingToolConfig.class);
-    }
-
-    /**
-     * Create a virtual map for the case of genesis state initialization via {@link ISSTestingToolMain#newStateRoot()}
-     *
-     * @return pre-configured empty Virtual Map with metrics
-     */
-    private static VirtualMap createVirtualMap() {
-        final Configuration configuration =
-                ConfigurationBuilder.create().autoDiscoverExtensions().build();
-        final MerkleDbConfig merkleDbConfig = configuration.getConfigData(MerkleDbConfig.class);
-        final VirtualDataSourceBuilder dsBuilder =
-                new MerkleDbDataSourceBuilder(configuration, 1_000_000, merkleDbConfig.hashesRamToDiskThreshold());
-        final VirtualMap virtualMap = new VirtualMap("ISSTestingTool", dsBuilder, configuration);
-        virtualMap.registerMetrics(getGlobalMetrics());
-        return virtualMap;
     }
 }

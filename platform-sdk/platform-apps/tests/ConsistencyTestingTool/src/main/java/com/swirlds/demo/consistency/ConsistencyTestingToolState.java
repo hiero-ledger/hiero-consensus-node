@@ -12,6 +12,8 @@ import static org.hiero.base.utility.NonCryptographicHashing.hash64;
 import com.hedera.hapi.node.state.primitives.ProtoLong;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.pbj.runtime.ParseException;
+import com.swirlds.config.api.Configuration;
+import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.state.lifecycle.StateDefinition;
 import com.swirlds.state.lifecycle.StateMetadata;
@@ -77,6 +79,13 @@ public class ConsistencyTestingToolState extends VirtualMapState<ConsistencyTest
      * Does not affect the hash of this node.
      */
     private final Set<Long> transactionsAwaitingPostHandle;
+
+    public ConsistencyTestingToolState(@NonNull Configuration configuration, @NonNull Metrics metrics) {
+        super(configuration, metrics);
+        transactionHandlingHistory = new TransactionHandlingHistory();
+        transactionsAwaitingPostHandle = ConcurrentHashMap.newKeySet();
+        logger.info(STARTUP.getMarker(), "New State Constructed.");
+    }
 
     /**
      * Constructor

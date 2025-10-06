@@ -22,6 +22,8 @@ import static com.swirlds.platform.test.fixtures.state.TestingAppStateInitialize
 import com.hedera.hapi.node.state.primitives.ProtoLong;
 import com.hedera.hapi.node.state.primitives.ProtoString;
 import com.swirlds.common.context.PlatformContext;
+import com.swirlds.config.api.Configuration;
+import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
@@ -73,6 +75,10 @@ public class ISSTestingToolState extends VirtualMapState<ISSTestingToolState> im
      * A list of errors that will be logged at a predetermined consensus time
      */
     private List<PlannedLogError> plannedLogErrorList = new LinkedList<>();
+
+    public ISSTestingToolState(@NonNull Configuration configuration, @NonNull Metrics metrics) {
+        super(configuration, metrics);
+    }
 
     public ISSTestingToolState(@NonNull final VirtualMap virtualMap) {
         super(virtualMap);
