@@ -35,7 +35,6 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.withSettings;
 
 import com.hedera.hapi.block.stream.BlockItem;
-import com.hedera.hapi.block.stream.RecordFileItem;
 import com.hedera.hapi.block.stream.output.BlockHeader;
 import com.hedera.hapi.block.stream.output.StateChanges;
 import com.hedera.hapi.block.stream.output.TransactionResult;
@@ -72,11 +71,13 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ForkJoinPool;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -924,6 +925,241 @@ class BlockStreamManagerImplTest {
 
         // Verify the index starts from 0 again in the new block
         assertEquals(Optional.of(0), subject.getEventIndex(eventHash3));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void writesBlockFooterBeforeBlockProof() {
+        // Given a manager with a single round per block
+        givenSubjectWith(
+                1, 0, blockStreamInfoWith(Bytes.EMPTY, CREATION_VERSION), platformStateWithFreezeTime(null), aWriter);
+        givenEndOfRoundSetup();
+
+        final AtomicReference<BlockItem> footerItem = new AtomicReference<>();
+        final AtomicReference<BlockItem> proofItem = new AtomicReference<>();
+
+        doAnswer(invocationOnMock -> {
+                    final var item = BlockItem.PROTOBUF.parse((Bytes) invocationOnMock.getArgument(1));
+                    if (item.hasBlockFooter()) {
+                        footerItem.set(item);
+                    } else if (item.hasBlockProof()) {
+                        proofItem.set(item);
+                    }
+                    return aWriter;
+                })
+                .when(aWriter)
+                .writePbjItemAndBytes(any(), any());
+
+        given(round.getRoundNum()).willReturn(ROUND_NO);
+        given(round.getConsensusTimestamp()).willReturn(CONSENSUS_NOW);
+        given(blockHashSigner.isReady()).willReturn(true);
+        given(blockHashSigner.schemeId()).willReturn(1L);
+
+        // Set up the signature future to complete immediately
+        given(blockHashSigner.signFuture(any())).willReturn(mockSigningFuture);
+        doAnswer(invocationOnMock -> {
+                    final Consumer<Bytes> consumer = invocationOnMock.getArgument(0);
+                    consumer.accept(FIRST_FAKE_SIGNATURE);
+                    return null;
+                })
+                .when(mockSigningFuture)
+                .thenAcceptAsync(any());
+
+        // Initialize hash and start a round
+        subject.initLastBlockHash(N_MINUS_2_BLOCK_HASH);
+        subject.startRound(round, state);
+
+        // Write some items
+        subject.writeItem(FAKE_SIGNED_TRANSACTION);
+        subject.writeItem(FAKE_TRANSACTION_RESULT);
+        subject.writeItem(FAKE_STATE_CHANGES);
+
+        // End the round
+        subject.endRound(state, ROUND_NO);
+
+        // Verify BlockFooter was written
+        assertNotNull(footerItem.get(), "BlockFooter should be written");
+        assertTrue(footerItem.get().hasBlockFooter());
+
+        final var footer = footerItem.get().blockFooterOrThrow();
+        assertNotNull(footer.previousBlockRootHash(), "Previous block root hash should be set");
+        // TODO(#21210): Currently using NULL_HASH placeholder for block hashes tree
+        // Will be replaced when streaming merkle tree of all block hashes is implemented
+        assertEquals(
+                BlockStreamManagerImpl.NULL_HASH,
+                footer.rootHashOfAllBlockHashesTree(),
+                "Block hashes tree root should be NULL_HASH until #21210 is implemented");
+        assertNotNull(footer.startOfBlockStateRootHash(), "Start of block state root hash should be set");
+
+        // Verify BlockProof was also written
+        assertNotNull(proofItem.get(), "BlockProof should be written");
+        assertTrue(proofItem.get().hasBlockProof());
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void blockFooterContainsCorrectHashValues() {
+        // Given a manager with a single round per block
+        givenSubjectWith(
+                1, 0, blockStreamInfoWith(Bytes.EMPTY, CREATION_VERSION), platformStateWithFreezeTime(null), aWriter);
+        givenEndOfRoundSetup();
+
+        final AtomicReference<BlockItem> footerItem = new AtomicReference<>();
+
+        doAnswer(invocationOnMock -> {
+                    final var item = BlockItem.PROTOBUF.parse((Bytes) invocationOnMock.getArgument(1));
+                    if (item.hasBlockFooter()) {
+                        footerItem.set(item);
+                    }
+                    return aWriter;
+                })
+                .when(aWriter)
+                .writePbjItemAndBytes(any(), any());
+
+        given(round.getRoundNum()).willReturn(ROUND_NO);
+        given(round.getConsensusTimestamp()).willReturn(CONSENSUS_NOW);
+        given(blockHashSigner.isReady()).willReturn(true);
+        given(blockHashSigner.schemeId()).willReturn(1L);
+
+        // Set up the signature future
+        given(blockHashSigner.signFuture(any())).willReturn(mockSigningFuture);
+        doAnswer(invocationOnMock -> {
+                    final Consumer<Bytes> consumer = invocationOnMock.getArgument(0);
+                    consumer.accept(FIRST_FAKE_SIGNATURE);
+                    return null;
+                })
+                .when(mockSigningFuture)
+                .thenAcceptAsync(any());
+
+        // Initialize with known hash and start round
+        subject.initLastBlockHash(N_MINUS_2_BLOCK_HASH);
+        subject.startRound(round, state);
+        subject.writeItem(FAKE_SIGNED_TRANSACTION);
+        subject.endRound(state, ROUND_NO);
+
+        // Verify BlockFooter hash values
+        assertNotNull(footerItem.get(), "BlockFooter should be written");
+        final var footer = footerItem.get().blockFooterOrThrow();
+
+        // Verify previousBlockRootHash matches the last block hash
+        assertEquals(
+                N_MINUS_2_BLOCK_HASH,
+                footer.previousBlockRootHash(),
+                "Previous block root hash should match initialized last block hash");
+
+        // Verify rootHashOfAllBlockHashesTree is NULL_HASH (placeholder)
+        assertEquals(
+                BlockStreamManagerImpl.NULL_HASH,
+                footer.rootHashOfAllBlockHashesTree(),
+                "Block hashes tree root should be NULL_HASH placeholder");
+
+        // Verify startOfBlockStateRootHash is set
+        assertEquals(
+                FAKE_START_OF_BLOCK_STATE_HASH.getBytes(),
+                footer.startOfBlockStateRootHash(),
+                "Start of block state root hash should match expected value");
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void blockFooterWrittenForEachBlock() {
+        // Given a manager with a single round per block
+        givenSubjectWith(
+                1,
+                0,
+                blockStreamInfoWith(Bytes.EMPTY, CREATION_VERSION),
+                platformStateWithFreezeTime(null),
+                aWriter,
+                bWriter);
+        givenEndOfRoundSetup();
+
+        final List<BlockItem> footerItems = new ArrayList<>();
+
+        doAnswer(invocationOnMock -> {
+                    final var item = BlockItem.PROTOBUF.parse((Bytes) invocationOnMock.getArgument(1));
+                    if (item.hasBlockFooter()) {
+                        footerItems.add(item);
+                    }
+                    return aWriter;
+                })
+                .when(aWriter)
+                .writePbjItemAndBytes(any(), any());
+
+        doAnswer(invocationOnMock -> {
+                    final var item = BlockItem.PROTOBUF.parse((Bytes) invocationOnMock.getArgument(1));
+                    if (item.hasBlockFooter()) {
+                        footerItems.add(item);
+                    }
+                    return bWriter;
+                })
+                .when(bWriter)
+                .writePbjItemAndBytes(any(), any());
+
+        given(round.getRoundNum()).willReturn(ROUND_NO);
+        given(round.getConsensusTimestamp()).willReturn(CONSENSUS_NOW);
+        given(blockHashSigner.isReady()).willReturn(true);
+        given(blockHashSigner.schemeId()).willReturn(1L);
+
+        // Set up the signature futures
+        final CompletableFuture<Bytes> firstSignature = (CompletableFuture<Bytes>) mock(CompletableFuture.class);
+        final CompletableFuture<Bytes> secondSignature = (CompletableFuture<Bytes>) mock(CompletableFuture.class);
+        given(blockHashSigner.signFuture(any())).willReturn(firstSignature).willReturn(secondSignature);
+
+        // Initialize and create first block
+        subject.initLastBlockHash(FAKE_RESTART_BLOCK_HASH);
+        subject.startRound(round, state);
+        subject.writeItem(FAKE_SIGNED_TRANSACTION);
+        subject.endRound(state, ROUND_NO);
+
+        // Create second block
+        given(round.getRoundNum()).willReturn(ROUND_NO + 1);
+        given(round.getConsensusTimestamp()).willReturn(CONSENSUS_NOW.plusSeconds(1));
+        given(notification.round()).willReturn(ROUND_NO);
+        given(notification.hash()).willReturn(FAKE_START_OF_BLOCK_STATE_HASH);
+        subject.notify(notification);
+        subject.startRound(round, state);
+        subject.writeItem(FAKE_SIGNED_TRANSACTION);
+        subject.endRound(state, ROUND_NO + 1);
+
+        // Verify BlockFooter was written for each block
+        assertEquals(2, footerItems.size(), "Should have written BlockFooter for each block");
+
+        // Verify both are valid BlockFooters
+        assertTrue(footerItems.get(0).hasBlockFooter(), "First item should be BlockFooter");
+        assertTrue(footerItems.get(1).hasBlockFooter(), "Second item should be BlockFooter");
+    }
+
+    @Test
+    void blockFooterNotWrittenWhenBlockNotClosed() {
+        // Given a manager with 2 rounds per block
+        givenSubjectWith(
+                2, 0, blockStreamInfoWith(Bytes.EMPTY, CREATION_VERSION), platformStateWithFreezeTime(null), aWriter);
+        givenEndOfRoundSetup();
+
+        final AtomicBoolean footerWritten = new AtomicBoolean(false);
+
+        doAnswer(invocationOnMock -> {
+                    final var item = BlockItem.PROTOBUF.parse((Bytes) invocationOnMock.getArgument(1));
+                    if (item.hasBlockFooter()) {
+                        footerWritten.set(true);
+                    }
+                    return aWriter;
+                })
+                .when(aWriter)
+                .writePbjItemAndBytes(any(), any());
+
+        given(round.getRoundNum()).willReturn(ROUND_NO);
+        given(round.getConsensusTimestamp()).willReturn(CONSENSUS_NOW);
+        given(blockHashSigner.isReady()).willReturn(true);
+
+        // Initialize and start first round (block not yet closed)
+        subject.initLastBlockHash(N_MINUS_2_BLOCK_HASH);
+        subject.startRound(round, state);
+        subject.writeItem(FAKE_SIGNED_TRANSACTION);
+        subject.endRound(state, ROUND_NO);
+
+        // Verify BlockFooter was NOT written (block needs 2 rounds)
+        assertFalse(footerWritten.get(), "BlockFooter should not be written until block is closed");
     }
 
     private void givenSubjectWith(
