@@ -13,7 +13,6 @@ import java.security.cert.X509Certificate;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Random;
-import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.node.KeysAndCerts;
@@ -24,6 +23,7 @@ import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.TimeManager;
 import org.hiero.otter.fixtures.TransactionFactory;
 import org.hiero.otter.fixtures.app.OtterTransaction;
+import org.hiero.otter.fixtures.result.LogPayloadFinder;
 
 /**
  * Base implementation of the {@link Node} interface that provides common functionality.
@@ -271,18 +271,21 @@ public abstract class AbstractNode implements Node {
 
         log.info("Sending Self ISS triggering transaction...");
         final Instant start = timeManager().now();
-        final OtterTransaction issTransaction = TransactionFactory.createSelfIssTransaction(random().nextLong(),
-                selfId);
-
-        final AtomicBoolean issPayloadFound = newLogResult().findNextLogPayload(IssPayload.class.getName());
+        final OtterTransaction issTransaction =
+                TransactionFactory.createSelfIssTransaction(random().nextLong(), selfId);
 
         submitTransaction(issTransaction);
         final Duration elapsed = Duration.between(start, timeManager().now());
 
         log.debug("Waiting for Self ISS to trigger...");
 
-        timeManager().waitForCondition(issPayloadFound::get, timeout.minus(elapsed),
-                "Did not receive IssPayload log before timeout");
+        try (final LogPayloadFinder logPayloadFinder = newLogResult().findNextLogPayload(IssPayload.class.getName())) {
+            timeManager()
+                    .waitForCondition(
+                            logPayloadFinder::found,
+                            timeout.minus(elapsed),
+                            "Did not receive IssPayload log before timeout");
+        }
     }
 
     /**

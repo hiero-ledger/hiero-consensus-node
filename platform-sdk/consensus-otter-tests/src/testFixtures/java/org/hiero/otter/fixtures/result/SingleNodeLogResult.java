@@ -5,7 +5,6 @@ import com.swirlds.logging.legacy.LogMarker;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 import org.apache.logging.log4j.Marker;
 import org.hiero.consensus.model.node.NodeId;
@@ -85,20 +84,11 @@ public interface SingleNodeLogResult extends OtterResult {
 
     /**
      * Sets up a temporary subscription to find the next log entry that contains the specified string payload. When the
-     * next match is found, the subscription is canceled and the returned AtomicBoolean is set to true.
+     * next match is found, the subscription is canceled and the {@link LogPayloadFinder} returns {@code true}.
      *
      * @param payload the payload to search for
-     * @return an AtomicBoolean that will be set to true if/when a matching log entry is found
+     * @return a LogPayloadFinder that will be return true if/when a matching log entry is found
      */
-    default AtomicBoolean findNextLogPayload(@NonNull final String payload) {
-        final AtomicBoolean found = new AtomicBoolean(false);
-        subscribe(structuredLog -> {
-            if (structuredLog.message().contains(payload)) {
-                found.set(true);
-                return SubscriberAction.UNSUBSCRIBE;
-            }
-            return SubscriberAction.CONTINUE;
-        });
-        return found;
-    }
+    @NonNull
+    LogPayloadFinder findNextLogPayload(@NonNull final String payload);
 }

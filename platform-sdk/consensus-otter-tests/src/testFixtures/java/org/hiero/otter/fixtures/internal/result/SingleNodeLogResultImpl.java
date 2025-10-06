@@ -10,8 +10,8 @@ import java.util.List;
 import java.util.Set;
 import org.apache.logging.log4j.Marker;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.otter.fixtures.container.proto.LogEntry;
 import org.hiero.otter.fixtures.logging.StructuredLog;
+import org.hiero.otter.fixtures.result.LogPayloadFinder;
 import org.hiero.otter.fixtures.result.LogSubscriber;
 import org.hiero.otter.fixtures.result.SingleNodeLogResult;
 import org.hiero.otter.fixtures.result.SubscriberAction;
@@ -36,7 +36,8 @@ public class SingleNodeLogResultImpl implements SingleNodeLogResult {
      * @param suppressedLogMarkers the set of {@link Marker} that should be ignored in the logs
      */
     public SingleNodeLogResultImpl(
-            @NonNull final NodeResultsCollector collector, @NonNull final Set<Marker> suppressedLogMarkers,
+            @NonNull final NodeResultsCollector collector,
+            @NonNull final Set<Marker> suppressedLogMarkers,
             @NonNull final Set<String> suppressedLoggerNames) {
         this.collector = requireNonNull(collector);
         this.suppressedLogMarkers = Set.copyOf(suppressedLogMarkers);
@@ -109,6 +110,17 @@ public class SingleNodeLogResultImpl implements SingleNodeLogResult {
             return SubscriberAction.CONTINUE;
         };
         collector.subscribeLogSubscriber(wrapper);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
+    public LogPayloadFinder findNextLogPayload(@NonNull final String payload) {
+        final LogPayloadFinderImpl logPayloadFinder = new LogPayloadFinderImpl(payload);
+        subscribe(logPayloadFinder);
+        return logPayloadFinder;
     }
 
     private boolean isMarkerSuppressed(@NonNull final StructuredLog logEntry) {
