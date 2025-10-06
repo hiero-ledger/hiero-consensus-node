@@ -189,7 +189,7 @@ public class VirtualPipeline {
 
     /**
      * Slow down the fast copy operation if total size of all (unreleased) virtual root copies
-     * in this pipeline exceeds {@link VirtualMapConfig#familyThrottleThreshold()}.
+     * in this pipeline exceeds {@link VirtualMapConfig#getFamilyThrottleThreshold()}.
      */
     private void applyFamilySizeBackpressure() {
         final long sleepTimeMillis = calculateFamilySizeBackpressurePause();
@@ -222,7 +222,7 @@ public class VirtualPipeline {
     }
 
     long calculateFamilySizeBackpressurePause() {
-        final long sizeThreshold = config.familyThrottleThreshold();
+        final long sizeThreshold = config.getFamilyThrottleThreshold();
         if (sizeThreshold <= 0) {
             return 0;
         }
