@@ -38,14 +38,14 @@ import java.util.function.Supplier;
 import net.i2p.crypto.eddsa.EdDSAPrivateKey;
 import org.junit.jupiter.api.Assertions;
 
-public abstract class AbstractIvySuite extends HapiSuite {
+public abstract class AbstractIvyScenariosSuite extends HapiSuite {
     protected final Map<String, String> specConfig;
     protected final ScenariosConfig scenariosConfig;
     protected final Supplier<Supplier<String>> nodeAccounts;
     protected final Runnable persistUpdatedScenarios;
     protected final YahcliKeys yahcliKeys;
 
-    protected AbstractIvySuite(
+    protected AbstractIvyScenariosSuite(
             @NonNull final Map<String, String> specConfig,
             @NonNull final ScenariosConfig scenariosConfig,
             @NonNull final Supplier<Supplier<String>> nodeAccounts,

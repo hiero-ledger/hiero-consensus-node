@@ -19,7 +19,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.junit.jupiter.api.DynamicTest;
 
-public class IvyXfersScenarioSuite extends AbstractIvySuite {
+public class IvyXfersScenarioSuite extends AbstractIvyScenariosSuite {
     private static final Logger log = LogManager.getLogger(IvyXfersScenarioSuite.class);
 
     private final int networkSize;
