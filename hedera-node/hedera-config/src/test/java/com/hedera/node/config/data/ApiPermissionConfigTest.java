@@ -87,7 +87,6 @@ final class ApiPermissionConfigTest {
                 "CRYPTO_ACCOUNT_AUTO_RENEW",
                 "CONTRACT_AUTO_RENEW",
                 "UNCHECKED_SUBMIT",
-                "NODE_STAKE_UPDATE"
             })
     void testNotSupportedHederaFunctionalityUsage(final HederaFunctionality hederaFunctionality) {
         // given
