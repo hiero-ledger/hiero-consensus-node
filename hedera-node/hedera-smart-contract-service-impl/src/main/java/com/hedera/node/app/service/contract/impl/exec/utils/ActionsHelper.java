@@ -3,6 +3,7 @@ package com.hedera.node.app.service.contract.impl.exec.utils;
 
 import static com.hedera.hapi.streams.CallOperationType.OP_UNKNOWN;
 import static com.hedera.hapi.streams.ContractActionType.NO_ACTION;
+import static com.hedera.node.app.service.contract.impl.exec.operations.CustomizedOpcodes.SELFDESTRUCT;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.entityIdFactory;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.hederaIdNumOfContractIn;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.tuweniToPbjBytes;
@@ -37,7 +38,13 @@ public class ActionsHelper {
     public ContractAction createSynthActionForMissingAddressIn(@NonNull final MessageFrame frame) {
         Bytes targetAddress = Bytes.EMPTY;
         try {
-            targetAddress = tuweniToPbjBytes(frame.getStackItem(1));
+            if (frame.getCurrentOperation().getOpcode() == SELFDESTRUCT.opcode()) {
+                // For selfdestruct, the target address is at stack item 0
+                targetAddress = tuweniToPbjBytes(frame.getStackItem(0));
+            } else {
+                // For all other calls, the target address is at stack item 1
+                targetAddress = tuweniToPbjBytes(frame.getStackItem(1));
+            }
         } catch (final UnderflowException ignored) {
             // If the stack is too small, just fall through and use empty bytes
             log.error("Stack too small to get target address for synthetic action in frame");

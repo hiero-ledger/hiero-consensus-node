@@ -213,7 +213,9 @@ public class ActionStack {
                 if (maybeHaltReason.isPresent()) {
                     final var haltReason = maybeHaltReason.get();
                     builder.error(Bytes.wrap(haltReason.name().getBytes(UTF_8)));
-                    if (CALL.equals(action.callType()) && haltReason == INVALID_SOLIDITY_ADDRESS) {
+                    if (frame.getPC() == 0
+                            && CALL.equals(action.callType())
+                            && haltReason == INVALID_SOLIDITY_ADDRESS) {
                         allActions.add(new ActionWrapper(helper.createSynthActionForMissingAddressIn(frame)));
                     }
                 } else {

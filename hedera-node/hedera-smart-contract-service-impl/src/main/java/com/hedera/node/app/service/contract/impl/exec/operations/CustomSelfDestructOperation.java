@@ -143,6 +143,9 @@ public class CustomSelfDestructOperation extends AbstractOperation {
                     .or(() -> proxyWorldUpdater.tryTransfer(
                             tbdAddress, beneficiaryAddress, inheritance.toLong(), isDelegateCall(frame)));
             if (maybeReasonToHalt.isPresent()) {
+                // Push the beneficiary address back on the stack so that the action helper can report the correct bad
+                // address
+                frame.pushStackItem(beneficiaryAddress);
                 return resultFor(costWithoutBeneficiary, maybeReasonToHalt.get());
             }
 
