@@ -19,6 +19,7 @@ import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.notification.IssNotification;
 import org.hiero.consensus.model.notification.IssNotification.IssType;
+import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.consensus.model.state.StateSavingResult;
 import org.hiero.consensus.model.status.PlatformStatus;
 
@@ -36,6 +37,9 @@ public class DefaultPlatformMonitor implements PlatformMonitor {
     /** Tracks the node's uptime based on consensus events */
     private final UptimeTracker uptimeTracker;
 
+    private QuiescenceCommand lastQuiescenceCommand;
+    private Instant lastQuiescenceCommandTime;
+
     /**
      * Create a new platform monitor.
      *
@@ -46,6 +50,8 @@ public class DefaultPlatformMonitor implements PlatformMonitor {
         time = platformContext.getTime();
         statusStateMachine = new StatusStateMachine(platformContext);
         uptimeTracker = new UptimeTracker(platformContext, selfId);
+        lastQuiescenceCommand = QuiescenceCommand.DONT_QUIESCE;
+        lastQuiescenceCommandTime = time.now();
     }
 
     @Nullable
@@ -56,7 +62,10 @@ public class DefaultPlatformMonitor implements PlatformMonitor {
 
     @Override
     public PlatformStatus heartbeat(@NonNull final Instant time) {
-        return statusStateMachine.submitStatusAction(new TimeElapsedAction(time));
+        return statusStateMachine.submitStatusAction(new TimeElapsedAction(
+                time,
+                new TimeElapsedAction.QuiescingStatus(
+                        lastQuiescenceCommand == QuiescenceCommand.QUIESCE, lastQuiescenceCommandTime)));
     }
 
     @Override
@@ -67,6 +76,14 @@ public class DefaultPlatformMonitor implements PlatformMonitor {
         }
         // the action receives the wall clock time, NOT the consensus timestamp
         return statusStateMachine.submitStatusAction(new SelfEventReachedConsensusAction(time.now()));
+    }
+
+    @Override
+    public void quiescenceCommand(@NonNull QuiescenceCommand command) {
+        if (lastQuiescenceCommand != command) {
+            lastQuiescenceCommand = command;
+            lastQuiescenceCommandTime = time.now();
+        }
     }
 
     @Override

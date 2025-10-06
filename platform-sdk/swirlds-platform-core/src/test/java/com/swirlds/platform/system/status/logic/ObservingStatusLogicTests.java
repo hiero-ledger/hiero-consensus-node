@@ -49,26 +49,36 @@ class ObservingStatusLogicTests {
 
         time.tick(Duration.ofSeconds(2));
         triggerActionAndAssertNoTransition(
-                logic::processTimeElapsedAction, new TimeElapsedAction(time.now()), logic.getStatus());
+                logic::processTimeElapsedAction,
+                new TimeElapsedAction(time.now(), new TimeElapsedAction.QuiescingStatus(false, time.now())),
+                logic.getStatus());
 
         time.tick(Duration.ofSeconds(4));
         triggerActionAndAssertTransition(
-                logic::processTimeElapsedAction, new TimeElapsedAction(time.now()), PlatformStatus.FREEZING);
+                logic::processTimeElapsedAction,
+                new TimeElapsedAction(time.now(), new TimeElapsedAction.QuiescingStatus(false, time.now())),
+                PlatformStatus.FREEZING);
     }
 
     @Test
     @DisplayName("Go to CHECKING")
     void toChecking() {
         triggerActionAndAssertNoTransition(
-                logic::processTimeElapsedAction, new TimeElapsedAction(time.now()), logic.getStatus());
+                logic::processTimeElapsedAction,
+                new TimeElapsedAction(time.now(), new TimeElapsedAction.QuiescingStatus(false, time.now())),
+                logic.getStatus());
 
         time.tick(Duration.ofSeconds(3));
         triggerActionAndAssertNoTransition(
-                logic::processTimeElapsedAction, new TimeElapsedAction(time.now()), logic.getStatus());
+                logic::processTimeElapsedAction,
+                new TimeElapsedAction(time.now(), new TimeElapsedAction.QuiescingStatus(false, time.now())),
+                logic.getStatus());
 
         time.tick(Duration.ofSeconds(3));
         triggerActionAndAssertTransition(
-                logic::processTimeElapsedAction, new TimeElapsedAction(time.now()), PlatformStatus.CHECKING);
+                logic::processTimeElapsedAction,
+                new TimeElapsedAction(time.now(), new TimeElapsedAction.QuiescingStatus(false, time.now())),
+                PlatformStatus.CHECKING);
     }
 
     @Test
@@ -125,5 +135,16 @@ class ObservingStatusLogicTests {
                 logic::processDoneReplayingEventsAction, new DoneReplayingEventsAction(time.now()), logic.getStatus());
         triggerActionAndAssertException(
                 logic::processReconnectCompleteAction, new ReconnectCompleteAction(0), logic.getStatus());
+    }
+
+    @Test
+    @DisplayName("Go to ACTIVE when quiescing")
+    void toActiveWhenQuiescing() {
+        time.tick(Duration.ofSeconds(2));
+        // Should transition to ACTIVE immediately when quiescing, even before observation period completes
+        triggerActionAndAssertTransition(
+                logic::processTimeElapsedAction,
+                new TimeElapsedAction(time.now(), new TimeElapsedAction.QuiescingStatus(true, time.now())),
+                PlatformStatus.ACTIVE);
     }
 }

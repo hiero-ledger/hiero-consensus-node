@@ -161,13 +161,32 @@ public class ActiveStatusLogic implements PlatformStatusLogic {
     /**
      * {@inheritDoc}
      * <p>
-     * When a {@link TimeElapsedAction} is received while in {@link PlatformStatus#ACTIVE}, we must evaluate whether too
-     * much time has elapsed since seeing a self event reach consensus. If too much time has elapsed, the status
-     * transitions to {@link PlatformStatus#CHECKING}. Otherwise, the status remains {@link PlatformStatus#ACTIVE}.
+     * When a {@link TimeElapsedAction} is received while in {@link PlatformStatus#ACTIVE}, this method evaluates
+     * whether the platform should transition to {@link PlatformStatus#CHECKING} based on two timing conditions:
+     * <ul>
+     *   <li><b>Quiescing state check:</b> If the platform is currently quiescing, it remains in
+     *       {@link PlatformStatus#ACTIVE} regardless of elapsed time.</li>
+     *   <li><b>Time since quiescence command:</b> If insufficient time has elapsed since the last quiescence
+     *       command (as tracked by {@link TimeElapsedAction.QuiescingStatus#since()}), the status remains
+     *       {@link PlatformStatus#ACTIVE}. This ensures a prudent delay after quiescence changes.</li>
+     *   <li><b>Time since last consensus:</b> If both above conditions pass, the method checks whether too much
+     *       time has elapsed since the last self event reached consensus. If this duration exceeds
+     *       {@link PlatformStatusConfig#activeStatusDelay()}, the status transitions to
+     *       {@link PlatformStatus#CHECKING}.</li>
+     * </ul>
+     * The status remains {@link PlatformStatus#ACTIVE} if any timing threshold has not been exceeded.
      */
     @NonNull
     @Override
     public PlatformStatusLogic processTimeElapsedAction(@NonNull final TimeElapsedAction action) {
+        final var isQuiescing = action.quiescingStatus().isQuiescing();
+        final boolean hasPrudentTimeSinceCommandElapsed = DurationUtils.isLonger(
+                Duration.between(action.quiescingStatus().since(), action.instant()), config.activeStatusDelay());
+
+        if (isQuiescing || !hasPrudentTimeSinceCommandElapsed) {
+            return this;
+        }
+
         final Duration timeSinceSelfEventReachedConsensus =
                 Duration.between(lastWallClockTimeSelfEventReachedConsensus, action.instant());
 

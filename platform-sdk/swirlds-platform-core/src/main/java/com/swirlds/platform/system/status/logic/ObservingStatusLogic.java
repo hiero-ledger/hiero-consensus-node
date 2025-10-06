@@ -165,15 +165,27 @@ public class ObservingStatusLogic implements PlatformStatusLogic {
     /**
      * {@inheritDoc}
      * <p>
-     * {@link PlatformStatus#OBSERVING} status always transitions to a new status once the observation period has
-     * elapsed.
-     * <p>
-     * The status transitions to {@link PlatformStatus#FREEZING} if a freeze period was entered during the observation
-     * period, otherwise it transitions to {@link PlatformStatus#CHECKING}.
+     * When a {@link TimeElapsedAction} is received while in {@link PlatformStatus#OBSERVING}, this method evaluates
+     * status transitions based on quiescing state and observation period completion:
+     * <ul>
+     *   <li><b>Quiescing state check:</b> If the platform is currently quiescing (as indicated by
+     *       {@link TimeElapsedAction.QuiescingStatus#isQuiescing()}), it immediately transitions to
+     *       {@link PlatformStatus#ACTIVE}.</li>
+     *   <li><b>Observation period check:</b> If not quiescing and the observation period has not elapsed
+     *       (based on {@link PlatformStatusConfig#observingStatusDelay()}), the status remains
+     *       {@link PlatformStatus#OBSERVING}.</li>
+     *   <li><b>Post-observation transition:</b> Once the observation period completes, the status transitions to
+     *       {@link PlatformStatus#FREEZING} if a freeze period was entered during observation, otherwise it
+     *       transitions to {@link PlatformStatus#CHECKING}.</li>
+     * </ul>
      */
     @NonNull
     @Override
     public PlatformStatusLogic processTimeElapsedAction(@NonNull final TimeElapsedAction action) {
+        if (action.quiescingStatus().isQuiescing()) {
+            return new ActiveStatusLogic(action.instant(), config);
+        }
+
         if (Duration.between(statusStartTime, action.instant()).compareTo(config.observingStatusDelay()) < 0) {
             // if the wait period hasn't elapsed, then stay in this status
             return this;
