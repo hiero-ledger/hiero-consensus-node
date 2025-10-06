@@ -1862,10 +1862,7 @@ class ThrottleAccumulatorTest {
         given(configuration.getConfigData(JumboTransactionsConfig.class)).willReturn(jumboTransactionsConfig);
         given(jumboTransactionsConfig.isEnabled()).willReturn(false);
 
-        subject = new ThrottleAccumulator(
-                configProvider::getConfiguration,
-                () -> CAPACITY_SPLIT,
-                FRONTEND_THROTTLE);
+        subject = new ThrottleAccumulator(configProvider::getConfiguration, () -> CAPACITY_SPLIT, FRONTEND_THROTTLE);
         subject.applyGasConfig();
         final var defs = getThrottleDefs("bootstrap/throttles.json");
         subject.rebuildFor(defs);
@@ -1907,18 +1904,13 @@ class ThrottleAccumulatorTest {
         given(configuration.getConfigData(JumboTransactionsConfig.class)).willReturn(jumboTransactionsConfig);
         given(jumboTransactionsConfig.isEnabled()).willReturn(false);
 
-        subject = new ThrottleAccumulator(
-                configProvider::getConfiguration,
-                () -> CAPACITY_SPLIT,
-                FRONTEND_THROTTLE);
+        subject = new ThrottleAccumulator(configProvider::getConfiguration, () -> CAPACITY_SPLIT, FRONTEND_THROTTLE);
         subject.applyGasConfig();
         final var defs = getThrottleDefs("bootstrap/throttles.json");
         subject.rebuildFor(defs);
 
         // Create a TokenMint transaction WITHOUT token field
-        final var mintOp = TokenMintTransactionBody.newBuilder()
-                .amount(1000L)
-                .build(); // Missing .token(...)
+        final var mintOp = TokenMintTransactionBody.newBuilder().amount(1000L).build(); // Missing .token(...)
         final var body = TransactionBody.newBuilder()
                 .transactionID(TransactionID.newBuilder().accountID(PAYER_ID).build())
                 .tokenMint(mintOp)

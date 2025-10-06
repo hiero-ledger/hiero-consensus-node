@@ -46,7 +46,6 @@ import com.hedera.node.app.service.schedule.impl.ReadableScheduleStoreImpl;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.ReadableTokenRelationStore;
 import com.hedera.node.app.spi.workflows.HandleException;
-import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.store.ReadableStoreFactory;
 import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.config.data.AccountsConfig;
@@ -455,8 +454,7 @@ public class ThrottleAccumulator {
                 }
                 yield shouldThrottleScheduleCreate(manager, txnInfo, now, state, throttleUsages);
             }
-            case TOKEN_MINT ->
-                shouldThrottleMint(manager, txnInfo, now, configuration, throttleUsages);
+            case TOKEN_MINT -> shouldThrottleMint(manager, txnInfo, now, configuration, throttleUsages);
             case CRYPTO_TRANSFER -> {
                 final var accountStore = new ReadableStoreFactory(state).getStore(ReadableAccountStore.class);
                 final var relationStore = new ReadableStoreFactory(state).getStore(ReadableTokenRelationStore.class);
