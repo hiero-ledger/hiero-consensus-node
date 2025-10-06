@@ -9,6 +9,7 @@ import com.hedera.node.config.data.AccountsConfig;
 import com.hedera.node.config.data.ContractsConfig;
 import com.hedera.node.config.data.EntitiesConfig;
 import com.hedera.node.config.data.HederaConfig;
+import com.hedera.node.config.data.HooksConfig;
 import com.hedera.node.config.data.LedgerConfig;
 import com.hedera.node.config.data.StakingConfig;
 import com.swirlds.config.api.Configuration;
@@ -40,6 +41,12 @@ public interface TransactionConfigModule {
     @TransactionScope
     static LedgerConfig provideLedgerConfig(@NonNull final Configuration configuration) {
         return requireNonNull(configuration).getConfigData(LedgerConfig.class);
+    }
+
+    @Provides
+    @TransactionScope
+    static HooksConfig provideHooksConfig(@NonNull final Configuration configuration) {
+        return requireNonNull(configuration).getConfigData(HooksConfig.class);
     }
 
     @Provides

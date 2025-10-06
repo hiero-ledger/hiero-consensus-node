@@ -39,7 +39,6 @@ import com.swirlds.state.spi.WritableKVState;
 import com.swirlds.state.spi.WritableQueueState;
 import com.swirlds.state.spi.WritableSingletonState;
 import com.swirlds.state.test.fixtures.StateTestBase;
-import com.swirlds.state.test.fixtures.merkle.TestSchema;
 import com.swirlds.virtualmap.VirtualMap;
 import java.util.EnumSet;
 import org.hiero.base.crypto.Hash;
@@ -154,7 +153,6 @@ public class VirtualMapStateTest extends MerkleTestBase {
             setupFruitVirtualMap();
             final var fruitVirtualMetadata2 = new StateMetadata<>(
                     StateTestBase.FIRST_SERVICE,
-                    new TestSchema(1),
                     StateDefinition.onDisk(
                             FRUIT_STATE_ID, FRUIT_STATE_KEY, ProtoBytes.PROTOBUF, ProtoBytes.PROTOBUF, 999));
 
@@ -407,38 +405,6 @@ public class VirtualMapStateTest extends MerkleTestBase {
                                 final var ignored = (WritableQueueState) steamState;
                             })
                     .isInstanceOf(ClassCastException.class);
-        }
-
-        @Test
-        @DisplayName("Checking the content of getInfoJson")
-        void testGetInfoJson() {
-            // adding k/v and singleton states directly to the virtual map
-            final var virtualMap = (VirtualMap) virtualMapState.getRoot();
-            addKvState(fruitVirtualMap, fruitMetadata, A_KEY, APPLE);
-            addKvState(fruitVirtualMap, fruitMetadata, B_KEY, BANANA);
-            addSingletonState(virtualMap, countryMetadata, GHANA);
-
-            // Given a State with the fruit and animal and country states
-            virtualMapState.initializeState(fruitMetadata);
-            virtualMapState.initializeState(countryMetadata);
-            virtualMapState.initializeState(steamMetadata);
-            // adding queue state via State API, to init the QueueState
-            final var writableStates = virtualMapState.getWritableStates(FIRST_SERVICE);
-            writableStates.getQueue(STEAM_STATE_ID).add(ART);
-            ((CommittableWritableStates) writableStates).commit();
-
-            // hash the state
-            virtualMapState.getHash();
-
-            // Then we can check the content of getInfoJson
-            final String infoJson = virtualMapState.getInfoJson();
-            assertThat(infoJson)
-                    .isEqualTo("{" + "\"Queues (Queue States)\":"
-                            + "{\"First-Service." + STEAM_STATE_KEY + "\":{\"head\":1,\"path\":8,\"tail\":3}},"
-                            + "\"VirtualMapMetadata\":{\"firstLeafPath\":5,\"lastLeafPath\":10},"
-                            + "\"Singletons\":"
-                            + "{\"First-Service." + COUNTRY_STATE_KEY
-                            + "\":{\"path\":9,\"mnemonic\":\"cushion-bright-early-flight\"}}}");
         }
 
         private static void assertFruitState(ReadableKVState<ProtoBytes, ProtoBytes> fruitState) {

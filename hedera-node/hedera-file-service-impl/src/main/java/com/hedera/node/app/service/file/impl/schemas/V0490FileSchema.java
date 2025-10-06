@@ -372,7 +372,7 @@ public class V0490FileSchema extends Schema<SemanticVersion> {
     }
 
     private static FeeComponents parseFeeComponents(@NonNull final JsonNode componentNode) {
-        return FeeComponents.newBuilder()
+        final var feeComponents = FeeComponents.newBuilder()
                 .constant(componentNode.get("constant").asLong())
                 .bpt(componentNode.get("bpt").asLong())
                 .vpt(componentNode.get("vpt").asLong())
@@ -382,8 +382,12 @@ public class V0490FileSchema extends Schema<SemanticVersion> {
                 .bpr(componentNode.get("bpr").asLong())
                 .sbpr(componentNode.get("sbpr").asLong())
                 .min(componentNode.get("min").asLong())
-                .max(componentNode.get("max").asLong())
-                .build();
+                .max(componentNode.get("max").asLong());
+        // This is only used for ContractUpdate
+        if (componentNode.get("tv") != null) {
+            feeComponents.tv(componentNode.get("tv").asLong());
+        }
+        return feeComponents.build();
     }
 
     // ================================================================================================================

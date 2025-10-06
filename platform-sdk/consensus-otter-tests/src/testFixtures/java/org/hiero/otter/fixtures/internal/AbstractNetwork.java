@@ -52,6 +52,7 @@ import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.TimeManager;
 import org.hiero.otter.fixtures.TransactionFactory;
 import org.hiero.otter.fixtures.TransactionGenerator;
+import org.hiero.otter.fixtures.app.OtterTransaction;
 import org.hiero.otter.fixtures.internal.network.ConnectionKey;
 import org.hiero.otter.fixtures.internal.network.GeoMeshTopologyImpl;
 import org.hiero.otter.fixtures.internal.result.MultipleNodeConsensusResultsImpl;
@@ -417,9 +418,8 @@ public abstract class AbstractNetwork implements Network {
         throwIfInState(State.SHUTDOWN, "Network has been shut down.");
 
         log.info("Sending freeze transaction...");
-        final byte[] freezeTransaction = TransactionFactory.createFreezeTransaction(
-                        random.nextLong(), timeManager().now().plus(FREEZE_DELAY))
-                .toByteArray();
+        final OtterTransaction freezeTransaction = TransactionFactory.createFreezeTransaction(
+                        random.nextLong(), timeManager().now().plus(FREEZE_DELAY));
         submitTransaction(freezeTransaction);
 
         log.debug("Waiting for nodes to freeze...");
@@ -446,8 +446,7 @@ public abstract class AbstractNetwork implements Network {
 
         log.info("Sending Catastrophic ISS triggering transaction...");
         final Instant start = timeManager().now();
-        final byte[] issTransaction = TransactionFactory.createIssTransaction(random.nextLong(), nodes())
-                .toByteArray();
+        final OtterTransaction issTransaction = TransactionFactory.createIssTransaction(random.nextLong(), nodes());
         submitTransaction(issTransaction);
         final Duration elapsed = Duration.between(start, timeManager().now());
 
@@ -486,8 +485,7 @@ public abstract class AbstractNetwork implements Network {
 
         log.info("Sending Self ISS triggering transaction...");
         final Instant start = timeManager().now();
-        final byte[] issTransaction = TransactionFactory.createSelfIssTransaction(random.nextLong(), node)
-                .toByteArray();
+        final OtterTransaction issTransaction = TransactionFactory.createSelfIssTransaction(random.nextLong(), node);
 
         final AtomicBoolean issPayloadFound = node.newLogResult().findNextLogPayload(IssPayload.class.getName());
 
@@ -505,11 +503,12 @@ public abstract class AbstractNetwork implements Network {
      *
      * @param transaction the transaction to submit
      */
-    private void submitTransaction(@NonNull final byte[] transaction) {
+    private void submitTransaction(@NonNull final OtterTransaction transaction) {
         nodes().stream()
                 .filter(Node::isActive)
                 .findFirst()
-                .orElseThrow(() -> new AssertionError("No active node found to send transaction to."))
+                .map(node -> (AbstractNode) node)
+                .orElseThrow(() -> new AssertionError("No active node found to send freeze transaction to."))
                 .submitTransaction(transaction);
     }
 

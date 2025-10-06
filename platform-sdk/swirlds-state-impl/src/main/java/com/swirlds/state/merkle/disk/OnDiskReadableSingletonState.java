@@ -2,7 +2,6 @@
 package com.swirlds.state.merkle.disk;
 
 import static com.swirlds.state.merkle.StateUtils.getStateKeyForSingleton;
-import static com.swirlds.state.merkle.logging.StateLogger.logSingletonRead;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.pbj.runtime.Codec;
@@ -53,9 +52,6 @@ public class OnDiskReadableSingletonState<V> extends ReadableSingletonStateBase<
     protected V readFromDataSource() {
         final Bytes key = getStateKeyForSingleton(stateId);
         final StateValue<V> stateValue = virtualMap.get(key, stateValueCodec);
-        final V value = stateValue != null ? stateValue.value() : null;
-        // Log to transaction state log, what was read
-        logSingletonRead(label, value);
-        return value;
+        return stateValue != null ? stateValue.value() : null;
     }
 }
