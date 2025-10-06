@@ -108,6 +108,9 @@ module com.hedera.node.hapi {
     opens com.hedera.hapi.node.token to
             org.assertj.core;
 
+    exports com.hedera.hapi.services.auxiliary.hints.legacy;
+    exports com.hedera.hapi.services.auxiliary.history.legacy;
+
     requires transitive com.hedera.pbj.runtime;
     requires transitive com.google.common;
     requires transitive com.google.protobuf;

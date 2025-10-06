@@ -27,7 +27,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoDelete;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoUpdate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.ethereumCall;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.fromTxnBodyOp;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.explicit;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.scheduleCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.scheduleSign;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.systemContractDelete;
@@ -102,7 +102,6 @@ import com.hederahashgraph.api.proto.java.CryptoDeleteLiveHashTransactionBody;
 import com.hederahashgraph.api.proto.java.Key;
 import com.hederahashgraph.api.proto.java.Timestamp;
 import com.hederahashgraph.api.proto.java.TokenType;
-import com.hederahashgraph.api.proto.java.TransactionBody;
 import com.hederahashgraph.api.proto.java.TransactionRecord;
 import java.math.BigInteger;
 import java.time.Instant;
@@ -1180,12 +1179,10 @@ public class AtomicBatchNegativeTest {
         final var batchOperator = "batchOperator";
         return hapiTest(
                 cryptoCreate(batchOperator),
-                atomicBatch(fromTxnBodyOp(
+                atomicBatch(explicit(
                                         CryptoAddLiveHash,
-                                        TransactionBody.newBuilder()
-                                                .setCryptoAddLiveHash(
-                                                        CryptoAddLiveHashTransactionBody.getDefaultInstance())
-                                                .build())
+                                        (spec, b) -> b.setCryptoAddLiveHash(
+                                                CryptoAddLiveHashTransactionBody.getDefaultInstance()))
                                 .batchKey(batchOperator))
                         .payingWith(batchOperator)
                         .hasPrecheck(NOT_SUPPORTED));
@@ -1196,12 +1193,10 @@ public class AtomicBatchNegativeTest {
         final var batchOperator = "batchOperator";
         return hapiTest(
                 cryptoCreate(batchOperator),
-                atomicBatch(fromTxnBodyOp(
+                atomicBatch(explicit(
                                         CryptoDeleteLiveHash,
-                                        TransactionBody.newBuilder()
-                                                .setCryptoDeleteLiveHash(
-                                                        CryptoDeleteLiveHashTransactionBody.getDefaultInstance())
-                                                .build())
+                                        (spec, b) -> b.setCryptoDeleteLiveHash(
+                                                CryptoDeleteLiveHashTransactionBody.getDefaultInstance()))
                                 .batchKey(batchOperator))
                         .payingWith(batchOperator)
                         .hasPrecheck(NOT_SUPPORTED));
