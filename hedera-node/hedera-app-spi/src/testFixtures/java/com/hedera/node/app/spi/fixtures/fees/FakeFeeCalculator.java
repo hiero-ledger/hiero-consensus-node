@@ -43,6 +43,12 @@ public class FakeFeeCalculator implements FeeCalculator {
         return this;
     }
 
+    @NonNull
+    @Override
+    public FeeCalculator addGas(final long amount) {
+        return this;
+    }
+
     @Override
     @NonNull
     public Fees calculate() {

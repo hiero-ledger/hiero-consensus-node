@@ -14,7 +14,6 @@ import static com.hedera.hapi.node.base.HederaFunctionality.SCHEDULE_SIGN;
 import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_BURN;
 import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_MINT;
 import static com.hedera.hapi.node.base.HederaFunctionality.TRANSACTION_GET_RECEIPT;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
 import static com.hedera.node.app.ids.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_ID;
 import static com.hedera.node.app.ids.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_LABEL;
@@ -43,7 +42,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hedera.hapi.node.base.AccountAmount;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.Key;
-import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.ScheduleID;
 import com.hedera.hapi.node.base.SignatureMap;
 import com.hedera.hapi.node.base.TokenID;
@@ -78,7 +76,6 @@ import com.hedera.node.app.spi.fixtures.util.LogCaptor;
 import com.hedera.node.app.spi.fixtures.util.LogCaptureExtension;
 import com.hedera.node.app.spi.fixtures.util.LoggingSubject;
 import com.hedera.node.app.spi.fixtures.util.LoggingTarget;
-import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.throttle.ThrottleAccumulator.ThrottleType;
 import com.hedera.node.app.throttle.ThrottleAccumulator.Verbose;
 import com.hedera.node.app.workflows.TransactionInfo;
@@ -206,7 +203,7 @@ class ThrottleAccumulatorTest {
             HederaTestConfigBuilder.create().getOrCreateConfig().getConfigData(HederaConfig.class);
 
     @Test
-    void noOpThrottlesNeverThrottleAnything() throws PreCheckException {
+    void noOpThrottlesNeverThrottleAnything() {
         subject = new ThrottleAccumulator(
                 () -> CAPACITY_SPLIT,
                 configProvider::getConfiguration,
@@ -215,8 +212,7 @@ class ThrottleAccumulatorTest {
                 gasThrottle,
                 bytesThrottle,
                 opsDurationThrottle);
-        assertFalse(subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state, null)
-                .shouldThrottle());
+        assertFalse(subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state, null));
         assertFalse(subject.checkAndEnforceThrottle(
                 TRANSACTION_GET_RECEIPT, TIME_INSTANT, query, state, AccountID.DEFAULT));
         assertFalse(subject.shouldThrottleNOfUnscaled(1, CRYPTO_TRANSFER, TIME_INSTANT));
@@ -225,7 +221,7 @@ class ThrottleAccumulatorTest {
     }
 
     @Test
-    void worksAsExpectedForKnownQueries() throws IOException, ParseException, PreCheckException {
+    void worksAsExpectedForKnownQueries() throws IOException, ParseException {
         // given
         subject = new ThrottleAccumulator(
                 () -> CAPACITY_SPLIT,
@@ -258,7 +254,7 @@ class ThrottleAccumulatorTest {
     }
 
     @Test
-    void worksAsExpectedForSimpleGetBalanceThrottle() throws IOException, ParseException, PreCheckException {
+    void worksAsExpectedForSimpleGetBalanceThrottle() throws IOException, ParseException {
         // given
         final var config = HederaTestConfigBuilder.create()
                 .withValue("tokens.countingGetBalanceThrottleEnabled", false)
@@ -484,7 +480,7 @@ class ThrottleAccumulatorTest {
         subject.rebuildFor(defs);
         // and
         var firstAns = subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state, null);
-        var subsequentAns = ThrottleResult.allowed();
+        boolean subsequentAns = false;
         for (int i = 1; i <= 3000; i++) {
             subsequentAns = subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT.plusNanos(i), state, null);
         }
@@ -492,8 +488,8 @@ class ThrottleAccumulatorTest {
         var aNow = throttlesNow.get(0);
 
         // then
-        assertFalse(firstAns.shouldThrottle());
-        assertTrue(subsequentAns.shouldThrottle());
+        assertFalse(firstAns);
+        assertTrue(subsequentAns);
         assertEquals(29999955000000000L, aNow.used());
     }
 
@@ -532,7 +528,7 @@ class ThrottleAccumulatorTest {
         subject.rebuildFor(defs);
         // and
         var firstAns = subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state, null);
-        var subsequentAns = ThrottleResult.allowed();
+        boolean subsequentAns = false;
         for (int i = 1; i <= 400; i++) {
             subsequentAns = subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT.plusNanos(i), state, null);
         }
@@ -541,8 +537,8 @@ class ThrottleAccumulatorTest {
         var aNow = throttlesNow.get(0);
 
         // then
-        assertFalse(firstAns.shouldThrottle());
-        assertTrue(subsequentAns.shouldThrottle());
+        assertFalse(firstAns);
+        assertTrue(subsequentAns);
         assertEquals(29999994000000000L, aNow.used());
     }
 
@@ -577,7 +573,7 @@ class ThrottleAccumulatorTest {
         subject.rebuildFor(defs);
         // and
         var firstAns = subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state, null);
-        var subsequentAns = ThrottleResult.allowed();
+        boolean subsequentAns = false;
         for (int i = 1; i <= 12; i++) {
             subsequentAns = subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT.plusNanos(i), state, null);
         }
@@ -587,8 +583,8 @@ class ThrottleAccumulatorTest {
         var bNow = throttlesNow.get(1);
 
         // then
-        assertFalse(firstAns.shouldThrottle());
-        assertTrue(subsequentAns.shouldThrottle());
+        assertFalse(firstAns);
+        assertTrue(subsequentAns);
         assertEquals(24999999820000000L, aNow.used());
         assertEquals(9999999940000L, bNow.used());
     }
@@ -620,8 +616,7 @@ class ThrottleAccumulatorTest {
         // and:
         var firstAns = subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state, null);
         for (int i = 1; i <= 12; i++) {
-            assertFalse(subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT.plusNanos(i), state, null)
-                    .shouldThrottle());
+            assertFalse(subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT.plusNanos(i), state, null));
         }
         var throttlesNow = subject.activeThrottlesFor(CONTRACT_CALL);
         // and:
@@ -629,7 +624,7 @@ class ThrottleAccumulatorTest {
         var bNow = throttlesNow.get(1);
 
         // then:
-        assertFalse(firstAns.shouldThrottle());
+        assertFalse(firstAns);
         assertEquals(0, aNow.used());
         assertEquals(0, bNow.used());
     }
@@ -674,13 +669,13 @@ class ThrottleAccumulatorTest {
         var ans = subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state, null);
 
         // then
-        assertFalse(ans.shouldThrottle());
+        assertFalse(ans);
     }
 
     @ParameterizedTest
     @EnumSource(value = ThrottleAccumulator.ThrottleType.class, mode = EnumSource.Mode.EXCLUDE, names = "NOOP_THROTTLE")
     void ifLazyCreationEnabledComputesNumImplicitCreationsIfNotAlreadyKnown(
-            ThrottleAccumulator.ThrottleType throttleType) throws IOException, ParseException, PreCheckException {
+            ThrottleAccumulator.ThrottleType throttleType) throws IOException, ParseException {
         // given
         subject = new ThrottleAccumulator(
                 () -> CAPACITY_SPLIT,
@@ -719,7 +714,7 @@ class ThrottleAccumulatorTest {
         var ans = subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state, null);
 
         // then
-        assertFalse(ans.shouldThrottle());
+        assertFalse(ans);
     }
 
     @ParameterizedTest
@@ -763,7 +758,7 @@ class ThrottleAccumulatorTest {
         var ans = subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state, null);
 
         // then
-        assertFalse(ans.shouldThrottle());
+        assertFalse(ans);
     }
 
     @ParameterizedTest
@@ -806,7 +801,7 @@ class ThrottleAccumulatorTest {
         var ans = subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state, null);
 
         // then
-        assertFalse(ans.shouldThrottle());
+        assertFalse(ans);
     }
 
     @ParameterizedTest
@@ -849,7 +844,7 @@ class ThrottleAccumulatorTest {
         var ans = subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state, null);
 
         // then
-        assertFalse(ans.shouldThrottle());
+        assertFalse(ans);
     }
 
     @ParameterizedTest
@@ -890,7 +885,7 @@ class ThrottleAccumulatorTest {
         var ans = subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state, null);
 
         // then
-        assertTrue(ans.shouldThrottle());
+        assertTrue(ans);
     }
 
     @ParameterizedTest
@@ -932,7 +927,7 @@ class ThrottleAccumulatorTest {
         var ans = subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state, null);
 
         // then
-        assertTrue(ans.shouldThrottle());
+        assertTrue(ans);
     }
 
     @ParameterizedTest
@@ -974,13 +969,13 @@ class ThrottleAccumulatorTest {
         var ans = subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state, null);
 
         // then
-        assertTrue(ans.shouldThrottle());
+        assertTrue(ans);
     }
 
     @ParameterizedTest
     @EnumSource(value = ThrottleAccumulator.ThrottleType.class, mode = EnumSource.Mode.EXCLUDE, names = "NOOP_THROTTLE")
     void ethereumTransactionWithNoAutoAccountCreationsAreThrottledAsExpected(
-            ThrottleAccumulator.ThrottleType throttleType) throws IOException, ParseException, PreCheckException {
+            ThrottleAccumulator.ThrottleType throttleType) throws IOException, ParseException {
         // given
         subject = new ThrottleAccumulator(
                 () -> CAPACITY_SPLIT,
@@ -1004,9 +999,8 @@ class ThrottleAccumulatorTest {
         final var defs = getThrottleDefs("bootstrap/throttles.json");
 
         given(transactionInfo.functionality()).willReturn(ETHEREUM_TRANSACTION);
-        final var ethTxnBody = EthereumTransactionBody.newBuilder()
-                .ethereumData(Bytes.wrap(new byte[] {1, 2, 3}))
-                .build();
+        final var ethTxnBody =
+                EthereumTransactionBody.newBuilder().ethereumData(Bytes.EMPTY).build();
         given(transactionInfo.txBody())
                 .willReturn(TransactionBody.newBuilder()
                         .ethereumTransaction(ethTxnBody)
@@ -1020,7 +1014,7 @@ class ThrottleAccumulatorTest {
         var ans = subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state, null);
 
         // then
-        assertFalse(ans.shouldThrottle());
+        assertFalse(ans);
     }
 
     @ParameterizedTest
@@ -1050,9 +1044,8 @@ class ThrottleAccumulatorTest {
         final var defs = getThrottleDefs("bootstrap/throttles.json");
 
         given(transactionInfo.functionality()).willReturn(ETHEREUM_TRANSACTION);
-        final var ethTxnBody = EthereumTransactionBody.newBuilder()
-                .ethereumData(Bytes.wrap(new byte[] {1, 2, 3}))
-                .build();
+        final var ethTxnBody =
+                EthereumTransactionBody.newBuilder().ethereumData(Bytes.EMPTY).build();
         given(transactionInfo.txBody())
                 .willReturn(TransactionBody.newBuilder()
                         .ethereumTransaction(ethTxnBody)
@@ -1066,13 +1059,13 @@ class ThrottleAccumulatorTest {
         var ans = subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state, null);
 
         // then
-        assertFalse(ans.shouldThrottle());
+        assertFalse(ans);
     }
 
     @ParameterizedTest
     @EnumSource(value = ThrottleAccumulator.ThrottleType.class, mode = EnumSource.Mode.EXCLUDE, names = "NOOP_THROTTLE")
     void managerAllowsEthereumTransactionWithAutoAccountCreationsAsExpected(
-            ThrottleAccumulator.ThrottleType throttleType) throws IOException, ParseException, PreCheckException {
+            ThrottleAccumulator.ThrottleType throttleType) throws IOException, ParseException {
         // given
         subject = new ThrottleAccumulator(
                 () -> CAPACITY_SPLIT,
@@ -1098,9 +1091,8 @@ class ThrottleAccumulatorTest {
         final var defs = getThrottleDefs("bootstrap/throttles.json");
 
         given(transactionInfo.functionality()).willReturn(ETHEREUM_TRANSACTION);
-        final var ethTxnBody = EthereumTransactionBody.newBuilder()
-                .ethereumData(Bytes.wrap(new byte[] {1, 2, 3}))
-                .build();
+        final var ethTxnBody =
+                EthereumTransactionBody.newBuilder().ethereumData(Bytes.EMPTY).build();
         given(transactionInfo.txBody())
                 .willReturn(TransactionBody.newBuilder()
                         .ethereumTransaction(ethTxnBody)
@@ -1114,7 +1106,7 @@ class ThrottleAccumulatorTest {
         var ans = subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state, null);
 
         // then
-        assertFalse(ans.shouldThrottle());
+        assertFalse(ans);
     }
 
     @ParameterizedTest
@@ -1161,13 +1153,12 @@ class ThrottleAccumulatorTest {
         var ans = subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state, null);
 
         // then
-        assertTrue(ans.shouldThrottle());
+        assertTrue(ans);
     }
 
     @ParameterizedTest
     @EnumSource(value = ThrottleAccumulator.ThrottleType.class, mode = EnumSource.Mode.EXCLUDE, names = "NOOP_THROTTLE")
-    void alwaysThrottlesContractCallWhenGasThrottleIsNotDefined(ThrottleAccumulator.ThrottleType throttleType)
-            throws PreCheckException {
+    void alwaysThrottlesContractCallWhenGasThrottleIsNotDefined(ThrottleAccumulator.ThrottleType throttleType) {
         // given
         subject = new ThrottleAccumulator(
                 () -> CAPACITY_SPLIT, configProvider::getConfiguration, throttleType, throttleMetrics, Verbose.YES);
@@ -1195,14 +1186,12 @@ class ThrottleAccumulatorTest {
         subject.applyDurationConfig();
 
         // then
-        assertTrue(subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state, null)
-                .shouldThrottle());
+        assertTrue(subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state, null));
     }
 
     @ParameterizedTest
     @EnumSource(value = ThrottleAccumulator.ThrottleType.class, mode = EnumSource.Mode.EXCLUDE, names = "NOOP_THROTTLE")
-    void alwaysThrottlesContractCallWhenGasThrottleReturnsTrue(ThrottleAccumulator.ThrottleType throttleType)
-            throws PreCheckException {
+    void alwaysThrottlesContractCallWhenGasThrottleReturnsTrue(ThrottleAccumulator.ThrottleType throttleType) {
         // given
         subject = new ThrottleAccumulator(
                 () -> CAPACITY_SPLIT, configProvider::getConfiguration, throttleType, throttleMetrics, Verbose.YES);
@@ -1232,14 +1221,12 @@ class ThrottleAccumulatorTest {
         subject.applyDurationConfig();
 
         // then
-        assertTrue(subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state, null)
-                .shouldThrottle());
+        assertTrue(subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state, null));
     }
 
     @ParameterizedTest
     @EnumSource(value = ThrottleAccumulator.ThrottleType.class, mode = EnumSource.Mode.EXCLUDE, names = "NOOP_THROTTLE")
-    void alwaysThrottlesContractCreateWhenGasThrottleIsNotDefined(ThrottleAccumulator.ThrottleType throttleType)
-            throws PreCheckException {
+    void alwaysThrottlesContractCreateWhenGasThrottleIsNotDefined(ThrottleAccumulator.ThrottleType throttleType) {
         // given
         subject = new ThrottleAccumulator(
                 () -> CAPACITY_SPLIT, configProvider::getConfiguration, throttleType, throttleMetrics, Verbose.YES);
@@ -1268,14 +1255,12 @@ class ThrottleAccumulatorTest {
         subject.applyDurationConfig();
 
         // then
-        assertTrue(subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state, null)
-                .shouldThrottle());
+        assertTrue(subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state, null));
     }
 
     @ParameterizedTest
     @EnumSource(value = ThrottleAccumulator.ThrottleType.class, mode = EnumSource.Mode.EXCLUDE, names = "NOOP_THROTTLE")
-    void alwaysThrottlesContractCreateWhenGasThrottleReturnsTrue(ThrottleAccumulator.ThrottleType throttleType)
-            throws PreCheckException {
+    void alwaysThrottlesContractCreateWhenGasThrottleReturnsTrue(ThrottleAccumulator.ThrottleType throttleType) {
         // given
         subject = new ThrottleAccumulator(
                 () -> CAPACITY_SPLIT, configProvider::getConfiguration, throttleType, throttleMetrics, Verbose.YES);
@@ -1305,8 +1290,7 @@ class ThrottleAccumulatorTest {
         subject.applyDurationConfig();
 
         // then
-        assertTrue(subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state, null)
-                .shouldThrottle());
+        assertTrue(subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state, null));
         assertTrue(subject.wasLastTxnGasThrottled());
 
         given(transactionInfo.functionality()).willReturn(TOKEN_BURN);
@@ -1316,8 +1300,7 @@ class ThrottleAccumulatorTest {
 
     @ParameterizedTest
     @EnumSource(value = ThrottleAccumulator.ThrottleType.class, mode = EnumSource.Mode.EXCLUDE, names = "NOOP_THROTTLE")
-    void alwaysThrottlesEthereumTxnWhenGasThrottleIsNotDefined(ThrottleAccumulator.ThrottleType throttleType)
-            throws PreCheckException {
+    void alwaysThrottlesEthereumTxnWhenGasThrottleIsNotDefined(ThrottleAccumulator.ThrottleType throttleType) {
         // given
         subject = new ThrottleAccumulator(
                 () -> CAPACITY_SPLIT, configProvider::getConfiguration, throttleType, throttleMetrics, Verbose.YES);
@@ -1336,9 +1319,7 @@ class ThrottleAccumulatorTest {
         given(transactionInfo.functionality()).willReturn(ETHEREUM_TRANSACTION);
         given(transactionInfo.txBody())
                 .willReturn(TransactionBody.newBuilder()
-                        .ethereumTransaction(EthereumTransactionBody.newBuilder()
-                                .ethereumData(Bytes.wrap(new byte[] {1, 2, 3}))
-                                .build())
+                        .ethereumTransaction(EthereumTransactionBody.DEFAULT)
                         .build());
 
         // when
@@ -1347,14 +1328,12 @@ class ThrottleAccumulatorTest {
         subject.applyDurationConfig();
 
         // then
-        assertTrue(subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state, null)
-                .shouldThrottle());
+        assertTrue(subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state, null));
     }
 
     @ParameterizedTest
     @EnumSource(value = ThrottleAccumulator.ThrottleType.class, mode = EnumSource.Mode.EXCLUDE, names = "NOOP_THROTTLE")
-    void alwaysThrottlesEthereumTxnWhenGasThrottleReturnsTrue(ThrottleAccumulator.ThrottleType throttleType)
-            throws PreCheckException {
+    void alwaysThrottlesEthereumTxnWhenGasThrottleReturnsTrue(ThrottleAccumulator.ThrottleType throttleType) {
         // given
         subject = new ThrottleAccumulator(
                 () -> CAPACITY_SPLIT, configProvider::getConfiguration, throttleType, throttleMetrics, Verbose.YES);
@@ -1385,8 +1364,7 @@ class ThrottleAccumulatorTest {
         subject.applyDurationConfig();
 
         // then
-        assertTrue(subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state, null)
-                .shouldThrottle());
+        assertTrue(subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state, null));
         assertTrue(subject.wasLastTxnGasThrottled());
 
         given(transactionInfo.functionality()).willReturn(TOKEN_BURN);
@@ -1464,7 +1442,7 @@ class ThrottleAccumulatorTest {
 
     @ParameterizedTest
     @EnumSource(value = ThrottleAccumulator.ThrottleType.class, mode = EnumSource.Mode.EXCLUDE, names = "NOOP_THROTTLE")
-    void alwaysRejectsIfNoThrottle(ThrottleAccumulator.ThrottleType throttleType) throws PreCheckException {
+    void alwaysRejectsIfNoThrottle(ThrottleAccumulator.ThrottleType throttleType) {
         subject = new ThrottleAccumulator(
                 () -> CAPACITY_SPLIT,
                 configProvider::getConfiguration,
@@ -1485,8 +1463,7 @@ class ThrottleAccumulatorTest {
 
         given(transactionInfo.functionality()).willReturn(CONTRACT_CALL);
 
-        assertTrue(subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state, null)
-                .shouldThrottle());
+        assertTrue(subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state, null));
         Assertions.assertSame(Collections.emptyList(), subject.activeThrottlesFor(CONTRACT_CALL));
     }
 
@@ -1649,8 +1626,8 @@ class ThrottleAccumulatorTest {
 
         // when
         final var txnInfo = scheduleSign(SCHEDULE_ID);
-        final var firstAns = subject.checkAndEnforceThrottle(txnInfo, TIME_INSTANT, state, null);
-        var subsequentAns = ThrottleResult.allowed();
+        final boolean firstAns = subject.checkAndEnforceThrottle(txnInfo, TIME_INSTANT, state, null);
+        boolean subsequentAns = false;
         for (int i = 1; i <= 150; i++) {
             subsequentAns = subject.checkAndEnforceThrottle(txnInfo, TIME_INSTANT.plusNanos(i), state, null);
         }
@@ -1659,8 +1636,8 @@ class ThrottleAccumulatorTest {
         final var aNow = throttlesNow.getFirst();
 
         // then
-        assertFalse(firstAns.shouldThrottle());
-        assertTrue(subsequentAns.shouldThrottle());
+        assertFalse(firstAns);
+        assertTrue(subsequentAns);
         assertEquals(149999992500000L, aNow.used());
 
         assertEquals(
@@ -1704,8 +1681,8 @@ class ThrottleAccumulatorTest {
 
         // when
         final var txnInfo = scheduleSign(SCHEDULE_ID);
-        final var firstAns = subject.checkAndEnforceThrottle(txnInfo, TIME_INSTANT, state, null);
-        var subsequentAns = ThrottleResult.allowed();
+        final boolean firstAns = subject.checkAndEnforceThrottle(txnInfo, TIME_INSTANT, state, null);
+        boolean subsequentAns = false;
         for (int i = 1; i <= 150; i++) {
             subsequentAns = subject.checkAndEnforceThrottle(txnInfo, TIME_INSTANT.plusNanos(i), state, null);
         }
@@ -1714,8 +1691,8 @@ class ThrottleAccumulatorTest {
         final var aNow = throttlesNow.getFirst();
 
         // then
-        assertFalse(firstAns.shouldThrottle());
-        assertTrue(subsequentAns.shouldThrottle());
+        assertFalse(firstAns);
+        assertTrue(subsequentAns);
         assertEquals(149999992500000L, aNow.used());
 
         assertEquals(
@@ -1805,137 +1782,9 @@ class ThrottleAccumulatorTest {
         final var aNow = throttlesNow.getFirst();
 
         // then
-        assertFalse(ans.shouldThrottle());
+        assertFalse(ans);
         assertEquals(BucketThrottle.capacityUnitsPerTxn(), aNow.used());
         assertEquals(0, subject.activeThrottlesFor(CRYPTO_TRANSFER).getFirst().used());
-    }
-
-    @Test
-    void scheduleCreateWithMissingScheduledTransactionBodyThrowsException() throws Exception {
-        // Given
-        setupThrottleSubject();
-        final var scheduleCreate = ScheduleCreateTransactionBody.newBuilder()
-                .waitForExpiry(false)
-                .build(); // Missing scheduledTransactionBody
-
-        final var body = TransactionBody.newBuilder()
-                .transactionID(TransactionID.newBuilder().accountID(PAYER_ID).build())
-                .scheduleCreate(scheduleCreate)
-                .build();
-
-        final var signedTx = SignedTransaction.newBuilder()
-                .bodyBytes(TransactionBody.PROTOBUF.toBytes(body))
-                .build();
-
-        final var txnInfo = new TransactionInfo(
-                signedTx,
-                body,
-                TransactionID.newBuilder().accountID(PAYER_ID).build(),
-                PAYER_ID,
-                SignatureMap.DEFAULT,
-                Bytes.EMPTY,
-                SCHEDULE_CREATE,
-                null);
-
-        // When & Then - should return ThrottleResult with validation error for invalid transaction
-        final var result = subject.checkAndEnforceThrottle(txnInfo, TIME_INSTANT, state, null);
-        assertTrue(result.hasValidationError());
-        assertEquals(INVALID_TRANSACTION_BODY, result.validationError());
-    }
-
-    @Test
-    void tokenMintWithMissingTokenThrowsException() throws Exception {
-        // Given
-        setupThrottleSubject();
-        final var tokenMint = TokenMintTransactionBody.newBuilder().amount(100L).build(); // Missing token field
-
-        final var body = TransactionBody.newBuilder()
-                .transactionID(TransactionID.newBuilder().accountID(PAYER_ID).build())
-                .tokenMint(tokenMint)
-                .build();
-
-        final var signedTx = SignedTransaction.newBuilder()
-                .bodyBytes(TransactionBody.PROTOBUF.toBytes(body))
-                .build();
-
-        final var txnInfo = new TransactionInfo(
-                signedTx,
-                body,
-                TransactionID.newBuilder().accountID(PAYER_ID).build(),
-                PAYER_ID,
-                SignatureMap.DEFAULT,
-                Bytes.EMPTY,
-                TOKEN_MINT,
-                null);
-
-        // When & Then - should return ThrottleResult with validation error
-        final var result = subject.checkAndEnforceThrottle(txnInfo, TIME_INSTANT, state, null);
-        assertTrue(result.hasValidationError());
-        assertEquals(ResponseCodeEnum.INVALID_TRANSACTION_BODY, result.validationError());
-    }
-
-    @Test
-    void ethereumTransactionWithEmptyDataThrowsException() throws Exception {
-        // Given
-        setupThrottleSubject();
-        final var ethTxn = EthereumTransactionBody.newBuilder()
-                .ethereumData(Bytes.EMPTY) // Empty ethereum data
-                .build();
-
-        final var body = TransactionBody.newBuilder()
-                .transactionID(TransactionID.newBuilder().accountID(PAYER_ID).build())
-                .ethereumTransaction(ethTxn)
-                .build();
-
-        final var signedTx = SignedTransaction.newBuilder()
-                .bodyBytes(TransactionBody.PROTOBUF.toBytes(body))
-                .build();
-
-        final var txnInfo = new TransactionInfo(
-                signedTx,
-                body,
-                TransactionID.newBuilder().accountID(PAYER_ID).build(),
-                PAYER_ID,
-                SignatureMap.DEFAULT,
-                Bytes.EMPTY,
-                ETHEREUM_TRANSACTION,
-                null);
-
-        // When & Then - should return ThrottleResult with validation error
-        final var result = subject.checkAndEnforceThrottle(txnInfo, TIME_INSTANT, state, null);
-        assertTrue(result.hasValidationError());
-        assertEquals(ResponseCodeEnum.INVALID_TRANSACTION_BODY, result.validationError());
-    }
-
-    @Test
-    void ethereumTransactionWithNullDataThrowsException() throws Exception {
-        // Given
-        setupThrottleSubject();
-        final var ethTxn = EthereumTransactionBody.newBuilder().build(); // No ethereum data set (null)
-
-        final var body = TransactionBody.newBuilder()
-                .transactionID(TransactionID.newBuilder().accountID(PAYER_ID).build())
-                .ethereumTransaction(ethTxn)
-                .build();
-
-        final var signedTx = SignedTransaction.newBuilder()
-                .bodyBytes(TransactionBody.PROTOBUF.toBytes(body))
-                .build();
-
-        final var txnInfo = new TransactionInfo(
-                signedTx,
-                body,
-                TransactionID.newBuilder().accountID(PAYER_ID).build(),
-                PAYER_ID,
-                SignatureMap.DEFAULT,
-                Bytes.EMPTY,
-                ETHEREUM_TRANSACTION,
-                null);
-
-        // When & Then - should return ThrottleResult with validation error
-        final var result = subject.checkAndEnforceThrottle(txnInfo, TIME_INSTANT, state, null);
-        assertTrue(result.hasValidationError());
-        assertEquals(ResponseCodeEnum.INVALID_TRANSACTION_BODY, result.validationError());
     }
 
     @Test
@@ -2022,8 +1871,7 @@ class ThrottleAccumulatorTest {
     }
 
     private void givenMintWith(int numNfts) {
-        final var op = TokenMintTransactionBody.newBuilder()
-                .token(TokenID.newBuilder().tokenNum(123L).build()); // Add valid token
+        final var op = TokenMintTransactionBody.newBuilder();
         if (numNfts == 0) {
             op.amount(1_234_567L);
         } else {
@@ -2080,22 +1928,5 @@ class ThrottleAccumulatorTest {
         final var txn =
                 TransactionBody.newBuilder().cryptoTransfer(cryptoTransferBody).build();
         given(transactionInfo.txBody()).willReturn(txn);
-    }
-
-    private void setupThrottleSubject() throws Exception {
-        subject = new ThrottleAccumulator(
-                () -> CAPACITY_SPLIT,
-                configProvider::getConfiguration,
-                FRONTEND_THROTTLE,
-                throttleMetrics,
-                gasThrottle,
-                bytesThrottle,
-                opsDurationThrottle);
-        lenient().when(configProvider.getConfiguration()).thenReturn(configuration);
-        lenient().when(configuration.getConfigData(AccountsConfig.class)).thenReturn(accountsConfig);
-        lenient().when(accountsConfig.lastThrottleExempt()).thenReturn(100L);
-
-        final var defs = getThrottleDefs("bootstrap/throttles.json");
-        subject.rebuildFor(defs);
     }
 }
