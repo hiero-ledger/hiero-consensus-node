@@ -3,7 +3,6 @@ package org.hiero.consensus.otter.docker.app.platform;
 
 import static com.swirlds.logging.legacy.LogMarker.DEMO_INFO;
 import static com.swirlds.logging.legacy.LogMarker.ERROR;
-import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.otter.fixtures.internal.helpers.Utils.createConfiguration;
@@ -248,21 +247,18 @@ public class NodeCommunicationService extends NodeCommunicationServiceImplBase {
             return;
         }
 
-        final QuiescenceCommand command =
-                switch (request.getCommand()) {
-                    case QUIESCE -> QuiescenceCommand.QUIESCE;
-                    case BREAK_QUIESCENCE -> QuiescenceCommand.BREAK_QUIESCENCE;
-                    default -> QuiescenceCommand.DONT_QUIESCE;
-                };
-        try {
+        wrapWithErrorHandling(responseObserver, () -> {
+            final QuiescenceCommand command =
+                    switch (request.getCommand()) {
+                        case QUIESCE -> QuiescenceCommand.QUIESCE;
+                        case BREAK_QUIESCENCE -> QuiescenceCommand.BREAK_QUIESCENCE;
+                        default -> QuiescenceCommand.DONT_QUIESCE;
+                    };
+
             consensusNodeManager.sendQuiescenceCommand(command);
-        } catch (final Exception e) {
-            log.error(EXCEPTION.getMarker(), "Failed to set quiescence command", e);
-            responseObserver.onError(Status.INTERNAL.withCause(e).asRuntimeException());
-            return;
-        }
-        responseObserver.onNext(Empty.getDefaultInstance());
-        responseObserver.onCompleted();
+            responseObserver.onNext(Empty.getDefaultInstance());
+            responseObserver.onCompleted();
+        });
     }
 
     private void setPlatformNotStartedResponse(@NonNull final StreamObserver<?> responseObserver) {
