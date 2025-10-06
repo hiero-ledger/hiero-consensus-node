@@ -259,6 +259,11 @@ public class WritableEvmHookStore extends ReadableEvmHookStoreImpl {
         entityCounters.incrementEntityTypeCount(HOOK);
     }
 
+    public @Nullable SlotValue getOriginalSlotValue(@NonNull final LambdaSlotKey key) {
+        requireNonNull(key);
+        return storage.getOriginalValue(key);
+    }
+
     private record SlotUpdate(@NonNull Bytes key, @Nullable Bytes oldValue, @Nullable Bytes newValue) {
         public static SlotUpdate from(@NonNull final Slot slot, @NonNull final Bytes value) {
             return new SlotUpdate(slot.key().key(), slot.maybeBytesValue(), Bytes.EMPTY.equals(value) ? null : value);

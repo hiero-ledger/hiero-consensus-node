@@ -68,6 +68,16 @@ public class ProxyEvmHook extends AbstractProxyEvmAccount {
         return state.getStorageValue(HTS_HOOKS_16D_CONTRACT_ID, key);
     }
 
+    @Override
+    public void setStorageValue(@NonNull final UInt256 key, @NonNull final UInt256 value) {
+        state.setStorageValue(HTS_HOOKS_16D_CONTRACT_ID, key, value);
+    }
+
+    @Override
+    public @NonNull UInt256 getOriginalStorageValue(@NonNull final UInt256 key) {
+        return state.getOriginalStorageValue(HTS_HOOKS_16D_CONTRACT_ID, key);
+    }
+
     @NonNull
     private static AccountID getOwnerId(final @NonNull HookId hookId) {
         return requireNonNull(hookId).entityIdOrThrow().hasAccountId()

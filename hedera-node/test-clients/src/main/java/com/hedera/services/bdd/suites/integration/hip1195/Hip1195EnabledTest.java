@@ -17,6 +17,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoUpdate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.mintToken;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenAssociate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
+import static com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil.encodeParametersForConstructor;
 import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.fixedHbarFee;
 import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.fixedHtsFeeInheritingRoyaltyCollector;
 import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.fractionalFee;
@@ -55,7 +56,6 @@ import com.hedera.services.bdd.junit.TargetEmbeddedMode;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.dsl.annotations.Contract;
 import com.hedera.services.bdd.spec.dsl.entities.SpecContract;
-import com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil;
 import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
 import com.hederahashgraph.api.proto.java.TokenSupplyType;
 import com.hederahashgraph.api.proto.java.TokenType;
@@ -103,6 +103,8 @@ public class Hip1195EnabledTest {
     private static final String STRING_ABI =
             "{\"inputs\":[{\"internalType\":\"string\",\"name\":\"_password\",\"type\":\"string\"}],\"stateMutability\":\"nonpayable\",\"type\":\"constructor\"}";
 
+    private static final String OWNER = "owner";
+
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
         testLifecycle.overrideInClass(Map.of("hooks.hooksEnabled", "true"));
@@ -119,52 +121,52 @@ public class Hip1195EnabledTest {
     @HapiTest
     final Stream<DynamicTest> authorizeHbarDebitPreOnlyHook() {
         return hapiTest(
-                cryptoCreate("testAccount")
+                cryptoCreate(OWNER)
                         .withHooks(
                                 accountAllowanceHook(123L, FALSE_ALLOWANCE_HOOK.name()),
                                 accountAllowanceHook(124L, TRUE_ALLOWANCE_HOOK.name())),
-                cryptoTransfer(TokenMovement.movingHbar(10).between("testAccount", GENESIS))
-                        .withPreHookFor("testAccount", 123L, 25_000L, "")
+                cryptoTransfer(TokenMovement.movingHbar(10).between(OWNER, GENESIS))
+                        .withPreHookFor(OWNER, 123L, 25_000L, "")
                         .signedBy(DEFAULT_PAYER)
                         .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK),
-                cryptoTransfer(TokenMovement.movingHbar(10).between("testAccount", GENESIS))
-                        .withPreHookFor("testAccount", 124L, 1_000_000L, "")
+                cryptoTransfer(TokenMovement.movingHbar(10).between(OWNER, GENESIS))
+                        .withPreHookFor(OWNER, 124L, 1_000_000L, "")
                         .signedBy(DEFAULT_PAYER));
     }
 
     @HapiTest
     final Stream<DynamicTest> authorizeHbarCreditPreOnlyHook() {
         return hapiTest(
-                cryptoCreate("testAccount")
+                cryptoCreate(OWNER)
                         .withHooks(
                                 accountAllowanceHook(123L, FALSE_ALLOWANCE_HOOK.name()),
                                 accountAllowanceHook(124L, TRUE_ALLOWANCE_HOOK.name()))
                         .receiverSigRequired(true),
-                cryptoTransfer(TokenMovement.movingHbar(10).between(GENESIS, "testAccount"))
+                cryptoTransfer(TokenMovement.movingHbar(10).between(GENESIS, OWNER))
                         .signedBy(DEFAULT_PAYER)
                         .hasKnownStatus(INVALID_SIGNATURE),
-                cryptoTransfer(TokenMovement.movingHbar(10).between(GENESIS, "testAccount"))
-                        .withPreHookFor("testAccount", 123L, 25_000L, "")
+                cryptoTransfer(TokenMovement.movingHbar(10).between(GENESIS, OWNER))
+                        .withPreHookFor(OWNER, 123L, 25_000L, "")
                         .signedBy(DEFAULT_PAYER)
                         .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK),
-                cryptoTransfer(TokenMovement.movingHbar(10).between(GENESIS, "testAccount"))
-                        .withPreHookFor("testAccount", 124L, 25_000L, "")
+                cryptoTransfer(TokenMovement.movingHbar(10).between(GENESIS, OWNER))
+                        .withPreHookFor(OWNER, 124L, 25_000L, "")
                         .signedBy(DEFAULT_PAYER));
     }
 
     @HapiTest
     final Stream<DynamicTest> authorizeHbarDebitPrePostHook() {
         return hapiTest(
-                cryptoCreate("testAccount")
+                cryptoCreate(OWNER)
                         .withHooks(
                                 accountAllowanceHook(123L, FALSE_PRE_POST_ALLOWANCE_HOOK.name()),
                                 accountAllowanceHook(124L, TRUE_PRE_POST_ALLOWANCE_HOOK.name())),
-                cryptoTransfer(TokenMovement.movingHbar(10).between("testAccount", GENESIS))
-                        .withPrePostHookFor("testAccount", 123L, 25_000L, "")
+                cryptoTransfer(TokenMovement.movingHbar(10).between(OWNER, GENESIS))
+                        .withPrePostHookFor(OWNER, 123L, 25_000L, "")
                         .signedBy(DEFAULT_PAYER)
                         .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK),
-                cryptoTransfer(TokenMovement.movingHbar(10).between("testAccount", GENESIS))
-                        .withPrePostHookFor("testAccount", 124L, 25_000L, "")
+                cryptoTransfer(TokenMovement.movingHbar(10).between(OWNER, GENESIS))
+                        .withPrePostHookFor(OWNER, 124L, 25_000L, "")
                         .signedBy(DEFAULT_PAYER));
     }
 
@@ -173,15 +175,15 @@ public class Hip1195EnabledTest {
         return hapiTest(
                 cryptoCreate("accountWithDifferentHooks")
                         .withHooks(accountAllowanceHook(125L, FALSE_ALLOWANCE_HOOK.name())),
-                cryptoCreate("testAccount")
+                cryptoCreate(OWNER)
                         .withHooks(
                                 accountAllowanceHook(123L, FALSE_ALLOWANCE_HOOK.name()),
                                 accountAllowanceHook(124L, TRUE_ALLOWANCE_HOOK.name())),
-                cryptoTransfer(TokenMovement.movingHbar(10).between("testAccount", GENESIS))
-                        .withPrePostHookFor("testAccount", 125L, 25_000L, "")
+                cryptoTransfer(TokenMovement.movingHbar(10).between(OWNER, GENESIS))
+                        .withPrePostHookFor(OWNER, 125L, 25_000L, "")
                         .signedBy(DEFAULT_PAYER)
                         .hasKnownStatus(HOOK_NOT_FOUND),
-                cryptoTransfer(TokenMovement.movingHbar(10).between("testAccount", GENESIS))
+                cryptoTransfer(TokenMovement.movingHbar(10).between(OWNER, GENESIS))
                         .withPrePostHookFor("accountWithDifferentHooks", 123L, 25_000L, "")
                         .signedBy(DEFAULT_PAYER)
                         .hasKnownStatus(INVALID_SIGNATURE));
@@ -190,41 +192,41 @@ public class Hip1195EnabledTest {
     @HapiTest
     final Stream<DynamicTest> authorizeHbarCreditPrePostHookReceiverSigRequired() {
         return hapiTest(
-                cryptoCreate("testAccount")
+                cryptoCreate(OWNER)
                         .withHooks(
                                 accountAllowanceHook(123L, FALSE_PRE_POST_ALLOWANCE_HOOK.name()),
                                 accountAllowanceHook(124L, TRUE_PRE_POST_ALLOWANCE_HOOK.name()))
                         .receiverSigRequired(true),
-                cryptoTransfer(TokenMovement.movingHbar(10).between(GENESIS, "testAccount"))
+                cryptoTransfer(TokenMovement.movingHbar(10).between(GENESIS, OWNER))
                         .signedBy(DEFAULT_PAYER)
                         .hasKnownStatus(INVALID_SIGNATURE),
-                cryptoTransfer(TokenMovement.movingHbar(10).between(GENESIS, "testAccount"))
-                        .withPrePostHookFor("testAccount", 123L, 25_000L, "")
+                cryptoTransfer(TokenMovement.movingHbar(10).between(GENESIS, OWNER))
+                        .withPrePostHookFor(OWNER, 123L, 25_000L, "")
                         .signedBy(DEFAULT_PAYER)
                         .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK),
-                cryptoTransfer(TokenMovement.movingHbar(10).between(GENESIS, "testAccount"))
-                        .withPrePostHookFor("testAccount", 124L, 25_000L, "")
+                cryptoTransfer(TokenMovement.movingHbar(10).between(GENESIS, OWNER))
+                        .withPrePostHookFor(OWNER, 124L, 25_000L, "")
                         .signedBy(DEFAULT_PAYER));
     }
 
     @HapiTest
     final Stream<DynamicTest> storageAccessWorks() {
         return hapiTest(
-                cryptoCreate("testAccount")
+                cryptoCreate(OWNER)
                         .withHooks(accountAllowanceHook(124L, STORAGE_GET_SLOT_HOOK.name()))
                         .receiverSigRequired(true),
                 // gets rejected because the return value from the allow function is false bye default
-                cryptoTransfer(TokenMovement.movingHbar(10).between("testAccount", GENESIS))
-                        .withPreHookFor("testAccount", 124L, 25_000L, "")
+                cryptoTransfer(TokenMovement.movingHbar(10).between(OWNER, GENESIS))
+                        .withPreHookFor(OWNER, 124L, 25_000L, "")
                         .signedBy(DEFAULT_PAYER)
                         .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK),
                 // Change the hook storage's zero slot to 0x01 so that the hook returns true
-                accountLambdaSStore("testAccount", 124L)
+                accountLambdaSStore(OWNER, 124L)
                         .putSlot(Bytes.EMPTY, Bytes.wrap(new byte[] {(byte) 0x01}))
-                        .signedBy(DEFAULT_PAYER, "testAccount"),
+                        .signedBy(DEFAULT_PAYER, OWNER),
                 // now the transfer works
-                cryptoTransfer(TokenMovement.movingHbar(10).between("testAccount", GENESIS))
-                        .withPreHookFor("testAccount", 124L, 25_000L, "")
+                cryptoTransfer(TokenMovement.movingHbar(10).between(OWNER, GENESIS))
+                        .withPreHookFor(OWNER, 124L, 25_000L, "")
                         .signedBy(DEFAULT_PAYER));
     }
 
@@ -233,28 +235,38 @@ public class Hip1195EnabledTest {
         final var passcode = "open-sesame";
         final var passHash32 = Bytes.wrap(keccak256(org.apache.tuweni.bytes.Bytes.wrap(passcode.getBytes(UTF_8)))
                 .toArray());
-        final var payload = HapiParserUtil.encodeParametersForConstructor(new Object[] {passcode}, STRING_ABI);
+        final var correctPassword =
+                ByteString.copyFrom(encodeParametersForConstructor(new Object[] {passcode}, STRING_ABI));
+        final var wrongPassword =
+                ByteString.copyFrom(encodeParametersForConstructor(new Object[] {"wrong password"}, STRING_ABI));
 
         return hapiTest(
-                cryptoCreate("testAccount").withHooks(accountAllowanceHook(124L, STORAGE_SET_SLOT_HOOK.name())),
+                cryptoCreate(OWNER).withHooks(accountAllowanceHook(124L, STORAGE_SET_SLOT_HOOK.name())),
                 // gets rejected because the return value from the allow function is false bye default
-                cryptoTransfer(TokenMovement.movingHbar(10).between("testAccount", GENESIS))
-                        .withPreHookFor("testAccount", 124L, 25_000L, "")
+                cryptoTransfer(TokenMovement.movingHbar(10).between(OWNER, GENESIS))
+                        .withPreHookFor(OWNER, 124L, 25_000L, "")
                         .signedBy(DEFAULT_PAYER)
                         .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK),
-                // update the required pass code in the hook
-                accountLambdaSStore("testAccount", 124L)
+                // update the required pass code in the hook.
+                // Since the contract uses a keccak256 hash of the passcode, we store that in the slot 0
+                accountLambdaSStore(OWNER, 124L)
                         .putSlot(Bytes.EMPTY, passHash32)
-                        .signedBy(DEFAULT_PAYER, "testAccount"),
-                // submitting a wrong passcode does not work
-                cryptoTransfer(TokenMovement.movingHbar(10).between("testAccount", GENESIS))
-                        .withPreHookFor("testAccount", 124L, 25_000L, "wrong passcode")
+                        .signedBy(DEFAULT_PAYER, OWNER),
+                // since the contract calls abi.decode on the input bytes, we need to pass in the encoded
+                // parameters
+                cryptoTransfer(TokenMovement.movingHbar(10).between(OWNER, GENESIS))
+                        .withPreHookFor(OWNER, 124L, 25_000L, wrongPassword)
                         .signedBy(DEFAULT_PAYER)
                         .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK),
-                // submitting the correct passcode works
-                cryptoTransfer(TokenMovement.movingHbar(10).between("testAccount", GENESIS))
-                        .withPreHookFor("testAccount", 124L, 25_000L, ByteString.copyFrom(payload))
-                        .signedBy(DEFAULT_PAYER));
+                // submitting the correct encoded passcode works
+                cryptoTransfer(TokenMovement.movingHbar(10).between(OWNER, GENESIS))
+                        .withPreHookFor(OWNER, 124L, 25_000L, correctPassword)
+                        .signedBy(DEFAULT_PAYER),
+                // since it resets the storage slots we should not be able to do another transfer
+                cryptoTransfer(TokenMovement.movingHbar(10).between(OWNER, GENESIS))
+                        .withPreHookFor(OWNER, 124L, 25_000L, correctPassword)
+                        .signedBy(DEFAULT_PAYER)
+                        .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK));
     }
 
     @HapiTest
@@ -262,16 +274,16 @@ public class Hip1195EnabledTest {
         return hapiTest(
                 cryptoCreate("payer").balance(ONE_HUNDRED_HBARS),
                 cryptoCreate("receiver").balance(0L),
-                cryptoCreate("testAccount")
+                cryptoCreate(OWNER)
                         .balance(ONE_HUNDRED_HBARS)
                         .withHooks(accountAllowanceHook(124L, TRANSFER_HOOK.name())),
-                cryptoTransfer(TokenMovement.movingHbar(10 * ONE_HBAR).between("testAccount", "receiver"))
-                        .withPreHookFor("testAccount", 124L, 25_000L, "")
+                cryptoTransfer(TokenMovement.movingHbar(10 * ONE_HBAR).between(OWNER, "receiver"))
+                        .withPreHookFor(OWNER, 124L, 25_000L, "")
                         .payingWith("payer")
                         .signedBy("payer"),
                 // even though the hook says msg.sender transfers 10 hbars to receiver,
                 // the owner of the hook transfers 1 tinybar in addition to the 10 hbars
-                getAccountBalance("testAccount")
+                getAccountBalance(OWNER)
                         .hasTinyBars(ONE_HUNDRED_HBARS - 10 * ONE_HBAR - 1)
                         .logged(),
                 getAccountBalance("receiver").hasTinyBars(10 * ONE_HBAR).logged());
@@ -280,20 +292,20 @@ public class Hip1195EnabledTest {
     @HapiTest
     final Stream<DynamicTest> authorizeHbarCreditPreOnlyHookReceiverSigRequired() {
         return hapiTest(
-                cryptoCreate("testAccount")
+                cryptoCreate(OWNER)
                         .withHooks(
                                 accountAllowanceHook(123L, FALSE_ALLOWANCE_HOOK.name()),
                                 accountAllowanceHook(124L, TRUE_ALLOWANCE_HOOK.name()))
                         .receiverSigRequired(true),
-                cryptoTransfer(TokenMovement.movingHbar(10).between(GENESIS, "testAccount"))
+                cryptoTransfer(TokenMovement.movingHbar(10).between(GENESIS, OWNER))
                         .signedBy(DEFAULT_PAYER)
                         .hasKnownStatus(INVALID_SIGNATURE),
-                cryptoTransfer(TokenMovement.movingHbar(10).between(GENESIS, "testAccount"))
-                        .withPreHookFor("testAccount", 123L, 25_000L, "")
+                cryptoTransfer(TokenMovement.movingHbar(10).between(GENESIS, OWNER))
+                        .withPreHookFor(OWNER, 123L, 25_000L, "")
                         .signedBy(DEFAULT_PAYER)
                         .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK),
-                cryptoTransfer(TokenMovement.movingHbar(10).between(GENESIS, "testAccount"))
-                        .withPreHookFor("testAccount", 124L, 25_000L, "")
+                cryptoTransfer(TokenMovement.movingHbar(10).between(GENESIS, OWNER))
+                        .withPreHookFor(OWNER, 124L, 25_000L, "")
                         .signedBy(DEFAULT_PAYER));
     }
 
@@ -301,23 +313,23 @@ public class Hip1195EnabledTest {
     final Stream<DynamicTest> authorizeTokenDebitPreOnlyHook() {
         return hapiTest(
                 newKeyNamed("supplyKey"),
-                cryptoCreate("testAccount")
+                cryptoCreate(OWNER)
                         .withHooks(
                                 accountAllowanceHook(123L, FALSE_ALLOWANCE_HOOK.name()),
                                 accountAllowanceHook(124L, TRUE_ALLOWANCE_HOOK.name())),
                 tokenCreate("token")
-                        .treasury("testAccount")
+                        .treasury(OWNER)
                         .supplyType(TokenSupplyType.FINITE)
                         .supplyKey("supplyKey")
                         .initialSupply(10L)
                         .maxSupply(1000L),
                 mintToken("token", 10),
-                cryptoTransfer(TokenMovement.moving(10, "token").between("testAccount", GENESIS))
-                        .withPreHookFor("testAccount", 123L, 25_000L, "")
+                cryptoTransfer(TokenMovement.moving(10, "token").between(OWNER, GENESIS))
+                        .withPreHookFor(OWNER, 123L, 25_000L, "")
                         .signedBy(DEFAULT_PAYER)
                         .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK),
-                cryptoTransfer(TokenMovement.movingHbar(10).between("testAccount", GENESIS))
-                        .withPreHookFor("testAccount", 124L, 25_000L, "")
+                cryptoTransfer(TokenMovement.movingHbar(10).between(OWNER, GENESIS))
+                        .withPreHookFor(OWNER, 124L, 25_000L, "")
                         .signedBy(DEFAULT_PAYER));
     }
 
@@ -325,24 +337,24 @@ public class Hip1195EnabledTest {
     final Stream<DynamicTest> authorizeTokenWithCustomFeesDebitPreOnlyHook() {
         return hapiTest(
                 newKeyNamed("supplyKey"),
-                cryptoCreate("testAccount")
+                cryptoCreate(OWNER)
                         .withHooks(
                                 accountAllowanceHook(123L, FALSE_ALLOWANCE_HOOK.name()),
                                 accountAllowanceHook(124L, TRUE_ALLOWANCE_HOOK.name())),
                 tokenCreate("token")
-                        .treasury("testAccount")
+                        .treasury(OWNER)
                         .supplyType(TokenSupplyType.FINITE)
                         .supplyKey("supplyKey")
                         .withCustom(fixedHbarFee(1L, GENESIS))
                         .initialSupply(10L)
                         .maxSupply(1000L),
                 mintToken("token", 10),
-                cryptoTransfer(TokenMovement.moving(10, "token").between("testAccount", GENESIS))
-                        .withPreHookFor("testAccount", 123L, 25_000L, "")
+                cryptoTransfer(TokenMovement.moving(10, "token").between(OWNER, GENESIS))
+                        .withPreHookFor(OWNER, 123L, 25_000L, "")
                         .signedBy(DEFAULT_PAYER)
                         .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK),
-                cryptoTransfer(TokenMovement.movingHbar(10).between("testAccount", GENESIS))
-                        .withPreHookFor("testAccount", 124L, 25_000L, "")
+                cryptoTransfer(TokenMovement.movingHbar(10).between(OWNER, GENESIS))
+                        .withPreHookFor(OWNER, 124L, 25_000L, "")
                         .signedBy(DEFAULT_PAYER)
                         .via("customFeeTxn"),
                 getTxnRecord("customFeeTxn").logged());
@@ -408,23 +420,23 @@ public class Hip1195EnabledTest {
     final Stream<DynamicTest> authorizeTokenDebitPrePostHook() {
         return hapiTest(
                 newKeyNamed("supplyKey"),
-                cryptoCreate("testAccount")
+                cryptoCreate(OWNER)
                         .withHooks(
                                 accountAllowanceHook(123L, FALSE_PRE_POST_ALLOWANCE_HOOK.name()),
                                 accountAllowanceHook(124L, TRUE_PRE_POST_ALLOWANCE_HOOK.name())),
                 tokenCreate("token")
-                        .treasury("testAccount")
+                        .treasury(OWNER)
                         .supplyType(TokenSupplyType.FINITE)
                         .supplyKey("supplyKey")
                         .initialSupply(10L)
                         .maxSupply(1000L),
                 mintToken("token", 10),
-                cryptoTransfer(TokenMovement.moving(10, "token").between("testAccount", GENESIS))
-                        .withPrePostHookFor("testAccount", 123L, 25_000L, "")
+                cryptoTransfer(TokenMovement.moving(10, "token").between(OWNER, GENESIS))
+                        .withPrePostHookFor(OWNER, 123L, 25_000L, "")
                         .signedBy(DEFAULT_PAYER)
                         .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK),
-                cryptoTransfer(TokenMovement.movingHbar(10).between("testAccount", GENESIS))
-                        .withPrePostHookFor("testAccount", 124L, 25_000L, "")
+                cryptoTransfer(TokenMovement.movingHbar(10).between(OWNER, GENESIS))
+                        .withPrePostHookFor(OWNER, 124L, 25_000L, "")
                         .signedBy(DEFAULT_PAYER));
     }
 
@@ -432,7 +444,7 @@ public class Hip1195EnabledTest {
     final Stream<DynamicTest> authorizeTokenCreditPrePostHookReceiverSigRequired() {
         return hapiTest(
                 newKeyNamed("supplyKey"),
-                cryptoCreate("testAccount")
+                cryptoCreate(OWNER)
                         .withHooks(
                                 accountAllowanceHook(123L, FALSE_PRE_POST_ALLOWANCE_HOOK.name()),
                                 accountAllowanceHook(124L, TRUE_PRE_POST_ALLOWANCE_HOOK.name()))
@@ -444,16 +456,16 @@ public class Hip1195EnabledTest {
                         .initialSupply(10L)
                         .maxSupply(1000L),
                 mintToken("token", 10),
-                tokenAssociate("testAccount", "token"),
-                cryptoTransfer(TokenMovement.moving(10, "token").between(GENESIS, "testAccount"))
+                tokenAssociate(OWNER, "token"),
+                cryptoTransfer(TokenMovement.moving(10, "token").between(GENESIS, OWNER))
                         .signedBy(DEFAULT_PAYER)
                         .hasKnownStatus(INVALID_SIGNATURE),
-                cryptoTransfer(TokenMovement.moving(10, "token").between(GENESIS, "testAccount"))
-                        .withPrePostHookFor("testAccount", 123L, 25_000L, "")
+                cryptoTransfer(TokenMovement.moving(10, "token").between(GENESIS, OWNER))
+                        .withPrePostHookFor(OWNER, 123L, 25_000L, "")
                         .signedBy(DEFAULT_PAYER)
                         .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK),
-                cryptoTransfer(TokenMovement.moving(10, "token").between(GENESIS, "testAccount"))
-                        .withPrePostHookFor("testAccount", 124L, 25_000L, "")
+                cryptoTransfer(TokenMovement.moving(10, "token").between(GENESIS, OWNER))
+                        .withPrePostHookFor(OWNER, 124L, 25_000L, "")
                         .signedBy(DEFAULT_PAYER));
     }
 
@@ -461,7 +473,7 @@ public class Hip1195EnabledTest {
     final Stream<DynamicTest> authorizeTokenCreditPreOnlyHookReceiverSigRequired() {
         return hapiTest(
                 newKeyNamed("supplyKey"),
-                cryptoCreate("testAccount")
+                cryptoCreate(OWNER)
                         .withHooks(
                                 accountAllowanceHook(123L, FALSE_ALLOWANCE_HOOK.name()),
                                 accountAllowanceHook(124L, TRUE_ALLOWANCE_HOOK.name()))
@@ -473,16 +485,16 @@ public class Hip1195EnabledTest {
                         .initialSupply(10L)
                         .maxSupply(1000L),
                 mintToken("token", 10),
-                tokenAssociate("testAccount", "token"),
-                cryptoTransfer(TokenMovement.moving(10, "token").between(GENESIS, "testAccount"))
+                tokenAssociate(OWNER, "token"),
+                cryptoTransfer(TokenMovement.moving(10, "token").between(GENESIS, OWNER))
                         .signedBy(DEFAULT_PAYER)
                         .hasKnownStatus(INVALID_SIGNATURE),
-                cryptoTransfer(TokenMovement.moving(10, "token").between(GENESIS, "testAccount"))
-                        .withPreHookFor("testAccount", 123L, 25_000L, "")
+                cryptoTransfer(TokenMovement.moving(10, "token").between(GENESIS, OWNER))
+                        .withPreHookFor(OWNER, 123L, 25_000L, "")
                         .signedBy(DEFAULT_PAYER)
                         .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK),
-                cryptoTransfer(TokenMovement.moving(10, "token").between(GENESIS, "testAccount"))
-                        .withPreHookFor("testAccount", 124L, 25_000L, "")
+                cryptoTransfer(TokenMovement.moving(10, "token").between(GENESIS, OWNER))
+                        .withPreHookFor(OWNER, 124L, 25_000L, "")
                         .signedBy(DEFAULT_PAYER));
     }
 
@@ -490,12 +502,12 @@ public class Hip1195EnabledTest {
     final Stream<DynamicTest> authorizeNftDebitSenderPreHook() {
         return hapiTest(
                 newKeyNamed("supplyKey"),
-                cryptoCreate("testAccount")
+                cryptoCreate(OWNER)
                         .withHooks(
                                 accountAllowanceHook(123L, FALSE_ALLOWANCE_HOOK.name()),
                                 accountAllowanceHook(124L, TRUE_ALLOWANCE_HOOK.name())),
                 tokenCreate("token")
-                        .treasury("testAccount")
+                        .treasury(OWNER)
                         .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
                         .supplyType(TokenSupplyType.FINITE)
                         .supplyKey("supplyKey")
@@ -507,12 +519,12 @@ public class Hip1195EnabledTest {
                                 .mapToObj(a -> ByteString.copyFromUtf8(String.valueOf(a)))
                                 .toList()),
                 tokenAssociate(GENESIS, "token"),
-                cryptoTransfer(TokenMovement.movingUnique("token", 1L).between("testAccount", GENESIS))
-                        .withNftSenderPreHookFor("testAccount", 123L, 25_000L, "")
+                cryptoTransfer(TokenMovement.movingUnique("token", 1L).between(OWNER, GENESIS))
+                        .withNftSenderPreHookFor(OWNER, 123L, 25_000L, "")
                         .signedBy(DEFAULT_PAYER)
                         .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK),
-                cryptoTransfer(TokenMovement.movingUnique("token", 1L).between("testAccount", GENESIS))
-                        .withNftSenderPreHookFor("testAccount", 124L, 25_000L, "")
+                cryptoTransfer(TokenMovement.movingUnique("token", 1L).between(OWNER, GENESIS))
+                        .withNftSenderPreHookFor(OWNER, 124L, 25_000L, "")
                         .signedBy(DEFAULT_PAYER));
     }
 
@@ -520,12 +532,12 @@ public class Hip1195EnabledTest {
     final Stream<DynamicTest> authorizeNftDebitSenderPrePostHook() {
         return hapiTest(
                 newKeyNamed("supplyKey"),
-                cryptoCreate("testAccount")
+                cryptoCreate(OWNER)
                         .withHooks(
                                 accountAllowanceHook(123L, FALSE_PRE_POST_ALLOWANCE_HOOK.name()),
                                 accountAllowanceHook(124L, TRUE_PRE_POST_ALLOWANCE_HOOK.name())),
                 tokenCreate("token")
-                        .treasury("testAccount")
+                        .treasury(OWNER)
                         .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
                         .supplyType(TokenSupplyType.FINITE)
                         .supplyKey("supplyKey")
@@ -537,12 +549,12 @@ public class Hip1195EnabledTest {
                                 .mapToObj(a -> ByteString.copyFromUtf8(String.valueOf(a)))
                                 .toList()),
                 tokenAssociate(GENESIS, "token"),
-                cryptoTransfer(TokenMovement.movingUnique("token", 1L).between("testAccount", GENESIS))
-                        .withNftSenderPrePostHookFor("testAccount", 123L, 25_000L, "")
+                cryptoTransfer(TokenMovement.movingUnique("token", 1L).between(OWNER, GENESIS))
+                        .withNftSenderPrePostHookFor(OWNER, 123L, 25_000L, "")
                         .signedBy(DEFAULT_PAYER)
                         .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK),
-                cryptoTransfer(TokenMovement.movingUnique("token", 1L).between("testAccount", GENESIS))
-                        .withNftSenderPrePostHookFor("testAccount", 124L, 25_000L, "")
+                cryptoTransfer(TokenMovement.movingUnique("token", 1L).between(OWNER, GENESIS))
+                        .withNftSenderPrePostHookFor(OWNER, 124L, 25_000L, "")
                         .signedBy(DEFAULT_PAYER));
     }
 
@@ -550,7 +562,7 @@ public class Hip1195EnabledTest {
     final Stream<DynamicTest> authorizeNftCreditReceiverPreHookReceiverSigRequired() {
         return hapiTest(
                 newKeyNamed("supplyKey"),
-                cryptoCreate("testAccount")
+                cryptoCreate(OWNER)
                         .withHooks(
                                 accountAllowanceHook(123L, FALSE_ALLOWANCE_HOOK.name()),
                                 accountAllowanceHook(124L, TRUE_ALLOWANCE_HOOK.name()))
@@ -567,20 +579,20 @@ public class Hip1195EnabledTest {
                         IntStream.range(0, 10)
                                 .mapToObj(a -> ByteString.copyFromUtf8(String.valueOf(a)))
                                 .toList()),
-                tokenAssociate("testAccount", "token"),
-                cryptoTransfer(TokenMovement.movingUnique("token", 1L).between(GENESIS, "testAccount"))
+                tokenAssociate(OWNER, "token"),
+                cryptoTransfer(TokenMovement.movingUnique("token", 1L).between(GENESIS, OWNER))
                         .signedBy(DEFAULT_PAYER)
                         .hasKnownStatus(INVALID_SIGNATURE),
-                cryptoTransfer(TokenMovement.movingUnique("token", 1L).between(GENESIS, "testAccount"))
-                        .withNftSenderPreHookFor("testAccount", 123L, 25_000L, "")
+                cryptoTransfer(TokenMovement.movingUnique("token", 1L).between(GENESIS, OWNER))
+                        .withNftSenderPreHookFor(OWNER, 123L, 25_000L, "")
                         .signedBy(DEFAULT_PAYER)
                         .hasKnownStatus(INVALID_SIGNATURE),
-                cryptoTransfer(TokenMovement.movingUnique("token", 1L).between(GENESIS, "testAccount"))
-                        .withNftReceiverPreHookFor("testAccount", 123L, 25_000L, "")
+                cryptoTransfer(TokenMovement.movingUnique("token", 1L).between(GENESIS, OWNER))
+                        .withNftReceiverPreHookFor(OWNER, 123L, 25_000L, "")
                         .signedBy(DEFAULT_PAYER)
                         .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK),
-                cryptoTransfer(TokenMovement.movingUnique("token", 1L).between(GENESIS, "testAccount"))
-                        .withNftReceiverPreHookFor("testAccount", 124L, 25_000L, "")
+                cryptoTransfer(TokenMovement.movingUnique("token", 1L).between(GENESIS, OWNER))
+                        .withNftReceiverPreHookFor(OWNER, 124L, 25_000L, "")
                         .signedBy(DEFAULT_PAYER));
     }
 
@@ -588,7 +600,7 @@ public class Hip1195EnabledTest {
     final Stream<DynamicTest> authorizeNftCreditReceiverPrePostHookReceiverSigRequired() {
         return hapiTest(
                 newKeyNamed("supplyKey"),
-                cryptoCreate("testAccount")
+                cryptoCreate(OWNER)
                         .withHooks(
                                 accountAllowanceHook(123L, FALSE_PRE_POST_ALLOWANCE_HOOK.name()),
                                 accountAllowanceHook(124L, TRUE_PRE_POST_ALLOWANCE_HOOK.name()))
@@ -605,20 +617,20 @@ public class Hip1195EnabledTest {
                         IntStream.range(0, 10)
                                 .mapToObj(a -> ByteString.copyFromUtf8(String.valueOf(a)))
                                 .toList()),
-                tokenAssociate("testAccount", "token"),
-                cryptoTransfer(TokenMovement.movingUnique("token", 1L).between(GENESIS, "testAccount"))
+                tokenAssociate(OWNER, "token"),
+                cryptoTransfer(TokenMovement.movingUnique("token", 1L).between(GENESIS, OWNER))
                         .signedBy(DEFAULT_PAYER)
                         .hasKnownStatus(INVALID_SIGNATURE),
-                cryptoTransfer(TokenMovement.movingUnique("token", 1L).between(GENESIS, "testAccount"))
-                        .withNftSenderPrePostHookFor("testAccount", 123L, 25_000L, "")
+                cryptoTransfer(TokenMovement.movingUnique("token", 1L).between(GENESIS, OWNER))
+                        .withNftSenderPrePostHookFor(OWNER, 123L, 25_000L, "")
                         .signedBy(DEFAULT_PAYER)
                         .hasKnownStatus(INVALID_SIGNATURE),
-                cryptoTransfer(TokenMovement.movingUnique("token", 1L).between(GENESIS, "testAccount"))
-                        .withNftReceiverPrePostHookFor("testAccount", 123L, 25_000L, "")
+                cryptoTransfer(TokenMovement.movingUnique("token", 1L).between(GENESIS, OWNER))
+                        .withNftReceiverPrePostHookFor(OWNER, 123L, 25_000L, "")
                         .signedBy(DEFAULT_PAYER)
                         .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK),
-                cryptoTransfer(TokenMovement.movingUnique("token", 1L).between(GENESIS, "testAccount"))
-                        .withNftReceiverPrePostHookFor("testAccount", 124L, 25_000L, "")
+                cryptoTransfer(TokenMovement.movingUnique("token", 1L).between(GENESIS, OWNER))
+                        .withNftReceiverPrePostHookFor(OWNER, 124L, 25_000L, "")
                         .signedBy(DEFAULT_PAYER));
     }
 
@@ -626,7 +638,7 @@ public class Hip1195EnabledTest {
     final Stream<DynamicTest> authorizeNftCreditPreOnlyHookReceiverSigRequired() {
         return hapiTest(
                 newKeyNamed("supplyKey"),
-                cryptoCreate("testAccount")
+                cryptoCreate(OWNER)
                         .withHooks(
                                 accountAllowanceHook(123L, FALSE_ALLOWANCE_HOOK.name()),
                                 accountAllowanceHook(124L, TRUE_ALLOWANCE_HOOK.name()))
@@ -637,17 +649,17 @@ public class Hip1195EnabledTest {
                         .supplyKey("supplyKey")
                         .initialSupply(10L)
                         .maxSupply(1000L),
-                tokenAssociate("testAccount", "token"),
+                tokenAssociate(OWNER, "token"),
                 mintToken("token", 10),
-                cryptoTransfer(TokenMovement.moving(10, "token").between(GENESIS, "testAccount"))
+                cryptoTransfer(TokenMovement.moving(10, "token").between(GENESIS, OWNER))
                         .signedBy(DEFAULT_PAYER)
                         .hasKnownStatus(INVALID_SIGNATURE),
-                cryptoTransfer(TokenMovement.moving(10, "token").between(GENESIS, "testAccount"))
-                        .withPreHookFor("testAccount", 123L, 25_000L, "")
+                cryptoTransfer(TokenMovement.moving(10, "token").between(GENESIS, OWNER))
+                        .withPreHookFor(OWNER, 123L, 25_000L, "")
                         .signedBy(DEFAULT_PAYER)
                         .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK),
-                cryptoTransfer(TokenMovement.moving(10, "token").between(GENESIS, "testAccount"))
-                        .withPreHookFor("testAccount", 124L, 25_000L, "")
+                cryptoTransfer(TokenMovement.moving(10, "token").between(GENESIS, OWNER))
+                        .withPreHookFor(OWNER, 124L, 25_000L, "")
                         .signedBy(DEFAULT_PAYER));
     }
 
@@ -758,26 +770,26 @@ public class Hip1195EnabledTest {
         final AtomicReference<byte[]> defaultPayerMirror = new AtomicReference<>();
 
         return hapiTest(
-                cryptoCreate("testAccount").withHooks(accountAllowanceHook(124L, STORAGE_GET_MAPPING_HOOK.name())),
+                cryptoCreate(OWNER).withHooks(accountAllowanceHook(124L, STORAGE_GET_MAPPING_HOOK.name())),
                 withOpContext(
                         (spec, opLog) -> defaultPayerMirror.set(unhex(asHexedSolidityAddress(asAccount(spec, 2))))),
-                cryptoTransfer(TokenMovement.movingHbar(10).between("testAccount", GENESIS))
-                        .withPreHookFor("testAccount", 124L, 25_000L, "")
+                cryptoTransfer(TokenMovement.movingHbar(10).between(OWNER, GENESIS))
+                        .withPreHookFor(OWNER, 124L, 25_000L, "")
                         .signedBy(DEFAULT_PAYER)
                         .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK),
                 // Change the hook storage's mapping slot to have key 0x00 -> 0x01 so that the hook returns true
                 // (the hook reads the mapping at slot 0, with key msg.sender; if the value is true, it
                 // returns true)
-                sourcing(() -> accountLambdaSStore("testAccount", 124L)
+                sourcing(() -> accountLambdaSStore(OWNER, 124L)
                         .putMappingEntry(
                                 mappingSlot,
                                 LambdaMappingEntry.newBuilder()
                                         .key(minimalKey(Bytes.wrap(defaultPayerMirror.get())))
                                         .value(Bytes.wrap(new byte[] {(byte) 0x01}))
                                         .build())
-                        .signedBy(DEFAULT_PAYER, "testAccount")),
-                cryptoTransfer(TokenMovement.movingHbar(10).between("testAccount", GENESIS))
-                        .withPreHookFor("testAccount", 124L, 25_000L, "")
+                        .signedBy(DEFAULT_PAYER, OWNER)),
+                cryptoTransfer(TokenMovement.movingHbar(10).between(OWNER, GENESIS))
+                        .withPreHookFor(OWNER, 124L, 25_000L, "")
                         .signedBy(DEFAULT_PAYER));
     }
 

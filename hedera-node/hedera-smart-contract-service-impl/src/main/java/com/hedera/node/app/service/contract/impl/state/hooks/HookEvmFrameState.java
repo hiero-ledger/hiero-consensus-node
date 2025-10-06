@@ -84,6 +84,19 @@ public class HookEvmFrameState extends DispatchingEvmFrameState {
     }
 
     @Override
+    public @NonNull UInt256 getOriginalStorageValue(final ContractID contractID, @NonNull final UInt256 key) {
+        if (HTS_HOOKS_16D_CONTRACT_ID.equals(contractID)) {
+            final var slotKey = minimalKey(hook.hookId(), Bytes.wrap(key.toArrayUnsafe()));
+            final var value = writableEvmHookStore.getOriginalSlotValue(slotKey);
+            if (value == null) {
+                return UInt256.ZERO;
+            }
+            return UInt256.fromBytes(pbjToTuweniBytes(value.value()));
+        }
+        return super.getOriginalStorageValue(contractID, key);
+    }
+
+    @Override
     public void setStorageValue(
             @NonNull final ContractID contractID, @NonNull final UInt256 key, @NonNull final UInt256 value) {
         if (HTS_HOOKS_16D_CONTRACT_ID.equals(contractID)) {
