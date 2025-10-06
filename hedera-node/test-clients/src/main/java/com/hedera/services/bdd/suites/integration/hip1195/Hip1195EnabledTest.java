@@ -40,7 +40,9 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.HOOK_NOT_FOUND
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK;
 import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
+import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.hiero.base.utility.CommonUtils.unhex;
+import static org.hyperledger.besu.crypto.Hash.keccak256;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.google.protobuf.ByteString;
@@ -53,6 +55,7 @@ import com.hedera.services.bdd.junit.TargetEmbeddedMode;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.dsl.annotations.Contract;
 import com.hedera.services.bdd.spec.dsl.entities.SpecContract;
+import com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil;
 import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
 import com.hederahashgraph.api.proto.java.TokenSupplyType;
 import com.hederahashgraph.api.proto.java.TokenType;
@@ -86,13 +89,19 @@ public class Hip1195EnabledTest {
     static SpecContract FALSE_PRE_POST_ALLOWANCE_HOOK;
 
     @Contract(contract = "StorageAccessAccountAllowanceHook", creationGas = 5_000_000)
-    static SpecContract STORAGE_ACCESS_ALLOWANCE_HOOK;
+    static SpecContract STORAGE_GET_SLOT_HOOK;
 
     @Contract(contract = "TransferAccountAllowanceHook", creationGas = 5_000_000)
     static SpecContract TRANSFER_HOOK;
 
     @Contract(contract = "StorageMappingAllowanceHook", creationGas = 5_000_000)
-    static SpecContract STORAGE_MAPPING_HOOK;
+    static SpecContract STORAGE_GET_MAPPING_HOOK;
+
+    @Contract(contract = "OneTimeCodeTransferAllowance", creationGas = 5_000_000)
+    static SpecContract STORAGE_SET_SLOT_HOOK;
+
+    private static final String STRING_ABI =
+            "{\"inputs\":[{\"internalType\":\"string\",\"name\":\"_password\",\"type\":\"string\"}],\"stateMutability\":\"nonpayable\",\"type\":\"constructor\"}";
 
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
@@ -101,9 +110,10 @@ public class Hip1195EnabledTest {
         testLifecycle.doAdhoc(TRUE_ALLOWANCE_HOOK.getInfo());
         testLifecycle.doAdhoc(TRUE_PRE_POST_ALLOWANCE_HOOK.getInfo());
         testLifecycle.doAdhoc(FALSE_PRE_POST_ALLOWANCE_HOOK.getInfo());
-        testLifecycle.doAdhoc(STORAGE_ACCESS_ALLOWANCE_HOOK.getInfo());
+        testLifecycle.doAdhoc(STORAGE_GET_SLOT_HOOK.getInfo());
         testLifecycle.doAdhoc(TRANSFER_HOOK.getInfo());
-        testLifecycle.doAdhoc(STORAGE_MAPPING_HOOK.getInfo());
+        testLifecycle.doAdhoc(STORAGE_GET_MAPPING_HOOK.getInfo());
+        testLifecycle.doAdhoc(STORAGE_SET_SLOT_HOOK.getInfo());
     }
 
     @HapiTest
@@ -201,7 +211,7 @@ public class Hip1195EnabledTest {
     final Stream<DynamicTest> storageAccessWorks() {
         return hapiTest(
                 cryptoCreate("testAccount")
-                        .withHooks(accountAllowanceHook(124L, STORAGE_ACCESS_ALLOWANCE_HOOK.name()))
+                        .withHooks(accountAllowanceHook(124L, STORAGE_GET_SLOT_HOOK.name()))
                         .receiverSigRequired(true),
                 // gets rejected because the return value from the allow function is false bye default
                 cryptoTransfer(TokenMovement.movingHbar(10).between("testAccount", GENESIS))
@@ -215,6 +225,35 @@ public class Hip1195EnabledTest {
                 // now the transfer works
                 cryptoTransfer(TokenMovement.movingHbar(10).between("testAccount", GENESIS))
                         .withPreHookFor("testAccount", 124L, 25_000L, "")
+                        .signedBy(DEFAULT_PAYER));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> storageSettingWorks() {
+        final var passcode = "open-sesame";
+        final var passHash32 = Bytes.wrap(keccak256(org.apache.tuweni.bytes.Bytes.wrap(passcode.getBytes(UTF_8)))
+                .toArray());
+        final var payload = HapiParserUtil.encodeParametersForConstructor(new Object[] {passcode}, STRING_ABI);
+
+        return hapiTest(
+                cryptoCreate("testAccount").withHooks(accountAllowanceHook(124L, STORAGE_SET_SLOT_HOOK.name())),
+                // gets rejected because the return value from the allow function is false bye default
+                cryptoTransfer(TokenMovement.movingHbar(10).between("testAccount", GENESIS))
+                        .withPreHookFor("testAccount", 124L, 25_000L, "")
+                        .signedBy(DEFAULT_PAYER)
+                        .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK),
+                // update the required pass code in the hook
+                accountLambdaSStore("testAccount", 124L)
+                        .putSlot(Bytes.EMPTY, passHash32)
+                        .signedBy(DEFAULT_PAYER, "testAccount"),
+                // submitting a wrong passcode does not work
+                cryptoTransfer(TokenMovement.movingHbar(10).between("testAccount", GENESIS))
+                        .withPreHookFor("testAccount", 124L, 25_000L, "wrong passcode")
+                        .signedBy(DEFAULT_PAYER)
+                        .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK),
+                // submitting the correct passcode works
+                cryptoTransfer(TokenMovement.movingHbar(10).between("testAccount", GENESIS))
+                        .withPreHookFor("testAccount", 124L, 25_000L, ByteString.copyFrom(payload))
                         .signedBy(DEFAULT_PAYER));
     }
 
@@ -719,7 +758,7 @@ public class Hip1195EnabledTest {
         final AtomicReference<byte[]> defaultPayerMirror = new AtomicReference<>();
 
         return hapiTest(
-                cryptoCreate("testAccount").withHooks(accountAllowanceHook(124L, STORAGE_MAPPING_HOOK.name())),
+                cryptoCreate("testAccount").withHooks(accountAllowanceHook(124L, STORAGE_GET_MAPPING_HOOK.name())),
                 withOpContext(
                         (spec, opLog) -> defaultPayerMirror.set(unhex(asHexedSolidityAddress(asAccount(spec, 2))))),
                 cryptoTransfer(TokenMovement.movingHbar(10).between("testAccount", GENESIS))
