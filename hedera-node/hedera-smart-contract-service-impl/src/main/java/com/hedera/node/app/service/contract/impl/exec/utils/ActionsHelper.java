@@ -16,6 +16,8 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 import org.hyperledger.besu.evm.internal.UnderflowException;
 
@@ -23,6 +25,7 @@ import org.hyperledger.besu.evm.internal.UnderflowException;
  * Helper class for pretty-printing, validating, and creating synthetic {@link ContractAction}s.
  */
 public class ActionsHelper {
+    private static final Logger log = LogManager.getLogger(ActionsHelper.class);
     private static final Bytes MISSING_ADDRESS_ERROR = Bytes.wrap("INVALID_SOLIDITY_ADDRESS".getBytes(UTF_8));
 
     /**
@@ -37,6 +40,7 @@ public class ActionsHelper {
             targetAddress = tuweniToPbjBytes(frame.getStackItem(1));
         } catch (final UnderflowException ignored) {
             // If the stack is too small, just fall through and use empty bytes
+            log.error("Stack too small to get target address for synthetic action in frame");
         }
 
         return ContractAction.newBuilder()
