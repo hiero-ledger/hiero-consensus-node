@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.ethereum.batch;
 
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asAccountString;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asToken;
@@ -88,7 +89,6 @@ import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
@@ -96,9 +96,7 @@ import org.junit.jupiter.api.Tag;
 // we are wrapping the operations in an atomic batch to confirm that everything works as expected.
 @HapiTestLifecycle
 @Tag(SMART_CONTRACT)
-@Disabled // This will be enabled once https://github.com/hiero-ledger/hiero-consensus-node/issues/19901 is fixed
 public class AtomicHelloWorldEthereumSuite {
-
     public static final long depositAmount = 20_000L;
 
     private static final String PAY_RECEIVABLE_CONTRACT = "PayReceivable";
@@ -203,6 +201,7 @@ public class AtomicHelloWorldEthereumSuite {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> badRelayClient() {
         final var adminKey = "adminKey";
         final var exploitToken = "exploitToken";
@@ -268,7 +267,7 @@ public class AtomicHelloWorldEthereumSuite {
                         .hasTinyBars(spec -> amount -> (amount > maliciousStartBalance)
                                 ? Optional.of("Malicious" + " EOA balance" + " increased")
                                 : Optional.empty())),
-                getAliasedAccountInfo(maliciousEOA).has(accountWith().nonce(0L)));
+                getAliasedAccountInfo(maliciousEOA).has(accountWith().nonce(1L)));
     }
 
     @HapiTest
@@ -300,6 +299,7 @@ public class AtomicHelloWorldEthereumSuite {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> depositSuccess() {
         return hapiTest(
                 newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
@@ -707,7 +707,7 @@ public class AtomicHelloWorldEthereumSuite {
                                 .maxFeePerGas(50L)
                                 .maxPriorityGas(2L)
                                 .gasLimit(1_000_000L)
-                                .hasPrecheck(INVALID_SIGNATURE)
+                                .hasKnownStatus(INVALID_SIGNATURE)
                                 .batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR)
                         .hasKnownStatusFrom(INNER_TRANSACTION_FAILED)),

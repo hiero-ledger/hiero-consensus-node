@@ -2,6 +2,7 @@
 package com.hedera.statevalidation.validators.servicesstate;
 
 import static com.hedera.statevalidation.validators.ParallelProcessingUtil.VALIDATOR_FORK_JOIN_POOL;
+import static com.swirlds.state.merkle.StateUtils.getStateKeyForKv;
 import static org.junit.jupiter.api.Assertions.*;
 
 import com.hedera.hapi.node.base.AccountID;
@@ -10,18 +11,21 @@ import com.hedera.hapi.node.state.common.EntityIDPair;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.state.token.Token;
 import com.hedera.hapi.node.state.token.TokenRelation;
-import com.hedera.node.app.service.token.impl.TokenServiceImpl;
+import com.hedera.node.app.ids.EntityIdService;
+import com.hedera.node.app.ids.ReadableEntityIdStoreImpl;
+import com.hedera.node.app.service.token.TokenService;
 import com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema;
-import com.hedera.statevalidation.parameterresolver.ReportResolver;
+import com.hedera.node.app.spi.ids.ReadableEntityIdStore;
+import com.hedera.pbj.runtime.ParseException;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.statevalidation.parameterresolver.StateResolver;
-import com.hedera.statevalidation.reporting.Report;
 import com.hedera.statevalidation.reporting.SlackReportGenerator;
 import com.swirlds.base.utility.Pair;
 import com.swirlds.common.threading.manager.AdHocThreadManager;
+import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.snapshot.DeserializedSignedState;
-import com.swirlds.state.merkle.MerkleStateRoot;
-import com.swirlds.state.merkle.disk.OnDiskKey;
-import com.swirlds.state.merkle.disk.OnDiskValue;
+import com.swirlds.state.merkle.StateKeyUtils;
+import com.swirlds.state.merkle.StateValue;
 import com.swirlds.state.spi.ReadableKVState;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.VirtualMapMigration;
@@ -33,79 +37,93 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
-@ExtendWith({StateResolver.class, ReportResolver.class, SlackReportGenerator.class})
+@ExtendWith({StateResolver.class, SlackReportGenerator.class})
 @Tag("tokenRelations")
 public class TokenRelationsIntegrity {
 
     private static final Logger log = LogManager.getLogger(TokenRelationsIntegrity.class);
 
     @Test
-    void validate(DeserializedSignedState deserializedState, Report report) throws InterruptedException {
-        final MerkleStateRoot servicesState =
-                (MerkleStateRoot) deserializedState.reservedSignedState().get().getState();
+    void validate(DeserializedSignedState deserializedState) throws InterruptedException {
+        final MerkleNodeState merkleNodeState =
+                deserializedState.reservedSignedState().get().getState();
 
-        VirtualMap<OnDiskKey<EntityIDPair>, OnDiskValue<TokenRelation>> tokenRelsVm = null;
+        final VirtualMap virtualMap = (VirtualMap) merkleNodeState.getRoot();
+        assertNotNull(virtualMap);
 
-        for (int i = 0; i < servicesState.getNumberOfChildren(); i++) {
-            if (servicesState.getChild(i) instanceof VirtualMap<?, ?> virtualMap
-                    && virtualMap.getLabel().equals("TokenService.TOKEN_RELS")) {
-                tokenRelsVm = (VirtualMap<OnDiskKey<EntityIDPair>, OnDiskValue<TokenRelation>>) virtualMap;
-            }
-        }
-
-        assertNotNull(tokenRelsVm);
-        log.debug("TokenService.TOKEN_RELS VM Size: {}", tokenRelsVm.size());
-
+        final ReadableEntityIdStore entityCounters =
+                new ReadableEntityIdStoreImpl(merkleNodeState.getReadableStates(EntityIdService.NAME));
         final ReadableKVState<AccountID, Account> tokenAccounts =
-                servicesState.getReadableStates(TokenServiceImpl.NAME).get(V0490TokenSchema.ACCOUNTS_KEY);
+                merkleNodeState.getReadableStates(TokenService.NAME).get(V0490TokenSchema.ACCOUNTS_STATE_ID);
         final ReadableKVState<TokenID, Token> tokenTokens =
-                servicesState.getReadableStates(TokenServiceImpl.NAME).get(V0490TokenSchema.TOKENS_KEY);
+                merkleNodeState.getReadableStates(TokenService.NAME).get(V0490TokenSchema.TOKENS_STATE_ID);
 
+        assertNotNull(entityCounters);
         assertNotNull(tokenAccounts);
         assertNotNull(tokenTokens);
-        log.debug("TokenService.TOKEN_ACCOUNTS Size: {}", tokenAccounts.size());
-        log.debug("TokenService.TOKENS Size: {}", tokenTokens.size());
+
+        final long numTokenRelations = entityCounters.numTokenRelations();
+        log.debug("Number of token relations: {}", entityCounters.numTokens());
+        log.debug("Number of accounts: {}", entityCounters.numAccounts());
+        log.debug("Number of token relations: {}", numTokenRelations);
 
         AtomicInteger objectsProcessed = new AtomicInteger();
         AtomicInteger accountFailCounter = new AtomicInteger(0);
         AtomicInteger tokenFailCounter = new AtomicInteger(0);
 
-        /*
-         * Instead of using the State API to iterate through TokenService.TOKEN_RELS, we still use the Virtual Map
-         * as it is much faster to iterate over the Virtual Map using `VirtualMapMigration.extractVirtualMapDataC`
-         * than to iterate through the ReadableKVState.
-         */
-        InterruptableConsumer<Pair<OnDiskKey<EntityIDPair>, OnDiskValue<TokenRelation>>> handler = pair -> {
-            AccountID keyAccountId = pair.key().getKey().accountId();
-            TokenID keyTokenId = pair.key().getKey().tokenId();
-            AccountID valueAccountId = pair.value().getValue().accountId();
-            TokenID valueTokenId = pair.value().getValue().tokenId();
+        final int tokenRelsStateId = V0490TokenSchema.TOKEN_RELS_STATE_ID;
 
-            assertNotNull(keyAccountId);
-            assertNotNull(keyTokenId);
-            assertNotNull(valueAccountId);
-            assertNotNull(valueTokenId);
+        InterruptableConsumer<Pair<Bytes, Bytes>> handler = pair -> {
+            final Bytes keyBytes = pair.left();
+            final Bytes valueBytes = pair.right();
+            final int readKeyStateId = StateKeyUtils.extractStateIdFromStateKeyOneOf(keyBytes);
+            final int readValueStateId = StateValue.extractStateIdFromStateValueOneOf(valueBytes);
+            if ((readKeyStateId == tokenRelsStateId) && (readValueStateId == tokenRelsStateId)) {
+                try {
+                    final com.hedera.hapi.platform.state.StateKey stateKey =
+                            com.hedera.hapi.platform.state.StateKey.PROTOBUF.parse(keyBytes);
 
-            assertEquals(keyAccountId, valueAccountId);
-            assertEquals(keyTokenId, valueTokenId);
+                    final EntityIDPair entityIDPair = stateKey.key().as();
+                    final AccountID accountId1 = entityIDPair.accountId();
+                    final TokenID tokenId1 = entityIDPair.tokenId();
 
-            if (!tokenAccounts.contains(keyAccountId)) {
-                accountFailCounter.incrementAndGet();
+                    final com.hedera.hapi.platform.state.StateValue stateValue =
+                            com.hedera.hapi.platform.state.StateValue.PROTOBUF.parse(valueBytes);
+                    final TokenRelation tokenRelation = stateValue.value().as();
+                    final AccountID accountId2 = tokenRelation.accountId();
+                    final TokenID tokenId2 = tokenRelation.tokenId();
+
+                    assertNotNull(accountId1);
+                    assertNotNull(tokenId1);
+                    assertNotNull(accountId2);
+                    assertNotNull(tokenId2);
+
+                    assertEquals(accountId1, accountId2);
+                    assertEquals(tokenId1, tokenId2);
+
+                    if (!virtualMap.containsKey(
+                            getStateKeyForKv(V0490TokenSchema.ACCOUNTS_STATE_ID, accountId1, AccountID.PROTOBUF))) {
+                        accountFailCounter.incrementAndGet();
+                    }
+
+                    if (!virtualMap.containsKey(
+                            getStateKeyForKv(V0490TokenSchema.TOKENS_STATE_ID, tokenId1, TokenID.PROTOBUF))) {
+                        tokenFailCounter.incrementAndGet();
+                    }
+                    objectsProcessed.incrementAndGet();
+                } catch (final ParseException e) {
+                    throw new RuntimeException("Failed to parse a key", e);
+                }
             }
-
-            if (!tokenTokens.contains(keyTokenId)) {
-                tokenFailCounter.incrementAndGet();
-            }
-            objectsProcessed.incrementAndGet();
         };
 
         VirtualMapMigration.extractVirtualMapDataC(
                 AdHocThreadManager.getStaticThreadManager(),
-                tokenRelsVm,
+                virtualMap,
                 handler,
                 VALIDATOR_FORK_JOIN_POOL.getParallelism());
 
-        assertEquals(objectsProcessed.get(), tokenRelsVm.size());
+        assertEquals(objectsProcessed.get(), numTokenRelations);
         assertEquals(0, accountFailCounter.get());
         assertEquals(0, tokenFailCounter.get());
     }

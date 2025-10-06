@@ -12,6 +12,7 @@ import com.hedera.node.app.hapi.utils.fee.SmartContractFeeBuilder;
 import com.hedera.node.app.service.contract.impl.ContractServiceComponent;
 import com.hedera.node.app.service.contract.impl.exec.TransactionComponent;
 import com.hedera.node.app.service.contract.impl.exec.TransactionComponent.Factory;
+import com.hedera.node.app.service.contract.impl.state.EvmFrameStates;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.workflows.HandleContext;
@@ -80,6 +81,15 @@ public abstract class AbstractContractTransactionHandler implements TransactionH
 
     protected @NonNull TransactionComponent getTransactionComponent(
             @NonNull final HandleContext context, @NonNull final HederaFunctionality functionality) {
-        return provider.get().create(context, functionality);
+        // Non-hook calls use the default strategy
+        return provider.get().create(context, functionality, EvmFrameStates.DEFAULT);
+    }
+
+    protected @NonNull TransactionComponent getTransactionComponent(
+            @NonNull final HandleContext context,
+            @NonNull final HederaFunctionality functionality,
+            @NonNull final EvmFrameStates evmFrameStates) {
+        // Hook calls can override the strategy
+        return provider.get().create(context, functionality, evmFrameStates);
     }
 }

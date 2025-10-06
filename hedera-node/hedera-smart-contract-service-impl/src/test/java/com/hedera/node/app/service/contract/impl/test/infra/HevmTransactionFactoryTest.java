@@ -32,6 +32,7 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.CONSTRU
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.DEFAULT_CONTRACTS_CONFIG;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.DEFAULT_ENTITIES_CONFIG;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.DEFAULT_HEDERA_CONFIG;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.DEFAULT_HOOKS_CONFIG;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.DEFAULT_LEDGER_CONFIG;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.DEV_CHAIN_ID_CONTRACTS_CONFIG;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.ETH_DATA_WITHOUT_TO_ADDRESS;
@@ -83,12 +84,14 @@ import com.hedera.node.app.service.contract.impl.infra.HevmTransactionFactory;
 import com.hedera.node.app.service.file.ReadableFileStore;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.api.TokenServiceApi;
+import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.validation.AttributeValidator;
 import com.hedera.node.app.spi.validation.ExpiryMeta;
 import com.hedera.node.app.spi.validation.ExpiryValidator;
 import com.hedera.node.app.spi.workflows.HandleException;
+import com.hedera.node.config.data.ContractsConfig;
+import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.state.lifecycle.info.NetworkInfo;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.function.Consumer;
 import org.hiero.base.utility.CommonUtils;
@@ -133,6 +136,11 @@ class HevmTransactionFactoryTest {
 
     private static final long TOP_LEVEL_TINYBAR_GAS_PRICE = 100L;
 
+    private static final ContractsConfig CONFIG_THROTTLE_BY_GAS = HederaTestConfigBuilder.create()
+            .withValue("contracts.maxGasPerSec", 15_000_000L)
+            .getOrCreateConfig()
+            .getConfigData(ContractsConfig.class);
+
     private HevmTransactionFactory subject;
 
     @BeforeEach
@@ -143,7 +151,7 @@ class HevmTransactionFactoryTest {
                 DEFAULT_HEDERA_CONFIG,
                 featureFlags,
                 gasCalculator,
-                DEFAULT_CONTRACTS_CONFIG,
+                CONFIG_THROTTLE_BY_GAS,
                 DEFAULT_ENTITIES_CONFIG,
                 null,
                 accountStore,
@@ -153,7 +161,8 @@ class HevmTransactionFactoryTest {
                 tokenServiceApi,
                 ethereumSignatures,
                 context,
-                entityIdFactory);
+                entityIdFactory,
+                DEFAULT_HOOKS_CONFIG);
     }
 
     @Test
@@ -163,7 +172,7 @@ class HevmTransactionFactoryTest {
 
     @Test
     void fromHapiCallFailsWithGasBelowGasCalculatorIntrinsicCost() {
-        given(gasCalculator.transactionIntrinsicGasCost(org.apache.tuweni.bytes.Bytes.EMPTY, false))
+        given(gasCalculator.transactionIntrinsicGasCost(org.apache.tuweni.bytes.Bytes.EMPTY, false, 0L))
                 .willReturn(22_000L);
         assertCallFailsWith(INSUFFICIENT_GAS, b -> b.gas(21_999L));
     }
@@ -181,7 +190,7 @@ class HevmTransactionFactoryTest {
     @Test
     void fromHapiCallUsesEmptyCallDataWhenNotSet() {
         final var transaction = getManufacturedCall(
-                b -> b.amount(123L).contractID(CALLED_CONTRACT_ID).gas(DEFAULT_CONTRACTS_CONFIG.maxGasPerSec()));
+                b -> b.amount(123L).contractID(CALLED_CONTRACT_ID).gas(CONFIG_THROTTLE_BY_GAS.maxGasPerSec()));
         assertEquals(SENDER_ID, transaction.senderId());
         assertEquals(CALLED_CONTRACT_ID, transaction.contractId());
         assertNull(transaction.relayerId());
@@ -189,7 +198,7 @@ class HevmTransactionFactoryTest {
         assertEquals(Bytes.EMPTY, transaction.payload());
         assertNull(transaction.chainId());
         assertEquals(123L, transaction.value());
-        assertEquals(DEFAULT_CONTRACTS_CONFIG.maxGasPerSec(), transaction.gasLimit());
+        assertEquals(CONFIG_THROTTLE_BY_GAS.maxGasPerSec(), transaction.gasLimit());
         assertFalse(transaction.hasOfferedGasPrice());
         assertFalse(transaction.hasMaxGasAllowance());
         assertNull(transaction.hapiCreation());
@@ -217,19 +226,19 @@ class HevmTransactionFactoryTest {
         assertCallFailsWith(CONTRACT_DELETED, b -> b.amount(123L)
                 .functionParameters(CALL_DATA)
                 .contractID(CALLED_CONTRACT_ID)
-                .gas(DEFAULT_CONTRACTS_CONFIG.maxGasPerSec()));
+                .gas(CONFIG_THROTTLE_BY_GAS.maxGasPerSec()));
     }
 
     @Test
     void fromHapiCallIgnoresDeletedContractIfFeatureFlagEnabled() {
         given(accountStore.getContractById(CALLED_CONTRACT_ID)).willReturn(A_DELETED_CONTRACT);
         given(featureFlags.isAllowCallsToNonContractAccountsEnabled(
-                        DEFAULT_CONTRACTS_CONFIG, CALLED_CONTRACT_ID.contractNumOrThrow()))
+                        CONFIG_THROTTLE_BY_GAS, CALLED_CONTRACT_ID.contractNumOrThrow()))
                 .willReturn(true);
         final var transaction = getManufacturedCall(b -> b.amount(123L)
                 .functionParameters(CALL_DATA)
                 .contractID(CALLED_CONTRACT_ID)
-                .gas(DEFAULT_CONTRACTS_CONFIG.maxGasPerSec()));
+                .gas(CONFIG_THROTTLE_BY_GAS.maxGasPerSec()));
         assertEquals(SENDER_ID, transaction.senderId());
         assertEquals(CALLED_CONTRACT_ID, transaction.contractId());
         assertNull(transaction.relayerId());
@@ -237,7 +246,7 @@ class HevmTransactionFactoryTest {
         assertEquals(CALL_DATA, transaction.payload());
         assertNull(transaction.chainId());
         assertEquals(123L, transaction.value());
-        assertEquals(DEFAULT_CONTRACTS_CONFIG.maxGasPerSec(), transaction.gasLimit());
+        assertEquals(CONFIG_THROTTLE_BY_GAS.maxGasPerSec(), transaction.gasLimit());
         assertFalse(transaction.hasOfferedGasPrice());
         assertFalse(transaction.hasMaxGasAllowance());
         assertNull(transaction.hapiCreation());
@@ -248,7 +257,7 @@ class HevmTransactionFactoryTest {
         final var transaction = getManufacturedCall(b -> b.amount(123L)
                 .functionParameters(CALL_DATA)
                 .contractID(CALLED_CONTRACT_ID)
-                .gas(DEFAULT_CONTRACTS_CONFIG.maxGasPerSec()));
+                .gas(CONFIG_THROTTLE_BY_GAS.maxGasPerSec()));
         assertEquals(SENDER_ID, transaction.senderId());
         assertEquals(CALLED_CONTRACT_ID, transaction.contractId());
         assertNull(transaction.relayerId());
@@ -256,7 +265,7 @@ class HevmTransactionFactoryTest {
         assertEquals(CALL_DATA, transaction.payload());
         assertNull(transaction.chainId());
         assertEquals(123L, transaction.value());
-        assertEquals(DEFAULT_CONTRACTS_CONFIG.maxGasPerSec(), transaction.gasLimit());
+        assertEquals(CONFIG_THROTTLE_BY_GAS.maxGasPerSec(), transaction.gasLimit());
         assertFalse(transaction.hasOfferedGasPrice());
         assertFalse(transaction.hasMaxGasAllowance());
         assertNull(transaction.hapiCreation());
@@ -306,14 +315,14 @@ class HevmTransactionFactoryTest {
     void fromHapiCreationDoesNotPermitExcessAutoAssociations() {
         givenInsteadAutoAssociatingSubject();
         assertCreateFailsWith(REQUESTED_NUM_AUTOMATIC_ASSOCIATIONS_EXCEEDS_ASSOCIATION_LIMIT, b -> b.gas(
-                        DEFAULT_CONTRACTS_CONFIG.maxGasPerSec())
+                        CONFIG_THROTTLE_BY_GAS.maxGasPerSec())
                 .maxAutomaticTokenAssociations(DEFAULT_LEDGER_CONFIG.maxAutoAssociations() + 1)
                 .autoRenewPeriod(SOME_DURATION));
     }
 
     @Test
     void fromHapiCreationDoesNotPermitNonDefaultProxyField() {
-        assertCreateFailsWith(PROXY_ACCOUNT_ID_FIELD_IS_DEPRECATED, b -> b.gas(DEFAULT_CONTRACTS_CONFIG.maxGasPerSec())
+        assertCreateFailsWith(PROXY_ACCOUNT_ID_FIELD_IS_DEPRECATED, b -> b.gas(CONFIG_THROTTLE_BY_GAS.maxGasPerSec())
                 .proxyAccountID(NON_SYSTEM_ACCOUNT_ID)
                 .autoRenewPeriod(SOME_DURATION));
     }
@@ -324,7 +333,7 @@ class HevmTransactionFactoryTest {
                 .when(tokenServiceApi)
                 .assertValidStakingElectionForCreation(false, "STAKED_NODE_ID", null, 123L, accountStore, networkInfo);
         assertCreateFailsWith(INVALID_STAKING_ID, b -> b.stakedNodeId(123)
-                .gas(DEFAULT_CONTRACTS_CONFIG.maxGasPerSec())
+                .gas(CONFIG_THROTTLE_BY_GAS.maxGasPerSec())
                 .proxyAccountID(AccountID.DEFAULT)
                 .autoRenewPeriod(SOME_DURATION));
     }
@@ -333,7 +342,7 @@ class HevmTransactionFactoryTest {
     void fromHapiCreationValidatesMemo() {
         doThrow(new HandleException(MEMO_TOO_LONG)).when(attributeValidator).validateMemo(SOME_MEMO);
         assertCreateFailsWith(MEMO_TOO_LONG, b -> b.memo(SOME_MEMO)
-                .gas(DEFAULT_CONTRACTS_CONFIG.maxGasPerSec())
+                .gas(CONFIG_THROTTLE_BY_GAS.maxGasPerSec())
                 .proxyAccountID(AccountID.DEFAULT)
                 .autoRenewPeriod(SOME_DURATION));
     }
@@ -343,7 +352,7 @@ class HevmTransactionFactoryTest {
         doThrow(new HandleException(BAD_ENCODING)).when(attributeValidator).validateKey(AN_ED25519_KEY);
         assertCreateFailsWith(SERIALIZATION_FAILED, b -> b.memo(SOME_MEMO)
                 .adminKey(AN_ED25519_KEY)
-                .gas(DEFAULT_CONTRACTS_CONFIG.maxGasPerSec())
+                .gas(CONFIG_THROTTLE_BY_GAS.maxGasPerSec())
                 .proxyAccountID(AccountID.DEFAULT)
                 .autoRenewPeriod(SOME_DURATION));
     }
@@ -357,7 +366,7 @@ class HevmTransactionFactoryTest {
         assertCreateFailsWith(INVALID_AUTORENEW_ACCOUNT, b -> b.memo(SOME_MEMO)
                 .adminKey(AN_ED25519_KEY)
                 .autoRenewAccountId(NON_SYSTEM_ACCOUNT_ID)
-                .gas(DEFAULT_CONTRACTS_CONFIG.maxGasPerSec())
+                .gas(CONFIG_THROTTLE_BY_GAS.maxGasPerSec())
                 .proxyAccountID(AccountID.DEFAULT)
                 .autoRenewPeriod(SOME_DURATION));
     }
@@ -368,7 +377,7 @@ class HevmTransactionFactoryTest {
                 .adminKey(AN_ED25519_KEY)
                 .fileID(INITCODE_FILE_ID)
                 .autoRenewAccountId(NON_SYSTEM_ACCOUNT_ID)
-                .gas(DEFAULT_CONTRACTS_CONFIG.maxGasPerSec())
+                .gas(CONFIG_THROTTLE_BY_GAS.maxGasPerSec())
                 .proxyAccountID(AccountID.DEFAULT)
                 .autoRenewPeriod(SOME_DURATION));
     }
@@ -381,7 +390,7 @@ class HevmTransactionFactoryTest {
                 .adminKey(AN_ED25519_KEY)
                 .fileID(INITCODE_FILE_ID)
                 .autoRenewAccountId(NON_SYSTEM_ACCOUNT_ID)
-                .gas(DEFAULT_CONTRACTS_CONFIG.maxGasPerSec())
+                .gas(CONFIG_THROTTLE_BY_GAS.maxGasPerSec())
                 .proxyAccountID(AccountID.DEFAULT)
                 .autoRenewPeriod(SOME_DURATION));
     }
@@ -394,7 +403,7 @@ class HevmTransactionFactoryTest {
                 .adminKey(AN_ED25519_KEY)
                 .fileID(INITCODE_FILE_ID)
                 .autoRenewAccountId(NON_SYSTEM_ACCOUNT_ID)
-                .gas(DEFAULT_CONTRACTS_CONFIG.maxGasPerSec())
+                .gas(CONFIG_THROTTLE_BY_GAS.maxGasPerSec())
                 .proxyAccountID(AccountID.DEFAULT)
                 .autoRenewPeriod(SOME_DURATION));
     }
@@ -405,7 +414,7 @@ class HevmTransactionFactoryTest {
                 .adminKey(AN_ED25519_KEY)
                 .initcode(Bytes.EMPTY)
                 .autoRenewAccountId(NON_SYSTEM_ACCOUNT_ID)
-                .gas(DEFAULT_CONTRACTS_CONFIG.maxGasPerSec())
+                .gas(CONFIG_THROTTLE_BY_GAS.maxGasPerSec())
                 .proxyAccountID(AccountID.DEFAULT)
                 .autoRenewPeriod(SOME_DURATION));
     }
@@ -419,7 +428,7 @@ class HevmTransactionFactoryTest {
                 .constructorParameters(Bytes.wrap(new byte[] {(byte) 0xab}))
                 .fileID(INITCODE_FILE_ID)
                 .autoRenewAccountId(NON_SYSTEM_ACCOUNT_ID)
-                .gas(DEFAULT_CONTRACTS_CONFIG.maxGasPerSec())
+                .gas(CONFIG_THROTTLE_BY_GAS.maxGasPerSec())
                 .proxyAccountID(AccountID.DEFAULT)
                 .autoRenewPeriod(SOME_DURATION));
     }
@@ -432,7 +441,7 @@ class HevmTransactionFactoryTest {
                 .initcode(CALL_DATA)
                 .initialBalance(123L)
                 .adminKey(immutabilitySentinelKey)
-                .gas(DEFAULT_CONTRACTS_CONFIG.maxGasPerSec())
+                .gas(CONFIG_THROTTLE_BY_GAS.maxGasPerSec())
                 .proxyAccountID(AccountID.DEFAULT)
                 .autoRenewPeriod(SOME_DURATION));
         assertEquals(SENDER_ID, transaction.senderId());
@@ -442,7 +451,7 @@ class HevmTransactionFactoryTest {
         assertSame(CALL_DATA, transaction.payload());
         assertNull(transaction.chainId());
         assertEquals(123L, transaction.value());
-        assertEquals(DEFAULT_CONTRACTS_CONFIG.maxGasPerSec(), transaction.gasLimit());
+        assertEquals(CONFIG_THROTTLE_BY_GAS.maxGasPerSec(), transaction.gasLimit());
         assertFalse(transaction.hasOfferedGasPrice());
         assertFalse(transaction.hasMaxGasAllowance());
         assertNotNull(transaction.hapiCreation());
@@ -459,7 +468,7 @@ class HevmTransactionFactoryTest {
                 .constructorParameters(CONSTRUCTOR_PARAMS)
                 .initialBalance(123L)
                 .adminKey(Key.newBuilder().keyList(KeyList.DEFAULT))
-                .gas(DEFAULT_CONTRACTS_CONFIG.maxGasPerSec())
+                .gas(CONFIG_THROTTLE_BY_GAS.maxGasPerSec())
                 .proxyAccountID(AccountID.DEFAULT)
                 .autoRenewPeriod(SOME_DURATION));
         assertEquals(SENDER_ID, transaction.senderId());
@@ -469,7 +478,7 @@ class HevmTransactionFactoryTest {
         assertEquals(expectedPayload, transaction.payload());
         assertNull(transaction.chainId());
         assertEquals(123L, transaction.value());
-        assertEquals(DEFAULT_CONTRACTS_CONFIG.maxGasPerSec(), transaction.gasLimit());
+        assertEquals(CONFIG_THROTTLE_BY_GAS.maxGasPerSec(), transaction.gasLimit());
         assertFalse(transaction.hasOfferedGasPrice());
         assertFalse(transaction.hasMaxGasAllowance());
         assertNotNull(transaction.hapiCreation());
@@ -488,7 +497,7 @@ class HevmTransactionFactoryTest {
                 .constructorParameters(CONSTRUCTOR_PARAMS)
                 .initialBalance(123L)
                 .adminKey(Key.newBuilder().keyList(KeyList.DEFAULT))
-                .gas(DEFAULT_CONTRACTS_CONFIG.maxGasPerSec())
+                .gas(CONFIG_THROTTLE_BY_GAS.maxGasPerSec())
                 .proxyAccountID(AccountID.DEFAULT)
                 .autoRenewPeriod(SOME_DURATION));
         assertEquals(SENDER_ID, transaction.senderId());
@@ -498,7 +507,7 @@ class HevmTransactionFactoryTest {
         assertEquals(expectedPayload, transaction.payload());
         assertNull(transaction.chainId());
         assertEquals(123L, transaction.value());
-        assertEquals(DEFAULT_CONTRACTS_CONFIG.maxGasPerSec(), transaction.gasLimit());
+        assertEquals(CONFIG_THROTTLE_BY_GAS.maxGasPerSec(), transaction.gasLimit());
         assertFalse(transaction.hasOfferedGasPrice());
         assertFalse(transaction.hasMaxGasAllowance());
         assertNotNull(transaction.hapiCreation());
@@ -601,6 +610,83 @@ class HevmTransactionFactoryTest {
         assertEquals(expectedCreation, transaction.hapiCreation());
     }
 
+    @Test
+    void fromContractTxExceptionWithEthereumTransaction() {
+        final var ethTxData = ETH_DATA_WITH_TO_ADDRESS;
+        givenInsteadHydratedEthTxWithRightChainId(ethTxData);
+        final var sig = EthTxSigs.extractSignatures(ethTxData);
+        given(ethereumSignatures.computeIfAbsent(ethTxData)).willReturn(sig);
+
+        final var transactionBody = TransactionBody.newBuilder()
+                .transactionID(TransactionID.newBuilder().accountID(RELAYER_ID))
+                .ethereumTransaction(ethTxWith(b -> b.maxGasAllowance(MAX_GAS_ALLOWANCE)))
+                .build();
+
+        final var exception = new HandleException(ResponseCodeEnum.TRANSACTION_OVERSIZE);
+
+        final var result = subject.fromContractTxException(transactionBody, exception);
+
+        final var expectedSenderId =
+                AccountID.newBuilder().alias(Bytes.wrap(sig.address())).build();
+        assertEquals(expectedSenderId, result.senderId());
+        assertEquals(RELAYER_ID, result.relayerId());
+        assertNull(result.contractId());
+        assertFalse(result.hasExpectedNonce());
+        assertEquals(Bytes.EMPTY, result.payload());
+        assertNull(result.chainId());
+        assertEquals(0L, result.value());
+        assertEquals(ethTxData.gasLimit(), result.gasLimit());
+        assertFalse(result.hasOfferedGasPrice());
+        assertFalse(result.hasMaxGasAllowance());
+        assertNull(result.hapiCreation());
+        assertEquals(exception, result.exception());
+    }
+
+    @Test
+    void fromContractTxExceptionWithEthereumTransactionValidationError() {
+        final var ethTxData = ETH_DATA_WITH_TO_ADDRESS;
+        givenInsteadHydratedEthTxWithWrongChainId(ethTxData);
+
+        final var transactionBody = TransactionBody.newBuilder()
+                .transactionID(TransactionID.newBuilder().accountID(RELAYER_ID))
+                .ethereumTransaction(ethTxWith(b -> b.maxGasAllowance(MAX_GAS_ALLOWANCE)))
+                .build();
+
+        final var exception = new HandleException(ResponseCodeEnum.WRONG_CHAIN_ID);
+
+        assertThrows(HandleException.class, () -> subject.fromContractTxException(transactionBody, exception));
+    }
+
+    @Test
+    void fromContractTxExceptionWithEthereumTransactionNegativeAllowance() {
+        final var ethTxData = ETH_DATA_WITH_TO_ADDRESS;
+        givenInsteadHydratedEthTxWithRightChainId(ethTxData);
+
+        final var transactionBody = TransactionBody.newBuilder()
+                .transactionID(TransactionID.newBuilder().accountID(RELAYER_ID))
+                .ethereumTransaction(ethTxWith(b -> b.maxGasAllowance(-1)))
+                .build();
+
+        final var exception = new HandleException(ResponseCodeEnum.NEGATIVE_ALLOWANCE_AMOUNT);
+
+        assertThrows(HandleException.class, () -> subject.fromContractTxException(transactionBody, exception));
+    }
+
+    @Test
+    void fromContractTxExceptionWithEthereumTransactionInvalidData() {
+        final var ethTxData = ETH_DATA_WITHOUT_TO_ADDRESS.replaceCallData(new byte[0]);
+        givenInsteadHydratedEthTxWithRightChainId(ethTxData);
+
+        final var transactionBody = TransactionBody.newBuilder()
+                .transactionID(TransactionID.newBuilder().accountID(RELAYER_ID))
+                .ethereumTransaction(ethTxWith(b -> b.maxGasAllowance(MAX_GAS_ALLOWANCE)))
+                .build();
+
+        final var exception = new HandleException(ResponseCodeEnum.INVALID_ETHEREUM_TRANSACTION);
+
+        assertThrows(HandleException.class, () -> subject.fromContractTxException(transactionBody, exception));
+    }
+
     private void assertCreateFailsWith(
             @NonNull final ResponseCodeEnum status,
             @NonNull final Consumer<ContractCreateTransactionBody.Builder> spec) {
@@ -677,6 +763,16 @@ class HevmTransactionFactoryTest {
                 new HandleException(ResponseCodeEnum.INVALID_CONTRACT_ID));
     }
 
+    private HederaEvmTransaction getManufacturedRelayedCallException(
+            @NonNull final Consumer<EthereumTransactionBody.Builder> spec) {
+        return subject.fromContractTxException(
+                TransactionBody.newBuilder()
+                        .transactionID(TransactionID.newBuilder().accountID(RELAYER_ID))
+                        .ethereumTransaction(ethTxWith(spec))
+                        .build(),
+                new HandleException(ResponseCodeEnum.TRANSACTION_OVERSIZE));
+    }
+
     private ContractCreateTransactionBody createWith(final Consumer<ContractCreateTransactionBody.Builder> spec) {
         final var builder = ContractCreateTransactionBody.newBuilder();
         spec.accept(builder);
@@ -712,7 +808,8 @@ class HevmTransactionFactoryTest {
                 tokenServiceApi,
                 ethereumSignatures,
                 context,
-                entityIdFactory);
+                entityIdFactory,
+                DEFAULT_HOOKS_CONFIG);
     }
 
     private void givenInsteadFailedHydrationSubject() {
@@ -732,7 +829,8 @@ class HevmTransactionFactoryTest {
                 tokenServiceApi,
                 ethereumSignatures,
                 context,
-                entityIdFactory);
+                entityIdFactory,
+                DEFAULT_HOOKS_CONFIG);
     }
 
     private void givenInsteadHydratedEthTxWithWrongChainId(@NonNull final EthTxData ethTxData) {
@@ -752,7 +850,8 @@ class HevmTransactionFactoryTest {
                 tokenServiceApi,
                 ethereumSignatures,
                 context,
-                entityIdFactory);
+                entityIdFactory,
+                DEFAULT_HOOKS_CONFIG);
     }
 
     private void givenInsteadHydratedEthTxWithRightChainId(@NonNull final EthTxData ethTxData) {
@@ -772,6 +871,7 @@ class HevmTransactionFactoryTest {
                 tokenServiceApi,
                 ethereumSignatures,
                 context,
-                entityIdFactory);
+                entityIdFactory,
+                DEFAULT_HOOKS_CONFIG);
     }
 }

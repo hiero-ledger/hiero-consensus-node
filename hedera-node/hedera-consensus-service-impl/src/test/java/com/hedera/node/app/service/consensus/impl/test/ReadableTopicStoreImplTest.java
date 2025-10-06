@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.consensus.impl.test;
 
-import static com.hedera.node.app.service.consensus.impl.ConsensusServiceImpl.TOPICS_KEY;
+import static com.hedera.node.app.service.consensus.impl.schemas.V0490ConsensusSchema.TOPICS_STATE_ID;
+import static com.hedera.node.app.service.consensus.impl.schemas.V0490ConsensusSchema.TOPICS_STATE_LABEL;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -53,7 +54,7 @@ class ReadableTopicStoreImplTest extends ConsensusTestBase {
         final var accountId = AccountID.newBuilder().accountNum(0L).build();
         givenValidTopic(accountId);
         readableTopicState = readableTopicState();
-        given(readableStates.<TopicID, Topic>get(TOPICS_KEY)).willReturn(readableTopicState);
+        given(readableStates.<TopicID, Topic>get(TOPICS_STATE_ID)).willReturn(readableTopicState);
         readableStore = new ReadableTopicStoreImpl(readableStates, readableEntityCounters);
         subject = new ReadableTopicStoreImpl(readableStates, readableEntityCounters);
 
@@ -75,8 +76,9 @@ class ReadableTopicStoreImplTest extends ConsensusTestBase {
     @Test
     void missingTopicIsNull() {
         readableTopicState.reset();
-        final var state = MapReadableKVState.<Long, Topic>builder(TOPICS_KEY).build();
-        given(readableStates.<Long, Topic>get(TOPICS_KEY)).willReturn(state);
+        final var state = MapReadableKVState.<Long, Topic>builder(TOPICS_STATE_ID, TOPICS_STATE_LABEL)
+                .build();
+        given(readableStates.<Long, Topic>get(TOPICS_STATE_ID)).willReturn(state);
         subject = new ReadableTopicStoreImpl(readableStates, readableEntityCounters);
 
         assertThat(subject.getTopic(topicId)).isNull();

@@ -4,6 +4,7 @@ package com.swirlds.virtualmap;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.fail;
 
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.utility.Pair;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -12,36 +13,33 @@ import java.util.Map;
 
 /**
  * Proxy for a {@link VirtualMap} that maintains a separate map to track changes and validate data consistency.
- *
- * @param <K> type of key -- must extend {@link VirtualKey}
- * @param <V> tyoe of value -- must extend {@link VirtualValue}
  */
-public class VirtualMapValidator<K extends VirtualKey, V extends VirtualValue> {
+public class VirtualMapValidator {
 
     // VirtualMap instance to validate.
-    private VirtualMap<K, V> subject;
+    private VirtualMap subject;
     // Reference map tracking current map values.
-    private final Map<K, V> reference = new HashMap<>();
+    private final Map<Bytes, Bytes> reference = new HashMap<>();
     // Snapshot of the current virtual map and reference values over time.
-    private final List<Pair<VirtualMap<K, V>, Map<K, V>>> snapshots = new ArrayList<>();
+    private final List<Pair<VirtualMap, Map<Bytes, Bytes>>> snapshots = new ArrayList<>();
     // Per-key history of the value changes for debugging.
-    private final Map<K, List<V>> history = new HashMap<>();
+    private final Map<Bytes, List<Bytes>> history = new HashMap<>();
 
-    public VirtualMapValidator(final VirtualMap<K, V> subject) {
+    public VirtualMapValidator(final VirtualMap subject) {
         this.subject = subject;
     }
 
     @SuppressWarnings("unchecked")
-    public void put(final K key, final V value) {
+    public void put(final Bytes key, final Bytes value) {
         reference.put(key, value);
-        subject.put(key, value);
+        subject.putBytes(key, value);
         if (!history.containsKey(key)) {
             history.put(key, new ArrayList<>());
         }
-        history.get(key).add((V) value.asReadOnly());
+        history.get(key).add(value);
     }
 
-    public void remove(final K key) {
+    public void remove(final Bytes key) {
         subject.remove(key);
         if (reference.containsKey(key)) {
             reference.remove(key);
@@ -52,13 +50,13 @@ public class VirtualMapValidator<K extends VirtualKey, V extends VirtualValue> {
         }
     }
 
-    public V get(final K key) {
-        final V expected = reference.get(key);
-        final V actual = subject.get(key);
+    public Bytes get(final Bytes key) {
+        final Bytes expected = reference.get(key);
+        final Bytes actual = subject.getBytes(key);
         if (expected != null && !expected.equals(actual)) {
             // Failed to match. Print out debug info.
             dumpHistory(key);
-            System.out.printf("Get Actual: [%s]:  %s%n", key, subject.get(key));
+            System.out.printf("Get Actual: [%s]:  %s%n", key, subject.getBytes(key));
         }
         assertEquals(expected, actual);
         return actual;
@@ -71,12 +69,11 @@ public class VirtualMapValidator<K extends VirtualKey, V extends VirtualValue> {
      *
      * @return reference to the VirtualMap copy.
      */
-    public VirtualMap<K, V> newCopy() {
+    public VirtualMap newCopy() {
         // Snapshot all references at time of copy
-        final Map<K, V> referenceCopy = new HashMap<>();
-        for (final K key : reference.keySet()) {
-            @SuppressWarnings("unchecked")
-            final V snapshotValue = (V) subject.get(key).asReadOnly();
+        final Map<Bytes, Bytes> referenceCopy = new HashMap<>();
+        for (final Bytes key : reference.keySet()) {
+            final Bytes snapshotValue = subject.getBytes(key);
             referenceCopy.put(key, snapshotValue);
             if (!history.containsKey(key)) {
                 history.put(key, new ArrayList<>());
@@ -95,7 +92,7 @@ public class VirtualMapValidator<K extends VirtualKey, V extends VirtualValue> {
      */
     public void validate() {
         int round = 0;
-        for (final Pair<VirtualMap<K, V>, Map<K, V>> pair : snapshots) {
+        for (final Pair<VirtualMap, Map<Bytes, Bytes>> pair : snapshots) {
             verifyMatch(round, pair.left(), pair.right());
             round++;
         }
@@ -106,21 +103,21 @@ public class VirtualMapValidator<K extends VirtualKey, V extends VirtualValue> {
      *
      * @param key the key to print change history of.
      */
-    public void dumpHistory(final K key) {
+    public void dumpHistory(final Bytes key) {
         System.out.printf("[History for %s]%n", key);
-        for (final V value : history.get(key)) {
+        for (final Bytes value : history.get(key)) {
             System.out.println(value);
         }
     }
 
-    private void verifyMatch(final int round, final VirtualMap<K, V> snapshot, final Map<K, V> reference) {
+    private void verifyMatch(final int round, final VirtualMap snapshot, final Map<Bytes, Bytes> reference) {
         assertEquals(reference.size(), snapshot.size());
-        for (final K key : reference.keySet()) {
-            if (!reference.get(key).equals(snapshot.get(key))) {
+        for (final Bytes key : reference.keySet()) {
+            if (!reference.get(key).equals(snapshot.getBytes(key))) {
                 // Failed to match. Print out debug info.
                 System.out.printf(
                         "Failed on key %s for round %d. Expected %s. Actual %s%n",
-                        key, round, reference.get(key), snapshot.get(key));
+                        key, round, reference.get(key), snapshot.getBytes(key));
                 dumpHistory(key);
                 fail("Snapshot failed to match expected reference.");
             }

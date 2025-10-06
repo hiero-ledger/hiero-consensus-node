@@ -9,14 +9,13 @@ import com.hedera.node.app.spi.fixtures.util.LogCaptor;
 import com.hedera.node.app.spi.fixtures.util.LogCaptureExtension;
 import com.hedera.node.app.spi.fixtures.util.LoggingSubject;
 import com.hedera.node.app.spi.fixtures.util.LoggingTarget;
-import edu.umd.cs.findbugs.annotations.NonNull;
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.security.SecureRandom;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 import org.junit.jupiter.api.BeforeEach;
@@ -43,15 +42,13 @@ class UnzipUtilityTest {
     @TempDir
     private Path zipSourceDir; // contains test zips
 
-    @TempDir
-    private Path zipSourceDirTooBig; // contains test zips
-
     private File testZipWithOneFile;
     private File testZipWithSubdirectory;
-    private File testZipWithSubdirectoryTooBig;
+    private File testZipWithDirectoryOnly;
+    private File testZipEmpty;
     private final String FILENAME_1 = "fileToZip.txt";
     private final String FILENAME_2 = "subdirectory/subdirectoryFileToZip.txt";
-    private final String FILENAME_3 = "subdirectory/subdirectoryFileToZip3.txt";
+    private final String DIRECTORY_ONLY = "emptyDir/";
 
     @BeforeEach
     void setup() throws IOException {
@@ -85,33 +82,19 @@ class UnzipUtilityTest {
             out.closeEntry();
         }
 
-        // set up large test zip files in a subdirectory
-        testZipWithSubdirectoryTooBig = new File(zipSourceDirTooBig + "/testZipWithSubdirectoryTooBig.zip");
-        try (ZipOutputStream out = new ZipOutputStream(new FileOutputStream(testZipWithSubdirectoryTooBig))) {
-            byte[] data = populateLargeRandomBytes();
-
-            ZipEntry e1 = new ZipEntry(FILENAME_1);
-            out.putNextEntry(e1);
-            out.write(data, 0, data.length); // Write the byte array to the output stream
-            out.closeEntry();
-            ZipEntry e2 = new ZipEntry(FILENAME_2);
-            out.putNextEntry(e2);
-            out.write(data, 0, data.length);
-            out.closeEntry();
-            ZipEntry e3 = new ZipEntry(FILENAME_3);
-            out.putNextEntry(e3);
-            out.write(data, 0, data.length);
+        // set up test zip with directory only
+        testZipWithDirectoryOnly = new File(zipSourceDir + "/testZipWithDirectoryOnly.zip");
+        try (ZipOutputStream out = new ZipOutputStream(new FileOutputStream(testZipWithDirectoryOnly))) {
+            ZipEntry e = new ZipEntry(DIRECTORY_ONLY);
+            out.putNextEntry(e);
             out.closeEntry();
         }
-    }
 
-    @NonNull
-    private static byte[] populateLargeRandomBytes() {
-        int targetSize = 104857600; // 100MB in bytes
-        byte[] data = new byte[targetSize + 1]; // Initialize byte array, size greater than threshold 100MB
-        SecureRandom random = new SecureRandom();
-        random.nextBytes(data); // Fill byte array with random bytes
-        return data;
+        // set up empty zip file
+        testZipEmpty = new File(zipSourceDir + "/testZipEmpty.zip");
+        try (ZipOutputStream out = new ZipOutputStream(new FileOutputStream(testZipEmpty))) {
+            // Create empty zip
+        }
     }
 
     @Test
@@ -137,18 +120,26 @@ class UnzipUtilityTest {
     }
 
     @Test
-    void failsWhenArchiveIsInvalidZip() {
-        final byte[] data = new byte[] {'a', 'b', 'c'};
-        assertThatExceptionOfType(IOException.class).isThrownBy(() -> UnzipUtility.unzip(data, unzipOutputDir));
+    void unzipDirectoryOnlySucceedsAndLogs() throws IOException {
+        final var data = Files.readAllBytes(testZipWithDirectoryOnly.toPath());
+        assertThatCode(() -> UnzipUtility.unzip(data, unzipOutputDir)).doesNotThrowAnyException();
+        final Path dirPath = unzipOutputDir.resolve(DIRECTORY_ONLY);
+        assert (dirPath.toFile().exists() && dirPath.toFile().isDirectory());
+        assert (logCaptor.infoLogs().contains("- Created assets sub-directory " + dirPath.toFile()));
     }
 
     @Test
-    @DisplayName("Unzip Fails when Zip file Size exceeds Thresholds")
-    void failsWhenArchiveFileSizeTooBig() throws IOException {
-        final var data = Files.readAllBytes(testZipWithSubdirectoryTooBig.toPath());
+    void failsWhenEmptyZip() throws IOException {
+        final var data = Files.readAllBytes(testZipEmpty.toPath());
         assertThatExceptionOfType(IOException.class)
                 .isThrownBy(() -> UnzipUtility.unzip(data, unzipOutputDir))
-                .withMessage("Zip bomb attack detected, aborting unzip!");
+                .withMessage("No zip entry found in bytes");
+    }
+
+    @Test
+    void failsWhenArchiveIsInvalidZip() {
+        final byte[] data = new byte[] {'a', 'b', 'c'};
+        assertThatExceptionOfType(IOException.class).isThrownBy(() -> UnzipUtility.unzip(data, unzipOutputDir));
     }
 
     @Test
@@ -160,5 +151,57 @@ class UnzipUtilityTest {
         assertThatExceptionOfType(IOException.class)
                 .isThrownBy(() -> UnzipUtility.unzip(data, dstDirMock))
                 .withMessage("Unable to create the parent directories for the file: " + dstDirMock + "/fileToZip.txt");
+    }
+
+    @Test
+    @DisplayName("Unzip Fails when trying to extract file outside destination directory (Zip Slip attack)")
+    void failsWhenZipSlipAttackAttempted() throws IOException {
+        // Create a malicious zip with entry pointing outside destination
+        byte[] maliciousZip = createMaliciousZip();
+        assertThatExceptionOfType(IOException.class)
+                .isThrownBy(() -> UnzipUtility.unzip(maliciousZip, unzipOutputDir))
+                .withMessageContaining("Zip file entry is outside of the destination directory");
+    }
+
+    @Test
+    @DisplayName("Unzip Fails when unable to create subdirectory")
+    void failsWhenUnableToCreateSubdirectory() throws IOException {
+        // Create zip with subdirectory entry
+        byte[] zipWithDir = createZipWithDirectory();
+        Path invalidDstDir = Paths.get("/invalid/path/that/cannot/be/created");
+        assertThatExceptionOfType(IOException.class)
+                .isThrownBy(() -> UnzipUtility.unzip(zipWithDir, invalidDstDir))
+                .withMessageContaining("Unable to create the parent directories for the file");
+    }
+
+    @Test
+    void testNullParameters() {
+        assertThatExceptionOfType(NullPointerException.class)
+                .isThrownBy(() -> UnzipUtility.unzip(null, unzipOutputDir));
+
+        assertThatExceptionOfType(NullPointerException.class).isThrownBy(() -> UnzipUtility.unzip(new byte[0], null));
+    }
+
+    private byte[] createMaliciousZip() throws IOException {
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        try (ZipOutputStream zos = new ZipOutputStream(baos)) {
+            // Create entry with path traversal
+            ZipEntry entry = new ZipEntry("../../../malicious.txt");
+            zos.putNextEntry(entry);
+            zos.write("malicious content".getBytes());
+            zos.closeEntry();
+        }
+        return baos.toByteArray();
+    }
+
+    private byte[] createZipWithDirectory() throws IOException {
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        try (ZipOutputStream zos = new ZipOutputStream(baos)) {
+            // Create directory entry
+            ZipEntry dirEntry = new ZipEntry("testdir/");
+            zos.putNextEntry(dirEntry);
+            zos.closeEntry();
+        }
+        return baos.toByteArray();
     }
 }

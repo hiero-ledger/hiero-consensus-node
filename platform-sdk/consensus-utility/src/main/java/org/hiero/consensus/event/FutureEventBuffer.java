@@ -4,6 +4,8 @@ package org.hiero.consensus.event;
 import static org.hiero.consensus.model.hashgraph.ConsensusConstants.ROUND_FIRST;
 
 import com.swirlds.common.metrics.FunctionGauge;
+import com.swirlds.metrics.api.LongGauge;
+import com.swirlds.metrics.api.LongGauge.Config;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -41,20 +43,34 @@ public class FutureEventBuffer {
     private final SequenceMap<Long /* birth round */, List<PlatformEvent>> futureEvents =
             new StandardSequenceMap<>(ROUND_FIRST, 8, true, x -> x);
 
+    /** The total number of events in the buffer */
     private final AtomicLong bufferedEventCount = new AtomicLong(0);
+
+    /** The maximum birth round of events in the buffer */
+    final LongGauge maxBufferedBirthRoundMetric;
 
     /**
      * Constructor.
+     *
+     * @param metrics the metrics instance to use for tracking the number of buffered events
+     * @param bufferingOption the buffering option that defines how future events are buffered
+     * @param name the name of the future event buffer, used for metrics
      */
     public FutureEventBuffer(
-            @NonNull final Metrics metrics, @NonNull final FutureEventBufferingOption bufferingOption) {
+            @NonNull final Metrics metrics,
+            @NonNull final FutureEventBufferingOption bufferingOption,
+            @NonNull final String name) {
         this.bufferingOption = bufferingOption;
         eventWindow = EventWindow.getGenesisEventWindow();
 
-        metrics.getOrCreate(
-                new FunctionGauge.Config<>("platform", "futureEventBuffer", Long.class, bufferedEventCount::get)
-                        .withDescription("the number of events sitting in the future event buffer")
-                        .withUnit("count"));
+        metrics.getOrCreate(new FunctionGauge.Config<>(
+                        "platform", "futureEventBuffer_%s_count".formatted(name), Long.class, bufferedEventCount::get)
+                .withDescription(String.format("the number of events sitting in the %s future event buffer", name))
+                .withUnit("count"));
+        maxBufferedBirthRoundMetric =
+                metrics.getOrCreate(new Config("platform", "futureEventBuffer_%s_maxBR".formatted(name))
+                        .withDescription("the maximum birth round of events in the future event buffer")
+                        .withUnit("BR"));
     }
 
     /**
@@ -76,6 +92,7 @@ public class FutureEventBuffer {
         // this is a future event, buffer it
         futureEvents.computeIfAbsent(event.getBirthRound(), BUILD_LIST).add(event);
         bufferedEventCount.incrementAndGet();
+        maxBufferedBirthRoundMetric.set(Math.max(maxBufferedBirthRoundMetric.get(), event.getBirthRound()));
         return null;
     }
 

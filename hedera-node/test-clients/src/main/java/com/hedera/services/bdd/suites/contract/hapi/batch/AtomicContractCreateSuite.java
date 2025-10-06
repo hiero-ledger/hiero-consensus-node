@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.hapi.batch;
 
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.accountWith;
@@ -214,7 +215,7 @@ public class AtomicContractCreateSuite {
                                 .adminKey(THRESHOLD)
                                 .declinedReward(false)
                                 .stakedAccountId("0.0.0")
-                                .hasPrecheck(INVALID_STAKING_ID)
+                                .hasKnownStatus(INVALID_STAKING_ID)
                                 .refusingEthConversion()
                                 .batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR)
@@ -223,7 +224,7 @@ public class AtomicContractCreateSuite {
                                 .adminKey(THRESHOLD)
                                 .declinedReward(false)
                                 .stakedNodeId(-1L)
-                                .hasPrecheck(INVALID_STAKING_ID)
+                                .hasKnownStatus(INVALID_STAKING_ID)
                                 .refusingEthConversion()
                                 .batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR)
@@ -237,10 +238,10 @@ public class AtomicContractCreateSuite {
                 uploadInitCode(EMPTY_CONSTRUCTOR_CONTRACT),
                 atomicBatch(contractCreate(EMPTY_CONSTRUCTOR_CONTRACT)
                                 .payingWith("bankrupt")
-                                .hasPrecheck(INSUFFICIENT_PAYER_BALANCE)
+                                .hasKnownStatus(INSUFFICIENT_PAYER_BALANCE)
                                 .batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR)
-                        .hasKnownStatus(INNER_TRANSACTION_FAILED));
+                        .hasPrecheck(INSUFFICIENT_PAYER_BALANCE));
     }
 
     @HapiTest
@@ -301,6 +302,7 @@ public class AtomicContractCreateSuite {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> createsVanillaContractAsExpectedWithOmittedAdminKey() {
         return hapiTest(
                 uploadInitCode(EMPTY_CONSTRUCTOR_CONTRACT),
@@ -322,6 +324,7 @@ public class AtomicContractCreateSuite {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> revertedTryExtCallHasNoSideEffects() {
         final var balance = 3_000;
         final int sendAmount = balance / 3;
@@ -421,13 +424,13 @@ public class AtomicContractCreateSuite {
                 uploadInitCode(EMPTY_CONSTRUCTOR_CONTRACT),
                 atomicBatch(contractCreate(EMPTY_CONSTRUCTOR_CONTRACT)
                                 .entityMemo(TxnUtils.nAscii(101))
-                                .hasPrecheck(MEMO_TOO_LONG)
+                                .hasKnownStatus(MEMO_TOO_LONG)
                                 .batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR)
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
                 atomicBatch(contractCreate(EMPTY_CONSTRUCTOR_CONTRACT)
                                 .entityMemo(ZERO_BYTE_MEMO)
-                                .hasPrecheck(INVALID_ZERO_BYTE_IN_STRING)
+                                .hasKnownStatus(INVALID_ZERO_BYTE_IN_STRING)
                                 .batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR)
                         .hasKnownStatus(INNER_TRANSACTION_FAILED));
@@ -550,6 +553,7 @@ public class AtomicContractCreateSuite {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> blockTimestampChangesWithinFewSeconds() {
         final var contract = "EmitBlockTimestamp";
         final var firstBlock = "firstBlock";
@@ -673,6 +677,7 @@ public class AtomicContractCreateSuite {
                         .logged());
     }
 
+    @Tag(MATS)
     final Stream<DynamicTest> contractCreateShouldChargeTheSame() {
         final var createFeeWithMaxAutoAssoc = 10L;
         final var contract1 = "EmptyOne";

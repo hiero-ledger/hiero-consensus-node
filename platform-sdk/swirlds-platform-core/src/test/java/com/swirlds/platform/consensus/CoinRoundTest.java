@@ -44,7 +44,8 @@ public class CoinRoundTest extends PlatformTest {
         // in the gradle cache and break the test. this seems to bypass that issue.
         PcesUtilities.compactPreconsensusEventFiles(dir);
 
-        final PcesFileTracker pcesFileTracker = PcesFileReader.readFilesFromDisk(context, dir, 0, false);
+        final PcesFileTracker pcesFileTracker =
+                PcesFileReader.readFilesFromDisk(context.getConfiguration(), context.getRecycleBin(), dir, 0, false);
 
         final LegacyConfigProperties legacyConfigProperties =
                 LegacyConfigPropertiesLoader.loadConfigFile(ResourceLoader.getFile(resources + "config.txt"));

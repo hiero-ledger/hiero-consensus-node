@@ -5,7 +5,7 @@ import static com.hedera.node.app.signature.impl.SignatureVerificationImpl.faile
 import static com.hedera.node.app.signature.impl.SignatureVerificationImpl.passedVerification;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.USER;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.ReversingBehavior.REVERSIBLE;
-import static com.hedera.node.app.spi.workflows.record.StreamBuilder.TransactionCustomizer.NOOP_TRANSACTION_CUSTOMIZER;
+import static com.hedera.node.app.spi.workflows.record.StreamBuilder.SignedTxCustomizer.NOOP_SIGNED_TX_CUSTOMIZER;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -26,6 +26,7 @@ import com.hedera.node.app.service.schedule.WritableScheduleStore;
 import com.hedera.node.app.service.schedule.impl.ScheduleTestBase;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.signature.impl.SignatureVerificationImpl;
+import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.spi.key.KeyVerifier;
 import com.hedera.node.app.spi.signatures.SignatureVerification;
 import com.hedera.node.app.spi.signatures.VerificationAssistant;
@@ -38,7 +39,6 @@ import com.hedera.node.app.workflows.TransactionChecker;
 import com.hedera.node.app.workflows.dispatcher.TransactionDispatcher;
 import com.hedera.node.app.workflows.handle.record.RecordStreamBuilder;
 import com.hedera.node.app.workflows.handle.validation.AttributeValidatorImpl;
-import com.swirlds.state.lifecycle.info.NodeInfo;
 import java.security.InvalidKeyException;
 import java.time.Instant;
 import java.util.Set;
@@ -166,12 +166,12 @@ class ScheduleHandlerTestBase extends ScheduleTestBase {
         given(keyVerifier.verificationFor(eq(otherKey), any())).willReturn(failedVerification(otherKey));
         given(mockContext.dispatch(
                         assertArg(options -> assertEquals(ScheduleStreamBuilder.class, options.streamBuilderType()))))
-                .willReturn(new RecordStreamBuilder(REVERSIBLE, NOOP_TRANSACTION_CUSTOMIZER, USER));
+                .willReturn(new RecordStreamBuilder(REVERSIBLE, NOOP_SIGNED_TX_CUSTOMIZER, USER));
 
         final var mockStack = mock(HandleContext.SavepointStack.class);
         given(mockContext.savepointStack()).willReturn(mockStack);
         given(mockStack.getBaseBuilder(ScheduleStreamBuilder.class))
-                .willReturn(new RecordStreamBuilder(REVERSIBLE, NOOP_TRANSACTION_CUSTOMIZER, USER));
+                .willReturn(new RecordStreamBuilder(REVERSIBLE, NOOP_SIGNED_TX_CUSTOMIZER, USER));
     }
 
     private static TransactionKeys createChildKeys(

@@ -24,7 +24,7 @@ defaults:
 
 permissions:
   id-token: write
-  contents: read
+  contents: write
   actions: read
 
 jobs:
@@ -37,7 +37,7 @@ jobs:
       prerelease: ${{ steps.tag.outputs.prerelease }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@002fdce3c6a235733a90a27c80493a3241e56863 # v2.12.1
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
         with:
           egress-policy: audit
 
@@ -104,7 +104,7 @@ jobs:
       - prepare-tag-release
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@002fdce3c6a235733a90a27c80493a3241e56863 # v2.12.1
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
         with:
           egress-policy: audit
 
@@ -186,11 +186,12 @@ jobs:
   deploy-xts-ci-trigger:
     name: Trigger XTS CI Flow
     runs-on: hiero-network-node-linux-medium
+    if: ${{ github.event_name == 'workflow_dispatch' }}
     needs:
       - release-branch
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@002fdce3c6a235733a90a27c80493a3241e56863 # v2.12.1
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
         with:
           egress-policy: audit
 
@@ -228,12 +229,12 @@ jobs:
   deploy-integration-ci-trigger:
     name: Trigger Deploy Integration Flow
     runs-on: hiero-network-node-linux-medium
-    if: ${{ inputs.dry-run-enabled == false }}
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.dry-run-enabled == false }}
     needs:
       - release-branch
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@002fdce3c6a235733a90a27c80493a3241e56863 # v2.12.1
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
         with:
           egress-policy: audit
 
@@ -270,10 +271,13 @@ jobs:
     needs:
       - release-branch
       - deploy-xts-ci-trigger
-    if: ${{ inputs.dry-run-enabled == false && (needs.release-branch.result != 'success' || needs.deploy-xts-ci-trigger.result != 'success') && !cancelled() }}
+    if:
+      ${{ github.event_name == 'workflow_dispatch' && inputs.dry-run-enabled == false &&
+      (needs.release-branch.result != 'success' || needs.deploy-xts-ci-trigger.result != 'success') &&
+      !cancelled() }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@002fdce3c6a235733a90a27c80493a3241e56863 # v2.12.1
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
         with:
           egress-policy: audit
 
@@ -335,6 +339,49 @@ jobs:
             SLACK_USER_ID="<@${SLACK_USER_ID}>"
           fi
           echo "slack-user-id=${SLACK_USER_ID}" >> "${GITHUB_OUTPUT}"
+
+      - name: Build Rootly Summary
+        id: rootly-summary
+        run: |
+          title="Deploy Production Release job failed (${{ inputs.ref-name }} - ${{ inputs.ref }})."
+          echo "title=${title}" >> "${GITHUB_OUTPUT}"
+          {
+            echo 'summary<<EOF'
+            echo "------------------------------------"
+            echo "Status of each jobs:"
+            echo "- Release [Branch]: ${{ needs.release-branch.result }}"
+            echo "- Deploy XTS CI Trigger: ${{ needs.deploy-xts-ci-trigger.result }}"
+            echo "------------------------------------"
+            echo "Commit information:"
+            echo "- Author: ${{ steps.fetch-commit-info.outputs.commit-author }}"
+            echo "- Commit: <${{ github.server_url }}/${{ github.repository }}/commit/${{ steps.fetch-commit-info.outputs.commit-hash }}>"
+            echo "- Workflow: <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}>"
+            echo EOF
+          } >> "${GITHUB_OUTPUT}"
+
+      - name: Log Rootly Summary
+        run: |
+          echo "## Rootly Summary:"
+          echo "### Title: ${{ steps.rootly-summary.outputs.title }}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "${{ steps.rootly-summary.outputs.summary }}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "### Rootly Service" >> "${GITHUB_STEP_SUMMARY}"
+          echo "${{ steps.set-rootly-service.outputs.service }}" >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Create Rootly Alert
+        id: create-rootly-alert
+        uses: pandaswhocode/rootly-alert-action@fdae1529e5aed62040016accf719a0ceb7dae57f # v1.0.0
+        continue-on-error: true
+        with:
+          api_key: ${{ secrets.ROOTLY_API_TOKEN }}
+          summary: "${{ steps.rootly-summary.outputs.title }}"
+          details: "${{ steps.rootly-summary.outputs.summary }}"
+          notification_target_type: "Service"
+          notification_target: "CI/CD Workflows"
+          set_as_noise: "true"
+          alert_urgency: "High"
+          external_id: ${{ github.run_id }}
+          external_url: "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          environments: "CITR"
 
       - name: Build Slack Payload Message
         id: payload

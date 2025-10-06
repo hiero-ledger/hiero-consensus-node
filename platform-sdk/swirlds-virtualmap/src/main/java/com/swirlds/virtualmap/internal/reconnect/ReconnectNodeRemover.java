@@ -3,9 +3,10 @@ package com.swirlds.virtualmap.internal.reconnect;
 
 import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
 
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.virtualmap.VirtualKey;
 import com.swirlds.virtualmap.VirtualValue;
-import com.swirlds.virtualmap.datasource.VirtualLeafRecord;
+import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.internal.Path;
 import com.swirlds.virtualmap.internal.RecordAccessor;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -50,7 +51,7 @@ public class ReconnectNodeRemover<K extends VirtualKey, V extends VirtualValue> 
     /**
      * Can be used to access the tree being constructed.
      */
-    private final RecordAccessor<K, V> oldRecords;
+    private final RecordAccessor oldRecords;
 
     /**
      * The first leaf path of the original merkle tree.
@@ -65,7 +66,7 @@ public class ReconnectNodeRemover<K extends VirtualKey, V extends VirtualValue> 
     /**
      * A flusher used to delete old leaves from the data source.
      */
-    private final ReconnectHashLeafFlusher<K, V> flusher;
+    private final ReconnectHashLeafFlusher flusher;
 
     /**
      * Create an object responsible for removing virtual map nodes during a reconnect.
@@ -78,10 +79,10 @@ public class ReconnectNodeRemover<K extends VirtualKey, V extends VirtualValue> 
      * 		the original last leaf path from before the reconnect
      */
     public ReconnectNodeRemover(
-            @NonNull final RecordAccessor<K, V> oldRecords,
+            @NonNull final RecordAccessor oldRecords,
             final long oldFirstLeafPath,
             final long oldLastLeafPath,
-            @NonNull final ReconnectHashLeafFlusher<K, V> flusher) {
+            @NonNull final ReconnectHashLeafFlusher flusher) {
         this.oldRecords = oldRecords;
         this.oldFirstLeafPath = oldFirstLeafPath;
         this.oldLastLeafPath = oldLastLeafPath;
@@ -102,16 +103,24 @@ public class ReconnectNodeRemover<K extends VirtualKey, V extends VirtualValue> 
      * 		the last leaf path after reconnect completes
      */
     public synchronized void setPathInformation(final long newFirstLeafPath, final long newLastLeafPath) {
+        logger.info(
+                RECONNECT.getMarker(),
+                "setPathInformation(): firstLeafPath: {} -> {}, lastLeafPath: {} -> {}",
+                oldFirstLeafPath,
+                newFirstLeafPath,
+                oldLastLeafPath,
+                newLastLeafPath);
         flusher.start(newFirstLeafPath, newLastLeafPath);
         this.newLastLeafPath = newLastLeafPath;
         if (oldLastLeafPath > 0) {
             // no-op if new first leaf path is less or equal to old first leaf path
             for (long path = oldFirstLeafPath; path < Math.min(newFirstLeafPath, oldLastLeafPath + 1); path++) {
-                final VirtualLeafRecord<K, V> oldRecord = oldRecords.findLeafRecord(path, false);
+                final VirtualLeafBytes oldRecord = oldRecords.findLeafRecord(path);
                 assert oldRecord != null;
                 flusher.deleteLeaf(oldRecord);
             }
         }
+        logger.info(RECONNECT.getMarker(), "setPathInformation(): done");
     }
 
     /**
@@ -123,25 +132,24 @@ public class ReconnectNodeRemover<K extends VirtualKey, V extends VirtualValue> 
      * @param newKey
      * 		the key of the new leaf node
      */
-    public synchronized void newLeafNode(final long path, final K newKey) {
-        final VirtualLeafRecord<K, V> oldRecord = oldRecords.findLeafRecord(path, false);
-        if ((oldRecord != null) && !newKey.equals(oldRecord.getKey())) {
+    public synchronized void newLeafNode(final long path, final Bytes newKey) {
+        final VirtualLeafBytes oldRecord = oldRecords.findLeafRecord(path);
+        if ((oldRecord != null) && !newKey.equals(oldRecord.keyBytes())) {
             flusher.deleteLeaf(oldRecord);
         }
     }
 
     public synchronized void allNodesReceived() {
-        logger.info(
-                RECONNECT.getMarker(),
-                "allNodesReceived(): newLastLeafPath = " + newLastLeafPath + ", oldLastLeafPath = " + oldLastLeafPath);
+        logger.info(RECONNECT.getMarker(), "allNodesReceived()");
         final long firstOldStalePath = (newLastLeafPath == Path.INVALID_PATH) ? 1 : newLastLeafPath + 1;
         // No-op if newLastLeafPath is greater or equal to oldLastLeafPath
         for (long p = firstOldStalePath; p <= oldLastLeafPath; p++) {
-            final VirtualLeafRecord<K, V> oldExtraLeafRecord = oldRecords.findLeafRecord(p, false);
+            final VirtualLeafBytes oldExtraLeafRecord = oldRecords.findLeafRecord(p);
             assert oldExtraLeafRecord != null || p < oldFirstLeafPath;
             if (oldExtraLeafRecord != null) {
                 flusher.deleteLeaf(oldExtraLeafRecord);
             }
         }
+        logger.info(RECONNECT.getMarker(), "allNodesReceived(): done");
     }
 }

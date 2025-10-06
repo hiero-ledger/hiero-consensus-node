@@ -1085,7 +1085,7 @@ public class HapiGetTxnRecord extends HapiQueryOp<HapiGetTxnRecord> {
     }
 
     @Override
-    protected long costOnlyNodePayment(final HapiSpec spec) throws Throwable {
+    protected long costOnlyNodePayment(final HapiSpec spec) {
         return spec.fees()
                 .forOp(
                         HederaFunctionality.TransactionGetRecord,

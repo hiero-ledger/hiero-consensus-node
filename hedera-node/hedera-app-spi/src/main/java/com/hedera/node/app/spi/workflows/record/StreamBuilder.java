@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.spi.workflows.record;
 
+import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.BATCH_INNER;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.CHILD;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.NODE;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.PRECEDING;
@@ -26,6 +27,7 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Predicate;
 import java.util.function.UnaryOperator;
 
 /**
@@ -42,11 +44,27 @@ public interface StreamBuilder {
     }
 
     /**
+     * Returns any state changes recorded during the construction of this builder so far.
+     */
+    List<StateChange> getStateChanges();
+
+    /**
+     * If applicable, returns a test that can be used to check whether a map value in this builder's state changes
+     * is logically identical to the previous value of the key.
+     *
+     * @return if applicable, a predicate that checks whether a value is logically identical to the previous value
+     */
+    default @Nullable Predicate<Object> logicallyIdenticalValueTest() {
+        return null;
+    }
+
+    /**
      * Sets the transaction for this stream item builder.
-     * @param transaction the transaction
+     *
+     * @param signedTx the transaction
      * @return this builder
      */
-    StreamBuilder transaction(@NonNull Transaction transaction);
+    StreamBuilder signedTx(@NonNull SignedTransaction signedTx);
 
     /**
      * Sets the functionality for this stream item builder.
@@ -57,16 +75,11 @@ public interface StreamBuilder {
 
     /**
      * Sets the serialized bytes for the transaction; if known, we can avoid re-serializing the transaction.
-     * @param serializedTransaction if non-null, the serialized transaction
+     *
+     * @param serializedSignedTx if non-null, the serialized transaction
      * @return this builder
      */
-    StreamBuilder serializedTransaction(@Nullable Bytes serializedTransaction);
-
-    /**
-     * Returns the transaction for this stream item builder.
-     * @return the transaction
-     */
-    Transaction transaction();
+    StreamBuilder serializedSignedTx(@Nullable Bytes serializedSignedTx);
 
     /**
      * Returns any ids recorded as having explicit reward situations during the construction of this builder so far.
@@ -91,12 +104,6 @@ public interface StreamBuilder {
      * @return the gas used
      */
     long getGasUsedForContractTxn();
-
-    /**
-     * Returns the evm ops duration already set in construction of this builder.
-     * @return the evm ops duration
-     */
-    long getOpsDurationForContractTxn();
 
     /**
      * Returns the status that is currently set in the record builder.
@@ -187,13 +194,6 @@ public interface StreamBuilder {
     StreamBuilder parentConsensus(@NonNull Instant parentConsensus);
 
     /**
-     * Sets the transaction bytes of this builder.
-     * @param transactionBytes the transaction bytes
-     * @return this builder
-     */
-    StreamBuilder transactionBytes(@NonNull Bytes transactionBytes);
-
-    /**
      * Sets the exchange rate of this builder.
      * @param exchangeRate the exchange rate
      * @return this builder
@@ -207,6 +207,9 @@ public interface StreamBuilder {
      */
     int getNumAutoAssociations();
 
+    /**
+     * @return the functionality of this transaction.
+     */
     HederaFunctionality functionality();
 
     /**
@@ -231,29 +234,31 @@ public interface StreamBuilder {
      * @return true if this transaction is internal
      */
     default boolean isUserDispatch() {
-        return category() == USER || category() == SCHEDULED || category() == NODE;
+        return category() == USER || category() == SCHEDULED || category() == NODE || category() == BATCH_INNER;
     }
 
     /**
-     * Convenience method to package as {@link TransactionBody} as a {@link Transaction} whose
+     * Convenience method to package as {@link TransactionBody} as a {@link SignedTransaction} whose
      * {@link SignedTransaction} has an unset {@link SignatureMap}.
+     *
      * @param body the transaction body
      * @return the transaction
      */
-    static Transaction transactionWith(@NonNull final TransactionBody body) {
+    static SignedTransaction signedTxWith(@NonNull final TransactionBody body) {
         requireNonNull(body);
-        return transactionWith(body, null);
+        return signedTxWith(body, null);
     }
 
     /**
      * Convenience method to package a {@link TransactionBody} as a {@link Transaction} whose
      * {@link SignedTransaction} has an empty {@link SignatureMap}.
+     *
      * @param body the transaction body
      * @return the transaction
      */
-    static Transaction nodeTransactionWith(@NonNull final TransactionBody body) {
+    static SignedTransaction nodeSignedTxWith(@NonNull final TransactionBody body) {
         requireNonNull(body);
-        return transactionWith(body, SignatureMap.DEFAULT);
+        return signedTxWith(body, SignatureMap.DEFAULT);
     }
 
     /**
@@ -286,17 +291,10 @@ public interface StreamBuilder {
         IRREVERSIBLE
     }
 
-    private static Transaction transactionWith(
+    private static SignedTransaction signedTxWith(
             @NonNull final TransactionBody body, @Nullable final SignatureMap sigMap) {
         final var bodyBytes = TransactionBody.PROTOBUF.toBytes(body);
-        final var signedTransaction = SignedTransaction.newBuilder()
-                .sigMap(sigMap)
-                .bodyBytes(bodyBytes)
-                .build();
-        final var signedTransactionBytes = SignedTransaction.PROTOBUF.toBytes(signedTransaction);
-        return Transaction.newBuilder()
-                .signedTransactionBytes(signedTransactionBytes)
-                .build();
+        return new SignedTransaction(bodyBytes, sigMap, false);
     }
 
     /**
@@ -312,16 +310,16 @@ public interface StreamBuilder {
      * </ul>
      *
      * <b>IMPORTANT:</b> implementations that suppress the record should throw if they nonetheless receive an
-     * {@link TransactionCustomizer#apply(Object)} call. (With the current scope of this interface, the
-     * provided {@link #SUPPRESSING_TRANSACTION_CUSTOMIZER} can simply be used.)
+     * {@link SignedTxCustomizer#apply(Object)} call. (With the current scope of this interface, the
+     * provided {@link #SUPPRESSING_SIGNED_TX_CUSTOMIZER} can simply be used.)
      */
     @FunctionalInterface
-    interface TransactionCustomizer extends UnaryOperator<Transaction> {
-        TransactionCustomizer NOOP_TRANSACTION_CUSTOMIZER = t -> t;
+    interface SignedTxCustomizer extends UnaryOperator<SignedTransaction> {
+        SignedTxCustomizer NOOP_SIGNED_TX_CUSTOMIZER = t -> t;
 
-        TransactionCustomizer SUPPRESSING_TRANSACTION_CUSTOMIZER = new TransactionCustomizer() {
+        SignedTxCustomizer SUPPRESSING_SIGNED_TX_CUSTOMIZER = new SignedTxCustomizer() {
             @Override
-            public Transaction apply(@NonNull final Transaction transaction) {
+            public SignedTransaction apply(@NonNull final SignedTransaction signedTx) {
                 throw new UnsupportedOperationException(
                         "Will not customize a transaction that should have been suppressed");
             }

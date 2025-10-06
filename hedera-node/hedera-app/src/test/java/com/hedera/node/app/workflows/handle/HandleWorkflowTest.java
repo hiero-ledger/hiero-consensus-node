@@ -9,6 +9,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.mock;
@@ -27,7 +29,7 @@ import com.hedera.hapi.platform.state.PlatformState;
 import com.hedera.node.app.blocks.BlockHashSigner;
 import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.blocks.impl.BoundaryStateChangeListener;
-import com.hedera.node.app.blocks.impl.KVStateChangeListener;
+import com.hedera.node.app.blocks.impl.ImmediateStateChangeListener;
 import com.hedera.node.app.blocks.impl.streaming.BlockBufferService;
 import com.hedera.node.app.fees.ExchangeRateManager;
 import com.hedera.node.app.hints.HintsService;
@@ -37,6 +39,8 @@ import com.hedera.node.app.service.schedule.ScheduleService;
 import com.hedera.node.app.service.token.impl.handlers.staking.StakeInfoHelper;
 import com.hedera.node.app.service.token.impl.handlers.staking.StakePeriodManager;
 import com.hedera.node.app.services.NodeRewardManager;
+import com.hedera.node.app.spi.info.NetworkInfo;
+import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.state.HederaRecordCache;
 import com.hedera.node.app.throttle.CongestionMetrics;
 import com.hedera.node.app.throttle.ThrottleServiceManager;
@@ -51,17 +55,15 @@ import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.node.config.types.BlockStreamWriterMode;
 import com.hedera.node.config.types.StreamMode;
-import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.state.State;
-import com.swirlds.state.lifecycle.info.NetworkInfo;
-import com.swirlds.state.lifecycle.info.NodeInfo;
 import com.swirlds.state.spi.ReadableSingletonState;
 import com.swirlds.state.spi.ReadableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.test.fixtures.CryptoRandomUtils;
@@ -79,6 +81,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class HandleWorkflowTest {
+
     private static final Instant NOW = Instant.ofEpochSecond(1_234_567L, 890);
     private static final Timestamp BLOCK_TIME = new Timestamp(1_234_567L, 890);
 
@@ -119,7 +122,7 @@ class HandleWorkflowTest {
     private ScheduleService scheduleService;
 
     @Mock
-    private KVStateChangeListener kvStateChangeListener;
+    private ImmediateStateChangeListener immediateStateChangeListener;
 
     @Mock
     private BoundaryStateChangeListener boundaryStateChangeListener;
@@ -193,7 +196,7 @@ class HandleWorkflowTest {
         final var eventFromPresentCreator = mock(ConsensusEvent.class);
         final var eventFromMissingCreator = mock(ConsensusEvent.class);
         given(state.getReadableStates(any())).willReturn(readableStates);
-        given(readableStates.getSingleton(any())).willReturn(platformStateReadableSingletonState);
+        given(readableStates.getSingleton(anyInt())).willReturn(platformStateReadableSingletonState);
         given(platformStateReadableSingletonState.get())
                 .willReturn(PlatformState.newBuilder().latestFreezeRound(0L).build());
         given(eventFromMissingCreator.getEventCore()).willReturn(eventCore);
@@ -214,17 +217,18 @@ class HandleWorkflowTest {
 
         verify(eventFromPresentCreator).consensusTransactionIterator();
         verify(recordCache).resetRoundReceipts();
-        verify(recordCache).commitRoundReceipts(any(), any());
+        verify(recordCache)
+                .commitReceipts(any(), any(), same(immediateStateChangeListener), same(blockStreamManager), any());
     }
 
     @Test
     void writesEachMigrationStateChangeWithBlockTimestamp() {
         given(state.getReadableStates(any())).willReturn(readableStates);
-        given(readableStates.getSingleton(any())).willReturn(platformStateReadableSingletonState);
+        given(readableStates.getSingleton(anyInt())).willReturn(platformStateReadableSingletonState);
 
         given(round.iterator()).willReturn(List.of(event).iterator());
         given(event.getConsensusTimestamp()).willReturn(NOW);
-        given(systemTransactions.restartSystemChangesTimeAt(any())).willReturn(NOW);
+        given(systemTransactions.firstReservedSystemTimeFor(any())).willReturn(NOW);
         final var firstBuilder = StateChanges.newBuilder().stateChanges(List.of(StateChange.DEFAULT));
         final var secondBuilder =
                 StateChanges.newBuilder().stateChanges(List.of(StateChange.DEFAULT, StateChange.DEFAULT));
@@ -242,17 +246,16 @@ class HandleWorkflowTest {
     @Test
     void writeEventHeaderWithNoParentEvents() {
         given(state.getReadableStates(any())).willReturn(readableStates);
-        given(readableStates.getSingleton(any())).willReturn(platformStateReadableSingletonState);
+        given(readableStates.getSingleton(anyInt())).willReturn(platformStateReadableSingletonState);
 
         // Setup event with no parents
         given(event.getHash()).willReturn(CryptoRandomUtils.randomHash());
         given(event.allParentsIterator())
                 .willReturn(List.<EventDescriptorWrapper>of().iterator());
         given(event.getEventCore()).willReturn(EventCore.DEFAULT);
-        given(event.getSignature()).willReturn(Bytes.wrap(new byte[64])); // Empty signature
 
         // Set up the round
-        given(round.iterator()).willReturn(List.of(event).iterator());
+        given(round.iterator()).willAnswer(invocationOnMock -> List.of(event).iterator());
 
         // Setup node info for event creator
         NodeId creatorId = NodeId.of(0);
@@ -274,7 +277,7 @@ class HandleWorkflowTest {
         verify(blockStreamManager, atLeastOnce()).writeItem(blockItemCaptor.capture());
 
         // Find the BlockItem that has an event header
-        BlockItem eventHeaderItem = blockItemCaptor.getAllValues().stream()
+        final var eventHeaderItem = blockItemCaptor.getAllValues().stream()
                 .filter(BlockItem::hasEventHeader)
                 .findFirst()
                 .orElseThrow(() -> new AssertionError("No BlockItem with event header found"));
@@ -287,7 +290,7 @@ class HandleWorkflowTest {
     @Test
     void writeEventHeaderWithParentEventsInCurrentBlock() {
         given(state.getReadableStates(any())).willReturn(readableStates);
-        given(readableStates.getSingleton(any())).willReturn(platformStateReadableSingletonState);
+        given(readableStates.getSingleton(anyInt())).willReturn(platformStateReadableSingletonState);
 
         // Create event hash and parent hash
         Hash eventHash = CryptoRandomUtils.randomHash();
@@ -303,17 +306,15 @@ class HandleWorkflowTest {
         given(event.getHash()).willReturn(eventHash);
         given(event.allParentsIterator()).willReturn(List.of(parent).iterator());
         given(event.getEventCore()).willReturn(EventCore.DEFAULT);
-        given(event.getSignature()).willReturn(Bytes.wrap(new byte[64])); // Empty signature
 
         // Setup node info for event creator
         NodeId creatorId = NodeId.of(0);
         given(event.getCreatorId()).willReturn(creatorId);
         given(networkInfo.nodeInfo(creatorId.id())).willReturn(mock(NodeInfo.class));
-        given(event.consensusTransactionIterator())
-                .willReturn(List.<ConsensusTransaction>of().iterator());
+        given(event.consensusTransactionIterator()).willReturn(emptyIterator());
 
         // Set up the round
-        given(round.iterator()).willReturn(List.of(event).iterator());
+        given(round.iterator()).willAnswer(invocationOnMock -> List.of(event).iterator());
 
         // Create subject with BLOCKS mode
         givenSubjectWith(StreamMode.BLOCKS, BlockStreamWriterMode.FILE, List.of());
@@ -328,7 +329,7 @@ class HandleWorkflowTest {
         verify(blockStreamManager, atLeastOnce()).writeItem(blockItemCaptor.capture());
 
         // Find the BlockItem that has an event header
-        BlockItem eventHeaderItem = blockItemCaptor.getAllValues().stream()
+        final var eventHeaderItem = blockItemCaptor.getAllValues().stream()
                 .filter(BlockItem::hasEventHeader)
                 .findFirst()
                 .orElseThrow(() -> new AssertionError("No BlockItem with event header found"));
@@ -346,7 +347,7 @@ class HandleWorkflowTest {
     @Test
     void writeEventHeaderWithParentEventsNotInCurrentBlock() {
         given(state.getReadableStates(any())).willReturn(readableStates);
-        given(readableStates.getSingleton(any())).willReturn(platformStateReadableSingletonState);
+        given(readableStates.getSingleton(anyInt())).willReturn(platformStateReadableSingletonState);
 
         // Create event hash and parent hash
         Hash eventHash = CryptoRandomUtils.randomHash();
@@ -364,7 +365,6 @@ class HandleWorkflowTest {
         given(event.getHash()).willReturn(eventHash);
         given(event.allParentsIterator()).willReturn(List.of(parent).iterator());
         given(event.getEventCore()).willReturn(EventCore.DEFAULT);
-        given(event.getSignature()).willReturn(Bytes.wrap(new byte[64])); // Empty signature
 
         // Setup node info for event creator
         NodeId creatorId = NodeId.of(0);
@@ -373,7 +373,7 @@ class HandleWorkflowTest {
         given(event.consensusTransactionIterator()).willReturn(emptyIterator());
 
         // Set up the round
-        given(round.iterator()).willReturn(List.of(event).iterator());
+        given(round.iterator()).willAnswer(invocationOnMock -> List.of(event).iterator());
 
         // Create subject with BLOCKS mode
         givenSubjectWith(StreamMode.BLOCKS, BlockStreamWriterMode.FILE, List.of());
@@ -388,7 +388,7 @@ class HandleWorkflowTest {
         verify(blockStreamManager, atLeastOnce()).writeItem(blockItemCaptor.capture());
 
         // Find the BlockItem that has an event header
-        BlockItem eventHeaderItem = blockItemCaptor.getAllValues().stream()
+        final var eventHeaderItem = blockItemCaptor.getAllValues().stream()
                 .filter(BlockItem::hasEventHeader)
                 .findFirst()
                 .orElseThrow(() -> new AssertionError("No BlockItem with event header found"));
@@ -406,7 +406,7 @@ class HandleWorkflowTest {
     @Test
     void writeEventHeaderWithMixedParentEvents() {
         given(state.getReadableStates(any())).willReturn(readableStates);
-        given(readableStates.getSingleton(any())).willReturn(platformStateReadableSingletonState);
+        given(readableStates.getSingleton(anyInt())).willReturn(platformStateReadableSingletonState);
 
         // Create event hash and parent hashes
         Hash eventHash = CryptoRandomUtils.randomHash();
@@ -433,7 +433,6 @@ class HandleWorkflowTest {
         given(event.allParentsIterator())
                 .willReturn(List.of(parentInBlock, parentNotInBlock).iterator());
         given(event.getEventCore()).willReturn(EventCore.DEFAULT);
-        given(event.getSignature()).willReturn(Bytes.wrap(new byte[64])); // Empty signature
 
         // Setup node info for event creator
         NodeId creatorId = NodeId.of(0);
@@ -442,7 +441,7 @@ class HandleWorkflowTest {
         given(event.consensusTransactionIterator()).willReturn(emptyIterator());
 
         // Set up the round
-        given(round.iterator()).willReturn(List.of(event).iterator());
+        given(round.iterator()).willAnswer(invocationOnMock -> List.of(event).iterator());
 
         // Create subject with BLOCKS mode
         givenSubjectWith(StreamMode.BLOCKS, BlockStreamWriterMode.FILE, List.of());
@@ -457,7 +456,7 @@ class HandleWorkflowTest {
         verify(blockStreamManager, atLeastOnce()).writeItem(blockItemCaptor.capture());
 
         // Find the BlockItem that has an event header
-        BlockItem eventHeaderItem = blockItemCaptor.getAllValues().stream()
+        final var eventHeaderItem = blockItemCaptor.getAllValues().stream()
                 .filter(BlockItem::hasEventHeader)
                 .findFirst()
                 .orElseThrow(() -> new AssertionError("No BlockItem with event header found"));
@@ -500,7 +499,6 @@ class HandleWorkflowTest {
                 cacheWarmer,
                 opWorkflowMetrics,
                 throttleServiceManager,
-                version,
                 initTrigger,
                 hollowAccountCompletions,
                 systemTransactions,
@@ -510,8 +508,7 @@ class HandleWorkflowTest {
                 stakePeriodManager,
                 migrationStateChanges,
                 parentTxnFactory,
-                kvStateChangeListener,
-                boundaryStateChangeListener,
+                immediateStateChangeListener,
                 scheduleService,
                 hintsService,
                 historyService,
@@ -521,13 +518,14 @@ class HandleWorkflowTest {
                 null,
                 nodeRewardManager,
                 platformStateFacade,
-                blockBufferService);
+                blockBufferService,
+                Map.of());
     }
 
     @Test
     void startRoundShouldCallEnsureNewBlocksPermitted() {
         given(state.getReadableStates(any())).willReturn(readableStates);
-        given(readableStates.getSingleton(any())).willReturn(platformStateReadableSingletonState);
+        given(readableStates.getSingleton(anyInt())).willReturn(platformStateReadableSingletonState);
 
         // Mock the round iterator and event
         final NodeId creatorId = NodeId.of(0);
@@ -535,12 +533,11 @@ class HandleWorkflowTest {
         given(event.getHash()).willReturn(eventHash);
         given(event.getCreatorId()).willReturn(creatorId);
         given(event.getEventCore()).willReturn(EventCore.DEFAULT);
-        given(event.getSignature()).willReturn(Bytes.wrap(new byte[64]));
         given(event.allParentsIterator())
                 .willReturn(List.<EventDescriptorWrapper>of().iterator());
         given(networkInfo.nodeInfo(creatorId.id())).willReturn(mock(NodeInfo.class));
         given(event.consensusTransactionIterator()).willReturn(emptyIterator());
-        given(round.iterator()).willReturn(List.of(event).iterator());
+        given(round.iterator()).willAnswer(invocationOnMock -> List.of(event).iterator());
 
         // Create subject with streamToBlockNodes enabled
         givenSubjectWith(BOTH, BlockStreamWriterMode.FILE_AND_GRPC, emptyList());

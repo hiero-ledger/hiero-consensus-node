@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.suites.hip551;
 
 import static com.google.protobuf.ByteString.copyFromUtf8;
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.atomicBatch;
@@ -22,8 +23,12 @@ import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movi
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingUnique;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
+import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.flattened;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.MAX_CUSTOM_FEE_LIMIT_EXCEEDED;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_NOT_ASSOCIATED_TO_ACCOUNT;
 import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
 
 import com.hedera.services.bdd.junit.HapiTest;
@@ -37,6 +42,7 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.Tag;
 
 @HapiTestLifecycle
 public class AtomicBatchCustomFeesTest {
@@ -56,16 +62,20 @@ public class AtomicBatchCustomFeesTest {
 
     @HapiTest
     @DisplayName("FT transfer with custom fee rollback")
+    @Tag(MATS)
     public Stream<DynamicTest> fungibleTokenTransferCustomFeeRollback() {
         final var successfulTransfer = cryptoTransfer(
                         moving(1, FT_WITH_FIXED_HBAR_FEE).between(SENDER, RECEIVER))
+                .fee(ONE_HBAR)
                 .payingWith(SENDER)
                 .batchKey(BATCH_OPERATOR);
         // This transfer will fail because the account has no associations
         final var failingTransfer = cryptoTransfer(
                         moving(1, FT_WITH_FIXED_HBAR_FEE).between(SENDER, ACCOUNT_WITH_NO_ASSOCIATIONS))
+                .fee(ONE_HBAR)
                 .payingWith(SENDER)
-                .batchKey(BATCH_OPERATOR);
+                .batchKey(BATCH_OPERATOR)
+                .hasKnownStatus(TOKEN_NOT_ASSOCIATED_TO_ACCOUNT);
 
         return hapiTest(flattened(
                 createAccounts(),
@@ -92,13 +102,14 @@ public class AtomicBatchCustomFeesTest {
                 .batchKey(BATCH_OPERATOR);
         // This transfer will fail because the account has no associations
         final var failingTransfer = cryptoTransfer(
-                        movingUnique("NFT", 1L).between(SENDER, ACCOUNT_WITH_NO_ASSOCIATIONS))
-                .batchKey(BATCH_OPERATOR);
+                        movingUnique("NFT", 2L).between(SENDER, ACCOUNT_WITH_NO_ASSOCIATIONS))
+                .batchKey(BATCH_OPERATOR)
+                .hasKnownStatus(TOKEN_NOT_ASSOCIATED_TO_ACCOUNT);
 
         return hapiTest(flattened(
                 createAccounts(),
                 newKeyNamed("supplyKey"),
-                tokenCreate("feeDenom").treasury(TREASURY).initialSupply(100),
+                tokenCreate("feeDenom").treasury(TREASURY).initialSupply(200),
                 tokenAssociate(FEE_COLLECTOR, "feeDenom"),
                 tokenCreate("NFT")
                         .withCustom(royaltyFeeNoFallback(1, 4, FEE_COLLECTOR))
@@ -106,14 +117,21 @@ public class AtomicBatchCustomFeesTest {
                         .treasury(TREASURY)
                         .supplyKey("supplyKey")
                         .initialSupply(0),
-                mintToken("NFT", List.of(copyFromUtf8("meta1"))),
-                cryptoTransfer(movingUnique("NFT", 1).between(TREASURY, SENDER)),
+                mintToken("NFT", List.of(copyFromUtf8("meta1"), copyFromUtf8("meta2"))),
+                cryptoTransfer(
+                        movingUnique("NFT", 1).between(TREASURY, SENDER),
+                        movingUnique("NFT", 2).between(TREASURY, SENDER)),
                 getAccountBalance(SENDER).hasTokenBalance("feeDenom", 0L),
-                atomicBatch(successfulTransfer).payingWith(BATCH_OPERATOR),
-                getAccountBalance(SENDER).hasTokenBalance("feeDenom", 75L),
-                atomicBatch(successfulTransfer, failingTransfer)
+                atomicBatch(
+                                cryptoTransfer(
+                                                movingUnique("NFT", 1L).between(SENDER, RECEIVER),
+                                                moving(100, "feeDenom").between(TREASURY, SENDER))
+                                        .batchKey(BATCH_OPERATOR),
+                                failingTransfer)
                         .payingWith(BATCH_OPERATOR)
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
+                getAccountBalance(SENDER).hasTokenBalance("feeDenom", 0L),
+                atomicBatch(successfulTransfer).payingWith(BATCH_OPERATOR),
                 getAccountBalance(SENDER).hasTokenBalance("feeDenom", 75L)));
     }
 
@@ -128,7 +146,8 @@ public class AtomicBatchCustomFeesTest {
         final var failingSubmit = submitMessageTo("topic")
                 .maxCustomFee(maxCustomFee(SENDER, hbarLimit(1)))
                 .payingWith(SENDER)
-                .batchKey(BATCH_OPERATOR);
+                .batchKey(BATCH_OPERATOR)
+                .hasKnownStatus(MAX_CUSTOM_FEE_LIMIT_EXCEEDED);
 
         return hapiTest(flattened(
                 createAccounts(),
@@ -153,7 +172,8 @@ public class AtomicBatchCustomFeesTest {
         final var failingAirdrop = tokenAirdrop(
                         moving(1, FT_WITH_FIXED_HBAR_FEE).between(SENDER, RECEIVER))
                 .payingWith(DEFAULT_PAYER)
-                .batchKey(BATCH_OPERATOR);
+                .batchKey(BATCH_OPERATOR)
+                .hasKnownStatus(INVALID_SIGNATURE);
 
         return hapiTest(flattened(
                 createAccounts(),

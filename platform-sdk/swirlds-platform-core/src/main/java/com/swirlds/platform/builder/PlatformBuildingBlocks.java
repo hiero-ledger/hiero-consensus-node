@@ -13,21 +13,22 @@ import com.swirlds.platform.freeze.FreezeCheckHolder;
 import com.swirlds.platform.gossip.IntakeEventCounter;
 import com.swirlds.platform.scratchpad.Scratchpad;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
+import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.SwirldStateManager;
 import com.swirlds.platform.state.iss.IssScratchpad;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.system.status.StatusActionSubmitter;
-import com.swirlds.platform.util.RandomBuilder;
-import com.swirlds.platform.wiring.PlatformWiring;
+import com.swirlds.platform.wiring.PlatformComponents;
+import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.security.SecureRandom;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
-import org.hiero.consensus.event.creator.impl.pool.TransactionPoolNexus;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
@@ -37,7 +38,7 @@ import org.hiero.consensus.roster.RosterHistory;
  * This record contains core utilities and basic objects needed to build a platform. It should not contain any platform
  * components.
  *
- * @param platformWiring                         the wiring for this platform
+ * @param platformComponents                         the wiring for this platform
  * @param platformContext                        the context for this platform
  * @param model                                  the wiring model for this platform
  * @param keysAndCerts                           an object holding all the public/private key pairs and the CSPRNG state
@@ -55,8 +56,7 @@ import org.hiero.consensus.roster.RosterHistory;
  *                                               not been enabled
  * @param intakeEventCounter                     counts events that have been received by gossip but not yet inserted
  *                                               into gossip event storage, per peer
- * @param randomBuilder                          a builder for creating random number generators
- * @param transactionPoolNexus                   provides transactions to be added to new events
+ * @param secureRandomSupplier                   a source of secure random number generator instances
  * @param freezeCheckHolder                      a reference to a predicate that determines if a timestamp is in the
  *                                               freeze period
  * @param latestImmutableStateProviderReference  a reference to a method that supplies the latest immutable state. Input
@@ -83,9 +83,12 @@ import org.hiero.consensus.roster.RosterHistory;
  *                                               reconnect, can be removed once reconnect is made compatible with the
  *                                               wiring framework
  * @param platformStateFacade                    the facade to access the platform state
+ * @param execution                              the instance of the execution layer, which allows consensus to interact
+ *                                               with the execution layer
+ * @param createStateFromVirtualMap              a function to instantiate the state object from a Virtual Map
  */
 public record PlatformBuildingBlocks(
-        @NonNull PlatformWiring platformWiring,
+        @NonNull PlatformComponents platformComponents,
         @NonNull PlatformContext platformContext,
         @NonNull WiringModel model,
         @NonNull KeysAndCerts keysAndCerts,
@@ -99,8 +102,7 @@ public record PlatformBuildingBlocks(
         @Nullable Consumer<PlatformEvent> preconsensusEventConsumer,
         @Nullable Consumer<ConsensusSnapshot> snapshotOverrideConsumer,
         @NonNull IntakeEventCounter intakeEventCounter,
-        @NonNull RandomBuilder randomBuilder,
-        @NonNull TransactionPoolNexus transactionPoolNexus,
+        @NonNull Supplier<SecureRandom> secureRandomSupplier,
         @NonNull FreezeCheckHolder freezeCheckHolder,
         @NonNull AtomicReference<Function<String, ReservedSignedState>> latestImmutableStateProviderReference,
         @NonNull PcesFileTracker initialPcesFiles,
@@ -114,10 +116,12 @@ public record PlatformBuildingBlocks(
         @NonNull AtomicReference<Runnable> clearAllPipelinesForReconnectReference,
         boolean firstPlatform,
         @NonNull ConsensusStateEventHandler consensusStateEventHandler,
-        @NonNull PlatformStateFacade platformStateFacade) {
+        @NonNull PlatformStateFacade platformStateFacade,
+        @NonNull ExecutionLayer execution,
+        @NonNull Function<VirtualMap, MerkleNodeState> createStateFromVirtualMap) {
 
     public PlatformBuildingBlocks {
-        requireNonNull(platformWiring);
+        requireNonNull(platformComponents);
         requireNonNull(platformContext);
         requireNonNull(model);
         requireNonNull(keysAndCerts);
@@ -129,8 +133,7 @@ public record PlatformBuildingBlocks(
         requireNonNull(rosterHistory);
         requireNonNull(applicationCallbacks);
         requireNonNull(intakeEventCounter);
-        requireNonNull(randomBuilder);
-        requireNonNull(transactionPoolNexus);
+        requireNonNull(secureRandomSupplier);
         requireNonNull(freezeCheckHolder);
         requireNonNull(latestImmutableStateProviderReference);
         requireNonNull(initialPcesFiles);
@@ -142,5 +145,9 @@ public record PlatformBuildingBlocks(
         requireNonNull(getLatestCompleteStateReference);
         requireNonNull(loadReconnectStateReference);
         requireNonNull(clearAllPipelinesForReconnectReference);
+        requireNonNull(consensusStateEventHandler);
+        requireNonNull(platformStateFacade);
+        requireNonNull(execution);
+        requireNonNull(createStateFromVirtualMap);
     }
 }

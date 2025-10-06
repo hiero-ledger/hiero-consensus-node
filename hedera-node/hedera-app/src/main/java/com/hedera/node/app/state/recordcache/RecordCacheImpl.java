@@ -9,10 +9,13 @@ import static com.hedera.node.app.state.HederaRecordCache.DuplicateCheckResult.N
 import static com.hedera.node.app.state.HederaRecordCache.DuplicateCheckResult.OTHER_NODE;
 import static com.hedera.node.app.state.HederaRecordCache.DuplicateCheckResult.SAME_NODE;
 import static com.hedera.node.app.state.recordcache.RecordCacheService.NAME;
-import static com.hedera.node.app.state.recordcache.schemas.V0540RecordCacheSchema.TXN_RECEIPT_QUEUE;
+import static com.hedera.node.app.state.recordcache.schemas.V0490RecordCacheSchema.TRANSACTION_RECEIPTS_STATE_ID;
+import static com.hedera.node.config.types.StreamMode.RECORDS;
 import static java.util.Collections.emptyList;
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.hapi.block.stream.BlockItem;
+import com.hedera.hapi.block.stream.output.StateChanges;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.base.TransactionID;
@@ -20,6 +23,9 @@ import com.hedera.hapi.node.state.recordcache.TransactionReceiptEntries;
 import com.hedera.hapi.node.state.recordcache.TransactionReceiptEntry;
 import com.hedera.hapi.node.transaction.TransactionReceipt;
 import com.hedera.hapi.node.transaction.TransactionRecord;
+import com.hedera.node.app.blocks.BlockStreamManager;
+import com.hedera.node.app.blocks.impl.ImmediateStateChangeListener;
+import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.records.RecordSource;
 import com.hedera.node.app.state.DeduplicationCache;
 import com.hedera.node.app.state.HederaRecordCache;
@@ -27,8 +33,8 @@ import com.hedera.node.app.state.WorkingStateAccessor;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.LedgerConfig;
+import com.hedera.node.config.types.StreamMode;
 import com.swirlds.state.State;
-import com.swirlds.state.lifecycle.info.NetworkInfo;
 import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.state.spi.ReadableQueueState;
 import com.swirlds.state.spi.WritableQueueState;
@@ -327,17 +333,49 @@ public class RecordCacheImpl implements HederaRecordCache {
     }
 
     @Override
-    public void commitRoundReceipts(@NonNull final State state, @NonNull final Instant consensusNow) {
+    public void maybeCommitReceiptsBatch(
+            @NonNull final State state,
+            @NonNull final Instant consensusNow,
+            @NonNull final ImmediateStateChangeListener immediateStateChangeListener,
+            final int receiptEntriesBatchSize,
+            @NonNull final BlockStreamManager blockStreamManager,
+            @NonNull final StreamMode streamMode) {
+        if (transactionReceipts.size() >= receiptEntriesBatchSize) {
+            commitReceipts(state, consensusNow, immediateStateChangeListener, blockStreamManager, streamMode);
+            transactionReceipts.clear();
+        }
+    }
+
+    @Override
+    public void commitReceipts(
+            @NonNull final State state,
+            @NonNull final Instant consensusNow,
+            @NonNull final ImmediateStateChangeListener immediateStateChangeListener,
+            @NonNull final BlockStreamManager blockStreamManager,
+            @NonNull final StreamMode streamMode) {
         requireNonNull(state);
         requireNonNull(consensusNow);
+        requireNonNull(blockStreamManager);
+        requireNonNull(streamMode);
+        if (streamMode != RECORDS) {
+            immediateStateChangeListener.resetQueueStateChanges();
+        }
         final var states = state.getWritableStates(NAME);
-        final var queue = states.<TransactionReceiptEntries>getQueue(TXN_RECEIPT_QUEUE);
+        final var queue = states.<TransactionReceiptEntries>getQueue(TRANSACTION_RECEIPTS_STATE_ID);
         purgeExpiredReceiptEntries(queue, consensusNow);
         if (!transactionReceipts.isEmpty()) {
             queue.add(new TransactionReceiptEntries(new ArrayList<>(transactionReceipts)));
         }
         if (states instanceof CommittableWritableStates committable) {
             committable.commit();
+        }
+        if (streamMode != RECORDS) {
+            final var changes = immediateStateChangeListener.getQueueStateChanges();
+            if (!changes.isEmpty()) {
+                blockStreamManager.writeItem((now -> BlockItem.newBuilder()
+                        .stateChanges(new StateChanges(now, new ArrayList<>(changes)))
+                        .build()));
+            }
         }
     }
 
@@ -488,7 +526,7 @@ public class RecordCacheImpl implements HederaRecordCache {
     private ReadableQueueState<TransactionReceiptEntries> getReadableQueue(
             final WorkingStateAccessor workingStateAccessor) {
         final var states = requireNonNull(workingStateAccessor.getState()).getReadableStates(NAME);
-        return states.getQueue(TXN_RECEIPT_QUEUE);
+        return states.getQueue(TRANSACTION_RECEIPTS_STATE_ID);
     }
 
     private static TransactionRecord asTxnRecord(final TransactionReceiptEntry receipt) {

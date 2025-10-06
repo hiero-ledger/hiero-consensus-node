@@ -2,12 +2,14 @@
 package com.hedera.node.app.service.contract.impl.test.state;
 
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.CALLED_CONTRACT_ID;
+import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.EXPLICIT_WRITE_TRACING;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.BDDMockito.given;
 
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.contract.ContractNonceInfo;
+import com.hedera.hapi.node.state.contract.SlotKey;
 import com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations;
 import com.hedera.node.app.service.contract.impl.exec.scope.HederaOperations;
 import com.hedera.node.app.service.contract.impl.exec.scope.SystemContractOperations;
@@ -23,15 +25,17 @@ import com.hedera.node.app.service.contract.impl.state.RootProxyWorldUpdater;
 import com.hedera.node.app.service.contract.impl.state.StorageAccess;
 import com.hedera.node.app.service.contract.impl.state.StorageAccesses;
 import com.hedera.node.app.service.contract.impl.state.StorageSizeChange;
+import com.hedera.node.app.service.contract.impl.state.TxStorageUsage;
 import com.hedera.node.app.service.token.api.ContractChangeSummary;
-import com.hedera.node.app.spi.throttle.ThrottleAdviser;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.config.data.ContractsConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import org.apache.tuweni.units.bigints.UInt256;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -43,9 +47,9 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class RootProxyWorldUpdaterTest {
-    private static final ContractID A_CONTRAC_ID =
+    private static final ContractID A_CONTRACT_ID =
             ContractID.newBuilder().contractNum(123L).build();
-    private static final ContractID B_CONTRAC_ID =
+    private static final ContractID B_CONTRACTID =
             ContractID.newBuilder().contractNum(234L).build();
     private static final UInt256 A_KEY_BEING_ADDED = UInt256.fromHexString("0x1234");
     private static final UInt256 A_KEY_BEING_CHANGED = UInt256.fromHexString("0x2345");
@@ -83,9 +87,6 @@ class RootProxyWorldUpdaterTest {
     @Mock
     private ContractStateStore store;
 
-    @Mock
-    private ThrottleAdviser throttleAdviser;
-
     private Enhancement enhancement;
     private RootProxyWorldUpdater subject;
 
@@ -109,11 +110,14 @@ class RootProxyWorldUpdaterTest {
         final var aExpiry = 1_234_567;
         final var aSlotsUsedBeforeCommit = 101;
         final var sizeIncludingPendingRemovals = 123L;
+        final var mockChangedKeys = Set.of(new SlotKey(A_CONTRACT_ID, Bytes.wrap("123")));
         // Three keys being removed in pending changes
         final var sizeExcludingPendingRemovals = sizeIncludingPendingRemovals - 3;
+        given(context.dispatchMetadata())
+                .willReturn(new HandleContext.DispatchMetadata(EXPLICIT_WRITE_TRACING, Boolean.FALSE));
         given(evmFrameState.getKvStateSize()).willReturn(sizeIncludingPendingRemovals);
-        given(evmFrameState.getStorageChanges()).willReturn(pendingChanges());
-        given(evmFrameState.getRentFactorsFor(A_CONTRAC_ID))
+        given(evmFrameState.getTxStorageUsage(true)).willReturn(new TxStorageUsage(pendingChanges(), mockChangedKeys));
+        given(evmFrameState.getRentFactorsFor(A_CONTRACT_ID))
                 .willReturn(new RentFactors(aSlotsUsedBeforeCommit, aExpiry));
 
         final var rentInTinycents = 666_666L;
@@ -132,12 +136,13 @@ class RootProxyWorldUpdaterTest {
 
         inOrder.verify(storageSizeValidator)
                 .assertValid(sizeExcludingPendingRemovals, hederaOperations, expectedSizeChanges());
-        inOrder.verify(hederaOperations).chargeStorageRent(A_CONTRAC_ID, rentInTinybars, true);
+        inOrder.verify(hederaOperations).chargeStorageRent(A_CONTRACT_ID, rentInTinybars, true);
         inOrder.verify(storageManager).persistChanges(enhancement, pendingChanges(), expectedSizeChanges(), store);
         inOrder.verify(hederaOperations).commit();
 
         assertSame(createdIds, subject.getCreatedContractIds());
         assertSame(updatedNonces, subject.getUpdatedContractNonces());
+        assertSame(mockChangedKeys, subject.getTxStorageUsage().changedKeys());
     }
 
     private void givenSubjectWith(@NonNull final Configuration configuration, @NonNull final Enhancement enhancement) {
@@ -154,7 +159,7 @@ class RootProxyWorldUpdaterTest {
     private List<StorageAccesses> pendingChanges() {
         return List.of(
                 new StorageAccesses(
-                        A_CONTRAC_ID,
+                        A_CONTRACT_ID,
                         List.of(
                                 new StorageAccess(A_KEY_BEING_ADDED, UInt256.ZERO, UInt256.ONE),
                                 new StorageAccess(A_KEY_BEING_CHANGED, UInt256.ONE, UInt256.MAX_VALUE),
@@ -162,7 +167,7 @@ class RootProxyWorldUpdaterTest {
                                 new StorageAccess(A_SECOND_KEY_BEING_ADDED, UInt256.ZERO, UInt256.ONE),
                                 new StorageAccess(A_THIRD_KEY_BEING_ADDED, UInt256.ZERO, UInt256.MAX_VALUE))),
                 new StorageAccesses(
-                        B_CONTRAC_ID,
+                        B_CONTRACTID,
                         List.of(
                                 new StorageAccess(B_KEY_BEING_ADDED, UInt256.ZERO, UInt256.ONE),
                                 new StorageAccess(B_KEY_BEING_REMOVED, UInt256.ONE, UInt256.ZERO),
@@ -170,6 +175,6 @@ class RootProxyWorldUpdaterTest {
     }
 
     private List<StorageSizeChange> expectedSizeChanges() {
-        return List.of(new StorageSizeChange(A_CONTRAC_ID, 1, 3), new StorageSizeChange(B_CONTRAC_ID, 2, 1));
+        return List.of(new StorageSizeChange(A_CONTRACT_ID, 1, 3), new StorageSizeChange(B_CONTRACTID, 2, 1));
     }
 }

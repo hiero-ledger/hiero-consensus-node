@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.leaky.batch;
 
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
@@ -35,7 +36,6 @@ import java.math.BigInteger;
 import java.util.Map;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
@@ -44,9 +44,7 @@ import org.junit.jupiter.api.Tag;
 @Tag(SMART_CONTRACT)
 @SuppressWarnings("java:S5960")
 @HapiTestLifecycle
-@Disabled // This will be enabled once https://github.com/hiero-ledger/hiero-consensus-node/issues/19901 is fixed
 public class AtomicLeakyEthereumTestsSuite {
-
     private static final String PAY_RECEIVABLE_CONTRACT = "PayReceivable";
     private static final String BATCH_OPERATOR = "batchOperator";
 
@@ -70,6 +68,7 @@ public class AtomicLeakyEthereumTestsSuite {
     // and so `v` is calculated -> v = {0,1} + 27
     // source: https://eips.ethereum.org/EIPS/eip-155
     @LeakyHapiTest(overrides = {"contracts.chainId"})
+    @Tag(MATS)
     final Stream<DynamicTest> legacyUnprotectedEtxBeforeEIP155() {
         final String DEPOSIT = "deposit";
         final long depositAmount = 20_000L;
@@ -112,6 +111,7 @@ public class AtomicLeakyEthereumTestsSuite {
      * if there is no free bit available for this information, as in values like 11155111.
      */
     @LeakyHapiTest(overrides = {"contracts.chainId"})
+    @Tag(MATS)
     /* default */ final Stream<DynamicTest> legacyUnprotectedEtxBeforeEIP155WithChainIdHavingExtraByteForSign() {
         final var deposit = "deposit";
         final var depositAmount = 20_000L;
@@ -153,6 +153,7 @@ public class AtomicLeakyEthereumTestsSuite {
     // and so `v` is calculated -> v = {0,1} + CHAIN_ID * 2 + 35
     // source: https://eips.ethereum.org/EIPS/eip-155
     @LeakyHapiTest(overrides = {"contracts.chainId"})
+    @Tag(MATS)
     final Stream<DynamicTest> legacyEtxAfterEIP155() {
         final String DEPOSIT = "deposit";
         final long depositAmount = 20_000L;

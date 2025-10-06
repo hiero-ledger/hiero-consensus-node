@@ -4,10 +4,12 @@ package com.swirlds.merkledb.test.fixtures;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
 import com.swirlds.virtualmap.serialize.BaseSerializer;
+import org.hiero.base.constructable.ConstructableIgnored;
 
 /**
  * Very simple DataItem that is fixed size and has a long key and long value. Designed for testing
  */
+@ConstructableIgnored
 public class ExampleFixedSizeDataSerializer implements BaseSerializer<long[]> {
 
     /**

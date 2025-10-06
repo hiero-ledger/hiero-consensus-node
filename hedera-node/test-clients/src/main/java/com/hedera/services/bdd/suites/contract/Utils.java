@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.suites.contract;
 
 import static com.esaulpaugh.headlong.abi.Address.toChecksumAddress;
+import static com.hedera.node.app.hapi.utils.CommonPbjConverters.pbjToProto;
 import static com.hedera.node.app.hapi.utils.keys.KeyUtils.relocatedIfNotPresentInWorkingDir;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.NUM_LONG_ZEROS;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asDotDelimitedLongArray;
@@ -25,6 +26,7 @@ import com.esaulpaugh.headlong.abi.Address;
 import com.google.common.primitives.Ints;
 import com.google.common.primitives.Longs;
 import com.google.protobuf.ByteString;
+import com.hedera.hapi.node.base.HookCall;
 import com.hedera.hapi.node.base.ScheduleID;
 import com.hedera.node.app.hapi.fees.pricing.AssetsLoader;
 import com.hedera.services.bdd.spec.HapiPropertySource;
@@ -57,6 +59,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.IntStream;
 import java.util.stream.LongStream;
@@ -285,6 +288,39 @@ public class Utils {
                 .setAccountID(account)
                 .setAmount(amount)
                 .build();
+    }
+
+    public static AccountAmount aaWithPreHook(
+            final AccountID account, final long amount, @NonNull final HookCall hookCall) {
+        return AccountAmount.newBuilder()
+                .setPreTxAllowanceHook(
+                        pbjToProto(hookCall, HookCall.class, com.hederahashgraph.api.proto.java.HookCall.class))
+                .setAccountID(account)
+                .setAmount(amount)
+                .build();
+    }
+
+    public static AccountAmount aaWithPrePostHook(
+            final AccountID account, final long amount, @NonNull final HookCall hookCall) {
+        return AccountAmount.newBuilder()
+                .setPrePostTxAllowanceHook(
+                        pbjToProto(hookCall, HookCall.class, com.hederahashgraph.api.proto.java.HookCall.class))
+                .setAccountID(account)
+                .setAmount(amount)
+                .build();
+    }
+
+    public static NftTransfer ocWith(
+            @NonNull final AccountID from,
+            @NonNull final AccountID to,
+            final long serialNo,
+            @NonNull final Consumer<NftTransfer.Builder> authSpec) {
+        final var builder = NftTransfer.newBuilder()
+                .setSenderAccountID(from)
+                .setReceiverAccountID(to)
+                .setSerialNumber(serialNo);
+        authSpec.accept(builder);
+        return builder.build();
     }
 
     public static AccountAmount aaWith(final HapiSpec spec, final byte[] bytes, final long amount) {

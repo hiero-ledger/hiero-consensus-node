@@ -20,9 +20,8 @@ import com.hedera.hapi.node.state.roster.RosterState;
 import com.hedera.hapi.node.state.roster.RosterState.Builder;
 import com.hedera.hapi.node.state.roster.RoundRosterPair;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.platform.state.service.PlatformStateService;
-import com.swirlds.state.merkle.singleton.SingletonNode;
-import com.swirlds.state.merkle.singleton.WritableSingletonStateImpl;
+import com.swirlds.platform.test.fixtures.virtualmap.VirtualMapUtils;
+import com.swirlds.state.merkle.disk.OnDiskWritableSingletonState;
 import com.swirlds.state.spi.WritableKVState;
 import com.swirlds.state.spi.WritableSingletonState;
 import com.swirlds.state.spi.WritableStates;
@@ -47,20 +46,21 @@ class WritableRosterStoreTest {
 
     @BeforeEach
     void setUp() {
-        final SingletonNode<RosterState> rosterStateSingleton = new SingletonNode<>(
-                PlatformStateService.NAME,
-                WritableRosterStore.ROSTER_STATES_KEY,
-                0,
-                RosterState.PROTOBUF,
-                new RosterState(null, new LinkedList<>(), false));
+        final String virtualMapLabel =
+                "vm-" + WritableRosterStoreTest.class.getSimpleName() + java.util.UUID.randomUUID();
+        final var virtualMap = VirtualMapUtils.createVirtualMap(virtualMapLabel, 1);
+
         final WritableKVState<ProtoBytes, Roster> rosters = MapWritableKVState.<ProtoBytes, Roster>builder(
-                        WritableRosterStore.ROSTER_KEY)
+                        RosterStateId.ROSTERS_STATE_ID, RosterStateId.ROSTERS_STATE_LABEL)
                 .build();
-        when(writableStates.<ProtoBytes, Roster>get(WritableRosterStore.ROSTER_KEY))
+        when(writableStates.<ProtoBytes, Roster>get(RosterStateId.ROSTERS_STATE_ID))
                 .thenReturn(rosters);
-        when(writableStates.<RosterState>getSingleton(WritableRosterStore.ROSTER_STATES_KEY))
-                .thenReturn(
-                        new WritableSingletonStateImpl<>(WritableRosterStore.ROSTER_STATES_KEY, rosterStateSingleton));
+        when(writableStates.<RosterState>getSingleton(RosterStateId.ROSTER_STATE_STATE_ID))
+                .thenReturn(new OnDiskWritableSingletonState<>(
+                        RosterStateId.ROSTER_STATE_STATE_ID,
+                        RosterStateId.ROSTER_STATE_STATE_LABEL,
+                        RosterState.PROTOBUF,
+                        virtualMap));
 
         readableRosterStore = new ReadableRosterStoreImpl(writableStates);
         writableRosterStore = new WritableRosterStore(writableStates);

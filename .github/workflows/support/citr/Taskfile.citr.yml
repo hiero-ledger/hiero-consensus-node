@@ -1,0 +1,520 @@
+# SPDX-License-Identifier: Apache-2.0
+version: 3
+output: prefixed
+silent: false
+
+vars:
+  nodes:
+    ref: until (env "SOLO_NETWORK_SIZE" | default .SOLO_NETWORK_SIZE | int)
+  # node name should be node1, node2, node3, etc.
+  node_list_internal: "{{range $idx, $n := .nodes }}node{{add $n 1}},{{end}}"
+  node_identifiers: '{{ .node_list_internal | trimSuffix "," }}'
+
+  solo_user_dir: '{{ .solo_home_override_dir | default (printf "%s/.solo" (env "HOME")) }}'
+  solo_cache_dir: "{{ .solo_user_dir }}/cache"
+  solo_logs_dir: "{{ .solo_user_dir }}/logs"
+  solo_keys_dir: "{{ .solo_cache_dir }}/keys"
+  solo_bin_dir: "{{ .solo_user_dir }}/bin"
+  temp_prefix:
+    sh: (echo "/tmp/solo-${USER}-$(date +%Y%m%d%H%M%S)")
+  var_check_file:
+    sh: (echo "/tmp/solo-${USER}-var-check-$(date +%Y%m%d%H%M%S)")
+  minio_flag_file:
+    sh: (echo "/tmp/solo-${USER}-minio-flag-$(date +%Y%m%d%H%M%S)")
+
+tasks:
+  default:
+    cmds:
+      - task: "install:kubectl:darwin"
+      - task: "install:kubectl:linux"
+      - task: "install"
+      - task: "start"
+
+  install:
+    desc: solo init, solo cluster-ref create, solo node keys, solo network deploy
+    cmds:
+      #Alex - task: "cluster:create"
+      - task: "solo:init"
+      - task: "solo:cluster:setup"
+      - task: "solo:cluster-ref:connect"
+      - task: "solo:deployment:create"
+      - task: "solo:deployment:add-cluster"
+      - task: "solo:keys"
+      - task: "solo:network:deploy"
+
+  destroy:
+    cmds:
+      - task: "solo:network:destroy"
+
+  var:check:
+    silent: true
+    status:
+      - test -f {{ .var_check_file }}
+    requires:
+      vars:
+        - solo_user_dir
+        - solo_cache_dir
+        - solo_logs_dir
+        - solo_keys_dir
+        - solo_bin_dir
+        - nodes
+        - node_list_internal
+        - node_identifiers
+        - SOLO_NAMESPACE
+        - SOLO_DEPLOYMENT
+        - SOLO_CLUSTER_SETUP_NAMESPACE
+        - SOLO_CLUSTER_RELEASE_NAME
+        - SOLO_NETWORK_SIZE
+        - SOLO_CLUSTER_NAME
+        - MIRROR_RELEASE_NAME
+    cmds:
+      - echo "Checking variables..."
+      - echo "solo_user_dir={{ .solo_user_dir }}"
+      - echo "SOLO_HOME=${SOLO_HOME}"
+      - echo "SOLO_NETWORK_SIZE=${SOLO_NETWORK_SIZE}"
+      - echo "CONSENSUS_NODE_VERSION=${CONSENSUS_NODE_VERSION}"
+      - echo "SOLO_NAMESPACE=${SOLO_NAMESPACE}"
+      - echo "SOLO_DEPLOYMENT=${SOLO_DEPLOYMENT}"
+      - echo "CLUSTER_REF=${CLUSTER_REF}"
+      - echo "SOLO_CLUSTER_RELEASE_NAME=${SOLO_CLUSTER_RELEASE_NAME}"
+      - echo "CONTEXT=${CONTEXT}"
+      - echo "nodes={{ .nodes }}"
+      - echo "node_identifiers={{ .node_identifiers }}"
+      - echo "use_port_forwards={{ .use_port_forwards }}"
+      - echo "VALUES_FLAG=${VALUES_FLAG}"
+      - echo "SETTINGS_FLAG=${SETTINGS_FLAG}"
+      - echo "LOG4J2_FLAG=${LOG4J2_FLAG}"
+      - echo "APPLICATION_PROPERTIES_FLAG=${APPLICATION_PROPERTIES_FLAG}"
+      - echo "LOCAL_BUILD_FLAG=${LOCAL_BUILD_FLAG}"
+      - echo "DEBUG_NODE_ALIAS=${DEBUG_NODE_ALIAS}"
+      - echo "SOLO_CHARTS_DIR_FLAG=${SOLO_CHARTS_DIR_FLAG}"
+      - echo "LOAD_BALANCER_FLAG=${LOAD_BALANCER_FLAG}"
+      - echo "ENABLE_EXPLORER_TLS_FLAG=${ENABLE_EXPLORER_TLS_FLAG}"
+      - echo "ENABLE_EXPLORER_INGRESS=${ENABLE_EXPLORER_INGRESS}"
+      - echo "ENABLE_MIRROR_INGRESS=${ENABLE_MIRROR_INGRESS}"
+      - echo "CLUSTER_TLS_FLAGS=${CLUSTER_TLS_FLAGS}"
+      - echo "NETWORK_DEPLOY_EXTRA_FLAGS=${NETWORK_DEPLOY_EXTRA_FLAGS}"
+      - echo "MIRROR_NODE_DEPLOY_EXTRA_FLAGS=${MIRROR_NODE_DEPLOY_EXTRA_FLAGS}"
+      - echo "EXPLORER_DEPLOY_EXTRA_FLAGS=${EXPLORER_DEPLOY_EXTRA_FLAGS}"
+      - echo "NODE_SETUP_EXTRA_FLAGS=${NODE_SETUP_EXTRA_FLAGS}"
+      - touch {{ .var_check_file }}
+
+  readme:
+    silent: true
+    cmds:
+      - echo "This is a custom network configuration for the Hedera Hashgraph Solo network."
+      - echo "The network is configured to have {{ .SOLO_NETWORK_SIZE }} nodes."
+      - echo "The network is deployed in the namespace {{ .SOLO_NAMESPACE }}."
+      - echo "The local deployment name is {{ .SOLO_DEPLOYMENT }}."
+      - echo "The cluster is deployed in the namespace {{ .SOLO_CLUSTER_SETUP_NAMESPACE }}."
+      - echo "Use command 'task default' to deploy the network."
+      - echo "Use command 'task destroy' to destroy the network."
+      - echo "Use command 'task clean' to destroy and clean up the network."
+      - echo "Use command 'task show:ips' to show the external IPs of the nodes."
+      - echo "Use command 'task default-with-mirror' to deploy the network with a mirror node."
+      - echo "Use command 'task default-with-relay' to deploy the network with a relay node."
+
+  install:kubectl:darwin:
+    silent: true
+    internal: true
+    platforms:
+      - darwin
+    status:
+      - command -v kubectl
+    cmds:
+      - brew update
+      - brew install kubernetes-cli
+
+  install:kubectl:linux:
+    silent: true
+    internal: true
+    platforms:
+      - linux
+    status:
+      - command -v kubectl
+    cmds:
+      - curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/{{ ARCH }}/kubectl"
+      - sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
+      - rm -rf kubectl
+
+  solo:init:
+    internal: true
+    silent: true
+    status:
+      - test -f {{ .solo_bin_dir }}/helm
+      - test -f {{ .solo_cache_dir }}/profiles/custom-spec.yaml
+      - test -f {{ .solo_cache_dir }}/templates/api-permission.properties
+      - test -f {{ .solo_cache_dir }}/templates/application.properties
+      - test -f {{ .solo_cache_dir }}/templates/bootstrap.properties
+      - test -f {{ .solo_cache_dir }}/templates/settings.txt
+      - test -f {{ .solo_cache_dir }}/templates/log4j2.xml
+      #- test "$(yq -r '.flags."node-ids"' < {{ .solo_user_dir }}/solo.yaml)" == "{{ .node_identifiers }}"
+      - test "$(jq -r '.flags."node-ids"' < {{ .solo_user_dir }}/solo.config)" == "{{ .node_identifiers }}"
+    cmds:
+      - SOLO_HOME_DIR=${SOLO_HOME_DIR} solo init --dev
+
+  solo:cluster-ref:connect:
+    silent: true
+    internal: true
+    cmds:
+      - |
+        if [[ "${CONTEXT}" != "" ]]; then
+          echo "CONTEXT=${CONTEXT}"
+        else
+          export CONTEXT="kind-${SOLO_CLUSTER_NAME}"
+        fi
+        if [[ "${CLUSTER_REF}" != "" ]]; then
+          echo "CLUSTER_REF=${CLUSTER_REF}"
+        else
+          export CLUSTER_REF="kind-${SOLO_CLUSTER_NAME}"
+        fi
+        SOLO_HOME_DIR=${SOLO_HOME_DIR} solo cluster-ref connect --cluster-ref ${CLUSTER_REF} --context ${CONTEXT}
+
+  solo:deployment:create:
+    silent: true
+    internal: true
+    cmds:
+      - |
+        if [[ "${CLUSTER_REF}" != "" ]]; then
+          echo "CLUSTER_REF=${CLUSTER_REF}"
+        else
+          export CLUSTER_REF="kind-${SOLO_CLUSTER_NAME}"
+        fi
+        SOLO_HOME_DIR=${SOLO_HOME_DIR} solo deployment create -n {{ .SOLO_NAMESPACE }} --deployment "${SOLO_DEPLOYMENT}"
+
+  solo:deployment:add-cluster:
+    silent: true
+    internal: true
+    cmds:
+      - |
+        if [[ "${CLUSTER_REF}" != "" ]]; then
+          echo "CLUSTER_REF=${CLUSTER_REF}"
+        else
+          export CLUSTER_REF="kind-${SOLO_CLUSTER_NAME}"
+        fi
+        NODE_COUNT=$(echo "{{ .node_identifiers }}" | awk -F',' '{print NF}')
+        echo "NODE_COUNT=${NODE_COUNT}"
+        SOLO_HOME_DIR=${SOLO_HOME_DIR} solo deployment add-cluster --cluster-ref ${CLUSTER_REF} --deployment "${SOLO_DEPLOYMENT}" --num-consensus-nodes ${NODE_COUNT}
+
+  solo:keys:
+    silent: true
+    internal: true
+    status:
+      - |
+        for n in $(seq 0 {{ sub (env "SOLO_NETWORK_SIZE" | default .SOLO_NETWORK_SIZE | int) 1 }}); do
+         test -f {{ .solo_keys_dir }}/hedera-node${n}.crt
+         test -f {{ .solo_keys_dir }}/hedera-node${n}.key
+         test -f {{ .solo_keys_dir }}/s-public-node${n}.pem
+         test -f {{ .solo_keys_dir }}/s-private-node${n}.pem
+        done
+    cmds:
+      - SOLO_HOME_DIR=${SOLO_HOME_DIR} solo node keys --gossip-keys --tls-keys --node-aliases {{.node_identifiers}} --deployment "${SOLO_DEPLOYMENT}" -q --dev
+
+  solo:network:deploy:
+    silent: true
+    internal: true
+    cmds:
+      - |
+        if [[ "${DEBUG_NODE_ALIAS}" != "" ]]; then
+          export DEBUG_NODE_FLAG="--debug-node-alias {{ .DEBUG_NODE_ALIAS }}"
+        fi
+        if [[ "${CONSENSUS_NODE_VERSION}" != "" ]]; then
+          export CONSENSUS_NODE_FLAG='--release-tag {{.CONSENSUS_NODE_VERSION}}'
+        fi
+        SOLO_HOME_DIR=${SOLO_HOME_DIR} solo network deploy --deployment "${SOLO_DEPLOYMENT}" --node-aliases {{.node_identifiers}} ${CONSENSUS_NODE_FLAG} ${VALUES_FLAG} ${SETTINGS_FLAG} ${LOG4J2_FLAG} ${APPLICATION_PROPERTIES_FLAG} ${GENESIS_THROTTLES_FLAG} ${DEBUG_NODE_FLAG} ${SOLO_CHARTS_DIR_FLAG} ${LOAD_BALANCER_FLAG} ${NETWORK_DEPLOY_EXTRA_FLAGS} -q --dev
+      - task: "solo:node:setup"
+
+  solo:node:setup:
+    silent: true
+    internal: true
+    cmds:
+      - |
+        if [[ "${CONSENSUS_NODE_VERSION}" != "" ]]; then
+          export CONSENSUS_NODE_FLAG='--release-tag {{.CONSENSUS_NODE_VERSION}}'
+        fi
+        SOLO_HOME_DIR=${SOLO_HOME_DIR} solo node setup --deployment "${SOLO_DEPLOYMENT}" --node-aliases {{.node_identifiers}} ${CONSENSUS_NODE_FLAG} ${LOCAL_BUILD_FLAG} ${SOLO} ${NODE_SETUP_EXTRA_FLAGS} -q --dev
+
+  solo:network:destroy:
+    silent: true
+    internal: true
+    cmds:
+      - SOLO_HOME_DIR=${SOLO_HOME_DIR} solo network destroy --deployment "${SOLO_DEPLOYMENT}" --delete-pvcs --delete-secrets --force -q --dev
+
+  solo:node:start:
+    silent: true
+    internal: true
+    cmds:
+      - |
+        if [[ "${DEBUG_NODE_ALIAS}" != "" ]]; then
+          export DEBUG_NODE_FLAG="--debug-node-alias {{ .DEBUG_NODE_ALIAS }}"
+        fi
+        SOLO_HOME_DIR=${SOLO_HOME_DIR} solo node start --deployment "${SOLO_DEPLOYMENT}" --node-aliases {{.node_identifiers}} ${DEBUG_NODE_FLAG} -q {{ .CLI_ARGS }} --dev
+      - |
+        if [[ "{{ .use_port_forwards }}" == "true" ]];then
+          echo "Port forwarding for Hedera Network Node: grpc:50211"
+          /bin/bash -c "nohup kubectl port-forward -n \"${SOLO_NAMESPACE}\" svc/haproxy-node1-svc 50211:50211 > /dev/null 2>&1 &"
+          sleep 4
+        fi
+
+  solo:node:stop:
+    silent: true
+    internal: true
+    ignore_error: true
+    cmds:
+      - SOLO_HOME_DIR=${SOLO_HOME_DIR} solo node stop --deployment "${SOLO_DEPLOYMENT}" --node-aliases {{.node_identifiers}} -q {{ .CLI_ARGS }} --dev
+
+  solo:relay:
+    silent: true
+    cmds:
+      - SOLO_HOME_DIR=${SOLO_HOME_DIR} solo relay deploy --deployment "${SOLO_DEPLOYMENT}" -i node1 ${RELAY_NODE_DEPLOY_EXTRA_FLAGS} -q --dev
+      - |
+        if [[ "{{ .use_port_forwards }}" == "true" ]];then
+          echo "Enable port forwarding for Hedera JSON RPC Relay"
+          /bin/bash -c "nohup kubectl port-forward -n \"${SOLO_NAMESPACE}\" svc/relay-node1-hedera-json-rpc-relay 7546:7546 > /dev/null 2>&1 &"
+          sleep 4
+        fi
+
+  solo:destroy-relay:
+    silent: true
+    status:
+      - |
+        {{.solo_bin_dir}}/helm list -n "${SOLO_NAMESPACE}" | grep -vqz relay-node1
+    cmds:
+      - SOLO_HOME_DIR=${SOLO_HOME_DIR} solo relay destroy --deployment "${SOLO_DEPLOYMENT}" -i node1 -q --dev
+
+  solo:cache:remove:
+    silent: true
+    internal: true
+    status:
+      - test [[ ! -d {{ .solo_cache_dir }} ]]
+    cmds:
+      - echo "Removing solo cache directory..."
+      - rm -rf {{ .solo_cache_dir }}
+
+  solo:logs:remove:
+    silent: true
+    internal: true
+    status:
+      - test [[ ! -d {{ .solo_logs_dir }} ]]
+    cmds:
+      - echo "Removing solo logs directory..."
+      - rm -rf {{ .solo_logs_dir }}
+
+  solo:config:remove:
+    silent: true
+    internal: true
+    status:
+      - test [[ ! -f {{ .solo_user_dir }}/solo.yaml ]]
+    cmds:
+      - echo "Removing solo config..."
+      - rm -rf {{ .solo_user_dir }}/solo.yaml
+
+  solo:freeze:restart:
+    cmds:
+      - SOLO_HOME_DIR=${SOLO_HOME_DIR} solo node prepare-upgrade --deployment "${SOLO_DEPLOYMENT}" -q --dev
+      - SOLO_HOME_DIR=${SOLO_HOME_DIR} solo node freeze-upgrade --deployment "${SOLO_DEPLOYMENT}" -q --dev
+      - SOLO_HOME_DIR=${SOLO_HOME_DIR} solo node stop --deployment "${SOLO_DEPLOYMENT}" --node-aliases {{.node_identifiers}} -q --dev
+      - SOLO_HOME_DIR=${SOLO_HOME_DIR} solo node start --deployment "${SOLO_DEPLOYMENT}" --node-aliases {{.node_identifiers}} -q --dev
+
+  cluster:create:
+    silent: true
+    status:
+      - kind get clusters | grep -q "${SOLO_CLUSTER_NAME}"
+    cmds:
+      - kind create cluster -n "${SOLO_CLUSTER_NAME}" --image "${KIND_IMAGE}"
+      - sleep 10 # wait for control plane to come up
+      - kubectl config set-context kind-${SOLO_CLUSTER_NAME}
+
+  cluster:destroy:
+    silent: true
+    cmds:
+      - kind delete cluster --name "${SOLO_CLUSTER_NAME}"
+
+  clean:port-forward:
+    silent: true
+    cmds:
+      - echo "Cleaning up port forwards..."
+      - |
+        if [[ "{{ .use_port_forwards }}" == "true" ]];then
+          pkill -f "kubectl port-forward -n {{ .SOLO_NAMESPACE }}" | grep -w ${UID} || true
+        fi
+
+  solo:cluster:minio:
+    internal: true
+    silent: true
+    cmds:
+      - |
+        if ! kubectl get svc -l app.kubernetes.io/instance=minio-operator --all-namespaces --no-headers | grep -q . ; then
+          echo "No services found with label app.kubernetes.io/name=operator app.kubernetes.io/instance=minio-operator"
+          echo "--minio" > {{ .minio_flag_file }}
+        else
+          echo "--no-minio" > {{ .minio_flag_file }}
+        fi
+
+  solo:cluster:setup:
+    silent: true
+    deps:
+      - task: "solo:cluster:minio"
+    status:
+      - |
+        {{.solo_bin_dir}}/helm list --all-namespaces | grep -qz "${SOLO_CLUSTER_RELEASE_NAME}"
+    cmds:
+      - |
+        export MINIO_FLAG=$(cat {{ .minio_flag_file }})
+        SOLO_HOME_DIR=${SOLO_HOME_DIR} solo cluster-ref setup --cluster-setup-namespace "${SOLO_CLUSTER_SETUP_NAMESPACE}" ${MINIO_FLAG} ${SOLO_CHARTS_DIR_FLAG} ${CLUSTER_TLS_FLAGS} -q --dev
+
+  solo:node:addresses:
+    internal: true
+    silent: true
+    cmds:
+      - |
+        echo "External IPs of the network nodes:"
+        export IP_LIST_TEMPLATE_FILE={{.TASKFILE_DIR}}/../list-external-ips.gotemplate
+        kubectl get svc -n "${SOLO_NAMESPACE}" -l "solo.hedera.com/type=network-node-svc" --output=go-template-file=${IP_LIST_TEMPLATE_FILE}
+
+  solo:node:logs:
+    silent: true
+    cmds:
+      - SOLO_HOME_DIR=${SOLO_HOME_DIR} solo node logs --deployment "${SOLO_DEPLOYMENT}" -q --dev
+
+  start:
+    desc: solo node start
+    cmds:
+      - task: "solo:node:start"
+
+  stop:
+    desc: solo node stop
+    cmds:
+      - task: "solo:node:stop"
+
+  show:ips:
+    cmds:
+      - task: "solo:node:addresses"
+
+  clean:cache:
+    desc: remove solo cache directory
+    cmds:
+      - task: "solo:cache:remove"
+
+  clean:logs:
+    desc: remove solo logs director
+    cmds:
+      - task: "solo:logs:remove"
+
+  default-with-mirror:
+    desc: in addition to the defaults, also deploy the mirror node
+    cmds:
+      - task: "default"
+      - task: "solo:mirror-node"
+      - task: "solo:explorer"
+
+  default-with-relay:
+    desc: in addition to default-with-mirror, deploy the JSON RPC relay
+    cmds:
+      - task: "default"
+      - task: "solo:mirror-node"
+      - task: "solo:explorer"
+      - task: "solo:relay"
+
+  solo:mirror-node:
+    silent: true
+    desc: solo mirror-node deploy with port forward
+    cmds:
+      - SOLO_HOME_DIR=${SOLO_HOME_DIR} solo mirror-node deploy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} ${SOLO_CHARTS_DIR_FLAG} ${MIRROR_NODE_DEPLOY_EXTRA_FLAGS} ${ENABLE_MIRROR_INGRESS} --pinger -q --dev
+      - |
+        if [[ "{{ .use_port_forwards }}" == "true" ]];then
+          echo "Port forwarding for Mirror Node Network: grpc:5600, rest:5551"
+          /bin/bash -c "nohup kubectl port-forward -n \"${SOLO_NAMESPACE}\" svc/mirror-grpc 5600:5600 > /dev/null 2>&1 &"
+          /bin/bash -c "nohup kubectl port-forward -n \"${SOLO_NAMESPACE}\" svc/mirror-rest 5551:80 > /dev/null 2>&1 &"
+          sleep 4
+        fi
+
+  solo:explorer:
+    silent: true
+    desc: solo explorer deploy with port forward on explorer
+    cmds:
+      - |
+        if [[ "${EXPLORER_DEPLOYMENT}" != "" ]]; then
+          # create deployment on different namespace
+          SOLO_HOME_DIR=${SOLO_HOME_DIR} npm run solo-test -- deployment create --deployment ${EXPLORER_DEPLOYMENT} --namespace ${EXPLORER_NAME_SPACE}
+          SOLO_HOME_DIR=${SOLO_HOME_DIR} npm run solo-test -- deployment add-cluster --deployment ${EXPLORER_DEPLOYMENT} --cluster-ref ${EXPLORER_CLUSTER_CONTEXT} --num-consensus-nodes ${SOLO_NETWORK_SIZE}
+
+          solo explorer deploy --deployment "${EXPLORER_DEPLOYMENT}" --cluster-ref ${EXPLORER_CLUSTER_CONTEXT} --mirrorNamespace ${SOLO_NAMESPACE} ${SOLO_CHARTS_DIR_FLAG} ${EXPLORER_DEPLOY_EXTRA_FLAGS}  ${ENABLE_EXPLORER_TLS_FLAG} ${TLS_CLUSTER_ISSUER_TYPE_FLAG} ${ENABLE_EXPLORER_INGRESS} -q --dev
+          export EXPLORER_DEPLOYED_NAME_SPACE=${EXPLORER_NAME_SPACE}
+        else
+          SOLO_HOME_DIR=${SOLO_HOME_DIR} solo explorer deploy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --mirrorNamespace ${SOLO_NAMESPACE} ${SOLO_CHARTS_DIR_FLAG} ${EXPLORER_DEPLOY_EXTRA_FLAGS} ${ENABLE_EXPLORER_TLS_FLAG} ${TLS_CLUSTER_ISSUER_TYPE_FLAG} ${ENABLE_EXPLORER_INGRESS} -q --dev
+          export EXPLORER_DEPLOYED_NAME_SPACE=${SOLO_NAMESPACE}
+        fi
+        if [[ "{{ .use_port_forwards }}" == "true" ]];then
+          echo "Enable port forwarding for Hedera Explorer & Mirror Node Network"
+          echo "Port forwarding for Hedera Explorer: http://localhost:8080"
+          explorer_svc="$(kubectl get svc -l app.kubernetes.io/component=hedera-explorer -n ${EXPLORER_DEPLOYED_NAME_SPACE} --output json | jq -r '.items[].metadata.name')"
+          /bin/bash -c "nohup kubectl port-forward -n \"${EXPLORER_DEPLOYED_NAME_SPACE}\" \"svc/${explorer_svc}\" 8080:80 > /dev/null 2>&1 &"
+          sleep 4
+        fi
+
+  solo:destroy-mirror-node:
+    silent: true
+    desc: solo mirror-node destroy
+    status:
+      - |
+        {{.solo_bin_dir}}/helm list -n "${SOLO_NAMESPACE}" | grep -vqz "${MIRROR_RELEASE_NAME}"
+    cmds:
+      - SOLO_HOME_DIR=${SOLO_HOME_DIR} solo mirror-node destroy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --force -q --dev || true
+
+  solo:destroy-explorer:
+    silent: true
+    desc: solo explorer destroy
+    cmds:
+      - |
+        if [[ "${EXPLORER_DEPLOYMENT}" != "" ]]; then
+          SOLO_HOME_DIR=${SOLO_HOME_DIR} solo explorer destroy --deployment "${EXPLORER_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --force -q --dev || true
+        else
+          SOLO_HOME_DIR=${SOLO_HOME_DIR} solo explorer destroy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --force -q --dev || true
+        fi
+
+  clean:
+    desc: destroy, then remove cache directory, logs directory, config, and port forwards
+    cmds:
+      - task: "destroy"
+      - task: "clean:cache"
+      - task: "clean:logs"
+      - task: "solo:config:remove"
+      - task: "clean:port-forward"
+      - task: "clean:tmp"
+
+  clean:tmp:
+    desc: remove temporary files
+    silent: true
+    cmds:
+      - echo "Cleaning up temporary files..."
+      - rm -f /tmp/solo-${USER}-* || true
+
+  solo:external-database:
+    silent: false
+    desc: setup external database PostgreSQL with helm
+    cmds:
+      - |
+        {{.solo_bin_dir}}/helm install {{.postgres_name}} https://charts.bitnami.com/bitnami/postgresql-12.1.2.tgz \
+          --set image.tag=16.4.0 \
+          --namespace {{.postgres_database_namespace}} --create-namespace \
+          --set global.postgresql.auth.postgresPassword={{.postgres_password}} \
+          --set primary.persistence.enabled=false --set secondary.enabled=false
+      - name: "Wait for PostgreSQL pod to be ready"
+        cmd: |
+          kubectl wait --for=condition=ready pod/{{.postgres_container_name}} \
+          -n {{.postgres_database_namespace}} --timeout=160s
+      - name: "Copy init.sql inside the database pod"
+        cmd: |
+          kubectl cp {{.TASKFILE_DIR}}/external-database-test/scripts/init.sh \
+          {{.postgres_container_name}}:/tmp/init.sh \
+          -n {{.postgres_database_namespace}}
+      - name: "Make init.sh executable"
+        cmd: |
+          kubectl exec -it {{.postgres_container_name}} \
+          -n {{.postgres_database_namespace}} -- chmod +x /tmp/init.sh
+      - name: "Execute init.sh inside the database pod"
+        cmd: |
+          kubectl exec -it {{.postgres_container_name}} \
+          -n {{.postgres_database_namespace}} \
+          -- /bin/bash /tmp/init.sh "{{.postgres_username}}" "{{.postgres_readonly_username}}" "{{.postgres_readonly_password}}"

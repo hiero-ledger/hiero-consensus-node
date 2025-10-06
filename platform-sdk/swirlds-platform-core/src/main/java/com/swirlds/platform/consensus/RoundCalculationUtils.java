@@ -53,7 +53,7 @@ public final class RoundCalculationUtils {
     public static long getMinimumJudgeAncientThreshold(final long round, @NonNull final ConsensusSnapshot snapshot) {
         for (final MinimumJudgeInfo info : snapshot.minimumJudgeInfoList()) {
             if (info.round() == round) {
-                return info.minimumJudgeAncientThreshold();
+                return info.minimumJudgeBirthRound();
             }
         }
         throw new NoSuchElementException("No minimum judge info found for round: " + round);

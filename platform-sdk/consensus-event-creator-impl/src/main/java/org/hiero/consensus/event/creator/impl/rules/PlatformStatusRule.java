@@ -5,31 +5,29 @@ import static org.hiero.consensus.event.creator.impl.EventCreationStatus.PLATFOR
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
-import java.util.function.Supplier;
 import org.hiero.consensus.event.creator.impl.EventCreationStatus;
-import org.hiero.consensus.event.creator.impl.pool.TransactionPoolNexus;
 import org.hiero.consensus.model.status.PlatformStatus;
+import org.hiero.consensus.model.transaction.SignatureTransactionCheck;
 
 /**
  * Limits the creation of new events depending on the current platform status.
  */
 public class PlatformStatusRule implements EventCreationRule {
 
-    private final Supplier<PlatformStatus> platformStatusSupplier;
-    private final TransactionPoolNexus transactionPoolNexus;
+    private final SignatureTransactionCheck signatureTransactionCheck;
+
+    /**
+     * The current platform status.
+     */
+    private PlatformStatus platformStatus;
 
     /**
      * Constructor.
      *
-     * @param platformStatusSupplier provides the current platform status
-     * @param transactionPoolNexus   provides transactions to be added to new events
+     * @param signatureTransactionCheck checks for pending signature transactions
      */
-    public PlatformStatusRule(
-            @NonNull final Supplier<PlatformStatus> platformStatusSupplier,
-            @NonNull final TransactionPoolNexus transactionPoolNexus) {
-
-        this.platformStatusSupplier = Objects.requireNonNull(platformStatusSupplier);
-        this.transactionPoolNexus = Objects.requireNonNull(transactionPoolNexus);
+    public PlatformStatusRule(@NonNull final SignatureTransactionCheck signatureTransactionCheck) {
+        this.signatureTransactionCheck = Objects.requireNonNull(signatureTransactionCheck);
     }
 
     /**
@@ -37,17 +35,17 @@ public class PlatformStatusRule implements EventCreationRule {
      */
     @Override
     public boolean isEventCreationPermitted() {
-        final PlatformStatus currentStatus = platformStatusSupplier.get();
+        final PlatformStatus currentStatus = this.platformStatus;
 
         if (currentStatus == PlatformStatus.FREEZING) {
-            return transactionPoolNexus.hasBufferedSignatureTransactions();
+            return signatureTransactionCheck.hasBufferedSignatureTransactions();
         }
 
-        if (currentStatus != PlatformStatus.ACTIVE && currentStatus != PlatformStatus.CHECKING) {
-            return false;
-        }
+        return currentStatus == PlatformStatus.ACTIVE || currentStatus == PlatformStatus.CHECKING;
+    }
 
-        return true;
+    public void setPlatformStatus(final PlatformStatus platformStatus) {
+        this.platformStatus = platformStatus;
     }
 
     /**

@@ -3,15 +3,11 @@ package com.swirlds.virtualmap.internal.reconnect;
 
 import static com.swirlds.logging.legacy.LogMarker.VIRTUAL_MERKLE_STATS;
 
-import com.swirlds.virtualmap.VirtualKey;
-import com.swirlds.virtualmap.VirtualValue;
 import com.swirlds.virtualmap.datasource.VirtualDataSource;
 import com.swirlds.virtualmap.datasource.VirtualHashRecord;
-import com.swirlds.virtualmap.datasource.VirtualLeafRecord;
+import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.internal.Path;
 import com.swirlds.virtualmap.internal.merkle.VirtualMapStatistics;
-import com.swirlds.virtualmap.serialize.KeySerializer;
-import com.swirlds.virtualmap.serialize.ValueSerializer;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -31,17 +27,15 @@ import org.hiero.base.crypto.Hash;
  * which listens for hash updates from virtual hasher.
  *
  * <p>This flusher is thread safe, its methods like {@link #updateHash(long, Hash)},
- * {@link #updateLeaf(VirtualLeafRecord)}, and {@link #deleteLeaf(VirtualLeafRecord)} can
+ * {@link #updateLeaf(VirtualLeafBytes)}, and {@link #deleteLeaf(VirtualLeafBytes)} can
  * be called from multiple threads. However, some of the calling threads may be blocked
  * till the currently accumulated data is flushed to disk.
  *
  * <p>{@link #start(long, long)} must be called in the beginning of flush, and {@link
  * #finish()} must be called in the end.
  *
- * @param <K>
- * @param <V>
  */
-public class ReconnectHashLeafFlusher<K extends VirtualKey, V extends VirtualValue> {
+public class ReconnectHashLeafFlusher {
 
     private static final Logger logger = LogManager.getLogger(ReconnectHashLeafFlusher.class);
 
@@ -49,12 +43,10 @@ public class ReconnectHashLeafFlusher<K extends VirtualKey, V extends VirtualVal
     private volatile long firstLeafPath = 0;
     private volatile long lastLeafPath = 0;
 
-    private final KeySerializer<K> keySerializer;
-    private final ValueSerializer<V> valueSerializer;
     private final VirtualDataSource dataSource;
 
-    private List<VirtualLeafRecord<K, V>> updatedLeaves;
-    private List<VirtualLeafRecord<K, V>> deletedLeaves;
+    private List<VirtualLeafBytes> updatedLeaves;
+    private List<VirtualLeafBytes> deletedLeaves;
     private List<VirtualHashRecord> updatedHashes;
 
     // Flushes are initiated from onNodeHashed(). While a flush is in progress, other nodes
@@ -68,13 +60,9 @@ public class ReconnectHashLeafFlusher<K extends VirtualKey, V extends VirtualVal
     private final VirtualMapStatistics statistics;
 
     public ReconnectHashLeafFlusher(
-            @NonNull final KeySerializer<K> keySerializer,
-            @NonNull final ValueSerializer<V> valueSerializer,
             @NonNull final VirtualDataSource dataSource,
             final int flushInterval,
             @NonNull final VirtualMapStatistics statistics) {
-        this.keySerializer = Objects.requireNonNull(keySerializer);
-        this.valueSerializer = Objects.requireNonNull(valueSerializer);
         this.dataSource = Objects.requireNonNull(dataSource);
         this.flushInterval = flushInterval;
         this.statistics = Objects.requireNonNull(statistics);
@@ -111,13 +99,13 @@ public class ReconnectHashLeafFlusher<K extends VirtualKey, V extends VirtualVal
         actionAndCheckFlush(() -> updatedHashes.add(new VirtualHashRecord(path, hash)));
     }
 
-    void updateLeaf(final VirtualLeafRecord<K, V> leaf) {
+    void updateLeaf(final VirtualLeafBytes leaf) {
         assert (updatedHashes != null) && (updatedLeaves != null) && (deletedLeaves != null)
                 : "updateLeaf called without start";
         actionAndCheckFlush(() -> updatedLeaves.add(leaf));
     }
 
-    void deleteLeaf(final VirtualLeafRecord<K, V> leaf) {
+    void deleteLeaf(final VirtualLeafBytes leaf) {
         assert (updatedHashes != null) && (updatedLeaves != null) && (deletedLeaves != null)
                 : "deleteLeaf called without start";
         actionAndCheckFlush(() -> deletedLeaves.add(leaf));
@@ -125,8 +113,8 @@ public class ReconnectHashLeafFlusher<K extends VirtualKey, V extends VirtualVal
 
     private void actionAndCheckFlush(final Runnable action) {
         final List<VirtualHashRecord> dirtyHashesToFlush;
-        final List<VirtualLeafRecord<K, V>> dirtyLeavesToFlush;
-        final List<VirtualLeafRecord<K, V>> deletedLeavesToFlush;
+        final List<VirtualLeafBytes> dirtyLeavesToFlush;
+        final List<VirtualLeafBytes> deletedLeavesToFlush;
         synchronized (this) {
             action.run();
             if (!isFlushNeeded() || !flushInProgress.compareAndSet(false, true)) {
@@ -158,8 +146,8 @@ public class ReconnectHashLeafFlusher<K extends VirtualKey, V extends VirtualVal
         assert (updatedHashes != null) && (updatedLeaves != null) && (deletedLeaves != null)
                 : "finish called without start";
         final List<VirtualHashRecord> dirtyHashesToFlush = updatedHashes;
-        final List<VirtualLeafRecord<K, V>> dirtyLeavesToFlush = updatedLeaves;
-        final List<VirtualLeafRecord<K, V>> deletedLeavesToFlush = deletedLeaves;
+        final List<VirtualLeafBytes> dirtyLeavesToFlush = updatedLeaves;
+        final List<VirtualLeafBytes> deletedLeavesToFlush = deletedLeaves;
         updatedHashes = null;
         updatedLeaves = null;
         deletedLeaves = null;
@@ -173,8 +161,8 @@ public class ReconnectHashLeafFlusher<K extends VirtualKey, V extends VirtualVal
     // Since flushes may take quite some time, this method is called outside synchronized blocks.
     private void flush(
             @NonNull final List<VirtualHashRecord> hashesToFlush,
-            @NonNull final List<VirtualLeafRecord<K, V>> leavesToFlush,
-            @NonNull final List<VirtualLeafRecord<K, V>> leavesToDelete) {
+            @NonNull final List<VirtualLeafBytes> leavesToFlush,
+            @NonNull final List<VirtualLeafBytes> leavesToDelete) {
         assert flushInProgress.get() : "Flush in progress flag must be set";
         try {
             logger.info(
@@ -190,8 +178,8 @@ public class ReconnectHashLeafFlusher<K extends VirtualKey, V extends VirtualVal
                         firstLeafPath,
                         lastLeafPath,
                         hashesToFlush.stream(),
-                        leavesToFlush.stream().map(r -> r.toBytes(keySerializer, valueSerializer)),
-                        leavesToDelete.stream().map(r -> r.toBytes(keySerializer, valueSerializer)),
+                        leavesToFlush.stream(),
+                        leavesToDelete.stream(),
                         true);
                 final long end = System.currentTimeMillis();
                 statistics.recordFlush(end - start);

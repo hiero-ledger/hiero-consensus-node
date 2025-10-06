@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.model.event;
 
-import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.event.EventCore;
 import com.hedera.hapi.platform.event.EventDescriptor;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -54,15 +53,6 @@ public interface Event {
             consumer.accept(transIt.next());
         }
     }
-
-    /**
-     * Returns the software version of the node that created this event.
-     * @deprecated This method is deprecated and will be removed in a future release.
-     * @return the software version
-     */
-    @Deprecated(forRemoval = true)
-    @NonNull
-    SemanticVersion getSoftwareVersion();
 
     /**
      * Returns the birth round of this event.

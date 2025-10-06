@@ -756,6 +756,7 @@ class IssDetectorTests extends PlatformTest {
         when(ss.getState()).thenReturn(s);
         when(ss.getRound()).thenReturn(round);
         when(s.getHash()).thenReturn(hash);
+        when(s.getInfoJson()).thenReturn("");
         return rs;
     }
 

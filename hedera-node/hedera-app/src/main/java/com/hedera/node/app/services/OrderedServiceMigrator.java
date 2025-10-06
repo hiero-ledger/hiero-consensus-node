@@ -10,12 +10,10 @@ import com.hedera.node.app.ids.EntityIdService;
 import com.hedera.node.app.metrics.StoreMetricsServiceImpl;
 import com.hedera.node.app.state.merkle.MerkleSchemaRegistry;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.state.lifecycle.SchemaRegistry;
 import com.swirlds.state.lifecycle.Service;
-import com.swirlds.state.lifecycle.StartupNetworks;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.HashMap;
@@ -48,7 +46,6 @@ public class OrderedServiceMigrator implements ServiceMigrator {
      * @param appConfig The system configuration to use at the time of migration
      * @param platformConfig The platform configuration to use for subsequent object initializations
      * This is only used in genesis case
-     * @param metrics The metrics to use for the migrations
      * @param startupNetworks The startup networks to use for the migrations
      * @param storeMetricsService The store metrics service to use for the migrations
      * @param configProvider The config provider to use for the migrations
@@ -63,7 +60,6 @@ public class OrderedServiceMigrator implements ServiceMigrator {
             @NonNull final SemanticVersion currentVersion,
             @NonNull final Configuration appConfig,
             @NonNull final Configuration platformConfig,
-            @NonNull final Metrics metrics,
             @NonNull final StartupNetworks startupNetworks,
             @NonNull final StoreMetricsServiceImpl storeMetricsService,
             @NonNull final ConfigProviderImpl configProvider,
@@ -72,7 +68,6 @@ public class OrderedServiceMigrator implements ServiceMigrator {
         requireNonNull(currentVersion);
         requireNonNull(appConfig);
         requireNonNull(platformConfig);
-        requireNonNull(metrics);
 
         final Map<String, Object> sharedValues = new HashMap<>();
         final var migrationStateChanges = new MigrationStateChanges(state, appConfig, storeMetricsService);
@@ -89,7 +84,6 @@ public class OrderedServiceMigrator implements ServiceMigrator {
                     currentVersion,
                     appConfig,
                     platformConfig,
-                    metrics,
                     sharedValues,
                     migrationStateChanges,
                     startupNetworks,

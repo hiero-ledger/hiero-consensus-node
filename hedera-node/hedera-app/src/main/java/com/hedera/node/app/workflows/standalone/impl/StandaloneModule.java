@@ -4,10 +4,9 @@ package com.hedera.node.app.workflows.standalone.impl;
 import static com.hedera.node.app.throttle.ThrottleAccumulator.ThrottleType.BACKEND_THROTTLE;
 import static com.hedera.node.app.throttle.ThrottleAccumulator.ThrottleType.NOOP_THROTTLE;
 
-import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.platform.state.PlatformState;
-import com.hedera.node.app.annotations.NodeSelfId;
 import com.hedera.node.app.metrics.StoreMetricsServiceImpl;
+import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.metrics.StoreMetricsService;
 import com.hedera.node.app.throttle.ThrottleAccumulator;
 import com.hedera.node.app.throttle.ThrottleMetrics;
@@ -16,8 +15,6 @@ import com.hedera.node.config.ConfigProvider;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.state.PlatformStateAccessor;
 import com.swirlds.platform.state.service.SnapshotPlatformStateAccessor;
-import com.swirlds.state.lifecycle.EntityIdFactory;
-import com.swirlds.state.lifecycle.info.NetworkInfo;
 import dagger.Binds;
 import dagger.Module;
 import dagger.Provides;
@@ -73,14 +70,6 @@ public interface StandaloneModule {
     @Singleton
     static InstantSource provideInstantSource() {
         return InstantSource.system();
-    }
-
-    @Provides
-    @Singleton
-    @NodeSelfId
-    static AccountID provideNodeSelfId(EntityIdFactory entityIdFactory) {
-        // This is only used to check the shard and realm of account ids
-        return entityIdFactory.newDefaultAccountId();
     }
 
     @Provides

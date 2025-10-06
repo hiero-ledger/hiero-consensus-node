@@ -392,7 +392,7 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
                             if (newDataFile.compareAndSet(false, true)) {
                                 startWriting();
                             }
-                            delete(keyBytes, entry.getHashCode());
+                            delete(keyBytes);
                         } else if ((hashCode & bucketMask) == bucketId) {
                             liveEntries.incrementAndGet();
                         }
@@ -504,17 +504,20 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
      * ended.
      *
      * @param keyBytes the key to store the value for
-     * @param keyHashCode the key hash code
      * @param value the value to store for given key
      */
-    public void put(final Bytes keyBytes, final int keyHashCode, final long value) {
+    public void put(final Bytes keyBytes, final long value) {
+        put(keyBytes, keyBytes.hashCode(), value);
+    }
+
+    void put(final Bytes keyBytes, final int keyHashCode, final long value) {
         final BucketMutation bucketMap = findBucketForUpdate(keyBytes, keyHashCode, INVALID_VALUE, value);
         bucketMap.put(keyBytes, keyHashCode, value);
     }
 
     /**
      * Put a key/value during the current writing session. This method is similar to {@link
-     * #put(Bytes, int, long)}, but the new value is set only if the current value is equal to
+     * #put(Bytes, long)}, but the new value is set only if the current value is equal to
      * the given {@code oldValue}.
      *
      * <p>This method may be called multiple times for the same key in a single writing
@@ -523,15 +526,18 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
      * is ended, otherwise the value from the second call will be ignored.
      *
      * <p>If the value for {@code oldValue} is {@link #INVALID_VALUE}, it's ignored, and this
-     * method is identical to {@link #put(Bytes, int, long)}.
+     * method is identical to {@link #put(Bytes, long)}.
      *
      * @param keyBytes the key to store the value for
-     * @param keyHashCode the key hash code
      * @param oldValue the value to check the current value against, or {@link #INVALID_VALUE}
      *                 if no current value check is needed
      * @param value the value to store for the given key
      */
-    public void putIfEqual(final Bytes keyBytes, final int keyHashCode, final long oldValue, final long value) {
+    public void putIfEqual(final Bytes keyBytes, final long oldValue, final long value) {
+        putIfEqual(keyBytes, keyBytes.hashCode(), oldValue, value);
+    }
+
+    void putIfEqual(final Bytes keyBytes, final int keyHashCode, final long oldValue, final long value) {
         final BucketMutation bucketMap = findBucketForUpdate(keyBytes, keyHashCode, oldValue, value);
         bucketMap.putIfEqual(keyBytes, keyHashCode, oldValue, value);
     }
@@ -541,21 +547,21 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
      *
      * @param keyBytes The key to delete entry for
      */
-    public void delete(final Bytes keyBytes, final int keyHashCode) {
-        put(keyBytes, keyHashCode, INVALID_VALUE);
+    public void delete(final Bytes keyBytes) {
+        put(keyBytes, INVALID_VALUE);
     }
 
     /**
      * Delete a key entry from the map, if the current value is equal to the given {@code oldValue}.
      * If {@code oldValue} is {@link #INVALID_VALUE}, no current value check is performed, and this
-     * method is identical to {@link #delete(Bytes, int)}.
+     * method is identical to {@link #delete(Bytes)}.
      *
      * @param keyBytes the key to delete the entry for
      * @param oldValue the value to check the current value against, or {@link #INVALID_VALUE}
      *                 if no current value check is needed
      */
-    public void deleteIfEqual(final Bytes keyBytes, final int keyHashCode, final long oldValue) {
-        putIfEqual(keyBytes, keyHashCode, oldValue, INVALID_VALUE);
+    public void deleteIfEqual(final Bytes keyBytes, final long oldValue) {
+        putIfEqual(keyBytes, oldValue, INVALID_VALUE);
     }
 
     /**
@@ -859,12 +865,15 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
      * Get a value from this map
      *
      * @param keyBytes the key to get value for
-     * @param keyHashCode the key hash code
      * @param notFoundValue the value to return if the key was not found
      * @return the value retrieved from the map or {notFoundValue} if no value was stored for the
      *     given key
      * @throws IOException If there was a problem reading from the map
      */
+    public long get(final Bytes keyBytes, final long notFoundValue) throws IOException {
+        return get(keyBytes, keyBytes.hashCode(), notFoundValue);
+    }
+
     public long get(final Bytes keyBytes, final int keyHashCode, final long notFoundValue) throws IOException {
         if (keyBytes == null) {
             throw new IllegalArgumentException("Can not get a null key");

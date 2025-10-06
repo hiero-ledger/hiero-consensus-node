@@ -25,6 +25,9 @@ import com.swirlds.platform.event.orphan.OrphanBuffer;
 import com.swirlds.platform.gossip.IntakeEventCounter;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.security.NoSuchAlgorithmException;
+import java.security.NoSuchProviderException;
+import java.security.SecureRandom;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Arrays;
@@ -35,15 +38,14 @@ import java.util.Objects;
 import java.util.Random;
 import java.util.stream.IntStream;
 import org.hiero.consensus.event.creator.impl.EventCreator;
-import org.hiero.consensus.event.creator.impl.TransactionSupplier;
 import org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreator.HashSigner;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
-import org.hiero.consensus.model.event.NonDeterministicGeneration;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
 import org.hiero.consensus.model.test.fixtures.transaction.TestingTransactions;
+import org.hiero.consensus.model.transaction.EventTransactionSupplier;
 import org.hiero.consensus.model.transaction.TransactionWrapper;
 import org.junit.jupiter.api.Assertions;
 
@@ -58,7 +60,7 @@ public class TipsetEventCreatorTestUtils {
             @NonNull final Time time,
             @NonNull final Roster roster,
             @NonNull final NodeId nodeId,
-            @NonNull final TransactionSupplier transactionSupplier) {
+            @NonNull final EventTransactionSupplier transactionSupplier) {
 
         final Configuration configuration =
                 ConfigurationBuilder.create().autoDiscoverExtensions().build();
@@ -67,8 +69,18 @@ public class TipsetEventCreatorTestUtils {
         final HashSigner signer = mock(HashSigner.class);
         when(signer.sign(any())).thenAnswer(invocation -> randomSignature(random));
 
+        // Use SHA1PRNG for deterministic behavior
+        final SecureRandom secureRandom;
+        try {
+            secureRandom = SecureRandom.getInstance("SHA1PRNG", "SUN");
+        } catch (final NoSuchAlgorithmException | NoSuchProviderException e) {
+            throw new RuntimeException(e);
+        }
+        // Set a fixed seed for deterministic output
+        secureRandom.setSeed(random.nextLong());
+
         return new TipsetEventCreator(
-                configuration, metrics, time, random, signer, roster, nodeId, transactionSupplier);
+                configuration, metrics, time, secureRandom, signer, roster, nodeId, transactionSupplier);
     }
 
     /**
@@ -79,7 +91,7 @@ public class TipsetEventCreatorTestUtils {
             @NonNull final Random random,
             @NonNull final Time time,
             @NonNull final Roster roster,
-            @NonNull final TransactionSupplier transactionSupplier) {
+            @NonNull final EventTransactionSupplier transactionSupplier) {
 
         final Map<NodeId, SimulatedNode> eventCreators = new HashMap<>();
         final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
@@ -116,37 +128,39 @@ public class TipsetEventCreatorTestUtils {
 
     /**
      * Validates that @code newEvent satisfies:
-     * - if it has a null self-parent, is only during genesis scenario
-     * - if it has a null other-parent, is only during genesis scenario
-     * - the event is contained in allEvents
-     * - NGen should be max of parents plus one
-     * - Parent's birthround or generation is never higher than event's.
-     * - There is a minimum gap of 1-nanosecond between Event's timeCreated and selfparent's ( timeCreated + transactionCount)
-     * - Except for genesis scenario, new event must have a positive advancement score.
-     * - Application Transactions of the event matches @code expectedTransactions
-     *
+     * <ul>
+     * <li>if it has a null self-parent, is only during genesis scenario</li>
+     * <li>if it has a null other-parent, is only during genesis scenario</li>
+     * <li> the event is contained in allEvents</li>
+     * <li> NGen should be max of parents plus one</li>
+     * <li> Parent's birthround or generation is never higher than event's.</li>
+     * <li> There is a minimum gap of 1-nanosecond between Event's timeCreated and selfparent's ( timeCreated + transactionCount)</li>
+     * <li> Except for genesis scenario, new event must have a positive advancement score.</li>
+     * <li> Application Transactions of the event matches @code expectedTransactions</li>
+     * </ul>
+     * <p>
      * This method produces a side effect of advancing the last AdvancementWeight of the simulatedNode
      *
-     * @param allEvents the list of all events, where parents are going to be retrieved from and the event is going to be check against
-     * @param newEvent the event to validate
-     * @param expectedTransactions all the application transactions expected to be present in the event
-     * @param simulatedNode the node that produced the event. This object is changed after invoking this method.
-     * @param slowNode an specific mode of validation
+     * @param allEvents                the list of all events, where parents are going to be retrieved from and the
+     *                                 event is going to be check against
+     * @param newEvent                 the event to validate
+     * @param expectedTransactions     all the application transactions expected to be present in the event
+     * @param simulatedNode            the node that produced the event. This object is changed after invoking this
+     *                                 method.
+     * @param slowNode                 an specific mode of validation
+     * @param forgiveNotAdvancingScore if set to true, test will ignore not advancing score when validating events
      */
     public static void validateNewEventAndMaybeAdvanceCreatorScore(
             @NonNull final Map<EventDescriptorWrapper, PlatformEvent> allEvents,
             @NonNull final PlatformEvent newEvent,
             @NonNull final List<Bytes> expectedTransactions,
             @NonNull final SimulatedNode simulatedNode,
-            final boolean slowNode) {
+            final boolean slowNode,
+            final boolean forgiveNotAdvancingScore) {
 
         final PlatformEvent selfParent = allEvents.get(newEvent.getSelfParent());
-        final long selfParentGeneration =
-                selfParent == null ? NonDeterministicGeneration.GENERATION_UNDEFINED : selfParent.getNGen();
         final PlatformEvent otherParent =
                 allEvents.get(newEvent.getOtherParents().stream().findFirst().orElse(null));
-        final long otherParentGeneration =
-                otherParent == null ? NonDeterministicGeneration.GENERATION_UNDEFINED : otherParent.getNGen();
 
         if (selfParent == null) {
             // The only legal time to have a null self parent is genesis.
@@ -161,13 +175,15 @@ public class TipsetEventCreatorTestUtils {
         }
 
         if (otherParent == null) {
-            if (slowNode) {
-                // During the slow node test, we intentionally don't distribute an event that ends up in the
-                // events map. So it's possible for this map to contain two events at this point in time.
-                assertTrue(allEvents.size() == 1 || allEvents.size() == 2);
-            } else {
-                // The only legal time to have no other-parent is at genesis before other events are received.
-                assertEquals(1, allEvents.size());
+            if (!forgiveNotAdvancingScore) {
+                if (slowNode) {
+                    // During the slow node test, we intentionally don't distribute an event that ends up in the
+                    // events map. So it's possible for this map to contain two events at this point in time.
+                    assertTrue(allEvents.size() == 1 || allEvents.size() == 2);
+                } else {
+                    // The only legal time to have no other-parent is at genesis before other events are received.
+                    assertEquals(1, allEvents.size());
+                }
             }
             assertTrue(allEvents.containsKey(newEvent.getDescriptor()));
         }
@@ -183,11 +199,14 @@ public class TipsetEventCreatorTestUtils {
         // Validate tipset constraints.
         final EventDescriptorWrapper descriptor = newEvent.getDescriptor();
         if (selfParent != null) {
-            // Except for a genesis event, all other new events must have a positive advancement score.
-            assertTrue(simulatedNode
-                    .tipsetWeightCalculator()
-                    .addEventAndGetAdvancementWeight(descriptor)
-                    .isNonZero());
+            // Except for a genesis event and break quiescence events, all other new events must have a positive
+            // advancement score.
+            if (!forgiveNotAdvancingScore) {
+                assertTrue(simulatedNode
+                        .tipsetWeightCalculator()
+                        .addEventAndGetAdvancementWeight(descriptor)
+                        .isNonZero());
+            }
         } else {
             // the next call will modify the tipsetWeightCalculator
             simulatedNode.tipsetWeightCalculator().addEventAndGetAdvancementWeight(descriptor);
@@ -253,6 +272,7 @@ public class TipsetEventCreatorTestUtils {
 
     /**
      * Generates {@code number} of random transactions
+     *
      * @param random the random instance to use
      * @param number the number of transactions to generate. Must be positive.
      * @return a list of bytes for each transaction

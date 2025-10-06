@@ -5,6 +5,7 @@ import static com.hedera.node.app.fixtures.AppTestBase.DEFAULT_CONFIG;
 import static com.hedera.node.app.service.token.impl.handlers.BaseCryptoHandler.asAccount;
 import static com.hedera.node.app.spi.AppContext.Gossip.UNAVAILABLE_GOSSIP;
 import static com.hedera.node.app.spi.fees.NoopFeeCharging.NOOP_FEE_CHARGING;
+import static com.hedera.node.app.state.recordcache.schemas.V0490RecordCacheSchema.TRANSACTION_RECEIPTS_STATE_ID;
 import static com.swirlds.platform.system.address.AddressBookUtils.endpointFor;
 import static java.util.concurrent.CompletableFuture.completedFuture;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -18,7 +19,7 @@ import com.hedera.node.app.HederaInjectionComponent;
 import com.hedera.node.app.blocks.BlockHashSigner;
 import com.hedera.node.app.blocks.InitialStateHash;
 import com.hedera.node.app.blocks.impl.BoundaryStateChangeListener;
-import com.hedera.node.app.blocks.impl.KVStateChangeListener;
+import com.hedera.node.app.blocks.impl.ImmediateStateChangeListener;
 import com.hedera.node.app.config.BootstrapConfigProviderImpl;
 import com.hedera.node.app.config.ConfigProviderImpl;
 import com.hedera.node.app.fixtures.state.FakeState;
@@ -35,9 +36,12 @@ import com.hedera.node.app.service.schedule.impl.ScheduleServiceImpl;
 import com.hedera.node.app.service.util.impl.UtilServiceImpl;
 import com.hedera.node.app.services.AppContextImpl;
 import com.hedera.node.app.services.ServicesRegistry;
+import com.hedera.node.app.services.StartupNetworks;
 import com.hedera.node.app.signature.AppSignatureVerifier;
 import com.hedera.node.app.signature.impl.SignatureExpanderImpl;
 import com.hedera.node.app.signature.impl.SignatureVerifierImpl;
+import com.hedera.node.app.spi.info.NetworkInfo;
+import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.spi.throttle.Throttle;
 import com.hedera.node.app.state.recordcache.RecordCacheService;
 import com.hedera.node.config.data.BlockStreamConfig;
@@ -51,15 +55,13 @@ import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
-import com.swirlds.state.lifecycle.StartupNetworks;
-import com.swirlds.state.lifecycle.info.NetworkInfo;
-import com.swirlds.state.lifecycle.info.NodeInfo;
 import java.time.InstantSource;
 import java.util.ArrayDeque;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ForkJoinPool;
 import org.hiero.consensus.model.status.PlatformStatus;
+import org.hiero.consensus.transaction.TransactionPoolNexus;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -71,6 +73,9 @@ class IngestComponentTest {
 
     @Mock
     private Platform platform;
+
+    @Mock
+    private TransactionPoolNexus transactionPool;
 
     @Mock
     private Throttle.Factory throttleFactory;
@@ -89,7 +94,7 @@ class IngestComponentTest {
     private static final Metrics NO_OP_METRICS = new NoOpMetrics();
 
     private static final NodeInfo DEFAULT_NODE_INFO =
-            new NodeInfoImpl(0, asAccount(0L, 0L, 3L), 10, List.of(), Bytes.EMPTY, List.of(), false);
+            new NodeInfoImpl(0, asAccount(0L, 0L, 3L), 10, List.of(), Bytes.EMPTY, List.of(), false, null);
 
     @BeforeEach
     void setUp() {
@@ -105,7 +110,8 @@ class IngestComponentTest {
                 List.of(endpointFor("127.0.0.1", 50211), endpointFor("127.0.0.1", 23456)),
                 Bytes.wrap("cert7"),
                 List.of(endpointFor("127.0.0.1", 50211), endpointFor("127.0.0.1", 23456)),
-                false);
+                false,
+                null);
 
         final var configProvider = new ConfigProviderImpl(false);
         final var appContext = new AppContextImpl(
@@ -139,13 +145,14 @@ class IngestComponentTest {
                 .scheduleService(new ScheduleServiceImpl(appContext))
                 .initTrigger(InitTrigger.GENESIS)
                 .platform(platform)
+                .transactionPool(transactionPool)
                 .self(selfNodeInfo)
                 .currentPlatformStatus(() -> PlatformStatus.ACTIVE)
                 .servicesRegistry(mock(ServicesRegistry.class))
                 .instantSource(InstantSource.system())
                 .softwareVersion(mock(SemanticVersion.class))
                 .metrics(metrics)
-                .kvStateChangeListener(new KVStateChangeListener())
+                .immediateStateChangeListener(new ImmediateStateChangeListener())
                 .boundaryStateChangeListener(new BoundaryStateChangeListener(
                         new StoreMetricsServiceImpl(metrics), configProvider::getConfiguration))
                 .migrationStateChanges(List.of())
@@ -162,8 +169,7 @@ class IngestComponentTest {
                 .build();
 
         final var state = new FakeState();
-        state.addService(RecordCacheService.NAME, Map.of("TransactionRecordQueue", new ArrayDeque<String>()));
-        state.addService(RecordCacheService.NAME, Map.of("TransactionReceiptQueue", new ArrayDeque<String>()));
+        state.addService(RecordCacheService.NAME, Map.of(TRANSACTION_RECEIPTS_STATE_ID, new ArrayDeque<String>()));
         app.workingStateAccessor().setState(state);
     }
 

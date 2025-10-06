@@ -78,28 +78,6 @@ public interface PlatformStateModifier extends PlatformStateAccessor {
     void setLatestFreezeRound(long latestFreezeRound);
 
     /**
-     * Set the first software version where the birth round migration happened.
-     *
-     * @param firstVersionInBirthRoundMode the first software version where the birth round migration happened
-     */
-    void setFirstVersionInBirthRoundMode(SemanticVersion firstVersionInBirthRoundMode);
-
-    /**
-     * Set the last round before the birth round mode was enabled.
-     *
-     * @param lastRoundBeforeBirthRoundMode the last round before the birth round mode was enabled
-     */
-    void setLastRoundBeforeBirthRoundMode(long lastRoundBeforeBirthRoundMode);
-
-    /**
-     * Set the lowest judge generation before the birth round mode was enabled.
-     *
-     * @param lowestJudgeGenerationBeforeBirthRoundMode the lowest judge generation before the birth round mode was
-     *                                                  enabled
-     */
-    void setLowestJudgeGenerationBeforeBirthRoundMode(long lowestJudgeGenerationBeforeBirthRoundMode);
-
-    /**
      * This is a convenience method to update multiple fields in the platform state in a single operation.
      * @param updater a consumer that updates the platform state
      */

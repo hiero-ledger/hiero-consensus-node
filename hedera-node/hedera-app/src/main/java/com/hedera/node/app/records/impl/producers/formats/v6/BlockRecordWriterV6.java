@@ -7,6 +7,7 @@ import static com.hedera.hapi.streams.schema.RecordStreamFileSchema.HAPI_PROTO_V
 import static com.hedera.hapi.streams.schema.RecordStreamFileSchema.RECORD_STREAM_ITEMS;
 import static com.hedera.hapi.streams.schema.RecordStreamFileSchema.SIDECARS;
 import static com.hedera.hapi.streams.schema.RecordStreamFileSchema.START_OBJECT_RUNNING_HASH;
+import static com.hedera.hapi.util.HapiUtils.asAccountString;
 import static com.hedera.node.app.records.impl.producers.BlockRecordFormat.TAG_TYPE_BITS;
 import static com.hedera.node.app.records.impl.producers.BlockRecordFormat.WIRE_TYPE_DELIMITED;
 import static com.hedera.node.app.records.impl.producers.formats.v6.BlockRecordFormatV6.VERSION_6;
@@ -14,7 +15,6 @@ import static com.hedera.node.app.records.impl.producers.formats.v6.SignatureWri
 import static com.hedera.pbj.runtime.ProtoWriterTools.writeLong;
 import static com.hedera.pbj.runtime.ProtoWriterTools.writeMessage;
 import static com.swirlds.common.stream.LinkedObjectStreamUtilities.convertInstantToStringWithPadding;
-import static com.swirlds.state.lifecycle.HapiUtils.asAccountString;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.SemanticVersion;
@@ -24,11 +24,11 @@ import com.hedera.hapi.streams.RecordStreamItem;
 import com.hedera.hapi.streams.SidecarMetadata;
 import com.hedera.node.app.records.impl.producers.BlockRecordWriter;
 import com.hedera.node.app.records.impl.producers.SerializedSingleTransactionRecord;
+import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.config.data.BlockRecordStreamConfig;
 import com.hedera.pbj.runtime.ProtoWriterTools;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
-import com.swirlds.state.lifecycle.info.NodeInfo;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.BufferedOutputStream;
 import java.io.IOException;

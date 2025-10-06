@@ -2,15 +2,15 @@
 package com.hedera.statevalidation.reporting;
 
 public class StorageReport {
-    long minPath;
-    long maxPath;
+    private long minPath;
+    private long maxPath;
 
-    long onDiskSizeInMb;
-    long numberOfStorageFiles;
+    private long onDiskSizeInMb;
+    private long numberOfStorageFiles;
 
-    double wastePercentage;
-    int duplicateItems;
-    long itemCount;
+    private double wastePercentage;
+    private long duplicateItems;
+    private long itemCount;
 
     public long minPath() {
         return minPath;
@@ -52,11 +52,11 @@ public class StorageReport {
         this.wastePercentage = wastePercentage;
     }
 
-    public int duplicateItems() {
+    public long duplicateItems() {
         return duplicateItems;
     }
 
-    public void setDuplicateItems(final int duplicateItems) {
+    public void setDuplicateItems(final long duplicateItems) {
         this.duplicateItems = duplicateItems;
     }
 
@@ -66,5 +66,23 @@ public class StorageReport {
 
     public void setItemCount(final long itemCount) {
         this.itemCount = itemCount;
+    }
+
+    @Override
+    public String toString() {
+        StringBuilder sb = new StringBuilder();
+
+        sb.append(String.format("  Path Range: %d to %d\n", minPath, maxPath));
+        sb.append(String.format("  Size: %d MB\n", onDiskSizeInMb));
+        sb.append(String.format("  Files: %d\n", numberOfStorageFiles));
+        sb.append(String.format("  Items: %,d\n", itemCount));
+
+        sb.append(String.format("  Waste: %.2f%%\n", wastePercentage));
+
+        if (duplicateItems > 0) {
+            sb.append(String.format("  Duplicates: %,d\n", duplicateItems));
+        }
+
+        return sb.toString();
     }
 }

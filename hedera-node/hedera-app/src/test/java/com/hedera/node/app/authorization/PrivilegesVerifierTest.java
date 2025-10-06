@@ -4,6 +4,7 @@ package com.hedera.node.app.authorization;
 import static com.hedera.node.app.hapi.utils.ByteStringUtils.unwrapUnsafelyIfPossible;
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.toPbj;
 import static com.hedera.node.app.hapi.utils.CommonUtils.functionOf;
+import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asEvmAddress;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -44,6 +45,9 @@ import org.junit.jupiter.api.Test;
 // we don't break anything, I copied the test from mono and hacked it a little to run it with the new code.
 // (It was a good thing. I discovered two bugs...) :)
 class PrivilegesVerifierTest {
+    private static final AccountID EVM_ACCOUNT_ID = AccountID.newBuilder()
+            .setAlias(ByteString.fromHex("abcd1234abcd1234abcd1234abcd1234abcd1234"))
+            .build();
 
     private Wrapper subject;
 
@@ -562,6 +566,44 @@ class PrivilegesVerifierTest {
     }
 
     @Test
+    void cryptoDeleteDecodesLongZeroAliases() throws InvalidProtocolBufferException {
+        final var impermissibleDeletion = treasuryTxn()
+                .setCryptoDelete(CryptoDeleteTransactionBody.newBuilder().setDeleteAccountID(longZeroAccountId(100)));
+        assertEquals(SystemOpAuthorization.IMPERMISSIBLE, subject.authForTestCase(accessor(impermissibleDeletion)));
+
+        final var privilegesUnnecessaryDeletion = treasuryTxn()
+                .setCryptoDelete(CryptoDeleteTransactionBody.newBuilder().setDeleteAccountID(longZeroAccountId(1001)));
+        assertEquals(
+                SystemOpAuthorization.UNNECESSARY, subject.authForTestCase(accessor(privilegesUnnecessaryDeletion)));
+    }
+
+    @Test
+    void cryptoUpdateDecodesLongZeroAliases() throws InvalidProtocolBufferException {
+        final var authorizedTreasuryUpdate = treasuryTxn()
+                .setCryptoUpdateAccount(
+                        CryptoUpdateTransactionBody.newBuilder().setAccountIDToUpdate(longZeroAccountId(2)));
+        assertEquals(SystemOpAuthorization.AUTHORIZED, subject.authForTestCase(accessor(authorizedTreasuryUpdate)));
+
+        final var unauthorizedTreasuryUpdate = sysAdminTxn()
+                .setCryptoUpdateAccount(
+                        CryptoUpdateTransactionBody.newBuilder().setAccountIDToUpdate(longZeroAccountId(2)));
+        assertEquals(SystemOpAuthorization.UNAUTHORIZED, subject.authForTestCase(accessor(unauthorizedTreasuryUpdate)));
+
+        final var privilegesUnnecessaryUpdate = sysAdminTxn()
+                .setCryptoUpdateAccount(
+                        CryptoUpdateTransactionBody.newBuilder().setAccountIDToUpdate(longZeroAccountId(1001)));
+        assertEquals(SystemOpAuthorization.UNNECESSARY, subject.authForTestCase(accessor(privilegesUnnecessaryUpdate)));
+    }
+
+    @Test
+    void cryptoDeleteAssumesEvmAddressesAreNotSystemEntities() throws InvalidProtocolBufferException {
+        final var privilegesUnnecessaryDeletion = treasuryTxn()
+                .setCryptoDelete(CryptoDeleteTransactionBody.newBuilder().setDeleteAccountID(EVM_ACCOUNT_ID));
+        assertEquals(
+                SystemOpAuthorization.UNNECESSARY, subject.authForTestCase(accessor(privilegesUnnecessaryDeletion)));
+    }
+
+    @Test
     void systemAccountsCannotBeDeleted() throws InvalidProtocolBufferException {
         // given:
         var txn = treasuryTxn()
@@ -683,6 +725,12 @@ class PrivilegesVerifierTest {
 
     private AccountID account(long num) {
         return AccountID.newBuilder().setAccountNum(num).build();
+    }
+
+    private AccountID longZeroAccountId(long num) {
+        return AccountID.newBuilder()
+                .setAlias(ByteString.copyFrom(asEvmAddress(num)))
+                .build();
     }
 
     /**

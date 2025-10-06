@@ -39,7 +39,6 @@ import com.hedera.services.bdd.spec.queries.QueryVerbs;
 import com.hedera.services.bdd.spec.transactions.TxnUtils;
 import com.hedera.services.bdd.spec.utilops.UtilVerbs;
 import com.hederahashgraph.api.proto.java.AccountID;
-import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import com.hederahashgraph.api.proto.java.Transaction;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.Path;
@@ -82,7 +81,7 @@ public class AtomicFileCreateSuite {
         return hapiTest(cryptoCreate(BATCH_OPERATOR), doWithStartupConfig("entities.maxLifetime", value -> atomicBatch(
                         fileCreate("test")
                                 .lifetime(Long.parseLong(value) + 12_345L)
-                                .hasPrecheck(AUTORENEW_DURATION_NOT_IN_RANGE)
+                                .hasKnownStatus(AUTORENEW_DURATION_NOT_IN_RANGE)
                                 .batchKey(BATCH_OPERATOR))
                 .payingWith(BATCH_OPERATOR)
                 .hasKnownStatusFrom(INNER_TRANSACTION_FAILED)));
@@ -144,7 +143,7 @@ public class AtomicFileCreateSuite {
                 cryptoCreate(BATCH_OPERATOR),
                 atomicBatch(fileCreate("notHere")
                                 .lifetime(-60L)
-                                .hasPrecheck(ResponseCodeEnum.AUTORENEW_DURATION_NOT_IN_RANGE)
+                                .hasKnownStatus(AUTORENEW_DURATION_NOT_IN_RANGE)
                                 .batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR)
                         .hasKnownStatus(INNER_TRANSACTION_FAILED));

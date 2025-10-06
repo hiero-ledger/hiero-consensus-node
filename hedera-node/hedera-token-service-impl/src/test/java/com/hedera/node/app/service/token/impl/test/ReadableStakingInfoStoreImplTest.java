@@ -1,9 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.test;
 
-import static com.hedera.node.app.ids.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_KEY;
-import static com.hedera.node.app.ids.schemas.V0590EntityIdSchema.ENTITY_COUNTS_KEY;
-import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.STAKING_INFO_KEY;
+import static com.hedera.node.app.ids.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_ID;
+import static com.hedera.node.app.ids.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_LABEL;
+import static com.hedera.node.app.ids.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
+import static com.hedera.node.app.ids.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_LABEL;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.STAKING_INFOS_STATE_ID;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.STAKING_INFOS_STATE_LABEL;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
@@ -14,7 +17,7 @@ import com.hedera.hapi.node.state.token.StakingNodeInfo;
 import com.hedera.node.app.ids.WritableEntityIdStore;
 import com.hedera.node.app.service.token.impl.ReadableStakingInfoStoreImpl;
 import com.swirlds.state.spi.ReadableStates;
-import com.swirlds.state.spi.WritableSingletonStateBase;
+import com.swirlds.state.test.fixtures.FunctionWritableSingletonState;
 import com.swirlds.state.test.fixtures.MapReadableKVState;
 import com.swirlds.state.test.fixtures.MapWritableStates;
 import java.util.Map;
@@ -27,6 +30,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class ReadableStakingInfoStoreImplTest {
+
     private static final EntityNumber
             NODE_ID_10 = EntityNumber.newBuilder().number(10L).build(),
             NODE_ID_20 = EntityNumber.newBuilder().number(20L).build();
@@ -43,18 +47,25 @@ class ReadableStakingInfoStoreImplTest {
 
     @BeforeEach
     void setUp() {
-        final var readableStakingNodes = MapReadableKVState.<EntityNumber, StakingNodeInfo>builder(STAKING_INFO_KEY)
+        final var readableStakingNodes = MapReadableKVState.<EntityNumber, StakingNodeInfo>builder(
+                        STAKING_INFOS_STATE_ID, STAKING_INFOS_STATE_LABEL)
                 .value(NODE_ID_10, stakingNodeInfo)
                 .build();
         entityCounters = new WritableEntityIdStore(new MapWritableStates(Map.of(
-                ENTITY_ID_STATE_KEY,
-                new WritableSingletonStateBase<>(
-                        ENTITY_ID_STATE_KEY, () -> EntityNumber.newBuilder().build(), c -> {}),
-                ENTITY_COUNTS_KEY,
-                new WritableSingletonStateBase<>(
-                        ENTITY_COUNTS_KEY, () -> EntityCounts.newBuilder().build(), c -> {}))));
+                ENTITY_ID_STATE_ID,
+                new FunctionWritableSingletonState<>(
+                        ENTITY_ID_STATE_ID,
+                        ENTITY_ID_STATE_LABEL,
+                        () -> EntityNumber.newBuilder().build(),
+                        c -> {}),
+                ENTITY_COUNTS_STATE_ID,
+                new FunctionWritableSingletonState<>(
+                        ENTITY_COUNTS_STATE_ID,
+                        ENTITY_COUNTS_STATE_LABEL,
+                        () -> EntityCounts.newBuilder().build(),
+                        c -> {}))));
 
-        given(states.<EntityNumber, StakingNodeInfo>get(STAKING_INFO_KEY)).willReturn(readableStakingNodes);
+        given(states.<EntityNumber, StakingNodeInfo>get(STAKING_INFOS_STATE_ID)).willReturn(readableStakingNodes);
 
         subject = new ReadableStakingInfoStoreImpl(states, entityCounters);
     }
@@ -79,18 +90,23 @@ class ReadableStakingInfoStoreImplTest {
 
     @Test
     void getAllReturnsAllKeys() {
-        final var readableStakingNodes = MapReadableKVState.<EntityNumber, StakingNodeInfo>builder(STAKING_INFO_KEY)
+        final var readableStakingNodes = MapReadableKVState.<EntityNumber, StakingNodeInfo>builder(
+                        STAKING_INFOS_STATE_ID, STAKING_INFOS_STATE_LABEL)
                 .value(NODE_ID_10, stakingNodeInfo)
                 .value(NODE_ID_20, mock(StakingNodeInfo.class))
                 .build();
-        given(states.<EntityNumber, StakingNodeInfo>get(STAKING_INFO_KEY)).willReturn(readableStakingNodes);
+        given(states.<EntityNumber, StakingNodeInfo>get(STAKING_INFOS_STATE_ID)).willReturn(readableStakingNodes);
         entityCounters = new WritableEntityIdStore(new MapWritableStates(Map.of(
-                ENTITY_ID_STATE_KEY,
-                new WritableSingletonStateBase<>(
-                        ENTITY_ID_STATE_KEY, () -> EntityNumber.newBuilder().build(), c -> {}),
-                ENTITY_COUNTS_KEY,
-                new WritableSingletonStateBase<>(
-                        ENTITY_COUNTS_KEY,
+                ENTITY_ID_STATE_ID,
+                new FunctionWritableSingletonState<>(
+                        ENTITY_ID_STATE_ID,
+                        ENTITY_ID_STATE_LABEL,
+                        () -> EntityNumber.newBuilder().build(),
+                        c -> {}),
+                ENTITY_COUNTS_STATE_ID,
+                new FunctionWritableSingletonState<>(
+                        ENTITY_COUNTS_STATE_ID,
+                        ENTITY_COUNTS_STATE_LABEL,
                         () -> EntityCounts.newBuilder()
                                 .numNodes(21)
                                 .numStakingInfos(21)
@@ -105,9 +121,10 @@ class ReadableStakingInfoStoreImplTest {
 
     @Test
     void getAllReturnsEmptyKeys() {
-        final var readableStakingNodes = MapReadableKVState.<EntityNumber, StakingNodeInfo>builder(STAKING_INFO_KEY)
+        final var readableStakingNodes = MapReadableKVState.<EntityNumber, StakingNodeInfo>builder(
+                        STAKING_INFOS_STATE_ID, STAKING_INFOS_STATE_LABEL)
                 .build(); // Intentionally empty
-        given(states.<EntityNumber, StakingNodeInfo>get(STAKING_INFO_KEY)).willReturn(readableStakingNodes);
+        given(states.<EntityNumber, StakingNodeInfo>get(STAKING_INFOS_STATE_ID)).willReturn(readableStakingNodes);
         subject = new ReadableStakingInfoStoreImpl(states, entityCounters);
 
         final var result = subject.getAll();

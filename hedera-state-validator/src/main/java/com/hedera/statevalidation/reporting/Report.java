@@ -3,18 +3,13 @@ package com.hedera.statevalidation.reporting;
 
 import static com.hedera.statevalidation.validators.Constants.NODE_NAME;
 
-import java.util.HashMap;
-import java.util.Map;
-
 public class Report {
+
     private String nodeName = NODE_NAME;
 
-    @InvariantProperty
-    private long roundNumber;
+    private StorageReport pathToHashReport;
 
-    private long numberOfAccounts;
-    private StateReport stateReport = new StateReport();
-    private Map<String, VirtualMapReport> vmapReportByName = new HashMap<>();
+    private StorageReport pathToKeyValueReport;
 
     public String getNodeName() {
         return nodeName;
@@ -24,35 +19,38 @@ public class Report {
         this.nodeName = nodeName;
     }
 
-    public long getRoundNumber() {
-        return roundNumber;
+    public StorageReport pathToHashReport() {
+        return pathToHashReport;
     }
 
-    public void setRoundNumber(final long roundNumber) {
-        this.roundNumber = roundNumber;
+    public void setPathToHashReport(final StorageReport pathToHashReport) {
+        this.pathToHashReport = pathToHashReport;
     }
 
-    public long getNumberOfAccounts() {
-        return numberOfAccounts;
+    public StorageReport pathToKeyValueReport() {
+        return pathToKeyValueReport;
     }
 
-    public void setNumberOfAccounts(final long numberOfAccounts) {
-        this.numberOfAccounts = numberOfAccounts;
+    public void setPathToKeyValueReport(final StorageReport pathToKeyValueReport) {
+        this.pathToKeyValueReport = pathToKeyValueReport;
     }
 
-    public StateReport getStateReport() {
-        return stateReport;
-    }
+    @Override
+    public String toString() {
+        StringBuilder sb = new StringBuilder();
+        sb.append(String.format("Report for node: %s\n\n", nodeName));
 
-    public void setStateReport(final StateReport stateReport) {
-        this.stateReport = stateReport;
-    }
+        if (pathToHashReport != null) {
+            sb.append("Path-to-Hash Storage:\n");
+            sb.append(pathToHashReport);
+            sb.append("\n");
+        }
 
-    public Map<String, VirtualMapReport> getVmapReportByName() {
-        return vmapReportByName;
-    }
+        if (pathToKeyValueReport != null) {
+            sb.append("Path-to-KeyValue Storage:\n");
+            sb.append(pathToKeyValueReport);
+        }
 
-    public void setVmapReportByName(final Map<String, VirtualMapReport> vmapReportByName) {
-        this.vmapReportByName = vmapReportByName;
+        return sb.toString();
     }
 }

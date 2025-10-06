@@ -1,0 +1,27 @@
+// SPDX-License-Identifier: Apache-2.0
+syntax = "proto3";
+
+package com.hedera.hapi.platform.message;
+
+option java_package = "com.hedera.hapi.platform.message.legacy";
+// <<<pbj.java_package = "com.hedera.hapi.platform.message">>> This comment is special code for setting PBJ Compiler java package
+option java_multiple_files = true;
+
+/**
+ * Message exchanged by rpc sync protocol to measure ping time between the nodes in context of rpc communication. Same message is used by both the sender and receiver as a reply.
+ * Ping will be measured as time until receiving a reply with corresponding correlationId, NOT based on timestamp embedded in remote message.
+ */
+message GossipPing {
+  /**
+   * Timestamp in milliseconds since start of epoch of when the ping message was created according to sender clock.
+   * Only informational, as we cannot fully trust remote clocks to be true or perfectly in sync.
+   */
+  int64 timestamp = 1;
+
+  /**
+   * Correlation id assigned by sender, to be repeated in reply
+   * MUST be unique for given sender->receiver pair
+   * MAY be duplicated with correlation ids against different receivers or with correlation ids sent in pings from given receiver
+   */
+  int64 correlationId = 2;
+}

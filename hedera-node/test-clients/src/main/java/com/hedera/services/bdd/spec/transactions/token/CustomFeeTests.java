@@ -11,6 +11,7 @@ import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.fix
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hederahashgraph.api.proto.java.AccountID;
 import com.hederahashgraph.api.proto.java.CustomFee;
+import com.hederahashgraph.api.proto.java.CustomFeeLimit;
 import com.hederahashgraph.api.proto.java.FixedCustomFee;
 import java.util.List;
 import java.util.OptionalLong;
@@ -111,6 +112,21 @@ public class CustomFeeTests {
         Assertions.fail("Expected a " + detail + " fee " + expected + ", but only had: " + actual);
     }
 
+    public static BiConsumer<HapiSpec, List<CustomFeeLimit>> expectedCustomFeeLimit(String account, long amount) {
+        return (spec, actual) -> {
+            final var expected = CustomFeeSpecs.builtCustomFeeLimit(account, amount, spec);
+            failUnlessFeeLimitPresent("fixed ℏ", actual, expected);
+        };
+    }
+
+    public static BiConsumer<HapiSpec, List<CustomFeeLimit>> expectedCustomFeeLimitHts(
+            String account, String token, long amount) {
+        return (spec, actual) -> {
+            final var expected = CustomFeeSpecs.builtCustomFeeLimitHts(account, token, amount, spec);
+            failUnlessFeeLimitPresent("fixed HTS", actual, expected);
+        };
+    }
+
     private static void failUnlessConsensusFeePresent(
             String detail, List<FixedCustomFee> actual, FixedCustomFee expected) {
         for (var customFee : actual) {
@@ -119,5 +135,14 @@ public class CustomFeeTests {
             }
         }
         Assertions.fail("Expected a " + detail + " fee " + expected + ", but only had: " + actual);
+    }
+
+    private static void failUnlessFeeLimitPresent(String detail, List<CustomFeeLimit> actual, CustomFeeLimit expected) {
+        for (var feeLimit : actual) {
+            if (expected.equals(feeLimit)) {
+                return;
+            }
+        }
+        Assertions.fail("Expected a " + detail + " fee limit " + expected + ", but only had: " + actual);
     }
 }

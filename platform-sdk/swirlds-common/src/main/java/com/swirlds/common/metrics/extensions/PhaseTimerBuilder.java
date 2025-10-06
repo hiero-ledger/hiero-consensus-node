@@ -122,9 +122,8 @@ public class PhaseTimerBuilder<T extends Enum<T>> {
     }
 
     /**
-     * Get the platform context.
-     *
-     * @return the platform context
+     * Get the metrics provider
+     * @return Metrics provider for this builder
      */
     @NonNull
     Metrics getMetrics() {

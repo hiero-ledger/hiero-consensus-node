@@ -239,7 +239,7 @@ public class ConsensusRounds {
      */
     public long getExpiredThreshold() {
         final MinimumJudgeInfo info = minimumJudgeStorage.get(minimumJudgeStorage.minIndex());
-        return info == null ? EventConstants.ANCIENT_THRESHOLD_UNDEFINED : info.minimumJudgeAncientThreshold();
+        return info == null ? EventConstants.ANCIENT_THRESHOLD_UNDEFINED : info.minimumJudgeBirthRound();
     }
 
     /**
@@ -254,7 +254,7 @@ public class ConsensusRounds {
         final long nonAncientRound =
                 RoundCalculationUtils.getOldestNonAncientRound(config.roundsNonAncient(), getLastRoundDecided());
         final MinimumJudgeInfo info = minimumJudgeStorage.get(nonAncientRound);
-        ancientThreshold = info.minimumJudgeAncientThreshold();
+        ancientThreshold = info.minimumJudgeBirthRound();
     }
 
     /**

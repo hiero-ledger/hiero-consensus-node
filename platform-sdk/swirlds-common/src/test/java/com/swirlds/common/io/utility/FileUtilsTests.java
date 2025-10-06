@@ -590,4 +590,112 @@ class FileUtilsTests {
         assertTrue(files.contains(first), "first.foo not found");
         assertTrue(files.contains(third), "third.foo not found");
     }
+
+    /*
+     Directory layout before:
+     srcTree/
+     ├─ sub1/
+     │  └─ file1.txt ("hello")
+     ├─ sub2/
+     │  └─ file2.txt ("world")
+     └─ file3.txt ("root")
+     destTree/ (does not exist)
+
+     After moveDirectory(srcTree, destTree):
+     destTree/
+     ├─ sub1/file1.txt ("hello")
+     ├─ sub2/file2.txt ("world")
+     └─ file3.txt ("root")
+     srcTree/ (deleted)
+    */
+    @Test
+    @DisplayName("moveDirectory() moves nested structure and deletes source")
+    void moveDirectoryMovesNestedStructureAndDeletesSource() throws IOException {
+        final Path source = testDirectory.resolve("srcTree");
+        final Path target = testDirectory.resolve("destTree");
+
+        final Path srcSub1 = source.resolve("sub1");
+        final Path srcSub2 = source.resolve("sub2");
+        Files.createDirectories(srcSub1);
+        Files.createDirectories(srcSub2);
+
+        final Path file1 = srcSub1.resolve("file1.txt");
+        final Path file2 = srcSub2.resolve("file2.txt");
+        final Path file3 = source.resolve("file3.txt");
+        Files.writeString(file1, "hello");
+        Files.writeString(file2, "world");
+        Files.writeString(file3, "root");
+
+        FileUtils.moveDirectory(source, target);
+
+        assertFalse(Files.exists(source), "source directory should be deleted after move");
+        assertTrue(Files.exists(target), "target directory should exist after move");
+        assertEquals("hello", Files.readString(target.resolve("sub1").resolve("file1.txt")));
+        assertEquals("world", Files.readString(target.resolve("sub2").resolve("file2.txt")));
+        assertEquals("root", Files.readString(target.resolve("file3.txt")));
+    }
+
+    /*
+     Before:
+     srcExistingTarget/
+     └─ sub/shared.txt ("from-source")
+
+     destExistingTarget/
+     ├─ sub/shared.txt ("from-target-before")  <-- will be replaced
+     └─ targetOnly.txt ("keep-me")             <-- should remain
+
+     After moveDirectory(srcExistingTarget, destExistingTarget):
+     destExistingTarget/
+     ├─ sub/shared.txt ("from-source")  <-- replaced
+     └─ targetOnly.txt ("keep-me")      <-- preserved
+     srcExistingTarget/ (deleted)
+    */
+    @Test
+    @DisplayName("moveDirectory() replaces conflicting files in existing target and preserves others")
+    void moveDirectoryReplacesConflictsAndPreservesOtherTargetFiles() throws IOException {
+        final Path source = testDirectory.resolve("srcExistingTarget");
+        final Path target = testDirectory.resolve("destExistingTarget");
+
+        final Path srcSub = source.resolve("sub");
+        Files.createDirectories(srcSub);
+        final Path srcFile = srcSub.resolve("shared.txt");
+        Files.writeString(srcFile, "from-source");
+
+        // Prepare target with a conflicting file and an extra file that should remain
+        final Path targetSub = target.resolve("sub");
+        Files.createDirectories(targetSub);
+        final Path conflicting = targetSub.resolve("shared.txt");
+        Files.writeString(conflicting, "from-target-before");
+        final Path targetOnly = target.resolve("targetOnly.txt");
+        Files.writeString(targetOnly, "keep-me");
+
+        FileUtils.moveDirectory(source, target);
+
+        // Source should be deleted
+        assertFalse(Files.exists(source), "source directory should be deleted after move");
+        // Conflicting file should be replaced with source content
+        assertEquals("from-source", Files.readString(target.resolve("sub").resolve("shared.txt")));
+        // Unrelated file in target should still exist
+        assertTrue(Files.exists(targetOnly), "unrelated pre-existing target file should remain");
+        assertEquals("keep-me", Files.readString(targetOnly));
+    }
+
+    /*
+     Before:
+     no_such_source/ (missing)
+     should_not_be_created/ (missing)
+
+     Expectation:
+     - moveDirectory throws IOException
+     - target directory is not created
+    */
+    @Test
+    @DisplayName("moveDirectory() throws when source does not exist and does not create target")
+    void moveDirectoryThrowsWhenSourceMissing() {
+        final Path source = testDirectory.resolve("no_such_source");
+        final Path target = testDirectory.resolve("should_not_be_created");
+
+        assertThrows(IOException.class, () -> FileUtils.moveDirectory(source, target));
+        assertFalse(Files.exists(target), "target directory should not be created on failure");
+    }
 }

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.hapi.batch;
 
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asContract;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asContractString;
@@ -85,6 +86,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_P
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_TX_FEE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ACCOUNT_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_CONTRACT_ID;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_PAYER_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SOLIDITY_ADDRESS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.NOT_SUPPORTED;
@@ -580,10 +582,10 @@ public class AtomicContractCallSuite {
                                 .via(PAY_TXN)
                                 .payingWith(ACCOUNT)
                                 .sending(ONE_HBAR)
-                                .hasPrecheck(INSUFFICIENT_PAYER_BALANCE)
+                                .hasKnownStatus(INSUFFICIENT_PAYER_BALANCE)
                                 .batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR)
-                        .hasKnownStatus(INNER_TRANSACTION_FAILED));
+                        .hasPrecheck(INSUFFICIENT_PAYER_BALANCE));
     }
 
     @HapiTest
@@ -907,6 +909,7 @@ public class AtomicContractCallSuite {
      */
     @SuppressWarnings("java:S5960")
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> erc721TokenUriAndHtsNftInfoTreatNonUtf8BytesDifferently() {
         final var contractAlternatives = "ErcAndHtsAlternatives";
         final AtomicReference<Address> nftAddr = new AtomicReference<>();
@@ -1816,11 +1819,11 @@ public class AtomicContractCallSuite {
                                             BigInteger.valueOf(10L))
                                     .payingWith(ACC)
                                     .signedBy(PAYER_KEY)
-                                    .hasPrecheck(INVALID_SIGNATURE)
+                                    .hasKnownStatus(INVALID_PAYER_SIGNATURE)
                                     .refusingEthConversion()
                                     .batchKey(BATCH_OPERATOR))
                             .payingWith(BATCH_OPERATOR)
-                            .hasKnownStatus(INNER_TRANSACTION_FAILED);
+                            .hasPrecheck(INVALID_SIGNATURE);
                     allRunFor(spec, assertionWithOnlyOneKey);
 
                     final var assertionWithBothKeys = atomicBatch(contractCall(
@@ -2248,6 +2251,7 @@ public class AtomicContractCallSuite {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> callStaticCallToLargeAddress() {
         final var txn = "txn";
         final var contract = "CallInConstructor";
@@ -2373,6 +2377,7 @@ public class AtomicContractCallSuite {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> contractCreateFollowedByContractCallNoncesExternalization() {
         final var contract = "NoncesExternalization";
         final var payer = "payer";

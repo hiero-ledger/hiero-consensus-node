@@ -8,24 +8,36 @@ import org.hiero.otter.fixtures.assertions.MultipleNodeConsensusResultsAssert;
 import org.hiero.otter.fixtures.assertions.MultipleNodeConsensusResultsContinuousAssert;
 import org.hiero.otter.fixtures.assertions.MultipleNodeLogResultsAssert;
 import org.hiero.otter.fixtures.assertions.MultipleNodeLogResultsContinuousAssert;
+import org.hiero.otter.fixtures.assertions.MultipleNodeMarkerFileResultsAssert;
+import org.hiero.otter.fixtures.assertions.MultipleNodeMarkerFileResultsContinuousAssert;
 import org.hiero.otter.fixtures.assertions.MultipleNodePcesResultsAssert;
 import org.hiero.otter.fixtures.assertions.MultipleNodePlatformStatusResultsAssert;
 import org.hiero.otter.fixtures.assertions.MultipleNodePlatformStatusResultsContinuousAssert;
+import org.hiero.otter.fixtures.assertions.MultipleNodeReconnectResultsAssert;
+import org.hiero.otter.fixtures.assertions.MultipleNodeReconnectResultsContinuousAssert;
 import org.hiero.otter.fixtures.assertions.SingleNodeConsensusResultAssert;
 import org.hiero.otter.fixtures.assertions.SingleNodeConsensusResultContinuousAssert;
 import org.hiero.otter.fixtures.assertions.SingleNodeLogResultAssert;
 import org.hiero.otter.fixtures.assertions.SingleNodeLogResultContinuousAssert;
+import org.hiero.otter.fixtures.assertions.SingleNodeMarkerFileResultAssert;
+import org.hiero.otter.fixtures.assertions.SingleNodeMarkerFileResultContinuousAssert;
 import org.hiero.otter.fixtures.assertions.SingleNodePcesResultAssert;
 import org.hiero.otter.fixtures.assertions.SingleNodePlatformStatusResultAssert;
 import org.hiero.otter.fixtures.assertions.SingleNodePlatformStatusResultContinuousAssert;
+import org.hiero.otter.fixtures.assertions.SingleNodeReconnectResultAssert;
+import org.hiero.otter.fixtures.assertions.SingleNodeReconnectResultContinuousAssert;
 import org.hiero.otter.fixtures.result.MultipleNodeConsensusResults;
 import org.hiero.otter.fixtures.result.MultipleNodeLogResults;
+import org.hiero.otter.fixtures.result.MultipleNodeMarkerFileResults;
 import org.hiero.otter.fixtures.result.MultipleNodePcesResults;
 import org.hiero.otter.fixtures.result.MultipleNodePlatformStatusResults;
+import org.hiero.otter.fixtures.result.MultipleNodeReconnectResults;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
 import org.hiero.otter.fixtures.result.SingleNodeLogResult;
+import org.hiero.otter.fixtures.result.SingleNodeMarkerFileResult;
 import org.hiero.otter.fixtures.result.SingleNodePcesResult;
-import org.hiero.otter.fixtures.result.SingleNodePlatformStatusResults;
+import org.hiero.otter.fixtures.result.SingleNodePlatformStatusResult;
+import org.hiero.otter.fixtures.result.SingleNodeReconnectResult;
 
 /**
  * This class contains all {@code assertThat()} methods for test results of the Otter framework.
@@ -47,6 +59,10 @@ public class OtterAssertions extends Assertions {
 
     /**
      * Creates a continuous assertion for the given {@link SingleNodeConsensusResult}.
+     *
+     * <p>Please note: If two continuous assertions fail roughly at the same time, it is non-deterministic which one
+     * will report the failure first. This is even true when running a test in the Turtle environment.
+     * If deterministic behavior is required, please use regular assertions instead of continuous assertions.
      *
      * @param actual the {@link SingleNodeConsensusResult} to assert
      * @return a continuous assertion for the given {@link SingleNodeConsensusResult}
@@ -71,6 +87,10 @@ public class OtterAssertions extends Assertions {
     /**
      * Creates a continuous assertion for the given {@link MultipleNodeConsensusResults}.
      *
+     * <p>Please note: If two continuous assertions fail roughly at the same time, it is non-deterministic which one
+     * will report the failure first. This is even true when running a test in the Turtle environment.
+     * If deterministic behavior is required, please use regular assertions instead of continuous assertions.
+     *
      * @param actual the {@link MultipleNodeConsensusResults} to assert
      * @return a continuous assertion for the given {@link MultipleNodeConsensusResults}
      */
@@ -78,6 +98,22 @@ public class OtterAssertions extends Assertions {
     public static MultipleNodeConsensusResultsContinuousAssert assertContinuouslyThat(
             @Nullable final MultipleNodeConsensusResults actual) {
         return MultipleNodeConsensusResultsContinuousAssert.assertContinuouslyThat(actual);
+    }
+
+    /**
+     * Creates a continuous assertion for the given {@link MultipleNodeReconnectResults}.
+     *
+     * <p>Please note: If two continuous assertions fail roughly at the same time, it is non-deterministic which one
+     * will report the failure first. This is even true when running a test in the Turtle environment.
+     * If deterministic behavior is required, please use regular assertions instead of continuous assertions.
+     *
+     * @param actual the {@link MultipleNodeReconnectResults} to assert
+     * @return a continuous assertion for the given {@link MultipleNodeReconnectResults}
+     */
+    @NonNull
+    public static MultipleNodeReconnectResultsContinuousAssert assertContinuouslyThat(
+            @Nullable final MultipleNodeReconnectResults actual) {
+        return MultipleNodeReconnectResultsContinuousAssert.assertContinuouslyThat(actual);
     }
 
     /**
@@ -93,6 +129,10 @@ public class OtterAssertions extends Assertions {
 
     /**
      * Creates a continuous assertion for the given {@link SingleNodeLogResult}.
+     *
+     * <p>Please note: If two continuous assertions fail roughly at the same time, it is non-deterministic which one
+     * will report the failure first. This is even true when running a test in the Turtle environment.
+     * If deterministic behavior is required, please use regular assertions instead of continuous assertions.
      *
      * @param actual the {@link SingleNodeLogResult} to assert
      * @return an assertion for the given {@link SingleNodeLogResult}
@@ -117,6 +157,10 @@ public class OtterAssertions extends Assertions {
     /**
      * Creates a continuous assertion for the given {@link MultipleNodeLogResults}.
      *
+     * <p>Please note: If two continuous assertions fail roughly at the same time, it is non-deterministic which one
+     * will report the failure first. This is even true when running a test in the Turtle environment.
+     * If deterministic behavior is required, please use regular assertions instead of continuous assertions.
+     *
      * @param actual the {@link MultipleNodeLogResults} to assert
      * @return a continuous assertion for the given {@link MultipleNodeLogResults}
      */
@@ -127,26 +171,30 @@ public class OtterAssertions extends Assertions {
     }
 
     /**
-     * Creates an assertion for the given {@link SingleNodePlatformStatusResults}.
+     * Creates an assertion for the given {@link SingleNodePlatformStatusResult}.
      *
-     * @param actual the {@link SingleNodePlatformStatusResults} to assert
-     * @return an assertion for the given {@link SingleNodePlatformStatusResults}
+     * @param actual the {@link SingleNodePlatformStatusResult} to assert
+     * @return an assertion for the given {@link SingleNodePlatformStatusResult}
      */
     @NonNull
     public static SingleNodePlatformStatusResultAssert assertThat(
-            @Nullable final SingleNodePlatformStatusResults actual) {
+            @Nullable final SingleNodePlatformStatusResult actual) {
         return SingleNodePlatformStatusResultAssert.assertThat(actual);
     }
 
     /**
-     * Creates a continuous assertion for the given {@link SingleNodePlatformStatusResults}.
+     * Creates a continuous assertion for the given {@link SingleNodePlatformStatusResult}.
      *
-     * @param actual the {@link SingleNodePlatformStatusResults} to assert
-     * @return a continuous assertion for the given {@link SingleNodePlatformStatusResults}
+     * <p>Please note: If two continuous assertions fail roughly at the same time, it is non-deterministic which one
+     * will report the failure first. This is even true when running a test in the Turtle environment.
+     * If deterministic behavior is required, please use regular assertions instead of continuous assertions.
+     *
+     * @param actual the {@link SingleNodePlatformStatusResult} to assert
+     * @return a continuous assertion for the given {@link SingleNodePlatformStatusResult}
      */
     @NonNull
     public static SingleNodePlatformStatusResultContinuousAssert assertContinuouslyThat(
-            @Nullable final SingleNodePlatformStatusResults actual) {
+            @Nullable final SingleNodePlatformStatusResult actual) {
         return SingleNodePlatformStatusResultContinuousAssert.assertContinuouslyThat(actual);
     }
 
@@ -164,6 +212,10 @@ public class OtterAssertions extends Assertions {
 
     /**
      * Creates a continuous assertion for the given {@link MultipleNodePlatformStatusResults}.
+     *
+     * <p>Please note: If two continuous assertions fail roughly at the same time, it is non-deterministic which one
+     * will report the failure first. This is even true when running a test in the Turtle environment.
+     * If deterministic behavior is required, please use regular assertions instead of continuous assertions.
      *
      * @param actual the {@link MultipleNodePlatformStatusResults} to assert
      * @return a continuous assertion for the given {@link MultipleNodePlatformStatusResults}
@@ -194,5 +246,97 @@ public class OtterAssertions extends Assertions {
     @NonNull
     public static MultipleNodePcesResultsAssert assertThat(@Nullable final MultipleNodePcesResults actual) {
         return MultipleNodePcesResultsAssert.assertThat(actual);
+    }
+
+    /**
+     * Creates an assertion for the given {@link SingleNodeReconnectResult}.
+     *
+     * @param actual the {@link SingleNodeReconnectResult} to assert
+     * @return an assertion for the given {@link SingleNodeReconnectResult}
+     */
+    @NonNull
+    public static SingleNodeReconnectResultAssert assertThat(@Nullable final SingleNodeReconnectResult actual) {
+        return SingleNodeReconnectResultAssert.assertThat(actual);
+    }
+
+    /**
+     * Creates a continuous assertion for the given {@link SingleNodeReconnectResult}.
+     *
+     * <p>Please note: If two continuous assertions fail roughly at the same time, it is non-deterministic which one
+     * will report the failure first. This is even true when running a test in the Turtle environment.
+     * If deterministic behavior is required, please use regular assertions instead of continuous assertions.
+     *
+     * @param actual the {@link SingleNodeReconnectResult} to assert
+     * @return a continuous assertion for the given {@link SingleNodeReconnectResult}
+     */
+    @NonNull
+    public static SingleNodeReconnectResultContinuousAssert assertContinuouslyThat(
+            @Nullable final SingleNodeReconnectResult actual) {
+        return SingleNodeReconnectResultContinuousAssert.assertContinuouslyThat(actual);
+    }
+
+    /**
+     * Creates an assertion for the given {@link SingleNodeReconnectResult}.
+     *
+     * @param actual the {@link MultipleNodeReconnectResults} to assert
+     * @return an assertion for the given {@link MultipleNodeReconnectResults}
+     */
+    @NonNull
+    public static MultipleNodeReconnectResultsAssert assertThat(@Nullable final MultipleNodeReconnectResults actual) {
+        return MultipleNodeReconnectResultsAssert.assertThat(actual);
+    }
+
+    /**
+     * Creates an assertion for the given {@link SingleNodeMarkerFileResult}.
+     *
+     * @param actual the {@link SingleNodeMarkerFileResult} to assert
+     * @return an assertion for the given {@link SingleNodeMarkerFileResult}
+     */
+    @NonNull
+    public static SingleNodeMarkerFileResultAssert assertThat(@Nullable final SingleNodeMarkerFileResult actual) {
+        return SingleNodeMarkerFileResultAssert.assertThat(actual);
+    }
+
+    /**
+     * Creates a continuous assertion for the given {@link SingleNodeMarkerFileResult}.
+     *
+     * <p>Please note: If two continuous assertions fail roughly at the same time, it is non-deterministic which one
+     * will report the failure first. This is even true when running a test in the Turtle environment.
+     * If deterministic behavior is required, please use regular assertions instead of continuous assertions.
+     *
+     * @param actual the {@link SingleNodeMarkerFileResult} to assert
+     * @return a continuous assertion for the given {@link SingleNodeMarkerFileResult}
+     */
+    @NonNull
+    public static SingleNodeMarkerFileResultContinuousAssert assertContinuouslyThat(
+            @Nullable final SingleNodeMarkerFileResult actual) {
+        return SingleNodeMarkerFileResultContinuousAssert.assertContinuouslyThat(actual);
+    }
+
+    /**
+     * Creates an assertion for the given {@link MultipleNodeMarkerFileResults}.
+     *
+     * @param actual the {@link MultipleNodeMarkerFileResults} to assert
+     * @return an assertion for the given {@link MultipleNodeMarkerFileResults}
+     */
+    @NonNull
+    public static MultipleNodeMarkerFileResultsAssert assertThat(@Nullable final MultipleNodeMarkerFileResults actual) {
+        return MultipleNodeMarkerFileResultsAssert.assertThat(actual);
+    }
+
+    /**
+     * Creates a continuous assertion for the given {@link MultipleNodeMarkerFileResults}.
+     *
+     * <p>Please note: If two continuous assertions fail roughly at the same time, it is non-deterministic which one
+     * will report the failure first. This is even true when running a test in the Turtle environment.
+     * If deterministic behavior is required, please use regular assertions instead of continuous assertions.
+     *
+     * @param actual the {@link MultipleNodeMarkerFileResults} to assert
+     * @return a continuous assertion for the given {@link MultipleNodeMarkerFileResults}
+     */
+    @NonNull
+    public static MultipleNodeMarkerFileResultsContinuousAssert assertContinuouslyThat(
+            @Nullable final MultipleNodeMarkerFileResults actual) {
+        return MultipleNodeMarkerFileResultsContinuousAssert.assertContinuouslyThat(actual);
     }
 }

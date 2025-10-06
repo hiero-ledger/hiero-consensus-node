@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.token.batch;
 
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.TOKEN;
 import static com.hedera.services.bdd.spec.HapiSpec.defaultHapiSpec;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
@@ -69,6 +70,7 @@ import org.junit.jupiter.api.Tag;
 // we are wrapping the operations in an atomic batch to confirm that everything works as expected.
 @HapiTestLifecycle
 @Tag(TOKEN)
+@Tag(MATS)
 public class AtomicTokenUpdateSpecs {
 
     private static final int MAX_NAME_LENGTH = 100;
@@ -337,7 +339,7 @@ public class AtomicTokenUpdateSpecs {
                 .then(atomicBatch(tokenUpdate("tbu")
                                 .name(tooLongName)
                                 .signedByPayerAnd("adminKey")
-                                .hasPrecheck(TOKEN_NAME_TOO_LONG)
+                                .hasKnownStatus(TOKEN_NAME_TOO_LONG)
                                 .batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR)
                         .hasKnownStatus(INNER_TRANSACTION_FAILED));
@@ -353,7 +355,7 @@ public class AtomicTokenUpdateSpecs {
                 .then(atomicBatch(tokenUpdate("tbu")
                                 .symbol(tooLongSymbol)
                                 .signedByPayerAnd("adminKey")
-                                .hasPrecheck(TOKEN_SYMBOL_TOO_LONG)
+                                .hasKnownStatus(TOKEN_SYMBOL_TOO_LONG)
                                 .batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR)
                         .hasKnownStatus(INNER_TRANSACTION_FAILED));

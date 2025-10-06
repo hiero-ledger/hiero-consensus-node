@@ -1,0 +1,26 @@
+syntax = "proto3";
+
+package com.hedera.hapi.node.hooks;
+
+// SPDX-License-Identifier: Apache-2.0
+option java_package = "com.hedera.hapi.node.hooks.legacy";
+// <<<pbj.java_package = "com.hedera.hapi.node.hooks">>> This comment is special code for setting PBJ Compiler java package
+option java_multiple_files = true;
+
+import "services/basic_types.proto";
+import "services/hook_types.proto";
+
+/**
+ * Adds or removes key/value pairs in the storage of a lambda. The lambda's owning key must sign the transaction.
+ */
+message LambdaSStoreTransactionBody {
+  /**
+   * The id of the lambda EVM hook whose storage is being updated.
+   */
+  proto.HookId hook_id = 1;
+
+  /**
+   * The updates to the storage of the lambda.
+   */
+  repeated LambdaStorageUpdate storage_updates = 2;
+}

@@ -15,6 +15,8 @@ import com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.commo
 import org.apache.tuweni.bytes.Bytes;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 class TokenUriCallTest extends CallTestBase {
     private TokenUriCall subject;
@@ -37,12 +39,12 @@ class TokenUriCallTest extends CallTestBase {
                 result.getOutput());
     }
 
-    @Test
-    void returnNonExistingTokenErrorMetadata() {
+    @ParameterizedTest
+    @ValueSource(longs = {-1L, NFT_SERIAL_NO})
+    public void returnErrorMetadata(final long serialNo) {
         // given
-        subject = new TokenUriCall(gasCalculator, mockEnhancement(), NON_FUNGIBLE_TOKEN, NFT_SERIAL_NO);
-        given(nativeOperations.getNft(NON_FUNGIBLE_TOKEN.tokenId(), NFT_SERIAL_NO))
-                .willReturn(null);
+        subject = new TokenUriCall(gasCalculator, mockEnhancement(), NON_FUNGIBLE_TOKEN, serialNo);
+        given(nativeOperations.getNft(NON_FUNGIBLE_TOKEN_ID, serialNo)).willReturn(null);
         // when
         final var result = subject.execute(frame).fullResult().result();
         // then
