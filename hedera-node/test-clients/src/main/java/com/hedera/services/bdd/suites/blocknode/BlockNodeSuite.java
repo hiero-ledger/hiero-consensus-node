@@ -66,6 +66,37 @@ public class BlockNodeSuite {
 
     @HapiTest
     @HapiBlockNode(
+            networkSize = 1,
+            blockNodeConfigs = {@BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.SIMULATOR)},
+            subProcessNodeConfigs = {
+                    @SubProcessNodeConfig(
+                            nodeId = 0,
+                            blockNodeIds = {0},
+                            blockNodePriorities = {0},
+                            applicationPropertiesOverrides = {
+                                    "blockStream.streamMode", "BOTH",
+                                    "blockStream.writerMode", "FILE_AND_GRPC"
+                            })
+            })
+    @Order(0)
+    final Stream<DynamicTest> node0SendEndOfBlockHappyPath() {
+        final AtomicReference<Instant> timeRef = new AtomicReference<>();
+        return hapiTest(
+                doingContextual(spec -> timeRef.set(Instant.now())),
+                waitUntilNextBlocks(10).withBackgroundTraffic(true),
+                // assert no errors
+                assertHgcaaLogDoesNotContain(byNodeId(0), "ERROR", Duration.ofSeconds(5)),
+                sourcingContextual(spec -> assertHgcaaLogContainsTimeframe(
+                        byNodeId(0),
+                        timeRef::get,
+                        Duration.ofMinutes(1),
+                        Duration.ofMinutes(1),
+                        // Should send END_OF_BLOCK requests
+                        "Sending request to block node (type=END_OF_BLOCK)")));
+    }
+
+    @HapiTest
+    @HapiBlockNode(
             blockNodeConfigs = {
                 @BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.REAL),
                 @BlockNodeConfig(nodeId = 1, mode = BlockNodeMode.REAL),
