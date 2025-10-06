@@ -208,15 +208,13 @@ public class NodeCommunicationService extends NodeCommunicationServiceImplBase {
             return;
         }
 
-        try {
+        wrapWithErrorHandling(responseObserver, () -> {
             final boolean result =
                     consensusNodeManager.submitTransaction(request.getPayload().toByteArray());
             responseObserver.onNext(
                     TransactionRequestAnswer.newBuilder().setResult(result).build());
             responseObserver.onCompleted();
-        } catch (final Exception e) {
-            responseObserver.onError(Status.INTERNAL.withCause(e).asRuntimeException());
-        }
+        });
     }
 
     /**
@@ -235,9 +233,11 @@ public class NodeCommunicationService extends NodeCommunicationServiceImplBase {
             setPlatformNotStartedResponse(responseObserver);
             return;
         }
-        consensusNodeManager.updateSyntheticBottleneck(request.getSleepMillisPerRound());
-        responseObserver.onNext(Empty.getDefaultInstance());
-        responseObserver.onCompleted();
+        wrapWithErrorHandling(responseObserver, () -> {
+            consensusNodeManager.updateSyntheticBottleneck(request.getSleepMillisPerRound());
+            responseObserver.onNext(Empty.getDefaultInstance());
+            responseObserver.onCompleted();
+        });
     }
 
     @Override
@@ -269,5 +269,18 @@ public class NodeCommunicationService extends NodeCommunicationServiceImplBase {
         responseObserver.onError(Status.FAILED_PRECONDITION
                 .withDescription("Platform not started yet")
                 .asRuntimeException());
+    }
+
+    private static void wrapWithErrorHandling(
+            @NonNull final StreamObserver<?> responseObserver, @NonNull final Runnable action) {
+        try {
+            action.run();
+        } catch (final IllegalArgumentException e) {
+            responseObserver.onError(Status.INVALID_ARGUMENT.withCause(e).asRuntimeException());
+        } catch (final UnsupportedOperationException e) {
+            responseObserver.onError(Status.UNIMPLEMENTED.withCause(e).asRuntimeException());
+        } catch (final Exception e) {
+            responseObserver.onError(Status.INTERNAL.withCause(e).asRuntimeException());
+        }
     }
 }

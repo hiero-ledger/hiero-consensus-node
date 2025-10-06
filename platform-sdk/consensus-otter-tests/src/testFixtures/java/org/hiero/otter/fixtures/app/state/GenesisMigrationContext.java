@@ -7,7 +7,6 @@ import com.hedera.hapi.node.base.SemanticVersion;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.state.State;
 import com.swirlds.state.lifecycle.MigrationContext;
-import com.swirlds.state.lifecycle.StartupNetworks;
 import com.swirlds.state.spi.EmptyReadableStates;
 import com.swirlds.state.spi.ReadableStates;
 import com.swirlds.state.spi.WritableStates;
@@ -85,15 +84,6 @@ public class GenesisMigrationContext implements MigrationContext<SemanticVersion
      * {@inheritDoc}
      */
     @Override
-    @NonNull
-    public StartupNetworks startupNetworks() {
-        throw new UnsupportedOperationException("OtterApp should not need startupNetworks");
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
     public void copyAndReleaseOnDiskState(final int stateId) {
         throw new UnsupportedOperationException("OtterApp should not need copyAndReleaseOnDiskState");
     }
@@ -114,11 +104,6 @@ public class GenesisMigrationContext implements MigrationContext<SemanticVersion
     @NonNull
     public Map<String, Object> sharedValues() {
         throw new UnsupportedOperationException("OtterApp should not need sharedValues");
-    }
-
-    @Override
-    public SemanticVersion getDefaultVersion() {
-        return null;
     }
 
     @Override

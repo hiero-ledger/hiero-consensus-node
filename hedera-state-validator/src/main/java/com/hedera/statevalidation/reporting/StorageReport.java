@@ -2,15 +2,15 @@
 package com.hedera.statevalidation.reporting;
 
 public class StorageReport {
-    long minPath;
-    long maxPath;
+    private long minPath;
+    private long maxPath;
 
-    long onDiskSizeInMb;
-    long numberOfStorageFiles;
+    private long onDiskSizeInMb;
+    private long numberOfStorageFiles;
 
-    double wastePercentage;
-    long duplicateItems;
-    long itemCount;
+    private double wastePercentage;
+    private long duplicateItems;
+    private long itemCount;
 
     public long minPath() {
         return minPath;

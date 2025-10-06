@@ -9,9 +9,9 @@ public class HooksABI {
     static final String HOOK_CTX_TUPLE = "(address,uint256,uint256,string,bytes)";
     static final String ACCOUNT_AMT_TUPLE = "(address,int64)";
     static final String NFT_TUPLE = "(address,address,int64)";
-    static final String XFER_LIST_TUPLE = ACCOUNT_AMT_TUPLE + "[]";
-    static final String TOKEN_XFER_LIST_T = "(address," + ACCOUNT_AMT_TUPLE + "[]," + NFT_TUPLE + "[])";
-    static final String TRANSFERS_TUPLE = "(" + XFER_LIST_TUPLE + "," + TOKEN_XFER_LIST_T + "[])";
+    ;
+    static final String TOKEN_XFER_LIST_TUPLE = "(address," + ACCOUNT_AMT_TUPLE + "[]," + NFT_TUPLE + "[])";
+    static final String TRANSFERS_TUPLE = "(" + ACCOUNT_AMT_TUPLE + "[]," + TOKEN_XFER_LIST_TUPLE + "[])";
     static final String PROPOSED_TRANSFERS_TUPLE = "(" + TRANSFERS_TUPLE + "," + TRANSFERS_TUPLE + ")";
 
     public static final Function FN_ALLOW =
@@ -21,7 +21,10 @@ public class HooksABI {
     public static final Function FN_ALLOW_POST =
             new Function("allowPost(" + HOOK_CTX_TUPLE + "," + PROPOSED_TRANSFERS_TUPLE + ")", "(bool)");
 
-    /** Encodes the given invocation and context using the provided function's ABI.
+    public static final Tuple EMPTY_TRANSFERS = Tuple.of(new Tuple[] {}, new Tuple[] {});
+
+    /**
+     * Encodes the given invocation and context using the provided function's ABI.
      *
      * @param invocation the hook invocation details
      * @param ctx the hook context

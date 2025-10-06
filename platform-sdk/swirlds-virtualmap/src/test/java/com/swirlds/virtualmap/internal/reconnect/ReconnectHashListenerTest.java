@@ -66,7 +66,8 @@ class ReconnectHashListenerTest {
     @ValueSource(ints = {1, 2, 10, 100, 1000, 10_000, 100_000, 1_000_000})
     @DisplayName("Flushed data is always done in the right order")
     void flushOrder(int size) {
-        final VirtualDataSourceSpy ds = new VirtualDataSourceSpy(new InMemoryBuilder().build("flushOrder", true));
+        final VirtualDataSourceSpy ds =
+                new VirtualDataSourceSpy(new InMemoryBuilder().build("flushOrder", null, true, false));
 
         final VirtualMapStatistics statistics = mock(VirtualMapStatistics.class);
         final ReconnectHashLeafFlusher flusher =
@@ -154,24 +155,6 @@ class ReconnectHashListenerTest {
             this.leafRecords.add(lr);
             delegate.saveRecords(
                     firstLeafPath, lastLeafPath, ir.stream(), lr.stream(), leafRecordsToDelete, isReconnectContext);
-        }
-
-        @Override
-        public void saveRecords(
-                final long firstLeafPath,
-                final long lastLeafPath,
-                @NonNull final Stream<VirtualHashRecord> pathHashRecordsToUpdate,
-                @NonNull final Stream<VirtualLeafBytes> leafRecordsToAddOrUpdate,
-                @NonNull final Stream<VirtualLeafBytes> leafRecordsToDelete)
-                throws IOException {
-
-            saveRecords(
-                    firstLeafPath,
-                    lastLeafPath,
-                    pathHashRecordsToUpdate,
-                    leafRecordsToAddOrUpdate,
-                    leafRecordsToDelete,
-                    true);
         }
 
         @Override

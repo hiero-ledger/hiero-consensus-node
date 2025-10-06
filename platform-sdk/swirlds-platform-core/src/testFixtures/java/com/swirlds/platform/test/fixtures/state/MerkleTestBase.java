@@ -7,7 +7,6 @@ import com.hedera.pbj.runtime.Codec;
 import com.swirlds.state.lifecycle.StateDefinition;
 import com.swirlds.state.lifecycle.StateMetadata;
 import com.swirlds.state.test.fixtures.StateTestBase;
-import com.swirlds.state.test.fixtures.merkle.TestSchema;
 import com.swirlds.virtualmap.VirtualMap;
 
 /**
@@ -46,7 +45,6 @@ public class MerkleTestBase extends com.swirlds.state.test.fixtures.merkle.Merkl
         super.setupFruitVirtualMap();
         fruitMetadata = new StateMetadata<>(
                 FIRST_SERVICE,
-                new TestSchema(1),
                 StateDefinition.onDisk(FRUIT_STATE_ID, FRUIT_STATE_KEY, ProtoBytes.PROTOBUF, ProtoBytes.PROTOBUF, 100));
     }
 
@@ -54,18 +52,14 @@ public class MerkleTestBase extends com.swirlds.state.test.fixtures.merkle.Merkl
     protected void setupSingletonCountry() {
         super.setupSingletonCountry();
         countryMetadata = new StateMetadata<>(
-                FIRST_SERVICE,
-                new TestSchema(1),
-                StateDefinition.singleton(COUNTRY_STATE_ID, COUNTRY_STATE_KEY, ProtoBytes.PROTOBUF));
+                FIRST_SERVICE, StateDefinition.singleton(COUNTRY_STATE_ID, COUNTRY_STATE_KEY, ProtoBytes.PROTOBUF));
     }
 
     @Override
     protected void setupSteamQueue() {
         super.setupSteamQueue();
         steamMetadata = new StateMetadata<>(
-                FIRST_SERVICE,
-                new TestSchema(1),
-                StateDefinition.queue(STEAM_STATE_ID, STEAM_STATE_KEY, ProtoBytes.PROTOBUF));
+                FIRST_SERVICE, StateDefinition.queue(STEAM_STATE_ID, STEAM_STATE_KEY, ProtoBytes.PROTOBUF));
     }
 
     /** A convenience method for adding a singleton state to a virtual map */

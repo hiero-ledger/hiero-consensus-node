@@ -137,7 +137,8 @@ class MerkleDbDataSourceSnapshotMergeTest {
                                     .mapToObj(MerkleDbDataSourceTest::createVirtualInternalRecord),
                             IntStream.range(firstLeafPath, lastLeafPathInclusive + 1 /* exclusive */)
                                     .mapToObj(i -> testType.dataType().createVirtualLeafRecord(i)),
-                            Stream.empty());
+                            Stream.empty(),
+                            false);
                 } finally {
                     countDownLatch.countDown();
                 }
@@ -299,7 +300,8 @@ class MerkleDbDataSourceSnapshotMergeTest {
                     IntStream.range(start, COUNT + end).mapToObj(MerkleDbDataSourceTest::createVirtualInternalRecord),
                     IntStream.range(COUNT + start, COUNT + end)
                             .mapToObj(i -> testType.dataType().createVirtualLeafRecord(i)),
-                    Stream.empty());
+                    Stream.empty(),
+                    false);
         }
     }
 

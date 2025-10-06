@@ -41,7 +41,7 @@ public record StateValue<V>(int stateId, @NonNull V value) {
 
     /**
      * Given state value bytes, extract state ID from them. Value bytes must be in
-     * com.hedera.hapi.platform.state.StateValue format, that it a domain value wrapped into a
+     * com.hedera.hapi.platform.state.StateValue format that it is a domain value wrapped into a
      * OneOf field.
      */
     public static int extractStateIdFromStateValueOneOf(@NonNull final Bytes stateValue) {
