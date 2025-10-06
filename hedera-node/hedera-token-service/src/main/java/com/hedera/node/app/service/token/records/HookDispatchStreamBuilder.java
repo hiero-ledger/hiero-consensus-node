@@ -14,14 +14,14 @@ public interface HookDispatchStreamBuilder extends StreamBuilder {
     /**
      * Returns the  first hook id after this dispatch
      */
-    void nextHookId(long nextHookId);
+    void nextHookId(Long nextHookId);
 
     /**
      * Returns the next hook id to be used
      *
      * @return the next hook id
      */
-    long getNextHookId();
+    Long getNextHookId();
 
     /**
      * Returns the EVM transaction call result to be recorded in the record stream

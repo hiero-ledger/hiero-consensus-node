@@ -40,15 +40,9 @@ public class NetworkUtilizationManagerImpl implements NetworkUtilizationManager 
     @Override
     public boolean trackTxn(
             @NonNull final TransactionInfo txnInfo, @NonNull final Instant consensusTime, @NonNull final State state) {
-        final var throttleResult = backendThrottle.checkAndEnforceThrottle(txnInfo, consensusTime, state, null);
+        final var shouldThrottle = backendThrottle.checkAndEnforceThrottle(txnInfo, consensusTime, state, null);
         congestionMultipliers.updateMultiplier(consensusTime);
-
-        // For validation errors, don't throttle but track the failed transaction
-        if (throttleResult.hasValidationError()) {
-            return false;
-        }
-
-        return throttleResult.shouldThrottle();
+        return shouldThrottle;
     }
 
     @Override
@@ -63,7 +57,6 @@ public class NetworkUtilizationManagerImpl implements NetworkUtilizationManager 
                 Bytes.EMPTY,
                 CRYPTO_TRANSFER,
                 null);
-        // Ignore validation errors for fee payment tracking, we only care about throttling
         trackTxn(chargingFeesCryptoTransfer, consensusNow, state);
     }
 
