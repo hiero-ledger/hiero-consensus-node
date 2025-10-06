@@ -11,16 +11,14 @@ import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
+import com.swirlds.config.extensions.sources.SimpleConfigSource;
 import com.swirlds.logging.legacy.payload.ApplicationFinishedPayload;
-import com.swirlds.merkledb.MerkleDbDataSourceBuilder;
-import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.platform.ParameterProvider;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.system.DefaultSwirldMain;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer;
 import com.swirlds.virtualmap.VirtualMap;
-import com.swirlds.virtualmap.datasource.VirtualDataSourceBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.security.SignatureException;
 import java.util.List;
@@ -154,7 +152,14 @@ public class MigrationTestingToolMain extends DefaultSwirldMain<MigrationTesting
     @NonNull
     @Override
     public MigrationTestingToolState newStateRoot() {
-        return createMigrationTestingToolState(createVirtualMap());
+        final Configuration configuration = ConfigurationBuilder.create()
+                .autoDiscoverExtensions()
+                .withSource(new SimpleConfigSource().withValue("merkleDb.initialCapacity", 1000000))
+                .build();
+
+        final MigrationTestingToolState state = new MigrationTestingToolState(configuration, getGlobalMetrics());
+        TestingAppStateInitializer.DEFAULT.initConsensusModuleStates(state);
+        return state;
     }
 
     /**
@@ -162,20 +167,11 @@ public class MigrationTestingToolMain extends DefaultSwirldMain<MigrationTesting
      */
     @Override
     public Function<VirtualMap, MigrationTestingToolState> stateRootFromVirtualMap() {
-        return this::createMigrationTestingToolState;
-    }
-
-    /**
-     * Creates a new MigrationTestingToolState with the given VirtualMap and initializes
-     * the consensus module states.
-     *
-     * @param virtualMap the virtual map to use for the state
-     * @return a new initialized MigrationTestingToolState
-     */
-    private MigrationTestingToolState createMigrationTestingToolState(@NonNull final VirtualMap virtualMap) {
-        final MigrationTestingToolState state = new MigrationTestingToolState(virtualMap);
-        TestingAppStateInitializer.DEFAULT.initConsensusModuleStates(state);
-        return state;
+        return virtualMap -> {
+            final MigrationTestingToolState state = new MigrationTestingToolState(virtualMap);
+            TestingAppStateInitializer.DEFAULT.initConsensusModuleStates(state);
+            return state;
+        };
     }
 
     @Override
@@ -199,21 +195,5 @@ public class MigrationTestingToolMain extends DefaultSwirldMain<MigrationTesting
     @Override
     public SemanticVersion getSemanticVersion() {
         return semanticVersion;
-    }
-
-    /**
-     * Create a virtual map for the case of genesis state initialization via {@link MigrationTestingToolMain#newStateRoot()}
-     *
-     * @return pre-configured empty Virtual Map with metrics
-     */
-    private static VirtualMap createVirtualMap() {
-        final Configuration configuration =
-                ConfigurationBuilder.create().autoDiscoverExtensions().build();
-        final MerkleDbConfig merkleDbConfig = configuration.getConfigData(MerkleDbConfig.class);
-        final VirtualDataSourceBuilder dsBuilder =
-                new MerkleDbDataSourceBuilder(configuration, 1_000_000, merkleDbConfig.hashesRamToDiskThreshold());
-        final VirtualMap virtualMap = new VirtualMap("MigrationTestingTool", dsBuilder, configuration);
-        virtualMap.registerMetrics(getGlobalMetrics());
-        return virtualMap;
     }
 }
