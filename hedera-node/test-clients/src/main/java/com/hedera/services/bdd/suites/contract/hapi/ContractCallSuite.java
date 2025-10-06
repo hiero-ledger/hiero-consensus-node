@@ -2573,6 +2573,21 @@ public class ContractCallSuite {
                                 .hasPrecheck(INVALID_CONTRACT_ID))));
     }
 
+    @HapiTest
+    final Stream<DynamicTest> selfDestructWithInvalidBeneficiary() {
+        final var SELF_DESTRUCT_INIT = "SelfDestructInit";
+        final var SELF_DESTRUCT_TXN = "SelfDestructTxn";
+        return hapiTest(
+                uploadInitCode(SELF_DESTRUCT_INIT),
+                contractCreate(SELF_DESTRUCT_INIT).gas(1_000_000L),
+                contractCall(SELF_DESTRUCT_INIT)
+                        .withExplicitParams(() -> "00")
+                        .gas(1_000_000L)
+                        .hasKnownStatus(INVALID_SOLIDITY_ADDRESS)
+                        .via(SELF_DESTRUCT_TXN),
+                getTxnRecord(SELF_DESTRUCT_TXN).andAllChildRecords().logged());
+    }
+
     private String getNestedContractAddress(final String contract, final HapiSpec spec) {
         return asHexedSolidityAddress(spec.registry().getContractId(contract));
     }

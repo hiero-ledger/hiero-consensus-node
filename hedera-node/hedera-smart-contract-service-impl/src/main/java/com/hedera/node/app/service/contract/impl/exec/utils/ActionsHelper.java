@@ -17,6 +17,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 import org.hyperledger.besu.evm.frame.MessageFrame;
+import org.hyperledger.besu.evm.internal.UnderflowException;
 
 /**
  * Helper class for pretty-printing, validating, and creating synthetic {@link ContractAction}s.
@@ -31,12 +32,19 @@ public class ActionsHelper {
      * @return the {@link ContractAction} representing the frame as a call to a missing address
      */
     public ContractAction createSynthActionForMissingAddressIn(@NonNull final MessageFrame frame) {
+        Bytes targetAddress = Bytes.EMPTY;
+        try {
+            targetAddress = tuweniToPbjBytes(frame.getStackItem(1));
+        } catch (final UnderflowException ignored) {
+            // If the stack is too small, just fall through and use empty bytes
+        }
+
         return ContractAction.newBuilder()
                 .callType(ContractActionType.CALL)
                 .gas(frame.getRemainingGas())
                 .callDepth(frame.getDepth() + 1)
                 .callingContract(contractIdWith(frame, hederaIdNumOfContractIn(frame)))
-                .targetedAddress(tuweniToPbjBytes(frame.getStackItem(1)))
+                .targetedAddress(targetAddress)
                 .error(MISSING_ADDRESS_ERROR)
                 .callOperationType(
                         asCallOperationType(frame.getCurrentOperation().getOpcode()))
