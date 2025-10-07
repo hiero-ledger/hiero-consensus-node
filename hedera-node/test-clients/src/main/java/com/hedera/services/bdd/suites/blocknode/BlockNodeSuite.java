@@ -460,7 +460,7 @@ public class BlockNodeSuite {
                             "1"
                         })
             })
-    @Order(9)
+    @Order(8)
     final Stream<DynamicTest> node0StreamingMultipleEndOfStreamsReceived() {
         final AtomicReference<Instant> time = new AtomicReference<>();
         final List<Integer> portNumbers = new ArrayList<>();
@@ -507,7 +507,7 @@ public class BlockNodeSuite {
                             "FILE_AND_GRPC"
                         })
             })
-    @Order(10)
+    @Order(9)
     final Stream<DynamicTest> node0StreamingExponentialBackoff() {
         final AtomicReference<Instant> time = new AtomicReference<>();
         return hapiTest(
@@ -550,7 +550,7 @@ public class BlockNodeSuite {
                             "blockNode.highLatencyThreshold", "1s"
                         })
             })
-    @Order(11)
+    @Order(10)
     final Stream<DynamicTest> node0StreamingToHighLatencyBlockNode() {
         final AtomicReference<Instant> time = new AtomicReference<>();
         final List<Integer> portNumbers = new ArrayList<>();
@@ -588,7 +588,7 @@ public class BlockNodeSuite {
                             "blockStream.writerMode", "FILE_AND_GRPC"
                         })
             })
-    @Order(12)
+    @Order(11)
     final Stream<DynamicTest> testCNReactionToPublishStreamResponses() {
         final AtomicReference<Instant> time = new AtomicReference<>();
         final List<Integer> portNumbers = new ArrayList<>();
@@ -774,7 +774,7 @@ public class BlockNodeSuite {
                             "blockNode.streamResetPeriod", "20s",
                         })
             })
-    @Order(3)
+    @Order(14)
     final Stream<DynamicTest> testBlockBufferDurability() {
         /*
         1. Create some background traffic for a while.
