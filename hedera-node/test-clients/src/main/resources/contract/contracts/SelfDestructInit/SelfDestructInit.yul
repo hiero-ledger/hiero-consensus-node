@@ -6,8 +6,7 @@ object "Contract" {
 
     object "runtime" {
         code {
-            mstore(0, 1)
-            selfdestruct(shr(96, calldataload(0)))
+            selfdestruct(0)
             return(0, 32)
         }
     }

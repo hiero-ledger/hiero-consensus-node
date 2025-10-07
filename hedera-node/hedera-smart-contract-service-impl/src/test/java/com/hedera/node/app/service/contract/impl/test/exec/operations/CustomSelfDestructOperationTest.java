@@ -18,6 +18,8 @@ import com.hedera.node.app.service.contract.impl.exec.utils.InvalidAddressContex
 import com.hedera.node.app.service.contract.impl.state.AbstractProxyEvmAccount;
 import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
 import edu.umd.cs.findbugs.annotations.NonNull;
+
+import java.util.ArrayDeque;
 import java.util.Optional;
 import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.datatypes.Wei;
@@ -91,6 +93,7 @@ class CustomSelfDestructOperationTest {
         given(frame.getRecipientAddress()).willReturn(TBD);
         given(frame.getRemainingGas()).willReturn(123L);
         given(frame.getWorldUpdater()).willReturn(proxyWorldUpdater);
+        given(frame.getMessageFrameStack()).willReturn(new ArrayDeque<>());
         given(frame.getContextVariable(INVALID_ADDRESS_CONTEXT_VARIABLE)).willReturn(new InvalidAddressContext());
         given(addressChecks.isSystemAccount(BENEFICIARY)).willReturn(true);
         given(gasCalculator.selfDestructOperationGasCost(null, INHERITANCE)).willReturn(123L);

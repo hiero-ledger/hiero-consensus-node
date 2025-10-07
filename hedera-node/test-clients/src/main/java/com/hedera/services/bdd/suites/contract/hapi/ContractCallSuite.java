@@ -2581,7 +2581,6 @@ public class ContractCallSuite {
                 uploadInitCode(SELF_DESTRUCT_INIT),
                 contractCreate(SELF_DESTRUCT_INIT).gas(1_000_000L),
                 contractCall(SELF_DESTRUCT_INIT)
-                        .withExplicitParams(() -> "00")
                         .gas(1_000_000L)
                         .hasKnownStatus(INVALID_SOLIDITY_ADDRESS)
                         .via(SELF_DESTRUCT_TXN),
