@@ -231,6 +231,16 @@ jobs:
           echo "sha=${hederahash}" >> "${GITHUB_OUTPUT}"
           echo "hederahash=${hederahash}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
 
+      - name: Checkout and build PBJ
+        run: |
+          git clone https://github.com/hashgraph/pbj.git pbj
+          cd pbj
+          git checkout 620-stringByteArray
+          cd pbj-core
+          echo "0.12.1-SNAPSHOTALEX" >version.txt
+          ./gradlew --no-daemon clean publishToMavenLocal
+          cd ../..
+
       - name: Compile
         run: ./gradlew clean assemble
 
