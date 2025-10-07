@@ -11,6 +11,8 @@ import static com.hedera.hapi.node.base.HederaFunctionality.ETHEREUM_TRANSACTION
 import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_ASSOCIATE_TO_ACCOUNT;
 import static com.hedera.hapi.util.HapiUtils.functionOf;
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
+import static com.hedera.node.app.hapi.utils.contracts.HookUtils.hasHooks;
+import static com.hedera.node.app.hapi.utils.contracts.HookUtils.totalGasLimitOf;
 import static com.hedera.node.app.hapi.utils.ethereum.EthTxData.populateEthTxData;
 import static com.hedera.node.app.hapi.utils.sysfiles.domain.throttling.ScaleFactor.ONE_TO_ONE;
 import static com.hedera.node.app.hapi.utils.throttles.LeakyBucketThrottle.DEFAULT_BURST_SECONDS;
@@ -383,11 +385,19 @@ public class ThrottleAccumulator {
     /**
      * Checks if the given functionality is a contract function.
      *
-     * @param function the functionality to check
+     * @param txnInfo the transaction info to check
      * @return whether the given functionality is a contract function
      */
-    public static boolean isGasThrottled(@NonNull final HederaFunctionality function) {
-        return CONTRACT_FUNCTIONS.contains(function);
+    public static boolean isGasThrottledTxn(@NonNull final TransactionInfo txnInfo) {
+        final var function = txnInfo.functionality();
+        if (txnInfo.txBody().hasCryptoTransfer()) {
+            return hasHooks(txnInfo.txBody().cryptoTransferOrThrow());
+        }
+        return isGasThrottled(function);
+    }
+
+    public static boolean isGasThrottled(@NonNull final HederaFunctionality functionality) {
+        return CONTRACT_FUNCTIONS.contains(functionality);
     }
 
     public static boolean canAutoCreate(@NonNull final HederaFunctionality function) {
@@ -595,6 +605,7 @@ public class ThrottleAccumulator {
                                 .map(EthTxData::populateEthTxData)
                                 .map(EthTxData::gasLimit)
                                 .orElse(0L);
+                    case CRYPTO_TRANSFER -> totalGasLimitOf(txnBody.cryptoTransferOrThrow());
                     default -> 0L;
                 };
         // Interpret negative gas as overflow
@@ -608,7 +619,7 @@ public class ThrottleAccumulator {
             @Nullable final List<ThrottleUsage> throttleUsages) {
         final boolean shouldThrottleByGas =
                 configuration.getConfigData(ContractsConfig.class).throttleThrottleByGas();
-        if (shouldThrottleByGas && isGasThrottled(txnInfo.functionality())) {
+        if (shouldThrottleByGas && isGasThrottledTxn(txnInfo)) {
             final long amount = getGasLimitForContractTx(txnInfo.txBody(), txnInfo.functionality());
             final boolean answer = !gasThrottle.allow(now, amount);
             if (!answer && throttleUsages != null) {

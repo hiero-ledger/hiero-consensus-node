@@ -28,11 +28,13 @@ import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONSENSUS_GAS_EXHAUSTED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.HOOK_DELETION_REQUIRES_ZERO_STORAGE_SLOTS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.HOOK_ID_IN_USE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.HOOK_ID_REPEATED_IN_CREATION_DETAILS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.HOOK_NOT_FOUND;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.MAX_GAS_LIMIT_EXCEEDED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK;
 import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -95,11 +97,34 @@ public class Hip1195EnabledTest {
     }
 
     @HapiTest
+    final Stream<DynamicTest> transfersWithHooksGasThrottled() {
+        return hapiTest(
+                cryptoCreate("payer"),
+                cryptoCreate("testAccount")
+                        .withHooks(
+                                accountAllowanceHook(123L, TRUE_ALLOWANCE_HOOK.name()),
+                                accountAllowanceHook(124L, TRUE_ALLOWANCE_HOOK.name()),
+                                accountAllowanceHook(125L, TRUE_PRE_POST_ALLOWANCE_HOOK.name()),
+                                accountAllowanceHook(126L, TRUE_PRE_POST_ALLOWANCE_HOOK.name())),
+                cryptoTransfer(TokenMovement.movingHbar(10).between("testAccount", GENESIS))
+                        .withPreHookFor("testAccount", 124L, 15000000000000L, "")
+                        .signedBy(DEFAULT_PAYER)
+                        .hasKnownStatus(MAX_GAS_LIMIT_EXCEEDED),
+                cryptoTransfer(TokenMovement.movingHbar(10).between("testAccount", GENESIS))
+                        .withPreHookFor("testAccount", 124L, 1500000000L, "")
+                        .withPreHookFor("testAccount", 123L, 1500000000L, "")
+                        .withPrePostHookFor("testAccount", 125L, 1500000000L, "")
+                        .withPrePostHookFor("testAccount", 126L, 1500000000L, "")
+                        .payingWith("payer")
+                        .hasKnownStatus(CONSENSUS_GAS_EXHAUSTED));
+    }
+
+    @HapiTest
     final Stream<DynamicTest> authorizeHbarDebitPreOnlyHook() {
         return hapiTest(
                 cryptoCreate("testAccount")
                         .withHooks(
-                                accountAllowanceHook(123L, FALSE_ALLOWANCE_HOOK.name()),
+                                accountAllowanceHook(123L, TRUE_ALLOWANCE_HOOK.name()),
                                 accountAllowanceHook(124L, TRUE_ALLOWANCE_HOOK.name())),
                 cryptoTransfer(TokenMovement.movingHbar(10).between("testAccount", GENESIS))
                         .withPreHookFor("testAccount", 123L, 25_000L, "")

@@ -22,6 +22,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.PROXY_ACCOUNT_ID_FIELD_
 import static com.hedera.hapi.node.base.ResponseCodeEnum.REQUESTED_NUM_AUTOMATIC_ASSOCIATIONS_EXCEEDS_ASSOCIATION_LIMIT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SERIALIZATION_FAILED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.WRONG_CHAIN_ID;
+import static com.hedera.node.app.hapi.utils.contracts.HookUtils.totalGasLimitOf;
 import static com.hedera.node.app.hapi.utils.keys.KeyUtils.isEmpty;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.HtsSystemContract.HTS_HOOKS_16D_CONTRACT_ID;
 import static com.hedera.node.app.service.contract.impl.handlers.ContractUpdateHandler.UNLIMITED_AUTOMATIC_ASSOCIATIONS;
@@ -294,6 +295,8 @@ public class HevmTransactionFactory {
                         relayer = body.transactionID().accountID();
                         yield ethTxData.gasLimit();
                     }
+                    case HOOK_DISPATCH ->
+                         body.hookDispatchOrThrow().executionOrThrow().callOrThrow().evmHookCallOrThrow().gasLimit();
                     default -> throw new IllegalArgumentException("Not a contract operation");
                 };
         return new HederaEvmTransaction(

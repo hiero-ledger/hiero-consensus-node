@@ -12,7 +12,6 @@ import static com.hedera.node.app.service.token.impl.handlers.transfer.TransferE
 import static com.hedera.node.app.service.token.impl.handlers.transfer.TransferExecutor.OptionalKeyCheck.RECEIVER_KEY_IS_REQUIRED;
 import static com.hedera.node.app.service.token.impl.util.CryptoTransferValidationHelper.checkReceiver;
 import static com.hedera.node.app.service.token.impl.util.CryptoTransferValidationHelper.checkSender;
-import static com.hedera.node.app.service.token.impl.validators.CryptoTransferValidator.hasHooks;
 import static com.hedera.node.app.spi.validation.Validations.validateAccountID;
 
 import com.hedera.hapi.node.base.AccountAmount;
@@ -27,6 +26,7 @@ import com.hedera.hapi.node.base.TransferList;
 import com.hedera.hapi.node.hooks.HookExecution;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.node.app.hapi.utils.contracts.HookUtils;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.ReadableTokenStore;
 import com.hedera.node.app.service.token.impl.handlers.BaseTokenHandler;
@@ -160,7 +160,7 @@ public class TransferExecutor extends BaseTokenHandler {
             txns = customFeeStep.assessCustomFees(transferContext);
         }
 
-        final var hasHooks = hasHooks(replacedOp);
+        final var hasHooks = HookUtils.hasHooks(replacedOp);
         HookCalls hookCalls = null;
 
         if (hasHooks) {
