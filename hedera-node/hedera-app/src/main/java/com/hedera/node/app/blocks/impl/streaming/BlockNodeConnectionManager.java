@@ -52,10 +52,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.SortedMap;
 import java.util.TreeMap;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ThreadLocalRandom;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -115,7 +112,7 @@ public class BlockNodeConnectionManager {
      * Scheduled executor service that is used to schedule asynchronous tasks such as reconnecting to block nodes.
      * It is shared across all connections to block nodes, allowing periodic stream resets.
      */
-    private final ScheduledExecutorService sharedExecutorService;
+    private ScheduledExecutorService sharedExecutorService;
     /**
      * Metrics API for block stream-specific metrics.
      */
@@ -270,19 +267,16 @@ public class BlockNodeConnectionManager {
      * @param configProvider the configuration to use
      * @param blockBufferService the block stream state manager
      * @param blockStreamMetrics the block stream metrics to track
-     * @param sharedExecutorService the scheduled executor service used to perform async connection operations (e.g. reconnecting)
      */
     @Inject
     public BlockNodeConnectionManager(
             @NonNull final ConfigProvider configProvider,
             @NonNull final BlockBufferService blockBufferService,
-            @NonNull final BlockStreamMetrics blockStreamMetrics,
-            @NonNull final ScheduledExecutorService sharedExecutorService) {
+            @NonNull final BlockStreamMetrics blockStreamMetrics) {
         this.configProvider = requireNonNull(configProvider, "configProvider must not be null");
         this.blockBufferService = requireNonNull(blockBufferService, "blockBufferService must not be null");
         this.lastVerifiedBlockPerConnection = new ConcurrentHashMap<>();
         this.blockStreamMetrics = requireNonNull(blockStreamMetrics, "blockStreamMetrics must not be null");
-        this.sharedExecutorService = requireNonNull(sharedExecutorService, "sharedExecutorService must not be null");
         this.nodeStats = new ConcurrentHashMap<>();
         final var blockNodeConnectionConfig =
                 configProvider.getConfiguration().getConfigData(BlockNodeConnectionConfig.class);
@@ -695,6 +689,10 @@ public class BlockNodeConnectionManager {
             return;
         }
 
+        // Create a Single-threaded executor for sharedExecutorService
+        logWithContext(DEBUG, "Creating scheduled executor service for the Block Node connection manager.");
+        sharedExecutorService = Executors.newSingleThreadScheduledExecutor();
+
         // Start worker thread if not already running
         if (isConnectionManagerActive.compareAndSet(false, true)) {
             final Thread t = Thread.ofPlatform().name("BlockStreamWorkerLoop").start(this::blockStreamWorkerLoop);
@@ -936,7 +934,7 @@ public class BlockNodeConnectionManager {
                                     if (ctx instanceof Path changed
                                             && BLOCK_NODES_FILE_NAME.equals(changed.toString())) {
                                         logWithContext(INFO, "Detected {} event for {}.", kind.name(), changed);
-                                        handleConfigFileChange(kind);
+                                        handleConfigFileChange();
                                     }
                                 }
                                 if (!key.reset()) {
@@ -1015,8 +1013,13 @@ public class BlockNodeConnectionManager {
      * connections with the new configuration if parsing succeeds. If parsing fails or the file is deleted,
      * we clear available nodes and stop connections, allowing the system to continue running without block nodes.
      */
-    private void handleConfigFileChange(@NonNull final WatchEvent.Kind<?> kind) {
+    private void handleConfigFileChange() {
         final String configDir = blockNodeConfigDirectory.toString();
+        // Shutdown the executor service for BlockNodeConnectionTask's
+        if (sharedExecutorService != null) {
+            logWithContext(DEBUG, "Shutting down existing scheduled executor service for config reload.");
+            sharedExecutorService.shutdownNow();
+        }
         // Stop connections immediately to avoid streaming with stale configs
         stopConnections();
         final List<BlockNodeConfig> newConfigs = extractBlockNodesConfigurations(configDir);

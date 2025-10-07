@@ -170,7 +170,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         metrics = mock(BlockStreamMetrics.class);
         executorService = mock(ScheduledExecutorService.class);
 
-        connectionManager = new BlockNodeConnectionManager(configProvider, bufferService, metrics, executorService);
+        connectionManager = new BlockNodeConnectionManager(configProvider, bufferService, metrics);
 
         // Clear any nodes that might have been loaded by performInitialConfigLoad()
         final List<BlockNodeConfig> availableNodes = availableNodes();
@@ -283,7 +283,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
                 createDefaultConfigProvider().withValue("blockNode.protocolExpBackoffTimeframeReset", "1s");
         final ConfigProvider configProvider = createConfigProvider(configBuilder);
 
-        connectionManager = new BlockNodeConnectionManager(configProvider, bufferService, metrics, executorService);
+        connectionManager = new BlockNodeConnectionManager(configProvider, bufferService, metrics);
 
         connectionManager.rescheduleConnection(connection, Duration.ZERO, null, true);
         Thread.sleep(1_000L); // sleep to ensure the backoff timeframe has passed
@@ -1579,7 +1579,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         final ConfigProvider configProvider = () -> new VersionedConfigImpl(config, 1L);
 
         final BlockNodeConnectionManager manager =
-                new BlockNodeConnectionManager(configProvider, bufferService, metrics, executorService);
+                new BlockNodeConnectionManager(configProvider, bufferService, metrics);
 
         final AtomicBoolean isStreamingEnabled = (AtomicBoolean) isStreamingEnabledHandle.get(manager);
         assertThat(isStreamingEnabled).isFalse();
@@ -1599,7 +1599,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         final ConfigProvider configProvider = () -> new VersionedConfigImpl(config, 1L);
 
         final BlockNodeConnectionManager manager =
-                new BlockNodeConnectionManager(configProvider, bufferService, metrics, executorService);
+                new BlockNodeConnectionManager(configProvider, bufferService, metrics);
 
         // Verify that the manager was created but has no available nodes
         assertThat(manager).isNotNull();
@@ -1657,7 +1657,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
         // Create connection manager with single block node configuration
         final BlockNodeConnectionManager manager =
-                new BlockNodeConnectionManager(configProvider, bufferService, metrics, executorService);
+                new BlockNodeConnectionManager(configProvider, bufferService, metrics);
 
         // Get the available nodes and ensure there's only one
         final List<BlockNodeConfig> availableNodes = (List<BlockNodeConfig>) availableNodesHandle.get(manager);
@@ -2271,7 +2271,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
         // Create the manager
         final BlockNodeConnectionManager manager =
-                new BlockNodeConnectionManager(configProvider, bufferService, metrics, executorService);
+                new BlockNodeConnectionManager(configProvider, bufferService, metrics);
 
         // Set the available nodes using reflection
         try {

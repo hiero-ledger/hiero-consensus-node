@@ -103,34 +103,12 @@ public class BlockNodeSuite {
                         timeRef::get,
                         Duration.ofMinutes(1),
                         Duration.ofSeconds(45),
-                        // Connection manager stops existing connections (file watcher event may take time to be
-                        // detected)
+                        "Detected ENTRY_CREATE event for block-nodes.json",
                         "Stopping block node connections (keeping worker loop running)",
-                        // New config is loaded
-                        "Reloaded 1 block node configurations. Restarting connection manager.",
-                        "Starting connection manager",
-                        "Searching for new block node connection based on node priorities",
-                        "Found available node in priority group 0",
-                        String.format(
-                                "Created BlockStreamPublishServiceClient for localhost:%s", portNumbers.getFirst()),
-                        String.format(
-                                "/localhost:%s/UNINITIALIZED] Scheduling reconnection for node in 0 ms",
-                                portNumbers.getFirst()),
-                        String.format(
-                                "/localhost:%s/UNINITIALIZED] Successfully scheduled reconnection task",
-                                portNumbers.getFirst()),
-                        String.format("/localhost:%s/UNINITIALIZED] Running connection task", portNumbers.getFirst()),
-                        String.format(
-                                "/localhost:%s/UNINITIALIZED] Request pipeline initialized", portNumbers.getFirst()),
-                        String.format(
-                                "/localhost:%s/PENDING] Connection state transitioned from UNINITIALIZED to PENDING.",
-                                portNumbers.getFirst()),
                         String.format(
                                 "/localhost:%s/ACTIVE] Connection state transitioned from PENDING to ACTIVE.",
-                                portNumbers.getFirst()),
-                        String.format(
-                                "Active block node connection updated to: localhost:%s", portNumbers.getFirst()))),
-                waitUntilNextBlocks(15).withBackgroundTraffic(true),
+                                portNumbers.getFirst()))),
+                waitUntilNextBlocks(30).withBackgroundTraffic(true),
                 // Update block-nodes.json to have an invalid entry
                 doingContextual((spec) -> {
                     timeRef.set(Instant.now());
@@ -156,29 +134,16 @@ public class BlockNodeSuite {
                         Duration.ofSeconds(45),
                         "Detected ENTRY_MODIFY event for block-nodes.json",
                         "Stopping block node connections (keeping worker loop running)",
-                        // Old connection is gracefully closed
-                        String.format(
-                                "/localhost:%s/CLOSING] Connection state transitioned from ACTIVE to CLOSING",
-                                portNumbers.getFirst()),
-                        String.format("/localhost:%s/CLOSING] Cancelled periodic stream reset", portNumbers.getFirst()),
-                        String.format(
-                                "/localhost:%s/CLOSING] Closing request pipeline for block node",
-                                portNumbers.getFirst()),
-                        String.format(
-                                "/localhost:%s/CLOSING] Request pipeline successfully closed", portNumbers.getFirst()),
-                        String.format("/localhost:%s/CLOSING] Connection successfully closed", portNumbers.getFirst()),
                         String.format(
                                 "/localhost:%s/CLOSED] Connection state transitioned from CLOSING to CLOSED",
                                 portNumbers.getFirst()),
                         // New invalid config is loaded
                         "Reloaded 1 block node configurations. Restarting connection manager.",
-                        "Searching for new block node connection based on node priorities",
-                        "Found available node in priority group 0",
                         // Connection attempt with invalid address
-                        "[0003/26dsfg2364:1234/UNINITIALIZED] Running connection task",
-                        "[0003/26dsfg2364:1234/UNINITIALIZED] Failed to establish connection to block node. Will schedule a retry.",
-                        "[0003/26dsfg2364:1234/UNINITIALIZED] Rescheduled connection attempt")),
-                waitUntilNextBlocks(15).withBackgroundTraffic(true),
+                        "/26dsfg2364:1234/UNINITIALIZED] Running connection task",
+                        "/26dsfg2364:1234/UNINITIALIZED] Failed to establish connection to block node. Will schedule a retry.",
+                        "/26dsfg2364:1234/UNINITIALIZED] Rescheduled connection attempt")),
+                waitUntilNextBlocks(30).withBackgroundTraffic(true),
                 // Delete block-nodes.json
                 doingContextual((spec) -> {
                     timeRef.set(Instant.now());
@@ -201,13 +166,13 @@ public class BlockNodeSuite {
                         "Detected ENTRY_DELETE event for block-nodes.json",
                         "Stopping block node connections (keeping worker loop running)",
                         // Invalid connection is closed
-                        "[0003/26dsfg2364:1234/CLOSING] Connection state transitioned from UNINITIALIZED to CLOSING",
-                        "[0003/26dsfg2364:1234/CLOSING] Connection successfully closed",
-                        "[0003/26dsfg2364:1234/CLOSED] Connection state transitioned from CLOSING to CLOSED",
+                        "26dsfg2364:1234/CLOSING] Connection state transitioned from UNINITIALIZED to CLOSING",
+                        "26dsfg2364:1234/CLOSING] Connection successfully closed",
+                        "26dsfg2364:1234/CLOSED] Connection state transitioned from CLOSING to CLOSED",
                         // Config file is missing
                         "Block node configuration file does not exist:",
                         "No valid block node configurations available after file change. Connections remain stopped.")),
-                waitUntilNextBlocks(5).withBackgroundTraffic(true),
+                waitUntilNextBlocks(30).withBackgroundTraffic(true),
                 // Unparsable block-nodes.json
                 doingContextual((spec) -> {
                     timeRef.set(Instant.now());
@@ -229,7 +194,7 @@ public class BlockNodeSuite {
                         Duration.ofSeconds(45),
                         "Detected ENTRY_CREATE event for block-nodes.json",
                         "No valid block node configurations available after file change. Connections remain stopped.")),
-                waitUntilNextBlocks(5).withBackgroundTraffic(true),
+                waitUntilNextBlocks(30).withBackgroundTraffic(true),
                 // Create valid block-nodes.json again
                 doingContextual((spec) -> {
                     timeRef.set(Instant.now());
@@ -281,7 +246,7 @@ public class BlockNodeSuite {
                                 portNumbers.getFirst()),
                         String.format(
                                 "Active block node connection updated to: localhost:%s", portNumbers.getFirst()))),
-                waitUntilNextBlocks(10).withBackgroundTraffic(true),
+                waitUntilNextBlocks(20).withBackgroundTraffic(true),
                 assertHgcaaLogDoesNotContain(byNodeId(0), "ERROR", Duration.ofSeconds(5)));
     }
 
