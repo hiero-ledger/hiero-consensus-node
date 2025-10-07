@@ -25,10 +25,18 @@ import static java.util.Collections.emptyList;
 import static java.util.Objects.requireNonNull;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.hedera.hapi.node.base.*;
+import com.hedera.hapi.node.base.AccountAmount;
+import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.HederaFunctionality;
+import com.hedera.hapi.node.base.NftTransfer;
+import com.hedera.hapi.node.base.Timestamp;
+import com.hedera.hapi.node.base.TokenID;
+import com.hedera.hapi.node.base.TransactionID;
+import com.hedera.hapi.node.base.TransferList;
 import com.hedera.hapi.node.contract.ContractCallLocalQuery;
 import com.hedera.hapi.node.state.schedule.Schedule;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
+import com.hedera.hapi.node.token.TokenMintTransactionBody;
 import com.hedera.hapi.node.transaction.Query;
 import com.hedera.hapi.node.transaction.ThrottleDefinitions;
 import com.hedera.hapi.node.transaction.TransactionBody;
@@ -454,7 +462,8 @@ public class ThrottleAccumulator {
                 }
                 yield shouldThrottleScheduleCreate(manager, txnInfo, now, state, throttleUsages);
             }
-            case TOKEN_MINT -> shouldThrottleMint(manager, txnInfo, now, configuration, throttleUsages);
+            case TOKEN_MINT ->
+                shouldThrottleMint(manager, txnInfo.txBody().tokenMint(), now, configuration, throttleUsages);
             case CRYPTO_TRANSFER -> {
                 final var accountStore = new ReadableStoreFactory(state).getStore(ReadableAccountStore.class);
                 final var relationStore = new ReadableStoreFactory(state).getStore(ReadableTokenRelationStore.class);
@@ -484,7 +493,7 @@ public class ThrottleAccumulator {
         final var txnBody = txnInfo.txBody();
         final var op = txnBody.scheduleCreateOrThrow();
         if (!op.hasScheduledTransactionBody()) {
-            return false;
+            return true;
         }
         final var scheduled = op.scheduledTransactionBodyOrThrow();
         final var schedule = Schedule.newBuilder()
@@ -499,7 +508,7 @@ public class ThrottleAccumulator {
             scheduledFunction = functionOf(innerTxn);
         } catch (HandleException | UnknownHederaFunctionality ex) {
             log.debug("ScheduleCreate was associated with an invalid txn.", ex);
-            return false;
+            return true;
         }
         // maintain legacy behaviour
         final var config = configSupplier.get();
@@ -616,19 +625,11 @@ public class ThrottleAccumulator {
 
     private boolean shouldThrottleMint(
             @NonNull final ThrottleReqsManager manager,
-            @NonNull final TransactionInfo txnInfo,
+            @NonNull final TokenMintTransactionBody op,
             @NonNull final Instant now,
             @NonNull final Configuration configuration,
             List<ThrottleUsage> throttleUsages) {
-        var txnBody = txnInfo.txBody();
-        if (!txnBody.hasTokenMint()) {
-            return false;
-        }
-        final var tokenMint = txnBody.tokenMint();
-        if (!tokenMint.hasToken()) {
-            return false;
-        }
-        final int numNfts = tokenMint.metadata().size();
+        final int numNfts = op.metadata().size();
         if (numNfts == 0) {
             return !manager.allReqsMetAt(now, throttleUsages);
         } else {
