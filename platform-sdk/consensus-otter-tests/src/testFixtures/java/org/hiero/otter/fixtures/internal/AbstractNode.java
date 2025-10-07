@@ -260,18 +260,18 @@ public abstract class AbstractNode implements Node {
      * {@inheritDoc}
      */
     @Override
-    public void triggerSingleNodeIss() {
-        doTriggerSelfIss(DEFAULT_TIMEOUT);
+    public void triggerSelfIss(final boolean recoverableOnRestart) {
+        doTriggerSelfIss(DEFAULT_TIMEOUT, recoverableOnRestart);
     }
 
-    private void doTriggerSelfIss(@NonNull final Duration timeout) {
+    private void doTriggerSelfIss(@NonNull final Duration timeout, final boolean recoverableOnRestart) {
         throwIfInLifecycle(LifeCycle.INIT, "Network has not been started yet.");
         throwIfInLifecycle(LifeCycle.SHUTDOWN, "Network has been shut down.");
 
         log.info("Sending Self ISS triggering transaction...");
         final Instant start = timeManager().now();
         final OtterTransaction issTransaction =
-                TransactionFactory.createSelfIssTransaction(random().nextLong(), selfId);
+                TransactionFactory.createSelfIssTransaction(random().nextLong(), selfId, recoverableOnRestart);
 
         submitTransaction(issTransaction);
         final Duration elapsed = Duration.between(start, timeManager().now());
@@ -365,8 +365,8 @@ public abstract class AbstractNode implements Node {
          * {@inheritDoc}
          */
         @Override
-        public void triggerSingleNodeIss() {
-            doTriggerSelfIss(timeout);
+        public void triggerSelfIss(final boolean recoverableOnRestart) {
+            doTriggerSelfIss(timeout, recoverableOnRestart);
         }
     }
 }

@@ -59,15 +59,20 @@ public class TransactionFactory {
      * Creates an ISS transaction that will cause a self ISS for the node provided.
      *
      * @param nonce the nonce for the transaction
-     * @param node the node to trigger a self ISS transaction for
+     * @param nodeId the id of the node to trigger a self ISS transaction for
+     * @param recoverableOnRestart if true, the transaction will be recoverable on restart
      * @return the created ISS transaction
      */
     @NonNull
-    public static OtterTransaction createSelfIssTransaction(final long nonce, @NonNull final NodeId nodeId) {
+    public static OtterTransaction createSelfIssTransaction(final long nonce, @NonNull final NodeId nodeId,
+            final boolean recoverableOnRestart) {
         final HashPartition hashPartition =
                 HashPartition.newBuilder().addNodeId(nodeId.id()).build();
         final OtterIssTransaction issTransaction =
-                OtterIssTransaction.newBuilder().addPartition(hashPartition).build();
+                OtterIssTransaction.newBuilder()
+                        .addPartition(hashPartition)
+                        .setRecoverableOnRestart(recoverableOnRestart)
+                        .build();
         return OtterTransaction.newBuilder()
                 .setNonce(nonce)
                 .setIssTransaction(issTransaction)

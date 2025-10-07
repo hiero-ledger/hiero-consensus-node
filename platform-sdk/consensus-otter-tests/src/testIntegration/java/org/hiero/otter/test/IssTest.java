@@ -13,69 +13,61 @@ import static org.hiero.otter.fixtures.assertions.StatusProgressionStep.targets;
 import com.swirlds.platform.config.StateConfig_;
 import com.swirlds.platform.state.iss.DefaultIssDetector;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.time.Duration;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.OtterTest;
 import org.hiero.otter.fixtures.TestEnvironment;
+import org.hiero.otter.fixtures.result.SingleNodeLogResult;
+import org.hiero.otter.fixtures.result.SingleNodePlatformStatusResult;
 
 public class IssTest {
 
     @OtterTest
-    void testSelfIss(@NonNull final TestEnvironment env) {
+    void testRecoverableSelfIss(@NonNull final TestEnvironment env) {
         final Network network = env.network();
 
-        // Setup simulation
         network.addNodes(4);
-
-        //        network.withConfigValue(StateConfig_.HALT_ON_CATASTROPHIC_ISS, true);
 
         network.start();
 
         final Node issNode = network.nodes().getFirst();
-        issNode.triggerSingleNodeIss();
+        issNode.triggerRecoverableSelfIss();
 
-        assertThat(issNode.newLogResult().suppressingLoggerName(DefaultIssDetector.class))
+        final SingleNodeLogResult issLogResult = issNode.newLogResult();
+        assertThat(issLogResult.suppressingLoggerName(DefaultIssDetector.class))
                 .hasNoErrorLevelMessages();
+        issLogResult.clear();
         assertThat(network.newLogResults().suppressingNode(issNode)).haveNoErrorLevelMessages();
-    }
 
-    /**
-     * Triggers a catastrophic ISS and verifies that all nodes in the network enter the CATASTROPHIC_FAILURE state. This
-     * is expected when the network is not configured to halt on such an ISS.
-     *
-     * @param env the environment to test in
-     */
-    @OtterTest
-    void testCatastrophicIssWithoutHalt(@NonNull final TestEnvironment env) {
-        final Network network = env.network();
+        assertThat(network.newPlatformStatusResults().suppressingNode(issNode)).haveSteps(
+                target(ACTIVE).requiringInterim(REPLAYING_EVENTS, OBSERVING, CHECKING));
 
-        // Setup simulation
-        network.addNodes(4);
+        final SingleNodePlatformStatusResult issNodeStatusResult = issNode.newPlatformStatusResult();
+        issNodeStatusResult.clear();
 
-        network.withConfigValue(StateConfig_.HALT_ON_CATASTROPHIC_ISS, false);
+        issNode.killImmediately();
+        issNode.start();
 
-        network.start();
+        env.timeManager().waitForCondition(issNode::isActive, Duration.ofSeconds(60),
+                "Node did not become ACTIVE in the time allowed.");
 
-        network.triggerCatastrophicIss();
-
-        assertThat(network.newPlatformStatusResults())
-                .haveSteps(
-                        target(ACTIVE).requiringInterim(REPLAYING_EVENTS, OBSERVING, CHECKING),
-                        target(CATASTROPHIC_FAILURE));
-        assertThat(network.newLogResults().suppressingLoggerName(DefaultIssDetector.class))
-                .haveNoErrorLevelMessages();
+        assertThat(issNodeStatusResult).hasSteps(
+                target(ACTIVE).requiringInterim(REPLAYING_EVENTS, OBSERVING, CHECKING));
+        assertThat(issLogResult).hasNoErrorLevelMessages();
     }
 
     /**
      * Triggers a catastrophic ISS and verifies that all nodes in the network enter the CATASTROPHIC_FAILURE or CHECKING
-     * state. This is expected when the network is configured to halt on such an ISS. One node will be the first to
-     * detect the catastrophic ISS and halt gossip. Once enough nodes have done this, the other nodes will not be able
-     * to proceed in consensus and may not detect the ISS. Therefore, they enter CHECKING instead.
+     * state. One node will be the first to detect the catastrophic ISS and halt gossip. Once enough nodes have done
+     * this, the other nodes will not be able to proceed in consensus and may not detect the ISS. Therefore, they enter
+     * CHECKING instead. In networks with very low latency, it is likely that all nodes will enter
+     * CATASTROPHIC_FAILURE.
      *
      * @param env the environment to test in
      */
     @OtterTest
-    void testCatastrophicIssWithHalt(@NonNull final TestEnvironment env) {
+    void testCatastrophicIss(@NonNull final TestEnvironment env) {
         final Network network = env.network();
 
         network.addNodes(4);

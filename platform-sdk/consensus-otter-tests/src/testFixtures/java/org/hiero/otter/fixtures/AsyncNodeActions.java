@@ -41,6 +41,9 @@ public interface AsyncNodeActions {
 
     /**
      * Triggers a self-ISS on this node.
+     *
+     * @param recoverableOnRestart if true, the node will recover from the self-ISS on restart. If false, the node will
+     * remain in the ISS state after restart.
      */
-    void triggerSingleNodeIss();
+    void triggerSelfIss(boolean recoverableOnRestart);
 }
