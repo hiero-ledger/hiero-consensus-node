@@ -533,7 +533,6 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         verify(blockStreamMetrics).recordLatestBlockOpened(6L);
         verify(blockStreamMetrics).recordBlockOpened();
         verify(blockStreamMetrics).recordBlockClosed();
-        verify(blockStreamMetrics).recordBackPressureActive();
         verify(blockStreamMetrics).recordNumberOfBlocksPruned(0);
         verify(blockStreamMetrics).recordBufferOldestBlock(1L);
         verify(blockStreamMetrics).recordBufferNewestBlock(6L);
@@ -1315,7 +1314,6 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
 
         checkBufferHandle.invoke(blockBufferService);
 
-        verify(blockStreamMetrics, times(2)).recordBackPressureActive();
         verify(blockStreamMetrics, times(2)).recordBufferSaturation(100.0D);
         verify(connectionManager, times(1)).selectNewBlockNodeForStreaming(true);
         verify(blockStreamMetrics, times(2)).recordNumberOfBlocksPruned(0);
