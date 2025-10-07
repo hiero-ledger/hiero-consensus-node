@@ -8,14 +8,9 @@ import com.hedera.hapi.block.stream.output.StateChange;
 import com.hedera.hapi.block.stream.output.StateChanges;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.blockstream.BlockStreamInfo;
-import com.hedera.hapi.node.transaction.SignedTransaction;
-import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.util.HapiUtils;
-import com.hedera.node.app.workflows.TransactionInfo;
+import com.hedera.node.app.workflows.TransactionChecker;
 import com.hedera.node.app.workflows.prehandle.PreHandleResult;
-import com.hedera.pbj.runtime.Codec;
-import com.hedera.pbj.runtime.ParseException;
-import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
@@ -26,7 +21,6 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Function;
 import java.util.function.LongSupplier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -45,8 +39,6 @@ public class QuiescenceController {
     private final InstantSource time;
     private final LongSupplier pendingTransactionCount;
 
-    private final Function<Bytes, TransactionBody> transactionBodyParser;
-    private final Function<Bytes, SignedTransaction> signedTransactionParser;
     private final AtomicReference<Instant> nextTct;
     private final AtomicLong pipelineTransactionCount;
 
@@ -59,12 +51,12 @@ public class QuiescenceController {
      *                                yet included put into an event
      */
     public QuiescenceController(
-            final QuiescenceConfig config, final InstantSource time, final LongSupplier pendingTransactionCount) {
+            final QuiescenceConfig config,
+            final InstantSource time,
+            final LongSupplier pendingTransactionCount) {
         this.config = Objects.requireNonNull(config);
         this.time = Objects.requireNonNull(time);
         this.pendingTransactionCount = Objects.requireNonNull(pendingTransactionCount);
-        transactionBodyParser = createParser(TransactionBody.PROTOBUF);
-        signedTransactionParser = createParser(SignedTransaction.PROTOBUF);
         nextTct = new AtomicReference<>();
         pipelineTransactionCount = new AtomicLong(0);
     }
@@ -86,7 +78,7 @@ public class QuiescenceController {
                 .filter(BlockItem::hasSignedTransaction)
                 .map(BlockItem::signedTransaction)
                 .filter(Objects::nonNull)
-                .filter(this::isRelevantTransaction)
+                //.filter(QuiescenceUtils::isRelevantTransaction)
                 .count();
         final long updatedValue = pipelineTransactionCount.addAndGet(-transactionCount);
         if (updatedValue < 0) {
@@ -124,20 +116,13 @@ public class QuiescenceController {
         if (!config.enabled()) {
             return;
         }
-        int count = 0;
-        for (final Transaction transaction : transactions) {
-            final Object metadata = transaction.getMetadata();
-            if (!(transaction.getMetadata() instanceof final PreHandleResult preHandleResult)) {
-                logger.error("Failed to find PreHandleResult in transaction metadata ({}). Turning off quiescence.",
-                        metadata);
-                disableQuiescence();
-                return;
-            }
-            if (isRelevantTransaction(preHandleResult.txInfo())) {
-                count++;
-            }
+        try {
+            pipelineTransactionCount.addAndGet(countRelevantTransactions(transactions.iterator()));
+        } catch (IllegalArgumentException e) {
+            logger.error("Failed to count relevant transactions. Turning off quiescence.", e);
+            disableQuiescence();
         }
-        pipelineTransactionCount.addAndGet(count);
+
     }
 
     /**
@@ -149,7 +134,7 @@ public class QuiescenceController {
         if (!config.enabled()) {
             return;
         }
-        pipelineTransactionCount.addAndGet(-countRelevantTransactions(event));
+        pipelineTransactionCount.addAndGet(-countRelevantTransactions(event.transactionIterator()));
     }
 
     /**
@@ -202,50 +187,26 @@ public class QuiescenceController {
         return currentConsensusTime.isAfter(currentTct) ? null : currentTct;
     }
 
-    private long countRelevantTransactions(@NonNull final Event event) {
-        long count = 0;
-        final Iterator<Transaction> iterator = event.transactionIterator();
-        while (iterator.hasNext()) {
-            if (isRelevantTransaction(iterator.next().getApplicationTransaction())) {
-                count++;
-            }
-        }
-        return count;
-    }
-
-    private <T> Function<Bytes, T> createParser(@NonNull final Codec<T> codec) {
-        return bytes -> {
-            try {
-                return codec.parse(bytes);
-            } catch (final ParseException e) {
-                logger.error("Failed parsing transactions, turning off quiescence", e);
-                disableQuiescence();
-                return null;
-            }
-        };
-    }
-
     private void disableQuiescence() {
         // setting to a very high value to effectively disable quiescence
         // if set to Long.MAX_VALUE, it may overflow and become negative
         pipelineTransactionCount.set(Long.MAX_VALUE / 2);
     }
 
-    private boolean isRelevantTransaction(@Nullable final TransactionInfo txInfo) {
-        if (txInfo == null) {
-            // This is most likely an unparsable transaction.
-            // An unparsable transaction is considered relevant because it needs to reach consensus so that the node
-            // that submitted it can be changed for it.
-            return true;
+    public static long countRelevantTransactions(@NonNull final Iterator<Transaction> transactions) {
+        long count = 0;
+        while (transactions.hasNext()) {
+            final Transaction transaction = transactions.next();
+            final Object metadata = transaction.getMetadata();
+            if (!(transaction.getMetadata() instanceof final PreHandleResult preHandleResult)) {
+                throw new IllegalArgumentException("Failed to find PreHandleResult in transaction metadata (%s)"
+                        .formatted(metadata));
+            }
+            if (QuiescenceUtils.isRelevantTransaction(preHandleResult.txInfo())) {
+                count++;
+            }
         }
-        return isRelevantTransaction(txInfo.txBody());
+        return count;
     }
 
-    private boolean isRelevantTransaction(@NonNull final Bytes bytes) {
-        return isRelevantTransaction(transactionBodyParser.apply(signedTransactionParser.apply(bytes).bodyBytes()));
-    }
-
-    private boolean isRelevantTransaction(@NonNull final TransactionBody body) {
-        return !body.hasStateSignatureTransaction() && !body.hasHintsPartialSignature();
-    }
 }
