@@ -4,7 +4,6 @@ package com.swirlds.demo.migration;
 import static com.swirlds.base.units.UnitConstants.NANOSECONDS_TO_SECONDS;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.getGlobalMetrics;
-import static com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer.registerMerkleStateRootClassIds;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.RosterEntry;
@@ -37,11 +36,10 @@ public class MigrationTestingToolMain extends DefaultSwirldMain<MigrationTesting
 
     private static final Logger logger = LogManager.getLogger(MigrationTestingToolMain.class);
 
-    static {
-        logger.info(STARTUP.getMarker(), "Registering MerkleStateRoot Class Ids with ConstructableRegistry...");
-        registerMerkleStateRootClassIds();
-        logger.info(STARTUP.getMarker(), " MerkleStateRoot Class Ids are registered with the ConstructableRegistry!");
-    }
+    private static final Configuration CONFIGURATION = ConfigurationBuilder.create()
+            .autoDiscoverExtensions()
+            .withSource(new SimpleConfigSource().withValue("merkleDb.initialCapacity", 1000000))
+            .build();
 
     private long seed;
     private int maximumTransactionsPerNode;
@@ -152,13 +150,8 @@ public class MigrationTestingToolMain extends DefaultSwirldMain<MigrationTesting
     @NonNull
     @Override
     public MigrationTestingToolState newStateRoot() {
-        final Configuration configuration = ConfigurationBuilder.create()
-                .autoDiscoverExtensions()
-                .withSource(new SimpleConfigSource().withValue("merkleDb.initialCapacity", 1000000))
-                .build();
-
-        final MigrationTestingToolState state = new MigrationTestingToolState(configuration, getGlobalMetrics());
-        TestingAppStateInitializer.DEFAULT.initConsensusModuleStates(state);
+        final MigrationTestingToolState state = new MigrationTestingToolState(CONFIGURATION, getGlobalMetrics());
+        TestingAppStateInitializer.initConsensusModuleStates(state, CONFIGURATION);
         return state;
     }
 
@@ -169,7 +162,7 @@ public class MigrationTestingToolMain extends DefaultSwirldMain<MigrationTesting
     public Function<VirtualMap, MigrationTestingToolState> stateRootFromVirtualMap() {
         return virtualMap -> {
             final MigrationTestingToolState state = new MigrationTestingToolState(virtualMap);
-            TestingAppStateInitializer.DEFAULT.initConsensusModuleStates(state);
+            TestingAppStateInitializer.initConsensusModuleStates(state, CONFIGURATION);
             return state;
         };
     }

@@ -19,6 +19,8 @@ import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.threading.framework.StoppableThread;
 import com.swirlds.common.threading.framework.config.StoppableThreadConfiguration;
+import com.swirlds.config.api.Configuration;
+import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.platform.ParameterProvider;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.state.NoOpConsensusStateEventHandler;
@@ -41,6 +43,9 @@ import org.hiero.consensus.model.node.NodeId;
  */
 public class StatsDemoMain extends DefaultSwirldMain<StatsDemoState> {
     // the first four come from the parameters in the config.txt file
+
+    private static final Configuration CONFIGURATION =
+            ConfigurationBuilder.create().autoDiscoverExtensions().build();
 
     /** bytes in each transaction */
     private int bytesPerTrans = 1;
@@ -127,7 +132,7 @@ public class StatsDemoMain extends DefaultSwirldMain<StatsDemoState> {
     @Override
     public StatsDemoState newStateRoot() {
         final StatsDemoState state = new StatsDemoState();
-        TestingAppStateInitializer.DEFAULT.initConsensusModuleStates(state);
+        TestingAppStateInitializer.initConsensusModuleStates(state, CONFIGURATION);
         return state;
     }
 
@@ -139,7 +144,9 @@ public class StatsDemoMain extends DefaultSwirldMain<StatsDemoState> {
      */
     @Override
     public Function<VirtualMap, StatsDemoState> stateRootFromVirtualMap() {
-        return (virtualMap) -> newStateRoot();
+        return (virtualMap) -> {
+            throw new UnsupportedOperationException();
+        };
     }
 
     @NonNull

@@ -30,6 +30,7 @@ module com.swirlds.demo.platform {
     requires com.swirlds.common.test.fixtures;
     requires com.swirlds.common;
     requires com.swirlds.config.api;
+    requires com.swirlds.config.extensions;
     requires com.swirlds.fchashmap;
     requires com.swirlds.fcqueue;
     requires com.swirlds.logging;

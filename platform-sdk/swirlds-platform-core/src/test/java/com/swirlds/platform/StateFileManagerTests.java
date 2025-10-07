@@ -6,6 +6,7 @@ import static com.swirlds.platform.state.snapshot.SignedStateFileReader.readStat
 import static com.swirlds.platform.state.snapshot.StateToDiskReason.FATAL_ERROR;
 import static com.swirlds.platform.state.snapshot.StateToDiskReason.ISS;
 import static com.swirlds.platform.state.snapshot.StateToDiskReason.PERIODIC_SNAPSHOT;
+import static com.swirlds.platform.test.fixtures.config.ConfigUtils.CONFIGURATION;
 import static com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade.TEST_PLATFORM_STATE_FACADE;
 import static com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer.registerMerkleStateRootClassIds;
 import static java.nio.file.Files.exists;
@@ -42,7 +43,6 @@ import com.swirlds.platform.state.snapshot.StateDumpRequest;
 import com.swirlds.platform.state.snapshot.StateSnapshotManager;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
 import com.swirlds.platform.test.fixtures.state.TestVirtualMapState;
-import com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -87,8 +87,7 @@ class StateFileManagerTests {
 
     @BeforeEach
     void beforeEach() throws IOException {
-        testDirectory = LegacyTemporaryFileBuilder.buildTemporaryFile(
-                "SignedStateFileReadWriteTest", TestingAppStateInitializer.CONFIGURATION);
+        testDirectory = LegacyTemporaryFileBuilder.buildTemporaryFile("SignedStateFileReadWriteTest", CONFIGURATION);
         LegacyTemporaryFileBuilder.overrideTemporaryFileLocation(testDirectory);
         final TestConfigBuilder configBuilder = new TestConfigBuilder()
                 .withValue(
