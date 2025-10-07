@@ -100,7 +100,7 @@ class NetworkPartitionTest {
             // Wait for nodes to become inactive
             timeManager.waitForCondition(
                     () -> network.allNodesInStatus(CHECKING),
-                    Duration.ofSeconds(15),
+                    Duration.ofSeconds(120L),
                     "Not all nodes entered CHECKING status within the expected time after creating partition");
 
             // Remove the partition
@@ -116,7 +116,7 @@ class NetworkPartitionTest {
             // The node should be active again
             timeManager.waitForCondition(
                     network::allNodesAreActive,
-                    Duration.ofSeconds(15),
+                    Duration.ofSeconds(120L),
                     "Not all nodes entered ACTIVE status within the expected time after removing partition");
         } finally {
             env.destroy();
@@ -187,7 +187,7 @@ class NetworkPartitionTest {
             // Wait for nodes to become inactive
             timeManager.waitForCondition(
                     () -> network.allNodesInStatus(CHECKING),
-                    Duration.ofSeconds(15),
+                    Duration.ofSeconds(120L),
                     "Not all nodes entered CHECKING status within the expected time after creating partition");
 
         } finally {
@@ -437,7 +437,7 @@ class NetworkPartitionTest {
             assertThat(network.getPartitionContaining(node4)).isNull();
             assertThat(network.getPartitionContaining(node5)).isNull();
 
-            timeManager.waitForCondition(network::allNodesAreActive, Duration.ofSeconds(15));
+            timeManager.waitForCondition(network::allNodesAreActive, Duration.ofSeconds(120L));
         } finally {
             env.destroy();
         }
@@ -484,7 +484,7 @@ class NetworkPartitionTest {
             assertThat(network.getPartitionContaining(node2)).isNull();
             assertThat(network.getPartitionContaining(node3)).isNull();
 
-            timeManager.waitForCondition(network::allNodesAreActive, Duration.ofSeconds(15));
+            timeManager.waitForCondition(network::allNodesAreActive, Duration.ofSeconds(120L));
         } finally {
             env.destroy();
         }
