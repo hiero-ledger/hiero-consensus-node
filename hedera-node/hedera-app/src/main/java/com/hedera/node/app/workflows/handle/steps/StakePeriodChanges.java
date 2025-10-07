@@ -187,7 +187,7 @@ public class StakePeriodChanges {
         }
     }
 
-    private boolean isValidRosterEntry(RosterEntry rosterEntry, ReadableNodeStoreImpl nodeStore) {
+    private boolean isValidRosterEntry(final RosterEntry rosterEntry, final ReadableNodeStoreImpl nodeStore) {
         final var node = nodeStore.get(rosterEntry.nodeId());
         return node != null && node.accountId() != null;
     }

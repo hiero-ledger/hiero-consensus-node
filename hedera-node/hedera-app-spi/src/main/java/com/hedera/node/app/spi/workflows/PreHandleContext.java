@@ -320,7 +320,7 @@ public interface PreHandleContext extends TransactionKeys {
      * @return the key of the account
      * @throws PreCheckException if the account does not exist, or has no key, or an empty key
      */
-    Key getKeyFromAccount(@NonNull final AccountID accountID) throws PreCheckException;
+    Key getKeyFromAccount(@NonNull AccountID accountID) throws PreCheckException;
 
     /**
      * Returns the {@link NodeInfo} of the creator of the transaction.

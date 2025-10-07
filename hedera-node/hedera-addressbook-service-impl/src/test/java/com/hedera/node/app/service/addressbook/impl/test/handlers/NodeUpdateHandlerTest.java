@@ -7,7 +7,6 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_GRPC_CERTIFICAT
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_NODE_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_NODE_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.UPDATE_NODE_ACCOUNT_NOT_ALLOWED;
-import static com.hedera.node.app.service.token.impl.handlers.BaseCryptoHandler.asAccount;
 import static com.hedera.node.app.spi.fixtures.Assertions.assertThrowsPreCheck;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
@@ -77,6 +76,7 @@ class NodeUpdateHandlerTest extends AddressBookTestBase {
     @Mock
     private AttributeValidator validator;
 
+    private final AccountID newAccountId = idFactory.newAccountId(53);
     private TransactionBody txn;
     private NodeUpdateHandler subject;
     private static List<X509Certificate> certList;
@@ -403,14 +403,16 @@ class NodeUpdateHandlerTest extends AddressBookTestBase {
     void preHandleRequiresAdminKeySigForNonAddressBookAdmin() throws PreCheckException {
         txn = new NodeUpdateBuilder()
                 .withNodeId(nodeId.number())
-                .withAccountId(asAccount(0L, 0L, 53))
+                .withAccountId(newAccountId)
                 .withAdminKey(key)
                 .build();
+        mockAccountLookup(aPrimitiveKey, newAccountId, accountStore);
         final var context = setupPreHandle(true, txn);
         subject.preHandle(context);
         assertThat(txn).isEqualTo(context.body());
         assertThat(context.payerKey()).isEqualTo(anotherKey);
-        assertThat(context.requiredNonPayerKeys()).contains(key);
+        assertThat(context.requiredNonPayerKeys().size()).isEqualTo(2);
+        assertThat(context.requiredNonPayerKeys()).contains(key, aPrimitiveKey);
     }
 
     @Test
@@ -475,7 +477,7 @@ class NodeUpdateHandlerTest extends AddressBookTestBase {
         txn = new NodeUpdateBuilder()
                 .withNodeId(nodeId.number())
                 .withAdminKey(key)
-                .withAccountId(asAccount(0L, 0L, 53))
+                .withAccountId(newAccountId)
                 .build();
         final var context = setupPreHandle(false, txn);
         assertThrowsPreCheck(() -> subject.preHandle(context), UPDATE_NODE_ACCOUNT_NOT_ALLOWED);
@@ -523,7 +525,7 @@ class NodeUpdateHandlerTest extends AddressBookTestBase {
         final var config = HederaTestConfigBuilder.create()
                 .withValue("nodes.updateAccountIdAllowed", updateAccountIdAllowed)
                 .getOrCreateConfig();
-        mockPayerLookup(anotherKey, contextPayerId, accountStore);
+        mockAccountLookup(anotherKey, contextPayerId, accountStore);
         final var context = new FakePreHandleContext(accountStore, txn, config);
         context.registerStore(ReadableNodeStore.class, readableStore);
         return context;

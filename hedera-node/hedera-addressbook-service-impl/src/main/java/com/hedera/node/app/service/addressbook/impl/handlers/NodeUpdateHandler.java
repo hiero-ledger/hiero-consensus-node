@@ -90,15 +90,9 @@ public class NodeUpdateHandler implements TransactionHandler {
         validateFalsePreCheck(existingNode == null, INVALID_NODE_ID);
         validateFalsePreCheck(existingNode.deleted(), INVALID_NODE_ID);
 
-        // If only removing the account ID, require the existing account or the admin key signature
-        if (config.updateAccountIdAllowed() && onlyRemovesAccountId(op)) {
-            if (existingNode.hasAccountId()) {
-                context.requireKeyOrThrow(
-                        oneOf(existingNode.adminKey(), context.getKeyFromAccount(existingNode.accountIdOrThrow())),
-                        INVALID_SIGNATURE);
-            } else {
-                context.requireKeyOrThrow(existingNode.adminKey(), INVALID_SIGNATURE);
-            }
+        // On updating only the account ID, require the existing account or the admin key signature
+        if (config.updateAccountIdAllowed() && onlyUpdatesAccountID(op)) {
+            handleAccountIdOnlyUpdate(context, existingNode);
             return;
         }
 
@@ -217,7 +211,19 @@ public class NodeUpdateHandler implements TransactionHandler {
         return nodeBuilder;
     }
 
-    private boolean onlyRemovesAccountId(@NonNull final NodeUpdateTransactionBody op) {
+    private void handleAccountIdOnlyUpdate(PreHandleContext context, Node existingNode) throws PreCheckException {
+        if (existingNode.hasAccountId()) {
+            // Allow signature from either admin key or existing account key
+            Key requiredKey =
+                    oneOf(existingNode.adminKey(), context.getKeyFromAccount(existingNode.accountIdOrThrow()));
+            context.requireKeyOrThrow(requiredKey, INVALID_SIGNATURE);
+        } else {
+            // No account ID exists, so only admin key signature is acceptable
+            context.requireKeyOrThrow(existingNode.adminKey(), INVALID_ADMIN_KEY);
+        }
+    }
+
+    private boolean onlyUpdatesAccountID(@NonNull final NodeUpdateTransactionBody op) {
         return op.hasAccountId()
                 && op.accountIdOrThrow().equals(SENTINEL_NODE_ACCOUNT_ID)
                 && !op.hasDescription()

@@ -342,11 +342,10 @@ public class AddressBookTestBase {
                 .build();
     }
 
-    protected Key mockPayerLookup(Key key, AccountID contextPayerId, ReadableAccountStore accountStore) {
+    protected void mockAccountLookup(Key key, AccountID contextPayerId, ReadableAccountStore accountStore) {
         final var account = mock(Account.class);
         given(account.key()).willReturn(key);
         given(accountStore.getAccountById(contextPayerId)).willReturn(account);
-        return key;
     }
 
     public static List<X509Certificate> generateX509Certificates(final int n) {

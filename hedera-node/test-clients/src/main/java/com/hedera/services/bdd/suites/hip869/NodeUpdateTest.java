@@ -349,7 +349,7 @@ public class NodeUpdateTest {
                         .fullAccountId(sentinelValue)
                         .payingWith(DEFAULT_PAYER)
                         .signedByPayerAnd("adminKey"),
-                viewNode("testNode", node -> assertNull(node.accountId())));
+                viewNode("testNode", node -> assertNull(node.accountId(), "node account ID should be unset")));
     }
 
     @HapiTest
