@@ -147,7 +147,7 @@ public class ConsensusNodeManager {
                         .activeRosterHash(rosterHash)
                         .build()),
                 Map.of(rosterHash, genesisRoster));
-        executionCallback = new OtterExecutionLayer(new Random(), metrics);
+        executionCallback = new OtterExecutionLayer(new Random(), metrics, time);
         final PlatformBuilder builder = PlatformBuilder.create(
                         OtterApp.APP_NAME,
                         OtterApp.SWIRLD_NAME,
