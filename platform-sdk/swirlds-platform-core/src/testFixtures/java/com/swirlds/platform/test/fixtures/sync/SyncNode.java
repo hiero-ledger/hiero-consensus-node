@@ -11,6 +11,7 @@ import com.swirlds.common.threading.pool.CachedPoolParallelExecutor;
 import com.swirlds.common.threading.pool.ParallelExecutor;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
+import com.swirlds.platform.gossip.FallenBehindMonitor;
 import com.swirlds.platform.gossip.IntakeEventCounter;
 import com.swirlds.platform.gossip.NoOpIntakeEventCounter;
 import com.swirlds.platform.gossip.shadowgraph.Shadowgraph;
@@ -54,7 +55,7 @@ public class SyncNode {
     private final int numNodes;
     private final EventEmitter eventEmitter;
     private int eventsEmitted = 0;
-    private final TestingSyncManager syncManager;
+    private final FallenBehindMonitor fallenBehindMonitor;
     private final Shadowgraph shadowGraph;
     private ParallelExecutor executor;
     private Connection connection;
@@ -90,7 +91,7 @@ public class SyncNode {
         this.nodeId = NodeId.of(nodeId);
         this.eventEmitter = eventEmitter;
 
-        syncManager = new TestingSyncManager();
+        fallenBehindMonitor = mock(FallenBehindMonitor.class);
 
         receivedEventQueue = new LinkedBlockingQueue<>();
         receivedEvents = new ArrayList<>();
@@ -224,7 +225,7 @@ public class SyncNode {
                 numNodes,
                 mock(SyncMetrics.class),
                 eventHandler,
-                syncManager,
+                fallenBehindMonitor,
                 mock(IntakeEventCounter.class),
                 executor,
                 lag -> {});
@@ -277,8 +278,8 @@ public class SyncNode {
         shadowGraph.updateEventWindow(eventWindow);
     }
 
-    public TestingSyncManager getSyncManager() {
-        return syncManager;
+    public FallenBehindMonitor getFallenBehindMonitor() {
+        return fallenBehindMonitor;
     }
 
     public List<PlatformEvent> getReceivedEvents() {

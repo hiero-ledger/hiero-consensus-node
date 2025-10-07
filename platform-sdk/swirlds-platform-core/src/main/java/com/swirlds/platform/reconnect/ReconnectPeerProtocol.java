@@ -13,6 +13,7 @@ import com.swirlds.common.metrics.extensions.CountPerSecond;
 import com.swirlds.common.threading.manager.ThreadManager;
 import com.swirlds.common.utility.throttle.RateLimitedLogger;
 import com.swirlds.config.api.Configuration;
+import com.swirlds.platform.gossip.FallenBehindMonitor;
 import com.swirlds.platform.metrics.ReconnectMetrics;
 import com.swirlds.platform.network.Connection;
 import com.swirlds.platform.network.NetworkProtocolException;
@@ -26,7 +27,6 @@ import java.util.Objects;
 import java.util.function.Supplier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.consensus.gossip.FallenBehindManager;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
 
@@ -47,7 +47,7 @@ public class ReconnectPeerProtocol implements PeerProtocol {
     private final CountPerSecond reconnectRejectionMetrics;
     private InitiatedBy initiatedBy = InitiatedBy.NO_ONE;
     private final ThreadManager threadManager;
-    private final FallenBehindManager fallenBehindManager;
+    private final FallenBehindMonitor fallenBehindManager;
 
     /**
      * Provides the platform status.
@@ -98,7 +98,7 @@ public class ReconnectPeerProtocol implements PeerProtocol {
             @NonNull final Duration reconnectSocketTimeout,
             @NonNull final ReconnectMetrics reconnectMetrics,
             @NonNull final ReconnectSyncHelper reconnectHelperNetwork,
-            @NonNull final FallenBehindManager fallenBehindManager,
+            @NonNull final FallenBehindMonitor fallenBehindManager,
             @NonNull final Supplier<PlatformStatus> platformStatusSupplier,
             @NonNull final Time time,
             @NonNull final PlatformStateFacade platformStateFacade) {
@@ -276,8 +276,9 @@ public class ReconnectPeerProtocol implements PeerProtocol {
             switch (initiatedBy) {
                 case PEER -> teacher(connection);
                 case SELF -> learner(connection);
-                default -> throw new NetworkProtocolException(
-                        "runProtocol() called but it is unclear who the teacher and who the learner is");
+                default ->
+                    throw new NetworkProtocolException(
+                            "runProtocol() called but it is unclear who the teacher and who the learner is");
             }
         } finally {
             initiatedBy = InitiatedBy.NO_ONE;
