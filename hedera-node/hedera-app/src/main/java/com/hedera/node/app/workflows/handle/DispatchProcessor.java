@@ -2,6 +2,7 @@
 package com.hedera.node.app.workflows.handle;
 
 import static com.hedera.hapi.node.base.HederaFunctionality.ETHEREUM_TRANSACTION;
+import static com.hedera.hapi.node.base.HederaFunctionality.HOOK_DISPATCH;
 import static com.hedera.hapi.node.base.HederaFunctionality.NODE_UPDATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.SYSTEM_DELETE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.AUTHORIZATION_FAILED;
@@ -12,10 +13,12 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.NOT_SUPPORTED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.UNAUTHORIZED;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.BATCH_INNER;
+import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.CHILD;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.NODE;
 import static com.hedera.node.app.workflows.handle.HandleWorkflow.ALERT_MESSAGE;
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.node.app.fees.AppFeeCharging;
 import com.hedera.node.app.fees.ExchangeRateManager;
@@ -39,6 +42,8 @@ import com.hedera.node.config.data.ContractsConfig;
 import com.hedera.node.config.data.NetworkAdminConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.util.EnumSet;
+import java.util.Set;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
@@ -53,6 +58,9 @@ import org.apache.logging.log4j.Logger;
 @Singleton
 public class DispatchProcessor {
     private static final Logger logger = LogManager.getLogger(DispatchProcessor.class);
+
+    // Functions that are only usable as child dispatches from handlers
+    private static final Set<HederaFunctionality> HANDLER_STEP_FUNCTIONS = EnumSet.of(HOOK_DISPATCH);
 
     private final Authorizer authorizer;
     private final DispatchValidator validator;
@@ -295,6 +303,10 @@ public class DispatchProcessor {
      */
     private @Nullable ResponseCodeEnum maybeAuthorizationFailure(@NonNull final Dispatch dispatch) {
         final var function = dispatch.txnInfo().functionality();
+        // Handlers are always allowed to dispatch their child step functions
+        if (dispatch.txnCategory() == CHILD && HANDLER_STEP_FUNCTIONS.contains(function)) {
+            return null;
+        }
         if (!authorizer.isAuthorized(dispatch.payerId(), function)) {
             // Node transactions are judged by a different set of rules; any node account can submit
             // any node transaction as long as it is in the allow list

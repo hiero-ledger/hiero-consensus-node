@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.merkle.test.tree;
 
-import static com.swirlds.merkle.test.fixtures.map.util.ConfigUtils.CONFIGURATION;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -912,7 +911,7 @@ class MerkleBinaryTreeTests {
 
             io.startReading();
             final MerkleBinaryTree<Value> deserializedTree =
-                    io.getInput().readMerkleTree(CONFIGURATION, testDirectory, Integer.MAX_VALUE);
+                    io.getInput().readMerkleTree(testDirectory, Integer.MAX_VALUE);
 
             assertEquals(tree.size(), deserializedTree.size(), "Size should match after deserialization");
 

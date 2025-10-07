@@ -209,7 +209,6 @@ public class SignedState {
     public void init(@NonNull PlatformContext platformContext) {
         state.init(
                 platformContext.getTime(),
-                platformContext.getConfiguration(),
                 platformContext.getMetrics(),
                 platformContext.getMerkleCryptography(),
                 () -> {
@@ -464,8 +463,11 @@ public class SignedState {
      */
     @Override
     public String toString() {
+        // `state.getHash()` would start hashing if the state is not hashed already,
+        // we'd like to avoid that, so let's make sure that we don't do that
+        final String hashString = state.isHashed() ? state.getHash().toString() : "not hashed";
         return "SS(round: %d, sigs: %d/%s, hash: %s)"
-                .formatted(getRound(), signingWeight, RosterUtils.computeTotalWeight(getRoster()), state.getHash());
+                .formatted(getRound(), signingWeight, RosterUtils.computeTotalWeight(getRoster()), hashString);
     }
 
     /**

@@ -1,9 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.state.merkle.disk;
 
-import static com.swirlds.state.merkle.logging.StateLogger.logQueueIterate;
-import static com.swirlds.state.merkle.logging.StateLogger.logQueuePeek;
-
 import com.hedera.pbj.runtime.Codec;
 import com.swirlds.state.spi.ReadableQueueState;
 import com.swirlds.state.spi.ReadableQueueStateBase;
@@ -45,10 +42,7 @@ public class OnDiskReadableQueueState<V> extends ReadableQueueStateBase<V> {
     protected V peekOnDataSource() {
         final QueueState state = onDiskQueueHelper.getState();
         Objects.requireNonNull(state);
-        final V value = OnDiskQueueHelper.isEmpty(state) ? null : onDiskQueueHelper.getFromStore(state.head());
-        // Log to transaction state log, what was peeked
-        logQueuePeek(label, value);
-        return value;
+        return OnDiskQueueHelper.isEmpty(state) ? null : onDiskQueueHelper.getFromStore(state.head());
     }
 
     /** Iterate over all elements */
@@ -60,10 +54,7 @@ public class OnDiskReadableQueueState<V> extends ReadableQueueStateBase<V> {
             // Empty iterator
             return onDiskQueueHelper.iterateOnDataSource(0, 0);
         } else {
-            final Iterator<V> it = onDiskQueueHelper.iterateOnDataSource(state.head(), state.tail());
-            // Log to transaction state log, what was iterated
-            logQueueIterate(label, state.tail() - state.head(), it);
-            return it;
+            return onDiskQueueHelper.iterateOnDataSource(state.head(), state.tail());
         }
     }
 }

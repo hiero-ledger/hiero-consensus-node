@@ -8,13 +8,17 @@ import com.swirlds.platform.gossip.config.GossipConfig_;
 import com.swirlds.platform.gossip.config.NetworkEndpoint;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import java.util.concurrent.Executor;
+import java.util.concurrent.Executors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.otter.fixtures.InstrumentedNode;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.TimeManager;
@@ -40,6 +44,7 @@ public class ContainerNetwork extends AbstractNetwork {
     private final Path rootOutputDirectory;
     private final ContainerTransactionGenerator transactionGenerator;
     private final ImageFromDockerfile dockerImage;
+    private final Executor executor = Executors.newCachedThreadPool();
 
     private ToxiproxyContainer toxiproxyContainer;
     private NetworkBehavior networkBehavior;
@@ -135,7 +140,16 @@ public class ContainerNetwork extends AbstractNetwork {
                     .filter(receiver -> !receiver.equals(sender))
                     .map(receiver -> networkBehavior.getProxyEndpoint(sender, receiver))
                     .toList();
-            sender.configuration().setNetworkEndpoints(GossipConfig_.ENDPOINT_OVERRIDES, endpointOverrides);
+            ((ContainerNode) sender)
+                    .configuration()
+                    .setNetworkEndpoints(GossipConfig_.ENDPOINT_OVERRIDES, endpointOverrides);
+        }
+    }
+
+    @Override
+    protected void doSendQuiescenceCommand(@NonNull final QuiescenceCommand command, @NonNull final Duration timeout) {
+        for (final Node node : nodes()) {
+            executor.execute(() -> node.withTimeout(timeout).sendQuiescenceCommand(command));
         }
     }
 
