@@ -158,24 +158,6 @@ class ReconnectHashListenerTest {
         }
 
         @Override
-        public void saveRecords(
-                final long firstLeafPath,
-                final long lastLeafPath,
-                @NonNull final Stream<VirtualHashRecord> pathHashRecordsToUpdate,
-                @NonNull final Stream<VirtualLeafBytes> leafRecordsToAddOrUpdate,
-                @NonNull final Stream<VirtualLeafBytes> leafRecordsToDelete)
-                throws IOException {
-
-            saveRecords(
-                    firstLeafPath,
-                    lastLeafPath,
-                    pathHashRecordsToUpdate,
-                    leafRecordsToAddOrUpdate,
-                    leafRecordsToDelete,
-                    true);
-        }
-
-        @Override
         public VirtualLeafBytes loadLeafRecord(final Bytes key) throws IOException {
             return delegate.loadLeafRecord(key);
         }

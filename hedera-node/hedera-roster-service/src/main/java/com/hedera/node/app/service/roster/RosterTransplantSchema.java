@@ -38,12 +38,12 @@ public interface RosterTransplantSchema {
      * @param rosterStoreFactory the factory to use to create the writable roster store
      */
     default boolean restart(
-            @NonNull final MigrationContext ctx,
+            @NonNull final HederaMigrationContext ctx,
             @NonNull final BiConsumer<Roster, Roster> onAdopt,
             @NonNull final Function<WritableStates, WritableRosterStore> rosterStoreFactory) {
         requireNonNull(ctx);
         final long roundNumber = ctx.roundNumber();
-        final var startupNetworks = ctx.startupNetworks();
+        final StartupNetworks startupNetworks = ctx.startupNetworks();
         final var overrideNetwork = startupNetworks.overrideNetworkFor(roundNumber, ctx.platformConfig());
         overrideNetwork.ifPresent(network -> {
             final long activeRoundNumber = roundNumber + 1;

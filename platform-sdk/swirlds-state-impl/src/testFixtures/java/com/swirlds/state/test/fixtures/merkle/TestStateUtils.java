@@ -1,6 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.state.test.fixtures.merkle;
 
+import static com.swirlds.state.test.fixtures.merkle.StateClassIdUtils.inMemoryValueClassId;
+import static com.swirlds.state.test.fixtures.merkle.StateClassIdUtils.onDiskKeyClassId;
+import static com.swirlds.state.test.fixtures.merkle.StateClassIdUtils.onDiskKeySerializerClassId;
+import static com.swirlds.state.test.fixtures.merkle.StateClassIdUtils.onDiskValueClassId;
+import static com.swirlds.state.test.fixtures.merkle.StateClassIdUtils.onDiskValueSerializerClassId;
+import static com.swirlds.state.test.fixtures.merkle.StateClassIdUtils.queueNodeClassId;
+import static com.swirlds.state.test.fixtures.merkle.StateClassIdUtils.singletonClassId;
+
+import com.hedera.hapi.node.base.SemanticVersion;
 import com.swirlds.state.lifecycle.StateMetadata;
 import com.swirlds.state.test.fixtures.merkle.disk.OnDiskKey;
 import com.swirlds.state.test.fixtures.merkle.disk.OnDiskKeySerializer;
@@ -24,26 +33,29 @@ public class TestStateUtils {
      *
      * <p>The implementation will take the service name and the state key and compute a hash for it.
      *
-     *
+     * @param md      The state metadata
+     * @param version The version of the state
      * @deprecated Registrations should be removed when there are no longer any objects of the relevant class.
      * Once all registrations have been removed, this method itself should be deleted.
      * See <a href="https://github.com/hiero-ledger/hiero-consensus-node/issues/19416">GitHub issue</a>.
-     *
-     * @param md The state metadata
      */
     @SuppressWarnings({"rawtypes", "unchecked"})
     @Deprecated
     public static void registerWithSystem(
-            @NonNull final StateMetadata md, @NonNull final ConstructableRegistry constructableRegistry) {
+            @NonNull final StateMetadata md,
+            @NonNull final ConstructableRegistry constructableRegistry,
+            @NonNull final SemanticVersion version) {
         // Register with the system the uniqueId as the "classId" of an InMemoryValue. There can be
         // multiple id's associated with InMemoryValue. The secret is that the supplier captures the
         // various delegate writers and parsers, and so can parse/write different types of data
         // based on the id.
+        final String serviceName = md.serviceName();
+        final String stateKey = md.stateDefinition().stateKey();
         try {
             constructableRegistry.registerConstructable(new ClassConstructorPair(
                     InMemoryValue.class,
                     () -> new InMemoryValue(
-                            md.inMemoryValueClassId(),
+                            inMemoryValueClassId(serviceName, stateKey, version),
                             md.stateDefinition().keyCodec(),
                             md.stateDefinition().valueCodec())));
             // FUTURE WORK: remove OnDiskKey registration, once there are no objects of this class
@@ -51,57 +63,55 @@ public class TestStateUtils {
             constructableRegistry.registerConstructable(new ClassConstructorPair(
                     OnDiskKey.class,
                     () -> new OnDiskKey<>(
-                            md.onDiskKeyClassId(), md.stateDefinition().keyCodec())));
+                            onDiskKeyClassId(serviceName, stateKey, version),
+                            md.stateDefinition().keyCodec())));
             // FUTURE WORK: remove OnDiskKeySerializer registration, once there are no objects of this class
             // in existing state snapshots
             constructableRegistry.registerConstructable(new ClassConstructorPair(
                     OnDiskKeySerializer.class,
                     () -> new OnDiskKeySerializer<>(
-                            md.onDiskKeySerializerClassId(),
-                            md.onDiskKeyClassId(),
+                            onDiskKeySerializerClassId(serviceName, stateKey, version),
+                            onDiskKeyClassId(serviceName, stateKey, version),
                             md.stateDefinition().keyCodec())));
             // FUTURE WORK: remove OnDiskValue registration, once there are no objects of this class
             // in existing state snapshots
             constructableRegistry.registerConstructable(new ClassConstructorPair(
                     OnDiskValue.class,
                     () -> new OnDiskValue<>(
-                            md.onDiskValueClassId(), md.stateDefinition().valueCodec())));
+                            onDiskValueClassId(serviceName, stateKey, version),
+                            md.stateDefinition().valueCodec())));
             // FUTURE WORK: remove OnDiskValueSerializer registration, once there are no objects of this class
             // in existing state snapshots
             constructableRegistry.registerConstructable(new ClassConstructorPair(
                     OnDiskValueSerializer.class,
                     () -> new OnDiskValueSerializer<>(
-                            md.onDiskValueSerializerClassId(),
-                            md.onDiskValueClassId(),
+                            onDiskValueSerializerClassId(serviceName, stateKey, version),
+                            onDiskValueClassId(serviceName, stateKey, version),
                             md.stateDefinition().valueCodec())));
             constructableRegistry.registerConstructable(new ClassConstructorPair(
                     SingletonNode.class,
                     () -> new SingletonNode<>(
-                            md.serviceName(),
-                            md.singletonClassId(),
+                            serviceName,
+                            singletonClassId(serviceName, stateKey, version),
                             md.stateDefinition().valueCodec(),
                             null)));
             constructableRegistry.registerConstructable(new ClassConstructorPair(
                     QueueNode.class,
                     () -> new QueueNode<>(
-                            md.serviceName(),
-                            md.queueNodeClassId(),
-                            md.singletonClassId(),
+                            serviceName,
+                            queueNodeClassId(serviceName, stateKey, version),
+                            singletonClassId(serviceName, stateKey, version),
                             md.stateDefinition().valueCodec())));
             constructableRegistry.registerConstructable(new ClassConstructorPair(StringLeaf.class, StringLeaf::new));
             constructableRegistry.registerConstructable(new ClassConstructorPair(
                     ValueLeaf.class,
                     () -> new ValueLeaf<>(
-                            md.singletonClassId(), md.stateDefinition().valueCodec())));
+                            singletonClassId(serviceName, stateKey, version),
+                            md.stateDefinition().valueCodec())));
         } catch (ConstructableRegistryException e) {
             // This is a fatal error.
             throw new IllegalStateException(
-                    "Failed to register with the system '"
-                            + md.serviceName()
-                            + ":"
-                            + md.stateDefinition().stateKey()
-                            + "'",
-                    e);
+                    "Failed to register with the system '" + serviceName + ":" + stateKey + "'", e);
         }
     }
 }

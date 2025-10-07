@@ -51,7 +51,7 @@ class V0540RosterSchemaTest {
             .toList());
 
     @Mock
-    private MigrationContext ctx;
+    private HederaMigrationContext ctx;
 
     @Mock
     private WritableStates writableStates;
