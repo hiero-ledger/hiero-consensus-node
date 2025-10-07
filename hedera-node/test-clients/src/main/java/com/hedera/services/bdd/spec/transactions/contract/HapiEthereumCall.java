@@ -338,6 +338,7 @@ public class HapiEthereumCall extends HapiBaseCall<HapiEthereumCall> {
                 valueSent.orElse(BigInteger.ZERO),
                 callData,
                 new byte[] {},
+                null,
                 0,
                 null,
                 null,

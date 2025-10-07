@@ -17,7 +17,6 @@ import com.swirlds.common.merkle.utility.MerkleTreeSnapshotWriter;
 import com.swirlds.common.utility.Labeled;
 import com.swirlds.common.utility.RuntimeObjectRecord;
 import com.swirlds.common.utility.RuntimeObjectRegistry;
-import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.state.State;
 import com.swirlds.state.StateChangeListener;
@@ -875,7 +874,6 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
     @SuppressWarnings("unchecked")
     @Override
     public T loadSnapshot(@NonNull Path targetPath) throws IOException {
-        return (T) MerkleTreeSnapshotReader.readStateFileData(configuration, targetPath)
-                .stateRoot();
+        return (T) MerkleTreeSnapshotReader.readStateFileData(targetPath).stateRoot();
     }
 }

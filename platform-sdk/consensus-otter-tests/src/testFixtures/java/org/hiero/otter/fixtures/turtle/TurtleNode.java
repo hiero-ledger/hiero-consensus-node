@@ -44,6 +44,7 @@ import java.util.Random;
 import java.util.function.Consumer;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.roster.RosterUtils;
@@ -87,6 +88,8 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
     private final TurtleMarkerFileObserver markerFileObserver;
 
     private PlatformContext platformContext;
+
+    private QuiescenceCommand quiescenceCommand = QuiescenceCommand.DONT_QUIESCE;
 
     @Nullable
     private DeterministicWiringModel model;
@@ -255,6 +258,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
             platformStatus = PlatformStatus.STARTING_UP;
             platform.start();
 
+            quiescenceCommand = QuiescenceCommand.DONT_QUIESCE;
             lifeCycle = RUNNING;
         }
     }
@@ -278,14 +282,31 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
         }
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     protected void doStartSyntheticBottleneck(@NonNull final Duration delayPerRound, @NonNull final Duration timeout) {
         throw new UnsupportedOperationException("startSyntheticBottleneck is not supported in TurtleNode.");
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     protected void doStopSyntheticBottleneck(@NonNull final Duration timeout) {
         throw new UnsupportedOperationException("stopSyntheticBottleneck is not supported in TurtleNode.");
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    protected void doSendQuiescenceCommand(@NonNull final QuiescenceCommand command, @NonNull final Duration timeout) {
+        assert platform != null; // platform must be initialized if node is RUNNING
+        platform.quiescenceCommand(requireNonNull(command));
+
+        this.quiescenceCommand = command;
     }
 
     /**
@@ -297,9 +318,13 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
             throwIfIn(INIT, "Node has not been started yet.");
             throwIfIn(SHUTDOWN, "Node has been shut down.");
             throwIfIn(DESTROYED, "Node has been destroyed.");
-            assert platform != null; // platform must be initialized if lifeCycle is STARTED
-            assert executionLayer != null; // executionLayer must be initialized
 
+            if (quiescenceCommand == QuiescenceCommand.QUIESCE) {
+                // When quiescing, ignore new transactions
+                return;
+            }
+
+            assert executionLayer != null; // executionLayer must be initialized
             executionLayer.submitApplicationTransaction(transaction.toByteArray());
         }
     }

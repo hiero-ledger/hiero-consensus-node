@@ -267,8 +267,8 @@ public abstract class VirtualMapState<T extends VirtualMapState<T>> implements S
      */
     @Override
     public T loadSnapshot(@NonNull Path targetPath) throws IOException {
-        final MerkleNode root = MerkleTreeSnapshotReader.readStateFileData(configuration, targetPath)
-                .stateRoot();
+        final MerkleNode root =
+                MerkleTreeSnapshotReader.readStateFileData(targetPath).stateRoot();
         if (!(root instanceof VirtualMap readVirtualMap)) {
             throw new IllegalStateException(
                     "Root should be a VirtualMap, but it is " + root.getClass().getSimpleName() + " instead");

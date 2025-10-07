@@ -224,7 +224,7 @@ public class ISSTestingToolState extends MerkleStateRoot<ISSTestingToolState> im
 
     // FUTURE WORK: https://github.com/hiero-ledger/hiero-consensus-node/issues/19002
     @Override
-    public MerkleNode migrate(@NonNull final Configuration configuration, int version) {
+    public MerkleNode migrate(int version) {
         return this;
     }
 }
