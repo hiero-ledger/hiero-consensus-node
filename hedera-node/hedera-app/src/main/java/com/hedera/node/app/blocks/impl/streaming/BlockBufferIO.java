@@ -28,8 +28,6 @@ import java.util.List;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.block.api.BlockItemSet;
-import org.hiero.block.api.PublishStreamRequest;
 
 /**
  * This class supports reading and writing a series of blocks to disk.
@@ -227,13 +225,12 @@ public class BlockBufferIO {
          */
         private void writeBlock(final Path path, final BlockState block) throws IOException {
             // collect the block items to write
-            final List<BlockItem> items = new ArrayList<>();
+            final List<BlockItem> items = new ArrayList<>(block.itemCount());
 
-            for (int i = 0; i < block.numRequestsCreated(); ++i) {
-                final PublishStreamRequest req = block.getRequest(i);
-                if (req != null) {
-                    final BlockItemSet bis = req.blockItemsOrElse(BlockItemSet.DEFAULT);
-                    items.addAll(bis.blockItems());
+            for (int i = 0; i < block.itemCount(); ++i) {
+                final BlockItem item = block.blockItem(i);
+                if (item != null) {
+                    items.add(item);
                 }
             }
 
@@ -247,7 +244,6 @@ public class BlockBufferIO {
             final BufferedBlock bufferedBlock = BufferedBlock.newBuilder()
                     .blockNumber(block.blockNumber())
                     .closedTimestamp(closedTimestamp)
-                    .isProofSent(block.isBlockProofSent())
                     .isAcknowledged(block.blockNumber() <= latestAcknowledgedBlockNumber)
                     .block(blk)
                     .build();
