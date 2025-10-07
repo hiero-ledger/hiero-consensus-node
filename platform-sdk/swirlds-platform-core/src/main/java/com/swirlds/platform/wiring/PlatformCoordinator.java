@@ -144,6 +144,20 @@ public record PlatformCoordinator(@NonNull PlatformComponents components) implem
     }
 
     /**
+     * Resume gossiping.
+     */
+    public void resumeGossip() {
+        components.gossipWiring().resumeInput().inject(NoInput.getInstance());
+    }
+
+    /**
+     * Pause gossiping.
+     */
+    public void pauseGossip() {
+        components.gossipWiring().pauseInput().inject(NoInput.getInstance());
+    }
+
+    /**
      * Forward a state to the hash logger.
      *
      * @param signedState the state to forward
