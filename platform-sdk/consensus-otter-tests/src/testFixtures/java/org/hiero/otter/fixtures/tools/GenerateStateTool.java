@@ -198,7 +198,8 @@ public class GenerateStateTool {
                 FileUtils.deleteDirectory(turtleDir);
             }
 
-            final GenerateStateTool generateStateTool = new GenerateStateTool(new TurtleTestEnvironment("", SEED));
+            final GenerateStateTool generateStateTool =
+                    new GenerateStateTool(new TurtleTestEnvironment("", SEED, false));
             generateStateTool.generateState();
 
             final Path rootOutputDirectory = Path.of("build", "turtle", "node-" + SELF_ID, "data", "saved");

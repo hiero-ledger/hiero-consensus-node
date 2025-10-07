@@ -61,6 +61,7 @@ public class TurtleNetwork extends AbstractNetwork implements TimeTickReceiver {
      * @param logging              the logging utility
      * @param rootOutputDirectory  the directory where the node output will be stored, like saved state and so on
      * @param transactionGenerator the transaction generator that generates a steady flow of transactions to all nodes
+     * @param randomNodeIds {@code true} if the node IDs should be selected randomly; {@code false} otherwise
      */
     public TurtleNetwork(
             @Nullable final Path savedState,
@@ -68,8 +69,9 @@ public class TurtleNetwork extends AbstractNetwork implements TimeTickReceiver {
             @NonNull final TurtleTimeManager timeManager,
             @NonNull final TurtleLogging logging,
             @NonNull final Path rootOutputDirectory,
-            @NonNull final TurtleTransactionGenerator transactionGenerator) {
-        super(randotron);
+            @NonNull final TurtleTransactionGenerator transactionGenerator,
+            final boolean randomNodeIds) {
+        super(randotron, randomNodeIds);
         this.savedState = savedState;
         this.randotron = requireNonNull(randotron);
         this.timeManager = requireNonNull(timeManager);

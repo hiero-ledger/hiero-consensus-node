@@ -16,5 +16,10 @@ public class Constants {
      */
     public static final String NO_SAVED_STATE = "";
 
+    /**
+     * Enables random node IDs
+     */
+    public static final boolean RANDOM_NODE_IDS = true;
+
     private Constants() {}
 }

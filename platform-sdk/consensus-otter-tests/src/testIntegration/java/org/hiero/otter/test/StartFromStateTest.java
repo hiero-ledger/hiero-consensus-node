@@ -20,7 +20,7 @@ import org.hiero.otter.fixtures.turtle.TurtleSpecs;
 public class StartFromStateTest {
 
     @OtterTest
-    @OtterSpecs(savedState = "previous-version-state")
+    @OtterSpecs(savedState = "previous-version-state", randomNodeIds = false)
     @TurtleSpecs(randomSeed = SEED)
     void startFromPreviousVersionState(@NonNull final TestEnvironment env) {
         final Network network = env.network();

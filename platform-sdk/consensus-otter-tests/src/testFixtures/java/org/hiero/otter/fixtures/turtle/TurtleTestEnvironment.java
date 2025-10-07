@@ -55,8 +55,10 @@ public class TurtleTestEnvironment implements TestEnvironment {
      *
      * @param savedStateDirectory the directory for the saved state, relative to the resource directory; if empty, a genesis state will be generated
      * @param randomSeed the seed for the PRNG; if {@code 0}, a random seed will be generated
+     * @param randomNodeIds {@code true} if the node IDs should be selected randomly; {@code false} otherwise
      */
-    public TurtleTestEnvironment(@NonNull final String savedStateDirectory, final long randomSeed) {
+    public TurtleTestEnvironment(
+            @NonNull final String savedStateDirectory, final long randomSeed, final boolean randomNodeIds) {
         final Path rootOutputDirectory = Path.of("build", "turtle");
         try {
             if (Files.exists(rootOutputDirectory)) {
@@ -90,12 +92,16 @@ public class TurtleTestEnvironment implements TestEnvironment {
         }
 
         timeManager = new TurtleTimeManager(time, GRANULARITY);
-        // Fix for "Timestamp must never decrease" issue
-        timeManager.advanceTime(Duration.ofHours(1));
+
+        // The saved state was generated with the same seed; without advancing time,
+        // all nodes would start simultaneously, and the saved state would lie in their future.
+        if (savedState != null) {
+            timeManager.advanceTime(Duration.ofHours(1));
+        }
 
         transactionGenerator = new TurtleTransactionGenerator(randotron);
         network = new TurtleNetwork(
-                savedState, randotron, timeManager, logging, rootOutputDirectory, transactionGenerator);
+                savedState, randotron, timeManager, logging, rootOutputDirectory, transactionGenerator, randomNodeIds);
 
         timeManager.addTimeTickReceiver(network);
     }

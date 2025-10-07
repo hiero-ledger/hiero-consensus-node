@@ -18,4 +18,11 @@ public @interface OtterSpecs {
      * @return the relative path
      */
     String savedState() default "";
+
+    /**
+     * Determines whether the node IDs should be selected randomly.
+     *
+     * @return {@code true} if the node IDs are selected randomly; {@code false} otherwise
+     */
+    boolean randomNodeIds() default true;
 }
