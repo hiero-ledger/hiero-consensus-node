@@ -1805,7 +1805,7 @@ class ThrottleAccumulatorTest {
     }
 
     @Test
-    void scheduleCreateWithoutScheduledTransactionBodyIsThrottled() throws IOException, ParseException {
+    void scheduleCreateWithoutScheduledTransactionBodyIsNotThrottled() throws IOException, ParseException {
         // given
         given(configProvider.getConfiguration()).willReturn(configuration);
         given(configuration.getConfigData(AccountsConfig.class)).willReturn(accountsConfig);
@@ -1821,7 +1821,7 @@ class ThrottleAccumulatorTest {
         final var defs = getThrottleDefs("bootstrap/schedule-create-throttles.json");
         subject.rebuildFor(defs);
 
-        // Create a ScheduleCreate transaction WITHOUT scheduledTransactionBody to trigger NPE
+        // Create a ScheduleCreate transaction WITHOUT scheduledTransactionBody
         final var scheduleWithoutBody = ScheduleCreateTransactionBody.newBuilder()
                 .waitForExpiry(false)
                 .build(); // Missing .scheduledTransactionBody(...)
@@ -1842,16 +1842,14 @@ class ThrottleAccumulatorTest {
                 SCHEDULE_CREATE,
                 null);
 
-        // when - should not throw NPE, should throttle instead
         final var shouldThrottle =
                 assertDoesNotThrow(() -> subject.checkAndEnforceThrottle(txnInfo, TIME_INSTANT, state, null));
 
-        // then - transaction should be throttled (returns true)
-        assertTrue(shouldThrottle, "ScheduleCreate without scheduledTransactionBody should be throttled");
+        assertFalse(shouldThrottle, "ScheduleCreate without scheduledTransactionBody should not be throttled");
     }
 
     @Test
-    void tokenMintWithoutTokenMintBodyIsThrottled() throws IOException, ParseException {
+    void tokenMintWithoutTokenMintBodyIsNotThrottled() throws IOException, ParseException {
         // given
         given(configProvider.getConfiguration()).willReturn(configuration);
         given(configuration.getConfigData(AccountsConfig.class)).willReturn(accountsConfig);
@@ -1884,16 +1882,14 @@ class ThrottleAccumulatorTest {
                 TOKEN_MINT,
                 null);
 
-        // when - should not throw NPE, should throttle instead
         final var shouldThrottle =
                 assertDoesNotThrow(() -> subject.checkAndEnforceThrottle(txnInfo, TIME_INSTANT, state, null));
 
-        // then - transaction should be throttled (returns true)
-        assertTrue(shouldThrottle, "TokenMint without tokenMint body should be throttled");
+        assertFalse(shouldThrottle, "TokenMint without tokenMint body should not be throttled");
     }
 
     @Test
-    void tokenMintWithoutTokenIdIsThrottled() throws IOException, ParseException {
+    void tokenMintWithoutTokenIdIsNotThrottled() throws IOException, ParseException {
         // given
         given(configProvider.getConfiguration()).willReturn(configuration);
         given(configuration.getConfigData(AccountsConfig.class)).willReturn(accountsConfig);
@@ -1928,12 +1924,10 @@ class ThrottleAccumulatorTest {
                 TOKEN_MINT,
                 null);
 
-        // when - should not throw NPE, should throttle instead
         final var shouldThrottle =
                 assertDoesNotThrow(() -> subject.checkAndEnforceThrottle(txnInfo, TIME_INSTANT, state, null));
 
-        // then - transaction should be throttled (returns true)
-        assertTrue(shouldThrottle, "TokenMint without token field should be throttled");
+        assertFalse(shouldThrottle, "TokenMint without token field should not be throttled");
     }
 
     @NonNull

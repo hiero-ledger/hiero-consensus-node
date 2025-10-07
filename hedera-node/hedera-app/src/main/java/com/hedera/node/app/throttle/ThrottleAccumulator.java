@@ -484,7 +484,7 @@ public class ThrottleAccumulator {
         final var txnBody = txnInfo.txBody();
         final var op = txnBody.scheduleCreateOrThrow();
         if (!op.hasScheduledTransactionBody()) {
-            return true;
+            return false;
         }
         final var scheduled = op.scheduledTransactionBodyOrThrow();
         final var schedule = Schedule.newBuilder()
@@ -499,7 +499,7 @@ public class ThrottleAccumulator {
             scheduledFunction = functionOf(innerTxn);
         } catch (HandleException | UnknownHederaFunctionality ex) {
             log.debug("ScheduleCreate was associated with an invalid txn.", ex);
-            return true;
+            return false;
         }
         // maintain legacy behaviour
         final var config = configSupplier.get();
@@ -622,11 +622,11 @@ public class ThrottleAccumulator {
             List<ThrottleUsage> throttleUsages) {
         var txnBody = txnInfo.txBody();
         if (!txnBody.hasTokenMint()) {
-            return true;
+            return false;
         }
         final var tokenMint = txnBody.tokenMint();
         if (!tokenMint.hasToken()) {
-            return true;
+            return false;
         }
         final int numNfts = tokenMint.metadata().size();
         if (numNfts == 0) {
