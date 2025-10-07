@@ -26,6 +26,8 @@ public interface Gossip {
      * @param startInput          used to tell gossip to start
      * @param stopInput           used to tell gossip to stop
      * @param clearInput          used to tell gossip to clear its internal state
+     * @param pauseInput          used to tell gossip to pause its activities
+     * @param resumeInput         used to tell gossip to resume its activities
      * @param systemHealthInput   used to tell gossip the health of the system, carries the duration that the system has
      *                            been in an unhealthy state
      * @param platformStatusInput used to tell gossip the status of the platform
@@ -39,6 +41,8 @@ public interface Gossip {
             @NonNull BindableInputWire<NoInput, Void> startInput,
             @NonNull BindableInputWire<NoInput, Void> stopInput,
             @NonNull BindableInputWire<NoInput, Void> clearInput,
+            @NonNull BindableInputWire<NoInput, Void> pauseInput,
+            @NonNull BindableInputWire<NoInput, Void> resumeInput,
             @NonNull BindableInputWire<Duration, Void> systemHealthInput,
             @NonNull BindableInputWire<PlatformStatus, Void> platformStatusInput,
             @NonNull StandardOutputWire<Double> syncLagOutput);
