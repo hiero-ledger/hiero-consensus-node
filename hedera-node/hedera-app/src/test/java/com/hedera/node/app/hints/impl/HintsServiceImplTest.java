@@ -98,6 +98,7 @@ class HintsServiceImplTest {
     @Test
     void delegatesActiveConstruction() {
         given(context.activeConstruction()).willReturn(HintsConstruction.DEFAULT);
+        given(component.signingContext()).willReturn(context);
 
         assertSame(HintsConstruction.DEFAULT, subject.activeConstruction());
     }
@@ -122,6 +123,8 @@ class HintsServiceImplTest {
         given(hintsStore.getOrCreateConstruction(activeRosters, CONSENSUS_NOW, tssConfig))
                 .willReturn(construction);
         given(component.controllers()).willReturn(controllers);
+        given(component.signingContext()).willReturn(context);
+        given(context.activeConstruction()).willReturn(HintsConstruction.DEFAULT);
         given(controllers.getOrCreateFor(activeRosters, construction, hintsStore, HintsConstruction.DEFAULT))
                 .willReturn(controller);
 
@@ -131,6 +134,7 @@ class HintsServiceImplTest {
     }
 
     @Test
+    @SuppressWarnings("unchecked")
     void registersTwoSchemasWhenHintsEnabled() {
         given(component.signingContext()).willReturn(context);
 
