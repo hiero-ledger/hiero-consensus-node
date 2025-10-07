@@ -92,13 +92,13 @@ class ConsensusTests extends PlatformTest {
     }
 
     @ParameterizedTest
-    @MethodSource("com.swirlds.platform.consensus.ConsensusTestArgs#forkingTests")
+    @MethodSource("com.swirlds.platform.consensus.ConsensusTestArgs#branchingTests")
     @Tag(TestComponentTags.PLATFORM)
     @Tag(TestComponentTags.CONSENSUS)
     @DisplayName("Forking Tests")
     void forkingTests(final ConsensusTestParams params) {
         ConsensusTestRunner.create()
-                .setTest(ConsensusTestDefinitions::forkingTests)
+                .setTest(ConsensusTestDefinitions::branchingTests)
                 .setParams(params)
                 .setContexts(contexts())
                 .setIterations(NUM_ITER)
