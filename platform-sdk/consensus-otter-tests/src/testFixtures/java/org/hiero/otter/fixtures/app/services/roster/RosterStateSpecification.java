@@ -10,8 +10,6 @@ import com.swirlds.state.spi.WritableSingletonState;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Set;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.hiero.otter.fixtures.app.state.OtterServiceStateSpecification;
 import org.hiero.otter.fixtures.app.state.OtterStateId;
 
@@ -19,8 +17,6 @@ import org.hiero.otter.fixtures.app.state.OtterStateId;
  * This class defines the state specification for the Platform service.
  */
 public class RosterStateSpecification implements OtterServiceStateSpecification {
-
-    private static final Logger log = LogManager.getLogger();
 
     private static final int ROSTER_STATE_ID = OtterStateId.ROSTER_STATE_STATE_ID.id();
     private static final String ROSTER_STATE_KEY = "ROSTER_STATE";
@@ -46,11 +42,10 @@ public class RosterStateSpecification implements OtterServiceStateSpecification 
      * {@inheritDoc}
      */
     @Override
-    public void initializeState(@NonNull final WritableStates states, @NonNull final SemanticVersion version) {
+    public void setDefaultValues(@NonNull final WritableStates states, @NonNull final SemanticVersion version) {
         final WritableSingletonState<RosterState> rosterState = states.getSingleton(ROSTER_STATE_ID);
         // On genesis, create a default roster state from the genesis network info
         if (rosterState.get() == null) {
-            log.info("Creating default roster state");
             rosterState.put(RosterState.DEFAULT);
         }
     }

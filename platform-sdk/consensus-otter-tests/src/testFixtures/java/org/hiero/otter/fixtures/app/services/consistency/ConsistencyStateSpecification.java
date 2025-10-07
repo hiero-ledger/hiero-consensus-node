@@ -33,7 +33,7 @@ public class ConsistencyStateSpecification implements OtterServiceStateSpecifica
      * {@inheritDoc}
      */
     @Override
-    public void initializeState(@NonNull final WritableStates states, @NonNull final SemanticVersion version) {
+    public void setDefaultValues(@NonNull final WritableStates states, @NonNull final SemanticVersion version) {
         final WritableSingletonState<ConsistencyState> consistencyState = states.getSingleton(STATE_ID);
         if (consistencyState.get() == null) {
             consistencyState.put(ConsistencyState.DEFAULT);

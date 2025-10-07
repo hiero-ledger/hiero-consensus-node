@@ -21,10 +21,12 @@ public interface OtterServiceStateSpecification {
     Set<StateDefinition<?, ?>> statesToCreate();
 
     /**
-     * Initialize the state for this service.
+     * Initialize the default values for the states managed by this service. This is called when the state is
+     * first created during genesis or a restart and can be used to set up any necessary initial state.
+     * The most common use case is to set up singleton states with non-null default values.
      *
      * @param states the writable states to initialize
      * @param version the current software version
      */
-    void initializeState(@NonNull WritableStates states, @NonNull SemanticVersion version);
+    void setDefaultValues(@NonNull WritableStates states, @NonNull SemanticVersion version);
 }

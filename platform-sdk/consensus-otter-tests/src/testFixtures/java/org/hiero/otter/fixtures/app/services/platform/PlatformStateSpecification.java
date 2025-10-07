@@ -35,7 +35,7 @@ public class PlatformStateSpecification implements OtterServiceStateSpecificatio
      * {@inheritDoc}
      */
     @Override
-    public void initializeState(@NonNull final WritableStates states, @NonNull final SemanticVersion version) {
+    public void setDefaultValues(@NonNull final WritableStates states, @NonNull final SemanticVersion version) {
         final WritableSingletonState<PlatformState> singletonState = states.getSingleton(STATE_ID);
         if (singletonState.get() == null) {
             final ConsensusSnapshot consensusSnapshot = ConsensusSnapshot.newBuilder()

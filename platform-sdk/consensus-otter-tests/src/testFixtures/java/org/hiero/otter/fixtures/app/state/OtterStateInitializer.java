@@ -35,8 +35,8 @@ public class OtterStateInitializer {
                 state.initializeState(stateMetadata);
             }
 
-            // set up the initial state for this service
-            specification.initializeState(state.getWritableStates(service.name()), version);
+            // set up the state's default values for this service
+            specification.setDefaultValues(state.getWritableStates(service.name()), version);
         }
         state.commitState();
     }
