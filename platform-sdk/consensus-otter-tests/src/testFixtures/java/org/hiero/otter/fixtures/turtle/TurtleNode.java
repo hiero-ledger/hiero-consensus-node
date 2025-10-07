@@ -199,7 +199,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
             final String eventStreamLoc = selfId.toString();
 
             this.executionLayer =
-                    new OtterExecutionLayer(new Random(randotron.nextLong()), platformContext.getMetrics());
+                    new OtterExecutionLayer(new Random(randotron.nextLong()), platformContext.getMetrics(), time);
 
             final PlatformBuilder platformBuilder = PlatformBuilder.create(
                             OtterApp.APP_NAME,

@@ -18,6 +18,8 @@ import java.time.Duration;
  * @param protocolExpBackoffTimeframeReset if a connection has not been rescheduled during the timeframe, reset the exponential backoff
  * @param highLatencyThreshold threshold above which a block acknowledgement is considered high latency
  * @param highLatencyEventsBeforeSwitching number of consecutive high-latency events before considering switching nodes
+ * @param maxBackoffDelay the maximum backoff delay for exponential backoff
+ * @param grpcOverallTimeout single timeout configuration for gRPC Client construction, connectTimeout, readTimeout and pollWaitTime
  */
 @ConfigData("blockNode")
 public record BlockNodeConnectionConfig(
@@ -30,4 +32,6 @@ public record BlockNodeConnectionConfig(
         @ConfigProperty(defaultValue = "24h") @NodeProperty Duration streamResetPeriod,
         @ConfigProperty(defaultValue = "30s") @NodeProperty Duration protocolExpBackoffTimeframeReset,
         @ConfigProperty(defaultValue = "30s") @NodeProperty Duration highLatencyThreshold,
-        @ConfigProperty(defaultValue = "5") @NodeProperty int highLatencyEventsBeforeSwitching) {}
+        @ConfigProperty(defaultValue = "5") @NodeProperty int highLatencyEventsBeforeSwitching,
+        @ConfigProperty(defaultValue = "10s") @NodeProperty Duration maxBackoffDelay,
+        @ConfigProperty(defaultValue = "30s") @NodeProperty Duration grpcOverallTimeout) {}
