@@ -446,6 +446,11 @@ public class FakePreHandleContext implements PreHandleContext {
     }
 
     @Override
+    public Key getKeyFromAccount(@NonNull AccountID accountID) {
+        throw new UnsupportedOperationException("Not yet implemented");
+    }
+
+    @Override
     public NodeInfo creatorInfo() {
         return FakeNetworkInfo.FAKE_NODE_INFOS.getFirst();
     }

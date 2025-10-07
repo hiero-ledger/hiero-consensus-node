@@ -7,6 +7,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_GOSSIP_CA_CERTI
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_GRPC_CERTIFICATE_HASH;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_NODE_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_NODE_ID;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.UPDATE_NODE_ACCOUNT_NOT_ALLOWED;
 import static com.hedera.node.app.service.addressbook.AddressBookHelper.checkDABEnabled;
 import static com.hedera.node.app.service.addressbook.impl.validators.AddressBookValidator.validateX509Certificate;
@@ -16,9 +17,13 @@ import static com.hedera.node.app.spi.workflows.PreCheckException.validateFalseP
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.addressbook.NodeUpdateTransactionBody;
+import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HederaFunctionality;
+import com.hedera.hapi.node.base.Key;
+import com.hedera.hapi.node.base.KeyList;
 import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.hapi.node.base.SubType;
+import com.hedera.hapi.node.base.ThresholdKey;
 import com.hedera.hapi.node.state.addressbook.Node;
 import com.hedera.node.app.service.addressbook.ReadableNodeStore;
 import com.hedera.node.app.service.addressbook.impl.WritableNodeStore;
@@ -34,6 +39,7 @@ import com.hedera.node.app.spi.workflows.TransactionHandler;
 import com.hedera.node.config.data.NodesConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.Arrays;
 import java.util.Objects;
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -43,6 +49,8 @@ import javax.inject.Singleton;
  */
 @Singleton
 public class NodeUpdateHandler implements TransactionHandler {
+    private static final AccountID SENTINEL_NODE_ACCOUNT_ID =
+            AccountID.newBuilder().shardNum(0).realmNum(0).accountNum(0).build();
     private final AddressBookValidator addressBookValidator;
 
     @Inject
@@ -82,13 +90,29 @@ public class NodeUpdateHandler implements TransactionHandler {
         validateFalsePreCheck(existingNode == null, INVALID_NODE_ID);
         validateFalsePreCheck(existingNode.deleted(), INVALID_NODE_ID);
 
+        // If only removing the account ID, require the existing account or the admin key signature
+        if (config.updateAccountIdAllowed() && onlyRemovesAccountId(op)) {
+            if (existingNode.hasAccountId()) {
+                context.requireKeyOrThrow(
+                        oneOf(existingNode.adminKey(), context.getKeyFromAccount(existingNode.accountIdOrThrow())),
+                        INVALID_SIGNATURE);
+            } else {
+                context.requireKeyOrThrow(existingNode.adminKey(), INVALID_SIGNATURE);
+            }
+            return;
+        }
+
         context.requireKeyOrThrow(existingNode.adminKey(), INVALID_ADMIN_KEY);
         if (op.hasAdminKey()) {
             context.requireKeyOrThrow(op.adminKeyOrThrow(), INVALID_ADMIN_KEY);
         }
         if (config.updateAccountIdAllowed()) {
             if (op.hasAccountId()) {
-                addressBookValidator.validateAccountId(op.accountIdOrThrow());
+                final var newAccountId = op.accountIdOrThrow();
+                if (!newAccountId.equals(SENTINEL_NODE_ACCOUNT_ID)) {
+                    addressBookValidator.validateAccountId(newAccountId);
+                    context.requireKeyOrThrow(newAccountId, INVALID_SIGNATURE);
+                }
             }
         } else {
             validateFalsePreCheck(op.hasAccountId(), UPDATE_NODE_ACCOUNT_NOT_ALLOWED);
@@ -110,9 +134,13 @@ public class NodeUpdateHandler implements TransactionHandler {
         validateFalse(existingNode == null, INVALID_NODE_ID);
         if (op.hasAccountId()) {
             final var accountId = op.accountIdOrThrow();
-            validateTrue(accountStore.contains(accountId), INVALID_NODE_ACCOUNT_ID);
+            if (!accountId.equals(SENTINEL_NODE_ACCOUNT_ID)) {
+                validateTrue(accountStore.contains(accountId), INVALID_NODE_ACCOUNT_ID);
+            }
         }
-        if (op.hasDescription()) addressBookValidator.validateDescription(op.description(), nodeConfig);
+        if (op.hasDescription()) {
+            addressBookValidator.validateDescription(op.description(), nodeConfig);
+        }
         if (!op.gossipEndpoint().isEmpty()) {
             addressBookValidator.validateGossipEndpoint(op.gossipEndpoint(), nodeConfig);
         }
@@ -156,7 +184,11 @@ public class NodeUpdateHandler implements TransactionHandler {
 
         final var nodeBuilder = node.copyBuilder();
         if (op.hasAccountId()) {
-            nodeBuilder.accountId(op.accountId());
+            if (op.accountIdOrThrow().equals(SENTINEL_NODE_ACCOUNT_ID)) {
+                nodeBuilder.accountId((AccountID) null);
+            } else {
+                nodeBuilder.accountId(op.accountId());
+            }
         }
         if (op.hasDescription()) {
             nodeBuilder.description(op.description());
@@ -183,5 +215,32 @@ public class NodeUpdateHandler implements TransactionHandler {
             nodeBuilder.grpcProxyEndpoint(unsetWebProxy ? null : op.grpcProxyEndpoint());
         }
         return nodeBuilder;
+    }
+
+    private boolean onlyRemovesAccountId(@NonNull final NodeUpdateTransactionBody op) {
+        return op.hasAccountId()
+                && op.accountIdOrThrow().equals(SENTINEL_NODE_ACCOUNT_ID)
+                && !op.hasDescription()
+                && !op.hasAdminKey()
+                && op.gossipEndpoint().isEmpty()
+                && op.serviceEndpoint().isEmpty()
+                && !op.hasGossipCaCertificate()
+                && !op.hasGrpcCertificateHash()
+                && !op.hasDeclineReward()
+                && !op.hasGrpcProxyEndpoint();
+    }
+
+    /**
+     * Creates a threshold key with threshold 1 with the given keys.
+     * @param keysRequired keys required
+     * @return threshold key with threshold 1
+     */
+    private static Key oneOf(@NonNull final Key... keysRequired) {
+        return Key.newBuilder()
+                .thresholdKey(ThresholdKey.newBuilder()
+                        .keys(new KeyList(Arrays.asList(keysRequired)))
+                        .threshold(1)
+                        .build())
+                .build();
     }
 }

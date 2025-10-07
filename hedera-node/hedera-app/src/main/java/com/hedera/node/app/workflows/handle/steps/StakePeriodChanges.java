@@ -13,9 +13,13 @@ import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.fees.ExchangeRateManager;
+import com.hedera.node.app.ids.EntityIdService;
+import com.hedera.node.app.ids.ReadableEntityIdStoreImpl;
 import com.hedera.node.app.records.BlockRecordManager;
 import com.hedera.node.app.records.ReadableBlockRecordStore;
 import com.hedera.node.app.roster.RosterService;
+import com.hedera.node.app.service.addressbook.AddressBookService;
+import com.hedera.node.app.service.addressbook.impl.ReadableNodeStoreImpl;
 import com.hedera.node.app.service.token.ReadableStakingInfoStore;
 import com.hedera.node.app.service.token.impl.handlers.staking.EndOfStakingPeriodUpdater;
 import com.hedera.node.app.service.token.records.TokenContext;
@@ -155,6 +159,9 @@ public class StakePeriodChanges {
             }
             try {
                 final var rosterStore = new WritableRosterStore(stack.getWritableStates(RosterService.NAME));
+                final var entityCounters = new ReadableEntityIdStoreImpl(stack.getReadableStates(EntityIdService.NAME));
+                final var nodeStore =
+                        new ReadableNodeStoreImpl(stack.getReadableStates(AddressBookService.NAME), entityCounters);
                 // Unless the candidate roster is for a pending upgrade, we set a new one with the latest weights
                 if (rosterStore.getCandidateRosterHash() == null || rosterStore.candidateIsWeightRotation()) {
                     final var weightFunction = tokenContext
@@ -162,6 +169,7 @@ public class StakePeriodChanges {
                             .weightFunction();
                     final var reweightedRoster =
                             new Roster(requireNonNull(rosterStore.getActiveRoster()).rosterEntries().stream()
+                                    .filter(rosterEntry -> isValidRosterEntry(rosterEntry, nodeStore))
                                     .map(rosterEntry -> rosterEntry
                                             .copyBuilder()
                                             .weight(weightFunction.applyAsLong(rosterEntry.nodeId()))
@@ -177,6 +185,11 @@ public class StakePeriodChanges {
                 stack.rollbackFullStack();
             }
         }
+    }
+
+    private boolean isValidRosterEntry(RosterEntry rosterEntry, ReadableNodeStoreImpl nodeStore) {
+        final var node = nodeStore.get(rosterEntry.nodeId());
+        return node != null && node.accountId() != null;
     }
 
     private boolean isStakingPeriodBoundary(

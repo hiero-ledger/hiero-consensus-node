@@ -20,6 +20,7 @@ import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.viewNode;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.ADDRESS_BOOK_CONTROL;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
@@ -55,9 +56,11 @@ import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.LeakyEmbeddedHapiTest;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
+import com.hederahashgraph.api.proto.java.AccountID;
 import java.security.cert.CertificateEncodingException;
 import java.security.cert.X509Certificate;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -302,6 +305,51 @@ public class NodeUpdateTest {
                     assertEquals(toPbj(updateOp.getAdminKey()), node.adminKey(), "Node adminKey should be updated");
                     assertEquals(toPbj(asAccount(spec, 100)), node.accountId(), "Node accountId should be updated");
                 }))));
+    }
+
+    @LeakyEmbeddedHapiTest(
+            reason = NEEDS_STATE_ACCESS,
+            overrides = {"nodes.updateAccountIdAllowed"})
+    final Stream<DynamicTest> updateAccountIdWithSentinelRequiredSignatures() {
+        final AccountID sentinelValue = AccountID.newBuilder()
+                .setShardNum(0)
+                .setRealmNum(0)
+                .setAccountNum(0)
+                .build();
+        final AtomicReference<AccountID> initialNodeAccountId = new AtomicReference<>();
+        return hapiTest(
+                overriding("nodes.updateAccountIdAllowed", "true"),
+                newKeyNamed("adminKey"),
+                cryptoCreate("initialNodeAccount").exposingCreatedIdTo(initialNodeAccountId::set),
+                sourcing(() -> {
+                    try {
+                        return nodeCreate("testNode")
+                                .accountId(initialNodeAccountId.get())
+                                .adminKey("adminKey")
+                                .gossipCaCertificate(
+                                        gossipCertificates.getFirst().getEncoded());
+                    } catch (CertificateEncodingException e) {
+                        throw new RuntimeException(e);
+                    }
+                }),
+                // no admin key or old node account key, so fails
+                nodeUpdate("testNode")
+                        .fullAccountId(sentinelValue)
+                        .payingWith(DEFAULT_PAYER)
+                        .signedBy(DEFAULT_PAYER)
+                        .hasPrecheck(INVALID_SIGNATURE),
+                // signed by old node account key, so works
+                nodeUpdate("testNode")
+                        .fullAccountId(sentinelValue)
+                        .payingWith(DEFAULT_PAYER)
+                        .signedByPayerAnd("initialNodeAccount"),
+                viewNode("testNode", node -> assertNull(node.accountId())),
+                // signed by admin key so works
+                nodeUpdate("testNode")
+                        .fullAccountId(sentinelValue)
+                        .payingWith(DEFAULT_PAYER)
+                        .signedByPayerAnd("adminKey"),
+                viewNode("testNode", node -> assertNull(node.accountId())));
     }
 
     @HapiTest
