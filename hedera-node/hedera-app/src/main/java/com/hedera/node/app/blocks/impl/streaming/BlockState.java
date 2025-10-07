@@ -21,6 +21,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.block.api.BlockEnd;
 import org.hiero.block.api.BlockItemSet;
 import org.hiero.block.api.PublishStreamRequest;
 
@@ -292,6 +293,7 @@ public class BlockState {
         final Iterator<BlockItem> it = pendingItems.iterator();
 
         boolean forceCreation = false;
+        boolean sendEndOfBlock = false;
         while (it.hasNext()) {
             final BlockItem item = it.next();
             blockItems.add(item);
@@ -320,6 +322,8 @@ public class BlockState {
             } else if (item.hasBlockProof()) {
                 if (proofItemInfo.packedInRequest(index)) {
                     forceCreation = true;
+                    // send end of block request if the proof is packed
+                    sendEndOfBlock = true;
                     logger.trace("[Block {}] Block proof packed in request #{}", blockNumber, index);
                 } else {
                     logger.warn(
@@ -343,6 +347,16 @@ public class BlockState {
         requestsByIndex.put(index, rs);
 
         logger.trace("[Block {}] Created new request (index={}, numItems={})", blockNumber, index, blockItems.size());
+
+        if (sendEndOfBlock) {
+            final var eobRequest = PublishStreamRequest.newBuilder()
+                    .endOfBlock(BlockEnd.newBuilder().blockNumber(blockNumber))
+                    .build();
+            final var eobRequestIndex = requestIdxCtr.getAndIncrement();
+            final RequestWrapper rsEnd = new RequestWrapper(eobRequestIndex, eobRequest, new AtomicBoolean(false));
+            requestsByIndex.put(eobRequestIndex, rsEnd);
+            logger.trace("[Block {}] Created new request (index={}, BlockEnd)", blockNumber, eobRequestIndex);
+        }
 
         if (!pendingItems.isEmpty()) {
             processPendingItems(batchSize);
