@@ -46,13 +46,17 @@ public class BlockBufferIO {
      */
     private final File rootDirectory;
 
+    private final int maxReadSize;
+
     /**
      * Constructor for the block buffer IO operations.
      *
      * @param rootDirectory the root directory that will contain subdirectories containing the block files.
+     * @param maxReadSize the max allowed read size of a protobuf block in bytes
      */
-    public BlockBufferIO(final String rootDirectory) {
+    public BlockBufferIO(final String rootDirectory, final int maxReadSize) {
         this.rootDirectory = new File(requireNonNull(rootDirectory));
+        this.maxReadSize = maxReadSize;
     }
 
     /**
@@ -80,6 +84,7 @@ public class BlockBufferIO {
      * Utility class that contains logic related to reading blocks from disk.
      */
     private class Reader {
+        private static final int MAX_READ_DEPTH = 16;
 
         private List<BufferedBlock> read() throws IOException {
             final File[] files = rootDirectory.listFiles();
@@ -176,7 +181,8 @@ public class BlockBufferIO {
                 byteBuffer.get(payload);
                 final Bytes bytes = Bytes.wrap(payload);
 
-                return BufferedBlock.PROTOBUF.parse(bytes);
+                return BufferedBlock.PROTOBUF.parse(
+                        bytes.toReadableSequentialData(), false, false, MAX_READ_DEPTH, maxReadSize);
             }
         }
     }

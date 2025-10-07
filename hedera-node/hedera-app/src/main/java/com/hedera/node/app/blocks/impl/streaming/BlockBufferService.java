@@ -139,7 +139,7 @@ public class BlockBufferService {
             @NonNull final ConfigProvider configProvider, @NonNull final BlockStreamMetrics blockStreamMetrics) {
         this.configProvider = configProvider;
         this.blockStreamMetrics = blockStreamMetrics;
-        this.bufferIO = new BlockBufferIO(bufferDirectory());
+        this.bufferIO = new BlockBufferIO(bufferDirectory(), maxReadSize());
 
         final BlockStreamConfig blockStreamConfig =
                 configProvider.getConfiguration().getConfigData(BlockStreamConfig.class);
@@ -277,6 +277,18 @@ public class BlockBufferService {
                 .getConfiguration()
                 .getConfigData(BlockBufferConfig.class)
                 .bufferDirectory();
+    }
+
+    /**
+     * @return the max read size of a block protobuf <b>in bytes</b>
+     */
+    private int maxReadSize() {
+        return configProvider
+                        .getConfiguration()
+                        .getConfigData(BlockBufferConfig.class)
+                        .maxReadSizeMb()
+                * 1024
+                * 1024;
     }
 
     /**
