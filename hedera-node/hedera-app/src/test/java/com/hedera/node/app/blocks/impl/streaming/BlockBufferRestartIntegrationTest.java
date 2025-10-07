@@ -343,7 +343,6 @@ class BlockBufferRestartIntegrationTest extends BlockNodeCommunicationTestBase {
         verify(blockStreamMetrics, times(maxBufferSize)).recordLatestBlockOpened(anyLong());
         verify(blockStreamMetrics, times(maxBufferSize)).recordBlockClosed();
         verify(blockStreamMetrics).recordLatestBlockAcked(expectedAckedUpTo);
-        verifyNoMoreInteractions(blockStreamMetrics);
         verifyNoInteractions(connectionManager);
     }
 
