@@ -207,19 +207,70 @@ message BlockItem {
         com.hedera.hapi.block.stream.output.StateChanges state_changes = 7;
 
         /**
-         * TODO
+         * Verification data for an item filtered from the stream.<br/>
+         * This is a hash for a merkle tree node where the contents of that
+         * part of the merkle tree have been removed from this stream.
+         * <p>
+         * Items of this type SHALL NOT be present in the full (unfiltered)
+         * block stream.<br/>
+         * Items of this type SHALL replace any item removed from a partial
+         * (filtered) block stream.<br/>
+         * Presence of `filtered_item` entries SHALL NOT prevent verification
+         * of a block, but MAY preclude verification or reconstruction of
+         * consensus state.<br/>
          */
-        FilteredSingleItem filtered_single_item = 8;
+        FilteredItemHash filtered_item_hash = 8;
 
         /**
-         * TODO
+         * A signed block proof.<br/>
+         * The signed merkle proof for this block. This will validate
+         * a "virtual" merkle tree containing the previous block "virtual"
+         * root, an "input" subtree, an "output" subtree, and
+         * a "state changes" subtree.
+         * <p>
+         * This item is not part of the block stream hash chain/tree, and
+         * MUST follow after the end of a block.
          */
-        com.hedera.hapi.block.stream.output.BlockFooter block_footer = 9;
+        BlockProof block_proof = 9;
 
         /**
-         * TODO
+         * A record file and associated data.
+         * <p>
+         * This MUST contain a single Record file, associated Sidecar files,
+         * and data from related Signature files.
+         * If this item is present, special treatment is
+         * REQUIRED for this block.
+         * <ul>
+         *   <li>The block SHALL NOT have a `BlockHeader`.</li>
+         *   <li>The block SHALL NOT have a `BlockProof`.</li>
+         *   <li>The block SHALL contain _exactly one_ `RecordFileItem`.</li>
+         *   <li>The block SHALL NOT contain any item other than a
+         *       `RecordFileItem`.</li>
+         *   <li>The content of the `RecordFileItem` MUST be validated using
+         *       the signature data and content provided within according to
+         *       the process used for Record Files prior to the creation
+         *       of Block Stream.</li>
+         * </ul>
          */
-        BlockProof block_proof = 10;
+        RecordFileItem record_file = 10;
+
+        /**
+         * A trace data.
+         * <p>
+         * Any informational trace data MAY be described by
+         * stream items of this type.<br/>
+         */
+        com.hedera.hapi.block.stream.trace.TraceData trace_data = 11;
+
+      /**
+       * TODO
+       */
+      FilteredSingleItem filtered_single_item = 20;
+
+      /**
+       * TODO
+       */
+      com.hedera.hapi.block.stream.output.BlockFooter block_footer = 21;
     }
 }
 
@@ -253,6 +304,28 @@ enum SubMerkleTree {
  * of a block, but MAY preclude verification or reconstruction
  * of consensus state.<br/>
  */
+message FilteredItemHash {
+  /**
+   * A hash of an item filtered from the stream.
+   * <p>
+   * The hash algorithm used MUST match the hash algorithm specified in
+   * the block header for the containing block.<br/>
+   * This field is REQUIRED.
+   */
+  bytes item_hash = 1;
+
+  /**
+   * A record of the merkle path to the item that was filtered
+   * from the stream.<br/>
+   * This path begins at the root of the block proof merkle tree.
+   * <p>
+   * This REQUIRED field SHALL describe the full path in the virtual
+   * merkle tree constructed for the block proof that contained the
+   * item filtered from the stream.
+   */
+  uint64 filtered_path = 3;
+}
+
 message FilteredSingleItem {
   /**
    * A hash of an item filtered from the stream.
