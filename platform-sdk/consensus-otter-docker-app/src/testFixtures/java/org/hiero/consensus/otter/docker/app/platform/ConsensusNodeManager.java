@@ -101,7 +101,7 @@ public class ConsensusNodeManager {
 
         initLogging();
         BootstrapUtils.setupConstructableRegistry();
-        TestingAppStateInitializer.registerMerkleStateRootClassIds();
+        TestingAppStateInitializer.registerConstructablesForStorage(platformConfig);
 
         final var legacySelfId = org.hiero.consensus.model.node.NodeId.of(selfId.id());
 

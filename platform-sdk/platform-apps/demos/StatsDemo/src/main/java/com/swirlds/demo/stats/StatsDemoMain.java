@@ -13,6 +13,7 @@ package com.swirlds.demo.stats;
 
 import static com.swirlds.base.units.UnitConstants.NANOSECONDS_TO_SECONDS;
 import static com.swirlds.common.threading.manager.AdHocThreadManager.getStaticThreadManager;
+import static com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer.registerConstructablesForStorage;
 import static com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer.registerMerkleStateRootClassIds;
 
 import com.hedera.hapi.node.base.SemanticVersion;
@@ -68,6 +69,7 @@ public class StatsDemoMain extends DefaultSwirldMain<StatsDemoState> {
                 return statsDemoState;
             }));
             registerMerkleStateRootClassIds();
+            registerConstructablesForStorage(CONFIGURATION);
         } catch (final ConstructableRegistryException e) {
             throw new RuntimeException(e);
         }

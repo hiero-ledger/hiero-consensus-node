@@ -14,7 +14,7 @@ import static com.swirlds.platform.state.snapshot.SignedStateFileWriter.writeSig
 import static com.swirlds.platform.state.snapshot.SignedStateFileWriter.writeSignedStateToDisk;
 import static com.swirlds.platform.test.fixtures.config.ConfigUtils.CONFIGURATION;
 import static com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade.TEST_PLATFORM_STATE_FACADE;
-import static com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer.registerMerkleStateRootClassIds;
+import static com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer.registerConstructablesForStorage;
 import static java.nio.file.Files.exists;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -71,7 +71,7 @@ class SignedStateFileReadWriteTest {
         registry.registerConstructables("com.swirlds.state");
         registry.registerConstructables("com.swirlds.virtualmap");
         registry.registerConstructables("com.swirlds.merkledb");
-        registerMerkleStateRootClassIds();
+        registerConstructablesForStorage(CONFIGURATION);
         stateFacade = new PlatformStateFacade();
     }
 
