@@ -22,7 +22,6 @@ import com.hedera.services.bdd.junit.OrderedInIsolation;
 import com.hedera.services.bdd.junit.hedera.BlockNodeMode;
 import com.hedera.services.bdd.junit.hedera.NodeSelector;
 import com.hedera.services.bdd.spec.utilops.FakeNmt;
-
 import java.time.Duration;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
@@ -123,25 +122,25 @@ public class NodeDeathReconnectBlockNodeSuite {
 
     private Stream<DynamicTest> nodeDeathTestSteps() {
         return hapiTest(
-                        // Validate we can initially submit transactions to node2
-                        cryptoCreate("nobody").setNode("5"),
-                        // Run some mixed transactions
-                        burstOfTps(MIXED_OPS_BURST_TPS, MIXED_OPS_BURST_DURATION),
-                        // Stop node 2
-                        FakeNmt.shutdownWithin(NodeSelector.byNodeId(2), SHUTDOWN_TIMEOUT),
-                        logIt("Node 2 is supposedly down"),
-                        sleepFor(PORT_UNBINDING_WAIT_PERIOD.toMillis()),
-                        // Submit operations when node 2 is down
-                        burstOfTps(MIXED_OPS_BURST_TPS, MIXED_OPS_BURST_DURATION),
-                        // Restart node2
-                        FakeNmt.restartNode(NodeSelector.byNodeId(2) /*, CURRENT_CONFIG_VERSION.get()*/),
-                        // Wait for node2 ACTIVE (BUSY and RECONNECT_COMPLETE are too transient to reliably poll for)
-                        waitForActive(NodeSelector.byNodeId(2), RESTART_TO_ACTIVE_TIMEOUT),
-                        // Run some more transactions
-                        burstOfTps(MIXED_OPS_BURST_TPS, MIXED_OPS_BURST_DURATION),
-                        // And validate we can still submit transactions to node2
-                        cryptoCreate("somebody").setNode("5"),
-                        burstOfTps(MIXED_OPS_BURST_TPS, Duration.ofSeconds(60)),
-                        assertHgcaaLogDoesNotContain(byNodeId(0), "ERROR ", Duration.ofSeconds(5)));
+                // Validate we can initially submit transactions to node2
+                cryptoCreate("nobody").setNode("5"),
+                // Run some mixed transactions
+                burstOfTps(MIXED_OPS_BURST_TPS, MIXED_OPS_BURST_DURATION),
+                // Stop node 2
+                FakeNmt.shutdownWithin(NodeSelector.byNodeId(2), SHUTDOWN_TIMEOUT),
+                logIt("Node 2 is supposedly down"),
+                sleepFor(PORT_UNBINDING_WAIT_PERIOD.toMillis()),
+                // Submit operations when node 2 is down
+                burstOfTps(MIXED_OPS_BURST_TPS, MIXED_OPS_BURST_DURATION),
+                // Restart node2
+                FakeNmt.restartNode(NodeSelector.byNodeId(2) /*, CURRENT_CONFIG_VERSION.get()*/),
+                // Wait for node2 ACTIVE (BUSY and RECONNECT_COMPLETE are too transient to reliably poll for)
+                waitForActive(NodeSelector.byNodeId(2), RESTART_TO_ACTIVE_TIMEOUT),
+                // Run some more transactions
+                burstOfTps(MIXED_OPS_BURST_TPS, MIXED_OPS_BURST_DURATION),
+                // And validate we can still submit transactions to node2
+                cryptoCreate("somebody").setNode("5"),
+                burstOfTps(MIXED_OPS_BURST_TPS, Duration.ofSeconds(60)),
+                assertHgcaaLogDoesNotContain(byNodeId(0), "ERROR ", Duration.ofSeconds(5)));
     }
 }
