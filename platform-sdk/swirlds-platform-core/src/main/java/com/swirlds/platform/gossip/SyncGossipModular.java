@@ -45,7 +45,6 @@ import com.swirlds.platform.state.SwirldStateManager;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.SignedState;
-import com.swirlds.platform.system.status.StatusActionSubmitter;
 import com.swirlds.platform.wiring.NoInput;
 import com.swirlds.platform.wiring.components.Gossip;
 import com.swirlds.state.MerkleNodeState;
@@ -100,12 +99,12 @@ public class SyncGossipModular implements Gossip {
      * @param appVersion                    the version of the app
      * @param swirldStateManager            manages the mutable state
      * @param latestCompleteState           holds the latest signed state that has enough signatures to be verifiable
-     * @param statusActionSubmitter         for submitting updates to the platform status manager
      * @param loadReconnectState            a method that should be called when a state from reconnect is obtained
      * @param clearAllPipelinesForReconnect this method should be called to clear all pipelines prior to a reconnect
      * @param intakeEventCounter            keeps track of the number of events in the intake pipeline from each peer
      * @param platformStateFacade           the facade to access the platform state
      * @param createStateFromVirtualMap     a function to instantiate the state object from a Virtual Map
+     * @param fallenBehindMonitor           an instance of the FallenBehindMonitor
      */
     public SyncGossipModular(
             @NonNull final PlatformContext platformContext,
@@ -116,12 +115,12 @@ public class SyncGossipModular implements Gossip {
             @NonNull final SemanticVersion appVersion,
             @NonNull final SwirldStateManager swirldStateManager,
             @NonNull final Supplier<ReservedSignedState> latestCompleteState,
-            @NonNull final StatusActionSubmitter statusActionSubmitter,
             @NonNull final Consumer<SignedState> loadReconnectState,
             @NonNull final Runnable clearAllPipelinesForReconnect,
             @NonNull final IntakeEventCounter intakeEventCounter,
             @NonNull final PlatformStateFacade platformStateFacade,
-            @NonNull final Function<VirtualMap, MerkleNodeState> createStateFromVirtualMap) {
+            @NonNull final Function<VirtualMap, MerkleNodeState> createStateFromVirtualMap,
+            @NonNull final FallenBehindMonitor fallenBehindMonitor) {
 
         final RosterEntry selfEntry = RosterUtils.getRosterEntry(roster, selfId.id());
         final X509Certificate selfCert = RosterUtils.fetchGossipCaCertificate(selfEntry);
@@ -142,11 +141,7 @@ public class SyncGossipModular implements Gossip {
 
         this.network = new PeerCommunication(platformContext, peers, selfPeer, ownKeysAndCerts);
 
-        this.fallenBehindMonitor = new FallenBehindMonitor(
-                selfId,
-                peers.size(),
-                statusActionSubmitter,
-                platformContext.getConfiguration().getConfigData(ReconnectConfig.class));
+        this.fallenBehindMonitor = fallenBehindMonitor;
 
         final ProtocolConfig protocolConfig = platformContext.getConfiguration().getConfigData(ProtocolConfig.class);
 
@@ -160,7 +155,7 @@ public class SyncGossipModular implements Gossip {
                     rosterSize,
                     syncMetrics,
                     event -> receivedEventHandler.accept(event),
-                    fallenBehindMonitor,
+                    this.fallenBehindMonitor,
                     intakeEventCounter,
                     selfId,
                     lag -> syncLagHandler.accept(lag));
@@ -185,7 +180,7 @@ public class SyncGossipModular implements Gossip {
                     rosterSize,
                     syncMetrics,
                     event -> receivedEventHandler.accept(event),
-                    fallenBehindMonitor,
+                    this.fallenBehindMonitor,
                     intakeEventCounter,
                     new CachedPoolParallelExecutor(threadManager, "node-sync"),
                     lag -> syncLagHandler.accept(lag));
@@ -195,7 +190,7 @@ public class SyncGossipModular implements Gossip {
             this.syncProtocol = SyncProtocol.create(
                     platformContext,
                     shadowgraphSynchronizer,
-                    fallenBehindMonitor,
+                    this.fallenBehindMonitor,
                     intakeEventCounter,
                     rosterSize,
                     syncMetrics);
@@ -205,7 +200,7 @@ public class SyncGossipModular implements Gossip {
                 HeartbeatProtocol.create(platformContext, this.network.getNetworkMetrics()),
                 createReconnectProtocol(
                         platformContext,
-                        fallenBehindMonitor,
+                        this.fallenBehindMonitor,
                         threadManager,
                         latestCompleteState,
                         roster,
@@ -298,7 +293,7 @@ public class SyncGossipModular implements Gossip {
                 swirldStateManager::getConsensusState,
                 state -> {
                     loadReconnectState.accept(state);
-                    fallenBehindManager.resetFallenBehind(); // this is almost direct communication to SyncProtocol
+                    fallenBehindManager.reset(); // this is almost direct communication to SyncProtocol
                 },
                 platformContext.getMerkleCryptography());
 
@@ -335,7 +330,7 @@ public class SyncGossipModular implements Gossip {
      */
     public void addRemovePeers(@NonNull final List<PeerInfo> added, @NonNull final List<PeerInfo> removed) {
         synchronized (this) {
-            fallenBehindMonitor.addRemovePeers(
+            fallenBehindMonitor.update(
                     added.stream().map(PeerInfo::nodeId).collect(Collectors.toSet()),
                     removed.stream().map(PeerInfo::nodeId).collect(Collectors.toSet()));
             syncProtocol.adjustTotalPermits(added.size() - removed.size());

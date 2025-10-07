@@ -217,7 +217,7 @@ class SyncPeerProtocolFactoryTests {
                 sleepAfterSync,
                 syncMetrics,
                 ROSTER_SIZE);
-        syncProtocol.updatePlatformStatus(ACTIVE);
+        syncProtocol.updatePlatformStatus(BEHIND);
         final PeerProtocol peerProtocol = syncProtocol.createPeerInstance(peerId);
 
         assertEquals(2, countAvailablePermits(syncProtocol.getPermitProvider()));
@@ -414,6 +414,7 @@ class SyncPeerProtocolFactoryTests {
         final PeerProtocol peerProtocol = syncProtocol.createPeerInstance(peerId);
 
         assertEquals(2, countAvailablePermits(syncProtocol.getPermitProvider()));
+        syncProtocol.updatePlatformStatus(BEHIND);
         assertFalse(peerProtocol.shouldAccept());
         assertEquals(2, countAvailablePermits(syncProtocol.getPermitProvider()));
     }

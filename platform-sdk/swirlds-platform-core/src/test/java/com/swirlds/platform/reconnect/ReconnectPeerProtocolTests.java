@@ -151,7 +151,7 @@ class ReconnectPeerProtocolTests {
                 .toList();
 
         final FallenBehindMonitor fallenBehindManager = mock(FallenBehindMonitor.class);
-        when(fallenBehindManager.shouldReconnectFrom(any()))
+        when(fallenBehindManager.wasReportedByPeer(any()))
                 .thenAnswer(a -> neighborsForReconnect.contains(a.getArgument(0, NodeId.class)));
 
         final PlatformContext platformContext =
@@ -220,7 +220,7 @@ class ReconnectPeerProtocolTests {
     @Test
     void testPermitReleased() throws InterruptedException {
         final FallenBehindMonitor fallenBehindManager = mock(FallenBehindMonitor.class);
-        when(fallenBehindManager.shouldReconnectFrom(any())).thenReturn(false);
+        when(fallenBehindManager.wasReportedByPeer(any())).thenReturn(false);
 
         var networkHelper = new ReconnectSyncHelper(
                 mock(Supplier.class),
@@ -352,7 +352,7 @@ class ReconnectPeerProtocolTests {
 
         final FallenBehindMonitor fallenBehindManager = mock(FallenBehindMonitor.class);
         when(fallenBehindManager.hasFallenBehind()).thenReturn(true);
-        when(fallenBehindManager.shouldReconnectFrom(any())).thenReturn(true);
+        when(fallenBehindManager.wasReportedByPeer(any())).thenReturn(true);
 
         final PlatformContext platformContext =
                 TestPlatformContextBuilder.create().build();

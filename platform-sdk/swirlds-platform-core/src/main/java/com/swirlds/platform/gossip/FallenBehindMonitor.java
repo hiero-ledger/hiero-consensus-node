@@ -3,8 +3,11 @@ package com.swirlds.platform.gossip;
 
 import static com.swirlds.metrics.api.Metrics.INTERNAL_CATEGORY;
 
+import com.google.common.annotations.VisibleForTesting;
+import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.common.merkle.synchronization.config.ReconnectConfig;
 import com.swirlds.common.metrics.FunctionGauge;
+import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.system.status.StatusActionSubmitter;
 import com.swirlds.platform.system.status.actions.FallenBehindAction;
@@ -32,39 +35,37 @@ public class FallenBehindMonitor {
     /**
      * Enables submitting platform status actions
      */
-    private final StatusActionSubmitter statusActionSubmitter;
+    private StatusActionSubmitter statusActionSubmitter;
 
     private final ReconnectConfig config;
     private boolean previouslyFallenBehind;
 
     public FallenBehindMonitor(
-            @NonNull final NodeId selfId,
-            final int numNeighbors,
-            @NonNull final StatusActionSubmitter statusActionSubmitter,
-            @NonNull final ReconnectConfig config) {
-        Objects.requireNonNull(selfId, "selfId");
+            @NonNull final Roster roster, @NonNull final Configuration config, @NonNull final Metrics metrics) {
+        this(roster.rosterEntries().size() - 1, config, metrics);
+    }
 
+    @VisibleForTesting
+    protected FallenBehindMonitor(
+            int numNeighbors, @NonNull final Configuration config, @NonNull final Metrics metrics) {
         this.numNeighbors = numNeighbors;
+        this.config = Objects.requireNonNull(config, "config must not be null").getConfigData(ReconnectConfig.class);
 
-        this.statusActionSubmitter = Objects.requireNonNull(statusActionSubmitter);
-        this.config = Objects.requireNonNull(config, "config must not be null");
-        final Metrics metrics = null; // TODO
         metrics.getOrCreate(
                 new FunctionGauge.Config<>(INTERNAL_CATEGORY, "hasFallenBehind", Object.class, this::hasFallenBehind)
                         .withDescription("has this node fallen behind?"));
         metrics.getOrCreate(new FunctionGauge.Config<>(
-                        INTERNAL_CATEGORY, "numReportFallenBehind", Integer.class, this::numReportedFallenBehind)
+                        INTERNAL_CATEGORY, "numReportFallenBehind", Integer.class, this::reportedSize)
                 .withDescription("the number of nodes that have fallen behind")
                 .withUnit("count"));
     }
-
     /**
      * Notify the fallen behind manager that a node has reported that they don't have events we need. This means we have
      * probably fallen behind and will need to reconnect
      *
      * @param id the id of the node who says we have fallen behind
      */
-    public synchronized void reportFallenBehind(@NonNull final NodeId id) {
+    public synchronized void report(@NonNull final NodeId id) {
         if (reportFallenBehind.add(id)) {
             checkAndNotifyFallingBehind();
         }
@@ -76,11 +77,16 @@ public class FallenBehindMonitor {
      *
      * @param id the id of the node who is providing us with up to date events
      */
-    public synchronized void clearFallenBehind(@NonNull final NodeId id) {
+    public synchronized void clear(@NonNull final NodeId id) {
         reportFallenBehind.remove(id);
     }
 
-    private void checkAndNotifyFallingBehind() {
+    /**
+     * Notify the fallen behind manager that a node has reported that they don't have events we need. This means we have
+     * probably fallen behind and will need to reconnect
+     *
+     */
+    public synchronized void checkAndNotifyFallingBehind() {
         if (!previouslyFallenBehind && hasFallenBehind()) {
             statusActionSubmitter.submitStatusAction(new FallenBehindAction());
             previouslyFallenBehind = true;
@@ -93,7 +99,7 @@ public class FallenBehindMonitor {
      * @param added   node ids which were added from the roster
      * @param removed node ids which were removed from the roster
      */
-    public synchronized void addRemovePeers(@NonNull final Set<NodeId> added, @NonNull final Set<NodeId> removed) {
+    public synchronized void update(@NonNull final Set<NodeId> added, @NonNull final Set<NodeId> removed) {
         Objects.requireNonNull(added);
         Objects.requireNonNull(removed);
 
@@ -121,7 +127,7 @@ public class FallenBehindMonitor {
      * @param peerId the ID of the neighbor
      * @return true if I should attempt a reconnect
      */
-    public boolean shouldReconnectFrom(@NonNull final NodeId peerId) {
+    public boolean wasReportedByPeer(@NonNull final NodeId peerId) {
         if (!hasFallenBehind()) {
             return false;
         }
@@ -135,7 +141,7 @@ public class FallenBehindMonitor {
      * We have determined that we have not fallen behind, or we have reconnected, so reset everything to the initial
      * state
      */
-    public synchronized void resetFallenBehind() {
+    public synchronized void reset() {
         reportFallenBehind.clear();
         previouslyFallenBehind = false;
     }
@@ -143,7 +149,11 @@ public class FallenBehindMonitor {
     /**
      * @return the number of nodes that have told us we have fallen behind
      */
-    public synchronized int numReportedFallenBehind() {
+    public synchronized int reportedSize() {
         return reportFallenBehind.size();
+    }
+
+    public void bind(StatusActionSubmitter statusActionSubmitter) {
+        this.statusActionSubmitter = Objects.requireNonNull(statusActionSubmitter);
     }
 }

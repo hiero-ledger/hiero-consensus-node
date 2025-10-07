@@ -10,6 +10,7 @@ import com.swirlds.common.notification.NotificationEngine;
 import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.platform.event.preconsensus.PcesFileTracker;
 import com.swirlds.platform.freeze.FreezeCheckHolder;
+import com.swirlds.platform.gossip.FallenBehindMonitor;
 import com.swirlds.platform.gossip.IntakeEventCounter;
 import com.swirlds.platform.scratchpad.Scratchpad;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
@@ -86,6 +87,7 @@ import org.hiero.consensus.roster.RosterHistory;
  * @param execution                              the instance of the execution layer, which allows consensus to interact
  *                                               with the execution layer
  * @param createStateFromVirtualMap              a function to instantiate the state object from a Virtual Map
+ * @param fallenBehindMonitor                    an instance of the fallenBehind Monitor
  */
 public record PlatformBuildingBlocks(
         @NonNull PlatformComponents platformComponents,
@@ -118,8 +120,8 @@ public record PlatformBuildingBlocks(
         @NonNull ConsensusStateEventHandler consensusStateEventHandler,
         @NonNull PlatformStateFacade platformStateFacade,
         @NonNull ExecutionLayer execution,
-        @NonNull Function<VirtualMap, MerkleNodeState> createStateFromVirtualMap) {
-
+        @NonNull Function<VirtualMap, MerkleNodeState> createStateFromVirtualMap,
+        @NonNull FallenBehindMonitor fallenBehindMonitor) {
     public PlatformBuildingBlocks {
         requireNonNull(platformComponents);
         requireNonNull(platformContext);
@@ -149,5 +151,6 @@ public record PlatformBuildingBlocks(
         requireNonNull(platformStateFacade);
         requireNonNull(execution);
         requireNonNull(createStateFromVirtualMap);
+        requireNonNull(fallenBehindMonitor);
     }
 }
