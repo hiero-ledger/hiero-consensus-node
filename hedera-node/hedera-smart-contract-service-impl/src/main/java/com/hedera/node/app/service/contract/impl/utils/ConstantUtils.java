@@ -18,10 +18,9 @@ public class ConstantUtils {
             AccountID.newBuilder().accountNum(0).build();
     public static final ContractID ZERO_CONTRACT_ID =
             ContractID.newBuilder().contractNum(0).build();
-    public static final ContractID EVM_ZERO_CONTRACT_ID =
-            ContractID.newBuilder()
-                    .evmAddress(Bytes.wrap(ZERO_ADDRESS_BYTE_ARRAY))
-                    .build();
+    public static final ContractID EVM_ZERO_CONTRACT_ID = ContractID.newBuilder()
+            .evmAddress(Bytes.wrap(ZERO_ADDRESS_BYTE_ARRAY))
+            .build();
     public static final TokenID ZERO_TOKEN_ID = TokenID.newBuilder().tokenNum(0).build();
     public static final Fraction ZERO_FRACTION = new Fraction(0, 1);
     public static final FixedFee ZERO_FIXED_FEE = new FixedFee(0, null);
