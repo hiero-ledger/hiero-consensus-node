@@ -115,7 +115,7 @@ class BlockStreamManagerImplTest {
     private static final BlockItem FAKE_STATE_CHANGES = BlockItem.newBuilder()
             .stateChanges(StateChanges.newBuilder().consensusTimestamp(CONSENSUS_THEN))
             .build();
-	// TODO: remove, or replace with wrapped record file item
+    // TODO: remove, or replace with wrapped record file item
     private static final BlockItem FAKE_RECORD_FILE_ITEM = null;
     private final InitialStateHash hashInfo = new InitialStateHash(completedFuture(ZERO_BLOCK_HASH), 0);
 
