@@ -11,7 +11,7 @@ import com.hedera.hapi.node.base.KeyList;
 import com.hedera.hapi.node.base.ThresholdKey;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.token.Account;
-import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.ReturnTypes;
+import com.hedera.node.app.service.contract.impl.utils.ConstantUtils;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.spi.fixtures.TransactionFactory;
 import com.hedera.node.app.spi.workflows.PreCheckException;
@@ -95,10 +95,6 @@ public class ContractHandlerTestBase implements TransactionFactory {
             ContractID.newBuilder().contractNum(9_999L).build();
     protected final ContractID invalidContract =
             ContractID.newBuilder().evmAddress(Bytes.fromHex("abcdabcd")).build();
-    protected final ContractID zeroContract = ReturnTypes.ZERO_CONTRACT_ID;
-    protected final ContractID emvZeroContract = ContractID.newBuilder()
-            .evmAddress(Bytes.fromHex("0000000000000000000000000000000000000000"))
-            .build();
 
     @Mock
     private Bytes evmAddress;

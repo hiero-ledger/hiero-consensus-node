@@ -16,8 +16,8 @@ import com.hedera.node.app.hapi.utils.fee.SigValueObj;
 import com.hedera.node.app.hapi.utils.fee.SmartContractFeeBuilder;
 import com.hedera.node.app.service.contract.impl.ContractServiceComponent;
 import com.hedera.node.app.service.contract.impl.exec.TransactionComponent;
-import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.ReturnTypes;
 import com.hedera.node.app.service.contract.impl.records.ContractCallStreamBuilder;
+import com.hedera.node.app.service.contract.impl.utils.ConstantUtils;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
@@ -84,13 +84,13 @@ public class ContractCallHandler extends AbstractContractTransactionHandler {
                 // In the EVM, call to zero address means contract deploy and we are not supporting contract deploy from
                 // contract call
                 validateFalsePreCheck(
-                        Arrays.equals(ReturnTypes.ZERO_ADDRESS_BYTE_ARRAY, evmAddress.toByteArray()),
+                        Arrays.equals(ConstantUtils.ZERO_ADDRESS_BYTE_ARRAY, evmAddress.toByteArray()),
                         INVALID_CONTRACT_ID);
             } else if (op.contractID().hasContractNum()) {
                 final var contractId = op.contractID();
                 // In the EVM, call to zero address means contract deploy and we are not supporting contract deploy from
                 // contract call
-                validateFalsePreCheck(ReturnTypes.ZERO_CONTRACT_ID.equals(contractId), INVALID_CONTRACT_ID);
+                validateFalsePreCheck(ConstantUtils.ZERO_CONTRACT_ID.equals(contractId), INVALID_CONTRACT_ID);
             }
 
             // TODO: Revisit baselineGas with Pectra support epic
