@@ -355,6 +355,8 @@ public class SyncGossipModular implements Gossip {
             @NonNull final BindableInputWire<NoInput, Void> startInput,
             @NonNull final BindableInputWire<NoInput, Void> stopInput,
             @NonNull final BindableInputWire<NoInput, Void> clearInput,
+            @NonNull final BindableInputWire<NoInput, Void> pause,
+            @NonNull final BindableInputWire<NoInput, Void> resume,
             @NonNull final BindableInputWire<Duration, Void> systemHealthInput,
             @NonNull final BindableInputWire<PlatformStatus, Void> platformStatusInput,
             @NonNull final StandardOutputWire<Double> syncLagOutput) {
@@ -377,7 +379,12 @@ public class SyncGossipModular implements Gossip {
             protocols.forEach(protocol -> protocol.updatePlatformStatus(status));
             reconnectController.updatePlatformStatus(status);
         });
-
+        pause.bindConsumer(ignored -> {
+            syncProtocol.pause();
+        });
+        resume.bindConsumer(ignored -> {
+            syncProtocol.resume();
+        });
         this.receivedEventHandler = eventOutput::forward;
         this.syncLagHandler = syncLagOutput::forward;
     }

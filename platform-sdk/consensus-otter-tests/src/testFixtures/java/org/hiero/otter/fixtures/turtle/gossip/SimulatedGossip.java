@@ -74,6 +74,8 @@ public class SimulatedGossip implements Gossip {
             @NonNull final BindableInputWire<NoInput, Void> startInput,
             @NonNull final BindableInputWire<NoInput, Void> stopInput,
             @NonNull final BindableInputWire<NoInput, Void> clearInput,
+            @NonNull final BindableInputWire<NoInput, Void> pauseInput,
+            @NonNull final BindableInputWire<NoInput, Void> resumeInput,
             @NonNull final BindableInputWire<Duration, Void> systemHealthInput,
             @NonNull final BindableInputWire<PlatformStatus, Void> platformStatusInput,
             @NonNull final StandardOutputWire<Double> syncLagOutput) {
@@ -86,6 +88,8 @@ public class SimulatedGossip implements Gossip {
         startInput.bindConsumer(ignored -> {});
         stopInput.bindConsumer(ignored -> {});
         clearInput.bindConsumer(ignored -> {});
+        pauseInput.bindConsumer(ignored -> {});
+        resumeInput.bindConsumer(ignored -> {});
         systemHealthInput.bindConsumer(ignored -> {});
         platformStatusInput.bindConsumer(ignored -> {});
     }
