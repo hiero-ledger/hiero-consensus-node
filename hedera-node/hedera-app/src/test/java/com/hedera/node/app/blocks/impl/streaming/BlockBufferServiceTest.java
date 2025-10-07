@@ -386,10 +386,8 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         blockBufferService = initBufferService(configProvider);
 
         // when and then
-        assertThatThrownBy(() -> blockBufferService.addItem(
-                        TEST_BLOCK_NUMBER, BlockItem.newBuilder().build()))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("Block state not found for block " + TEST_BLOCK_NUMBER);
+        assertDoesNotThrow(() -> blockBufferService.addItem(
+                TEST_BLOCK_NUMBER, BlockItem.newBuilder().build()));
 
         verify(blockStreamMetrics).recordBlockMissing();
         verifyNoMoreInteractions(blockStreamMetrics);
