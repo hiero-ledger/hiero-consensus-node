@@ -30,7 +30,8 @@ public class ReturnTypes {
     // When no value is set for AccountID, ContractID or TokenId the return value is set to 0.
     public static final AccountID ZERO_ACCOUNT_ID =
             AccountID.newBuilder().accountNum(0).build();
-    public static final Address ZERO_ADDRESS = asHeadlongAddress(new byte[20]);
+    public static final byte[] ZERO_ADDRESS_BYTE_ARRAY = new byte[20];
+    public static final Address ZERO_ADDRESS = asHeadlongAddress(ZERO_ADDRESS_BYTE_ARRAY);
     public static final ContractID ZERO_CONTRACT_ID =
             ContractID.newBuilder().contractNum(0).build();
     public static final TokenID ZERO_TOKEN_ID = TokenID.newBuilder().tokenNum(0).build();

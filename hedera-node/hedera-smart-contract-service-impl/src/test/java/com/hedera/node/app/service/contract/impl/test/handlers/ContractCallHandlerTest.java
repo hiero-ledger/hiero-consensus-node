@@ -14,6 +14,7 @@ import static org.mockito.ArgumentMatchers.notNull;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 
+import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.contract.ContractCallTransactionBody;
@@ -197,15 +198,25 @@ class ContractCallHandlerTest extends ContractHandlerTestBase {
         assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
 
         // check at least intrinsic gas
-        final var txn2 = contractCallTransactionWithInsufficientGas();
+        final var txn2 = contractCallTransactionWithContractId(targetContract);
         given(gasCalculator.transactionIntrinsicGasCost(org.apache.tuweni.bytes.Bytes.wrap(new byte[0]), false, 0L))
                 .willReturn(INTRINSIC_GAS_FOR_0_ARG_METHOD);
         given(pureChecksContext.body()).willReturn(txn2);
         assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
 
         // check that invalid contract id is rejected
-        final var txn3 = contractCallTransactionWithInvalidContractId();
+        final var txn3 = contractCallTransactionWithContractId(invalidContract);
         given(pureChecksContext.body()).willReturn(txn3);
+        assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
+
+        // check that zero contract id is rejected
+        final var txn4 = contractCallTransactionWithContractId(zeroContract);
+        given(pureChecksContext.body()).willReturn(txn4);
+        assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
+
+        // check that emv zero address contract id is rejected
+        final var txn5 = contractCallTransactionWithContractId(emvZeroContract);
+        given(pureChecksContext.body()).willReturn(txn5);
         assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
     }
 
@@ -242,23 +253,13 @@ class ContractCallHandlerTest extends ContractHandlerTestBase {
                 .build();
     }
 
-    private TransactionBody contractCallTransactionWithInvalidContractId() {
+    private TransactionBody contractCallTransactionWithContractId(ContractID contractId) {
         final var transactionID = TransactionID.newBuilder().accountID(payer).transactionValidStart(consensusTimestamp);
         return TransactionBody.newBuilder()
                 .transactionID(transactionID)
                 .contractCall(ContractCallTransactionBody.newBuilder()
                         .gas(INTRINSIC_GAS_FOR_0_ARG_METHOD - 1)
-                        .contractID(invalidContract))
-                .build();
-    }
-
-    private TransactionBody contractCallTransactionWithInsufficientGas() {
-        final var transactionID = TransactionID.newBuilder().accountID(payer).transactionValidStart(consensusTimestamp);
-        return TransactionBody.newBuilder()
-                .transactionID(transactionID)
-                .contractCall(ContractCallTransactionBody.newBuilder()
-                        .gas(INTRINSIC_GAS_FOR_0_ARG_METHOD - 1)
-                        .contractID(targetContract))
+                        .contractID(contractId))
                 .build();
     }
 }
