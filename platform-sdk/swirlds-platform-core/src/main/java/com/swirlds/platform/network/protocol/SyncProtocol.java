@@ -95,7 +95,6 @@ public class SyncProtocol extends AbstractSyncProtocol<ShadowgraphSynchronizer> 
                 platformContext,
                 Objects.requireNonNull(peerId),
                 synchronizer,
-                fallenBehindManager,
                 permitProvider,
                 intakeEventCounter,
                 gossipHalted::get,
