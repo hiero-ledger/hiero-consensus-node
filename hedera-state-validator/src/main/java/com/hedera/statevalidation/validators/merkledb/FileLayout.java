@@ -2,7 +2,6 @@
 package com.hedera.statevalidation.validators.merkledb;
 
 import static com.hedera.statevalidation.validators.Constants.VALIDATE_FILE_LAYOUT;
-import static java.lang.String.format;
 import static org.junit.jupiter.api.Assertions.fail;
 
 import com.hedera.statevalidation.parameterresolver.StateResolver;
@@ -123,16 +122,16 @@ public class FileLayout {
 
     private List<OptionalPattern> indexPathsToMatch() {
         return Stream.of(
-                         INTERNAL_HASH_METADATA_TMPL,
-                         INTERNAL_HASH_STORE_TMPL,
-                         OBJECT_KEY_TO_PATH_BUCKET_INDEX_TMPL,
-                         OBJECT_KEY_TO_PATH_METADATA_TMPL,
-                         OBJECT_KEY_TO_PATH_STORE_TMPL,
-                         OBJECT_KEY_TO_PATH_METADATA_HDHM_TMPL,
-                         PATH_TO_HASH_KEY_VALUE_METADATA_TMPL,
-                         METADATA_PBJ_TMPL,
-                         PATH_TO_DISK_INTERNAL_TMPL,
-                         PATH_TO_DISK_LEAF_TMPL)
+                        INTERNAL_HASH_METADATA_TMPL,
+                        INTERNAL_HASH_STORE_TMPL,
+                        OBJECT_KEY_TO_PATH_BUCKET_INDEX_TMPL,
+                        OBJECT_KEY_TO_PATH_METADATA_TMPL,
+                        OBJECT_KEY_TO_PATH_STORE_TMPL,
+                        OBJECT_KEY_TO_PATH_METADATA_HDHM_TMPL,
+                        PATH_TO_HASH_KEY_VALUE_METADATA_TMPL,
+                        METADATA_PBJ_TMPL,
+                        PATH_TO_DISK_INTERNAL_TMPL,
+                        PATH_TO_DISK_LEAF_TMPL)
                 .map(Pattern::compile)
                 .map(v -> new OptionalPattern(v, false))
                 .toList();
