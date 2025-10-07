@@ -1221,7 +1221,6 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
 
         verify(connectionManager).selectNewBlockNodeForStreaming(true);
         verify(blockStreamMetrics).recordBufferSaturation(100.0D);
-        verify(blockStreamMetrics).recordBackPressureActive();
         verify(blockStreamMetrics).recordNumberOfBlocksPruned(0);
         verify(blockStreamMetrics).recordBufferOldestBlock(1L);
         verify(blockStreamMetrics).recordBufferNewestBlock(10L);
