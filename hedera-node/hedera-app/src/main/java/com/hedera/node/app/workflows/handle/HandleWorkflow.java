@@ -562,7 +562,7 @@ public class HandleWorkflow {
             }
         }
 
-		// Now, start processing the actual transaction
+        // Now, start processing the actual transaction
         final var topLevelTxn =
                 parentTxnFactory.createTopLevelTxn(state, creator, txn, consensusNow, stateSignatureTxnCallback);
         if (topLevelTxn == null) {

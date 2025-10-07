@@ -137,15 +137,13 @@ public class DuplicateManagementTest {
                         .setNode("666")
                         .withSubmissionStrategy(usingEventBirthRound(42L))
                         .hasAnyStatusAtAll(),
-                assertHgcaaLogContains(
-                        byNodeId(0), "node 666 which is not in the address book", Duration.ofSeconds(1)),
-				// Reset freeze round to default value
-				mutateSingleton(
-						"PlatformStateService",
-						StateIdentifier.STATE_ID_PLATFORM_STATE_VALUE,
-						(PlatformState platform) ->
-								platform.copyBuilder().latestFreezeRound(0).build())
-				);
+                assertHgcaaLogContains(byNodeId(0), "node 666 which is not in the address book", Duration.ofSeconds(1)),
+                // Reset freeze round to default value
+                mutateSingleton(
+                        "PlatformStateService",
+                        StateIdentifier.STATE_ID_PLATFORM_STATE_VALUE,
+                        (PlatformState platform) ->
+                                platform.copyBuilder().latestFreezeRound(0).build()));
     }
 
     @LeakyEmbeddedHapiTest(reason = MUST_SKIP_INGEST, requirement = SYSTEM_ACCOUNT_BALANCES)
