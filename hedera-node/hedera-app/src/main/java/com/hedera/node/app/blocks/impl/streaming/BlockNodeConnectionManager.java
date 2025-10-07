@@ -2,6 +2,7 @@
 package com.hedera.node.app.blocks.impl.streaming;
 
 import static com.hedera.node.app.blocks.impl.streaming.BlockNodeConnection.THIRTY_SECONDS;
+import static com.swirlds.common.io.utility.FileUtils.getAbsolutePath;
 import static java.util.Collections.shuffle;
 import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.collectingAndThen;
@@ -295,7 +296,7 @@ public class BlockNodeConnectionManager {
 
         if (isStreamingEnabled.get()) {
             final String blockNodeConnectionConfigPath = blockNodeConnectionFileDir();
-            blockNodeConfigDirectory = Paths.get(blockNodeConnectionConfigPath);
+            blockNodeConfigDirectory = getAbsolutePath(blockNodeConnectionConfigPath);
 
             availableBlockNodes = new ArrayList<>();
             logWithContext(
@@ -373,7 +374,7 @@ public class BlockNodeConnectionManager {
         final Path configPath = Paths.get(blockNodeConfigPath, BLOCK_NODES_FILE_NAME);
         try {
             if (!Files.exists(configPath)) {
-                logWithContext(WARN, "Block node configuration file does not exist: {}", configPath);
+                logWithContext(INFO, "Block node configuration file does not exist: {}", configPath);
                 return List.of();
             }
 
@@ -386,7 +387,7 @@ public class BlockNodeConnectionManager {
                     .toList();
         } catch (final IOException | ParseException e) {
             logWithContext(
-                    WARN,
+                    INFO,
                     "Failed to read or parse block node configuration from {}. Continuing without block node connections.",
                     configPath,
                     e);
@@ -690,7 +691,7 @@ public class BlockNodeConnectionManager {
         // Determine if we have a node to connect to before starting worker thread
         final BlockNodeConfig selectedNode = getNextPriorityBlockNode();
         if (selectedNode == null) {
-            logWithContext(WARN, "No block nodes available to connect to. Waiting for configuration updates.");
+            logWithContext(INFO, "No block nodes available to connect to. Waiting for configuration updates.");
             return;
         }
 
@@ -939,14 +940,14 @@ public class BlockNodeConnectionManager {
                                     }
                                 }
                                 if (!key.reset()) {
-                                    logWithContext(WARN, "WatchKey could not be reset. Exiting config watcher loop.");
+                                    logWithContext(INFO, "WatchKey could not be reset. Exiting config watcher loop.");
                                     break;
                                 }
                             } catch (InterruptedException e) {
                                 Thread.currentThread().interrupt();
                                 break;
                             } catch (Exception e) {
-                                logWithContext(WARN, "Exception in config watcher loop.", e);
+                                logWithContext(INFO, "Exception in config watcher loop.", e);
                             }
                         }
                     });
@@ -954,7 +955,8 @@ public class BlockNodeConnectionManager {
             // Perform an initial load if the configuration file already exists
             performInitialConfigLoad();
         } catch (final IOException e) {
-            logWithContext(WARN, "Failed to start configuration watcher. Dynamic updates disabled.", e);
+            logWithContext(
+                    INFO, "Failed to start block-nodes.json configuration watcher. Dynamic updates disabled.", e);
         }
     }
 
@@ -978,7 +980,7 @@ public class BlockNodeConnectionManager {
                         newConfigs.size());
                 start();
             } else {
-                logWithContext(WARN, "Initial block node configuration missing or invalid. Waiting for updates.");
+                logWithContext(INFO, "Initial block node configuration missing or invalid. Waiting for updates.");
             }
         } else {
             logWithContext(INFO, "No initial block node configuration file found. Waiting for updates.");
@@ -1003,6 +1005,7 @@ public class BlockNodeConnectionManager {
             try {
                 ws.close();
             } catch (IOException ignored) {
+                // ignore
             }
         }
     }
