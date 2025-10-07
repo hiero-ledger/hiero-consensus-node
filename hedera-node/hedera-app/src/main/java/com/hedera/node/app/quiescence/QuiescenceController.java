@@ -3,8 +3,11 @@ package com.hedera.node.app.quiescence;
 
 import com.hedera.hapi.block.stream.Block;
 import com.hedera.hapi.block.stream.BlockItem;
+import com.hedera.hapi.block.stream.output.SingletonUpdateChange;
+import com.hedera.hapi.block.stream.output.StateChange;
 import com.hedera.hapi.block.stream.output.StateChanges;
 import com.hedera.hapi.node.base.Timestamp;
+import com.hedera.hapi.node.state.blockstream.BlockStreamInfo;
 import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.util.HapiUtils;
@@ -16,6 +19,7 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.time.InstantSource;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicLong;
@@ -69,6 +73,8 @@ public class QuiescenceController {
      * @param block the fully signed block
      */
     public void fullySignedBlock(@NonNull final Block block) {
+        //TODO in HandleWorkflow:540 we should get the cons time & txn & block number
+        // then we need another method for when a block is fully signed
         if (!config.enabled()) {
             return;
         }
@@ -85,13 +91,18 @@ public class QuiescenceController {
             logger.error("Quiescence transaction count overflow, turning off quiescence");
             disableQuiescence();
         }
-        // FOR EXECUTION REVIEWERS:
-        // Is this the correct way to get consensus time?
         final Optional<Timestamp> maxConsensusTime = block.items().stream()
                 .filter(BlockItem::hasStateChanges)
                 .map(BlockItem::stateChanges)
                 .filter(Objects::nonNull)
-                .map(StateChanges::consensusTimestamp)
+                .map(StateChanges::stateChanges)
+                .flatMap(List::stream)
+                .filter(StateChange::hasSingletonUpdate)
+                .map(StateChange::singletonUpdate)
+                .filter(Objects::nonNull)
+                .filter(SingletonUpdateChange::hasBlockStreamInfoValue)
+                .map(SingletonUpdateChange::blockStreamInfoValue)
+                .map(BlockStreamInfo::lastHandleTime)
                 .max(HapiUtils.TIMESTAMP_COMPARATOR);
         if (maxConsensusTime.isEmpty()) {
             return;
@@ -106,6 +117,7 @@ public class QuiescenceController {
      * @param event the event that will be handled
      */
     public void onPreHandle(@NonNull final Event event) {
+        //TODO get trans from Hedera.prehandle and check metadata
         if (!config.enabled()) {
             return;
         }
