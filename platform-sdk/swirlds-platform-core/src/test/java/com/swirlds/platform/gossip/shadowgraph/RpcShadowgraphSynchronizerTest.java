@@ -19,7 +19,7 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.config.extensions.sources.SystemEnvironmentConfigSource;
 import com.swirlds.config.extensions.sources.SystemPropertiesConfigSource;
-import com.swirlds.platform.gossip.FallenBehindManagerImpl;
+import com.swirlds.platform.gossip.FallenBehindMonitor;
 import com.swirlds.platform.gossip.NoOpIntakeEventCounter;
 import com.swirlds.platform.gossip.rpc.GossipRpcSender;
 import com.swirlds.platform.gossip.rpc.SyncData;
@@ -46,7 +46,7 @@ class RpcShadowgraphSynchronizerTest {
             new SyncData(EventWindow.getGenesisEventWindow(), List.of(), true);
     private PlatformContext platformContext;
     private SyncMetrics syncMetrics;
-    private FallenBehindManagerImpl fallenBehindManager;
+    private FallenBehindMonitor fallenBehindManager;
     private NodeId selfId;
     private Consumer eventHandler;
     private GossipRpcSender gossipSender;
@@ -81,7 +81,7 @@ class RpcShadowgraphSynchronizerTest {
         this.syncMetrics = mock(SyncMetrics.class);
         this.selfId = NodeId.of(1);
         this.statusSubmitter = mock(StatusActionSubmitter.class);
-        this.fallenBehindManager = new FallenBehindManagerImpl(
+        this.fallenBehindManager = new FallenBehindMonitor(
                 selfId, NUM_NODES - 1, statusSubmitter, configuration.getConfigData(ReconnectConfig.class));
 
         this.eventHandler = mock(Consumer.class);

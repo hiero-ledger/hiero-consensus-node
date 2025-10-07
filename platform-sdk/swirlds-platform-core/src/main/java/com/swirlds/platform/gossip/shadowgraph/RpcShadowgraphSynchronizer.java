@@ -2,6 +2,7 @@
 package com.swirlds.platform.gossip.shadowgraph;
 
 import com.swirlds.common.context.PlatformContext;
+import com.swirlds.platform.gossip.FallenBehindMonitor;
 import com.swirlds.platform.gossip.IntakeEventCounter;
 import com.swirlds.platform.gossip.permits.SyncGuard;
 import com.swirlds.platform.gossip.permits.SyncGuardFactory;
@@ -13,7 +14,6 @@ import java.time.Duration;
 import java.util.function.Consumer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.consensus.gossip.FallenBehindManager;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.NodeId;
 
@@ -61,7 +61,7 @@ public class RpcShadowgraphSynchronizer extends AbstractShadowgraphSynchronizer 
             final int numberOfNodes,
             @NonNull final SyncMetrics syncMetrics,
             @NonNull final Consumer<PlatformEvent> receivedEventHandler,
-            @NonNull final FallenBehindManager fallenBehindManager,
+            @NonNull final FallenBehindMonitor fallenBehindManager,
             @NonNull final IntakeEventCounter intakeEventCounter,
             @NonNull final NodeId selfId,
             @NonNull final Consumer<Double> syncLagHandler) {
