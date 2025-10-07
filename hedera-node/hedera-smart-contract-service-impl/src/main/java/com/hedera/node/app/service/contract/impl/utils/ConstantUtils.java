@@ -10,7 +10,7 @@ import com.hedera.hapi.node.transaction.FixedFee;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 
 /**
- * Utility class that holds static entity IDs
+ * Utility class that holds static entity IDs.
  */
 public final class ConstantUtils {
 
