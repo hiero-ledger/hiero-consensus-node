@@ -178,8 +178,8 @@ public class GenerateStateTool {
      * @throws IOException if file operations fail
      */
     public void copyFilesInPlace(@NonNull final Path rootOutputDirectory) throws IOException {
-        final Path savedStateDirectory = Path.of(
-                "platform-sdk", "consensus-otter-tests", "saved-states", "previous-version-state");
+        final Path savedStateDirectory =
+                Path.of("platform-sdk", "consensus-otter-tests", "saved-states", "previous-version-state");
 
         if (Files.exists(savedStateDirectory)) {
             FileUtils.deleteDirectory(savedStateDirectory);

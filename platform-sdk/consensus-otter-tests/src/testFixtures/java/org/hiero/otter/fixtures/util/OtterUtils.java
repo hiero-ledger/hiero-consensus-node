@@ -31,7 +31,7 @@ public class OtterUtils {
     /**
      * Finds the path to a saved state directory within the test resources.
      *
-     * @param savedStateDirectory the name of the saved state directory (relative to src/testFixtures/resources)
+     * @param savedStateDirectory the name of the saved state directory (relative to consensus-otter-tests/saved-states)
      * @return the {@link Path} to the saved state directory, or {@code null} if the input is empty
      * @throws IllegalArgumentException if the directory does not exist
      */
