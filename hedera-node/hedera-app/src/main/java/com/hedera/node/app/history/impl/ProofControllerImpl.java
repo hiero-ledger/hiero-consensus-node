@@ -181,7 +181,7 @@ public class ProofControllerImpl implements ProofController {
 
     @Override
     public boolean isStillInProgress() {
-        return !construction.hasTargetProof();
+        return !construction.hasTargetProof() && !construction.hasFailureReason();
     }
 
     @Override
@@ -233,11 +233,10 @@ public class ProofControllerImpl implements ProofController {
                             log.info("Created proof future for construction #{}", construction.constructionId());
                         } else {
                             // Convert the ordered set of signatures into a list-of-signatures proof
-                            final var nodeSignatures = new NodeSignatures(signatures.entrySet().stream()
-                                    .map(e -> new NodeSignature(e.getKey(), e.getValue()))
-                                    .toList());
                             final var chainOfTrustProof = ChainOfTrustProof.newBuilder()
-                                    .nodeSignatures(nodeSignatures)
+                                    .nodeSignatures(new NodeSignatures(signatures.entrySet().stream()
+                                            .map(e -> new NodeSignature(e.getKey(), e.getValue()))
+                                            .toList()))
                                     .build();
                             // Note the proof keys are frozen at this time (can only be updated before assembly start)
                             final var targetHash = HistoryLibrary.computeHash(
@@ -245,15 +244,14 @@ public class ProofControllerImpl implements ProofController {
                                     weights.targetNodeIds(),
                                     weights::targetWeightOf,
                                     id -> targetProofKeys.getOrDefault(id, EMPTY_PUBLIC_KEY));
+                            // Build the history proof
                             final var proof = HistoryProof.newBuilder()
                                     .targetProofKeys(proofKeyListFrom(targetProofKeys))
                                     .targetHistory(new History(targetHash, requireNonNull(targetMetadata)))
                                     .chainOfTrustProof(chainOfTrustProof)
                                     .build();
-                            // Synchronously write this proof to the store, since it is complete
-                            construction = historyStore.completeProof(construction.constructionId(), proof);
-                            log.info("{} (#{})", PROOF_COMPLETE_MSG, construction.constructionId());
-                            historyService.onFinished(historyStore, construction);
+                            // And synchronously write it to state (either block zero proof or WRAPS disabled)
+                            finishProof(historyStore, proof);
                         }
                     } else if (!signingNodeIds.contains(selfId) && signingFuture == null) {
                         signingFuture = startSigningFuture();
@@ -329,13 +327,7 @@ public class ProofControllerImpl implements ProofController {
                 .filter(entry -> entry.getValue() >= weights.sourceWeightThreshold())
                 .map(Map.Entry::getKey)
                 .findFirst();
-        maybeWinningProof.ifPresent(proof -> {
-            construction = historyStore.completeProof(construction.constructionId(), proof);
-            log.info("{} (#{})", PROOF_COMPLETE_MSG, construction.constructionId());
-            if (historyStore.getActiveConstruction().constructionId() == construction.constructionId()) {
-                historyService.onFinished(historyStore, construction);
-            }
-        });
+        maybeWinningProof.ifPresent(proof -> finishProof(historyStore, proof));
     }
 
     @Override
@@ -376,6 +368,17 @@ public class ProofControllerImpl implements ProofController {
     public static Map<Long, Bytes> proofKeyMapFrom(@NonNull final HistoryProof proof) {
         requireNonNull(proof);
         return proof.targetProofKeys().stream().collect(toMap(ProofKey::nodeId, ProofKey::key));
+    }
+
+    /**
+     * Finishes the active construction, commits its proof to state, and notifies the history service.
+     * @param historyStore the writable history store
+     * @param proof the proof
+     */
+    private void finishProof(@NonNull final WritableHistoryStore historyStore, @NonNull final HistoryProof proof) {
+        construction = historyStore.completeProof(construction.constructionId(), proof);
+        log.info("{} (#{})", PROOF_COMPLETE_MSG, construction.constructionId());
+        historyService.onFinished(historyStore, construction);
     }
 
     /**
