@@ -141,6 +141,6 @@ public class NodeDeathReconnectBlockNodeSuite {
                 // And validate we can still submit transactions to node2
                 cryptoCreate("somebody").setNode("5"),
                 burstOfTps(MIXED_OPS_BURST_TPS, Duration.ofSeconds(60)),
-                assertHgcaaLogDoesNotContain(byNodeId(0), "ERROR ", Duration.ofSeconds(5)));
+                assertHgcaaLogDoesNotContain(byNodeId(0), "ERROR", Duration.ofSeconds(5)));
     }
 }

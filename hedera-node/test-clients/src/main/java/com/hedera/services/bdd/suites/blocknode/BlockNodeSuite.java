@@ -64,7 +64,7 @@ public class BlockNodeSuite {
     final Stream<DynamicTest> node0StreamingHappyPath() {
         return hapiTest(
                 waitUntilNextBlocks(20).withBackgroundTraffic(true),
-                assertHgcaaLogDoesNotContain(byNodeId(0), "ERROR ", Duration.ofSeconds(5)));
+                assertHgcaaLogDoesNotContain(byNodeId(0), "ERROR", Duration.ofSeconds(5)));
     }
 
     @HapiTest
@@ -113,7 +113,7 @@ public class BlockNodeSuite {
     final Stream<DynamicTest> allNodesStreamingHappyPath() {
         return hapiTest(
                 waitUntilNextBlocks(10).withBackgroundTraffic(true),
-                assertHgcaaLogDoesNotContain(allNodes(), "ERROR ", Duration.ofSeconds(5)));
+                assertHgcaaLogDoesNotContain(allNodes(), "ERROR", Duration.ofSeconds(5)));
     }
 
     @HapiTest
@@ -279,7 +279,7 @@ public class BlockNodeSuite {
     final Stream<DynamicTest> twoNodesStreamingOneBlockNodeHappyPath() {
         return hapiTest(
                 waitUntilNextBlocks(10).withBackgroundTraffic(true),
-                assertHgcaaLogDoesNotContain(allNodes(), "ERROR ", Duration.ofSeconds(5)));
+                assertHgcaaLogDoesNotContain(allNodes(), "ERROR", Duration.ofSeconds(5)));
     }
 
     @HapiTest
@@ -429,7 +429,7 @@ public class BlockNodeSuite {
                         "Running connection task.",
                         "Connection state transitioned from UNINITIALIZED to PENDING.",
                         "Connection state transitioned from PENDING to ACTIVE.")),
-                assertHgcaaLogDoesNotContain(byNodeId(0), "ERROR ", Duration.ofSeconds(5)));
+                assertHgcaaLogDoesNotContain(byNodeId(0), "ERROR", Duration.ofSeconds(5)));
     }
 
     @HapiTest
@@ -706,6 +706,6 @@ public class BlockNodeSuite {
                         String.format(
                                 "/localhost:%s/ACTIVE] Block node requested a ResendBlock for block 9223372036854775807 but that block does not exist on this consensus node. Closing connection and will retry later",
                                 portNumbers.getFirst()))),
-                assertHgcaaLogDoesNotContain(byNodeId(0), "ERROR ", Duration.ofSeconds(5)));
+                assertHgcaaLogDoesNotContain(byNodeId(0), "ERROR", Duration.ofSeconds(5)));
     }
 }
