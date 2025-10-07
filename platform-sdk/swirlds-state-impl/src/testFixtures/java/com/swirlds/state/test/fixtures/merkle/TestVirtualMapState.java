@@ -1,10 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.test.fixtures.state;
+package com.swirlds.state.test.fixtures.merkle;
 
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
-import com.swirlds.platform.state.MerkleNodeState;
-import com.swirlds.platform.test.fixtures.virtualmap.VirtualMapUtils;
+import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.State;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.virtualmap.VirtualMap;
@@ -19,8 +18,8 @@ public class TestVirtualMapState extends VirtualMapState<TestVirtualMapState> im
         super(configuration, metrics);
     }
 
-    public TestVirtualMapState() {
-        this(VirtualMapUtils.createVirtualMap(VM_LABEL));
+    public TestVirtualMapState(@NonNull final Configuration configuration) {
+        this(VirtualMapUtils.createVirtualMap(configuration, VM_LABEL));
     }
 
     public TestVirtualMapState(@NonNull final VirtualMap virtualMap) {
@@ -43,8 +42,9 @@ public class TestVirtualMapState extends VirtualMapState<TestVirtualMapState> im
         return new TestVirtualMapState(virtualMap);
     }
 
-    public static TestVirtualMapState createInstanceWithVirtualMapLabel(@NonNull final String virtualMapLabel) {
-        final var virtualMap = VirtualMapUtils.createVirtualMap(virtualMapLabel);
+    public static TestVirtualMapState createInstanceWithVirtualMapLabel(
+            @NonNull final Configuration configuration, @NonNull final String virtualMapLabel) {
+        final var virtualMap = VirtualMapUtils.createVirtualMap(configuration, virtualMapLabel);
         return new TestVirtualMapState(virtualMap);
     }
 }

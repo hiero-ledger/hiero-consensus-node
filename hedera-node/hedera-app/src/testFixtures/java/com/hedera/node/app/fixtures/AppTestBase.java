@@ -13,6 +13,7 @@ import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.AL
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ALIASES_STATE_LABEL;
 import static com.hedera.node.app.spi.fixtures.TestSchema.CURRENT_VERSION;
 import static com.swirlds.platform.system.address.AddressBookUtils.endpointFor;
+import static com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer.CONFIGURATION;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.consensus.roster.RosterRetriever.buildRoster;
 
@@ -54,8 +55,6 @@ import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
 import com.swirlds.metrics.api.Counter;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.system.Platform;
-import com.swirlds.platform.test.fixtures.state.TestVirtualMapState;
-import com.swirlds.platform.test.fixtures.virtualmap.VirtualMapUtils;
 import com.swirlds.state.State;
 import com.swirlds.state.lifecycle.Service;
 import com.swirlds.state.spi.ReadableStates;
@@ -65,6 +64,8 @@ import com.swirlds.state.test.fixtures.FunctionWritableSingletonState;
 import com.swirlds.state.test.fixtures.MapWritableKVState;
 import com.swirlds.state.test.fixtures.MapWritableStates;
 import com.swirlds.state.test.fixtures.TestBase;
+import com.swirlds.state.test.fixtures.merkle.TestVirtualMapState;
+import com.swirlds.state.test.fixtures.merkle.VirtualMapUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.LinkedHashMap;
@@ -145,7 +146,7 @@ public class AppTestBase extends TestBase implements TransactionFactory, Scenari
                 .build();
 
         final var virtualMapLabel = "vm-" + AppTestBase.class.getSimpleName() + "-" + java.util.UUID.randomUUID();
-        final var virtualMap = VirtualMapUtils.createVirtualMap(virtualMapLabel);
+        final var virtualMap = VirtualMapUtils.createVirtualMap(CONFIGURATION, virtualMapLabel);
 
         state = new TestVirtualMapState(virtualMap) {
             @NonNull

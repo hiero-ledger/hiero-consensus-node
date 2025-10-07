@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.state;
+package com.swirlds.state;
 
 import com.swirlds.common.merkle.MerkleNode;
-import com.swirlds.state.State;
 import com.swirlds.state.lifecycle.StateMetadata;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
@@ -15,7 +14,7 @@ import java.nio.file.Path;
 public interface MerkleNodeState extends State {
 
     /**
-     * @return an instance representing a root of the Merkle tree. For the most of the implementations
+     * @return an instance representing a root of the Merkle tree. For most of the implementations
      * this default implementation will be sufficient. But some implementations of the state may be "logical" - they
      * are not `MerkleNode` themselves but are backed by the Merkle tree implementation (e.g. a Virtual Map).
      */
