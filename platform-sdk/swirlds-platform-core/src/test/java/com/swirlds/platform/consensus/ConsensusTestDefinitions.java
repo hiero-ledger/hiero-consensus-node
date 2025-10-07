@@ -107,7 +107,7 @@ public final class ConsensusTestDefinitions {
         // Use a custom event source generator that creates branching event sources
         final Function<List<Long>, List<EventSource>> eventSourceBuilder = nodeWeights -> {
             final double branchProbability = 0.1;
-            final int numberOfBranchedBranches = 10;
+            final int maxBranchCount = 10;
             final long totalWeight = nodeWeights.stream().reduce(0L, Long::sum);
 
             // Determine a single branching event source that has less than a strong minority
@@ -127,7 +127,7 @@ public final class ConsensusTestDefinitions {
                 if (i == branchingNodeId) {
                     eventSources.add(new BranchingEventSource()
                             .setBranchProbability(branchProbability)
-                            .setMaximumBranchCount(numberOfBranchedBranches));
+                            .setMaximumBranchCount(maxBranchCount));
                 } else {
                     eventSources.add(new StandardEventSource());
                 }

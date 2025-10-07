@@ -62,7 +62,7 @@ public class BranchingEventSource extends AbstractEventSource {
     }
 
     /**
-     * Set the maximum number of branched branches that this source maintains.
+     * Set the maximum number of branches that this source maintains.
      *
      * Undefined behavior if set after events have already been generated.
      *
