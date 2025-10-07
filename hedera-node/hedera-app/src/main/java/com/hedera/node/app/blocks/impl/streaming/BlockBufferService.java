@@ -720,7 +720,6 @@ public class BlockBufferService {
                 The buffer has transitioned from zero/low saturation levels to fully saturated. We need to ensure back
                 pressure is engaged and potentially change which Block Node we are connected to.
                  */
-                blockStreamMetrics.recordBackPressureActive();
                 enableBackPressure(pruningResult);
                 switchBlockNodeIfPermitted(pruningResult);
             } else if (pruningResult.saturationPercent >= actionStageThreshold) {
@@ -747,7 +746,6 @@ public class BlockBufferService {
                 The buffer has transitioned from the action stage saturation level to being completely full/saturated.
                 Back pressure needs to be applied and possibly switch to a different Block Node.
                  */
-                blockStreamMetrics.recordBackPressureActive();
                 enableBackPressure(pruningResult);
                 switchBlockNodeIfPermitted(pruningResult);
             } else if (pruningResult.saturationPercent >= actionStageThreshold) {
@@ -774,7 +772,6 @@ public class BlockBufferService {
                 Before and after pruning, the buffer remained fully saturated. Back pressure should be enabled - if not
                 already - and we should maybe swap to a different Block Node.
                  */
-                blockStreamMetrics.recordBackPressureActive();
                 switchBlockNodeIfPermitted(pruningResult);
                 enableBackPressure(pruningResult);
             } else if (pruningResult.saturationPercent >= actionStageThreshold) {
@@ -887,6 +884,7 @@ public class BlockBufferService {
         if (!backpressureEnabled) {
             return;
         }
+        blockStreamMetrics.recordBackPressureActive();
 
         CompletableFuture<Boolean> oldCf;
         CompletableFuture<Boolean> newCf;
