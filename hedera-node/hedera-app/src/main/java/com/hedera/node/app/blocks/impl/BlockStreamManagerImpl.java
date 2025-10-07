@@ -769,8 +769,8 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                             STATE_CHANGES,
                             ROUND_HEADER,
                             BLOCK_HEADER
-							// Also EndBlock?
-							-> {
+                        // Also EndBlock?
+                        -> {
                         MessageDigest digest = sha384DigestOrThrow();
                         bytes.writeTo(digest);
                         hash = ByteBuffer.wrap(digest.digest());
