@@ -28,14 +28,17 @@ public class BranchingEventSource extends AbstractEventSource {
      */
     private List<LinkedList<EventImpl>> branches;
 
+    /**
+     * The index of the event that was last given out as the "latest" event.
+     */
     private int currentBranch;
 
     public BranchingEventSource() {
-        this(false);
+        this(true, DEFAULT_TRANSACTION_GENERATOR);
     }
 
     public BranchingEventSource(final boolean useFakeHashes) {
-        this(useFakeHashes, null);
+        this(useFakeHashes, DEFAULT_TRANSACTION_GENERATOR);
     }
 
     public BranchingEventSource(final boolean useFakeHashes, final TransactionGenerator transactionGenerator) {
@@ -53,8 +56,6 @@ public class BranchingEventSource extends AbstractEventSource {
 
     /**
      * Get the maximum number of branched branches that this source maintains.
-     *
-     * @return the maximum number of branched branches
      */
     public int getMaximumBranchCount() {
         return maximumBranchCount;
@@ -63,75 +64,71 @@ public class BranchingEventSource extends AbstractEventSource {
     /**
      * Set the maximum number of branched branches that this source maintains.
      *
-     * @param maximumBranchCount the maximum number of branches
-     * @return this object
+     * Undefined behavior if set after events have already been generated.
+     *
+     * @return this
      */
     public BranchingEventSource setMaximumBranchCount(final int maximumBranchCount) {
         if (maximumBranchCount < 1) {
             throw new IllegalArgumentException("Requires at least one branch");
         }
-
         this.maximumBranchCount = maximumBranchCount;
         this.branches = new ArrayList<>(maximumBranchCount);
-
         return this;
     }
 
     /**
      * Get the probability that any particular event will form a new branched branch.
      *
-     * @return the probability of a new branch
+     * @return A probability as a fraction of 1.0.
      */
     public double getBranchProbability() {
         return branchProbability;
     }
 
-    /**
+    /***
      * Set the probability that any particular event will form a new branched branch.
-     *
      * @param branchProbability A probability as a fraction of 1.0.
-     * @return this object
+     * @return this
      */
     public BranchingEventSource setBranchProbability(final double branchProbability) {
         this.branchProbability = branchProbability;
         return this;
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
     public BranchingEventSource copy() {
         return new BranchingEventSource(this);
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
-    protected EventImpl buildNextEvent(final Random random) {
-
-        // Do a lazy initialization of branches
+    public void reset() {
+        super.reset();
         branches = new ArrayList<>(maximumBranchCount);
+    }
 
+    @Override
+    public EventImpl getRecentEvent(final Random random, final int index) {
         if (branches.isEmpty()) {
-            branches.add(new LinkedList<>());
-            currentBranch = 0;
-        } else {
-            // Choose a random branch
-            currentBranch = random.nextInt(branches.size());
+            return null;
         }
 
+        currentBranch = random.nextInt(branches.size());
         final LinkedList<EventImpl> events = branches.get(currentBranch);
 
-        return buildEvent(random, getSelfParent(events, random), getOtherParent(events, random));
+        if (events.size() == 0) {
+            return null;
+        }
+
+        if (index >= events.size()) {
+            return events.getLast();
+        }
+
+        return events.get(index);
     }
 
     /**
      * Decide if the next event created should branch.
-     *
-     * @param random a source of randomness
-     * @return true if the next event should create a new branch
      */
     private boolean shouldBranch(final Random random) {
         return maximumBranchCount > 1 && random.nextDouble() < branchProbability;
@@ -140,8 +137,6 @@ public class BranchingEventSource extends AbstractEventSource {
     /**
      * Branch. This creates a new branch, replacing a random branch if the maximum number of
      * branches is exceeded.
-     *
-     * @param random a source of randomness
      */
     private void branch(final Random random) {
         if (branches.size() < maximumBranchCount) {
@@ -155,18 +150,12 @@ public class BranchingEventSource extends AbstractEventSource {
                 newEventIndex = random.nextInt(branches.size());
             } while (newEventIndex == currentBranch);
 
-            branches.set(newEventIndex, new LinkedList<>());
             currentBranch = newEventIndex;
         }
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
-    public EventImpl generateEvent(final Random random) {
-        final EventImpl event = buildNextEvent(random);
-
+    public void setLatestEvent(final Random random, final EventImpl event) {
         if (shouldBranch(random)) {
             branch(random);
         }
@@ -179,9 +168,8 @@ public class BranchingEventSource extends AbstractEventSource {
 
         final LinkedList<EventImpl> branch = branches.get(currentBranch);
         branch.addFirst(event);
-        pruneEventList(branch);
 
-        return event;
+        pruneEventList(branch);
     }
 
     /**

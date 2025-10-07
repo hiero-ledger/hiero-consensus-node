@@ -52,63 +52,34 @@ public class SplitBranchGraphCreator {
 
     private static void forceNextOtherParent(
             final StandardEventEmitter emitter,
-            final int creatorToBranch,
-            final int forcedOtherParent,
+            final int creatorToShun,
+            final int nextOtherParent,
             final int numCommonEvents,
             final int numNetworkNodes) {
-        emitter.setOtherParentAffinity((random, creatorIndex, eventIndex, previousEventTimestamp) -> {
-            if (eventIndex == numCommonEvents) {
-                if (creatorIndex == creatorToBranch) {
-                    if (random.nextBoolean()) {
+
+        final int numSources = emitter.getGraphGenerator().getNumberOfSources();
+
+        final List<List<Double>> balancedMatrix = createBalancedOtherParentMatrix(numNetworkNodes);
+
+        final List<List<Double>> forcedOtherParentMatrix = createForcedOtherParentMatrix(numSources, nextOtherParent);
+
+        final List<List<Double>> shunnedOtherParentMatrix =
+                createShunnedNodeOtherParentAffinityMatrix(numSources, creatorToShun);
+
+        emitter.getGraphGenerator()
+                .setOtherParentAffinity((Random r, long eventIndex, List<List<Double>> previousValue) -> {
+                    if (eventIndex < numCommonEvents) {
                         // Before the split branch, use the normal matrix
-                        return createBalancedOtherParentMatrix(numNetworkNodes);
-                    } else {
+                        return balancedMatrix;
+                    } else if (eventIndex == numCommonEvents) {
                         // At the event to create the branch, force the other parent
-                        return createForcedOtherParentMatrix(numNetworkNodes, forcedOtherParent);
+                        return forcedOtherParentMatrix;
+                    } else {
+                        // After the branch, shun the creator that branched so that other creators don't use it and
+                        // therefore create
+                        // more split branches on other creators.
+                        return shunnedOtherParentMatrix;
                     }
-                } else {
-                    // Other creators have no influence on the branch
-                    return createBalancedOtherParentMatrix(numNetworkNodes);
-                }
-            } else if (eventIndex > numCommonEvents) {
-                // After the branch, shun the creator that branched so that other creators dont use it and
-                // more split branches on other creators.
-                return createShunnedNodeOtherParentAffinityMatrix(numNetworkNodes, creatorToBranch);
-            } else {
-                return createBalancedOtherParentMatrix(numNetworkNodes);
-            }
-        });
-    }
-
-    /**
-     * Creates a graph with split branches and returns the two events that constitute the branches
-     *
-     * @param random            a random number generator
-     * @param generator         the event generator
-     * @param creatorToBranch   the creator that will create the branch
-     * @param otherParent       the other parent for the second branch
-     * @param numCommonEvents   the number of common events before the branch
-     * @param numAfterBranchEvents the number of events to generate after the branch
-     * @param numNetworkNodes   the total number of network nodes
-     * @return the two events that constitute the branches
-     */
-    public static List<Integer> createSplitBranchGraph(
-            final Random random,
-            final StandardEventEmitter generator,
-            final int creatorToBranch,
-            final int otherParent,
-            final int numCommonEvents,
-            final int numAfterBranchEvents,
-            final int numNetworkNodes) {
-        createSplitBranchConditions(generator, creatorToBranch, otherParent, numCommonEvents, numNetworkNodes);
-
-        generator.emitEvents(numCommonEvents);
-
-        final int firstBranchEventIndex = generator.emitEvents(1).getFirst();
-        final int secondBranchEventIndex = generator.emitEvents(1).getFirst();
-
-        generator.emitEvents(numAfterBranchEvents);
-
-        return List.of(firstBranchEventIndex, secondBranchEventIndex);
+                });
     }
 }
