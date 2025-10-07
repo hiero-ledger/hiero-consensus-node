@@ -4,6 +4,7 @@ package com.swirlds.platform.network.protocol;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.threading.manager.ThreadManager;
+import com.swirlds.platform.gossip.FallenBehindMonitor;
 import com.swirlds.platform.metrics.ReconnectMetrics;
 import com.swirlds.platform.reconnect.ReconnectPeerProtocol;
 import com.swirlds.platform.reconnect.ReconnectSyncHelper;
@@ -15,7 +16,6 @@ import java.time.Duration;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
-import org.hiero.consensus.gossip.FallenBehindManager;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
 
@@ -29,7 +29,7 @@ public class ReconnectProtocol implements Protocol {
     private final Duration reconnectSocketTimeout;
     private final ReconnectMetrics reconnectMetrics;
     private final ThreadManager threadManager;
-    private final FallenBehindManager fallenBehindManager;
+    private final FallenBehindMonitor fallenBehindManager;
     private final PlatformStateFacade platformStateFacade;
 
     private final Time time;
@@ -45,7 +45,7 @@ public class ReconnectProtocol implements Protocol {
             @NonNull final Duration reconnectSocketTimeout,
             @NonNull final ReconnectMetrics reconnectMetrics,
             @NonNull final ReconnectSyncHelper reconnectSyncHelper,
-            @NonNull final FallenBehindManager fallenBehindManager,
+            @NonNull final FallenBehindMonitor fallenBehindManager,
             @NonNull final PlatformStateFacade platformStateFacade) {
 
         this.platformContext = Objects.requireNonNull(platformContext);

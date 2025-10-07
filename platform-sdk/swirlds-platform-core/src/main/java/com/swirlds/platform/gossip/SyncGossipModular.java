@@ -21,7 +21,6 @@ import com.swirlds.platform.gossip.shadowgraph.AbstractShadowgraphSynchronizer;
 import com.swirlds.platform.gossip.shadowgraph.RpcShadowgraphSynchronizer;
 import com.swirlds.platform.gossip.shadowgraph.Shadowgraph;
 import com.swirlds.platform.gossip.shadowgraph.ShadowgraphSynchronizer;
-import com.swirlds.platform.gossip.sync.SyncManagerImpl;
 import com.swirlds.platform.metrics.ReconnectMetrics;
 import com.swirlds.platform.metrics.SyncMetrics;
 import com.swirlds.platform.network.PeerCommunication;
@@ -64,7 +63,6 @@ import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.CryptoUtils;
-import org.hiero.consensus.gossip.FallenBehindManager;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.KeysAndCerts;
@@ -83,7 +81,7 @@ public class SyncGossipModular implements Gossip {
     private final PeerCommunication network;
     private final ImmutableList<Protocol> protocols;
     private final AbstractSyncProtocol<?> syncProtocol;
-    private final SyncManagerImpl syncManager;
+    private final FallenBehindMonitor fallenBehindMonitor;
     private final AbstractShadowgraphSynchronizer synchronizer;
 
     // this is not a nice dependency, should be removed as well as the sharedState
@@ -144,13 +142,11 @@ public class SyncGossipModular implements Gossip {
 
         this.network = new PeerCommunication(platformContext, peers, selfPeer, ownKeysAndCerts);
 
-        this.syncManager = new SyncManagerImpl(
-                platformContext.getMetrics(),
-                new FallenBehindManagerImpl(
-                        selfId,
-                        peers.size(),
-                        statusActionSubmitter,
-                        platformContext.getConfiguration().getConfigData(ReconnectConfig.class)));
+        this.fallenBehindMonitor = new FallenBehindMonitor(
+                selfId,
+                peers.size(),
+                statusActionSubmitter,
+                platformContext.getConfiguration().getConfigData(ReconnectConfig.class));
 
         final ProtocolConfig protocolConfig = platformContext.getConfiguration().getConfigData(ProtocolConfig.class);
 
@@ -164,7 +160,7 @@ public class SyncGossipModular implements Gossip {
                     rosterSize,
                     syncMetrics,
                     event -> receivedEventHandler.accept(event),
-                    syncManager,
+                    fallenBehindMonitor,
                     intakeEventCounter,
                     selfId,
                     lag -> syncLagHandler.accept(lag));
@@ -189,7 +185,7 @@ public class SyncGossipModular implements Gossip {
                     rosterSize,
                     syncMetrics,
                     event -> receivedEventHandler.accept(event),
-                    syncManager,
+                    fallenBehindMonitor,
                     intakeEventCounter,
                     new CachedPoolParallelExecutor(threadManager, "node-sync"),
                     lag -> syncLagHandler.accept(lag));
@@ -197,14 +193,19 @@ public class SyncGossipModular implements Gossip {
             this.synchronizer = shadowgraphSynchronizer;
 
             this.syncProtocol = SyncProtocol.create(
-                    platformContext, shadowgraphSynchronizer, syncManager, intakeEventCounter, rosterSize, syncMetrics);
+                    platformContext,
+                    shadowgraphSynchronizer,
+                    fallenBehindMonitor,
+                    intakeEventCounter,
+                    rosterSize,
+                    syncMetrics);
         }
 
         this.protocols = ImmutableList.of(
                 HeartbeatProtocol.create(platformContext, this.network.getNetworkMetrics()),
                 createReconnectProtocol(
                         platformContext,
-                        syncManager,
+                        fallenBehindMonitor,
                         threadManager,
                         latestCompleteState,
                         roster,
@@ -243,7 +244,7 @@ public class SyncGossipModular implements Gossip {
      */
     public ReconnectProtocol createReconnectProtocol(
             @NonNull final PlatformContext platformContext,
-            @NonNull final FallenBehindManager fallenBehindManager,
+            @NonNull final FallenBehindMonitor fallenBehindManager,
             @NonNull final ThreadManager threadManager,
             @NonNull final Supplier<ReservedSignedState> latestCompleteState,
             @NonNull final Roster roster,
@@ -334,7 +335,7 @@ public class SyncGossipModular implements Gossip {
      */
     public void addRemovePeers(@NonNull final List<PeerInfo> added, @NonNull final List<PeerInfo> removed) {
         synchronized (this) {
-            syncManager.addRemovePeers(
+            fallenBehindMonitor.addRemovePeers(
                     added.stream().map(PeerInfo::nodeId).collect(Collectors.toSet()),
                     removed.stream().map(PeerInfo::nodeId).collect(Collectors.toSet()));
             syncProtocol.adjustTotalPermits(added.size() - removed.size());

@@ -6,6 +6,7 @@ import static org.hiero.base.CompareTo.isGreaterThanOrEqualTo;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.threading.pool.ParallelExecutionException;
 import com.swirlds.platform.Utilities;
+import com.swirlds.platform.gossip.FallenBehindMonitor;
 import com.swirlds.platform.gossip.IntakeEventCounter;
 import com.swirlds.platform.gossip.SyncException;
 import com.swirlds.platform.gossip.permits.SyncPermitProvider;
@@ -22,7 +23,6 @@ import java.time.Instant;
 import java.util.Objects;
 import java.util.function.BooleanSupplier;
 import java.util.function.Supplier;
-import org.hiero.consensus.gossip.FallenBehindManager;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
 
@@ -47,7 +47,7 @@ public class SyncPeerProtocol implements PeerProtocol {
     /**
      * Manager to determine whether this node has fallen behind
      */
-    private final FallenBehindManager fallenBehindManager;
+    private final FallenBehindMonitor fallenBehindManager;
 
     /**
      * Metrics tracking syncing
@@ -109,7 +109,7 @@ public class SyncPeerProtocol implements PeerProtocol {
             @NonNull final PlatformContext platformContext,
             @NonNull final NodeId peerId,
             @NonNull final ShadowgraphSynchronizer synchronizer,
-            @NonNull final FallenBehindManager fallenBehindManager,
+            @NonNull final FallenBehindMonitor fallenBehindManager,
             @NonNull final SyncPermitProvider permitProvider,
             @NonNull final IntakeEventCounter intakeEventCounter,
             @NonNull final BooleanSupplier gossipHalted,
