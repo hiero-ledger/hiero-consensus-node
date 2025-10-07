@@ -11,5 +11,10 @@ public class Constants {
      */
     public static final long RANDOM_SEED = 0L;
 
+    /**
+     * Empty string to signal to not use a saved state
+     */
+    public static final String NO_SAVED_STATE = "";
+
     private Constants() {}
 }

@@ -4,6 +4,7 @@ package org.hiero.otter.fixtures;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.hiero.consensus.model.status.PlatformStatus.CHECKING;
+import static org.hiero.otter.fixtures.Constants.NO_SAVED_STATE;
 import static org.hiero.otter.fixtures.Constants.RANDOM_SEED;
 
 import com.swirlds.common.test.fixtures.WeightGenerators;
@@ -33,7 +34,7 @@ class NetworkPartitionTest {
      */
     public static Stream<TestEnvironment> environments() {
         return Stream.of(
-                new TurtleTestEnvironment(SAVED_STATE, RANDOM_SEED), new ContainerTestEnvironment(SAVED_STATE));
+                new TurtleTestEnvironment(NO_SAVED_STATE, RANDOM_SEED), new ContainerTestEnvironment(NO_SAVED_STATE));
     }
 
     /**
@@ -134,7 +135,7 @@ class NetworkPartitionTest {
      */
     @Test
     void testCreatePartitionWithCollection() {
-        final TestEnvironment env = new TurtleTestEnvironment(SAVED_STATE, RANDOM_SEED);
+        final TestEnvironment env = new TurtleTestEnvironment(NO_SAVED_STATE, RANDOM_SEED);
         try {
             final Network network = env.network();
             final TimeManager timeManager = env.timeManager();
@@ -201,7 +202,7 @@ class NetworkPartitionTest {
      */
     @Test
     void testMultiplePartitions() {
-        final TestEnvironment env = new TurtleTestEnvironment(SAVED_STATE, RANDOM_SEED);
+        final TestEnvironment env = new TurtleTestEnvironment(NO_SAVED_STATE, RANDOM_SEED);
         try {
             final Network network = env.network();
             final TimeManager timeManager = env.timeManager();
@@ -259,7 +260,7 @@ class NetworkPartitionTest {
      */
     @Test
     void testMoveNodeBetweenPartitions() {
-        final TestEnvironment env = new TurtleTestEnvironment(SAVED_STATE, RANDOM_SEED);
+        final TestEnvironment env = new TurtleTestEnvironment(NO_SAVED_STATE, RANDOM_SEED);
         try {
             final Network network = env.network();
             final TimeManager timeManager = env.timeManager();
@@ -311,7 +312,7 @@ class NetworkPartitionTest {
      */
     @Test
     void testCreatePartitionWithAllNodes() {
-        final TestEnvironment env = new TurtleTestEnvironment(SAVED_STATE, RANDOM_SEED);
+        final TestEnvironment env = new TurtleTestEnvironment(NO_SAVED_STATE, RANDOM_SEED);
         try {
             final Network network = env.network();
             final TimeManager timeManager = env.timeManager();
@@ -338,7 +339,7 @@ class NetworkPartitionTest {
      */
     @Test
     void testCreatePartitionWithNoNodes() {
-        final TestEnvironment env = new TurtleTestEnvironment(SAVED_STATE, RANDOM_SEED);
+        final TestEnvironment env = new TurtleTestEnvironment(NO_SAVED_STATE, RANDOM_SEED);
         try {
             final Network network = env.network();
             final TimeManager timeManager = env.timeManager();
@@ -365,7 +366,7 @@ class NetworkPartitionTest {
      */
     @Test
     void testRemoveNonExistentPartition() {
-        final TestEnvironment env = new TurtleTestEnvironment(SAVED_STATE, RANDOM_SEED);
+        final TestEnvironment env = new TurtleTestEnvironment(NO_SAVED_STATE, RANDOM_SEED);
         try {
             final Network network = env.network();
             final TimeManager timeManager = env.timeManager();
@@ -396,7 +397,7 @@ class NetworkPartitionTest {
      */
     @Test
     void testRestoreConnectivityWithMultiplePartitions() {
-        final TestEnvironment env = new TurtleTestEnvironment(SAVED_STATE, RANDOM_SEED);
+        final TestEnvironment env = new TurtleTestEnvironment(NO_SAVED_STATE, RANDOM_SEED);
         try {
             final Network network = env.network();
             final TimeManager timeManager = env.timeManager();
@@ -449,7 +450,7 @@ class NetworkPartitionTest {
      */
     @Test
     void testRemoveOneOfTwoPartitions() {
-        final TestEnvironment env = new TurtleTestEnvironment(SAVED_STATE, RANDOM_SEED);
+        final TestEnvironment env = new TurtleTestEnvironment(NO_SAVED_STATE, RANDOM_SEED);
         try {
             final Network network = env.network();
             final TimeManager timeManager = env.timeManager();

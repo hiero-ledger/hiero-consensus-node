@@ -270,7 +270,9 @@ public class LegacyCsvWriter {
     }
 
     private void reportInconsistentState(final Collection<Snapshot> snapshots) {
-        logger.warn(METRICS.getMarker(), "Some metrics were not exported due to changes after LegacyCsvWriter initialization.");
+        logger.warn(
+                METRICS.getMarker(),
+                "Some metrics were not exported due to changes after LegacyCsvWriter initialization.");
         if (logger.isTraceEnabled()) {
             // Collect metrics that will not be exported
             final String willNotBeExported = snapshots.stream()
