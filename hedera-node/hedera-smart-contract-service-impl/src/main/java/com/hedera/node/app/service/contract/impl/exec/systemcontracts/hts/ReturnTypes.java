@@ -23,10 +23,6 @@ import org.apache.tuweni.bytes.Bytes;
  * Literal representations of output types used by HTS system contract functions.
  */
 public class ReturnTypes {
-    private ReturnTypes() {
-        throw new UnsupportedOperationException("Utility class");
-    }
-
     // When no value is set for AccountID, ContractID or TokenId the return value is set to 0.
     public static final AccountID ZERO_ACCOUNT_ID =
             AccountID.newBuilder().accountNum(0).build();
@@ -218,6 +214,10 @@ public class ReturnTypes {
 
     public static final TupleType<Tuple> RC_AND_ADDRESS_ENCODER = TupleType.parse(RESPONSE_CODE_ADDRESS);
     private static final TupleType<Tuple> RC_ENCODER = TupleType.parse(INT_64);
+
+    private ReturnTypes() {
+        throw new UnsupportedOperationException("Utility class");
+    }
 
     public static Bytes tuweniEncodedRc(@NonNull final ResponseCodeEnum status) {
         return Bytes.wrap(encodedRc(status).array());

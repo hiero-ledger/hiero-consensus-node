@@ -253,7 +253,7 @@ class ContractCallHandlerTest extends ContractHandlerTestBase {
                 .build();
     }
 
-    private TransactionBody contractCallTransactionWithContractId(ContractID contractId) {
+    private TransactionBody contractCallTransactionWithContractId(final ContractID contractId) {
         final var transactionID = TransactionID.newBuilder().accountID(payer).transactionValidStart(consensusTimestamp);
         return TransactionBody.newBuilder()
                 .transactionID(transactionID)

@@ -2576,34 +2576,33 @@ public class ContractCallSuite {
 
     @HapiTest
     final Stream<DynamicTest> badEvmAddressResultsInPrecheckFail() {
-        final var BAD_EVM_ADDRESS = "123456";
-        final var BAD_EVM_ADDRESS_CONTRACT = "badEvmAddressContract";
+        final var address = "123456";
+        final var contract = "badEvmAddressContract";
 
-        return contractIdResultsInPrecheckFail(BAD_EVM_ADDRESS_CONTRACT, spec -> ContractID.newBuilder()
+        return contractIdResultsInPrecheckFail(contract, spec -> ContractID.newBuilder()
                 .setShardNum(spec.shard())
                 .setRealmNum(spec.realm())
-                .setEvmAddress(ByteString.copyFrom(Objects.requireNonNull(unhex(BAD_EVM_ADDRESS))))
+                .setEvmAddress(ByteString.copyFrom(Objects.requireNonNull(unhex(address))))
                 .build());
     }
 
     @HapiTest
     final Stream<DynamicTest> zeroContractIdResultsInPrecheckFail() {
-        final var ZERO_ID_CONTRACT = "zeroIdContract";
+        final var contract = "zeroIdContract";
 
         return contractIdResultsInPrecheckFail(
-                ZERO_ID_CONTRACT,
-                spec -> ContractID.newBuilder().setContractNum(0).build());
+                contract, spec -> ContractID.newBuilder().setContractNum(0).build());
     }
 
     @HapiTest
     final Stream<DynamicTest> zeroEvmAddressContractIdResultsInPrecheckFail() {
-        final var ZERO_EVM_ADDRESS = "0000000000000000000000000000000000000000";
-        final var ZERO_EVM_ADDRESS_CONTRACT = "zeroEvmAddressContract";
+        final var address = "0000000000000000000000000000000000000000";
+        final var contract = "zeroEvmAddressContract";
 
-        return contractIdResultsInPrecheckFail(ZERO_EVM_ADDRESS_CONTRACT, spec -> ContractID.newBuilder()
+        return contractIdResultsInPrecheckFail(contract, spec -> ContractID.newBuilder()
                 .setShardNum(spec.shard())
                 .setRealmNum(spec.realm())
-                .setEvmAddress(ByteString.copyFrom(Objects.requireNonNull(unhex(ZERO_EVM_ADDRESS))))
+                .setEvmAddress(ByteString.copyFrom(Objects.requireNonNull(unhex(address))))
                 .build());
     }
 
