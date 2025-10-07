@@ -11,6 +11,7 @@ import java.time.Duration;
 import java.util.Collection;
 import java.util.List;
 import java.util.Set;
+import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.otter.fixtures.internal.helpers.Utils;
 import org.hiero.otter.fixtures.network.Partition;
@@ -125,6 +126,15 @@ public interface Network {
      * calling {@link #withTimeout(Duration)}.
      */
     void start();
+
+    /**
+     * Sets the quiescence command of the network.
+     *
+     * <p>The default command is {@link QuiescenceCommand#DONT_QUIESCE}.
+     *
+     * @param command the new quiescence command
+     */
+    void sendQuiescenceCommand(@NonNull QuiescenceCommand command);
 
     /**
      * Creates a network partition containing the specified nodes. Nodes within the partition remain connected to each
