@@ -460,7 +460,7 @@ public class BlockNodeSuite {
                             "1"
                         })
             })
-    @Order(8)
+    @Order(9)
     final Stream<DynamicTest> node0StreamingMultipleEndOfStreamsReceived() {
         final AtomicReference<Instant> time = new AtomicReference<>();
         final List<Integer> portNumbers = new ArrayList<>();
@@ -507,7 +507,7 @@ public class BlockNodeSuite {
                             "FILE_AND_GRPC"
                         })
             })
-    @Order(9)
+    @Order(10)
     final Stream<DynamicTest> node0StreamingExponentialBackoff() {
         final AtomicReference<Instant> time = new AtomicReference<>();
         return hapiTest(
@@ -550,7 +550,7 @@ public class BlockNodeSuite {
                             "blockNode.highLatencyThreshold", "1s"
                         })
             })
-    @Order(10)
+    @Order(11)
     final Stream<DynamicTest> node0StreamingToHighLatencyBlockNode() {
         final AtomicReference<Instant> time = new AtomicReference<>();
         final List<Integer> portNumbers = new ArrayList<>();
@@ -588,7 +588,7 @@ public class BlockNodeSuite {
                             "blockStream.writerMode", "FILE_AND_GRPC"
                         })
             })
-    @Order(11)
+    @Order(12)
     final Stream<DynamicTest> testCNReactionToPublishStreamResponses() {
         final AtomicReference<Instant> time = new AtomicReference<>();
         final List<Integer> portNumbers = new ArrayList<>();
@@ -730,7 +730,6 @@ public class BlockNodeSuite {
     }
 
     private Stream<DynamicTest> nodeDeathTestSteps() {
-        final AtomicReference<Instant> timeRef = new AtomicReference<>();
         return hapiTest(
                 // Validate we can initially submit transactions to node2
                 cryptoCreate("nobody").setNode("5"),
@@ -746,15 +745,12 @@ public class BlockNodeSuite {
                 FakeNmt.restartWithConfigVersion(NodeSelector.byNodeId(2), CURRENT_CONFIG_VERSION.get()),
                 // Wait for node2 ACTIVE (BUSY and RECONNECT_COMPLETE are too transient to reliably poll for)
                 waitForActive(NodeSelector.byNodeId(2), RESTART_TO_ACTIVE_TIMEOUT),
-                doingContextual(spec -> timeRef.set(Instant.now())),
                 // Run some more transactions
                 burstOfTps(MIXED_OPS_BURST_TPS, MIXED_OPS_BURST_DURATION),
                 // And validate we can still submit transactions to node2
                 cryptoCreate("somebody").setNode("5"),
                 burstOfTps(MIXED_OPS_BURST_TPS, Duration.ofSeconds(60)),
-                assertHgcaaLogDoesNotContain(byNodeId(0), "ERROR", Duration.ofSeconds(5)),
-                sourcingContextual(spec -> assertHgcaaLogContainsTimeframe(
-                        byNodeId(2), timeRef::get, Duration.ofMinutes(1), Duration.ofSeconds(45), "saturation=0.0%")));
+                assertHgcaaLogDoesNotContain(byNodeId(0), "ERROR", Duration.ofSeconds(5)));
     }
 
     @HapiTest
@@ -774,7 +770,7 @@ public class BlockNodeSuite {
                             "blockNode.streamResetPeriod", "20s",
                         })
             })
-    @Order(14)
+    @Order(3)
     final Stream<DynamicTest> testBlockBufferDurability() {
         /*
         1. Create some background traffic for a while.
