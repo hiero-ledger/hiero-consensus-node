@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.utils.test;
 
+import static org.junit.jupiter.api.Assertions.fail;
+
 import com.hedera.hapi.block.stream.Block;
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.node.base.Timestamp;
@@ -8,7 +10,6 @@ import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.util.HapiUtils;
-import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.support.BlockStreamAccess;
@@ -25,13 +26,10 @@ import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
-import java.util.function.Function;
 import org.hiero.consensus.crypto.PbjStreamHasher;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
-
-import static org.junit.jupiter.api.Assertions.fail;
 
 /**
  * A utility class that reads and compares events from PCES files and block files. Events are sorted according to their
@@ -56,15 +54,16 @@ public class BlockEventToPcesEventComparatorTest {
         for (int i = 0; i < events.size() && i < blockPairs.size(); i++) {
             final PlatformEvent event = events.get(i);
             final Pair<Timestamp, List<TransactionBody>> blockPair = blockPairs.get(i);
-            System.out.println("PCES Event " + i + " timestamp: " + event.getEventCore().timeCreated()
-                    + ", Block Event timestamp: " + blockPair.left());
+            System.out.println("PCES Event " + i + " timestamp: "
+                    + event.getEventCore().timeCreated() + ", Block Event timestamp: " + blockPair.left());
             if (!Objects.equals(event.getEventCore().timeCreated(), blockPair.left())) {
                 System.out.println("Event " + i + " has different timestamps: "
                         + event.getEventCore().timeCreated() + " vs " + blockPair.left());
             }
             if (event.getTransactions().size() != blockPair.right().size()) {
                 System.out.println("Event " + i + " has different number of transactions: "
-                        + event.getTransactions().size() + " vs " + blockPair.right().size());
+                        + event.getTransactions().size() + " vs "
+                        + blockPair.right().size());
             }
         }
     }
@@ -85,7 +84,8 @@ public class BlockEventToPcesEventComparatorTest {
                         if (eventPair != null) {
                             eventPairs.add(eventPair);
                         }
-                        final Timestamp timeCreated = item.eventHeader().eventCore().timeCreated();
+                        final Timestamp timeCreated =
+                                item.eventHeader().eventCore().timeCreated();
                         eventPair = Pair.of(timeCreated, new ArrayList<>());
                         break;
                     case SIGNED_TRANSACTION:
