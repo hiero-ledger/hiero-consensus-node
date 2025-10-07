@@ -21,7 +21,6 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.node.base.HookId;
 import com.hedera.hapi.node.hooks.HookCreation;
 import com.hedera.hapi.node.hooks.LambdaStorageUpdate;
-import com.hedera.hapi.node.state.contract.SlotKey;
 import com.hedera.hapi.node.state.contract.SlotValue;
 import com.hedera.hapi.node.state.hooks.EvmHookState;
 import com.hedera.hapi.node.state.hooks.LambdaSlotKey;
@@ -36,7 +35,6 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -279,7 +277,6 @@ public class WritableEvmHookStore extends ReadableEvmHookStoreImpl {
         storage.remove(slotKey);
         return firstKey;
     }
-
 
     public Set<LambdaSlotKey> getModifiedSlotKeys() {
         return storage.modifiedKeys();

@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.infra;
 
-import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.HtsSystemContract.HTS_HOOKS_16D_CONTRACT_ID;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.tuweniToPbjBytes;
+import static com.hedera.node.app.service.token.HookDispatchUtils.HTS_HOOKS_CONTRACT_ID;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.ContractID;
@@ -64,7 +64,7 @@ public class IterableStorageManager {
         allAccesses.forEach(contractAccesses -> contractAccesses.accesses().forEach(access -> {
             if (access.isUpdate()) {
                 final var contractId = contractAccesses.contractID();
-                if(contractId.equals(HTS_HOOKS_16D_CONTRACT_ID)){ //<----------------------------- change here
+                if (contractId.equals(HTS_HOOKS_CONTRACT_ID)) { // <----------------------------- change here
                     // Skip managing linked list for 0x16d, as its storage is managed separately
                     return;
                 }
@@ -77,25 +77,27 @@ public class IterableStorageManager {
                 final var newFirstContractKey =
                         switch (StorageAccessType.getAccessType(access)) {
                             case UNKNOWN, READ_ONLY, UPDATE -> firstContractKey;
-                                // We might be removing the head slot from the existing list
-                            case REMOVAL -> removeAccessedValue(
-                                    store,
-                                    firstContractKey,
-                                    contractAccesses.contractID(),
-                                    tuweniToPbjBytes(access.key()));
+                            // We might be removing the head slot from the existing list
+                            case REMOVAL ->
+                                removeAccessedValue(
+                                        store,
+                                        firstContractKey,
+                                        contractAccesses.contractID(),
+                                        tuweniToPbjBytes(access.key()));
                             case ZERO_INTO_EMPTY_SLOT -> {
                                 // Ensure a "new" zero isn't put into state, remove from KV state
                                 store.removeSlot(
                                         new SlotKey(contractAccesses.contractID(), tuweniToPbjBytes(access.key())));
                                 yield firstContractKey;
                             }
-                                // We always insert the new slot at the head
-                            case INSERTION -> insertAccessedValue(
-                                    store,
-                                    firstContractKey,
-                                    tuweniToPbjBytes(requireNonNull(access.writtenValue())),
-                                    contractAccesses.contractID(),
-                                    tuweniToPbjBytes(access.key()));
+                            // We always insert the new slot at the head
+                            case INSERTION ->
+                                insertAccessedValue(
+                                        store,
+                                        firstContractKey,
+                                        tuweniToPbjBytes(requireNonNull(access.writtenValue())),
+                                        contractAccesses.contractID(),
+                                        tuweniToPbjBytes(access.key()));
                         };
                 firstKeys.put(contractAccesses.contractID(), newFirstContractKey);
             }
@@ -104,7 +106,7 @@ public class IterableStorageManager {
         // Update contract metadata with the net change in slots used
         long slotUsageChange = 0;
         for (final var change : allSizeChanges) {
-            if(change.contractID().equals(HTS_HOOKS_16D_CONTRACT_ID)){ //<----------------------------- change here
+            if (change.contractID().equals(HTS_HOOKS_CONTRACT_ID)) { // <----------------------------- change here
                 // Skip managing slot count for 0x16d, as its storage is managed separately
                 continue;
             }

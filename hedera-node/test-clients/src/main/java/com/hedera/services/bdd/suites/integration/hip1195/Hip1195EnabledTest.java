@@ -30,7 +30,6 @@ import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.viewAccount;
 import static com.hedera.services.bdd.spec.utilops.SidecarVerbs.GLOBAL_WATCHER;
 import static com.hedera.services.bdd.spec.utilops.SidecarVerbs.expectContractStateChangesSidecarFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
@@ -53,7 +52,6 @@ import static org.hyperledger.besu.crypto.Hash.keccak256;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.google.protobuf.ByteString;
-import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.hooks.LambdaMappingEntry;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -128,9 +126,8 @@ public class Hip1195EnabledTest {
         testLifecycle.doAdhoc(STORAGE_GET_MAPPING_HOOK.getInfo());
         testLifecycle.doAdhoc(STORAGE_SET_SLOT_HOOK.getInfo());
 
-        testLifecycle.doAdhoc(
-                withOpContext(
-                        (spec, opLog) -> GLOBAL_WATCHER.set(new SidecarWatcher(spec.recordStreamsLoc(byNodeId(0))))));
+        testLifecycle.doAdhoc(withOpContext(
+                (spec, opLog) -> GLOBAL_WATCHER.set(new SidecarWatcher(spec.recordStreamsLoc(byNodeId(0))))));
     }
 
     @HapiTest
@@ -285,12 +282,12 @@ public class Hip1195EnabledTest {
                         .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK),
                 expectContractStateChangesSidecarFor(
                         "storageSetTxn",
+                        1,
                         List.of(StateChange.stateChangeFor(HOOK_CONTRACT_NUM)
-                                .withStorageChanges(
-                                        StorageChange.readAndWritten(
-                                                formattedAssertionValue(0),
-                                                formattedAssertionValue(passHash32.toHex()),
-                                                formattedAssertionValue(0))))),
+                                .withStorageChanges(StorageChange.readAndWritten(
+                                        formattedAssertionValue(0),
+                                        formattedAssertionValue(passHash32.toHex()),
+                                        formattedAssertionValue(0))))),
                 withOpContext(
                         (spec, opLog) -> requireNonNull(GLOBAL_WATCHER.get()).assertExpectations(spec)));
     }
