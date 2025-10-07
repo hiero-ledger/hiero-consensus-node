@@ -153,22 +153,22 @@ public class BlockNodeConnectionManager {
      * Reference to the worker thread that handles creating requests and sending requests to the connected block node.
      */
     private final AtomicReference<Thread> blockStreamWorkerThreadRef = new AtomicReference<>();
-	/**
-	 * Watch service for monitoring the block node configuration file for updates.
-	 */
-	private final AtomicReference<WatchService> configWatchServiceRef = new AtomicReference<>();
-	/**
-	 * Reference to the configuration watcher thread.
-	 */
-	private final AtomicReference<Thread> configWatcherThreadRef = new AtomicReference<>();
-	/**
-	 * The directory containing the block node connection configuration file.
-	 */
-	private Path blockNodeConfigDirectory;
-	/**
-	 * The file name of the block node configuration file.
-	 */
-	private static final String BLOCK_NODES_FILE_NAME = "block-nodes.json";
+    /**
+     * Watch service for monitoring the block node configuration file for updates.
+     */
+    private final AtomicReference<WatchService> configWatchServiceRef = new AtomicReference<>();
+    /**
+     * Reference to the configuration watcher thread.
+     */
+    private final AtomicReference<Thread> configWatcherThreadRef = new AtomicReference<>();
+    /**
+     * The directory containing the block node connection configuration file.
+     */
+    private Path blockNodeConfigDirectory;
+    /**
+     * The file name of the block node configuration file.
+     */
+    private static final String BLOCK_NODES_FILE_NAME = "block-nodes.json";
     /**
      * Map that contains one or more connections to block nodes. The connections in this map will be a subset (or all)
      * of the available block node connections. (see {@link BlockNodeConnectionManager#availableBlockNodes})
@@ -293,16 +293,19 @@ public class BlockNodeConnectionManager {
 
         isStreamingEnabled.set(isStreamingEnabled());
 
-		if (isStreamingEnabled.get()) {
-			final String blockNodeConnectionConfigPath = blockNodeConnectionFileDir();
-			blockNodeConfigDirectory = Paths.get(blockNodeConnectionConfigPath);
+        if (isStreamingEnabled.get()) {
+            final String blockNodeConnectionConfigPath = blockNodeConnectionFileDir();
+            blockNodeConfigDirectory = Paths.get(blockNodeConnectionConfigPath);
 
-			availableBlockNodes = new ArrayList<>();
-			logWithContext(INFO, "Initialized empty block node configuration; awaiting file watcher events from {}.", blockNodeConnectionConfigPath);
+            availableBlockNodes = new ArrayList<>();
+            logWithContext(
+                    INFO,
+                    "Initialized empty block node configuration; awaiting file watcher events from {}.",
+                    blockNodeConnectionConfigPath);
 
-			// Start a watcher to monitor changes to the block-nodes.json file for dynamic updates
-			startConfigWatcher();
-		} else {
+            // Start a watcher to monitor changes to the block-nodes.json file for dynamic updates
+            startConfigWatcher();
+        } else {
             logWithContext(INFO, "Block node streaming is disabled. Will not setup connections to block nodes.");
             availableBlockNodes = new ArrayList<>();
         }
@@ -366,38 +369,42 @@ public class BlockNodeConnectionManager {
      * @param blockNodeConfigPath the path to the block node configuration file
      * @return the configurations for all block nodes
      */
-	private List<BlockNodeConfig> extractBlockNodesConfigurations(@NonNull final String blockNodeConfigPath) {
-		final Path configPath = Paths.get(blockNodeConfigPath, BLOCK_NODES_FILE_NAME);
-		try {
-			if (!Files.exists(configPath)) {
-				logWithContext(WARN, "Block node configuration file does not exist: {}", configPath);
-				return List.of();
-			}
+    private List<BlockNodeConfig> extractBlockNodesConfigurations(@NonNull final String blockNodeConfigPath) {
+        final Path configPath = Paths.get(blockNodeConfigPath, BLOCK_NODES_FILE_NAME);
+        try {
+            if (!Files.exists(configPath)) {
+                logWithContext(WARN, "Block node configuration file does not exist: {}", configPath);
+                return List.of();
+            }
 
-			final byte[] jsonConfig = Files.readAllBytes(configPath);
-			final BlockNodeConnectionInfo protoConfig = BlockNodeConnectionInfo.JSON.parse(Bytes.wrap(jsonConfig));
+            final byte[] jsonConfig = Files.readAllBytes(configPath);
+            final BlockNodeConnectionInfo protoConfig = BlockNodeConnectionInfo.JSON.parse(Bytes.wrap(jsonConfig));
 
-			// Convert proto config to internal config objects
-			return protoConfig.nodes().stream()
-					.map(node -> new BlockNodeConfig(node.address(), node.port(), node.priority()))
-					.toList();
-		} catch (final IOException | ParseException e) {
-			logWithContext(WARN, "Failed to read or parse block node configuration from {}. Continuing without block node connections.", configPath, e);
-			return List.of();
-		}
-	}
+            // Convert proto config to internal config objects
+            return protoConfig.nodes().stream()
+                    .map(node -> new BlockNodeConfig(node.address(), node.port(), node.priority()))
+                    .toList();
+        } catch (final IOException | ParseException e) {
+            logWithContext(
+                    WARN,
+                    "Failed to read or parse block node configuration from {}. Continuing without block node connections.",
+                    configPath,
+                    e);
+            return List.of();
+        }
+    }
 
     /**
      * Checks if there is only one block node configured.
      * @return whether there is only one block node configured
      */
-	public boolean isOnlyOneBlockNodeConfigured() {
-		int size;
-		synchronized (availableBlockNodes) {
-			size = availableBlockNodes.size();
-		}
-		return size == 1;
-	}
+    public boolean isOnlyOneBlockNodeConfigured() {
+        int size;
+        synchronized (availableBlockNodes) {
+            size = availableBlockNodes.size();
+        }
+        return size == 1;
+    }
 
     /**
      * Creates a new gRPC client based on the specified configuration.
@@ -650,14 +657,16 @@ public class BlockNodeConnectionManager {
         logWithContext(INFO, "Stopping block node connections (keeping worker loop running).");
 
         // Close all connections
-        final Iterator<Map.Entry<BlockNodeConfig, BlockNodeConnection>> it = connections.entrySet().iterator();
+        final Iterator<Map.Entry<BlockNodeConfig, BlockNodeConnection>> it =
+                connections.entrySet().iterator();
         while (it.hasNext()) {
             final Map.Entry<BlockNodeConfig, BlockNodeConnection> entry = it.next();
             final BlockNodeConnection connection = entry.getValue();
             try {
                 connection.close(true);
             } catch (final RuntimeException e) {
-                logWithContext(DEBUG, "Error while closing connection during stopConnections. Ignoring.", connection, e);
+                logWithContext(
+                        DEBUG, "Error while closing connection during stopConnections. Ignoring.", connection, e);
             }
             it.remove();
         }
@@ -732,15 +741,15 @@ public class BlockNodeConnectionManager {
      *
      * @return the next available block node configuration
      */
-	private @Nullable BlockNodeConfig getNextPriorityBlockNode() {
+    private @Nullable BlockNodeConfig getNextPriorityBlockNode() {
         logWithContext(DEBUG, "Searching for new block node connection based on node priorities.");
 
-		final List<BlockNodeConfig> snapshot;
-		synchronized (availableBlockNodes) {
-			snapshot = new ArrayList<>(availableBlockNodes);
-		}
+        final List<BlockNodeConfig> snapshot;
+        synchronized (availableBlockNodes) {
+            snapshot = new ArrayList<>(availableBlockNodes);
+        }
 
-		final SortedMap<Integer, List<BlockNodeConfig>> priorityGroups = snapshot.stream()
+        final SortedMap<Integer, List<BlockNodeConfig>> priorityGroups = snapshot.stream()
                 .collect(Collectors.groupingBy(BlockNodeConfig::priority, TreeMap::new, Collectors.toList()));
 
         BlockNodeConfig selectedNode = null;
@@ -905,7 +914,8 @@ public class BlockNodeConnectionManager {
      */
     private void startConfigWatcher() {
         try {
-            final WatchService watchService = blockNodeConfigDirectory.getFileSystem().newWatchService();
+            final WatchService watchService =
+                    blockNodeConfigDirectory.getFileSystem().newWatchService();
             configWatchServiceRef.set(watchService);
             blockNodeConfigDirectory.register(
                     watchService,
@@ -913,30 +923,33 @@ public class BlockNodeConnectionManager {
                     StandardWatchEventKinds.ENTRY_MODIFY,
                     StandardWatchEventKinds.ENTRY_DELETE);
 
-            final Thread watcherThread = Thread.ofPlatform().name("BlockNodesConfigWatcher").start(() -> {
-                while (true) {
-                    try {
-                        final WatchKey key = watchService.take();
-                        for (WatchEvent<?> event : key.pollEvents()) {
-                            final WatchEvent.Kind<?> kind = event.kind();
-                            final Object ctx = event.context();
-                            if (ctx instanceof Path changed && BLOCK_NODES_FILE_NAME.equals(changed.toString())) {
-                                logWithContext(INFO, "Detected {} event for {}.", kind.name(), changed);
-                                handleConfigFileChange(kind);
+            final Thread watcherThread = Thread.ofPlatform()
+                    .name("BlockNodesConfigWatcher")
+                    .start(() -> {
+                        while (true) {
+                            try {
+                                final WatchKey key = watchService.take();
+                                for (WatchEvent<?> event : key.pollEvents()) {
+                                    final WatchEvent.Kind<?> kind = event.kind();
+                                    final Object ctx = event.context();
+                                    if (ctx instanceof Path changed
+                                            && BLOCK_NODES_FILE_NAME.equals(changed.toString())) {
+                                        logWithContext(INFO, "Detected {} event for {}.", kind.name(), changed);
+                                        handleConfigFileChange(kind);
+                                    }
+                                }
+                                if (!key.reset()) {
+                                    logWithContext(WARN, "WatchKey could not be reset. Exiting config watcher loop.");
+                                    break;
+                                }
+                            } catch (InterruptedException e) {
+                                Thread.currentThread().interrupt();
+                                break;
+                            } catch (Exception e) {
+                                logWithContext(WARN, "Exception in config watcher loop.", e);
                             }
                         }
-                        if (!key.reset()) {
-                            logWithContext(WARN, "WatchKey could not be reset. Exiting config watcher loop.");
-                            break;
-                        }
-                    } catch (InterruptedException e) {
-                        Thread.currentThread().interrupt();
-                        break;
-                    } catch (Exception e) {
-                        logWithContext(WARN, "Exception in config watcher loop.", e);
-                    }
-                }
-            });
+                    });
             configWatcherThreadRef.set(watcherThread);
             // Perform an initial load if the configuration file already exists
             performInitialConfigLoad();
@@ -952,13 +965,17 @@ public class BlockNodeConnectionManager {
     private void performInitialConfigLoad() {
         final Path configPath = blockNodeConfigDirectory.resolve(BLOCK_NODES_FILE_NAME);
         if (Files.exists(configPath)) {
-            final List<BlockNodeConfig> newConfigs = extractBlockNodesConfigurations(blockNodeConfigDirectory.toString());
+            final List<BlockNodeConfig> newConfigs =
+                    extractBlockNodesConfigurations(blockNodeConfigDirectory.toString());
             synchronized (availableBlockNodes) {
                 availableBlockNodes.clear();
                 availableBlockNodes.addAll(newConfigs);
             }
             if (!newConfigs.isEmpty()) {
-                logWithContext(INFO, "Initial block node configuration loaded ({} nodes). Starting connection manager.", newConfigs.size());
+                logWithContext(
+                        INFO,
+                        "Initial block node configuration loaded ({} nodes). Starting connection manager.",
+                        newConfigs.size());
                 start();
             } else {
                 logWithContext(WARN, "Initial block node configuration missing or invalid. Waiting for updates.");
@@ -1007,10 +1024,13 @@ public class BlockNodeConnectionManager {
         }
 
         if (!newConfigs.isEmpty()) {
-            logWithContext(INFO, "Reloaded {} block node configurations. Restarting connection manager.", newConfigs.size());
+            logWithContext(
+                    INFO, "Reloaded {} block node configurations. Restarting connection manager.", newConfigs.size());
             start();
         } else {
-            logWithContext(WARN, "No valid block node configurations available after file change. Connections remain stopped.");
+            logWithContext(
+                    WARN,
+                    "No valid block node configurations available after file change. Connections remain stopped.");
         }
     }
 

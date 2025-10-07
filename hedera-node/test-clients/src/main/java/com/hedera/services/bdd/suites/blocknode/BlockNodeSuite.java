@@ -23,7 +23,6 @@ import com.hedera.services.bdd.HapiBlockNode.SubProcessNodeConfig;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.OrderedInIsolation;
 import com.hedera.services.bdd.junit.hedera.BlockNodeMode;
-
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -34,8 +33,6 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.LockSupport;
 import java.util.stream.Stream;
-
-import com.hedera.services.bdd.junit.hedera.NodeSelector;
 import org.hiero.block.api.PublishStreamResponse.EndOfStream.Code;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.junit.jupiter.api.Disabled;
@@ -56,69 +53,34 @@ public class BlockNodeSuite {
             networkSize = 1,
             blockNodeConfigs = {@BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.REAL)},
             subProcessNodeConfigs = {
-                    @SubProcessNodeConfig(
-                            nodeId = 0,
-                            applicationPropertiesOverrides = {
-                                    "blockStream.streamMode", "BOTH",
-                                    "blockStream.writerMode", "FILE_AND_GRPC"
-                            })
+                @SubProcessNodeConfig(
+                        nodeId = 0,
+                        applicationPropertiesOverrides = {
+                            "blockStream.streamMode", "BOTH",
+                            "blockStream.writerMode", "FILE_AND_GRPC"
+                        })
             })
     @Order(0)
     final Stream<DynamicTest> node0SupportsDynamicBlockNodeConnectionInfo() {
+        final AtomicReference<Instant> timeRef = new AtomicReference<>();
+        final List<Integer> portNumbers = new ArrayList<>();
         return hapiTest(
-                waitUntilNextBlocks(15).withBackgroundTraffic(true),
-                // Create block-nodes.json
-                doingContextual((spec) -> {
-                        // Create a new block-nodes.json file at runtime with localhost and the correct port
-                        final var node0Port = spec.getBlockNodePortById(0);
-                        List<com.hedera.node.internal.network.BlockNodeConfig> blockNodes = new ArrayList<>();
-                        blockNodes.add(new com.hedera.node.internal.network.BlockNodeConfig("localhost", node0Port, 0));
-                        BlockNodeConnectionInfo connectionInfo = new BlockNodeConnectionInfo(blockNodes);
-                        try {
-                            // Write the config to this consensus node's block-nodes.json
-                            Path configPath = spec.getNetworkNodes().getFirst().getExternalPath(DATA_CONFIG_DIR).resolve("block-nodes.json");
-                            Files.writeString(configPath, BlockNodeConnectionInfo.JSON.toJSON(connectionInfo));
-                        } catch (IOException e) {
-                            throw new RuntimeException(e);
-                        }
-                    }),
-                waitUntilNextBlocks(15).withBackgroundTraffic(true),
-                // Update block-nodes.json to have an invalid entry
-                doingContextual((spec) -> {
-                    List<com.hedera.node.internal.network.BlockNodeConfig> blockNodes = new ArrayList<>();
-                    blockNodes.add(new com.hedera.node.internal.network.BlockNodeConfig("26dsfg2364", 1234, 0));
-                    BlockNodeConnectionInfo connectionInfo = new BlockNodeConnectionInfo(blockNodes);
-                    try {
-                        // Write the config to this consensus node's block-nodes.json
-                        Path configPath = spec.getNetworkNodes().getFirst().getExternalPath(DATA_CONFIG_DIR).resolve("block-nodes.json");
-                        Files.writeString(configPath, BlockNodeConnectionInfo.JSON.toJSON(connectionInfo));
-                    } catch (IOException e) {
-                        throw new RuntimeException(e);
-                    }
+                doingContextual(spec -> {
+                    portNumbers.add(spec.getBlockNodePortById(0));
                 }),
                 waitUntilNextBlocks(15).withBackgroundTraffic(true),
-                // Delete block-nodes.json
+                // Verify buffer saturation increases without block node connection
+                doingContextual(spec -> timeRef.set(Instant.now())),
+                sourcingContextual(spec -> assertHgcaaLogContainsTimeframe(
+                        byNodeId(0),
+                        timeRef::get,
+                        Duration.ofSeconds(30),
+                        Duration.ofSeconds(30),
+                        // Blocks are accumulating in buffer without being sent
+                        "No active connections available for streaming block")),
+                // Create block-nodes.json to establish connection
                 doingContextual((spec) -> {
-                    try {
-                        Path configPath = spec.getNetworkNodes().getFirst().getExternalPath(DATA_CONFIG_DIR).resolve("block-nodes.json");
-                        Files.delete(configPath);
-                    } catch (IOException e) {
-                        throw new RuntimeException(e);
-                    }
-                }),
-                waitUntilNextBlocks(5).withBackgroundTraffic(true),
-                // Unparsable block-nodes.json
-                doingContextual((spec) -> {
-                    try {
-                        Path configPath = spec.getNetworkNodes().getFirst().getExternalPath(DATA_CONFIG_DIR).resolve("block-nodes.json");
-                        Files.writeString(configPath, "{ this is not valid json");
-                    } catch (IOException e) {
-                        throw new RuntimeException(e);
-                    }
-                }),
-                waitUntilNextBlocks(5).withBackgroundTraffic(true),
-                // Create valid block-nodes.json again
-                doingContextual((spec) -> {
+                    timeRef.set(Instant.now());
                     // Create a new block-nodes.json file at runtime with localhost and the correct port
                     final var node0Port = spec.getBlockNodePortById(0);
                     List<com.hedera.node.internal.network.BlockNodeConfig> blockNodes = new ArrayList<>();
@@ -126,16 +88,202 @@ public class BlockNodeSuite {
                     BlockNodeConnectionInfo connectionInfo = new BlockNodeConnectionInfo(blockNodes);
                     try {
                         // Write the config to this consensus node's block-nodes.json
-                        Path configPath = spec.getNetworkNodes().getFirst().getExternalPath(DATA_CONFIG_DIR).resolve("block-nodes.json");
+                        Path configPath = spec.getNetworkNodes()
+                                .getFirst()
+                                .getExternalPath(DATA_CONFIG_DIR)
+                                .resolve("block-nodes.json");
                         Files.writeString(configPath, BlockNodeConnectionInfo.JSON.toJSON(connectionInfo));
                     } catch (IOException e) {
                         throw new RuntimeException(e);
                     }
                 }),
+                // Verify config was reloaded and connection established
+                sourcingContextual(spec -> assertHgcaaLogContainsTimeframe(
+                        byNodeId(0),
+                        timeRef::get,
+                        Duration.ofMinutes(1),
+                        Duration.ofSeconds(45),
+                        // Connection manager stops existing connections (file watcher event may take time to be
+                        // detected)
+                        "Stopping block node connections (keeping worker loop running)",
+                        // New config is loaded
+                        "Reloaded 1 block node configurations. Restarting connection manager.",
+                        "Starting connection manager",
+                        "Searching for new block node connection based on node priorities",
+                        "Found available node in priority group 0",
+                        String.format(
+                                "Created BlockStreamPublishServiceClient for localhost:%s", portNumbers.getFirst()),
+                        String.format(
+                                "/localhost:%s/UNINITIALIZED] Scheduling reconnection for node in 0 ms",
+                                portNumbers.getFirst()),
+                        String.format(
+                                "/localhost:%s/UNINITIALIZED] Successfully scheduled reconnection task",
+                                portNumbers.getFirst()),
+                        String.format("/localhost:%s/UNINITIALIZED] Running connection task", portNumbers.getFirst()),
+                        String.format(
+                                "/localhost:%s/UNINITIALIZED] Request pipeline initialized", portNumbers.getFirst()),
+                        String.format(
+                                "/localhost:%s/PENDING] Connection state transitioned from UNINITIALIZED to PENDING.",
+                                portNumbers.getFirst()),
+                        String.format(
+                                "/localhost:%s/ACTIVE] Connection state transitioned from PENDING to ACTIVE.",
+                                portNumbers.getFirst()),
+                        String.format(
+                                "Active block node connection updated to: localhost:%s", portNumbers.getFirst()))),
+                waitUntilNextBlocks(15).withBackgroundTraffic(true),
+                // Update block-nodes.json to have an invalid entry
+                doingContextual((spec) -> {
+                    timeRef.set(Instant.now());
+                    List<com.hedera.node.internal.network.BlockNodeConfig> blockNodes = new ArrayList<>();
+                    blockNodes.add(new com.hedera.node.internal.network.BlockNodeConfig("26dsfg2364", 1234, 0));
+                    BlockNodeConnectionInfo connectionInfo = new BlockNodeConnectionInfo(blockNodes);
+                    try {
+                        // Write the config to this consensus node's block-nodes.json
+                        Path configPath = spec.getNetworkNodes()
+                                .getFirst()
+                                .getExternalPath(DATA_CONFIG_DIR)
+                                .resolve("block-nodes.json");
+                        Files.writeString(configPath, BlockNodeConnectionInfo.JSON.toJSON(connectionInfo));
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
+                }),
+                // Verify config was reloaded but connection fails with invalid address
+                sourcingContextual(spec -> assertHgcaaLogContainsTimeframe(
+                        byNodeId(0),
+                        timeRef::get,
+                        Duration.ofSeconds(45),
+                        Duration.ofSeconds(45),
+                        "Detected ENTRY_MODIFY event for block-nodes.json",
+                        "Stopping block node connections (keeping worker loop running)",
+                        // Old connection is gracefully closed
+                        String.format(
+                                "/localhost:%s/CLOSING] Connection state transitioned from ACTIVE to CLOSING",
+                                portNumbers.getFirst()),
+                        String.format("/localhost:%s/CLOSING] Cancelled periodic stream reset", portNumbers.getFirst()),
+                        String.format(
+                                "/localhost:%s/CLOSING] Closing request pipeline for block node",
+                                portNumbers.getFirst()),
+                        String.format(
+                                "/localhost:%s/CLOSING] Request pipeline successfully closed", portNumbers.getFirst()),
+                        String.format("/localhost:%s/CLOSING] Connection successfully closed", portNumbers.getFirst()),
+                        String.format(
+                                "/localhost:%s/CLOSED] Connection state transitioned from CLOSING to CLOSED",
+                                portNumbers.getFirst()),
+                        // New invalid config is loaded
+                        "Reloaded 1 block node configurations. Restarting connection manager.",
+                        "Searching for new block node connection based on node priorities",
+                        "Found available node in priority group 0",
+                        // Connection attempt with invalid address
+                        "[0003/26dsfg2364:1234/UNINITIALIZED] Running connection task",
+                        "[0003/26dsfg2364:1234/UNINITIALIZED] Failed to establish connection to block node. Will schedule a retry.",
+                        "[0003/26dsfg2364:1234/UNINITIALIZED] Rescheduled connection attempt")),
+                waitUntilNextBlocks(15).withBackgroundTraffic(true),
+                // Delete block-nodes.json
+                doingContextual((spec) -> {
+                    timeRef.set(Instant.now());
+                    try {
+                        Path configPath = spec.getNetworkNodes()
+                                .getFirst()
+                                .getExternalPath(DATA_CONFIG_DIR)
+                                .resolve("block-nodes.json");
+                        Files.delete(configPath);
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
+                }),
+                // Verify file deletion is detected and handled gracefully
+                sourcingContextual(spec -> assertHgcaaLogContainsTimeframe(
+                        byNodeId(0),
+                        timeRef::get,
+                        Duration.ofSeconds(45),
+                        Duration.ofSeconds(45),
+                        "Detected ENTRY_DELETE event for block-nodes.json",
+                        "Stopping block node connections (keeping worker loop running)",
+                        // Invalid connection is closed
+                        "[0003/26dsfg2364:1234/CLOSING] Connection state transitioned from UNINITIALIZED to CLOSING",
+                        "[0003/26dsfg2364:1234/CLOSING] Connection successfully closed",
+                        "[0003/26dsfg2364:1234/CLOSED] Connection state transitioned from CLOSING to CLOSED",
+                        // Config file is missing
+                        "Block node configuration file does not exist:",
+                        "No valid block node configurations available after file change. Connections remain stopped.")),
+                waitUntilNextBlocks(5).withBackgroundTraffic(true),
+                // Unparsable block-nodes.json
+                doingContextual((spec) -> {
+                    timeRef.set(Instant.now());
+                    try {
+                        Path configPath = spec.getNetworkNodes()
+                                .getFirst()
+                                .getExternalPath(DATA_CONFIG_DIR)
+                                .resolve("block-nodes.json");
+                        Files.writeString(configPath, "{ this is not valid json");
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
+                }),
+                // Verify parse error is handled gracefully
+                sourcingContextual(spec -> assertHgcaaLogContainsTimeframe(
+                        byNodeId(0),
+                        timeRef::get,
+                        Duration.ofSeconds(45),
+                        Duration.ofSeconds(45),
+                        "Detected ENTRY_CREATE event for block-nodes.json",
+                        "No valid block node configurations available after file change. Connections remain stopped.")),
+                waitUntilNextBlocks(5).withBackgroundTraffic(true),
+                // Create valid block-nodes.json again
+                doingContextual((spec) -> {
+                    timeRef.set(Instant.now());
+                    // Create a new block-nodes.json file at runtime with localhost and the correct port
+                    final var node0Port = spec.getBlockNodePortById(0);
+                    List<com.hedera.node.internal.network.BlockNodeConfig> blockNodes = new ArrayList<>();
+                    blockNodes.add(new com.hedera.node.internal.network.BlockNodeConfig("localhost", node0Port, 0));
+                    BlockNodeConnectionInfo connectionInfo = new BlockNodeConnectionInfo(blockNodes);
+                    try {
+                        // Write the config to this consensus node's block-nodes.json
+                        Path configPath = spec.getNetworkNodes()
+                                .getFirst()
+                                .getExternalPath(DATA_CONFIG_DIR)
+                                .resolve("block-nodes.json");
+                        Files.writeString(configPath, BlockNodeConnectionInfo.JSON.toJSON(connectionInfo));
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
+                }),
+                // Verify recovery with valid config and connection re-established
+                sourcingContextual(spec -> assertHgcaaLogContainsTimeframe(
+                        byNodeId(0),
+                        timeRef::get,
+                        Duration.ofSeconds(45),
+                        Duration.ofSeconds(45),
+                        // File watcher detects new valid config (MODIFY because file was already created with invalid
+                        // JSON)
+                        "Detected ENTRY_MODIFY event for block-nodes.json",
+                        "Stopping block node connections (keeping worker loop running)",
+                        // Valid config is loaded
+                        "Reloaded 1 block node configurations. Restarting connection manager.",
+                        "Starting connection manager",
+                        "Searching for new block node connection based on node priorities",
+                        "Found available node in priority group 0",
+                        // Connection is re-established
+                        String.format(
+                                "Created BlockStreamPublishServiceClient for localhost:%s", portNumbers.getFirst()),
+                        String.format(
+                                "/localhost:%s/UNINITIALIZED] Scheduling reconnection for node in 0 ms",
+                                portNumbers.getFirst()),
+                        String.format("/localhost:%s/UNINITIALIZED] Running connection task", portNumbers.getFirst()),
+                        String.format(
+                                "/localhost:%s/UNINITIALIZED] Request pipeline initialized", portNumbers.getFirst()),
+                        String.format(
+                                "/localhost:%s/PENDING] Connection state transitioned from UNINITIALIZED to PENDING.",
+                                portNumbers.getFirst()),
+                        String.format(
+                                "/localhost:%s/ACTIVE] Connection state transitioned from PENDING to ACTIVE.",
+                                portNumbers.getFirst()),
+                        String.format(
+                                "Active block node connection updated to: localhost:%s", portNumbers.getFirst()))),
                 waitUntilNextBlocks(10).withBackgroundTraffic(true),
                 assertHgcaaLogDoesNotContain(byNodeId(0), "ERROR", Duration.ofSeconds(5)));
     }
-
 
     @HapiTest
     @HapiBlockNode(
@@ -151,7 +299,7 @@ public class BlockNodeSuite {
                             "blockStream.writerMode", "FILE_AND_GRPC"
                         })
             })
-    @Order(0)
+    @Order(1)
     final Stream<DynamicTest> node0StreamingHappyPath() {
         return hapiTest(
                 waitUntilNextBlocks(100).withBackgroundTraffic(true),
@@ -200,7 +348,7 @@ public class BlockNodeSuite {
                             "blockStream.writerMode", "FILE_AND_GRPC"
                         }),
             })
-    @Order(1)
+    @Order(2)
     final Stream<DynamicTest> allNodesStreamingHappyPath() {
         return hapiTest(
                 waitUntilNextBlocks(10).withBackgroundTraffic(true),
@@ -221,7 +369,7 @@ public class BlockNodeSuite {
                             "blockStream.writerMode", "FILE_AND_GRPC"
                         })
             })
-    @Order(2)
+    @Order(3)
     final Stream<DynamicTest> node0StreamingBlockNodeConnectionDropsCanStreamGenesisBlock() {
         final AtomicReference<Instant> time = new AtomicReference<>();
         final List<Integer> portNumbers = new ArrayList<>();
@@ -265,7 +413,7 @@ public class BlockNodeSuite {
                             "blockStream.writerMode", "FILE_AND_GRPC"
                         })
             })
-    @Order(3)
+    @Order(4)
     final Stream<DynamicTest> node0StreamingBlockNodeConnectionDropsTrickle() {
         final AtomicReference<Instant> connectionDropTime = new AtomicReference<>();
         final List<Integer> portNumbers = new ArrayList<>();
@@ -366,7 +514,7 @@ public class BlockNodeSuite {
                             "blockStream.writerMode", "FILE_AND_GRPC"
                         })
             })
-    @Order(4)
+    @Order(5)
     final Stream<DynamicTest> twoNodesStreamingOneBlockNodeHappyPath() {
         return hapiTest(
                 waitUntilNextBlocks(10).withBackgroundTraffic(true),
@@ -391,7 +539,7 @@ public class BlockNodeSuite {
                             "blockStream.writerMode", "FILE_AND_GRPC"
                         })
             })
-    @Order(5)
+    @Order(6)
     final Stream<DynamicTest> testProactiveBlockBufferAction() {
         final AtomicReference<Instant> timeRef = new AtomicReference<>();
         return hapiTest(
@@ -437,7 +585,7 @@ public class BlockNodeSuite {
                             "blockStream.writerMode", "FILE_AND_GRPC"
                         })
             })
-    @Order(6)
+    @Order(7)
     final Stream<DynamicTest> testBlockBufferBackPressure() {
         final AtomicReference<Instant> timeRef = new AtomicReference<>();
 
@@ -484,7 +632,7 @@ public class BlockNodeSuite {
                             "blockStream.writerMode", "FILE_AND_GRPC"
                         })
             })
-    @Order(7)
+    @Order(8)
     final Stream<DynamicTest> activeConnectionPeriodicallyRestarts() {
         final AtomicReference<Instant> connectionResetTime = new AtomicReference<>();
         final List<Integer> portNumbers = new ArrayList<>();
@@ -544,7 +692,7 @@ public class BlockNodeSuite {
                             "blockNode.streamResetPeriod", "20s",
                         })
             })
-    @Order(8)
+    @Order(9)
     final Stream<DynamicTest> testBlockBufferDurability() {
         /*
         1. Create some background traffic for a while.
@@ -623,7 +771,7 @@ public class BlockNodeSuite {
                             "1"
                         })
             })
-    @Order(9)
+    @Order(10)
     final Stream<DynamicTest> node0StreamingMultipleEndOfStreamsReceived() {
         final AtomicReference<Instant> time = new AtomicReference<>();
         final List<Integer> portNumbers = new ArrayList<>();
@@ -670,7 +818,7 @@ public class BlockNodeSuite {
                             "FILE_AND_GRPC"
                         })
             })
-    @Order(10)
+    @Order(11)
     final Stream<DynamicTest> node0StreamingExponentialBackoff() {
         final AtomicReference<Instant> time = new AtomicReference<>();
         return hapiTest(
@@ -713,7 +861,7 @@ public class BlockNodeSuite {
                             "blockNode.highLatencyThreshold", "1s"
                         })
             })
-    @Order(11)
+    @Order(12)
     final Stream<DynamicTest> node0StreamingToHighLatencyBlockNode() {
         final AtomicReference<Instant> time = new AtomicReference<>();
         final List<Integer> portNumbers = new ArrayList<>();
@@ -751,7 +899,7 @@ public class BlockNodeSuite {
                             "blockStream.writerMode", "FILE_AND_GRPC"
                         })
             })
-    @Order(12)
+    @Order(13)
     final Stream<DynamicTest> testCNReactionToPublishStreamResponses() {
         final AtomicReference<Instant> time = new AtomicReference<>();
         final List<Integer> portNumbers = new ArrayList<>();
