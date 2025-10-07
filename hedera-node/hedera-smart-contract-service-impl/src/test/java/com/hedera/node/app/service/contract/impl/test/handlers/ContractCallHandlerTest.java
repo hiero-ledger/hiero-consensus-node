@@ -263,7 +263,7 @@ class ContractCallHandlerTest extends ContractHandlerTestBase {
         return TransactionBody.newBuilder()
                 .transactionID(transactionID)
                 .contractCall(ContractCallTransactionBody.newBuilder()
-                        .gas(INTRINSIC_GAS_FOR_0_ARG_METHOD - 1)
+                        .gas(gas)
                         .contractID(contractId))
                 .build();
     }

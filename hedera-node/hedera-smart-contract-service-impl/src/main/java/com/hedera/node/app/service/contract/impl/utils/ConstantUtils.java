@@ -9,7 +9,10 @@ import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.transaction.FixedFee;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 
-public class ConstantUtils {
+/**
+ * Utility class that holds static entity IDs
+ */
+public final class ConstantUtils {
 
     public static final byte[] ZERO_ADDRESS_BYTE_ARRAY = new byte[20];
     public static final Address ZERO_ADDRESS = Address.wrap("0x0000000000000000000000000000000000000000");
