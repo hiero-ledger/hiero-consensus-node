@@ -87,8 +87,6 @@ public class BlockBufferIO {
      * Utility class that contains logic related to reading blocks from disk.
      */
     private class Reader {
-        private static final int MAX_READ_DEPTH = 16;
-
         private List<BufferedBlock> read() throws IOException {
             final File[] files = rootDirectory.listFiles();
 
