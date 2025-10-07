@@ -197,7 +197,7 @@ public class BlockStreamEventBuilder {
         // Create GossipEvent with parents and transactions
         final GossipEvent gossipEvent = GossipEvent.newBuilder()
                 .eventCore(eventCore)
-                .signature(Bytes.EMPTY) // EventHeader doesn't have signature, use empty for now
+                .signature(Bytes.EMPTY) // EventHeader doesn't have a signature so use empty
                 .parents(resolvedParents)
                 .transactions(transactions)
                 .build();

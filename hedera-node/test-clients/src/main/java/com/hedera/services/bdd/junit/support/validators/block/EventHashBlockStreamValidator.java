@@ -26,7 +26,8 @@ import org.hiero.consensus.model.event.PlatformEvent;
  * parents within a block are referenced by an index and not the hash.
  */
 public class EventHashBlockStreamValidator implements BlockStreamValidator {
-    private static final Logger logger = LogManager.getLogger(EventHashBlockStreamValidator.class);
+
+    private static final Logger logger = LogManager.getLogger();
 
     /**
      * A main method to run a standalone validation of the block stream against the record stream in this project.
