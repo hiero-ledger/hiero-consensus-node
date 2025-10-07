@@ -224,22 +224,42 @@ public class Hip1195EnabledTest {
     @HapiTest
     final Stream<DynamicTest> storageAccessWorks() {
         return hapiTest(
-                cryptoCreate(OWNER)
+                cryptoCreate("testAccount")
                         .withHooks(accountAllowanceHook(124L, STORAGE_GET_SLOT_HOOK.name()))
                         .receiverSigRequired(true),
                 // gets rejected because the return value from the allow function is false bye default
-                cryptoTransfer(TokenMovement.movingHbar(10).between(OWNER, GENESIS))
-                        .withPreHookFor(OWNER, 124L, 25_000L, "")
+                cryptoTransfer(TokenMovement.movingHbar(10).between("testAccount", GENESIS))
+                        .withPreHookFor("testAccount", 124L, 25_000L, "")
                         .signedBy(DEFAULT_PAYER)
                         .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK),
                 // Change the hook storage's zero slot to 0x01 so that the hook returns true
-                accountLambdaSStore(OWNER, 124L)
+                accountLambdaSStore("testAccount", 124L)
                         .putSlot(Bytes.EMPTY, Bytes.wrap(new byte[] {(byte) 0x01}))
-                        .signedBy(DEFAULT_PAYER, OWNER),
+                        .signedBy(DEFAULT_PAYER, "testAccount"),
                 // now the transfer works
-                cryptoTransfer(TokenMovement.movingHbar(10).between(OWNER, GENESIS))
-                        .withPreHookFor(OWNER, 124L, 25_000L, "")
+                cryptoTransfer(TokenMovement.movingHbar(10).between("testAccount", GENESIS))
+                        .withPreHookFor("testAccount", 124L, 25_000L, "")
                         .signedBy(DEFAULT_PAYER));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> transferWorksFromOwnerOfTheHook() {
+        return hapiTest(
+                cryptoCreate("payer").balance(ONE_HUNDRED_HBARS),
+                cryptoCreate("receiver").balance(0L),
+                cryptoCreate("testAccount")
+                        .balance(ONE_HUNDRED_HBARS)
+                        .withHooks(accountAllowanceHook(124L, TRANSFER_HOOK.name())),
+                cryptoTransfer(TokenMovement.movingHbar(10 * ONE_HBAR).between("testAccount", "receiver"))
+                        .withPreHookFor("testAccount", 124L, 25_000L, "")
+                        .payingWith("payer")
+                        .signedBy("payer"),
+                // even though the hook says msg.sender transfers 10 hbars to receiver,
+                // the owner of the hook transfers 1 tinybar in addition to the 10 hbars
+                getAccountBalance("testAccount")
+                        .hasTinyBars(ONE_HUNDRED_HBARS - 10 * ONE_HBAR - 1)
+                        .logged(),
+                getAccountBalance("receiver").hasTinyBars(10 * ONE_HBAR).logged());
     }
 
     @HapiTest
@@ -290,26 +310,6 @@ public class Hip1195EnabledTest {
                                         formattedAssertionValue(0))))),
                 withOpContext(
                         (spec, opLog) -> requireNonNull(GLOBAL_WATCHER.get()).assertExpectations(spec)));
-    }
-
-    @HapiTest
-    final Stream<DynamicTest> transferWorksFromOwnerOfTheHook() {
-        return hapiTest(
-                cryptoCreate("payer").balance(ONE_HUNDRED_HBARS),
-                cryptoCreate("receiver").balance(0L),
-                cryptoCreate(OWNER)
-                        .balance(ONE_HUNDRED_HBARS)
-                        .withHooks(accountAllowanceHook(124L, TRANSFER_HOOK.name())),
-                cryptoTransfer(TokenMovement.movingHbar(10 * ONE_HBAR).between(OWNER, "receiver"))
-                        .withPreHookFor(OWNER, 124L, 25_000L, "")
-                        .payingWith("payer")
-                        .signedBy("payer"),
-                // even though the hook says msg.sender transfers 10 hbars to receiver,
-                // the owner of the hook transfers 1 tinybar in addition to the 10 hbars
-                getAccountBalance(OWNER)
-                        .hasTinyBars(ONE_HUNDRED_HBARS - 10 * ONE_HBAR - 1)
-                        .logged(),
-                getAccountBalance("receiver").hasTinyBars(10 * ONE_HBAR).logged());
     }
 
     @HapiTest

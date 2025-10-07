@@ -66,6 +66,14 @@ public interface FeeCalculator {
     @NonNull
     FeeCalculator addVerificationsPerTransaction(long amount);
 
+    /**
+     * Adds to the "gas" component the amount of gas used by the transaction.
+     * @param amount The amount of gas. Must not be negative.
+     * @return {@code this} for fluent usage.
+     */
+    @NonNull
+    FeeCalculator addGas(long amount);
+
     @NonNull
     Fees legacyCalculate(@NonNull final Function<SigValueObj, FeeData> callback);
 

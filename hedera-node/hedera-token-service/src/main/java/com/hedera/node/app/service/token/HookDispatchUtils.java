@@ -74,7 +74,7 @@ public class HookDispatchUtils {
                     HookDispatchStreamBuilder.class));
             validateTrue(streamBuilder.status() == SUCCESS, streamBuilder.status());
             if (hookId == currentHead) {
-                currentHead = streamBuilder.getNextHookId();
+                currentHead = streamBuilder.getNextHookId() == null ? 0L : streamBuilder.getNextHookId();
             }
         }
         return currentHead;

@@ -74,7 +74,7 @@ public class AppThrottleFactory implements Throttle.Factory {
                     @NonNull final TransactionBody body,
                     @NonNull final HederaFunctionality function,
                     @NonNull final Instant now) {
-                final var throttleResult = throttleAccumulator.checkAndEnforceThrottle(
+                return !throttleAccumulator.checkAndEnforceThrottle(
                         new TransactionInfo(
                                 SignedTransaction.DEFAULT,
                                 body,
@@ -87,14 +87,6 @@ public class AppThrottleFactory implements Throttle.Factory {
                         now,
                         stateSupplier.get(),
                         null);
-
-                // For validation errors, don't allow the transaction
-                if (throttleResult.hasValidationError()) {
-                    return false;
-                }
-
-                // Throttle.allow() has the opposite polarity of ThrottleAccumulator.checkAndEnforceThrottle()
-                return !throttleResult.shouldThrottle();
             }
 
             @Override
