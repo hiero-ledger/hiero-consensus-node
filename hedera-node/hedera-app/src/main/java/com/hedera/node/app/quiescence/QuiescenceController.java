@@ -11,6 +11,8 @@ import com.hedera.hapi.node.state.blockstream.BlockStreamInfo;
 import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.util.HapiUtils;
+import com.hedera.node.app.workflows.TransactionInfo;
+import com.hedera.node.app.workflows.prehandle.PreHandleResult;
 import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -112,18 +114,30 @@ public class QuiescenceController {
     }
 
     /**
-     * Notifies the controller that an event has been and will be handled soon (if it doesn't become stale).
+     * Notifies the controller that a list of transactions have been sent to be pre-handled. There transactions will be
+     * handled soon or will become stale.
      *
-     * @param event the event that will be handled
+     * @param transactions the transactions are being pre-handled
      */
-    public void onPreHandle(@NonNull final Event event) {
-        //TODO get trans from Hedera.prehandle and check metadata
+    public void onPreHandle(@NonNull final List<Transaction> transactions) {
+        // Should be called at the end of Hedera.onPreHandle() when all transactions have been parsed
         if (!config.enabled()) {
             return;
         }
-        // FOR EXECUTION REVIEWERS:
-        // Should we be parsing the transactions here? I would assume they have already been parsed
-        pipelineTransactionCount.addAndGet(countRelevantTransactions(event));
+        int count = 0;
+        for (final Transaction transaction : transactions) {
+            final Object metadata = transaction.getMetadata();
+            if (!(transaction.getMetadata() instanceof final PreHandleResult preHandleResult)) {
+                logger.error("Failed to find PreHandleResult in transaction metadata ({}). Turning off quiescence.",
+                        metadata);
+                disableQuiescence();
+                return;
+            }
+            if (isRelevantTransaction(preHandleResult.txInfo())) {
+                count++;
+            }
+        }
+        pipelineTransactionCount.addAndGet(count);
     }
 
     /**
@@ -217,11 +231,21 @@ public class QuiescenceController {
         pipelineTransactionCount.set(Long.MAX_VALUE / 2);
     }
 
+    private boolean isRelevantTransaction(@Nullable final TransactionInfo txInfo) {
+        if (txInfo == null) {
+            // This is most likely an unparsable transaction.
+            // An unparsable transaction is considered relevant because it needs to reach consensus so that the node
+            // that submitted it can be changed for it.
+            return true;
+        }
+        return isRelevantTransaction(txInfo.txBody());
+    }
+
     private boolean isRelevantTransaction(@NonNull final Bytes bytes) {
-        final TransactionBody body =
-                transactionBodyParser.apply(signedTransactionParser.apply(bytes).bodyBytes());
-        // FOR EXECUTION REVIEWERS:
-        // Are these the only two transaction types we should ignore?
+        return isRelevantTransaction(transactionBodyParser.apply(signedTransactionParser.apply(bytes).bodyBytes()));
+    }
+
+    private boolean isRelevantTransaction(@NonNull final TransactionBody body) {
         return !body.hasStateSignatureTransaction() && !body.hasHintsPartialSignature();
     }
 }

@@ -15,6 +15,8 @@ import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.hapi.services.auxiliary.hints.HintsPartialSignatureTransactionBody;
 import com.hedera.hapi.util.HapiUtils;
+import com.hedera.node.app.workflows.TransactionInfo;
+import com.hedera.node.app.workflows.prehandle.PreHandleResult;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.test.fixtures.time.FakeTime;
 import java.time.Duration;
@@ -26,8 +28,10 @@ import java.util.concurrent.atomic.AtomicLong;
 import org.hiero.consensus.model.event.Event;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
+import org.hiero.consensus.model.transaction.Transaction;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.Mockito;
 
 class QuiescenceControllerTest {
     private static final QuiescenceConfig CONFIG = new QuiescenceConfig(true, Duration.ofSeconds(3));
@@ -55,7 +59,7 @@ class QuiescenceControllerTest {
     @Test
     void basicBehavior() {
         assertEquals(QUIESCE, controller.getQuiescenceStatus(), "Initially the status should be quiescent");
-        controller.onPreHandle(createEvent(TXN_TRANSFER));
+        controller.onPreHandle(createTransactions(TXN_TRANSFER));
         assertEquals(
                 DONT_QUIESCE,
                 controller.getQuiescenceStatus(),
@@ -70,12 +74,12 @@ class QuiescenceControllerTest {
     @Test
     void signaturesAreIgnored() {
         assertEquals(QUIESCE, controller.getQuiescenceStatus(), "Initially the status should be quiescent");
-        controller.onPreHandle(createEvent(TXN_STATE_SIG, TXN_HINTS_SIG));
+        controller.onPreHandle(createTransactions(TXN_STATE_SIG, TXN_HINTS_SIG));
         assertEquals(
                 QUIESCE,
                 controller.getQuiescenceStatus(),
                 "Signature transactions should be ignored, so the status should remain quiescent");
-        controller.onPreHandle(createEvent(TXN_STATE_SIG, TXN_HINTS_SIG, TXN_TRANSFER));
+        controller.onPreHandle(createTransactions(TXN_STATE_SIG, TXN_HINTS_SIG, TXN_TRANSFER));
         assertEquals(
                 DONT_QUIESCE,
                 controller.getQuiescenceStatus(),
@@ -89,7 +93,7 @@ class QuiescenceControllerTest {
 
     @Test
     void staleEvents() {
-        controller.onPreHandle(createEvent(TXN_TRANSFER));
+        controller.onPreHandle(createTransactions(TXN_TRANSFER));
         assertEquals(
                 DONT_QUIESCE,
                 controller.getQuiescenceStatus(),
@@ -129,7 +133,7 @@ class QuiescenceControllerTest {
 
     @Test
     void platformStatusUpdate() {
-        controller.onPreHandle(createEvent(TXN_TRANSFER));
+        controller.onPreHandle(createTransactions(TXN_TRANSFER));
         assertEquals(
                 DONT_QUIESCE,
                 controller.getQuiescenceStatus(),
@@ -151,7 +155,7 @@ class QuiescenceControllerTest {
                 BREAK_QUIESCENCE,
                 controller.getQuiescenceStatus(),
                 "If there are pending transactions, and no pipeline transactions, we should be break quiescence");
-        controller.onPreHandle(createEvent(TXN_TRANSFER));
+        controller.onPreHandle(createTransactions(TXN_TRANSFER));
         assertEquals(
                 DONT_QUIESCE,
                 controller.getQuiescenceStatus(),
@@ -187,5 +191,19 @@ class QuiescenceControllerTest {
         return new TestingEventBuilder(new Random())
                 .setTransactionBytes(transactions)
                 .build();
+    }
+
+    private static List<Transaction> createTransactions(final TransactionBody... txns) {
+        return Arrays.stream(txns).map(QuiescenceControllerTest::mockTransaction).toList();
+    }
+
+    private static Transaction mockTransaction(final TransactionBody txnBody) {
+        final TransactionInfo transactionInfo = Mockito.mock(TransactionInfo.class);
+        Mockito.when(transactionInfo.txBody()).thenReturn(txnBody);
+        final PreHandleResult preHandleResult = Mockito.mock(PreHandleResult.class);
+        Mockito.when(preHandleResult.txInfo()).thenReturn(transactionInfo);
+        final Transaction transaction = Mockito.mock(Transaction.class);
+        Mockito.when(transaction.getMetadata()).thenReturn(preHandleResult);
+        return transaction;
     }
 }
