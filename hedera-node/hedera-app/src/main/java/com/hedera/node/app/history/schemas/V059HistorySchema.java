@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.history.schemas;
 
+import static com.hedera.hapi.util.HapiUtils.SEMANTIC_VERSION_COMPARATOR;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.SemanticVersion;
@@ -41,7 +42,7 @@ import java.util.Set;
  *     vote for the metadata proof for that construction.</li>
  * </ul>
  */
-public class V059HistorySchema extends Schema {
+public class V059HistorySchema extends Schema<SemanticVersion> {
 
     private static final SemanticVersion VERSION =
             SemanticVersion.newBuilder().minor(59).build();
@@ -75,7 +76,7 @@ public class V059HistorySchema extends Schema {
     private final HistoryService historyService;
 
     public V059HistorySchema(@NonNull final HistoryService historyService) {
-        super(VERSION);
+        super(VERSION, SEMANTIC_VERSION_COMPARATOR);
         this.historyService = requireNonNull(historyService);
     }
 

@@ -37,6 +37,7 @@ public class FrameUtils {
     public static final String SYSTEM_CONTRACT_GAS_CALCULATOR_CONTEXT_VARIABLE = "systemContractGasCalculator";
     public static final String PENDING_CREATION_BUILDER_CONTEXT_VARIABLE = "pendingCreationBuilder";
     public static final String OPS_DURATION_COUNTER = "opsDurationCounter";
+    public static final String IS_HOOK_VARIABLE = "hook";
 
     public enum EntityType {
         TOKEN,
@@ -368,6 +369,15 @@ public class FrameUtils {
                 .filter(precompileAddress::equals)
                 .findAny()
                 .isEmpty();
+    }
+    /**
+     * Returns true if the given frame is part of a hook execution.
+     *
+     * @param frame the current frame
+     * @return true if the frame is part of a hook execution
+     */
+    public static boolean isHookExecution(@NonNull final MessageFrame frame) {
+        return Boolean.TRUE.equals(initialFrameOf(frame).getContextVariable(IS_HOOK_VARIABLE));
     }
 
     /**

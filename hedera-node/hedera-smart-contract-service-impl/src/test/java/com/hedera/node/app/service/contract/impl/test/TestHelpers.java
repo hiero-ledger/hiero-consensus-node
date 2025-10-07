@@ -85,6 +85,7 @@ import com.hedera.node.config.data.AccountsConfig;
 import com.hedera.node.config.data.ContractsConfig;
 import com.hedera.node.config.data.EntitiesConfig;
 import com.hedera.node.config.data.HederaConfig;
+import com.hedera.node.config.data.HooksConfig;
 import com.hedera.node.config.data.LedgerConfig;
 import com.hedera.node.config.data.OpsDurationConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
@@ -137,6 +138,7 @@ public class TestHelpers {
     public static final ContractsConfig DEFAULT_CONTRACTS_CONFIG = DEFAULT_CONFIG.getConfigData(ContractsConfig.class);
     public static final EntitiesConfig DEFAULT_ENTITIES_CONFIG = DEFAULT_CONFIG.getConfigData(EntitiesConfig.class);
     public static final AccountsConfig DEFAULT_ACCOUNTS_CONFIG = DEFAULT_CONFIG.getConfigData(AccountsConfig.class);
+    public static final HooksConfig DEFAULT_HOOKS_CONFIG = DEFAULT_CONFIG.getConfigData(HooksConfig.class);
     public static final OpsDurationConfig DEFAULT_OPS_DURATION_CONFIG =
             DEFAULT_CONFIG.getConfigData(OpsDurationConfig.class);
 
@@ -567,6 +569,7 @@ public class TestHelpers {
             0L,
             0L,
             ContractCreateTransactionBody.DEFAULT,
+            null,
             null);
     public static final HederaEvmTransaction HEVM_Exception = new HederaEvmTransaction(
             SENDER_ID,
@@ -580,7 +583,8 @@ public class TestHelpers {
             0L,
             0L,
             null,
-            new HandleException(ResponseCodeEnum.INVALID_CONTRACT_ID));
+            new HandleException(ResponseCodeEnum.INVALID_CONTRACT_ID),
+            null);
 
     public static final HederaEvmTransaction HEVM_OversizeException = new HederaEvmTransaction(
             SENDER_ID,
@@ -594,7 +598,8 @@ public class TestHelpers {
             0L,
             0L,
             null,
-            new HandleException(ResponseCodeEnum.TRANSACTION_OVERSIZE));
+            new HandleException(ResponseCodeEnum.TRANSACTION_OVERSIZE),
+            null);
 
     public static final HederaEvmTransactionResult SUCCESS_RESULT = explicitSuccessFrom(
             GAS_LIMIT / 2,
@@ -822,6 +827,7 @@ public class TestHelpers {
                 userGasPrice,
                 maxGasAllowance,
                 null,
+                null,
                 null);
     }
 
@@ -851,6 +857,7 @@ public class TestHelpers {
                 userGasPrice,
                 maxGasAllowance,
                 ContractCreateTransactionBody.DEFAULT,
+                null,
                 null);
     }
 

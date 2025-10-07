@@ -40,9 +40,11 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Objects;
+import java.util.Random;
 import java.util.function.Consumer;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.roster.RosterUtils;
@@ -51,6 +53,7 @@ import org.hiero.otter.fixtures.NodeConfiguration;
 import org.hiero.otter.fixtures.app.OtterApp;
 import org.hiero.otter.fixtures.app.OtterAppState;
 import org.hiero.otter.fixtures.app.OtterExecutionLayer;
+import org.hiero.otter.fixtures.app.OtterTransaction;
 import org.hiero.otter.fixtures.internal.AbstractNode;
 import org.hiero.otter.fixtures.internal.result.NodeResultsCollector;
 import org.hiero.otter.fixtures.internal.result.SingleNodeMarkerFileResultImpl;
@@ -86,6 +89,8 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
 
     private PlatformContext platformContext;
 
+    private QuiescenceCommand quiescenceCommand = QuiescenceCommand.DONT_QUIESCE;
+
     @Nullable
     private DeterministicWiringModel model;
 
@@ -97,6 +102,9 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
 
     @Nullable
     private PlatformComponents platformComponent;
+
+    @Nullable
+    private OtterApp otterApp;
 
     /**
      * Constructor of {@link TurtleNode}.
@@ -170,7 +178,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
                     .withUncaughtExceptionHandler((t, e) -> fail("Unexpected exception in wiring framework", e))
                     .build();
 
-            final OtterApp otterApp = new OtterApp(version);
+            otterApp = new OtterApp(version);
 
             final HashedReservedSignedState reservedState = loadInitialState(
                     recycleBin,
@@ -190,7 +198,8 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
             final RosterHistory rosterHistory = RosterUtils.createRosterHistory(state);
             final String eventStreamLoc = selfId.toString();
 
-            this.executionLayer = new OtterExecutionLayer(platformContext.getMetrics());
+            this.executionLayer =
+                    new OtterExecutionLayer(new Random(randotron.nextLong()), platformContext.getMetrics(), time);
 
             final PlatformBuilder platformBuilder = PlatformBuilder.create(
                             OtterApp.APP_NAME,
@@ -249,6 +258,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
             platformStatus = PlatformStatus.STARTING_UP;
             platform.start();
 
+            quiescenceCommand = QuiescenceCommand.DONT_QUIESCE;
             lifeCycle = RUNNING;
         }
     }
@@ -272,11 +282,17 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
         }
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     protected void doStartSyntheticBottleneck(@NonNull final Duration delayPerRound, @NonNull final Duration timeout) {
         throw new UnsupportedOperationException("startSyntheticBottleneck is not supported in TurtleNode.");
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     protected void doStopSyntheticBottleneck(@NonNull final Duration timeout) {
         throw new UnsupportedOperationException("stopSyntheticBottleneck is not supported in TurtleNode.");
@@ -286,15 +302,30 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
      * {@inheritDoc}
      */
     @Override
-    public void submitTransaction(@NonNull final byte[] transaction) {
+    protected void doSendQuiescenceCommand(@NonNull final QuiescenceCommand command, @NonNull final Duration timeout) {
+        assert platform != null; // platform must be initialized if node is RUNNING
+        platform.quiescenceCommand(requireNonNull(command));
+
+        this.quiescenceCommand = command;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void submitTransaction(@NonNull final OtterTransaction transaction) {
         try (final LoggingContextScope ignored = installNodeContext()) {
             throwIfIn(INIT, "Node has not been started yet.");
             throwIfIn(SHUTDOWN, "Node has been shut down.");
             throwIfIn(DESTROYED, "Node has been destroyed.");
-            assert platform != null; // platform must be initialized if lifeCycle is STARTED
-            assert executionLayer != null; // executionLayer must be initialized
 
-            executionLayer.submitApplicationTransaction(transaction);
+            if (quiescenceCommand == QuiescenceCommand.QUIESCE) {
+                // When quiescing, ignore new transactions
+                return;
+            }
+
+            assert executionLayer != null; // executionLayer must be initialized
+            executionLayer.submitApplicationTransaction(transaction.toByteArray());
         }
     }
 
@@ -386,6 +417,9 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
 
         try (final LoggingContextScope ignored = installNodeContext()) {
             resultsCollector.destroy();
+            if (otterApp != null) {
+                otterApp.destroy();
+            }
             lifeCycle = DESTROYED;
 
             logging.removeNodeLogging(selfId);

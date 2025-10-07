@@ -36,7 +36,7 @@ public class SchemaApplications {
     public Set<SchemaApplicationType> computeApplications(
             @Nullable final SemanticVersion deserializedVersion,
             @NonNull final SemanticVersion latestVersion,
-            @NonNull final Schema schema,
+            @NonNull final Schema<SemanticVersion> schema,
             @NonNull final Configuration config) {
         requireNonNull(schema);
         requireNonNull(config);

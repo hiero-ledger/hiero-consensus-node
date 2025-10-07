@@ -64,11 +64,10 @@ class ProofControllerImplTest {
             .constructionId(CONSTRUCTION_ID)
             .gracePeriodEndTime(asTimestamp(CONSENSUS_NOW.plusSeconds(1)))
             .build();
-    private static final HistoryProofConstruction FAILED_CONSTRUCTION =
-            HistoryProofConstruction.newBuilder()
-                    .constructionId(CONSTRUCTION_ID)
-                    .failureReason("Didn't work out")
-                    .build();
+    private static final HistoryProofConstruction FAILED_CONSTRUCTION = HistoryProofConstruction.newBuilder()
+            .constructionId(CONSTRUCTION_ID)
+            .failureReason("Didn't work out")
+            .build();
     private static final HistoryProofConstruction SCHEDULED_ASSEMBLY_CONSTRUCTION =
             HistoryProofConstruction.newBuilder()
                     .constructionId(CONSTRUCTION_ID)
@@ -285,7 +284,8 @@ class ProofControllerImplTest {
         given(weights.sourceWeightOf(SELF_ID)).willReturn(3L);
         given(weights.sourceWeightThreshold()).willReturn(3L);
         given(library.hashAddressBook(any(), any())).willReturn(Bytes.EMPTY);
-        given(store.completeProof(eq(CONSTRUCTION_ID), argThat(HistoryProof::hasChainOfTrustProof))).willReturn(FINISHED_CONSTRUCTION);
+        given(store.completeProof(eq(CONSTRUCTION_ID), argThat(HistoryProof::hasChainOfTrustProof)))
+                .willReturn(FINISHED_CONSTRUCTION);
 
         subject.advanceConstruction(CONSENSUS_NOW, METADATA, store, true);
 

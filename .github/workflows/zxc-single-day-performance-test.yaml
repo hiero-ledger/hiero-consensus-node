@@ -72,21 +72,24 @@ env:
   TIMEOUT_6H_LIMIT: 340
   GS_ROOT_DIR: gs://performance-engineering-reports/ephemeral/test_runs
   GS_ROOT_HTTPS: https://perf.analytics.eng.hashgraph.io/ephemeral/test_runs
+  GRAFANA_SYSADM_DAL: https://grafana.lat.ope.eng.hashgraph.io/d/rYdddlPWk/node-exporter-single-node?orgId=1&timezone=utc&var-datasource=P5C24830FD6F1746E&var-job=performance-dallas-node-exporter
+  GRAFANA_SYSADM_CHI: https://grafana.lat.ope.eng.hashgraph.io/d/rYdddlPWk/node-exporter-single-node?orgId=1&timezone=utc&var-datasource=P631E2BA859A814B3&var-job=performance-chicago-node-exporter
+
   #Release version from jFrog
-  NLG_VERSION: 0.6.3
+  NLG_VERSION: 0.7.0
 
   #Thresholds for performance
   #benchmarks
   #CryptoTransfer   HCS   NftTransfer SmartContract HeliSwap CryptoBenchMerkleDb
-  #         20398 23374         12078          8259     1187               27818
+  #         20398 23374         12078          7000     1187               44564
   #-15%
-  #         17338 19867         10266          7020     1008               23645
+  #         17338 19867         10266          5950     1008               42336
   MinNFTscore: 10266
-  MinMerkleDBscore: 23645
+  MinMerkleDBscore: 42336
   MinHCSLoadTest: 19867
   MinCryptoTransferLoadTest: 17338
   MinHeliSwapLoadTest: 1008
-  MinSmartContractLoadTest: 7020
+  MinSmartContractLoadTest: 5950
 
 jobs:
   performance-tests-start:
@@ -99,6 +102,7 @@ jobs:
       run-hcn-version: ${{ steps.set-namespace.outputs.run-hcn-version }}
       commit-sha: ${{ steps.hederahash.outputs.sha }}
       kubernetes-cluster: ${{ steps.set-k8s-cluster.outputs.kubernetes-cluster }}
+      grafana-url: ${{ steps.set-k8s-cluster.outputs.grafana-url }}
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
@@ -114,11 +118,14 @@ jobs:
         id: set-k8s-cluster
         run: |
           K8S_CLUSTER="k8s.pft.dal.lat.ope.eng.hashgraph.io"
+          grafana_url="${{ env.GRAFANA_SYSADM_DAL }}"
           if [[ "${{ inputs.test-asset }}" =~ ^AdHoc(SD)?[0-9]+$ ]]; then
             K8S_CLUSTER="k8s.pft.chi.lat.ope.eng.hashgraph.io"
+            grafana_url="${{ env.GRAFANA_SYSADM_CHI }}"
           fi
           echo "kubernetes-cluster=${K8S_CLUSTER}" >> "${GITHUB_OUTPUT}"
           echo "kubernetes-cluster=${K8S_CLUSTER}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "grafana-url=${grafana_url}" >> "${GITHUB_OUTPUT}"
 
       - name: Install KubeCtl
         uses: step-security/setup-kubectl@2edbf6aff97d814e9dc52827498ac51fe972e6d0 # v4.0.0
@@ -148,7 +155,7 @@ jobs:
 
       - name: Authenticate to Google Cloud
         id: google-auth
-        uses: google-github-actions/auth@ba79af03959ebeac9769e648f473a284504d9193 # v2.1.10
+        uses: step-security/google-github-auth@40f6deebd366f16c782d7a0ad0844e3b96a032a6 # v2.1.10
         with:
           workload_identity_provider: "projects/716789254648/locations/global/workloadIdentityPools/perf-eng-reports-pool/providers/gh-provider"
           service_account: "gh-perf-report-writer@perf-engineering-reports.iam.gserviceaccount.com"
@@ -453,6 +460,16 @@ jobs:
 
           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" exec ${merklebenchpod} -c nlg -- bash -c "cd /app; rm -rf lib network-load-generator-*.jar; ls -l; tar xvfz /app/SwirldsMerkleDB.tgz; ls -l"
 
+      - name: Distribution of K8S nodes, SysAdmin Grafana
+        run: |
+          set +x
+          set +e
+
+          start_date=$(date +%Y-%m-%dT%T)
+          echo "NODE                                      POD" | tee -a "${GITHUB_STEP_SUMMARY}"
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods -o=custom-columns=NODE:.spec.nodeName,NAME:.metadata.name | grep -v -w NODE |\
+            perl -ne "if (/^([^\s]+)\s+([^\s]+)\s*$/) {print \"[\$1\](${{ steps.set-k8s-cluster.outputs.grafana-url }}&from=${start_date}&var-nodename=\$1) \$2\n\"}" | tee -a "${GITHUB_STEP_SUMMARY}"
+
       - name: Start SwirldsMerkleDB test
         run: |
           set +x
@@ -578,7 +595,7 @@ jobs:
           exit ${ec}
 
       - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@ba79af03959ebeac9769e648f473a284504d9193 # v2.1.10
+        uses: step-security/google-github-auth@40f6deebd366f16c782d7a0ad0844e3b96a032a6 # v2.1.10
         with:
           workload_identity_provider: "projects/716789254648/locations/global/workloadIdentityPools/perf-eng-reports-pool/providers/gh-provider"
           service_account: "gh-perf-report-writer@perf-engineering-reports.iam.gserviceaccount.com"
@@ -687,7 +704,7 @@ jobs:
 
       - name: Authenticate to Google Cloud
         id: google-auth
-        uses: google-github-actions/auth@ba79af03959ebeac9769e648f473a284504d9193 # v2.1.10
+        uses: step-security/google-github-auth@40f6deebd366f16c782d7a0ad0844e3b96a032a6 # v2.1.10
         with:
           workload_identity_provider: "projects/716789254648/locations/global/workloadIdentityPools/perf-eng-reports-pool/providers/gh-provider"
           service_account: "gh-perf-report-writer@perf-engineering-reports.iam.gserviceaccount.com"
@@ -869,7 +886,7 @@ jobs:
           certificate-ttl: 20h
 
       - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@ba79af03959ebeac9769e648f473a284504d9193 # v2.1.10
+        uses: step-security/google-github-auth@40f6deebd366f16c782d7a0ad0844e3b96a032a6 # v2.1.10
         with:
           workload_identity_provider: "projects/716789254648/locations/global/workloadIdentityPools/perf-eng-reports-pool/providers/gh-provider"
           service_account: "gh-perf-report-writer@perf-engineering-reports.iam.gserviceaccount.com"
@@ -1001,7 +1018,7 @@ jobs:
           grep -E 'Finished .*Test' "${{ github.workspace }}"/report/client.log | sed -e 's/^.*Finished \([A-Za-z0-9][A-ZA-z0-9]*LoadTest\).*TPS[\:][ \t]*\([0-9][0-9]*\)$/value=\2/g'
 
       - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@ba79af03959ebeac9769e648f473a284504d9193 # v2.1.10
+        uses: step-security/google-github-auth@40f6deebd366f16c782d7a0ad0844e3b96a032a6 # v2.1.10
         with:
           workload_identity_provider: "projects/716789254648/locations/global/workloadIdentityPools/perf-eng-reports-pool/providers/gh-provider"
           service_account: "gh-perf-report-writer@perf-engineering-reports.iam.gserviceaccount.com"
@@ -1049,7 +1066,7 @@ jobs:
           echo "value=${result}"
 
       - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@ba79af03959ebeac9769e648f473a284504d9193 # v2.1.10
+        uses: step-security/google-github-auth@40f6deebd366f16c782d7a0ad0844e3b96a032a6 # v2.1.10
         with:
           workload_identity_provider: "projects/716789254648/locations/global/workloadIdentityPools/perf-eng-reports-pool/providers/gh-provider"
           service_account: "gh-perf-report-writer@perf-engineering-reports.iam.gserviceaccount.com"

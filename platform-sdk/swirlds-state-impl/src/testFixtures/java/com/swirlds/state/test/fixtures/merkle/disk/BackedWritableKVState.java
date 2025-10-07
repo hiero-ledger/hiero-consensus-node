@@ -1,11 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.state.test.fixtures.merkle.disk;
 
-import static com.swirlds.state.test.fixtures.merkle.logging.TestStateLogger.logMapGet;
-import static com.swirlds.state.test.fixtures.merkle.logging.TestStateLogger.logMapGetSize;
-import static com.swirlds.state.test.fixtures.merkle.logging.TestStateLogger.logMapIterate;
-import static com.swirlds.state.test.fixtures.merkle.logging.TestStateLogger.logMapPut;
-import static com.swirlds.state.test.fixtures.merkle.logging.TestStateLogger.logMapRemove;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.pbj.runtime.Codec;
@@ -61,18 +56,13 @@ public final class BackedWritableKVState<K, V> extends WritableKVStateBase<K, V>
     @Override
     protected V readFromDataSource(@NonNull K key) {
         final var kb = keyCodec.toBytes(key);
-        final var value = virtualMap.get(kb, valueCodec);
-        // Log to transaction state log, what was read
-        logMapGet(label, key, value);
-        return value;
+        return virtualMap.get(kb, valueCodec);
     }
 
     /** {@inheritDoc} */
     @NonNull
     @Override
     protected Iterator<K> iterateFromDataSource() {
-        // Log to transaction state log, what was iterated
-        logMapIterate(label, virtualMap, keyCodec);
         return new BackedOnDiskIterator<>(virtualMap, keyCodec);
     }
 
@@ -82,8 +72,6 @@ public final class BackedWritableKVState<K, V> extends WritableKVStateBase<K, V>
         final Bytes kb = keyCodec.toBytes(key);
         assert kb != null;
         virtualMap.put(kb, value, valueCodec);
-        // Log to transaction state log, what was put
-        logMapPut(label, key, value);
     }
 
     /** {@inheritDoc} */
@@ -91,16 +79,11 @@ public final class BackedWritableKVState<K, V> extends WritableKVStateBase<K, V>
     protected void removeFromDataSource(@NonNull K key) {
         final var k = keyCodec.toBytes(key);
         final var removed = virtualMap.remove(k, valueCodec);
-        // Log to transaction state log, what was removed
-        logMapRemove(label, key, removed);
     }
 
     /** {@inheritDoc} */
     @Override
     public long sizeOfDataSource() {
-        final var size = virtualMap.size();
-        // Log to transaction state log, size of map
-        logMapGetSize(label, size);
-        return size;
+        return virtualMap.size();
     }
 }

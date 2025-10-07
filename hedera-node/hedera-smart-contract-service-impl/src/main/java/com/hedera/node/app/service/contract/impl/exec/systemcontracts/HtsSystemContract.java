@@ -6,6 +6,7 @@ import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.Ful
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.contractsConfigOf;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.numberOfLongZero;
 
+import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.AbstractNativeSystemContract;
@@ -25,6 +26,7 @@ public class HtsSystemContract extends AbstractNativeSystemContract implements H
     public static final String HTS_SYSTEM_CONTRACT_NAME = "HTS";
     public static final String HTS_167_EVM_ADDRESS = "0x167";
     public static final String HTS_16C_EVM_ADDRESS = "0x16C";
+    public static final String HTS_HOOKS_16D_EVM_ADDRESS = "0x16D";
     // The system contract ID always uses shard 0 and realm 0 so we cannot use ConversionUtils methods for this
     public static final ContractID HTS_167_CONTRACT_ID = ContractID.newBuilder()
             .contractNum(numberOfLongZero(Address.fromHexString(HTS_167_EVM_ADDRESS)))
@@ -32,6 +34,13 @@ public class HtsSystemContract extends AbstractNativeSystemContract implements H
     public static final ContractID HTS_16C_CONTRACT_ID = ContractID.newBuilder()
             .contractNum(numberOfLongZero(Address.fromHexString(HTS_16C_EVM_ADDRESS)))
             .build();
+    public static final ContractID HTS_HOOKS_16D_CONTRACT_ID = ContractID.newBuilder()
+            .contractNum(numberOfLongZero(Address.fromHexString(HTS_HOOKS_16D_EVM_ADDRESS)))
+            .build();
+    public static final AccountID HTS_HOOKS_16D_ACCOUNT_ID = AccountID.newBuilder()
+            .accountNum(numberOfLongZero(Address.fromHexString(HTS_HOOKS_16D_EVM_ADDRESS)))
+            .build();
+    public static Address HTS_HOOKS_16D_CONTRACT_ADDRESS = Address.fromHexString(HTS_HOOKS_16D_EVM_ADDRESS);
 
     @Inject
     public HtsSystemContract(

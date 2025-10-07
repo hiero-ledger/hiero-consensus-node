@@ -2,13 +2,14 @@
 package com.swirlds.platform.system;
 
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
-import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.base.time.Time;
 import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.platform.state.MerkleNodeState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.util.List;
 import org.hiero.consensus.model.status.PlatformStatus;
+import org.hiero.consensus.model.transaction.TimestampedTransaction;
 import org.hiero.consensus.transaction.TransactionPoolNexus;
 
 /**
@@ -23,7 +24,8 @@ public abstract class DefaultSwirldMain<T extends MerkleNodeState> implements Sw
     private final TransactionPoolNexus transactionPool;
 
     public DefaultSwirldMain() {
-        this.transactionPool = new TransactionPoolNexus(getTransactionLimits(), TX_QUEUE_SIZE, new NoOpMetrics());
+        this.transactionPool =
+                new TransactionPoolNexus(getTransactionLimits(), TX_QUEUE_SIZE, new NoOpMetrics(), Time.getCurrent());
     }
 
     @Override
@@ -33,7 +35,7 @@ public abstract class DefaultSwirldMain<T extends MerkleNodeState> implements Sw
 
     @NonNull
     @Override
-    public List<Bytes> getTransactionsForEvent() {
+    public List<TimestampedTransaction> getTransactionsForEvent() {
         return transactionPool.getTransactionsForEvent();
     }
 
