@@ -715,14 +715,14 @@ public class BlockNodeSuite {
             networkSize = 1,
             blockNodeConfigs = {@BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.SIMULATOR)},
             subProcessNodeConfigs = {
-                    @SubProcessNodeConfig(
-                            nodeId = 0,
-                            blockNodeIds = {0},
-                            blockNodePriorities = {0},
-                            applicationPropertiesOverrides = {
-                                    "blockStream.streamMode", "BOTH",
-                                    "blockStream.writerMode", "FILE_AND_GRPC"
-                            })
+                @SubProcessNodeConfig(
+                        nodeId = 0,
+                        blockNodeIds = {0},
+                        blockNodePriorities = {0},
+                        applicationPropertiesOverrides = {
+                            "blockStream.streamMode", "BOTH",
+                            "blockStream.writerMode", "FILE_AND_GRPC"
+                        })
             })
     @Order(13)
     final Stream<DynamicTest> node0SendEndOfBlockHappyPath() {
