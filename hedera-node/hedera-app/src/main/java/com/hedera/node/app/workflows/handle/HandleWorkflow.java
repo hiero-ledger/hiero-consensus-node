@@ -562,6 +562,7 @@ public class HandleWorkflow {
             }
         }
 
+		// Now, start processing the actual transaction
         final var topLevelTxn =
                 parentTxnFactory.createTopLevelTxn(state, creator, txn, consensusNow, stateSignatureTxnCallback);
         if (topLevelTxn == null) {
@@ -571,11 +572,10 @@ public class HandleWorkflow {
         }
         if (streamMode != BLOCKS
                 && topLevelTxn.txnInfo().functionality() == HederaFunctionality.STATE_SIGNATURE_TRANSACTION) {
-            var bi = BlockItem.newBuilder()
+            final var blockItem = BlockItem.newBuilder()
                     .signedTransaction(topLevelTxn.txnInfo().serializedSignedTx())
                     .build();
-            blockStreamManager.writeItem2(bi);
-            return true;
+            return blockStreamManager.writeItem2(blockItem);
         }
 
         final var handleOutput = executeSubmittedParent(topLevelTxn, eventBirthRound, state);

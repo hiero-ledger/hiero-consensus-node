@@ -573,9 +573,6 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
 
     @Override
     public boolean writeItem2(@NonNull final BlockItem item) {
-        if (roundStarting.get() > -1 || roundEnding.get() > -1) {
-            return false; // busy, no block is currently open
-        }
         lastUsedTime = switch (item.item().kind()) {
             case STATE_CHANGES -> item.stateChangesOrThrow().consensusTimestampOrThrow();
             case TRANSACTION_RESULT -> item.transactionResultOrThrow().consensusTimestampOrThrow();
