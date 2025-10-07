@@ -289,7 +289,7 @@ public class Hip1195EnabledTest {
                                 .withStorageChanges(
                                         StorageChange.readAndWritten(
                                                 formattedAssertionValue(0),
-                                                formattedAssertionValue(0),
+                                                formattedAssertionValue(passHash32.toHex()),
                                                 formattedAssertionValue(0))))),
                 withOpContext(
                         (spec, opLog) -> requireNonNull(GLOBAL_WATCHER.get()).assertExpectations(spec)));

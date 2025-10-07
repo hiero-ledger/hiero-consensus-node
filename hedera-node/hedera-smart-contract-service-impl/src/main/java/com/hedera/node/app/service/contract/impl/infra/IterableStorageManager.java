@@ -64,7 +64,7 @@ public class IterableStorageManager {
         allAccesses.forEach(contractAccesses -> contractAccesses.accesses().forEach(access -> {
             if (access.isUpdate()) {
                 final var contractId = contractAccesses.contractID();
-                if(contractId.equals(HTS_HOOKS_16D_CONTRACT_ID)){
+                if(contractId.equals(HTS_HOOKS_16D_CONTRACT_ID)){ //<----------------------------- change here
                     // Skip managing linked list for 0x16d, as its storage is managed separately
                     return;
                 }
@@ -104,7 +104,7 @@ public class IterableStorageManager {
         // Update contract metadata with the net change in slots used
         long slotUsageChange = 0;
         for (final var change : allSizeChanges) {
-            if(change.contractID().equals(HTS_HOOKS_16D_CONTRACT_ID)){
+            if(change.contractID().equals(HTS_HOOKS_16D_CONTRACT_ID)){ //<----------------------------- change here
                 // Skip managing slot count for 0x16d, as its storage is managed separately
                 continue;
             }
@@ -124,7 +124,8 @@ public class IterableStorageManager {
     }
 
     /**
-     * Returns the first storage key for the contract or Bytes.Empty if none exists.
+     * @param enhancement the enhancement for the current transaction
+     * Returns the first storage key for the contract or Bytes.Empty if none exists. df
      *
      * @param enhancement the enhancement for the current transaction
      * @param contractID the contract id
