@@ -36,7 +36,7 @@ public record BlockStreamConfig(
         @ConfigProperty(defaultValue = "8192") @Min(1) @NetworkProperty int receiptEntriesBatchSize,
         @ConfigProperty(defaultValue = "10ms") @Min(1) @NodeProperty Duration workerLoopSleepDuration,
         @ConfigProperty(defaultValue = Integer.MAX_VALUE + "") @NodeProperty int maxReadDepth,
-        @ConfigProperty(defaultValue = "500000000") @NodeProperty int maxReadSize) {	// ~500 MB
+        @ConfigProperty(defaultValue = "500000000") @NodeProperty int maxReadSize) { // ~500 MB
 
     /**
      * Whether to stream to block nodes.
