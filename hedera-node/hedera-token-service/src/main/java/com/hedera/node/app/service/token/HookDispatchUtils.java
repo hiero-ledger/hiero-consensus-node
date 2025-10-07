@@ -12,8 +12,6 @@ import static com.hedera.node.app.spi.workflows.record.StreamBuilder.signedTxWit
 import com.esaulpaugh.headlong.abi.Function;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
-import com.hedera.hapi.node.base.EvmHookCall;
-import com.hedera.hapi.node.base.HookCall;
 import com.hedera.hapi.node.base.HookEntityId;
 import com.hedera.hapi.node.base.HookId;
 import com.hedera.hapi.node.contract.ContractCallTransactionBody;
@@ -50,7 +48,8 @@ public class HookDispatchUtils {
                     .evmHookCallOrThrow();
             return signedTxWith(dispatchedBody
                     .copyBuilder()
-                    .contractCall(asContractCall(hookCall))
+                    .contractCall(new ContractCallTransactionBody(
+                            HTS_HOOKS_CONTRACT_ID, hookCall.gasLimit(), 0L, hookCall.data()))
                     .build());
         } catch (ParseException e) {
             // Should be impossible
@@ -181,14 +180,5 @@ public class HookDispatchUtils {
         } catch (final Exception ignore) {
             throw new HandleException(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK);
         }
-    }
-
-    /**
-     * Standardizes the given {@link HookCall} as a {@link ContractCallTransactionBody}.
-     * @param call the call to standardize
-     * @return the standardized operation
-     */
-    private static ContractCallTransactionBody asContractCall(@NonNull final EvmHookCall call) {
-        return new ContractCallTransactionBody(HTS_HOOKS_CONTRACT_ID, call.gasLimit(), 0L, call.data());
     }
 }
