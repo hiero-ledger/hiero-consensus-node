@@ -14,6 +14,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.node.NodeId;
@@ -36,8 +37,9 @@ public class DefaultPlatformMonitor implements PlatformMonitor {
     private final StatusStateMachine statusStateMachine;
     /** Tracks the node's uptime based on consensus events */
     private final UptimeTracker uptimeTracker;
-
+    /** Tracks the last QuiescenceCommand submitted to the node */
     private QuiescenceCommand lastQuiescenceCommand;
+    /** Tracks the moment a QuiescenceCommand was submitted to the node */
     private Instant lastQuiescenceCommandTime;
 
     /**
@@ -54,12 +56,18 @@ public class DefaultPlatformMonitor implements PlatformMonitor {
         lastQuiescenceCommandTime = time.now();
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Nullable
     @Override
     public PlatformStatus submitStatusAction(@NonNull final PlatformStatusAction action) {
         return statusStateMachine.submitStatusAction(action);
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public PlatformStatus heartbeat(@NonNull final Instant time) {
         return statusStateMachine.submitStatusAction(new TimeElapsedAction(
@@ -68,6 +76,9 @@ public class DefaultPlatformMonitor implements PlatformMonitor {
                         lastQuiescenceCommand == QuiescenceCommand.QUIESCE, lastQuiescenceCommandTime)));
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public PlatformStatus consensusRound(@NonNull final ConsensusRound round) {
         final boolean selfEventReachedConsensus = uptimeTracker.trackRound(round);
@@ -78,20 +89,29 @@ public class DefaultPlatformMonitor implements PlatformMonitor {
         return statusStateMachine.submitStatusAction(new SelfEventReachedConsensusAction(time.now()));
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
-    public void quiescenceCommand(@NonNull QuiescenceCommand command) {
-        if (lastQuiescenceCommand != command) {
+    public void quiescenceCommand(@NonNull final QuiescenceCommand command) {
+        if (lastQuiescenceCommand != Objects.requireNonNull(command)) {
             lastQuiescenceCommand = command;
             lastQuiescenceCommandTime = time.now();
         }
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public PlatformStatus stateWrittenToDisk(@NonNull final StateSavingResult result) {
         return statusStateMachine.submitStatusAction(
                 new StateWrittenToDiskAction(result.round(), result.freezeState()));
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Nullable
     @Override
     public PlatformStatus issNotification(@NonNull final List<IssNotification> notifications) {
