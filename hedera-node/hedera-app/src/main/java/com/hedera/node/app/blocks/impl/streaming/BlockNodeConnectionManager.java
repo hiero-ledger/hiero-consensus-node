@@ -1029,7 +1029,7 @@ public class BlockNodeConnectionManager {
             start();
         } else {
             logWithContext(
-                    WARN,
+                    INFO,
                     "No valid block node configurations available after file change. Connections remain stopped.");
         }
     }
