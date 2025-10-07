@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.state;
 
+import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOK_DELETION_REQUIRES_ZERO_STORAGE_SLOTS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOK_ID_IN_USE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOK_NOT_FOUND;
 import static com.hedera.hapi.node.state.hooks.EvmHookType.LAMBDA;
@@ -136,20 +137,13 @@ public class WritableEvmHookStore extends ReadableEvmHookStoreImpl {
      * @param hookId the lambda ID
      * @throws HandleException if the lambda ID is not found
      */
-    public void removeOrMarkDeleted(@NonNull final HookId hookId) {
+    public void remove(@NonNull final HookId hookId) {
         final var state = hookStates.get(hookId);
         validateTrue(state != null, HOOK_NOT_FOUND);
-        if (state.numStorageSlots() > 0) {
-            log.info(
-                    "Marking hook {} as deleted, but not removing it because it has {} storage slots",
-                    hookId,
-                    state.numStorageSlots());
-            hookStates.put(hookId, state.copyBuilder().deleted(true).build());
-        } else {
-            unlinkNeighbors(state);
-            hookStates.remove(hookId);
-            entityCounters.decrementEntityTypeCounter(HOOK);
-        }
+        validateTrue(state.numStorageSlots() == 0, HOOK_DELETION_REQUIRES_ZERO_STORAGE_SLOTS);
+        unlinkNeighbors(state);
+        hookStates.remove(hookId);
+        entityCounters.decrementEntityTypeCounter(HOOK);
     }
 
     private void unlinkNeighbors(@NonNull final EvmHookState state) {
@@ -205,7 +199,6 @@ public class WritableEvmHookStore extends ReadableEvmHookStoreImpl {
                 .type(type)
                 .extensionPoint(details.extensionPoint())
                 .hookContractId(evmHookSpec.contractIdOrThrow())
-                .deleted(false)
                 .firstContractStorageKey(Bytes.EMPTY)
                 .previousHookId(null)
                 .nextHookId(creation.nextHookId())
@@ -213,6 +206,22 @@ public class WritableEvmHookStore extends ReadableEvmHookStoreImpl {
                 .adminKey(details.adminKey())
                 .build();
         hookStates.put(hookId, state);
+
+        // Also change the previous pointer of next hookId to this hookId
+        if (creation.nextHookId() != null) {
+            final var next = HookId.newBuilder()
+                    .hookId(creation.nextHookId())
+                    .entityId(hookId.entityId())
+                    .build();
+            final var nextState = hookStates.get(next);
+            if (nextState != null) {
+                hookStates.put(
+                        next,
+                        nextState.copyBuilder().previousHookId(details.hookId()).build());
+            } else {
+                log.warn("Inconsistent state: next hook {} not found when linking {}", next, hookId);
+            }
+        }
         if (type == LAMBDA) {
             final var initialUpdates = details.lambdaEvmHookOrThrow().storageUpdates();
             if (!initialUpdates.isEmpty()) {
@@ -294,23 +303,24 @@ public class WritableEvmHookStore extends ReadableEvmHookStoreImpl {
             @NonNull final Bytes value) {
         requireNonNull(key);
         requireNonNull(value);
+        final var minimalKey = minimalKey(key);
         try {
             if (!Bytes.EMPTY.equals(firstKey)) {
-                updatePrevFor(new LambdaSlotKey(hookId, firstKey), key);
+                updatePrevFor(new LambdaSlotKey(hookId, firstKey), minimalKey);
             }
         } catch (Exception irreparable) {
             // Since maintaining linked lists is not mission-critical, just log the error and continue
             log.error(
                     "Failed link management when inserting {}; will be unable to expire all slots for contract {}",
-                    key,
+                    minimalKey,
                     hookId,
                     irreparable);
         }
-        storage.put(minimalKey(hookId, key), new SlotValue(value, Bytes.EMPTY, firstKey));
-        return key;
+        storage.put(new LambdaSlotKey(hookId, minimalKey), new SlotValue(value, Bytes.EMPTY, firstKey));
+        return minimalKey;
     }
 
-    private LambdaSlotKey minimalKey(@NonNull final HookId hookId, @NonNull final Bytes key) {
+    public static LambdaSlotKey minimalKey(@NonNull final HookId hookId, @NonNull final Bytes key) {
         return new LambdaSlotKey(hookId, minimalKey(key));
     }
 
@@ -324,8 +334,17 @@ public class WritableEvmHookStore extends ReadableEvmHookStoreImpl {
         storage.put(key, value.copyBuilder().nextKey(newNextKey).build());
     }
 
-    private Bytes minimalKey(@NonNull final Bytes key) {
-        return Bytes.EMPTY.equals(key) ? ZERO_KEY : key;
+    public static Bytes minimalKey(@NonNull final Bytes key) {
+        final var len = key.length();
+        if (len == 0) {
+            return ZERO_KEY;
+        }
+        int i = 0;
+        while (i < len && key.getByte(i) == 0) {
+            i++;
+        }
+        // All zeros -> ZERO_KEY, otherwise strip leading zeros
+        return (i == len) ? ZERO_KEY : key.slice(i, len - i);
     }
 
     @NonNull

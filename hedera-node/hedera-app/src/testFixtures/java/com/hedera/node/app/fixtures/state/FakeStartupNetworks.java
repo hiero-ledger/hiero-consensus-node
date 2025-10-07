@@ -3,9 +3,9 @@ package com.hedera.node.app.fixtures.state;
 
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.node.app.services.StartupNetworks;
 import com.hedera.node.internal.network.Network;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.state.lifecycle.StartupNetworks;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Optional;
 

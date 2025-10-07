@@ -36,12 +36,14 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Random;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Executor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.node.KeysAndCerts;
+import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.roster.RosterUtils;
 import org.hiero.otter.fixtures.app.OtterApp;
@@ -74,6 +76,9 @@ public class ConsensusNodeManager {
     /** An optional observer of marker files. {@code null} if writing marker files is not enabled in the platform. */
     @Nullable
     private final ContainerMarkerFileObserver markerFileObserver;
+
+    /** The current quiescence command. Volatile because it is read and set by different gRPC messages */
+    private volatile QuiescenceCommand quiescenceCommand = QuiescenceCommand.DONT_QUIESCE;
 
     /**
      * Creates a new instance of {@code ConsensusNodeManager} with the specified parameters. This constructor
@@ -135,7 +140,7 @@ public class ConsensusNodeManager {
         final MerkleNodeState state = initialState.get().getState();
 
         final RosterHistory rosterHistory = RosterUtils.createRosterHistory(state);
-        executionCallback = new OtterExecutionLayer(metrics);
+        executionCallback = new OtterExecutionLayer(new Random(), metrics);
         final PlatformBuilder builder = PlatformBuilder.create(
                         OtterApp.APP_NAME,
                         OtterApp.SWIRLD_NAME,
@@ -205,6 +210,9 @@ public class ConsensusNodeManager {
      * @return {@code true} if the transaction was successfully submitted, {@code false} otherwise
      */
     public boolean submitTransaction(@NonNull final byte[] transaction) {
+        if (quiescenceCommand == QuiescenceCommand.QUIESCE) {
+            return false;
+        }
         return executionCallback.submitApplicationTransaction(transaction);
     }
 
@@ -239,5 +247,15 @@ public class ConsensusNodeManager {
             throw new IllegalArgumentException("millisToSleepPerRound must be non-negative");
         }
         otterApp.updateSyntheticBottleneck(millisToSleepPerRound);
+    }
+
+    /**
+     * Sends a quiescence command to the platform.
+     *
+     * @param command the quiescence command to send, must not be {@code null}
+     */
+    public void sendQuiescenceCommand(@NonNull final QuiescenceCommand command) {
+        this.quiescenceCommand = command;
+        platform.quiescenceCommand(command);
     }
 }

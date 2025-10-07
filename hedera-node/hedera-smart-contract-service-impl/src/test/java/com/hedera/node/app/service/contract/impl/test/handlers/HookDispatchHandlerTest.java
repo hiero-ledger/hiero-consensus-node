@@ -17,6 +17,8 @@ import com.hedera.hapi.node.hooks.HookDispatchTransactionBody;
 import com.hedera.hapi.node.hooks.HookExecution;
 import com.hedera.hapi.node.state.hooks.EvmHookState;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.node.app.service.contract.impl.ContractServiceComponent;
+import com.hedera.node.app.service.contract.impl.exec.TransactionComponent;
 import com.hedera.node.app.service.contract.impl.handlers.HookDispatchHandler;
 import com.hedera.node.app.service.contract.impl.state.WritableEvmHookStore;
 import com.hedera.node.app.service.token.records.HookDispatchStreamBuilder;
@@ -24,8 +26,10 @@ import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.app.spi.validation.AttributeValidator;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
+import com.hedera.node.config.data.HooksConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.swirlds.config.api.Configuration;
+import org.hyperledger.besu.evm.gascalculator.GasCalculator;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -55,11 +59,20 @@ class HookDispatchHandlerTest extends ContractHandlerTestBase {
     @Mock
     private EvmHookState hook;
 
+    @Mock
+    private TransactionComponent.Factory factory;
+
+    @Mock
+    private GasCalculator gasCalculator;
+
+    @Mock(strictness = Mock.Strictness.LENIENT)
+    private ContractServiceComponent contractServiceComponent;
+
     private Configuration config = HederaTestConfigBuilder.create()
             .withValue("hooks.hooksEnabled", true)
             .getOrCreateConfig();
 
-    private HookDispatchHandler subject = new HookDispatchHandler();
+    private HookDispatchHandler subject;
 
     @BeforeEach
     void setUp() {
@@ -69,12 +82,11 @@ class HookDispatchHandlerTest extends ContractHandlerTestBase {
         given(handleContext.configuration()).willReturn(config);
         given(handleContext.savepointStack()).willReturn(savepointStack);
         given(savepointStack.getBaseBuilder(HookDispatchStreamBuilder.class)).willReturn(recordBuilder);
-    }
-
-    @Test
-    void executionUnsupported() {
-        given(handleContext.body()).willReturn(hookDispatchWithExecution());
-        assertThrows(UnsupportedOperationException.class, () -> subject.handle(handleContext));
+        lenient()
+                .when(gasCalculator.transactionIntrinsicGasCost(
+                        org.apache.tuweni.bytes.Bytes.wrap(new byte[0]), false, 0L))
+                .thenReturn((long) config.getConfigData(HooksConfig.class).lambdaIntrinsicGasCost());
+        subject = new HookDispatchHandler(() -> factory, gasCalculator, contractServiceComponent);
     }
 
     @Test
@@ -104,7 +116,7 @@ class HookDispatchHandlerTest extends ContractHandlerTestBase {
         assertDoesNotThrow(() -> subject.handle(handleContext));
 
         verify(recordBuilder).nextHookId(2L);
-        verify(evmHookStore).removeOrMarkDeleted(HookId.newBuilder().hookId(1L).build());
+        verify(evmHookStore).remove(HookId.newBuilder().hookId(1L).build());
     }
 
     @Test

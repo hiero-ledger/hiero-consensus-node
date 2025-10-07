@@ -4,7 +4,7 @@ package com.hedera.services.bdd.suites.hip1195;
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
 import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
-import static com.hedera.services.bdd.spec.transactions.TxnUtils.lambdaAccountAllowanceHook;
+import static com.hedera.services.bdd.spec.transactions.TxnUtils.accountAllowanceHook;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.accountLambdaSStore;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractUpdate;
@@ -12,8 +12,10 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoUpdate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.mintToken;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenAirdrop;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
+import static com.hedera.services.bdd.suites.HapiSuite.TOKEN_TREASURY;
 import static com.hedera.services.bdd.suites.contract.Utils.aaWith;
 import static com.hedera.services.bdd.suites.contract.Utils.aaWithPreHook;
 import static com.hedera.services.bdd.suites.contract.Utils.aaWithPrePostHook;
@@ -30,6 +32,8 @@ import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.dsl.annotations.Contract;
 import com.hedera.services.bdd.spec.dsl.entities.SpecContract;
+import com.hederahashgraph.api.proto.java.AccountAmount;
+import com.hederahashgraph.api.proto.java.NftTransfer;
 import com.hederahashgraph.api.proto.java.TokenTransferList;
 import com.hederahashgraph.api.proto.java.TokenType;
 import com.hederahashgraph.api.proto.java.TransferList;
@@ -64,11 +68,136 @@ public class Hip1195DisabledTest {
     final Stream<DynamicTest> cannotCreateAccountsOrContractsWithHooksWhenDisabled() {
         return hapiTest(
                 cryptoCreate("notToBe")
-                        .withHook(lambdaAccountAllowanceHook(123L, HOOK_CONTRACT.name()))
+                        .withHook(accountAllowanceHook(123L, HOOK_CONTRACT.name()))
                         .hasPrecheck(HOOKS_NOT_ENABLED),
                 contractCreate("notToBe")
                         .inlineInitCode(ByteString.EMPTY)
-                        .withHooks(lambdaAccountAllowanceHook(123L, HOOK_CONTRACT.name()))
+                        .withHooks(accountAllowanceHook(123L, HOOK_CONTRACT.name()))
+                        .hasPrecheck(HOOKS_NOT_ENABLED));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> cannotAttemptToUseHooksInAirdropMessagesWhenDisabled() {
+        return hapiTest(
+                cryptoCreate(TOKEN_TREASURY),
+                tokenCreate("ft").treasury(TOKEN_TREASURY),
+                tokenAirdrop((spec, b) -> {
+                            final var registry = spec.registry();
+                            b.addTokenTransfers(TokenTransferList.newBuilder()
+                                    .setToken(registry.getTokenID("ft"))
+                                    .addAllTransfers(List.of(AccountAmount.newBuilder()
+                                            .setAccountID(registry.getAccountID(TOKEN_TREASURY))
+                                            .setAmount(-1)
+                                            .setPreTxAllowanceHook(
+                                                    com.hederahashgraph.api.proto.java.HookCall.newBuilder()
+                                                            .setHookId(1))
+                                            .build()))
+                                    .addAllTransfers(List.of(AccountAmount.newBuilder()
+                                            .setAccountID(registry.getAccountID(DEFAULT_PAYER))
+                                            .setAmount(+1)
+                                            .build()))
+                                    .build());
+                        })
+                        .signedBy(DEFAULT_PAYER)
+                        .hasPrecheck(HOOKS_NOT_ENABLED),
+                tokenAirdrop((spec, b) -> {
+                            final var registry = spec.registry();
+                            b.addTokenTransfers(TokenTransferList.newBuilder()
+                                    .setToken(registry.getTokenID("ft"))
+                                    .addAllTransfers(List.of(AccountAmount.newBuilder()
+                                            .setAccountID(registry.getAccountID(TOKEN_TREASURY))
+                                            .setAmount(-1)
+                                            .setPrePostTxAllowanceHook(
+                                                    com.hederahashgraph.api.proto.java.HookCall.newBuilder()
+                                                            .setHookId(1))
+                                            .build()))
+                                    .addAllTransfers(List.of(AccountAmount.newBuilder()
+                                            .setAccountID(registry.getAccountID(DEFAULT_PAYER))
+                                            .setAmount(+1)
+                                            .build()))
+                                    .build());
+                        })
+                        .signedBy(DEFAULT_PAYER)
+                        .hasPrecheck(HOOKS_NOT_ENABLED),
+                tokenCreate("nft")
+                        .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
+                        .treasury(TOKEN_TREASURY)
+                        .supplyKey(DEFAULT_PAYER)
+                        .initialSupply(0L),
+                tokenAirdrop((spec, b) -> {
+                            final var registry = spec.registry();
+                            b.addTokenTransfers(TokenTransferList.newBuilder()
+                                    .setToken(registry.getTokenID("nft"))
+                                    .addNftTransfers(NftTransfer.newBuilder()
+                                            .setSenderAccountID(registry.getAccountID(TOKEN_TREASURY))
+                                            .setReceiverAccountID(registry.getAccountID(DEFAULT_PAYER))
+                                            .setSerialNumber(1)
+                                            .setPreTxSenderAllowanceHook(
+                                                    com.hederahashgraph.api.proto.java.HookCall.newBuilder()
+                                                            .setHookId(1))
+                                            .build()));
+                        })
+                        .signedBy(DEFAULT_PAYER)
+                        .hasPrecheck(HOOKS_NOT_ENABLED),
+                tokenAirdrop((spec, b) -> {
+                            final var registry = spec.registry();
+                            b.addTokenTransfers(TokenTransferList.newBuilder()
+                                    .setToken(registry.getTokenID("nft"))
+                                    .addNftTransfers(NftTransfer.newBuilder()
+                                            .setSenderAccountID(registry.getAccountID(TOKEN_TREASURY))
+                                            .setReceiverAccountID(registry.getAccountID(DEFAULT_PAYER))
+                                            .setSerialNumber(1)
+                                            .setPreTxSenderAllowanceHook(
+                                                    com.hederahashgraph.api.proto.java.HookCall.newBuilder()
+                                                            .setHookId(1))
+                                            .build()));
+                        })
+                        .signedBy(DEFAULT_PAYER)
+                        .hasPrecheck(HOOKS_NOT_ENABLED),
+                tokenAirdrop((spec, b) -> {
+                            final var registry = spec.registry();
+                            b.addTokenTransfers(TokenTransferList.newBuilder()
+                                    .setToken(registry.getTokenID("nft"))
+                                    .addNftTransfers(NftTransfer.newBuilder()
+                                            .setSenderAccountID(registry.getAccountID(TOKEN_TREASURY))
+                                            .setReceiverAccountID(registry.getAccountID(DEFAULT_PAYER))
+                                            .setSerialNumber(1)
+                                            .setPrePostTxSenderAllowanceHook(
+                                                    com.hederahashgraph.api.proto.java.HookCall.newBuilder()
+                                                            .setHookId(1))
+                                            .build()));
+                        })
+                        .signedBy(DEFAULT_PAYER)
+                        .hasPrecheck(HOOKS_NOT_ENABLED),
+                tokenAirdrop((spec, b) -> {
+                            final var registry = spec.registry();
+                            b.addTokenTransfers(TokenTransferList.newBuilder()
+                                    .setToken(registry.getTokenID("nft"))
+                                    .addNftTransfers(NftTransfer.newBuilder()
+                                            .setSenderAccountID(registry.getAccountID(TOKEN_TREASURY))
+                                            .setReceiverAccountID(registry.getAccountID(DEFAULT_PAYER))
+                                            .setSerialNumber(1)
+                                            .setPreTxReceiverAllowanceHook(
+                                                    com.hederahashgraph.api.proto.java.HookCall.newBuilder()
+                                                            .setHookId(1))
+                                            .build()));
+                        })
+                        .signedBy(DEFAULT_PAYER)
+                        .hasPrecheck(HOOKS_NOT_ENABLED),
+                tokenAirdrop((spec, b) -> {
+                            final var registry = spec.registry();
+                            b.addTokenTransfers(TokenTransferList.newBuilder()
+                                    .setToken(registry.getTokenID("nft"))
+                                    .addNftTransfers(NftTransfer.newBuilder()
+                                            .setSenderAccountID(registry.getAccountID(TOKEN_TREASURY))
+                                            .setReceiverAccountID(registry.getAccountID(DEFAULT_PAYER))
+                                            .setSerialNumber(1)
+                                            .setPrePostTxReceiverAllowanceHook(
+                                                    com.hederahashgraph.api.proto.java.HookCall.newBuilder()
+                                                            .setHookId(1))
+                                            .build()));
+                        })
+                        .signedBy(DEFAULT_PAYER)
                         .hasPrecheck(HOOKS_NOT_ENABLED));
     }
 
@@ -77,11 +206,11 @@ public class Hip1195DisabledTest {
         return hapiTest(
                 cryptoCreate(CIVILIAN),
                 cryptoUpdate(CIVILIAN)
-                        .withHook(lambdaAccountAllowanceHook(123L, HOOK_CONTRACT.name()))
+                        .withHook(accountAllowanceHook(123L, HOOK_CONTRACT.name()))
                         .hasPrecheck(HOOKS_NOT_ENABLED),
                 cryptoUpdate(CIVILIAN).removingHook(123L).hasPrecheck(HOOKS_NOT_ENABLED),
                 contractUpdate(HOOK_CONTRACT.name())
-                        .withHooks(lambdaAccountAllowanceHook(123L, HOOK_CONTRACT.name()))
+                        .withHooks(accountAllowanceHook(123L, HOOK_CONTRACT.name()))
                         .hasPrecheck(HOOKS_NOT_ENABLED),
                 contractUpdate(HOOK_CONTRACT.name()).removingHook(123L).hasPrecheck(HOOKS_NOT_ENABLED));
     }

@@ -462,6 +462,10 @@ message HookEntityId {
          * An account using a hook.
          */
         AccountID account_id = 1;
+        /**
+         * A contract using a hook.
+         */
+        ContractID contract_id = 2;
     }
 }
 
@@ -867,6 +871,11 @@ enum SubType {
      * for a topic with custom fees.
      */
     SUBMIT_MESSAGE_WITH_CUSTOM_FEES = 7;
+
+    /**
+     * The resource cost for the transaction type that includes a CryptoTransfer with hook invocations
+     */
+    CRYPTO_TRANSFER_WITH_HOOKS = 8;
 }
 
 /**

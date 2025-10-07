@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.schemas;
 
+import static com.hedera.hapi.util.HapiUtils.SEMANTIC_VERSION_COMPARATOR;
 import static com.swirlds.state.lifecycle.StateMetadata.computeLabel;
 
 import com.hedera.hapi.node.base.AccountID;
@@ -28,7 +29,7 @@ import java.util.Set;
 /**
  * Initial mod-service schema for the token service.
  */
-public class V0490TokenSchema extends Schema {
+public class V0490TokenSchema extends Schema<SemanticVersion> {
 
     // Initial virtual map capacity values. Previously these values had to be large enough to avoid
     // key hash collisions at the database level, which would result in low performance. With the
@@ -74,7 +75,7 @@ public class V0490TokenSchema extends Schema {
             computeLabel(TokenService.NAME, STAKING_NETWORK_REWARDS_KEY);
 
     public V0490TokenSchema() {
-        super(VERSION);
+        super(VERSION, SEMANTIC_VERSION_COMPARATOR);
     }
 
     @NonNull

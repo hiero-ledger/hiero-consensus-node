@@ -32,6 +32,7 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.CONSTRU
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.DEFAULT_CONTRACTS_CONFIG;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.DEFAULT_ENTITIES_CONFIG;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.DEFAULT_HEDERA_CONFIG;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.DEFAULT_HOOKS_CONFIG;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.DEFAULT_LEDGER_CONFIG;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.DEV_CHAIN_ID_CONTRACTS_CONFIG;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.ETH_DATA_WITHOUT_TO_ADDRESS;
@@ -160,7 +161,8 @@ class HevmTransactionFactoryTest {
                 tokenServiceApi,
                 ethereumSignatures,
                 context,
-                entityIdFactory);
+                entityIdFactory,
+                DEFAULT_HOOKS_CONFIG);
     }
 
     @Test
@@ -806,7 +808,8 @@ class HevmTransactionFactoryTest {
                 tokenServiceApi,
                 ethereumSignatures,
                 context,
-                entityIdFactory);
+                entityIdFactory,
+                DEFAULT_HOOKS_CONFIG);
     }
 
     private void givenInsteadFailedHydrationSubject() {
@@ -826,7 +829,8 @@ class HevmTransactionFactoryTest {
                 tokenServiceApi,
                 ethereumSignatures,
                 context,
-                entityIdFactory);
+                entityIdFactory,
+                DEFAULT_HOOKS_CONFIG);
     }
 
     private void givenInsteadHydratedEthTxWithWrongChainId(@NonNull final EthTxData ethTxData) {
@@ -846,7 +850,8 @@ class HevmTransactionFactoryTest {
                 tokenServiceApi,
                 ethereumSignatures,
                 context,
-                entityIdFactory);
+                entityIdFactory,
+                DEFAULT_HOOKS_CONFIG);
     }
 
     private void givenInsteadHydratedEthTxWithRightChainId(@NonNull final EthTxData ethTxData) {
@@ -866,6 +871,7 @@ class HevmTransactionFactoryTest {
                 tokenServiceApi,
                 ethereumSignatures,
                 context,
-                entityIdFactory);
+                entityIdFactory,
+                DEFAULT_HOOKS_CONFIG);
     }
 }

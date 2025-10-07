@@ -8,6 +8,8 @@ import static java.util.stream.Collectors.toMap;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.node.app.roster.RosterService;
+import com.hedera.node.app.services.HederaMigrationContext;
+import com.hedera.node.app.services.StartupNetworks;
 import com.hedera.node.config.data.NetworkAdminConfig;
 import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.lifecycle.Schema;
@@ -39,12 +41,12 @@ public interface RosterTransplantSchema {
      * @param rosterStoreFactory the factory to use to create the writable roster store
      */
     default boolean restart(
-            @NonNull final MigrationContext ctx,
+            @NonNull final HederaMigrationContext ctx,
             @NonNull final BiConsumer<Roster, Roster> onAdopt,
             @NonNull final Function<WritableStates, WritableRosterStore> rosterStoreFactory) {
         requireNonNull(ctx);
         final long roundNumber = ctx.roundNumber();
-        final var startupNetworks = ctx.startupNetworks();
+        final StartupNetworks startupNetworks = ctx.startupNetworks();
         final var overrideNetwork = startupNetworks.overrideNetworkFor(roundNumber, ctx.platformConfig());
         overrideNetwork.ifPresent(network -> {
             final long activeRoundNumber = roundNumber + 1;
