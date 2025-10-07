@@ -401,3 +401,19 @@ message RedactedItem {
    */
   SubMerkleTree tree = 3;
 }
+
+/**
+ * TODO
+ */
+message StreamingTreeSnapshot {
+
+  /**
+   * Which of the block merkle sub trees this snapshot is for
+   */
+  SubMerkleTree type = 1;
+
+  /**
+   * All the uncollapsed nodes of the sub tree
+   */
+  repeated bytes nodes = 2;
+}

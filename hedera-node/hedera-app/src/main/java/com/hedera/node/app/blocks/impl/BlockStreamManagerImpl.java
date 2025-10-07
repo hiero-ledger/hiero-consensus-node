@@ -1,6 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.blocks.impl;
 
+import static com.hedera.hapi.block.stream.SubMerkleTree.CONSENSUS_HEADER;
+import static com.hedera.hapi.block.stream.SubMerkleTree.INPUT_ITEM;
+import static com.hedera.hapi.block.stream.SubMerkleTree.OUTPUT_ITEM;
+import static com.hedera.hapi.block.stream.SubMerkleTree.PREVIOUS_ROOT_HASHES;
+import static com.hedera.hapi.block.stream.SubMerkleTree.STATE_CHANGE_ITEM;
+import static com.hedera.hapi.block.stream.SubMerkleTree.TRACE_ITEM;
 import static com.hedera.hapi.node.base.BlockHashAlgorithm.SHA2_384;
 import static com.hedera.hapi.util.HapiUtils.asInstant;
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
@@ -24,6 +30,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.BlockProof;
 import com.hedera.hapi.block.stream.MerkleSiblingHash;
+import com.hedera.hapi.block.stream.StreamingTreeSnapshot;
 import com.hedera.hapi.block.stream.SubMerkleTree;
 import com.hedera.hapi.block.stream.output.BlockHeader;
 import com.hedera.hapi.block.stream.output.StateChanges;
@@ -51,6 +58,7 @@ import com.hedera.node.config.data.VersionConfig;
 import com.hedera.node.config.types.DiskNetworkExport;
 import com.hedera.node.internal.network.PendingProof;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.component.framework.schedulers.internal.SequentialTask;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Counter;
 import com.swirlds.metrics.api.Metrics;
@@ -64,9 +72,18 @@ import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.spi.CommittableWritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+
+import java.io.BufferedOutputStream;
+import java.io.BufferedWriter;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.StandardOpenOption;
+import java.nio.file.attribute.FileAttribute;
 import java.security.MessageDigest;
 import java.time.Duration;
 import java.time.Instant;
@@ -84,6 +101,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import javax.inject.Inject;
@@ -158,7 +176,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     private final boolean hintsEnabled;
 
     private void initIntermediateHashTrees() {
-        previousBlockHashes = loadHashTree(SubMerkleTree.PREVIOUS_ROOT_HASHES);
+        previousBlockHashes = loadHashTree(PREVIOUS_ROOT_HASHES);
         consensusHeaderHasher = loadHashTree(SubMerkleTree.CONSENSUS_HEADER);
         inputTreeHasher = loadHashTree(SubMerkleTree.INPUT_ITEM);
         outputTreeHasher = loadHashTree(SubMerkleTree.OUTPUT_ITEM);
@@ -178,6 +196,16 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         // TODO load file bytes here
         return Collections.emptyList();
     }
+
+	void writeStreamingSnapshots(@NonNull final String basepath, final long roundNum) {
+		final var hashingStates = Map.of(PREVIOUS_ROOT_HASHES, previousBlockHashes.intermediateHashingState(), CONSENSUS_HEADER, consensusHeaderHasher.intermediateHashingState(), INPUT_ITEM, inputTreeHasher.intermediateHashingState(), OUTPUT_ITEM, outputTreeHasher.intermediateHashingState(), STATE_CHANGE_ITEM, stateChangesHasher.intermediateHashingState(), TRACE_ITEM, traceDataHasher.intermediateHashingState());
+		IncrementalHasherStorage.writeStreamingSnapshots(basepath, hashingStates, roundNum);
+	}
+
+	Map<SubMerkleTree, StreamingTreeSnapshot> readStreamingSnapshots(@NonNull final String basepath, final long roundNum) {
+		//todo
+		return Map.of();
+	}
 
     /**
      * Represents a block pending completion by the block hash signature needed for its block proof.
@@ -564,7 +592,8 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             final var pendingProof = BlockProof.newBuilder()
                     .block(blockNumber)
                     .previousBlockRootHash(lastBlockHash)
-                    .startOfBlockStateRootHash(blockStartStateHash);
+                    .startOfBlockStateRootHash(blockStartStateHash)
+					.build();
             pendingBlocks.add(new PendingBlock(
                     blockNumber,
                     null,
