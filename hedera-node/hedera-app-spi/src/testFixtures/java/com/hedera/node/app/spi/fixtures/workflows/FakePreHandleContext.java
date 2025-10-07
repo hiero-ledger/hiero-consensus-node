@@ -447,7 +447,7 @@ public class FakePreHandleContext implements PreHandleContext {
 
     @Override
     public Key getKeyFromAccount(@NonNull final AccountID accountID) {
-        throw new UnsupportedOperationException("Not yet implemented");
+        return requireNonNull(accountStore.getAccountById(accountID)).keyOrThrow();
     }
 
     @Override

@@ -126,6 +126,9 @@ public class AddressBookTestBase {
     protected static final Key aPrimitiveKey = Key.newBuilder()
             .ed25519(Bytes.wrap("01234567890123456789012345678901"))
             .build();
+    protected static final Key bPrimitiveKey = Key.newBuilder()
+            .ed25519(Bytes.wrap("01234567890123456789098765432101"))
+            .build();
     protected static final ProtoBytes edKeyAlias = new ProtoBytes(Bytes.wrap(asBytes(Key.PROTOBUF, aPrimitiveKey)));
     protected final AccountID alias = idFactory.newAccountIdWithAlias(edKeyAlias.value());
 
@@ -238,7 +241,6 @@ public class AddressBookTestBase {
         given(readableStates.<EntityNumber, Node>get(NODES_STATE_ID)).willReturn(readableNodeState);
         given(writableStates.<EntityNumber, Node>get(NODES_STATE_ID)).willReturn(writableNodeState);
         readableStore = new ReadableNodeStoreImpl(readableStates, readableEntityCounters);
-        final var configuration = HederaTestConfigBuilder.createConfig();
         writableStore = new WritableNodeStore(writableStates, writableEntityCounters);
     }
 
@@ -247,7 +249,6 @@ public class AddressBookTestBase {
         writableEntityCounters.incrementEntityTypeCount(EntityType.NODE);
         writableNodeState = writableNodeStateWithOneKey();
         given(writableStates.<EntityNumber, Node>get(NODES_STATE_ID)).willReturn(writableNodeState);
-        final var configuration = HederaTestConfigBuilder.createConfig();
         writableStore = new WritableNodeStore(writableStates, writableEntityCounters);
     }
 
@@ -255,7 +256,6 @@ public class AddressBookTestBase {
         givenEntityCounters();
         writableNodeState = writableNodeStateWithMoreKeys();
         given(writableStates.<EntityNumber, Node>get(NODES_STATE_ID)).willReturn(writableNodeState);
-        final var configuration = HederaTestConfigBuilder.createConfig();
         writableStore = new WritableNodeStore(writableStates, writableEntityCounters);
     }
 
