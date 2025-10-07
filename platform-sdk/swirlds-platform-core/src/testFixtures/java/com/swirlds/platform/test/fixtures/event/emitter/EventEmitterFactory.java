@@ -4,9 +4,9 @@ package com.swirlds.platform.test.fixtures.event.emitter;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.platform.test.fixtures.event.generator.StandardGraphGenerator;
+import com.swirlds.platform.test.fixtures.event.source.BranchingEventSource;
 import com.swirlds.platform.test.fixtures.event.source.EventSource;
 import com.swirlds.platform.test.fixtures.event.source.EventSourceFactory;
-import com.swirlds.platform.test.fixtures.event.source.BranchingEventSource;
 import com.swirlds.platform.test.fixtures.event.source.StandardEventSource;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
@@ -76,7 +76,8 @@ public class EventEmitterFactory {
         // No more than 1/3 of the nodes can create branches for consensus to be successful
         final int maxNumBranchingSources = (int) Math.floor(numNetworkNodes / 3.0);
 
-        sourceFactory.addCustomSource(index -> index < maxNumBranchingSources, EventSourceFactory::newBranchingEventSource);
+        sourceFactory.addCustomSource(
+                index -> index < maxNumBranchingSources, EventSourceFactory::newBranchingEventSource);
 
         return newShuffledFromSourceFactory();
     }
