@@ -38,5 +38,4 @@ public record BlockBufferConfig(
         @ConfigProperty(defaultValue = "20s") @Min(0) @NetworkProperty Duration actionGracePeriod,
         @ConfigProperty(defaultValue = "85.0") @Min(0) @NetworkProperty double recoveryThreshold,
         @ConfigProperty(defaultValue = "true") @NodeProperty boolean isBufferPersistenceEnabled,
-        @ConfigProperty(defaultValue = "/opt/hgcapp/blockStreams/buffer") @NodeProperty String bufferDirectory,
-        @ConfigProperty(defaultValue = "300") @NodeProperty int maxReadSizeMb) {}
+        @ConfigProperty(defaultValue = "/opt/hgcapp/blockStreams/buffer") @NodeProperty String bufferDirectory) {}

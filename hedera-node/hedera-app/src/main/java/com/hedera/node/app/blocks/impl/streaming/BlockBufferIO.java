@@ -46,16 +46,19 @@ public class BlockBufferIO {
      */
     private final File rootDirectory;
 
+    private final int maxReadDepth;
     private final int maxReadSize;
 
     /**
      * Constructor for the block buffer IO operations.
      *
      * @param rootDirectory the root directory that will contain subdirectories containing the block files.
+     * @param maxDepth the max allowed depth of nested protobuf messages
      * @param maxReadSize the max allowed read size of a protobuf block in bytes
      */
-    public BlockBufferIO(final String rootDirectory, final int maxReadSize) {
+    public BlockBufferIO(final String rootDirectory, final int maxDepth, final int maxReadSize) {
         this.rootDirectory = new File(requireNonNull(rootDirectory));
+        this.maxReadDepth = maxDepth;
         this.maxReadSize = maxReadSize;
     }
 
@@ -182,7 +185,7 @@ public class BlockBufferIO {
                 final Bytes bytes = Bytes.wrap(payload);
 
                 return BufferedBlock.PROTOBUF.parse(
-                        bytes.toReadableSequentialData(), false, false, MAX_READ_DEPTH, maxReadSize);
+                        bytes.toReadableSequentialData(), false, false, maxReadDepth, maxReadSize);
             }
         }
     }

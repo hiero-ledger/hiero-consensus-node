@@ -326,13 +326,15 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
      * Recovers the contents and proof context of any pending blocks from disk.
      */
     private void recoverPendingBlocks() {
-        final var blockDirPath = blockDirFor(configProvider.getConfiguration());
+        final var config = configProvider.getConfiguration();
+        final var blockDirPath = blockDirFor(config);
         log.info(
                 "Attempting to recover any pending blocks contiguous to #{} still on disk @ {}",
                 blockNumber,
                 blockDirPath.toAbsolutePath());
         try {
-            final var onDiskPendingBlocks = loadContiguousPendingBlocks(blockDirPath, blockNumber);
+            final var onDiskPendingBlocks =
+                    loadContiguousPendingBlocks(blockDirPath, blockNumber, maxReadDepth(config), maxReadSize(config));
             if (onDiskPendingBlocks.isEmpty()) {
                 log.info("No contiguous pending blocks found for block #{}", blockNumber);
                 final var pendingWriter = writerSupplier.get();
@@ -961,5 +963,15 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         final var stateChanges = new StateChanges(lastUsedTime, boundaryStateChangeListener.allStateChanges());
         boundaryStateChangeListener.reset();
         return BlockItem.newBuilder().stateChanges(stateChanges).build();
+    }
+
+    private static int maxReadDepth(@NonNull final Configuration config) {
+        requireNonNull(config);
+        return config.getConfigData(BlockStreamConfig.class).maxReadDepth();
+    }
+
+    private static int maxReadSize(@NonNull final Configuration config) {
+        requireNonNull(config);
+        return config.getConfigData(BlockStreamConfig.class).maxReadSize();
     }
 }

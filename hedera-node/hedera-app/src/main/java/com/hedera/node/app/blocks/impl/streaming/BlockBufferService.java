@@ -139,7 +139,7 @@ public class BlockBufferService {
             @NonNull final ConfigProvider configProvider, @NonNull final BlockStreamMetrics blockStreamMetrics) {
         this.configProvider = configProvider;
         this.blockStreamMetrics = blockStreamMetrics;
-        this.bufferIO = new BlockBufferIO(bufferDirectory(), maxReadSize());
+        this.bufferIO = new BlockBufferIO(bufferDirectory(), maxReadDepth(), maxReadSize());
 
         final BlockStreamConfig blockStreamConfig =
                 configProvider.getConfiguration().getConfigData(BlockStreamConfig.class);
@@ -280,15 +280,23 @@ public class BlockBufferService {
     }
 
     /**
+     * @return the max allowed depth of nested protobuf messages
+     */
+    private int maxReadDepth() {
+        return configProvider
+                .getConfiguration()
+                .getConfigData(BlockStreamConfig.class)
+                .maxReadDepth();
+    }
+
+    /**
      * @return the max read size of a block protobuf <b>in bytes</b>
      */
     private int maxReadSize() {
         return configProvider
-                        .getConfiguration()
-                        .getConfigData(BlockBufferConfig.class)
-                        .maxReadSizeMb()
-                * 1024
-                * 1024;
+                .getConfiguration()
+                .getConfigData(BlockStreamConfig.class)
+                .maxReadSize();
     }
 
     /**
