@@ -341,7 +341,7 @@ public class HintsControllerImpl implements HintsController {
                         .findFirst()
                         .orElse("No remaining nodes to consider"));
         hintsStore.moveToNextNode(
-                optionalNextNodeId,
+                optionalNextNodeId.isEmpty() ? null : optionalNextNodeId.getAsLong(),
                 now.plusSeconds(tssConfig.crsUpdateContributionTime().toSeconds()));
     }
 

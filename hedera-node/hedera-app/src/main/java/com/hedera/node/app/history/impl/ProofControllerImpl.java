@@ -8,6 +8,8 @@ import static java.util.stream.Collectors.summingLong;
 import static java.util.stream.Collectors.toMap;
 
 import com.hedera.hapi.block.stream.ChainOfTrustProof;
+import com.hedera.hapi.block.stream.NodeSignature;
+import com.hedera.hapi.block.stream.NodeSignatures;
 import com.hedera.hapi.node.state.history.History;
 import com.hedera.hapi.node.state.history.HistoryProof;
 import com.hedera.hapi.node.state.history.HistoryProofConstruction;
@@ -62,8 +64,6 @@ public class ProofControllerImpl implements ProofController {
     private static CompletableFuture<Void> RUNNING_PROOF_FUTURE = null;
 
     public static final String PROOF_COMPLETE_MSG = "History proof constructed";
-
-    public static final int ADDRESS_BOOK_HASH_LEN = 32;
 
     private final long selfId;
 
@@ -211,6 +211,7 @@ public class ProofControllerImpl implements ProofController {
                 if (!votes.containsKey(selfId) && proofFuture == null) {
                     if (hasSufficientSignatures()) {
                         final var choice = requireNonNull(firstSufficientSignatures());
+                        // These are the witnesses for the SNARK prover algorithm
                         final var signatures = verificationFutures.headMap(choice.cutoff(), true).values().stream()
                                 .map(CompletableFuture::join)
                                 .filter(v -> choice.history().equals(v.history()) && v.isValid())
@@ -228,10 +229,31 @@ public class ProofControllerImpl implements ProofController {
                             }
                             proofFuture = Optional.ofNullable(RUNNING_PROOF_FUTURE)
                                     .orElse(CompletableFuture.completedFuture(null))
-                                    .thenCompose(ignore -> startProofFuture(signatures));
+                                    .thenCompose(ignore -> startRecursiveProofFuture(signatures));
                             log.info("Created proof future for construction #{}", construction.constructionId());
                         } else {
-                            // Otherwise we synchronously complete the proof via list-of-signatures
+                            // Convert the ordered set of signatures into a list-of-signatures proof
+                            final var nodeSignatures = new NodeSignatures(signatures.entrySet().stream()
+                                    .map(e -> new NodeSignature(e.getKey(), e.getValue()))
+                                    .toList());
+                            final var chainOfTrustProof = ChainOfTrustProof.newBuilder()
+                                    .nodeSignatures(nodeSignatures)
+                                    .build();
+                            // Note the proof keys are frozen at this time (can only be updated before assembly start)
+                            final var targetHash = HistoryLibrary.computeHash(
+                                    library,
+                                    weights.targetNodeIds(),
+                                    weights::targetWeightOf,
+                                    id -> targetProofKeys.getOrDefault(id, EMPTY_PUBLIC_KEY));
+                            final var proof = HistoryProof.newBuilder()
+                                    .targetProofKeys(proofKeyListFrom(targetProofKeys))
+                                    .targetHistory(new History(targetHash, requireNonNull(targetMetadata)))
+                                    .chainOfTrustProof(chainOfTrustProof)
+                                    .build();
+                            // Synchronously write this proof to the store, since it is complete
+                            construction = historyStore.completeProof(construction.constructionId(), proof);
+                            log.info("{} (#{})", PROOF_COMPLETE_MSG, construction.constructionId());
+                            historyService.onFinished(historyStore, construction);
                         }
                     } else if (!signingNodeIds.contains(selfId) && signingFuture == null) {
                         signingFuture = startSigningFuture();
@@ -437,10 +459,10 @@ public class ProofControllerImpl implements ProofController {
     }
 
     /**
-     * Returns a future that completes when the node has completed its metadata proof and submitted
-     * the corresponding vote.
+     * Returns a future that completes when the node has completed its recursive chain-of-trust proof using the
+     * given signature; and has submitted the vote for the resulting proof.
      */
-    private CompletableFuture<Void> startProofFuture(@NonNull final TreeMap<Long, Bytes> signatures) {
+    private CompletableFuture<Void> startRecursiveProofFuture(@NonNull final TreeMap<Long, Bytes> signatures) {
         // Finalize inputs to the async prover
         final var ledgerId = requireNonNull(this.ledgerId);
         final var targetMetadata = requireNonNull(this.targetMetadata);

@@ -889,7 +889,7 @@ public class HandleWorkflow {
                     // When not using history proofs, completing a weight rotation is also immediately actionable
                     final var rosterStore = new ReadableRosterStoreImpl(state.getReadableStates(RosterService.NAME));
                     if (rosterStore.candidateIsWeightRotation()) {
-                        hintsService.manageRosterAdoption(
+                        hintsService.handoff(
                                 hintsStore,
                                 requireNonNull(rosterStore.getActiveRoster()),
                                 requireNonNull(rosterStore.getCandidateRoster()),
@@ -905,6 +905,7 @@ public class HandleWorkflow {
                         // We just finished the genesis proof, so we use it immediately
                         final var proof = construction.targetProofOrThrow();
                         historyService.setLatestHistoryProof(proof);
+                        // And set the ledger id
                         final var ledgerId = proof.targetHistoryOrThrow().addressBookHash();
                         historyStore.setLedgerId(ledgerId);
                         logger.info("Set ledger id to '{}'", ledgerId);
@@ -919,7 +920,7 @@ public class HandleWorkflow {
                         final var writableEntityStates = state.getWritableStates(EntityIdService.NAME);
                         final var entityCounters = new WritableEntityIdStore(writableEntityStates);
                         final var hintsStore = new WritableHintsStoreImpl(writableHintsStates, entityCounters);
-                        hintsService.manageRosterAdoption(
+                        hintsService.handoff(
                                 hintsStore,
                                 requireNonNull(rosterStore.getActiveRoster()),
                                 requireNonNull(rosterStore.getCandidateRoster()),
