@@ -851,7 +851,9 @@ public class BlockNodeConnectionManager {
         final BlockState blockState = blockBufferService.getBlockState(currentStreamingBlockNumber);
         final long latestBlockNumber = blockBufferService.getLastBlockNumberProduced();
 
-        if (blockState == null && latestBlockNumber > currentStreamingBlockNumber) {
+        if (blockState == null
+                && latestBlockNumber > currentStreamingBlockNumber
+                && currentStreamingBlockNumber != -1) {
             logWithContext(
                     DEBUG,
                     "Block {} not found in buffer (latestBlock={}). Closing and rescheduling.",
