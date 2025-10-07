@@ -25,8 +25,8 @@ import org.hyperledger.besu.evm.worldstate.WorldUpdater;
  * since all changes are made to the {@link EvmFrameState} and not to the proxy account.
  * So we just need one implementation, which the EVM will request from {@link WorldUpdater}s
  * as an immutable {@link Account} in read-only contexts; and as a mutable {@link MutableAccount}
- * in a context where writes are allowed.
- * <p>
+ * in a context where writes are allowed.>
+ *
  * @implNote <b>Important:</b> Uses {@link HederaEvmAccount#hederaContractId()} to decide what contract to read or
  * write in implementations of {@link org.hyperledger.besu.evm.account.AccountState#getStorageValue(UInt256)},
  * {@link org.hyperledger.besu.evm.account.AccountState#getOriginalStorageValue(UInt256)}, and
