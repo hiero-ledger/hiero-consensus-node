@@ -14,7 +14,9 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.esaulpaugh.headlong.rlp.RLPDecoder;
 import com.esaulpaugh.headlong.rlp.RLPEncoder;
+import com.esaulpaugh.headlong.rlp.RLPList;
 import com.esaulpaugh.headlong.util.Integers;
 import com.google.protobuf.ByteString;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData.EthTransactionType;
@@ -425,6 +427,7 @@ class EthTxDataTest {
                 BigInteger.ONE,
                 oneByte,
                 oneByte,
+                null,
                 1,
                 oneByte,
                 oneByte,
@@ -445,6 +448,7 @@ class EthTxDataTest {
                 BigInteger.ONE,
                 oneByte,
                 oneByte,
+                null,
                 1,
                 oneByte,
                 oneByte,
@@ -509,6 +513,7 @@ class EthTxDataTest {
                 WEIBARS_IN_A_TINYBAR,
                 oneByte,
                 null,
+                null,
                 1,
                 oneByte,
                 oneByte,
@@ -551,6 +556,117 @@ class EthTxDataTest {
     }
 
     @Test
+    void populatesAccessListAsRlpCorrectly() {
+        final byte[] encodedAccessList = RLPEncoder.list(
+                RLPEncoder.list(RLPEncoder.sequence("key1".getBytes(), "value1".getBytes())),
+                RLPEncoder.list(RLPEncoder.sequence("key2".getBytes(), "value2".getBytes())));
+        final RLPList rlpList = RLPDecoder.RLP_STRICT.wrapList(encodedAccessList);
+        final Object[] accessListAsRlp = rlpList.elements().stream()
+                .map(e -> e.isList() ? e.asRLPList().elements().toArray() : e.data())
+                .toArray();
+
+        final var ethTxData = new EthTxData(
+                new byte[] {1},
+                EthTxData.EthTransactionType.EIP1559,
+                new byte[] {1},
+                1L,
+                new byte[] {1},
+                new byte[] {1},
+                new byte[] {1},
+                100L,
+                new byte[] {1},
+                BigInteger.TEN,
+                new byte[] {1},
+                new byte[] {1},
+                accessListAsRlp,
+                0,
+                new byte[] {1},
+                new byte[] {1},
+                new byte[] {1});
+        assertArrayEquals(accessListAsRlp, ethTxData.accessListAsRlp());
+    }
+
+    @Test
+    void equalsConsidersAccessListAsRlp() {
+        final byte[] encodedAccessList = RLPEncoder.list(new Object[] {
+            RLPEncoder.list(new Object[] {RLPEncoder.sequence("key1".getBytes(), "value1".getBytes())})
+        });
+        final byte[] differentEncodedAccessList = RLPEncoder.list(new Object[] {
+            RLPEncoder.list(new Object[] {RLPEncoder.sequence("key2".getBytes(), "value2".getBytes())})
+        });
+
+        final RLPList rlpList = RLPDecoder.RLP_STRICT.wrapList(encodedAccessList);
+        final RLPList differentRlpList = RLPDecoder.RLP_STRICT.wrapList(differentEncodedAccessList);
+
+        final Object[] accessListAsRlp = rlpList.elements().stream()
+                .map(e -> e.isList() ? e.asRLPList().elements().toArray() : e.data())
+                .toArray();
+
+        final Object[] differentAccessListAsRlp = differentRlpList.elements().stream()
+                .map(e -> e.isList() ? e.asRLPList().elements().toArray() : e.data())
+                .toArray();
+
+        final var ethTxData = new EthTxData(
+                new byte[] {1},
+                EthTxData.EthTransactionType.EIP1559,
+                new byte[] {1},
+                1L,
+                new byte[] {1},
+                new byte[] {1},
+                new byte[] {1},
+                100L,
+                new byte[] {1},
+                BigInteger.TEN,
+                new byte[] {1},
+                new byte[] {1},
+                accessListAsRlp,
+                0,
+                new byte[] {1},
+                new byte[] {1},
+                new byte[] {1});
+
+        final var ethTxDataWithDifferentAccessList = new EthTxData(
+                new byte[] {1},
+                EthTxData.EthTransactionType.EIP1559,
+                new byte[] {1},
+                1L,
+                new byte[] {1},
+                new byte[] {1},
+                new byte[] {1},
+                100L,
+                new byte[] {1},
+                BigInteger.TEN,
+                new byte[] {1},
+                new byte[] {1},
+                differentAccessListAsRlp,
+                0,
+                new byte[] {1},
+                new byte[] {1},
+                new byte[] {1});
+        assertNotEquals(ethTxData, ethTxDataWithDifferentAccessList);
+
+        final var theSameEthTxData = new EthTxData(
+                new byte[] {1},
+                EthTxData.EthTransactionType.EIP1559,
+                new byte[] {1},
+                1L,
+                new byte[] {1},
+                new byte[] {1},
+                new byte[] {1},
+                100L,
+                new byte[] {1},
+                BigInteger.TEN,
+                new byte[] {1},
+                new byte[] {1},
+                accessListAsRlp,
+                0,
+                new byte[] {1},
+                new byte[] {1},
+                new byte[] {1});
+        assertEquals(ethTxData, theSameEthTxData);
+    }
+
+    @Test
     void maxGasIsPositive() {
         final var oneByte = new byte[] {1};
         // high bit of most significant byte is zero
@@ -575,6 +691,7 @@ class EthTxDataTest {
                         BigInteger.ONE,
                         oneByte,
                         oneByte,
+                        null,
                         1,
                         oneByte,
                         oneByte,
@@ -604,6 +721,7 @@ class EthTxDataTest {
                 BigInteger.ONE,
                 oneByte,
                 oneByte,
+                null,
                 1,
                 oneByte,
                 oneByte,
@@ -618,13 +736,13 @@ class EthTxDataTest {
 
     @ParameterizedTest
     @EnumSource(EthTransactionType.class)
-    void bigPositiveValueWithDifferentTypes(EthTransactionType type) {
+    void bigPositiveValueWithDifferentTypes(final EthTransactionType type) {
         final var bigValue = BigInteger.valueOf(Long.MAX_VALUE);
 
         final var oneByte = new byte[] {1};
         final EthTxData ethTxData = new EthTxData(
-                oneByte, type, oneByte, 1, oneByte, oneByte, oneByte, 1, oneByte, bigValue, oneByte, null, 1, oneByte,
-                oneByte, oneByte);
+                oneByte, type, oneByte, 1, oneByte, oneByte, oneByte, 1, oneByte, bigValue, oneByte, null, null, 1,
+                oneByte, oneByte, oneByte);
         final var encoded = ethTxData.encodeTx();
 
         final var populateEthTxData = EthTxData.populateEthTxData(encoded);
@@ -635,7 +753,7 @@ class EthTxDataTest {
     @Test
     void populateEthTxDataComparedToUnsignedByteArrayNoExtraByteAdded() {
         final var subject = EthTxData.populateEthTxData(Hex.decode(RAW_TX_TYPE_0_WITH_CHAIN_ID_11155111));
-        byte[] passingChainId = BigIntegers.asUnsignedByteArray(BigInteger.valueOf(11155111L));
+        final byte[] passingChainId = BigIntegers.asUnsignedByteArray(BigInteger.valueOf(11155111L));
         assertEquals(Hex.toHexString(subject.chainId()), Hex.toHexString(passingChainId));
     }
 
@@ -644,7 +762,7 @@ class EthTxDataTest {
     // Issue is better described here: https://github.com/hashgraph/hedera-services/issues/15953
     void populateEthTxDataComparedToSignedByteArrayExtraByteAdded() {
         final var subject = EthTxData.populateEthTxData(Hex.decode(RAW_TX_TYPE_0_WITH_CHAIN_ID_11155111));
-        byte[] failingChainId = BigInteger.valueOf(11155111L).toByteArray();
+        final byte[] failingChainId = BigInteger.valueOf(11155111L).toByteArray();
         assertNotEquals(Hex.toHexString(subject.chainId()), Hex.toHexString(failingChainId));
     }
 }
