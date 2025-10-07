@@ -21,10 +21,8 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -39,7 +37,6 @@ import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.concurrent.futures.StandardFuture;
-import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.exceptions.PlatformException;
 import org.hiero.base.exceptions.ReferenceCountException;
@@ -1100,9 +1097,7 @@ public final class VirtualNodeCache implements FastCopyable {
      * @throws NullPointerException
      * 		if {@code dirtyPaths} is null.
      */
-    private void updateKeyAtPath(
-            final Bytes value,
-            final long path) {
+    private void updateKeyAtPath(final Bytes value, final long path) {
         pathToDirtyLeafIndex.compute(path, (key, mutation) -> {
             // If there is no mutation or the mutation isn't for this version, then we need to create a new mutation.
             // Note that this code DEPENDS on hashing only a single round at a time. VirtualPipeline
@@ -1165,39 +1160,43 @@ public final class VirtualNodeCache implements FastCopyable {
     public VirtualHashChunk preloadHashChunk(final long path) {
         final long hashChunkId = VirtualHashChunk.pathToChunkId(path, hashChunkHeight);
         return idToDirtyHashChunkIndex.compute(hashChunkId, (id, mutation) -> {
-            Mutation<Long, VirtualHashChunk> nextMutation = mutation;
-            Mutation<Long, VirtualHashChunk> previousMutation = null;
-            while (nextMutation != null && nextMutation.version > fastCopyVersion.get()) {
-                previousMutation = nextMutation;
-                nextMutation = nextMutation.next;
-            }
-            long sizeDelta = 0;
-            if (nextMutation == null) {
-                VirtualHashChunk hashChunk = loadHashChunk(hashChunkId);
-                if (hashChunk == null) {
-                    final long hashChunkPath = VirtualHashChunk.chunkIdToChunkPath(hashChunkId, hashChunkHeight);
-                    hashChunk = new VirtualHashChunk(hashChunkPath, hashChunkHeight);
-                }
-                nextMutation = new Mutation<>(null, hashChunkId, hashChunk, fastCopyVersion.get());
-                dirtyHashChunks.add(nextMutation);
-                sizeDelta += nextMutation.value.getSizeInBytes(); // looks like a good hash chunk size estimation
-            } else if (nextMutation.version != fastCopyVersion.get()) {
-                final VirtualHashChunk hashChunk = nextMutation.value.copy();
-                nextMutation = new Mutation<>(nextMutation, hashChunkId, hashChunk, fastCopyVersion.get());
-                dirtyHashChunks.add(nextMutation);
-                sizeDelta += nextMutation.value.getSizeInBytes(); // looks like a good hash chunk size estimation
-            } else {
-                assert nextMutation.notFiltered();
-            }
-            if (previousMutation != null) {
-                assert previousMutation.notFiltered();
-                previousMutation.next = nextMutation;
-            } else {
-                mutation = nextMutation;
-            }
-            estimatedHashesSizeInBytes.addAndGet(sizeDelta);
-            return mutation;
-        }).value;
+                    Mutation<Long, VirtualHashChunk> nextMutation = mutation;
+                    Mutation<Long, VirtualHashChunk> previousMutation = null;
+                    while (nextMutation != null && nextMutation.version > fastCopyVersion.get()) {
+                        previousMutation = nextMutation;
+                        nextMutation = nextMutation.next;
+                    }
+                    long sizeDelta = 0;
+                    if (nextMutation == null) {
+                        VirtualHashChunk hashChunk = loadHashChunk(hashChunkId);
+                        if (hashChunk == null) {
+                            final long hashChunkPath =
+                                    VirtualHashChunk.chunkIdToChunkPath(hashChunkId, hashChunkHeight);
+                            hashChunk = new VirtualHashChunk(hashChunkPath, hashChunkHeight);
+                        }
+                        nextMutation = new Mutation<>(null, hashChunkId, hashChunk, fastCopyVersion.get());
+                        dirtyHashChunks.add(nextMutation);
+                        sizeDelta +=
+                                nextMutation.value.getSizeInBytes(); // looks like a good hash chunk size estimation
+                    } else if (nextMutation.version != fastCopyVersion.get()) {
+                        final VirtualHashChunk hashChunk = nextMutation.value.copy();
+                        nextMutation = new Mutation<>(nextMutation, hashChunkId, hashChunk, fastCopyVersion.get());
+                        dirtyHashChunks.add(nextMutation);
+                        sizeDelta +=
+                                nextMutation.value.getSizeInBytes(); // looks like a good hash chunk size estimation
+                    } else {
+                        assert nextMutation.notFiltered();
+                    }
+                    if (previousMutation != null) {
+                        assert previousMutation.notFiltered();
+                        previousMutation.next = nextMutation;
+                    } else {
+                        mutation = nextMutation;
+                    }
+                    estimatedHashesSizeInBytes.addAndGet(sizeDelta);
+                    return mutation;
+                })
+                .value;
     }
 
     /**

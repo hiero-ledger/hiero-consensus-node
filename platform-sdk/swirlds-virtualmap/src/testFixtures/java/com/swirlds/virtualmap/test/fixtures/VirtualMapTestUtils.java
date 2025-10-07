@@ -78,7 +78,8 @@ public final class VirtualMapTestUtils {
         }
     }
 
-    public static Hash loadHash(final VirtualDataSource dataSource, final long path, final int hashChunkHeight) throws IOException {
+    public static Hash loadHash(final VirtualDataSource dataSource, final long path, final int hashChunkHeight)
+            throws IOException {
         if (path > dataSource.getLastLeafPath()) {
             return null;
         }
@@ -97,7 +98,8 @@ public final class VirtualMapTestUtils {
             final long path = rec.path();
             final long chunkId = VirtualHashChunk.pathToChunkId(path, hashChunkHeight);
             final long chunkPath = VirtualHashChunk.chunkIdToChunkPath(chunkId, hashChunkHeight);
-            final VirtualHashChunk chunk = hashChunks.computeIfAbsent(chunkId, id -> new VirtualHashChunk(chunkPath, hashChunkHeight));
+            final VirtualHashChunk chunk =
+                    hashChunks.computeIfAbsent(chunkId, id -> new VirtualHashChunk(chunkPath, hashChunkHeight));
             chunk.setHashAtPath(path, rec.hash());
         }
         return hashChunks.values().stream().sorted(Comparator.comparingLong(VirtualHashChunk::path));
@@ -110,14 +112,14 @@ public final class VirtualMapTestUtils {
             final long path = rec.path();
             final long chunkId = VirtualHashChunk.pathToChunkId(path, hashChunkHeight);
             final long chunkPath = VirtualHashChunk.chunkIdToChunkPath(chunkId, hashChunkHeight);
-            final VirtualHashChunk chunk = hashChunks.computeIfAbsent(chunkId, id -> new VirtualHashChunk(chunkPath, hashChunkHeight));
+            final VirtualHashChunk chunk =
+                    hashChunks.computeIfAbsent(chunkId, id -> new VirtualHashChunk(chunkPath, hashChunkHeight));
             chunk.setHashAtPath(path, hash(rec));
         }
         return hashChunks.values().stream().sorted(Comparator.comparingLong(VirtualHashChunk::path));
     }
 
-    public static long hashChunkStreamSize(
-            final int hashChunkHeight, final long startPathInc, final long endPathExc) {
+    public static long hashChunkStreamSize(final int hashChunkHeight, final long startPathInc, final long endPathExc) {
         final Set<Long> chunkIds = new HashSet<>();
         for (long path = startPathInc; path < endPathExc; path++) {
             final long chunkId = VirtualHashChunk.pathToChunkId(path, hashChunkHeight);

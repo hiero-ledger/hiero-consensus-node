@@ -149,8 +149,8 @@ public enum TestType {
                 final boolean enableMerging,
                 boolean preferDiskBasedIndexes)
                 throws IOException {
-            MerkleDbDataSource dataSource = new MerkleDbDataSource(
-                    dbPath, CONFIGURATION, name, size, enableMerging, preferDiskBasedIndexes);
+            MerkleDbDataSource dataSource =
+                    new MerkleDbDataSource(dbPath, CONFIGURATION, name, size, enableMerging, preferDiskBasedIndexes);
             dataSource.registerMetrics(getMetrics());
             return dataSource;
         }

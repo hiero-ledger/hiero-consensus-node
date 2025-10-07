@@ -18,7 +18,6 @@ import static org.junit.jupiter.api.Assertions.fail;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.function.CheckedFunction;
 import com.swirlds.base.state.MutabilityException;
-import com.swirlds.common.test.fixtures.io.InputOutputStream;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
 import com.swirlds.virtualmap.datasource.VirtualHashChunk;
@@ -149,11 +148,8 @@ class VirtualNodeCacheTest extends VirtualTestBase {
         // hashes are calculated and put to the cache. Here the cache doesn't contain hashes for dirty leaves
         // (bananaLeaf0, appleLeaf0, cherryLeaf0). Should dirtyHashes() include these leaf nodes? Currently,
         // it doesn't
-        validateDirtyInternals(
-                Set.of(leftInternal0),
-                cache0.dirtyHashesForFlush(4),
-                chunkLoaader.getChunkIds());
-//        chunkLoaader.reset();
+        validateDirtyInternals(Set.of(leftInternal0), cache0.dirtyHashesForFlush(4), chunkLoaader.getChunkIds());
+        //        chunkLoaader.reset();
 
         // ROUND 1: Add D and E.
         final VirtualNodeCache cache1 = cache;
@@ -216,7 +212,7 @@ class VirtualNodeCacheTest extends VirtualTestBase {
                 Set.of(leftInternal1, rightInternal1, leftLeftInternal1),
                 cache1.dirtyHashesForFlush(8),
                 chunkLoaader.getChunkIds());
-//        chunkLoaader.reset();
+        //        chunkLoaader.reset();
 
         // ROUND 2: Add F and G
         final VirtualNodeCache cache2 = cache;
@@ -288,7 +284,7 @@ class VirtualNodeCacheTest extends VirtualTestBase {
                 Set.of(leftInternal2, rightInternal2, leftRightInternal2, rightLeftInternal2),
                 cache2.dirtyHashesForFlush(12),
                 chunkLoaader.getChunkIds());
-//        chunkLoaader.reset();
+        //        chunkLoaader.reset();
 
         // Now it is time to start mutating the tree. Some leaves will be removed and re-added, some
         // will be removed and replaced with a new value (same key).
@@ -383,15 +379,10 @@ class VirtualNodeCacheTest extends VirtualTestBase {
         cache3.putHash(leftInternal3);
         cache3.seal();
         validateDirtyInternals(
-                Set.of(
-                        leftInternal3,
-                        rightInternal3,
-                        leftLeftInternal3,
-                        leftRightInternal3,
-                        rightLeftInternal3),
+                Set.of(leftInternal3, rightInternal3, leftLeftInternal3, leftRightInternal3, rightLeftInternal3),
                 cache3.dirtyHashesForFlush(12),
                 chunkLoaader.getChunkIds());
-//        chunkLoaader.reset();
+        //        chunkLoaader.reset();
 
         // At this point, we have built the tree successfully. Verify one more time that each version of
         // the cache still sees things the same way it did at the time the copy was made.
@@ -741,7 +732,8 @@ class VirtualNodeCacheTest extends VirtualTestBase {
             // As long as this doesn't throw an exception, the test passes.
             final int iFinal = i;
             final VirtualNodeCache oldFinal = old;
-            assertDoesNotThrow(() -> oldFinal.putHash(new VirtualHashRecord(iFinal, hash(iFinal))), "Should not throw exception");
+            assertDoesNotThrow(
+                    () -> oldFinal.putHash(new VirtualHashRecord(iFinal, hash(iFinal))), "Should not throw exception");
             old.seal();
 
             nextRound();
@@ -1516,11 +1508,11 @@ class VirtualNodeCacheTest extends VirtualTestBase {
         final VirtualNodeCache cache0 = cache;
         nextRound();
 
-        final VirtualHashRecord left1 = new VirtualHashRecord(
-                LEFT_PATH, CRYPTO.digestSync("Root 1".getBytes(StandardCharsets.UTF_8)));
+        final VirtualHashRecord left1 =
+                new VirtualHashRecord(LEFT_PATH, CRYPTO.digestSync("Root 1".getBytes(StandardCharsets.UTF_8)));
         cache0.putHash(left1);
-        final VirtualHashRecord left2 = new VirtualHashRecord(
-                LEFT_PATH, CRYPTO.digestSync("Root 2".getBytes(StandardCharsets.UTF_8)));
+        final VirtualHashRecord left2 =
+                new VirtualHashRecord(LEFT_PATH, CRYPTO.digestSync("Root 2".getBytes(StandardCharsets.UTF_8)));
         cache0.putHash(left2);
         assertEquals(
                 left2.hash(),
@@ -2589,13 +2581,7 @@ class VirtualNodeCacheTest extends VirtualTestBase {
         cache0.seal();
 
         validateDirtyInternals(
-                Set.of(
-                        leftInternal(),
-                        rightInternal(),
-                        leftLeftInternal(),
-                        leftRightInternal(),
-                        rightLeftInternal()
-                ),
+                Set.of(leftInternal(), rightInternal(), leftLeftInternal(), leftRightInternal(), rightLeftInternal()),
                 cache0.dirtyHashesForFlush(12),
                 chunkLoaader.getChunkIds());
         chunkLoaader.reset();
@@ -2611,7 +2597,7 @@ class VirtualNodeCacheTest extends VirtualTestBase {
         cache0.putHash(leftInternal());
         cache0.putHash(rightInternal());
         cache0.seal();
-//        cache1.copy(); // Needed until #3842 is fixed
+        //        cache1.copy(); // Needed until #3842 is fixed
         cache1.prepareForHashing();
         cache1.putHash(leftLeftInternal());
         cache1.putHash(leftRightInternal());
@@ -2620,12 +2606,7 @@ class VirtualNodeCacheTest extends VirtualTestBase {
         cache0.merge();
 
         validateDirtyInternals(
-                Set.of(
-                        leftInternal(),
-                        rightInternal(),
-                        leftLeftInternal(),
-                        leftRightInternal(),
-                        rightLeftInternal()),
+                Set.of(leftInternal(), rightInternal(), leftLeftInternal(), leftRightInternal(), rightLeftInternal()),
                 cache1.dirtyHashesForFlush(12),
                 chunkLoaader.getChunkIds());
         chunkLoaader.reset();
@@ -2649,7 +2630,7 @@ class VirtualNodeCacheTest extends VirtualTestBase {
         cache1.putHash(leftRightInternal());
         cache1.seal();
 
-//        cache2.copy(); // Needed until #3842 is fixed
+        //        cache2.copy(); // Needed until #3842 is fixed
         cache2.prepareForHashing();
         cache2.putHash(leftLeftInternal());
         cache2.putHash(leftRightInternal());
@@ -2660,12 +2641,7 @@ class VirtualNodeCacheTest extends VirtualTestBase {
         cache1.merge();
 
         validateDirtyInternals(
-                Set.of(
-                        leftInternal(),
-                        rightInternal(),
-                        leftLeftInternal(),
-                        leftRightInternal(),
-                        rightLeftInternal()),
+                Set.of(leftInternal(), rightInternal(), leftLeftInternal(), leftRightInternal(), rightLeftInternal()),
                 cache2.dirtyHashesForFlush(12),
                 chunkLoaader.getChunkIds());
         chunkLoaader.reset();
@@ -2794,13 +2770,14 @@ class VirtualNodeCacheTest extends VirtualTestBase {
             final Set<Long> chunkIdsLoadedFromDisk) {
         final VirtualMapConfig virtualMapConfig = CONFIGURATION.getConfigData(VirtualMapConfig.class);
         final int hashChunkHeight = virtualMapConfig.virtualHasherChunkHeight();
-        final Map<Long, VirtualHashChunk> dirtyChunks = dirtyChunksInCache.collect(Collectors.toMap(
-                VirtualHashChunk::getChunkId,
-                Function.identity()));
+        final Map<Long, VirtualHashChunk> dirtyChunks =
+                dirtyChunksInCache.collect(Collectors.toMap(VirtualHashChunk::getChunkId, Function.identity()));
         for (final VirtualHashRecord rec : expected) {
             final long path = rec.path();
             final long chunkId = VirtualHashChunk.pathToChunkId(path, hashChunkHeight);
-            assertTrue(chunkIdsLoadedFromDisk.contains(chunkId), "Chunk #" + chunkId + " should be loaded from data source");
+            assertTrue(
+                    chunkIdsLoadedFromDisk.contains(chunkId),
+                    "Chunk #" + chunkId + " should be loaded from data source");
             final VirtualHashChunk chunk = dirtyChunks.get(chunkId);
             assertNotNull(chunk, "Chunk #" + chunkId + " should be dirty");
             final Hash hash = rec.hash();

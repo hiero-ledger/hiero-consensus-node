@@ -2,7 +2,6 @@
 package com.swirlds.virtualmap.internal.merkle;
 
 import static com.swirlds.virtualmap.internal.Path.INVALID_PATH;
-import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.CONFIGURATION;
 import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.VIRTUAL_MAP_CONFIG;
 import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.VM_LABEL;
 import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.createHashChunkStream;
@@ -15,7 +14,6 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.metrics.api.Metrics;
-import com.swirlds.virtualmap.config.VirtualMapConfig;
 import com.swirlds.virtualmap.datasource.VirtualDataSource;
 import com.swirlds.virtualmap.datasource.VirtualHashChunk;
 import com.swirlds.virtualmap.datasource.VirtualHashRecord;
@@ -32,10 +30,6 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Set;
 import java.util.stream.Stream;
 import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.CryptographyProvider;
@@ -67,7 +61,8 @@ public class RecordAccessorTest {
         final VirtualMapMetadata state = new VirtualMapMetadata(VM_LABEL);
         dataSource = new BreakableDataSource();
         final int hashChunkHeight = VIRTUAL_MAP_CONFIG.virtualHasherChunkHeight();
-        final VirtualNodeCache cache = new VirtualNodeCache(VIRTUAL_MAP_CONFIG, hashChunkHeight, dataSource::loadHashChunk);
+        final VirtualNodeCache cache =
+                new VirtualNodeCache(VIRTUAL_MAP_CONFIG, hashChunkHeight, dataSource::loadHashChunk);
         records = new RecordAccessor(state, hashChunkHeight, cache, dataSource);
 
         // Prepopulate the database with some records
@@ -104,7 +99,8 @@ public class RecordAccessorTest {
 
         cache.putLeaf(sixthLeafMoved);
         cache.deleteLeaf(seventhLeafGone);
-        mutableRecords = new RecordAccessor(state, VIRTUAL_MAP_CONFIG.virtualHasherChunkHeight(), cache.copy(), dataSource);
+        mutableRecords =
+                new RecordAccessor(state, VIRTUAL_MAP_CONFIG.virtualHasherChunkHeight(), cache.copy(), dataSource);
         cache.prepareForHashing();
         cache.putHash(rightChanged);
 
@@ -262,8 +258,8 @@ public class RecordAccessorTest {
         final int hashChunkHeight = 2;
         final int chunkSize = VirtualHashChunk.getChunkSize(hashChunkHeight);
         dataSource = new BreakableDataSource();
-        final VirtualNodeCache cache = new VirtualNodeCache(
-                VIRTUAL_MAP_CONFIG, hashChunkHeight, dataSource::loadHashChunk);
+        final VirtualNodeCache cache =
+                new VirtualNodeCache(VIRTUAL_MAP_CONFIG, hashChunkHeight, dataSource::loadHashChunk);
         records = new RecordAccessor(state, hashChunkHeight, cache, dataSource);
 
         state.setLastLeafPath(chunkSize * 2L);
@@ -271,7 +267,8 @@ public class RecordAccessorTest {
         cache.prepareForHashing();
 
         dataSource.throwExceptionOnLoadHashChunk = true;
-        assertThrows(UncheckedIOException.class, () -> cache.putHash(1, internal(1).hash()));
+        assertThrows(
+                UncheckedIOException.class, () -> cache.putHash(1, internal(1).hash()));
 
         dataSource.throwExceptionOnLoadHashChunk = false;
         // This time, it should trigger loading hash chunk from data source to cache
@@ -396,5 +393,4 @@ public class RecordAccessorTest {
     private static VirtualLeafBytes<TestValue> leaf(long num) {
         return new VirtualLeafBytes<>(num, TestKey.longToKey(num), new TestValue(num), TestValueCodec.INSTANCE);
     }
-
 }

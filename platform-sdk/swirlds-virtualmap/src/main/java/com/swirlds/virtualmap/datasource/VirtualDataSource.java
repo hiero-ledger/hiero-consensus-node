@@ -8,8 +8,6 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.stream.Stream;
-import org.hiero.base.crypto.Hash;
-import org.hiero.base.io.streams.SerializableDataOutputStream;
 
 /**
  * Defines a data source, used with {@code VirtualMap}, to implement a virtual tree. Both in-memory and
@@ -81,12 +79,7 @@ public interface VirtualDataSource {
             @NonNull final Stream<VirtualLeafBytes> leafRecordsToDelete)
             throws IOException {
         saveRecords(
-                firstLeafPath,
-                lastLeafPath,
-                hashChunksToUpdate,
-                leafRecordsToAddOrUpdate,
-                leafRecordsToDelete,
-                false);
+                firstLeafPath, lastLeafPath, hashChunksToUpdate, leafRecordsToAddOrUpdate, leafRecordsToDelete, false);
     }
 
     /**

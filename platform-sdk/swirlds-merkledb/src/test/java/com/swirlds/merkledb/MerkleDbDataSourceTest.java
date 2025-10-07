@@ -18,11 +18,15 @@ import com.swirlds.base.function.CheckedConsumer;
 import com.swirlds.base.units.UnitConstants;
 import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.common.io.config.TemporaryFileConfig;
+import com.swirlds.common.io.utility.FileUtils;
 import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.config.extensions.sources.SimpleConfigSource;
+import com.swirlds.merkledb.collections.HashListByteBuffer;
+import com.swirlds.merkledb.collections.LongListOffHeap;
 import com.swirlds.merkledb.config.MerkleDbConfig;
+import com.swirlds.merkledb.files.MemoryIndexDiskKeyValueStore;
 import com.swirlds.merkledb.test.fixtures.ExampleByteArrayVirtualValue;
 import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
 import com.swirlds.merkledb.test.fixtures.TestType;
@@ -31,6 +35,7 @@ import com.swirlds.metrics.api.Metric.ValueType;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
 import com.swirlds.virtualmap.datasource.VirtualHashChunk;
+import com.swirlds.virtualmap.datasource.VirtualHashRecord;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils;
 import java.io.IOException;
@@ -46,7 +51,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
-import org.eclipse.collections.impl.list.mutable.primitive.IntArrayList;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.crypto.Hash;
 import org.junit.jupiter.api.AfterEach;
@@ -54,9 +58,8 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.EnumSource;
-import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 class MerkleDbDataSourceTest {
 
@@ -132,7 +135,8 @@ class MerkleDbDataSourceTest {
                     IllegalArgumentException.class,
                     () -> dataSource.loadHashChunk(-1),
                     "loadHashChunk should throw IAE on invalid chunk ID");
-            assertEquals("Hash chunk ID (-1) is not valid", e.getMessage(), "Detail message should capture the failure");
+            assertEquals(
+                    "Hash chunk ID (-1) is not valid", e.getMessage(), "Detail message should capture the failure");
 
             // close data source
             dataSource.close();
@@ -169,7 +173,8 @@ class MerkleDbDataSourceTest {
             dataSource.saveRecords(
                     testSize,
                     testSize * 2,
-                    createHashChunkStream(VirtualHashChunk.getChunkSize(chunkHeight) + 1, testSize, i -> i * 10, chunkHeight),
+                    createHashChunkStream(
+                            VirtualHashChunk.getChunkSize(chunkHeight) + 1, testSize, i -> i * 10, chunkHeight),
                     Stream.empty(),
                     Stream.empty());
             // check all the node hashes
@@ -212,7 +217,8 @@ class MerkleDbDataSourceTest {
                     IllegalArgumentException.class,
                     () -> dataSource.loadHashChunk(-1),
                     "Loading a hash chunk with negative ID should fail");
-            assertEquals("Hash chunk ID (-1) is not valid", e.getMessage(), "Detail message should capture the failure");
+            assertEquals(
+                    "Hash chunk ID (-1) is not valid", e.getMessage(), "Detail message should capture the failure");
         });
     }
 
@@ -227,7 +233,8 @@ class MerkleDbDataSourceTest {
             dataSource.saveRecords(
                     incFirstLeafPath,
                     exclLastLeafPath,
-                    createHashChunkStream(incFirstLeafPath, exclLastLeafPath - 1, i -> i, dataSource.getHashChunkHeight()),
+                    createHashChunkStream(
+                            incFirstLeafPath, exclLastLeafPath - 1, i -> i, dataSource.getHashChunkHeight()),
                     IntStream.range(incFirstLeafPath, exclLastLeafPath)
                             .mapToObj(i -> testType.dataType().createVirtualLeafRecord(i)),
                     Stream.empty());
@@ -283,7 +290,8 @@ class MerkleDbDataSourceTest {
             dataSource.saveRecords(
                     incFirstLeafPath,
                     exclLastLeafPath,
-                    createHashChunkStream(incFirstLeafPath, exclLastLeafPath - 1, i -> i, dataSource.getHashChunkHeight()),
+                    createHashChunkStream(
+                            incFirstLeafPath, exclLastLeafPath - 1, i -> i, dataSource.getHashChunkHeight()),
                     IntStream.range(incFirstLeafPath, exclLastLeafPath)
                             .mapToObj(i -> testType.dataType().createVirtualLeafRecord(i)),
                     Stream.empty());
@@ -348,7 +356,7 @@ class MerkleDbDataSourceTest {
     @Test
     void preservesInterruptStatusWhenInterruptedSavingRecords() throws IOException {
         createAndApplyDataSource(testDirectory, "test6", TestType.long_fixed, 1000, dataSource -> {
-            final CountDownLatch savingThreadStarted  = new CountDownLatch(1);
+            final CountDownLatch savingThreadStarted = new CountDownLatch(1);
             final InterruptRememberingThread savingThread = slowRecordSavingThread(dataSource, savingThreadStarted);
             savingThread.start();
             savingThreadStarted.await();
@@ -447,7 +455,8 @@ class MerkleDbDataSourceTest {
                     dataSource.saveRecords(
                             count - 1 + delta,
                             count * 2 - 2 + 2 * delta,
-                            createHashChunkStream(1, count * 2 - 2 + 2 * delta, i -> i + 1, dataSource.getHashChunkHeight()),
+                            createHashChunkStream(
+                                    1, count * 2 - 2 + 2 * delta, i -> i + 1, dataSource.getHashChunkHeight()),
                             IntStream.range(count - 1 + delta, count * 2 - 1 + 2 * delta)
                                     .mapToObj(i -> testType.dataType().createVirtualLeafRecord(i)),
                             Stream.empty());
@@ -490,7 +499,7 @@ class MerkleDbDataSourceTest {
     void preservesInterruptStatusWhenInterruptedClosing() throws IOException {
         createAndApplyDataSource(testDirectory, "test8", TestType.long_fixed, 1001, dataSource -> {
             /* Keep an executor busy */
-            final CountDownLatch savingThreadStarted  = new CountDownLatch(1);
+            final CountDownLatch savingThreadStarted = new CountDownLatch(1);
             final InterruptRememberingThread savingThread = slowRecordSavingThread(dataSource, savingThreadStarted);
             savingThread.start();
             savingThreadStarted.await();
@@ -642,19 +651,92 @@ class MerkleDbDataSourceTest {
             // old (pre-0.67) snapshots
             final Path snapshotDbPath = testDirectory.resolve("testRestoreSnapshotNoSomeValues-snapshot");
             dataSource.snapshot(snapshotDbPath);
-            dataSource.close();
 
             final int initialCapacity = 1111;
 
             // Restore
-            final MerkleDbDataSource snapshot = testType.dataType()
-                    .createDataSource(snapshotDbPath, dbName, initialCapacity, false, false);
+            final MerkleDbDataSource snapshot =
+                    testType.dataType().createDataSource(snapshotDbPath, dbName, initialCapacity, false, false);
             assertEquals(initialCapacity, snapshot.getInitialCapacity());
             snapshot.close();
         });
     }
 
-    @SuppressWarnings({"unchecked", "rawtypes"})
+    @ParameterizedTest
+    @ValueSource(longs = {0, 50_000, 99_999, 100_000, 199_998, 199_999, 200_000, 1_000_000, 8388608, Long.MAX_VALUE})
+    void migrateHashesToChunks(final long hashesRamToDiskThreshold) throws IOException {
+        final String dbName = "vm";
+        final int size = 100_000;
+        final long firstLeafPath = size - 1;
+        final long lastLeafPath = 2 * size - 2;
+        final TestType testType = TestType.long_fixed;
+        final Path originalDbPath = testDirectory.resolve("migrateHashesToChunks");
+        createAndApplyDataSource(originalDbPath, dbName, testType, size, dataSource -> {
+            final Path snapshotDbPath = testDirectory.resolve("migrateHashesToChunks-snapshot");
+            // MerkleDbDataSource.snapshot() builds a snapshot in a new format with hash chunks.
+            // Let's hack the snapshot so it looks like the old format, so hash migration can
+            // be tested
+            // Update first/last leaf paths
+            dataSource.saveRecords(firstLeafPath, lastLeafPath, Stream.empty(), Stream.empty(), Stream.empty());
+            // Update hashes RAM/disk threshold. It isn't used now, but it was used previously. snapshot()
+            // will write the threshold to DB metadata regardless
+            dataSource.hashesRamToDiskThreshold = hashesRamToDiskThreshold;
+            dataSource.snapshot(snapshotDbPath);
+
+            final MerkleDbPaths snapshotPaths = new MerkleDbPaths(snapshotDbPath);
+            // Drop hash chunk index file and hash chunks store folder, they don't exist in
+            // legacy snapshots
+            Files.delete(snapshotPaths.idToDiskLocationHashChunksFile);
+            FileUtils.deleteDirectory(snapshotPaths.hashChunkDirectory);
+
+            // Now save some hashes in the old format
+            if (hashesRamToDiskThreshold > 0) {
+                final HashListByteBuffer hashStoreRam = new HashListByteBuffer(hashesRamToDiskThreshold, CONFIGURATION);
+                for (long i = 1; i < Math.min(lastLeafPath + 1, hashesRamToDiskThreshold); i++) {
+                    hashStoreRam.put(i, hash((int) (i + 1)));
+                }
+
+                hashStoreRam.writeToFile(snapshotPaths.hashStoreRamFile);
+            }
+            if (hashesRamToDiskThreshold <= lastLeafPath) {
+                final Path tmpDir = testDirectory.resolve("migrateHashesToChunks-tmp");
+                final LongListOffHeap hashStoreDiskIndex = new LongListOffHeap(1024, 1_000_000, 1024);
+                final MemoryIndexDiskKeyValueStore hashStoreDisk = new MemoryIndexDiskKeyValueStore(
+                        CONFIGURATION.getConfigData(MerkleDbConfig.class),
+                        tmpDir,
+                        dbName + "_internalhashes",
+                        null,
+                        null,
+                        hashStoreDiskIndex);
+                hashStoreDisk.updateValidKeyRange(hashesRamToDiskThreshold, lastLeafPath);
+                hashStoreDisk.startWriting();
+                for (long i = hashesRamToDiskThreshold; i <= lastLeafPath; i++) {
+                    final VirtualHashRecord rec = new VirtualHashRecord(i, hash((int) (i + 1)));
+                    hashStoreDisk.put(i, rec::writeTo, rec.getSizeInBytes());
+                }
+                hashStoreDisk.endWriting();
+
+                hashStoreDiskIndex.writeToFile(snapshotPaths.pathToDiskLocationInternalNodesFile);
+                hashStoreDisk.snapshot(snapshotPaths.hashStoreDiskDirectory);
+            }
+
+            // Restore
+            final MerkleDbDataSource snapshot =
+                    testType.dataType().createDataSource(snapshotDbPath, dbName, size, false, false);
+            // Check all hashes are migrated successfully
+            try {
+                for (long i = 1; i <= lastLeafPath; i++) {
+                    final long chunkId = VirtualHashChunk.pathToChunkId(i, dataSource.getHashChunkHeight());
+                    final VirtualHashChunk hashChunk = snapshot.loadHashChunk(chunkId);
+                    assertNotNull(hashChunk);
+                    assertEquals(hash((int) (i + 1)), hashChunk.getHashAtPath(i));
+                }
+            } finally {
+                snapshot.close();
+            }
+        });
+    }
+
     @Test
     void testRebuildHDHMIndex() throws Exception {
         final String label = "testRebuildHDHMIndex";
@@ -844,7 +926,8 @@ class MerkleDbDataSourceTest {
 
     public static void assertHash(final MerkleDbDataSource dataSource, final long path, final int i) {
         try {
-            assertEqualsAndPrint(hash(i), VirtualMapTestUtils.loadHash(dataSource, path, dataSource.getHashChunkHeight()));
+            assertEqualsAndPrint(
+                    hash(i), VirtualMapTestUtils.loadHash(dataSource, path, dataSource.getHashChunkHeight()));
         } catch (final Exception e) {
             e.printStackTrace(System.err);
             fail("Exception should not have been thrown here!");
@@ -879,7 +962,9 @@ class MerkleDbDataSourceTest {
             // things that should have changed
             assertEqualsAndPrint(expectedRecord, dataSource.loadLeafRecord(key));
             assertEqualsAndPrint(expectedRecord, dataSource.loadLeafRecord(path));
-            assertEquals(hash(hashIndex), VirtualMapTestUtils.loadHash(dataSource, path, hashChunkHeight),
+            assertEquals(
+                    hash(hashIndex),
+                    VirtualMapTestUtils.loadHash(dataSource, path, hashChunkHeight),
                     "unexpected Hash value for path " + path);
         } catch (final Exception e) {
             e.printStackTrace(System.err);
@@ -919,13 +1004,14 @@ class MerkleDbDataSourceTest {
                 dataSource.saveRecords(
                         1000,
                         2000,
-                        createHashChunkStream(2000, dataSource.getHashChunkHeight()).peek(c -> {
-                            System.out.println("SLOWLY loading chunk #"
-                                    + c
-                                    + " in "
-                                    + Thread.currentThread().getName());
-                            sleepUnchecked(50L);
-                        }),
+                        createHashChunkStream(2000, dataSource.getHashChunkHeight())
+                                .peek(c -> {
+                                    System.out.println("SLOWLY loading chunk #"
+                                            + c
+                                            + " in "
+                                            + Thread.currentThread().getName());
+                                    sleepUnchecked(50L);
+                                }),
                         Stream.empty(),
                         Stream.empty());
             } catch (final IOException impossible) {

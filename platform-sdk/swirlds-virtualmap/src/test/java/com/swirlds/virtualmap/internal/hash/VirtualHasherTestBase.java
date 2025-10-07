@@ -10,7 +10,6 @@ import com.swirlds.virtualmap.internal.Path;
 import com.swirlds.virtualmap.test.fixtures.TestKey;
 import com.swirlds.virtualmap.test.fixtures.TestValue;
 import com.swirlds.virtualmap.test.fixtures.TestValueCodec;
-import com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils;
 import com.swirlds.virtualmap.test.fixtures.VirtualTestBase;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;

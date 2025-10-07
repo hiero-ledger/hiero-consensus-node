@@ -25,12 +25,10 @@ import java.util.List;
 import java.util.Set;
 import java.util.function.LongFunction;
 import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 import java.util.stream.Stream;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.utility.test.fixtures.tags.TestComponentTags;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -144,7 +142,7 @@ class VirtualHasherTest extends VirtualHasherTestBase {
      * 		The leaf paths that are dirty in this tree.
      */
     @ParameterizedTest
-    @MethodSource("hashingPermutations")
+    @MethodSource("hashingPermutationsParams")
     @Tag(TestComponentTags.VMAP)
     @DisplayName("Test various dirty nodes in a tree")
     void hashingPermutations(final long firstLeafPath, final long lastLeafPath, final List<Long> dirtyPaths)
@@ -154,8 +152,8 @@ class VirtualHasherTest extends VirtualHasherTestBase {
         final VirtualHasher hasher = new VirtualHasher();
         final Hash expected = hashTree(ds);
         final List<VirtualLeafBytes> leaves = invalidateNodes(ds, dirtyPaths.stream());
-        final Hash rootHash =
-                hasher.hash(ds::loadHash, null, leaves.iterator(), firstLeafPath, lastLeafPath, listener, VIRTUAL_MAP_CONFIG);
+        final Hash rootHash = hasher.hash(
+                ds::loadHash, null, leaves.iterator(), firstLeafPath, lastLeafPath, listener, VIRTUAL_MAP_CONFIG);
         assertEquals(expected, rootHash, "Hash value does not match expected");
 
         // Make sure the saver saw each dirty node exactly once.
@@ -171,8 +169,6 @@ class VirtualHasherTest extends VirtualHasherTestBase {
                 internal = ds.getInternal(Path.getParentPath(internal.path()));
             }
         }
-//        assertTrue(savedInternals.contains(0L), "Expected true");
-//        assertEquals(savedInternals.size(), seenInternals.size() + 1, "Expected equals");
         assertEquals(savedInternals.size(), seenInternals.size(), "Expected equals");
         assertCallsAreBalanced(listener);
     }
@@ -183,7 +179,7 @@ class VirtualHasherTest extends VirtualHasherTestBase {
      * @return
      * 		The stream of args.
      */
-    private static Stream<Arguments> hashingPermutations() {
+    private static Stream<Arguments> hashingPermutationsParams() {
         // Generate every permutation for the number of leaves 1-4. 1 leaf, 2 leaves, 3 leaves, 4 leaves,
         // and every permutation of those with leaves dirty and clean.
         final List<Arguments> args = new ArrayList<>();
@@ -313,8 +309,8 @@ class VirtualHasherTest extends VirtualHasherTestBase {
         // this will *likely* find it.
         for (int i = 0; i < 1000; i++) {
             final List<VirtualLeafBytes> leaves = invalidateNodes(ds, dirtyLeafPaths.stream());
-            final Hash rootHash =
-                    hasher.hash(ds::loadHash, null, leaves.iterator(), firstLeafPath, lastLeafPath, null, VIRTUAL_MAP_CONFIG);
+            final Hash rootHash = hasher.hash(
+                    ds::loadHash, null, leaves.iterator(), firstLeafPath, lastLeafPath, null, VIRTUAL_MAP_CONFIG);
             assertEquals(expected, rootHash, "Expected equals");
         }
     }
@@ -326,11 +322,12 @@ class VirtualHasherTest extends VirtualHasherTestBase {
         final TestDataSource ds = new TestDataSource(firstLeafPath, lastLeafPath);
         final VirtualHasher hasher = new VirtualHasher();
         final Hash expected = hashTree(ds);
-        final List<Long> dirtyLeafPaths = LongStream.range(firstLeafPath, lastLeafPath + 1).boxed().toList();
+        final List<Long> dirtyLeafPaths =
+                LongStream.range(firstLeafPath, lastLeafPath + 1).boxed().toList();
 
         final List<VirtualLeafBytes> leaves = invalidateNodes(ds, dirtyLeafPaths.stream());
-        final Hash rootHash =
-                hasher.hash(ds::loadHash, null, leaves.iterator(), firstLeafPath, lastLeafPath, null, VIRTUAL_MAP_CONFIG);
+        final Hash rootHash = hasher.hash(
+                ds::loadHash, null, leaves.iterator(), firstLeafPath, lastLeafPath, null, VIRTUAL_MAP_CONFIG);
         assertEquals(expected, rootHash, "Expected equals");
     }
 
@@ -357,7 +354,6 @@ class VirtualHasherTest extends VirtualHasherTestBase {
 
         // Check the different callbacks were called the correct number of times
         assertEquals(1, listener.onHashingStartedCallCount, "Unexpected count");
-//        assertEquals(61, listener.onNodeHashedCallCount, "Unexpected count");
         assertEquals(60, listener.onNodeHashedCallCount, "Unexpected count");
         assertEquals(1, listener.onHashingCompletedCallCount, "Unexpected count");
 
@@ -394,7 +390,8 @@ class VirtualHasherTest extends VirtualHasherTestBase {
 
         assertDoesNotThrow(
                 () -> {
-                    hasher.hash(hashReader, null, dirtyLeaves, firstLeafPath, lastLeafPath, listener, VIRTUAL_MAP_CONFIG);
+                    hasher.hash(
+                            hashReader, null, dirtyLeaves, firstLeafPath, lastLeafPath, listener, VIRTUAL_MAP_CONFIG);
                 },
                 "Hashing should not throw an exception");
     }

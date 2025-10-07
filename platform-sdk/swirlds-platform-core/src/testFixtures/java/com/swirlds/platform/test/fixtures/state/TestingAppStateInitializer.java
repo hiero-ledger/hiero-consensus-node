@@ -34,7 +34,6 @@ import com.swirlds.state.merkle.singleton.StringLeaf;
 import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
-import com.swirlds.virtualmap.internal.cache.VirtualNodeCache;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.Collections;

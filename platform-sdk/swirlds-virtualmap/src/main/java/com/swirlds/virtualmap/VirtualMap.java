@@ -47,7 +47,6 @@ import com.swirlds.virtualmap.constructable.constructors.VirtualMapConstructor;
 import com.swirlds.virtualmap.datasource.VirtualDataSource;
 import com.swirlds.virtualmap.datasource.VirtualDataSourceBuilder;
 import com.swirlds.virtualmap.datasource.VirtualHashChunk;
-import com.swirlds.virtualmap.datasource.VirtualHashRecord;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.internal.RecordAccessor;
 import com.swirlds.virtualmap.internal.cache.VirtualNodeCache;
@@ -950,8 +949,7 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
             // Get the deleted leaves
             final Stream<VirtualLeafBytes> deletedLeaves = cacheToFlush.deletedLeaves();
             // Save the dirty hashes
-            final Stream<VirtualHashChunk> dirtyHashes =
-                    cacheToFlush.dirtyHashesForFlush(stateToUse.getLastLeafPath());
+            final Stream<VirtualHashChunk> dirtyHashes = cacheToFlush.dirtyHashesForFlush(stateToUse.getLastLeafPath());
             ds.saveRecords(
                     stateToUse.getFirstLeafPath(),
                     stateToUse.getLastLeafPath(),
@@ -1252,7 +1250,10 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
 
             final int hashChunkHeight = virtualMapConfig.virtualHasherChunkHeight();
             final VirtualNodeCache reconnectCache = new VirtualNodeCache(
-                    virtualMapConfig, hashChunkHeight, dataSource::loadHashChunk, originalMap.cache.getFastCopyVersion());
+                    virtualMapConfig,
+                    hashChunkHeight,
+                    dataSource::loadHashChunk,
+                    originalMap.cache.getFastCopyVersion());
             return new RecordAccessor(reconnectState, hashChunkHeight, reconnectCache, dataSource);
         });
 
@@ -1296,7 +1297,10 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
         // During reconnect we want to look up state from the original records
         final VirtualMapMetadata originalState = originalMap.getMetadata();
         reconnectFlusher = new ReconnectHashLeafFlusher(
-                dataSource, virtualMapConfig.virtualHasherChunkHeight(), virtualMapConfig.reconnectFlushInterval(), statistics);
+                dataSource,
+                virtualMapConfig.virtualHasherChunkHeight(),
+                virtualMapConfig.reconnectFlushInterval(),
+                statistics);
         nodeRemover = new ReconnectNodeRemover(
                 originalMap.getRecords(),
                 originalState.getFirstLeafPath(),

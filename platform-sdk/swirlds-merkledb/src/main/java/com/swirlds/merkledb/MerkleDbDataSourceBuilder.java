@@ -94,12 +94,7 @@ public class MerkleDbDataSourceBuilder implements VirtualDataSourceBuilder {
         try {
             final Path dataSourceDir = newDataSourceDir(label);
             return new MerkleDbDataSource(
-                    dataSourceDir,
-                    configuration,
-                    label,
-                    initialCapacity,
-                    dbCompactionEnabled,
-                    false);
+                    dataSourceDir, configuration, label, initialCapacity, dbCompactionEnabled, false);
         } catch (final IOException ex) {
             throw new UncheckedIOException(ex);
         }
@@ -134,12 +129,7 @@ public class MerkleDbDataSourceBuilder implements VirtualDataSourceBuilder {
             final Path dataSourceDir = newDataSourceDir(label);
             snapshotDataSource(merkleDbDataSource, dataSourceDir);
             return new MerkleDbDataSource(
-                    dataSourceDir,
-                    configuration,
-                    label,
-                    initialCapacity,
-                    compactionEnabled,
-                    offlineUse);
+                    dataSourceDir, configuration, label, initialCapacity, compactionEnabled, offlineUse);
         } catch (final IOException z) {
             throw new UncheckedIOException(z);
         }
@@ -197,12 +187,7 @@ public class MerkleDbDataSourceBuilder implements VirtualDataSourceBuilder {
                         final long initialCapacity =
                                 tableMetadata.getTableConfig().getInitialCapacity();
                         return new MerkleDbDataSource(
-                                dataSourceDir,
-                                configuration,
-                                label,
-                                initialCapacity,
-                                true,
-                                false);
+                                dataSourceDir, configuration, label, initialCapacity, true, false);
                     } else {
                         throw new IOException("Table dir is not found: dir=" + legacySnapshotDataSourceDir);
                     }

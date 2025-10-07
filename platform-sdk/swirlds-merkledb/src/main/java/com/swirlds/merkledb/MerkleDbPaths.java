@@ -10,14 +10,19 @@ public class MerkleDbPaths {
 
     public final Path storageDir;
     public final Path metadataFile;
+
     @Deprecated
     public final Path pathToDiskLocationInternalNodesFile;
+
     public final Path idToDiskLocationHashChunksFile;
     public final Path pathToDiskLocationLeafNodesFile;
+
     @Deprecated
     public final Path hashStoreRamFile;
+
     @Deprecated
     public final Path hashStoreDiskDirectory;
+
     public final Path hashChunkDirectory;
     public final Path keyToPathDirectory;
     public final Path pathToKeyValueDirectory;

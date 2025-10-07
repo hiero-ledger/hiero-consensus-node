@@ -103,7 +103,7 @@ public final class MerkleDbDataSource implements VirtualDataSource {
      * hashes are stored individually rather than in chunks.
      */
     @Deprecated
-    private volatile long hashesRamToDiskThreshold = -1;
+    volatile long hashesRamToDiskThreshold = 0;
 
     /**
      * Indicates whether disk based indices are used for this data source.
@@ -453,13 +453,14 @@ public final class MerkleDbDataSource implements VirtualDataSource {
     }
 
     private void rebuildHashChunks(
-            final Configuration config,
-            final long hashIndexCapacity,
-            final long hashesRamToDiskThreshold)
+            final Configuration config, final long hashIndexCapacity, final long hashesRamToDiskThreshold)
             throws IOException {
         assert hashChunkStore != null;
         assert idToDiskLocationHashChunks.size() == 0;
         assert hashesRamToDiskThreshold >= 0;
+
+        final long startTime = System.currentTimeMillis();
+        logger.info(MERKLE_DB.getMarker(), "Migrating hashes to hash chunks");
 
         // Legacy hash store / RAM
         HashListByteBuffer hashStoreRam = null;
@@ -473,16 +474,18 @@ public final class MerkleDbDataSource implements VirtualDataSource {
                     throw new IOException("Rebuild hash chunks failed: hashStoreRam is missing");
                 }
             }
-            if (hashesRamToDiskThreshold < Long.MAX_VALUE) {
+            if ((hashesRamToDiskThreshold < Long.MAX_VALUE) && (hashesRamToDiskThreshold <= getLastLeafPath())) {
                 // Index
                 assert hashIndexCapacity > hashesRamToDiskThreshold;
                 final LongList pathToDiskLocationInternalNodes;
                 if (Files.exists(dbPaths.pathToDiskLocationInternalNodesFile)) {
                     pathToDiskLocationInternalNodes = preferDiskBasedIndices
                             ? new LongListDisk(dbPaths.pathToDiskLocationInternalNodesFile, hashIndexCapacity, config)
-                            : new LongListOffHeap(dbPaths.pathToDiskLocationInternalNodesFile, hashIndexCapacity, config);
+                            : new LongListOffHeap(
+                                    dbPaths.pathToDiskLocationInternalNodesFile, hashIndexCapacity, config);
                 } else {
-                    throw new UnsupportedOperationException("Rebuild hash chunks failed: pathToDiskLocationInternalNodes is missing");
+                    throw new UnsupportedOperationException(
+                            "Rebuild hash chunks failed: pathToDiskLocationInternalNodes is missing");
                 }
                 // Store
                 hashStoreDisk = new MemoryIndexDiskKeyValueStore(
@@ -502,13 +505,13 @@ public final class MerkleDbDataSource implements VirtualDataSource {
             for (long chunkId = 0; chunkId <= maxChunkId; chunkId++) {
                 final long chunkPath = VirtualHashChunk.chunkIdToChunkPath(chunkId, hashChunkHeight);
                 final VirtualHashChunk chunk = new VirtualHashChunk(chunkPath, hashChunkHeight);
-                for (int i = 0; i <= chunkSize; i++) {
+                for (int i = 0; i < chunkSize; i++) {
                     final long path = VirtualHashChunk.getPathInChunk(chunkPath, i, hashChunkHeight);
                     if (path > getLastLeafPath()) {
                         continue;
                     }
                     final Hash hash;
-                    if (path <= hashesRamToDiskThreshold) {
+                    if (path < hashesRamToDiskThreshold) {
                         assert hashStoreRam != null;
                         hash = hashStoreRam.get(path);
                     } else {
@@ -529,6 +532,11 @@ public final class MerkleDbDataSource implements VirtualDataSource {
             if (hashStoreRam != null) {
                 hashStoreRam.close();
             }
+            logger.info(
+                    MERKLE_DB.getMarker(),
+                    "Migrated {} hashes in {} ms",
+                    getLastLeafPath(),
+                    System.currentTimeMillis() - startTime);
         }
     }
 
@@ -1029,8 +1037,8 @@ public final class MerkleDbDataSource implements VirtualDataSource {
                     } else if (fieldNum == FIELD_DSMETADATA_HASHCHUNKHEIGHT.number()) {
                         final int hashChunkHeight = in.readVarInt(false);
                         if (this.hashChunkHeight != hashChunkHeight) {
-                            throw new IllegalStateException(
-                                    "Hash chunk height mismatch, config=" + this.hashChunkHeight + " disk=" + hashChunkHeight);
+                            throw new IllegalStateException("Hash chunk height mismatch, config=" + this.hashChunkHeight
+                                    + " disk=" + hashChunkHeight);
                         }
                     } else {
                         throw new IllegalArgumentException("Unknown data source metadata field: " + fieldNum);
@@ -1132,9 +1140,7 @@ public final class MerkleDbDataSource implements VirtualDataSource {
      * Write all hashes to hashStore
      */
     private void writeHashes(
-            final long firstLeafPath,
-            final long lastLeafPath,
-            final Stream<VirtualHashChunk> dirtyHashes)
+            final long firstLeafPath, final long lastLeafPath, final Stream<VirtualHashChunk> dirtyHashes)
             throws IOException {
         if (lastLeafPath < 0) {
             // Empty store
@@ -1152,12 +1158,12 @@ public final class MerkleDbDataSource implements VirtualDataSource {
 
         dirtyHashes.forEach(chunk -> {
             statisticsUpdater.countFlushHashesWritten();
-                try {
-                    hashChunkStore.put(chunk.getChunkId(), chunk::writeTo, chunk.getSizeInBytes());
-                } catch (final IOException e) {
-                    logger.error(EXCEPTION.getMarker(), "[{}] IOException writing hash chunks", tableName, e);
-                    throw new UncheckedIOException(e);
-                }
+            try {
+                hashChunkStore.put(chunk.getChunkId(), chunk::writeTo, chunk.getSizeInBytes());
+            } catch (final IOException e) {
+                logger.error(EXCEPTION.getMarker(), "[{}] IOException writing hash chunks", tableName, e);
+                throw new UncheckedIOException(e);
+            }
         });
 
         final DataFileReader newHashesFile = hashChunkStore.endWriting();

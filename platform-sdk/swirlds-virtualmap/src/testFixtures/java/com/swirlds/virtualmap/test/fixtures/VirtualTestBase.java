@@ -17,7 +17,6 @@ import org.hiero.base.constructable.ClassConstructorPair;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.CryptographyProvider;
-import org.hiero.base.crypto.Hash;
 import org.hiero.base.io.streams.SerializableDataInputStream;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
 import org.junit.jupiter.api.BeforeAll;
@@ -128,24 +127,29 @@ public class VirtualTestBase {
     }
 
     protected VirtualHashRecord rightInternal() {
-        rightInternal = rightInternal == null ? new VirtualHashRecord(RIGHT_PATH, hash(RIGHT_PATH)) : copy(rightInternal);
+        rightInternal =
+                rightInternal == null ? new VirtualHashRecord(RIGHT_PATH, hash(RIGHT_PATH)) : copy(rightInternal);
         return rightInternal;
     }
 
     protected VirtualHashRecord leftLeftInternal() {
-        leftLeftInternal = leftLeftInternal == null ? new VirtualHashRecord(LEFT_LEFT_PATH, hash(LEFT_LEFT_PATH)) : copy(leftLeftInternal);
+        leftLeftInternal = leftLeftInternal == null
+                ? new VirtualHashRecord(LEFT_LEFT_PATH, hash(LEFT_LEFT_PATH))
+                : copy(leftLeftInternal);
         return leftLeftInternal;
     }
 
     protected VirtualHashRecord leftRightInternal() {
-        leftRightInternal =
-                leftRightInternal == null ? new VirtualHashRecord(LEFT_RIGHT_PATH, hash(LEFT_RIGHT_PATH)) : copy(leftRightInternal);
+        leftRightInternal = leftRightInternal == null
+                ? new VirtualHashRecord(LEFT_RIGHT_PATH, hash(LEFT_RIGHT_PATH))
+                : copy(leftRightInternal);
         return leftRightInternal;
     }
 
     protected VirtualHashRecord rightLeftInternal() {
-        rightLeftInternal =
-                rightLeftInternal == null ? new VirtualHashRecord(RIGHT_LEFT_PATH, hash(RIGHT_LEFT_PATH)) : copy(rightLeftInternal);
+        rightLeftInternal = rightLeftInternal == null
+                ? new VirtualHashRecord(RIGHT_LEFT_PATH, hash(RIGHT_LEFT_PATH))
+                : copy(rightLeftInternal);
         return rightLeftInternal;
     }
 

@@ -72,7 +72,10 @@ public record VirtualHashChunk(long path, int height, @NonNull byte[] hashData) 
     }
 
     public VirtualHashChunk(final long path, final int height) {
-        this(path, height, new byte[VirtualHashChunk.getChunkSize(height) * Cryptography.DEFAULT_DIGEST_TYPE.digestLength()]);
+        this(
+                path,
+                height,
+                new byte[VirtualHashChunk.getChunkSize(height) * Cryptography.DEFAULT_DIGEST_TYPE.digestLength()]);
     }
 
     public VirtualHashChunk copy() {

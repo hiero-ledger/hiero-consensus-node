@@ -15,16 +15,12 @@ import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.route.MerkleRoute;
 import com.swirlds.common.test.fixtures.merkle.dummy.DummyBinaryMerkleInternal;
 import com.swirlds.virtualmap.VirtualMap;
-import com.swirlds.virtualmap.datasource.VirtualHashChunk;
 import com.swirlds.virtualmap.datasource.VirtualHashRecord;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.test.fixtures.TestValueCodec;
 import com.swirlds.virtualmap.test.fixtures.VirtualTestBase;
 import java.io.IOException;
-import java.util.Comparator;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
@@ -157,12 +153,13 @@ class VirtualInternalNodeTest extends VirtualTestBase {
                 new VirtualLeafBytes<>(10, F_KEY, FIG, TestValueCodec.INSTANCE),
                 new VirtualLeafBytes<>(11, G_KEY, GRAPE, TestValueCodec.INSTANCE),
                 new VirtualLeafBytes<>(12, B_KEY, BANANA, TestValueCodec.INSTANCE));
-        map.getDataSource().saveRecords(
-                6,
-                12,
-                createHashChunkStream(VIRTUAL_MAP_CONFIG.virtualHasherChunkHeight(), leaves),
-                leaves.stream(),
-                Stream.empty());
+        map.getDataSource()
+                .saveRecords(
+                        6,
+                        12,
+                        createHashChunkStream(VIRTUAL_MAP_CONFIG.virtualHasherChunkHeight(), leaves),
+                        leaves.stream(),
+                        Stream.empty());
 
         VirtualHashRecord virtualHashRecord = new VirtualHashRecord(2, null);
         VirtualInternalNode internalNode = new VirtualInternalNode(map, virtualHashRecord);
@@ -219,5 +216,4 @@ class VirtualInternalNodeTest extends VirtualTestBase {
         final VirtualInternalNode internalNode = new VirtualInternalNode(map, virtualHashRecord);
         assertNotNull(internalNode.toString(), "value should not be null");
     }
-
 }

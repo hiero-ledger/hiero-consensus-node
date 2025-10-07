@@ -10,7 +10,6 @@ import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.swirlds.logging.legacy.LogMarker;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
-import com.swirlds.virtualmap.datasource.VirtualHashChunk;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.internal.Path;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -21,13 +20,10 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Objects;
-import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.ForkJoinTask;
 import java.util.concurrent.ForkJoinWorkerThread;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.LongConsumer;
 import java.util.function.LongFunction;
 import org.apache.logging.log4j.LogManager;
@@ -197,7 +193,8 @@ public final class VirtualHasher {
         // Hash inputs, at least two
         private final Hash[] ins;
 
-        private final AtomicBoolean chunkPreloaded = new AtomicBoolean(false);
+        // No need to have it atomic, this flag is set/checked on a single thread in hashImpl()
+        private boolean chunkPreloaded = false;
 
         ChunkHashTask(final ForkJoinPool pool, final long path, final int height) {
             // out (1) + preload (1) + ins (2^height)
@@ -214,7 +211,8 @@ public final class VirtualHasher {
         }
 
         void preloadHashChunkNeeded() {
-            if (chunkPreloaded.compareAndSet(false, true)) {
+            if (!chunkPreloaded) {
+                chunkPreloaded = true;
                 if (hashChunkPreloader == null) {
                     send();
                     return;
@@ -225,7 +223,8 @@ public final class VirtualHasher {
         }
 
         void setHash(final long path, final Hash hash) {
-            assert Path.getRank(this.path) + height == Path.getRank(path) : this.path + " " + Path.getRank(this.path) + " " + height + " " + path + " " + Path.getRank(path);
+            assert Path.getRank(this.path) + height == Path.getRank(path)
+                    : this.path + " " + Path.getRank(this.path) + " " + height + " " + path + " " + Path.getRank(path);
             final long firstPathInPathRank = Path.getLeftGrandChildPath(this.path, height);
             final int index = Math.toIntExact(path - firstPathInPathRank);
             assert (index >= 0) && (index < ins.length);
@@ -244,7 +243,6 @@ public final class VirtualHasher {
             long rankPath = Path.getLeftGrandChildPath(path, height);
             while (len > 1) {
                 for (int i = 0; i < len / 2; i++) {
-                    final long hashedPath = Path.getParentPath(rankPath + i * 2);
                     Hash left = ins[i * 2];
                     Hash right = ins[i * 2 + 1];
                     if ((left == null) && (right == null)) {
@@ -696,8 +694,8 @@ public final class VirtualHasher {
                             siblingTask = allTasks.computeIfAbsent(siblingPath, p -> new LeafHashTask(pool, p));
                         } else {
                             // Chunk sibling
-                            final int taskChunkHeight =
-                                    getChunkHeightForOutputRank(siblingPath, curRank, firstLeafRank, lastLeafRank, chunkHeight);
+                            final int taskChunkHeight = getChunkHeightForOutputRank(
+                                    siblingPath, curRank, firstLeafRank, lastLeafRank, chunkHeight);
                             siblingTask = allTasks.computeIfAbsent(
                                     siblingPath, path -> new ChunkHashTask(pool, path, taskChunkHeight));
                         }

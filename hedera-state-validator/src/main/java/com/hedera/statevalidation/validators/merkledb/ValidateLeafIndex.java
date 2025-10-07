@@ -46,7 +46,7 @@ public class ValidateLeafIndex {
             return;
         }
 
-        log.debug(vds.getHashStoreDisk().getFilesSizeStatistics());
+        log.debug(vds.getHashChunkStore().getFilesSizeStatistics());
 
         long firstLeafPath = vds.getFirstLeafPath();
         long lastLeafPath = vds.getLastLeafPath();

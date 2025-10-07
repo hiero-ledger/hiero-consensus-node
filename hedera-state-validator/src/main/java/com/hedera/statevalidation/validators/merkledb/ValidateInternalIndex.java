@@ -1,14 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.statevalidation.validators.merkledb;
 
-import static com.hedera.statevalidation.validators.ParallelProcessingUtil.doNothing;
 import static com.hedera.statevalidation.validators.ParallelProcessingUtil.processRange;
 import static com.hedera.statevalidation.validators.Utils.printFileDataLocationError;
-import static com.swirlds.merkledb.collections.LongList.IMPERMISSIBLE_VALUE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.statevalidation.merkledb.reflect.MemoryIndexDiskKeyValueStoreW;
 import com.hedera.statevalidation.parameterresolver.StateResolver;
@@ -18,13 +15,11 @@ import com.swirlds.platform.state.snapshot.DeserializedSignedState;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.datasource.VirtualHashChunk;
 import com.swirlds.virtualmap.datasource.VirtualHashRecord;
-import java.io.IOException;
 import java.util.concurrent.ForkJoinTask;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.LongConsumer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.base.crypto.Hash;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;

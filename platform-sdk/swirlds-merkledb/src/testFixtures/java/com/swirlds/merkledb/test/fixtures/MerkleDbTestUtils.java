@@ -48,7 +48,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Random;
-import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
@@ -181,7 +180,8 @@ public class MerkleDbTestUtils {
             final long chunkId = VirtualHashChunk.pathToChunkId(i, hashChunkHeight);
             VirtualHashChunk chunk = chunks.get(chunkId);
             if (chunk == null) {
-                chunk = new VirtualHashChunk(VirtualHashChunk.chunkIdToChunkPath(chunkId, hashChunkHeight), hashChunkHeight);
+                chunk = new VirtualHashChunk(
+                        VirtualHashChunk.chunkIdToChunkPath(chunkId, hashChunkHeight), hashChunkHeight);
                 chunks.put(chunkId, chunk);
             }
             chunk.setHashAtPath(i, hash(valueFunction.apply(i)));
@@ -189,8 +189,7 @@ public class MerkleDbTestUtils {
         return chunks.values().stream().sorted(Comparator.comparingLong(VirtualHashChunk::path));
     }
 
-    public static Stream<VirtualHashChunk> createHashChunkStream(
-            final int lastLeafPath, final int hashChunkHeight) {
+    public static Stream<VirtualHashChunk> createHashChunkStream(final int lastLeafPath, final int hashChunkHeight) {
         return createHashChunkStream(1, lastLeafPath, i -> i, hashChunkHeight);
     }
 

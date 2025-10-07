@@ -8,7 +8,6 @@ import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.getMetric;
 import static com.swirlds.merkledb.test.fixtures.TestType.long_fixed;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import com.swirlds.base.units.UnitConstants;
 import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
@@ -22,7 +21,6 @@ import java.time.Duration;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.hiero.base.constructable.ConstructableRegistry;
-import org.hiero.base.crypto.DigestType;
 import org.hiero.base.utility.test.fixtures.tags.TestComponentTags;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
@@ -180,11 +178,7 @@ class MerkleDbDataSourceMetricsTest {
     }
 
     public static MerkleDbDataSource createDataSource(
-            final Path testDirectory,
-            final String name,
-            final TestType testType,
-            final int size)
-            throws IOException {
+            final Path testDirectory, final String name, final TestType testType, final int size) throws IOException {
         return testType.dataType().createDataSource(testDirectory, name, size, false, false);
     }
 }

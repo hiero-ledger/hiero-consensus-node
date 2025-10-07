@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.virtualmap.datasource;
 
-import static com.hedera.pbj.runtime.ProtoParserTools.TAG_FIELD_OFFSET;
-
 import com.hedera.pbj.runtime.FieldDefinition;
 import com.hedera.pbj.runtime.FieldType;
 import com.hedera.pbj.runtime.ProtoConstants;
@@ -11,10 +9,7 @@ import com.hedera.pbj.runtime.ProtoWriterTools;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import java.io.IOException;
-import org.hiero.base.crypto.DigestType;
 import org.hiero.base.crypto.Hash;
-import org.hiero.base.io.streams.SerializableDataOutputStream;
 
 /**
  * A record that contains a path and a hash. It serves for both node types, internal and leaf.
@@ -113,5 +108,4 @@ public record VirtualHashRecord(long path, Hash hash) {
                     out, FIELD_HASHRECORD_HASH, Math.toIntExact(hashBytes.length()), hashBytes::writeTo);
         }
     }
-
 }

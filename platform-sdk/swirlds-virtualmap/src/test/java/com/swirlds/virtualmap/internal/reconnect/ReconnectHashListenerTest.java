@@ -3,7 +3,6 @@ package com.swirlds.virtualmap.internal.reconnect;
 
 import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.CONFIGURATION;
 import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.VIRTUAL_MAP_CONFIG;
-import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.createHashChunkStream;
 import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.hashChunkStreamSize;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -15,7 +14,6 @@ import com.swirlds.metrics.api.Metrics;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
 import com.swirlds.virtualmap.datasource.VirtualDataSource;
 import com.swirlds.virtualmap.datasource.VirtualHashChunk;
-import com.swirlds.virtualmap.datasource.VirtualHashRecord;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.internal.hash.VirtualHasher;
 import com.swirlds.virtualmap.internal.merkle.VirtualMapStatistics;
@@ -104,7 +102,8 @@ class ReconnectHashListenerTest {
         for (VirtualHashChunk rec : allFlushedChunks) {
             final long path = rec.path();
             final long expectedPath = VirtualHashChunk.chunkIdToChunkPath(chunkId, hashChunkHeight);
-            assertEquals(expectedPath, path, "Path did not match expectation. path=" + path + ", expected=" + expectedPath);
+            assertEquals(
+                    expectedPath, path, "Path did not match expectation. path=" + path + ", expected=" + expectedPath);
             chunkId++;
         }
 
