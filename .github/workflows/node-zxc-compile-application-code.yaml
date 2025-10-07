@@ -323,7 +323,7 @@ jobs:
           LC_ALL: en.UTF-8
           LANG: en_US.UTF-8
         # Run each tasks in isolation because we dynamically reconfigure Log4j for each mode
-        run: ${GRADLE_EXEC} hapiTestMisc${{ inputs.mats-suffix }} --no-daemon && ${GRADLE_EXEC} hapiEmbeddedMisc${{ inputs.mats-suffix }} --no-daemon && ${GRADLE_EXEC} hapiRepeatableMisc${{ inputs.mats-suffix }} --no-daemon
+        run: ${GRADLE_EXEC} hapiTestMisc${{ inputs.mats-suffix }} --no-daemon && ${GRADLE_EXEC} hapiEmbeddedMisc --no-daemon && ${GRADLE_EXEC} hapiRepeatableMisc${{ inputs.mats-suffix }} --no-daemon
 
       - name: Publish HAPI Test (Misc) Report
         uses: step-security/publish-unit-test-result-action@5d195d4dec0b9fa7b51a3dbc4298362a021247c7 # v2.20.4
@@ -359,7 +359,7 @@ jobs:
         env:
           LC_ALL: en.UTF-8
           LANG: en_US.UTF-8
-        run: ${GRADLE_EXEC} hapiTestMiscRecords${{ inputs.mats-suffix }}
+        run: ${GRADLE_EXEC} hapiTestMiscRecords${{ inputs.mats-suffix }} && ${GRADLE_EXEC} hapiEmbeddedMiscRecords
 
       - name: Publish HAPI Test (Misc Records) Report
         uses: step-security/publish-unit-test-result-action@5d195d4dec0b9fa7b51a3dbc4298362a021247c7 # v2.20.4
@@ -367,7 +367,7 @@ jobs:
         with:
           check_name: "Node: HAPI Test (Misc Records) Results"
           json_thousands_separator: ","
-          junit_files: "**/test-clients/build/test-results/testSubprocess/TEST-*.xml"
+          junit_files: "**/test-clients/build/test-results/**/TEST-*.xml"
           comment_mode: errors # only comment if we could not find or parse the JUnit XML files
 
       - name: Upload HAPI Test (Misc Records) Report Artifacts
@@ -431,7 +431,7 @@ jobs:
         env:
           LC_ALL: en.UTF-8
           LANG: en_US.UTF-8
-        run: ${GRADLE_EXEC} hapiTestToken${{ inputs.mats-suffix || '' }} --no-daemon
+        run: ${GRADLE_EXEC} hapiTestToken${{ inputs.mats-suffix || '' }} --no-daemon && ${GRADLE_EXEC} hapiEmbeddedToken
 
       - name: Publish HAPI Test (Token) Report
         uses: step-security/publish-unit-test-result-action@5d195d4dec0b9fa7b51a3dbc4298362a021247c7 # v2.20.4
@@ -439,7 +439,7 @@ jobs:
         with:
           check_name: "Node: HAPI Test (Token) Results"
           json_thousands_separator: ","
-          junit_files: "**/test-clients/build/test-results/testSubprocess/TEST-*.xml"
+          junit_files: "**/test-clients/build/test-results/**/TEST-*.xml"
           comment_mode: errors # only comment if we could not find or parse the JUnit XML files
 
       - name: Upload HAPI Test (Token) Report Artifacts
@@ -447,7 +447,7 @@ jobs:
         if: ${{ inputs.enable-hapi-tests-token && steps.gradle-build.conclusion == 'success' && !cancelled() }}
         with:
           name: HAPI Test (Token) Report
-          path: "**/test-clients/build/test-results/testSubprocess/TEST-*.xml"
+          path: "**/test-clients/build/test-results/**/TEST-*.xml"
           retention-days: 7
 
       - name: Upload HAPI Test (Token) Network Logs
