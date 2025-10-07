@@ -348,10 +348,7 @@ public class BlockBufferService {
         }
         requireNonNull(blockItem, "blockItem must not be null");
         final BlockState blockState = getBlockState(blockNumber);
-        if (blockState == null) {
-            throw new IllegalStateException("Block state not found for block " + blockNumber);
-        }
-        if (blockState.isClosed()) {
+        if (blockState == null || blockState.isClosed()) {
             return;
         }
         blockState.addItem(blockItem);
