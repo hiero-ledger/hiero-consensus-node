@@ -46,7 +46,7 @@ import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.Arrays;
 import java.util.Comparator;
-import java.util.Iterator;
+import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
@@ -149,11 +149,14 @@ public final class MerkleDbDataSource implements VirtualDataSource {
      */
     private final VirtualLeafBytes[] leafRecordCache;
 
-    /** Thread pool storing internal records */
+    /** Thread pool storing path-to-hash mappings */
     private final ExecutorService storeHashesExecutor;
 
-    /** Thread pool storing key-to-path mappings */
+    /** Thread pool storing path-to-leaf mappings */
     private final ExecutorService storeLeavesExecutor;
+
+    /** Thread pool storing key-to-path mappings */
+    private final ExecutorService storeLeafKeysExecutor;
 
     /** Thread pool creating snapshots, it is unbounded in threads, but we use at most 7 */
     private final ExecutorService snapshotExecutor;
@@ -241,6 +244,14 @@ public final class MerkleDbDataSource implements VirtualDataSource {
                 .setThreadName("Store leaves")
                 .setExceptionHandler((t, ex) -> logger.error(
                         EXCEPTION.getMarker(), "[{}] Uncaught exception during storing leaves", tableName, ex))
+                .buildFactory());
+        // create thread pool storing virtual leaf keys
+        storeLeafKeysExecutor = Executors.newSingleThreadExecutor(new ThreadConfiguration(getStaticThreadManager())
+                .setComponent(MERKLEDB_COMPONENT)
+                .setThreadGroup(threadGroup)
+                .setThreadName("Store leaf keys")
+                .setExceptionHandler((t, ex) -> logger.error(
+                        EXCEPTION.getMarker(), "[{}] Uncaught exception during storing leaf keys", tableName, ex))
                 .buildFactory());
         // thread pool creating snapshots, it is unbounded in threads, but we use at most 7
         snapshotExecutor = Executors.newCachedThreadPool(new ThreadConfiguration(getStaticThreadManager())
@@ -534,7 +545,7 @@ public final class MerkleDbDataSource implements VirtualDataSource {
             throws IOException {
         try {
             validLeafPathRange = new KeyRange(firstLeafPath, lastLeafPath);
-            final CountDownLatch countDownLatch = new CountDownLatch(lastLeafPath > 0 ? 2 : 1);
+            final CountDownLatch countDownLatch = new CountDownLatch(lastLeafPath > 0 ? 3 : 2);
 
             if (lastLeafPath > 0) {
                 // Use an executor to make sure the data source is not closed in parallel. See
@@ -551,19 +562,36 @@ public final class MerkleDbDataSource implements VirtualDataSource {
                 });
             }
 
+            // Functionally, leaves don't have to be sorted. However, performance wise, sorting
+            // is beneficial, as adjacent leaves are written together, which reduces the number
+            // of random reads later
+            final List<VirtualLeafBytes> sortedDirtyLeaves = leafRecordsToAddOrUpdate
+                    .parallel()
+                    .sorted(Comparator.comparingLong(VirtualLeafBytes::path))
+                    .toList();
+            final List<VirtualLeafBytes> deletedLeaves = leafRecordsToDelete.toList();
+
             // Use an executor to make sure the data source is not closed in parallel. See
             // the comment in close() for details
             storeLeavesExecutor.execute(() -> {
                 try {
-                    // we might as well do this in the archive thread rather than leaving it waiting
-                    writeLeavesToPathToKeyValue(
-                            firstLeafPath,
-                            lastLeafPath,
-                            leafRecordsToAddOrUpdate,
-                            leafRecordsToDelete,
-                            isReconnectContext);
+                    writeLeavesToPathToKeyValue(firstLeafPath, lastLeafPath, sortedDirtyLeaves);
                 } catch (final IOException e) {
                     logger.error(EXCEPTION.getMarker(), "[{}] Failed to store leaves", tableName, e);
+                    throw new UncheckedIOException(e);
+                } finally {
+                    countDownLatch.countDown();
+                }
+            });
+
+            // Use an executor to make sure the data source is not closed in parallel. See
+            // the comment in close() for details
+            storeLeafKeysExecutor.execute(() -> {
+                try {
+                    writeLeavesToKeyToPath(
+                            firstLeafPath, lastLeafPath, sortedDirtyLeaves, deletedLeaves, isReconnectContext);
+                } catch (final IOException e) {
+                    logger.error(EXCEPTION.getMarker(), "[{}] Failed to store leaf keys", tableName, e);
                     throw new UncheckedIOException(e);
                 } finally {
                     countDownLatch.countDown();
@@ -798,7 +826,8 @@ public final class MerkleDbDataSource implements VirtualDataSource {
                 // Shut down all executors. If a flush is currently in progress, it will be interrupted.
                 // It's critical to make sure there are no disk read/write operations before all indiced
                 // and file collections are closed below
-                shutdownThreadsAndWait(storeHashesExecutor, storeLeavesExecutor, snapshotExecutor);
+                shutdownThreadsAndWait(
+                        storeHashesExecutor, storeLeavesExecutor, storeLeafKeysExecutor, snapshotExecutor);
             } finally {
                 try {
                     // close all closable data stores
@@ -1100,7 +1129,8 @@ public final class MerkleDbDataSource implements VirtualDataSource {
     /**
      * Write all hashes to hashStore
      */
-    private void writeHashes(final long maxValidPath, final Stream<VirtualHashRecord> dirtyHashes) throws IOException {
+    private void writeHashes(final long maxValidPath, @NonNull final Stream<VirtualHashRecord> dirtyHashes)
+            throws IOException {
         if (hasDiskStoreForHashes) {
             if (maxValidPath < 0) {
                 // Empty store
@@ -1110,7 +1140,7 @@ public final class MerkleDbDataSource implements VirtualDataSource {
             }
         }
 
-        if ((dirtyHashes == null) || (maxValidPath < 0)) {
+        if (maxValidPath < 0) {
             // nothing to do
             return;
         }
@@ -1142,22 +1172,8 @@ public final class MerkleDbDataSource implements VirtualDataSource {
 
     /** Write all the given leaf records to pathToKeyValue */
     private void writeLeavesToPathToKeyValue(
-            final long firstLeafPath,
-            final long lastLeafPath,
-            @NonNull final Stream<VirtualLeafBytes> dirtyLeaves,
-            @NonNull final Stream<VirtualLeafBytes> deletedLeaves,
-            boolean isReconnect)
+            final long firstLeafPath, final long lastLeafPath, @NonNull final List<VirtualLeafBytes> sortedDirtyLeaves)
             throws IOException {
-        // If both streams are empty, no new data files should be created. One simple way to
-        // check emptiness is to use iterators. The iterators are consumed on a single thread
-        // (the current thread), but it still makes sense to use parallel streams as supplying
-        // elements to the stream includes expensive operations like serialization to bytes
-        final Iterator<VirtualLeafBytes> dirtyIterator = dirtyLeaves
-                .parallel()
-                .sorted(Comparator.comparingLong(VirtualLeafBytes::path))
-                .iterator();
-        final Iterator<VirtualLeafBytes> deletedIterator = deletedLeaves.iterator();
-
         if (lastLeafPath < 0) {
             // Empty store
             pathToKeyValue.updateValidKeyRange(-1, -1);
@@ -1165,22 +1181,15 @@ public final class MerkleDbDataSource implements VirtualDataSource {
             pathToKeyValue.updateValidKeyRange(firstLeafPath, lastLeafPath);
         }
 
-        if (!dirtyIterator.hasNext() && !deletedIterator.hasNext()) {
+        if (sortedDirtyLeaves.isEmpty()) {
             // Nothing to do
             return;
         }
 
         pathToKeyValue.startWriting();
-        keyToPath.startWriting();
 
         // Iterate over leaf records
-        while (dirtyIterator.hasNext()) {
-            final VirtualLeafBytes<?> leafBytes = dirtyIterator.next();
-            final long path = leafBytes.path();
-            // Update key to path index
-            keyToPath.put(leafBytes.keyBytes(), path);
-            statisticsUpdater.countFlushLeafKeysWritten();
-
+        for (VirtualLeafBytes<?> leafBytes : sortedDirtyLeaves) {
             // Update path to K/V store
             try {
                 pathToKeyValue.put(leafBytes.path(), leafBytes::writeTo, leafBytes.getSizeInBytes());
@@ -1189,14 +1198,43 @@ public final class MerkleDbDataSource implements VirtualDataSource {
                 throw new UncheckedIOException(e);
             }
             statisticsUpdater.countFlushLeavesWritten();
+        }
+
+        // end writing
+        final DataFileReader pathToKeyValueReader = pathToKeyValue.endWriting();
+        statisticsUpdater.setFlushLeavesStoreFileSize(pathToKeyValueReader);
+
+        runPathToKeyStoreCompaction();
+    }
+
+    /** Write all the given leaf records to keyToPath */
+    private void writeLeavesToKeyToPath(
+            final long firstLeafPath,
+            final long lastLeafPath,
+            @NonNull final List<VirtualLeafBytes> sortedDirtyLeaves,
+            @NonNull final List<VirtualLeafBytes> deletedLeaves,
+            boolean isReconnect)
+            throws IOException {
+        if (sortedDirtyLeaves.isEmpty() && deletedLeaves.isEmpty()) {
+            // Nothing to do
+            return;
+        }
+
+        keyToPath.startWriting();
+
+        // Iterate over leaf records
+        for (final VirtualLeafBytes<?> leafBytes : sortedDirtyLeaves) {
+            final long path = leafBytes.path();
+            // Update key to path index
+            keyToPath.put(leafBytes.keyBytes(), path);
+            statisticsUpdater.countFlushLeafKeysWritten();
 
             // cache the record
             invalidateReadCache(leafBytes.keyBytes());
         }
 
         // Iterate over leaf records to delete
-        while (deletedIterator.hasNext()) {
-            final VirtualLeafBytes<?> leafBytes = deletedIterator.next();
+        for (VirtualLeafBytes<?> leafBytes : deletedLeaves) {
             final long path = leafBytes.path();
             // Update key to path index. In some cases (e.g. during reconnect), some leaves in the
             // deletedLeaves stream have been moved to different paths in the tree. This is good
@@ -1221,8 +1259,6 @@ public final class MerkleDbDataSource implements VirtualDataSource {
         }
 
         // end writing
-        final DataFileReader pathToKeyValueReader = pathToKeyValue.endWriting();
-        statisticsUpdater.setFlushLeavesStoreFileSize(pathToKeyValueReader);
         final DataFileReader keyToPathReader = keyToPath.endWriting();
         statisticsUpdater.setFlushLeafKeysStoreFileSize(keyToPathReader);
 
@@ -1230,7 +1266,6 @@ public final class MerkleDbDataSource implements VirtualDataSource {
             keyToPath.resizeIfNeeded(firstLeafPath, lastLeafPath);
         }
 
-        runPathToKeyStoreCompaction();
         runKeyToPathStoreCompaction();
     }
 

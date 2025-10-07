@@ -1,9 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.state.test.fixtures.merkle.disk;
 
-import static com.swirlds.state.test.fixtures.merkle.logging.TestStateLogger.logMapGet;
-import static com.swirlds.state.test.fixtures.merkle.logging.TestStateLogger.logMapGetSize;
-import static com.swirlds.state.test.fixtures.merkle.logging.TestStateLogger.logMapIterate;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.pbj.runtime.Codec;
@@ -58,18 +55,13 @@ public final class BackedReadableKVState<K, V> extends ReadableKVStateBase<K, V>
     @Override
     protected V readFromDataSource(@NonNull K key) {
         final var kb = keyCodec.toBytes(key);
-        final var value = virtualMap.get(kb, valueCodec);
-        // Log to transaction state log, what was read
-        logMapGet(label, key, value);
-        return value;
+        return virtualMap.get(kb, valueCodec);
     }
 
     /** {@inheritDoc} */
     @NonNull
     @Override
     protected Iterator<K> iterateFromDataSource() {
-        // Log to transaction state log, what was iterated
-        logMapIterate(label, virtualMap, keyCodec);
         return new BackedOnDiskIterator<>(virtualMap, keyCodec);
     }
 
@@ -77,10 +69,7 @@ public final class BackedReadableKVState<K, V> extends ReadableKVStateBase<K, V>
     @Override
     @Deprecated
     public long size() {
-        final var size = virtualMap.size();
-        // Log to transaction state log, size of map
-        logMapGetSize(label, size);
-        return size;
+        return virtualMap.size();
     }
 
     @Override

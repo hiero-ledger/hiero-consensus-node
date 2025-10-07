@@ -63,8 +63,9 @@ import org.hyperledger.besu.evm.precompile.PrecompileContractRegistry;
 import org.hyperledger.besu.evm.processor.ContractCreationProcessor;
 
 /**
- * Provides the Services 0.65 EVM implementation, which consists of update to the 25.3 version of the Besu EVM
- * and a new native library verification strategy
+ * Provides the Services 0.66 EVM implementation, which consists of update to the 25.3 version of the Besu EVM
+ * and a new native library verification strategy. It also temporarily removes the support for HederaEVM (for ops duration
+ * gas tracking) - to be re-added in the following version.
  */
 @Module
 public interface V066Module {

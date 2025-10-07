@@ -21,8 +21,8 @@ import com.hedera.node.app.service.contract.impl.hevm.HederaEvmContext;
 import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
 import com.hedera.node.app.service.contract.impl.hevm.QueryContextHevmBlocks;
 import com.hedera.node.app.service.contract.impl.state.EvmFrameStateFactory;
+import com.hedera.node.app.service.contract.impl.state.EvmFrameStates;
 import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
-import com.hedera.node.app.service.contract.impl.state.ScopedEvmFrameStateFactory;
 import com.hedera.node.app.spi.workflows.QueryContext;
 import com.hedera.node.config.data.HederaConfig;
 import dagger.Binds;
@@ -30,6 +30,7 @@ import dagger.Module;
 import dagger.Provides;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
+import org.hyperledger.besu.evm.code.CodeFactory;
 
 @Module
 public interface QueryModule {
@@ -104,10 +105,6 @@ public interface QueryModule {
 
     @Binds
     @QueryScope
-    EvmFrameStateFactory bindEvmFrameStateFactory(ScopedEvmFrameStateFactory factory);
-
-    @Binds
-    @QueryScope
     HederaOperations bindHederaOperations(QueryHederaOperations queryExtWorldScope);
 
     @Binds
@@ -121,4 +118,13 @@ public interface QueryModule {
     @Binds
     @QueryScope
     SystemContractOperations bindSystemContractOperations(QuerySystemContractOperations querySystemContractOperations);
+
+    @Provides
+    @QueryScope
+    static EvmFrameStateFactory provideEvmFrameStateFactory(
+            @NonNull final CodeFactory codeFactory,
+            @NonNull final HederaOperations operations,
+            @NonNull final HederaNativeOperations nativeOperations) {
+        return EvmFrameStates.DEFAULT.from(operations, nativeOperations, codeFactory);
+    }
 }

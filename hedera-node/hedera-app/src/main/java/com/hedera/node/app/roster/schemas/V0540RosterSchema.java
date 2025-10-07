@@ -6,6 +6,8 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
+import com.hedera.node.app.services.HederaMigrationContext;
+import com.hedera.node.app.services.StartupNetworks;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.VersionConfig;
 import com.swirlds.platform.state.service.PlatformStateFacade;
@@ -88,10 +90,11 @@ public class V0540RosterSchema extends Schema<SemanticVersion> implements Roster
     }
 
     @Override
-    public void restart(@NonNull final MigrationContext ctx) {
+    public void restart(@NonNull final MigrationContext<SemanticVersion> ctx) {
         requireNonNull(ctx);
-        if (!RosterTransplantSchema.super.restart(ctx, onAdopt, rosterStoreFactory)) {
-            final var startupNetworks = ctx.startupNetworks();
+        final HederaMigrationContext hederaCtx = (HederaMigrationContext) ctx;
+        if (!RosterTransplantSchema.super.restart(hederaCtx, onAdopt, rosterStoreFactory)) {
+            final StartupNetworks startupNetworks = hederaCtx.startupNetworks();
             final var rosterStore = rosterStoreFactory.apply(ctx.newStates());
             final var activeRoundNumber = ctx.roundNumber() + 1;
             if (ctx.isGenesis()) {

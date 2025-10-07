@@ -92,10 +92,6 @@ public class BlockNodeConnectionManager {
      */
     private static final long RETRY_BACKOFF_MULTIPLIER = 2;
     /**
-     * The maximum delay used for retries.
-     */
-    private static final Duration MAX_RETRY_DELAY = Duration.ofSeconds(10);
-    /**
      * Tracks what the last verified block for each connection is. Note: The data maintained here is based on what the
      * block node has informed the consensus node of. If a block node is not actively connected, then this data may be
      * incorrect from the perspective of the block node. It is only when the block node informs the consensus node of
@@ -216,6 +212,15 @@ public class BlockNodeConnectionManager {
     }
 
     /**
+     * Configuration property: threshold above which a block acknowledgement is considered high latency.
+     */
+    private final Duration highLatencyThreshold;
+    /**
+     * Configuration property: number of consecutive high latency events before considering switching nodes.
+     */
+    private final int highLatencyEventsBeforeSwitching;
+
+    /**
      * Helper method to remove current instance information for debug logging.
      */
     private void logWithContext(Level level, String message, Object... args) {
@@ -259,6 +264,8 @@ public class BlockNodeConnectionManager {
         this.maxEndOfStreamsAllowed = blockNodeConnectionConfig.maxEndOfStreamsAllowed();
         this.endOfStreamTimeFrame = blockNodeConnectionConfig.endOfStreamTimeFrame();
         this.endOfStreamScheduleDelay = blockNodeConnectionConfig.endOfStreamScheduleDelay();
+        this.highLatencyThreshold = blockNodeConnectionConfig.highLatencyThreshold();
+        this.highLatencyEventsBeforeSwitching = blockNodeConnectionConfig.highLatencyEventsBeforeSwitching();
 
         isStreamingEnabled.set(isStreamingEnabled());
 
@@ -302,6 +309,13 @@ public class BlockNodeConnectionManager {
                 .getConfiguration()
                 .getConfigData(BlockNodeConnectionConfig.class)
                 .protocolExpBackoffTimeframeReset();
+    }
+
+    private Duration maxBackoffDelay() {
+        return configProvider
+                .getConfiguration()
+                .getConfigData(BlockNodeConnectionConfig.class)
+                .maxBackoffDelay();
     }
 
     /**
@@ -348,7 +362,11 @@ public class BlockNodeConnectionManager {
         }
     }
 
-    private boolean isOnlyOneBlockNodeConfigured() {
+    /**
+     * Checks if there is only one block node configured.
+     * @return whether there is only one block node configured
+     */
+    public boolean isOnlyOneBlockNodeConfigured() {
         return availableBlockNodes.size() == 1;
     }
 
@@ -361,18 +379,23 @@ public class BlockNodeConnectionManager {
     private @NonNull BlockStreamPublishServiceClient createNewGrpcClient(@NonNull final BlockNodeConfig nodeConfig) {
         requireNonNull(nodeConfig);
 
+        final Duration timeoutDuration = configProvider
+                .getConfiguration()
+                .getConfigData(BlockNodeConnectionConfig.class)
+                .grpcOverallTimeout();
+
         final Tls tls = Tls.builder().enabled(false).build();
         final PbjGrpcClientConfig grpcConfig =
-                new PbjGrpcClientConfig(Duration.ofSeconds(30), tls, Optional.of(""), "application/grpc");
+                new PbjGrpcClientConfig(timeoutDuration, tls, Optional.of(""), "application/grpc");
 
         final WebClient webClient = WebClient.builder()
                 .baseUri("http://" + nodeConfig.address() + ":" + nodeConfig.port())
                 .tls(tls)
                 .protocolConfigs(List.of(GrpcClientProtocolConfig.builder()
                         .abortPollTimeExpired(false)
-                        .pollWaitTime(Duration.ofSeconds(30))
+                        .pollWaitTime(timeoutDuration)
                         .build()))
-                .connectTimeout(Duration.ofSeconds(10))
+                .connectTimeout(timeoutDuration)
                 .build();
         logWithContext(
                 DEBUG, "Created BlockStreamPublishServiceClient for {}:{}.", nodeConfig.address(), nodeConfig.port());
@@ -1058,8 +1081,9 @@ public class BlockNodeConnectionManager {
                     ? INITIAL_RETRY_DELAY // Start with the initial delay if previous was 0
                     : currentBackoffDelayMs.multipliedBy(RETRY_BACKOFF_MULTIPLIER);
 
-            if (nextDelay.compareTo(MAX_RETRY_DELAY) > 0) {
-                nextDelay = MAX_RETRY_DELAY;
+            final Duration maxBackoff = maxBackoffDelay();
+            if (nextDelay.compareTo(maxBackoff) > 0) {
+                nextDelay = maxBackoff;
             }
 
             // Apply jitter
@@ -1096,12 +1120,13 @@ public class BlockNodeConnectionManager {
         }
     }
 
-    private static long calculateJitteredDelayMs(final int retryAttempt) {
+    private long calculateJitteredDelayMs(final int retryAttempt) {
         // Calculate delay using exponential backoff starting from INITIAL_RETRY_DELAY
         Duration nextDelay = INITIAL_RETRY_DELAY.multipliedBy((long) Math.pow(RETRY_BACKOFF_MULTIPLIER, retryAttempt));
 
-        if (nextDelay.compareTo(MAX_RETRY_DELAY) > 0) {
-            nextDelay = MAX_RETRY_DELAY;
+        final Duration maxBackoff = maxBackoffDelay();
+        if (nextDelay.compareTo(maxBackoff) > 0) {
+            nextDelay = maxBackoff;
         }
 
         // Apply jitter to delay
@@ -1116,16 +1141,15 @@ public class BlockNodeConnectionManager {
      * @param blockNodeConfig the configuration for the block node
      * @return true if the rate limit is exceeded, otherwise false
      */
-    public boolean recordEndOfStreamAndCheckLimit(@NonNull final BlockNodeConfig blockNodeConfig) {
+    public boolean recordEndOfStreamAndCheckLimit(
+            @NonNull final BlockNodeConfig blockNodeConfig, @NonNull final Instant timestamp) {
         if (!isStreamingEnabled.get()) {
             return false;
         }
         requireNonNull(blockNodeConfig, "blockNodeConfig must not be null");
 
-        final Instant now = Instant.now();
         final BlockNodeStats stats = nodeStats.computeIfAbsent(blockNodeConfig, k -> new BlockNodeStats());
-
-        return stats.addEndOfStreamAndCheckLimit(now, maxEndOfStreamsAllowed, endOfStreamTimeFrame);
+        return stats.addEndOfStreamAndCheckLimit(timestamp, maxEndOfStreamsAllowed, endOfStreamTimeFrame);
     }
 
     /**
@@ -1226,5 +1250,59 @@ public class BlockNodeConnectionManager {
         }
 
         blockStreamMetrics.recordActiveConnectionIp(ipAsInteger);
+    }
+
+    /**
+     * Records when a block proof was sent to a block node. This enables latency measurement upon acknowledgement.
+     *
+     * @param blockNodeConfig the target block node configuration
+     * @param blockNumber the block number of the sent proof
+     * @param timestamp the timestamp when the block was sent
+     */
+    public void recordBlockProofSent(
+            @NonNull final BlockNodeConfig blockNodeConfig, final long blockNumber, @NonNull final Instant timestamp) {
+        if (!isStreamingEnabled.get()) {
+            return;
+        }
+        requireNonNull(blockNodeConfig, "blockNodeConfig must not be null");
+
+        final BlockNodeStats stats = nodeStats.computeIfAbsent(blockNodeConfig, k -> new BlockNodeStats());
+        stats.recordBlockProofSent(blockNumber, timestamp);
+    }
+
+    /**
+     * Records a block acknowledgement and evaluates latency for a given block node. Updates metrics and determines
+     * whether a switch should be considered due to consecutive high-latency events.
+     *
+     * @param blockNodeConfig the block node configuration that acknowledged the block
+     * @param blockNumber the acknowledged block number
+     * @param timestamp the timestamp of the block acknowledgement
+     * @return the evaluation result including latency and switching decision
+     */
+    public BlockNodeStats.HighLatencyResult recordBlockAckAndCheckLatency(
+            @NonNull final BlockNodeConfig blockNodeConfig, final long blockNumber, @NonNull final Instant timestamp) {
+        if (!isStreamingEnabled.get()) {
+            return new BlockNodeStats.HighLatencyResult(0L, 0, false, false);
+        }
+        requireNonNull(blockNodeConfig, "blockNodeConfig must not be null");
+
+        final BlockNodeStats stats = nodeStats.computeIfAbsent(blockNodeConfig, k -> new BlockNodeStats());
+        final BlockNodeStats.HighLatencyResult result = stats.recordAcknowledgementAndEvaluate(
+                blockNumber, timestamp, highLatencyThreshold, highLatencyEventsBeforeSwitching);
+        final long latencyMs = result.latencyMs();
+
+        // Update metrics
+        blockStreamMetrics.recordAcknowledgementLatency(latencyMs);
+        if (result.isHighLatency()) {
+            logWithContext(
+                    DEBUG,
+                    "[{}] A high latency event ({}ms) has occurred. A total of {} consecutive events",
+                    blockNodeConfig,
+                    latencyMs,
+                    result.consecutiveHighLatencyEvents());
+            blockStreamMetrics.recordHighLatencyEvent();
+        }
+
+        return result;
     }
 }

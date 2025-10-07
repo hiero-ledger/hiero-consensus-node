@@ -1,9 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.state.test.fixtures.merkle.singleton;
 
-import static com.swirlds.state.test.fixtures.merkle.logging.TestStateLogger.logSingletonRead;
-import static com.swirlds.state.test.fixtures.merkle.logging.TestStateLogger.logSingletonWrite;
-
 import com.hedera.pbj.runtime.Codec;
 import com.swirlds.common.merkle.MerkleInternal;
 import com.swirlds.common.merkle.impl.PartialBinaryMerkleInternal;
@@ -70,8 +67,6 @@ public class SingletonNode<T> extends PartialBinaryMerkleInternal implements Lab
 
     public T getValue() {
         final ValueLeaf<T> right = getRight();
-        // Log to transaction state log, what was read
-        logSingletonRead(getLabel(), right);
         return right.getValue();
     }
 
@@ -80,7 +75,5 @@ public class SingletonNode<T> extends PartialBinaryMerkleInternal implements Lab
         right.setValue(value);
         right.invalidateHash();
         invalidateHash();
-        // Log to transaction state log, what was written
-        logSingletonWrite(getLabel(), value);
     }
 }
