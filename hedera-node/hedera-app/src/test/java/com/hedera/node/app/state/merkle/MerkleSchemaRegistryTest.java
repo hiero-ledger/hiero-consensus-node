@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.state.merkle;
 
-import static com.swirlds.platform.test.fixtures.config.ConfigUtils.CONFIGURATION;
 import static com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade.TEST_PLATFORM_STATE_FACADE;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThatThrownBy;
@@ -175,7 +174,7 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
             final var virtualMap = VirtualMapUtils.createVirtualMap(virtualMapLabel);
             SemanticVersion latestVersion = version(10, 0, 0);
             schemaRegistry.migrate(
-                    new TestVirtualMapState(virtualMap, CONFIGURATION, new NoOpMetrics(), Time.getCurrent()),
+                    new TestVirtualMapState(virtualMap, new NoOpMetrics(), Time.getCurrent()),
                     version(9, 0, 0),
                     latestVersion,
                     config,
@@ -205,7 +204,7 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
             final var virtualMapLabel =
                     "vm-" + MerkleSchemaRegistryTest.class.getSimpleName() + "-" + java.util.UUID.randomUUID();
             merkleTree = TestVirtualMapState.createInstanceWithVirtualMapLabel(
-                    virtualMapLabel, CONFIGURATION, new NoOpMetrics(), Time.getCurrent());
+                    virtualMapLabel, new NoOpMetrics(), Time.getCurrent());
         }
 
         @AfterEach

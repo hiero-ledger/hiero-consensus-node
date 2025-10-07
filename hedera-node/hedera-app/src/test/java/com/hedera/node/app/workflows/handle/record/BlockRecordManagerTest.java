@@ -17,7 +17,6 @@ import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.RUNNING
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.RUNNING_HASHES_STATE_LABEL;
 import static com.swirlds.platform.state.service.PlatformStateService.PLATFORM_STATE_SERVICE;
 import static com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema.UNINITIALIZED_PLATFORM_STATE;
-import static com.swirlds.platform.test.fixtures.config.ConfigUtils.CONFIGURATION;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 
@@ -438,7 +437,7 @@ final class BlockRecordManagerTest extends AppTestBase {
         final var virtualMapLabel =
                 "vm-" + BlockRecordManagerTest.class.getSimpleName() + "-" + java.util.UUID.randomUUID();
         final var virtualMap = VirtualMapUtils.createVirtualMap(virtualMapLabel);
-        return new TestVirtualMapState(virtualMap, CONFIGURATION, new NoOpMetrics(), Time.getCurrent()) {
+        return new TestVirtualMapState(virtualMap, new NoOpMetrics(), Time.getCurrent()) {
             @NonNull
             @Override
             public ReadableStates getReadableStates(@NonNull final String serviceName) {

@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state;
 
-import static com.swirlds.platform.test.fixtures.config.ConfigUtils.CONFIGURATION;
 import static com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade.TEST_PLATFORM_STATE_FACADE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -25,7 +24,7 @@ public class StateEventHandlerManagerUtilsTests {
         final String virtualMapLabel =
                 "vm-" + StateEventHandlerManagerUtilsTests.class.getSimpleName() + "-" + java.util.UUID.randomUUID();
         final MerkleNodeState state = TestVirtualMapState.createInstanceWithVirtualMapLabel(
-                virtualMapLabel, CONFIGURATION, new NoOpMetrics(), Time.getCurrent());
+                virtualMapLabel, new NoOpMetrics(), Time.getCurrent());
         TestingAppStateInitializer.DEFAULT.initPlatformState(state);
         state.getRoot().reserve();
         final StateMetrics stats = mock(StateMetrics.class);

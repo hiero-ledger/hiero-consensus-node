@@ -71,10 +71,7 @@ class StateTest {
         final PlatformContext platformContext =
                 TestPlatformContextBuilder.create().build();
         MerkleNodeState merkleNodeState = TestVirtualMapState.createInstanceWithVirtualMapLabel(
-                virtualMapLabel,
-                platformContext.getConfiguration(),
-                platformContext.getMetrics(),
-                platformContext.getTime());
+                virtualMapLabel, platformContext.getMetrics(), platformContext.getTime());
         boolean shouldSaveToDisk = random.nextBoolean();
         SignedState signedState = new SignedState(
                 platformContext.getConfiguration(),

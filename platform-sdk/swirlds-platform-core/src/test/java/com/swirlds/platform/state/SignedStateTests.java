@@ -64,7 +64,7 @@ class SignedStateTests {
             final Random random, final Runnable reserveCallback, final Runnable releaseCallback) {
         final var virtualMapLabel = "vm-" + SignedStateTests.class.getSimpleName() + "-" + java.util.UUID.randomUUID();
         final var real = TestVirtualMapState.createInstanceWithVirtualMapLabel(
-                virtualMapLabel, CONFIGURATION, new NoOpMetrics(), Time.getCurrent());
+                virtualMapLabel, new NoOpMetrics(), Time.getCurrent());
         TestingAppStateInitializer.DEFAULT.initConsensusModuleStates(real);
         RosterUtils.setActiveRoster(real, RandomRosterBuilder.create(random).build(), 0L);
         final MerkleNodeState state = spy(real);
@@ -217,8 +217,7 @@ class SignedStateTests {
         final var virtualMapLabel = "vm-" + SignedStateTests.class.getSimpleName() + "-" + java.util.UUID.randomUUID();
         final var virtualMap = VirtualMapUtils.createVirtualMap(virtualMapLabel);
 
-        final MerkleNodeState state =
-                spy(new TestVirtualMapState(virtualMap, CONFIGURATION, new NoOpMetrics(), Time.getCurrent()));
+        final MerkleNodeState state = spy(new TestVirtualMapState(virtualMap, new NoOpMetrics(), Time.getCurrent()));
         final PlatformStateModifier platformState = mock(PlatformStateModifier.class);
         final TestPlatformStateFacade platformStateFacade = mock(TestPlatformStateFacade.class);
         TestingAppStateInitializer.DEFAULT.initPlatformState(state);

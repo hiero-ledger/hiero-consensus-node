@@ -9,7 +9,6 @@ import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.time.Time;
-import com.swirlds.config.api.Configuration;
 import com.swirlds.fcqueue.FCQueueStatistics;
 import com.swirlds.logging.legacy.payload.ApplicationFinishedPayload;
 import com.swirlds.merkle.map.MerkleMapMetrics;
@@ -186,7 +185,7 @@ public class MigrationTestingToolMain extends DefaultSwirldMain<MigrationTesting
      */
     @Override
     public Function<VirtualMap, MigrationTestingToolState> stateRootFromVirtualMap(
-            @NonNull final Configuration configuration, @NonNull final Metrics metrics, @NonNull final Time time) {
+            @NonNull final Metrics metrics, @NonNull final Time time) {
         throw new UnsupportedOperationException();
     }
 

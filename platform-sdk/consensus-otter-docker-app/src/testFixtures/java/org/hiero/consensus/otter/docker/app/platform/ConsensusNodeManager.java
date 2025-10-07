@@ -135,7 +135,7 @@ public class ConsensusNodeManager {
                 legacySelfId,
                 platformStateFacade,
                 platformContext,
-                virtualMap -> new OtterAppState(virtualMap, platformConfig, metrics, time));
+                virtualMap -> new OtterAppState(virtualMap, metrics, time));
         final ReservedSignedState initialState = reservedState.state();
         final MerkleNodeState state = initialState.get().getState();
 
@@ -151,7 +151,7 @@ public class ConsensusNodeManager {
                         selfId.toString(),
                         rosterHistory,
                         platformStateFacade,
-                        virtualMap -> new OtterAppState(virtualMap, platformConfig, metrics, time))
+                        virtualMap -> new OtterAppState(virtualMap, metrics, time))
                 .withPlatformContext(platformContext)
                 .withConfiguration(platformConfig)
                 .withKeysAndCerts(keysAndCerts)

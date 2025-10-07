@@ -79,7 +79,7 @@ public class MigrationTestingToolState extends MerkleStateRoot<MigrationTestingT
     }
 
     public MigrationTestingToolState() {
-        super(CONFIGURATION, new NoOpMetrics(), Time.getCurrent(), MerkleCryptographyFactory.create(CONFIGURATION));
+        super(new NoOpMetrics(), Time.getCurrent(), MerkleCryptographyFactory.create(CONFIGURATION));
     }
 
     private MigrationTestingToolState(final MigrationTestingToolState that) {

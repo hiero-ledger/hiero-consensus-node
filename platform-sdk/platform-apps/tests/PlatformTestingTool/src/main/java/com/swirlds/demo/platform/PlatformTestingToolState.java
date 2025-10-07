@@ -96,7 +96,7 @@ public class PlatformTestingToolState extends MerkleStateRoot<PlatformTestingToo
     private NodeId selfId;
 
     public PlatformTestingToolState() {
-        super(CONFIGURATION, new NoOpMetrics(), Time.getCurrent(), MerkleCryptographyFactory.create(CONFIGURATION));
+        super(new NoOpMetrics(), Time.getCurrent(), MerkleCryptographyFactory.create(CONFIGURATION));
         expectedFCMFamily = new ExpectedFCMFamilyImpl();
         referenceNftLedger = new ReferenceNftLedger(NFT_TRACKING_FRACTION);
     }

@@ -2,7 +2,6 @@
 package com.swirlds.platform.reconnect;
 
 import static com.swirlds.common.threading.manager.AdHocThreadManager.getStaticThreadManager;
-import static com.swirlds.platform.test.fixtures.config.ConfigUtils.CONFIGURATION;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -200,6 +199,6 @@ final class ReconnectTest {
                 RECONNECT_SOCKET_TIMEOUT,
                 reconnectMetrics,
                 platformStateFacade,
-                virtualMap -> new TestVirtualMapState(virtualMap, CONFIGURATION, new NoOpMetrics(), Time.getCurrent()));
+                virtualMap -> new TestVirtualMapState(virtualMap, new NoOpMetrics(), Time.getCurrent()));
     }
 }

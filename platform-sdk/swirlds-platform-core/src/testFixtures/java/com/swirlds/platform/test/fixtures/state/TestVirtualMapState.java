@@ -30,11 +30,8 @@ public class TestVirtualMapState extends VirtualMapState<TestVirtualMapState> im
     }
 
     public TestVirtualMapState(
-            @NonNull final VirtualMap virtualMap,
-            @NonNull final Configuration configuration,
-            @NonNull final Metrics metrics,
-            @NonNull final Time time) {
-        super(virtualMap, configuration, metrics, time);
+            @NonNull final VirtualMap virtualMap, @NonNull final Metrics metrics, @NonNull final Time time) {
+        super(virtualMap, metrics, time);
     }
 
     protected TestVirtualMapState(@NonNull final TestVirtualMapState from) {
@@ -51,20 +48,14 @@ public class TestVirtualMapState extends VirtualMapState<TestVirtualMapState> im
 
     @Override
     protected TestVirtualMapState newInstance(
-            @NonNull final VirtualMap virtualMap,
-            @NonNull final Configuration configuration,
-            @NonNull final Metrics metrics,
-            @NonNull final Time time) {
-        return new TestVirtualMapState(virtualMap, configuration, metrics, time);
+            @NonNull final VirtualMap virtualMap, @NonNull final Metrics metrics, @NonNull final Time time) {
+        return new TestVirtualMapState(virtualMap, metrics, time);
     }
 
     public static TestVirtualMapState createInstanceWithVirtualMapLabel(
-            @NonNull final String virtualMapLabel,
-            @NonNull final Configuration configuration,
-            @NonNull final Metrics metrics,
-            @NonNull final Time time) {
+            @NonNull final String virtualMapLabel, @NonNull final Metrics metrics, @NonNull final Time time) {
         final var virtualMap = VirtualMapUtils.createVirtualMap(virtualMapLabel);
-        return new TestVirtualMapState(virtualMap, configuration, metrics, time);
+        return new TestVirtualMapState(virtualMap, metrics, time);
     }
 
     /**

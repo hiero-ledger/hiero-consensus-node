@@ -414,7 +414,7 @@ public class Browser {
         Objects.requireNonNull(metrics);
         Objects.requireNonNull(time);
 
-        return (virtualMap) -> (com.swirlds.platform.state.MerkleNodeState)
-                appMain.stateRootFromVirtualMap(configuration, metrics, time);
+        return (virtualMap) ->
+                (com.swirlds.platform.state.MerkleNodeState) appMain.stateRootFromVirtualMap(metrics, time);
     }
 }

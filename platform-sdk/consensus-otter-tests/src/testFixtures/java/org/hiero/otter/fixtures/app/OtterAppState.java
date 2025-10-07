@@ -27,11 +27,8 @@ public class OtterAppState extends VirtualMapState<OtterAppState> implements Mer
     }
 
     public OtterAppState(
-            @NonNull final VirtualMap virtualMap,
-            @NonNull final Configuration configuration,
-            @NonNull final Metrics metrics,
-            @NonNull final Time time) {
-        super(virtualMap, configuration, metrics, time);
+            @NonNull final VirtualMap virtualMap, @NonNull final Metrics metrics, @NonNull final Time time) {
+        super(virtualMap, metrics, time);
     }
 
     /**
@@ -87,11 +84,8 @@ public class OtterAppState extends VirtualMapState<OtterAppState> implements Mer
 
     @Override
     protected OtterAppState newInstance(
-            @NonNull final VirtualMap virtualMap,
-            @NonNull final Configuration configuration,
-            @NonNull final Metrics metrics,
-            @NonNull final Time time) {
-        return new OtterAppState(virtualMap, configuration, metrics, time);
+            @NonNull final VirtualMap virtualMap, @NonNull final Metrics metrics, @NonNull final Time time) {
+        return new OtterAppState(virtualMap, metrics, time);
     }
 
     /**

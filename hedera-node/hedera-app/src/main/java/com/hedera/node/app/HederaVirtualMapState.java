@@ -49,17 +49,13 @@ public class HederaVirtualMapState extends VirtualMapState<HederaVirtualMapState
     /**
      * Constructs a {@link HederaVirtualMapState} using the specified {@link VirtualMap}.
      *
-     * @param virtualMap    the virtual map whose metrics must already be registered
-     * @param configuration the platform configuration instance to use when creating the new instance of state
-     * @param metrics       the platform metric instance to use when creating the new instance of state
-     * @param time          the time instance to use when creating the new instance of state
+     * @param virtualMap the virtual map whose metrics must already be registered
+     * @param metrics    the platform metric instance to use when creating the new instance of state
+     * @param time       the time instance to use when creating the new instance of state
      */
     public HederaVirtualMapState(
-            @NonNull final VirtualMap virtualMap,
-            @NonNull final Configuration configuration,
-            @NonNull final Metrics metrics,
-            @NonNull final Time time) {
-        super(virtualMap, configuration, metrics, time);
+            @NonNull final VirtualMap virtualMap, @NonNull final Metrics metrics, @NonNull final Time time) {
+        super(virtualMap, metrics, time);
     }
 
     protected HederaVirtualMapState(@NonNull final HederaVirtualMapState from) {
@@ -77,19 +73,15 @@ public class HederaVirtualMapState extends VirtualMapState<HederaVirtualMapState
     /**
      * Creates a new instance of {@link HederaVirtualMapState} with the specified {@link VirtualMap}.
      *
-     * @param virtualMap    the virtual map whose metrics must already be registered
-     * @param configuration the platform configuration instance to use when creating the new instance of state
-     * @param metrics       the platform metric instance to use when creating the new instance of state
-     * @param time          the time instance to use when creating the new instance of state
+     * @param virtualMap the virtual map whose metrics must already be registered
+     * @param metrics    the platform metric instance to use when creating the new instance of state
+     * @param time       the time instance to use when creating the new instance of state
      * @return a new instance of {@link HederaVirtualMapState}
      */
     @Override
     protected HederaVirtualMapState newInstance(
-            @NonNull final VirtualMap virtualMap,
-            @NonNull final Configuration configuration,
-            @NonNull final Metrics metrics,
-            @NonNull final Time time) {
-        return new HederaVirtualMapState(virtualMap, configuration, metrics, time);
+            @NonNull final VirtualMap virtualMap, @NonNull final Metrics metrics, @NonNull final Time time) {
+        return new HederaVirtualMapState(virtualMap, metrics, time);
     }
 
     /**

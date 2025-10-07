@@ -95,8 +95,6 @@ public abstract class VirtualMapState<T extends VirtualMapState<T>> implements S
      */
     private final List<StateChangeListener> listeners = new ArrayList<>();
 
-    private final Configuration configuration;
-
     private final Metrics metrics;
 
     private final Time time;
@@ -118,7 +116,7 @@ public abstract class VirtualMapState<T extends VirtualMapState<T>> implements S
      */
     public VirtualMapState(
             @NonNull final Configuration configuration, @NonNull final Metrics metrics, @NonNull final Time time) {
-        this.configuration = requireNonNull(configuration);
+        requireNonNull(configuration);
         this.metrics = requireNonNull(metrics);
         this.time = requireNonNull(time);
         final MerkleDbDataSourceBuilder dsBuilder;
@@ -134,18 +132,13 @@ public abstract class VirtualMapState<T extends VirtualMapState<T>> implements S
     /**
      * Initializes a {@link VirtualMapState} with the specified {@link VirtualMap}.
      *
-     * @param virtualMap    the virtual map with pre-registered metrics
-     * @param configuration the platform configuration instance to use when creating the new instance of state
-     * @param metrics       the platform metric instance to use when creating the new instance of state
-     * @param time          the time instance to use when creating the new instance of state
+     * @param virtualMap the virtual map with pre-registered metrics
+     * @param metrics    the platform metric instance to use when creating the new instance of state
+     * @param time       the time instance to use when creating the new instance of state
      */
     public VirtualMapState(
-            @NonNull final VirtualMap virtualMap,
-            @NonNull final Configuration configuration,
-            @NonNull final Metrics metrics,
-            @NonNull final Time time) {
+            @NonNull final VirtualMap virtualMap, @NonNull final Metrics metrics, @NonNull final Time time) {
         this.virtualMap = requireNonNull(virtualMap);
-        this.configuration = requireNonNull(configuration);
         this.metrics = requireNonNull(metrics);
         this.time = requireNonNull(time);
         this.snapshotMetrics = new MerkleRootSnapshotMetrics(metrics);
@@ -158,7 +151,6 @@ public abstract class VirtualMapState<T extends VirtualMapState<T>> implements S
      */
     protected VirtualMapState(@NonNull final VirtualMapState<T> from) {
         this.virtualMap = from.virtualMap.copy();
-        this.configuration = from.configuration;
         this.metrics = from.metrics;
         this.time = from.time;
         this.startupMode = from.startupMode;
@@ -180,13 +172,11 @@ public abstract class VirtualMapState<T extends VirtualMapState<T>> implements S
     /**
      * Creates a new instance.
      *
-     * @param virtualMap    should have already registered metrics
-     * @param configuration the platform configuration instance to use when creating the new instance of state
-     * @param metrics       the platform metric instance to use when creating the new instance of state
-     * @param time          the time instance to use when creating the new instance of state
+     * @param virtualMap should have already registered metrics
+     * @param metrics    the platform metric instance to use when creating the new instance of state
+     * @param time       the time instance to use when creating the new instance of state
      */
-    protected abstract T newInstance(
-            @NonNull final VirtualMap virtualMap, Configuration configuration, Metrics metrics, Time time);
+    protected abstract T newInstance(@NonNull final VirtualMap virtualMap, Metrics metrics, Time time);
 
     // State interface implementation
 
@@ -279,7 +269,7 @@ public abstract class VirtualMapState<T extends VirtualMapState<T>> implements S
         readVirtualMap.release();
         readVirtualMap = mutableCopy;
 
-        return newInstance(readVirtualMap, configuration, metrics, time);
+        return newInstance(readVirtualMap, metrics, time);
     }
 
     // MerkleNodeState interface implementation

@@ -52,7 +52,7 @@ public class StatsDemoState extends MerkleStateRoot<StatsDemoState> implements M
     private static final long CLASS_ID = 0xc550a1cd94e91ca3L;
 
     public StatsDemoState() {
-        super(CONFIGURATION, new NoOpMetrics(), Time.getCurrent(), MerkleCryptographyFactory.create(CONFIGURATION));
+        super(new NoOpMetrics(), Time.getCurrent(), MerkleCryptographyFactory.create(CONFIGURATION));
     }
 
     private StatsDemoState(final StatsDemoState sourceState) {

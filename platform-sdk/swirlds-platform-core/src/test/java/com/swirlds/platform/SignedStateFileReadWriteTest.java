@@ -140,11 +140,8 @@ class SignedStateFileReadWriteTest {
                 TestPlatformContextBuilder.create().build();
         final DeserializedSignedState deserializedSignedState = readStateFile(
                 stateFile,
-                virtualMap -> new TestVirtualMapState(
-                        virtualMap,
-                        platformContext.getConfiguration(),
-                        platformContext.getMetrics(),
-                        platformContext.getTime()),
+                virtualMap ->
+                        new TestVirtualMapState(virtualMap, platformContext.getMetrics(), platformContext.getTime()),
                 TEST_PLATFORM_STATE_FACADE,
                 platformContext);
         hashState(deserializedSignedState.reservedSignedState().get());

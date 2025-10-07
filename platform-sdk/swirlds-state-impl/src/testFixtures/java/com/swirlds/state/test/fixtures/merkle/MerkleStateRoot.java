@@ -109,7 +109,7 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
     /**
      * Metrics for the snapshot creation process
      */
-    private MerkleRootSnapshotMetrics snapshotMetrics = new MerkleRootSnapshotMetrics();
+    private final MerkleRootSnapshotMetrics snapshotMetrics;
 
     /**
      * Maintains information about all services known by this instance. Map keys are
@@ -136,8 +136,6 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
      */
     private final RuntimeObjectRecord registryRecord;
 
-    private final Configuration configuration;
-
     private final Metrics metrics;
 
     private final Time time;
@@ -149,12 +147,10 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
      *
      */
     public MerkleStateRoot(
-            @NonNull final Configuration configuration,
             @NonNull final Metrics metrics,
             @NonNull final Time time,
             @NonNull final MerkleCryptography merkleCryptography) {
         this.registryRecord = RuntimeObjectRegistry.createRecord(getClass());
-        this.configuration = requireNonNull(configuration);
         this.metrics = requireNonNull(metrics);
         this.time = requireNonNull(time);
         this.merkleCryptography = requireNonNull(merkleCryptography);
@@ -170,7 +166,6 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
         // Copy the Merkle route from the source instance
         super(from);
         this.registryRecord = RuntimeObjectRegistry.createRecord(getClass());
-        this.configuration = from.configuration;
         this.metrics = from.metrics;
         this.time = from.time;
         this.merkleCryptography = from.merkleCryptography;

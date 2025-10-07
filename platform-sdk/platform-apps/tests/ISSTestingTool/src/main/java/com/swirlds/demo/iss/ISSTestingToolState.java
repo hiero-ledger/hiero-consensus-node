@@ -19,7 +19,6 @@ import com.swirlds.base.time.Time;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.crypto.MerkleCryptographyFactory;
 import com.swirlds.common.metrics.noop.NoOpMetrics;
-import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
@@ -84,7 +83,7 @@ public class ISSTestingToolState extends MerkleStateRoot<ISSTestingToolState> im
     private List<PlannedLogError> plannedLogErrorList = new LinkedList<>();
 
     public ISSTestingToolState() {
-        super(CONFIGURATION, new NoOpMetrics(), Time.getCurrent(), MerkleCryptographyFactory.create(CONFIGURATION));
+        super(new NoOpMetrics(), Time.getCurrent(), MerkleCryptographyFactory.create(CONFIGURATION));
     }
 
     public void initState(InitTrigger trigger, Platform platform) {

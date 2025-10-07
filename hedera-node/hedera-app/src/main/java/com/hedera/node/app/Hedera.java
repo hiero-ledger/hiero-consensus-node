@@ -594,8 +594,8 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
      */
     @Override
     public Function<VirtualMap, MerkleNodeState> stateRootFromVirtualMap(
-            @NonNull final Configuration configuration, @NonNull final Metrics metrics, @NonNull final Time time) {
-        return virtualMap -> new HederaVirtualMapState(virtualMap, configuration, metrics, time);
+            @NonNull final Metrics metrics, @NonNull final Time time) {
+        return virtualMap -> new HederaVirtualMapState(virtualMap, metrics, time);
     }
 
     /**

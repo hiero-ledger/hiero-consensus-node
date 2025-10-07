@@ -161,8 +161,8 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
      */
     @Override
     public Function<VirtualMap, MerkleNodeState> stateRootFromVirtualMap(
-            @NonNull final Configuration configuration, @NonNull final Metrics metrics, @NonNull final Time time) {
-        return hederaOrThrow().stateRootFromVirtualMap(configuration, metrics, time);
+            @NonNull final Metrics metrics, @NonNull final Time time) {
+        return hederaOrThrow().stateRootFromVirtualMap(metrics, time);
     }
 
     /**
@@ -346,7 +346,7 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
                 selfId,
                 platformStateFacade,
                 platformContext,
-                hedera.stateRootFromVirtualMap(platformConfig, metrics, time));
+                hedera.stateRootFromVirtualMap(metrics, time));
         final ReservedSignedState initialState = reservedState.state();
         final MerkleNodeState state = initialState.get().getState();
         if (genesisNetwork.get() == null) {
@@ -381,7 +381,7 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
                                 .orElseGet(() -> canonicalEventStreamLoc(selfId.id(), state)),
                         rosterHistory,
                         platformStateFacade,
-                        hedera.stateRootFromVirtualMap(platformConfig, metrics, time))
+                        hedera.stateRootFromVirtualMap(metrics, time))
                 .withPlatformContext(platformContext)
                 .withConfiguration(platformConfig)
                 .withKeysAndCerts(keysAndCerts)

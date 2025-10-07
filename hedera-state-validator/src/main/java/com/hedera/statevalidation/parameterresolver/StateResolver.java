@@ -76,10 +76,7 @@ public class StateResolver implements ParameterResolver {
         deserializedSignedState = readStateFile(
                 Path.of(Constants.STATE_DIR, "SignedState.swh").toAbsolutePath(),
                 virtualMap -> new HederaVirtualMapState(
-                        virtualMap,
-                        PLATFORM_CONTEXT.getConfiguration(),
-                        PLATFORM_CONTEXT.getMetrics(),
-                        PLATFORM_CONTEXT.getTime()),
+                        virtualMap, PLATFORM_CONTEXT.getMetrics(), PLATFORM_CONTEXT.getTime()),
                 platformStateFacade,
                 PLATFORM_CONTEXT);
 

@@ -190,7 +190,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
                     selfId,
                     platformStateFacade,
                     platformContext,
-                    virtualMap -> new OtterAppState(virtualMap, currentConfiguration, metrics, time));
+                    virtualMap -> new OtterAppState(virtualMap, metrics, time));
 
             final ReservedSignedState initialState = reservedState.state();
             final State state = initialState.get().getState();
@@ -211,7 +211,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
                             eventStreamLoc,
                             rosterHistory,
                             platformStateFacade,
-                            virtualMap -> new OtterAppState(virtualMap, currentConfiguration, metrics, time))
+                            virtualMap -> new OtterAppState(virtualMap, metrics, time))
                     .withPlatformContext(platformContext)
                     .withConfiguration(currentConfiguration)
                     .withKeysAndCerts(keysAndCerts)
