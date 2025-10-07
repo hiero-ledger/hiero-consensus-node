@@ -88,12 +88,12 @@ public class GenerateStateTool {
      * @throws IOException if file operations fail
      */
     public void cleanUpDirectory(final Path rootOutputDirectory) throws IOException {
+        Path maxRoundPath = null;
         try (final DirectoryStream<Path> stream = Files.newDirectoryStream(rootOutputDirectory)) {
             for (final Path path : stream) {
                 if (Files.isDirectory(path)) {
                     if (path.getFileName().toString().equals(OtterApp.APP_NAME)) {
-                        final Path maxRoundPath = cleanUpState(path);
-                        preparePces(rootOutputDirectory, maxRoundPath);
+                        maxRoundPath = cleanUpState(path);
                     } else {
                         FileUtils.deleteDirectory(path);
                     }
@@ -101,6 +101,12 @@ public class GenerateStateTool {
                     Files.delete(path);
                 }
             }
+        }
+
+        if (maxRoundPath != null) {
+            preparePces(rootOutputDirectory, maxRoundPath);
+        } else {
+            throw new IllegalStateException("Max round path not found");
         }
     }
 
@@ -173,7 +179,7 @@ public class GenerateStateTool {
      */
     public void copyFilesInPlace(@NonNull final Path rootOutputDirectory) throws IOException {
         final Path savedStateDirectory = Path.of(
-                "platform-sdk", "consensus-otter-tests", "src", "testFixtures", "resources", "previous-version-state");
+                "platform-sdk", "consensus-otter-tests", "saved-states", "previous-version-state");
 
         if (Files.exists(savedStateDirectory)) {
             FileUtils.deleteDirectory(savedStateDirectory);

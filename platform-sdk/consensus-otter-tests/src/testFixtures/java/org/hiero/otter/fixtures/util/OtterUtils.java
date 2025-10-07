@@ -39,7 +39,7 @@ public class OtterUtils {
     public static Path findSaveState(final @NonNull String savedStateDirectory) {
         final Path savedState;
         if (!savedStateDirectory.isEmpty()) {
-            savedState = Path.of("src", "testFixtures", "resources", savedStateDirectory);
+            savedState = Path.of("saved-states", savedStateDirectory);
             if (!Files.exists(savedState)) {
                 throw new IllegalArgumentException("Saved state directory not found");
             }
