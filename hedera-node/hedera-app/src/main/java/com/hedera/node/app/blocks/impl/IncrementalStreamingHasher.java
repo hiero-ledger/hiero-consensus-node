@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.blocks.impl;
 
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.LinkedList;
@@ -23,7 +24,7 @@ public class IncrementalStreamingHasher {
     /** A list to store intermediate hashes as we build the tree. */
     private final LinkedList<byte[]> hashList = new LinkedList<>();
     /** The count of leaves in the tree. */
-    private long leafCount = 0;
+    private int leafCount = 0;
 
     /** Create a new StreamingHasher with an empty state. */
     public IncrementalStreamingHasher() {
@@ -81,8 +82,9 @@ public class IncrementalStreamingHasher {
      *
      * @return the intermediate hashing state
      */
-    public List<byte[]> intermediateHashingState() {
-        return hashList;
+    public List<Bytes> intermediateHashingState() {
+		// do we need to copy the arrays here so they don't change?
+        return hashList.stream().map(Bytes::wrap).toList();
     }
 
     /**
@@ -90,7 +92,7 @@ public class IncrementalStreamingHasher {
      *
      * @return the number of leaves
      */
-    public long leafCount() {
+    public int leafCount() {
         return leafCount;
     }
 
