@@ -534,9 +534,11 @@ public class BlockBufferService {
             return;
         }
 
-        // collect all closed blocks
-        final List<BlockState> blocksToPersist =
-                blockBuffer.values().stream().filter(BlockState::isClosed).toList();
+        // collect all closed blocks which are not acked yet
+        final List<BlockState> blocksToPersist = blockBuffer.values().stream()
+                .filter(BlockState::isClosed)
+                .filter(blockState -> blockState.blockNumber() > highestAckedBlockNumber.get())
+                .toList();
 
         // ensure all closed blocks have their items packed in requests before writing them out
         final int batchSize = blockItemBatchSize();
