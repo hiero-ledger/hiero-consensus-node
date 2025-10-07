@@ -7,6 +7,8 @@ import static java.util.stream.Collectors.toMap;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
+import com.hedera.node.app.spi.migrate.HederaMigrationContext;
+import com.hedera.node.app.spi.migrate.StartupNetworks;
 import com.hedera.node.config.data.NetworkAdminConfig;
 import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.lifecycle.Schema;

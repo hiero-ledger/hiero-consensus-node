@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.hedera.node.app.services;
+package com.hedera.node.app.spi.migrate;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.swirlds.state.lifecycle.MigrationContext;
