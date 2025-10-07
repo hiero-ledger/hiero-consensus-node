@@ -13,7 +13,6 @@ import com.hedera.hapi.streams.CallOperationType;
 import com.hedera.hapi.streams.ContractAction;
 import com.hedera.hapi.streams.ContractActionType;
 import com.hedera.node.app.service.contract.impl.exec.utils.ActionsHelper;
-import com.hedera.node.app.service.contract.impl.exec.utils.InvalidAddressContext;
 import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import org.hyperledger.besu.evm.frame.MessageFrame;
@@ -112,8 +111,6 @@ class ActionsHelperTest {
         given(frame.getRemainingGas()).willReturn(REMAINING_GAS);
         given(frame.getDepth()).willReturn(STACK_DEPTH);
         givenResolvableEvmAddress();
-        final var invalidAddressContext = new InvalidAddressContext();
-        invalidAddressContext.set(NON_SYSTEM_LONG_ZERO_ADDRESS, true);
         given(operation.getOpcode()).willReturn(0xF1);
         given(frame.getContractAddress()).willReturn(EIP_1014_ADDRESS);
         given(frame.getCurrentOperation()).willReturn(operation);
@@ -129,7 +126,7 @@ class ActionsHelperTest {
                 .error(Bytes.wrap("INVALID_SOLIDITY_ADDRESS".getBytes()))
                 .callOperationType(CallOperationType.OP_CALL)
                 .build();
-        final var actualAction = subject.createSynthActionForMissingAddressIn(frame, invalidAddressContext);
+        final var actualAction = subject.createSynthActionForMissingAddressIn(frame, NON_SYSTEM_LONG_ZERO_ADDRESS);
 
         assertEquals(expectedAction, actualAction);
     }

@@ -318,7 +318,7 @@ class ActionStackTest {
         invalidAddressContext.set(Address.ZERO, true);
         given(parentFrame.getMessageFrameStack()).willReturn(new ArrayDeque<>());
         given(parentFrame.getContextVariable(INVALID_ADDRESS_CONTEXT_VARIABLE)).willReturn(invalidAddressContext);
-        given(helper.createSynthActionForMissingAddressIn(parentFrame, invalidAddressContext))
+        given(helper.createSynthActionForMissingAddressIn(parentFrame, Address.ZERO))
                 .willReturn(MISSING_ADDRESS_CALL_ACTION);
 
         subject.finalizeLastAction(parentFrame, ActionStack.Validation.OFF);

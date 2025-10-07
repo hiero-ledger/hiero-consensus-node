@@ -18,7 +18,6 @@ import com.hedera.node.app.service.contract.impl.exec.utils.InvalidAddressContex
 import com.hedera.node.app.service.contract.impl.state.AbstractProxyEvmAccount;
 import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
 import edu.umd.cs.findbugs.annotations.NonNull;
-
 import java.util.ArrayDeque;
 import java.util.Optional;
 import org.hyperledger.besu.datatypes.Address;
