@@ -5,6 +5,15 @@ import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 class RosterServiceTest {
+    private final RosterService subject = registry -> {
+        // Intentional no-op
+    };
+
+    @Test
+    void nameMatches() {
+        Assertions.assertThat(subject.getServiceName()).isEqualTo(RosterService.NAME);
+    }
+
     @Test
     void instanceCantLoadWithoutImplementation() {
         Assertions.assertThatExceptionOfType(IllegalStateException.class)
