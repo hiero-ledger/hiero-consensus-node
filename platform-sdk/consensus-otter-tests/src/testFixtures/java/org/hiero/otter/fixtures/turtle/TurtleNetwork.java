@@ -9,6 +9,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -18,6 +19,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.otter.fixtures.InstrumentedNode;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.TimeManager;
@@ -143,6 +145,11 @@ public class TurtleNetwork extends AbstractNetwork implements TimeTickReceiver {
         final int size = nodes().size();
         executorService = NodeLoggingContext.wrap(Executors.newFixedThreadPool(
                 Math.min(size, Runtime.getRuntime().availableProcessors()), new ContextAwareThreadFactory()));
+    }
+
+    @Override
+    protected void doSendQuiescenceCommand(@NonNull final QuiescenceCommand command, @NonNull final Duration timeout) {
+        nodes().forEach(node -> node.sendQuiescenceCommand(command));
     }
 
     /**
