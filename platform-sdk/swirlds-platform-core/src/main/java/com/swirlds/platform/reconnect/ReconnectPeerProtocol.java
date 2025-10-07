@@ -142,7 +142,7 @@ public class ReconnectPeerProtocol implements PeerProtocol {
     @Override
     public boolean shouldInitiate() {
         // if this neighbor has not told me I have fallen behind, I will not reconnect with him
-        if (!fallenBehindManager.shouldReconnectFrom(peerId)) {
+        if (!fallenBehindManager.wasReportedByPeer(peerId)) {
             return false;
         }
 
