@@ -73,8 +73,7 @@ class ProofControllerImplTest {
             HistoryProofConstruction.newBuilder()
                     .constructionId(CONSTRUCTION_ID)
                     .assemblyStartTime(asTimestamp(CONSENSUS_NOW))
-                    .sourceProof(new HistoryProof(
-                            Bytes.EMPTY, List.of(new ProofKey(SELF_ID, Bytes.EMPTY)), History.DEFAULT, PROOF))
+                    .sourceProof(new HistoryProof(List.of(new ProofKey(SELF_ID, Bytes.EMPTY)), History.DEFAULT, PROOF))
                     .build();
     private static final HistoryProofConstruction FINISHED_CONSTRUCTION = HistoryProofConstruction.newBuilder()
             .constructionId(CONSTRUCTION_ID)
@@ -373,6 +372,7 @@ class ProofControllerImplTest {
             @Nullable final Bytes ledgerId) {
         subject = new ProofControllerImpl(
                 SELF_ID,
+                true,
                 PROOF_KEY_PAIR,
                 ledgerId,
                 construction,

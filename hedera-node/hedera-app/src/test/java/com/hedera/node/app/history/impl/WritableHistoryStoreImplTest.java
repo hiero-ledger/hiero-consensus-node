@@ -278,13 +278,12 @@ class WritableHistoryStoreImplTest {
                 HistoryProofConstruction.newBuilder().constructionId(123L).build(),
                 HistoryProofConstruction.newBuilder().constructionId(456L).build());
 
-        final var bookHash = Bytes.wrap("DOODLE");
-        final var proof =
-                new HistoryProof(bookHash, List.of(ProofKey.DEFAULT), History.DEFAULT, ChainOfTrustProof.DEFAULT);
+        final var proofKey = new ProofKey(123L, Bytes.wrap("DOODLE"));
+        final var proof = new HistoryProof(List.of(proofKey), History.DEFAULT, ChainOfTrustProof.DEFAULT);
         subject.completeProof(456L, proof);
 
         final var construction = this.<HistoryProofConstruction>getSingleton(NEXT_PROOF_CONSTRUCTION_STATE_ID);
-        assertEquals(bookHash, construction.targetProofOrThrow().sourceAddressBookHash());
+        assertEquals(List.of(proofKey), construction.targetProofOrThrow().targetProofKeys());
     }
 
     @Test

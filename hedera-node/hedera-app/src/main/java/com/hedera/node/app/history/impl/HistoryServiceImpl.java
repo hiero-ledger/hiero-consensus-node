@@ -84,7 +84,12 @@ public class HistoryServiceImpl implements HistoryService {
                 if (!construction.hasTargetProof()) {
                     final var controller = component
                             .controllers()
-                            .getOrCreateFor(activeRosters, construction, historyStore, activeConstruction);
+                            .getOrCreateFor(
+                                    activeRosters,
+                                    construction,
+                                    historyStore,
+                                    activeConstruction,
+                                    tssConfig.wrapsEnabled());
                     controller.advanceConstruction(now, metadata, historyStore, isActive);
                 }
             }

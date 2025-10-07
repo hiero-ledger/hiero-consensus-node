@@ -60,13 +60,15 @@ public class ProofControllers {
      * @param construction the construction
      * @param historyStore the history store
      * @param activeHintsConstruction the active hinTS construction, if any
+     * @param wrapsEnabled whether recursive chain-of-trust proofs are enabled
      * @return the result of the operation
      */
     public @NonNull ProofController getOrCreateFor(
             @NonNull final ActiveRosters activeRosters,
             @NonNull final HistoryProofConstruction construction,
             @NonNull final ReadableHistoryStore historyStore,
-            @Nullable final HintsConstruction activeHintsConstruction) {
+            @Nullable final HintsConstruction activeHintsConstruction,
+            final boolean wrapsEnabled) {
         requireNonNull(activeRosters);
         requireNonNull(construction);
         requireNonNull(historyStore);
@@ -74,7 +76,8 @@ public class ProofControllers {
             if (controller != null) {
                 controller.cancelPendingWork();
             }
-            controller = newControllerFor(activeRosters, construction, historyStore, activeHintsConstruction);
+            controller =
+                    newControllerFor(activeRosters, construction, historyStore, activeHintsConstruction, wrapsEnabled);
         }
         return requireNonNull(controller);
     }
@@ -107,13 +110,15 @@ public class ProofControllers {
      * @param construction the proof construction
      * @param historyStore the history store
      * @param activeHintsConstruction the active hinTS construction, if any
+     * @param wrapsEnabled whether recursive chain-of-trust proofs are enabled
      * @return the controller
      */
     private ProofController newControllerFor(
             @NonNull final ActiveRosters activeRosters,
             @NonNull final HistoryProofConstruction construction,
             @NonNull final ReadableHistoryStore historyStore,
-            @Nullable final HintsConstruction activeHintsConstruction) {
+            @Nullable final HintsConstruction activeHintsConstruction,
+            final boolean wrapsEnabled) {
         final var weights = activeRosters.transitionWeights(maybeWeightsFrom(activeHintsConstruction));
         if (!weights.sourceNodesHaveTargetThreshold()) {
             return new InertProofController(construction.constructionId());
@@ -126,6 +131,7 @@ public class ProofControllers {
             final var schnorrKeyPair = keyAccessor.getOrCreateSchnorrKeyPair(construction.constructionId());
             return new ProofControllerImpl(
                     selfId,
+                    wrapsEnabled,
                     schnorrKeyPair,
                     historyStore.getLedgerId(),
                     construction,

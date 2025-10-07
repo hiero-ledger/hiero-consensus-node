@@ -75,13 +75,13 @@ class ProofControllersTest {
 
         assertTrue(subject.getAnyInProgress().isEmpty());
         final var firstController =
-                subject.getOrCreateFor(activeRosters, ONE_CONSTRUCTION, historyStore, HintsConstruction.DEFAULT);
+                subject.getOrCreateFor(activeRosters, ONE_CONSTRUCTION, historyStore, HintsConstruction.DEFAULT, true);
         assertTrue(subject.getAnyInProgress().isEmpty());
         assertTrue(subject.getInProgressById(1L).isEmpty());
         assertTrue(subject.getInProgressById(2L).isEmpty());
         assertInstanceOf(InertProofController.class, firstController);
         final var secondController =
-                subject.getOrCreateFor(activeRosters, twoConstruction, historyStore, HintsConstruction.DEFAULT);
+                subject.getOrCreateFor(activeRosters, twoConstruction, historyStore, HintsConstruction.DEFAULT, true);
         assertNotSame(firstController, secondController);
         assertInstanceOf(InertProofController.class, secondController);
     }
@@ -94,7 +94,7 @@ class ProofControllersTest {
         given(selfNodeInfoSupplier.get()).willReturn(selfNodeInfo);
 
         final var controller =
-                subject.getOrCreateFor(activeRosters, ONE_CONSTRUCTION, historyStore, HintsConstruction.DEFAULT);
+                subject.getOrCreateFor(activeRosters, ONE_CONSTRUCTION, historyStore, HintsConstruction.DEFAULT, true);
 
         assertInstanceOf(ProofControllerImpl.class, controller);
     }

@@ -898,25 +898,23 @@ public class HandleWorkflow {
                     }
                 }
             });
-        }
-        if (tssConfig.historyEnabled()) {
-            historyService.onFinishedConstruction((historyStore, construction) -> {
-                if (historyStore.getActiveConstruction().constructionId() == construction.constructionId()) {
-                    // We just finished the genesis proof, so we use it immediately and set the ledger id
-                    final var proof = construction.targetProofOrThrow();
-                    historyService.setLatestHistoryProof(proof);
-                    final var ledgerId = proof.sourceAddressBookHash();
-                    historyStore.setLedgerId(ledgerId);
-                    logger.info("Set ledger id to {}", ledgerId);
-                    return;
-                }
-                final var rosterStore = new ReadableRosterStoreImpl(state.getReadableStates(RosterService.NAME));
-                if (rosterStore.candidateIsWeightRotation()) {
-                    historyStore.handoff(
-                            requireNonNull(rosterStore.getActiveRoster()),
-                            requireNonNull(rosterStore.getCandidateRoster()),
-                            requireNonNull(rosterStore.getCandidateRosterHash()));
-                    if (tssConfig.hintsEnabled()) {
+            if (tssConfig.historyEnabled()) {
+                historyService.onFinishedConstruction((historyStore, construction) -> {
+                    final var rosterStore = new ReadableRosterStoreImpl(state.getReadableStates(RosterService.NAME));
+                    if (historyStore.getActiveConstruction().constructionId() == construction.constructionId()) {
+                        // We just finished the genesis proof, so we use it immediately
+                        final var proof = construction.targetProofOrThrow();
+                        historyService.setLatestHistoryProof(proof);
+                        final var ledgerId = proof.targetHistoryOrThrow().addressBookHash();
+                        historyStore.setLedgerId(ledgerId);
+                        logger.info("Set ledger id to '{}'", ledgerId);
+                        return;
+                    }
+                    if (rosterStore.candidateIsWeightRotation()) {
+                        historyStore.handoff(
+                                requireNonNull(rosterStore.getActiveRoster()),
+                                requireNonNull(rosterStore.getCandidateRoster()),
+                                requireNonNull(rosterStore.getCandidateRosterHash()));
                         final var writableHintsStates = state.getWritableStates(HintsService.NAME);
                         final var writableEntityStates = state.getWritableStates(EntityIdService.NAME);
                         final var entityCounters = new WritableEntityIdStore(writableEntityStates);
@@ -928,8 +926,8 @@ public class HandleWorkflow {
                                 requireNonNull(rosterStore.getCandidateRosterHash()),
                                 tssConfig.forceHandoffs());
                     }
-                }
-            });
+                });
+            }
         }
     }
 

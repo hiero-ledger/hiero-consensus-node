@@ -143,7 +143,7 @@ class HistoryServiceImplTest {
                 .willReturn(HistoryProofConstruction.DEFAULT);
         given(component.controllers()).willReturn(controllers);
         given(controllers.getOrCreateFor(
-                        activeRosters, HistoryProofConstruction.DEFAULT, store, HintsConstruction.DEFAULT))
+                        activeRosters, HistoryProofConstruction.DEFAULT, store, HintsConstruction.DEFAULT, true))
                 .willReturn(controller);
 
         subject.reconcile(activeRosters, CURRENT_VK, store, CONSENSUS_NOW, tssConfig, true, HintsConstruction.DEFAULT);

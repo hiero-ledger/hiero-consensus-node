@@ -3,7 +3,6 @@ package com.hedera.services.bdd.junit.hedera.embedded.fakes;
 
 import com.hedera.hapi.node.state.hints.HintsConstruction;
 import com.hedera.hapi.node.state.roster.Roster;
-import com.hedera.node.app.blocks.BlockHashSigner;
 import com.hedera.node.app.hints.HintsService;
 import com.hedera.node.app.hints.WritableHintsStore;
 import com.hedera.node.app.hints.handlers.HintsHandlers;

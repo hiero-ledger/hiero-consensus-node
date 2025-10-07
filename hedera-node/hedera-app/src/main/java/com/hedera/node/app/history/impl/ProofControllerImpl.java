@@ -48,9 +48,10 @@ import org.apache.logging.log4j.Logger;
 public class ProofControllerImpl implements ProofController {
     private static final Logger log = LogManager.getLogger(ProofControllerImpl.class);
     private static final Comparator<ProofKey> PROOF_KEY_COMPARATOR = Comparator.comparingLong(ProofKey::nodeId);
-    private static final Bytes EMPTY_PUBLIC_KEY = Bytes.wrap(new byte[32]);
     private static final int INSUFFICIENT_SIGNATURES_CHECK_RETRY_SECS = 10;
     private static final String INSUFFICIENT_SIGNATURES_FAILURE_REASON = "insufficient signatures";
+
+    public static final Bytes EMPTY_PUBLIC_KEY = Bytes.wrap(new byte[32]);
 
     /**
      * Because the native library allocates so much memory for a proof, and cancelling an in-progress
@@ -72,6 +73,7 @@ public class ProofControllerImpl implements ProofController {
     @Nullable
     private final Bytes ledgerId;
 
+    private final boolean wrapsEnabled;
     private final Executor executor;
     private final SchnorrKeyPair schnorrKeyPair;
     private final HistoryLibrary library;
@@ -136,6 +138,7 @@ public class ProofControllerImpl implements ProofController {
 
     public ProofControllerImpl(
             final long selfId,
+            final boolean wrapsEnabled,
             @NonNull final SchnorrKeyPair schnorrKeyPair,
             @Nullable final Bytes ledgerId,
             @NonNull final HistoryProofConstruction construction,
@@ -148,6 +151,7 @@ public class ProofControllerImpl implements ProofController {
             @NonNull final Map<Long, HistoryProofVote> votes,
             @NonNull final HistoryService historyService) {
         this.selfId = selfId;
+        this.wrapsEnabled = wrapsEnabled;
         this.ledgerId = ledgerId;
         this.executor = requireNonNull(executor);
         this.library = requireNonNull(library);
@@ -206,15 +210,29 @@ public class ProofControllerImpl implements ProofController {
             if (stillCollectingSignatures && isActive) {
                 if (!votes.containsKey(selfId) && proofFuture == null) {
                     if (hasSufficientSignatures()) {
-                        if (RUNNING_PROOF_FUTURE != null && !RUNNING_PROOF_FUTURE.isDone()) {
-                            log.warn(
-                                    "Proof future for construction #{} must wait until previous finished",
-                                    construction.constructionId());
+                        final var choice = requireNonNull(firstSufficientSignatures());
+                        final var signatures = verificationFutures.headMap(choice.cutoff(), true).values().stream()
+                                .map(CompletableFuture::join)
+                                .filter(v -> choice.history().equals(v.history()) && v.isValid())
+                                .collect(toMap(
+                                        Verification::nodeId,
+                                        v -> v.historySignature().signature(),
+                                        (a, b) -> a,
+                                        TreeMap::new));
+                        // We only use recursive proofs after the ledger id is known and proved via list-of-signatures
+                        if (ledgerId != null && wrapsEnabled) {
+                            if (RUNNING_PROOF_FUTURE != null && !RUNNING_PROOF_FUTURE.isDone()) {
+                                log.warn(
+                                        "Proof future for construction #{} must wait until previous finished",
+                                        construction.constructionId());
+                            }
+                            proofFuture = Optional.ofNullable(RUNNING_PROOF_FUTURE)
+                                    .orElse(CompletableFuture.completedFuture(null))
+                                    .thenCompose(ignore -> startProofFuture(signatures));
+                            log.info("Created proof future for construction #{}", construction.constructionId());
+                        } else {
+                            // Otherwise we synchronously complete the proof via list-of-signatures
                         }
-                        proofFuture = Optional.ofNullable(RUNNING_PROOF_FUTURE)
-                                .orElse(CompletableFuture.completedFuture(null))
-                                .thenCompose(ignore -> startProofFuture());
-                        log.info("Created proof future for construction #{}", construction.constructionId());
                     } else if (!signingNodeIds.contains(selfId) && signingFuture == null) {
                         signingFuture = startSigningFuture();
                         log.info("Started signing future for construction #{}", construction.constructionId());
@@ -328,6 +346,17 @@ public class ProofControllerImpl implements ProofController {
     }
 
     /**
+     * Returns the proof keys used for the given proof.
+     *
+     * @param proof the proof
+     * @return the proof keys
+     */
+    public static Map<Long, Bytes> proofKeyMapFrom(@NonNull final HistoryProof proof) {
+        requireNonNull(proof);
+        return proof.targetProofKeys().stream().collect(toMap(ProofKey::nodeId, ProofKey::key));
+    }
+
+    /**
      * Applies a deterministic policy to recommend an assembly behavior at the given time.
      *
      * @param now the current consensus time
@@ -385,17 +414,13 @@ public class ProofControllerImpl implements ProofController {
     private CompletableFuture<Void> startSigningFuture() {
         requireNonNull(targetMetadata);
         final var proofKeys = Map.copyOf(targetProofKeys);
-        final var nodeIds = weights.targetNodeWeights().keySet().stream()
-                .mapToLong(Long::longValue)
-                .toArray();
-        final var targetWeights =
-                Arrays.stream(nodeIds).map(weights::targetWeightOf).toArray();
-        final var proofKeysArray = Arrays.stream(nodeIds)
-                .mapToObj(id -> proofKeys.getOrDefault(id, EMPTY_PUBLIC_KEY).toByteArray())
-                .toArray(byte[][]::new);
         return CompletableFuture.runAsync(
                         () -> {
-                            final var targetHash = library.hashAddressBook(targetWeights, proofKeysArray);
+                            final var targetHash = HistoryLibrary.computeHash(
+                                    library,
+                                    weights.targetNodeWeights().keySet(),
+                                    weights::targetWeightOf,
+                                    id -> proofKeys.getOrDefault(id, EMPTY_PUBLIC_KEY));
                             final var history = new History(targetHash, targetMetadata);
                             final var message = encodeHistoryForSigning(history);
                             final var signature = library.signSchnorr(message, schnorrKeyPair.privateKey());
@@ -415,24 +440,13 @@ public class ProofControllerImpl implements ProofController {
      * Returns a future that completes when the node has completed its metadata proof and submitted
      * the corresponding vote.
      */
-    private CompletableFuture<Void> startProofFuture() {
-        final var choice = requireNonNull(firstSufficientSignatures());
-        final var signatures = verificationFutures.headMap(choice.cutoff(), true).values().stream()
-                .map(CompletableFuture::join)
-                .filter(v -> choice.history().equals(v.history()) && v.isValid())
-                .collect(toMap(Verification::nodeId, v -> v.historySignature().signature(), (a, b) -> a, TreeMap::new));
-        final Bytes sourceProof;
-        final Map<Long, Bytes> sourceProofKeys;
-        if (construction.hasSourceProof()) {
-            // TODO
-            sourceProof =
-                    construction.sourceProofOrThrow().chainOfTrustProofOrThrow().wrapsProofOrThrow();
-            sourceProofKeys = proofKeyMapFrom(construction.sourceProofOrThrow());
-        } else {
-            sourceProof = null;
-            sourceProofKeys = Map.copyOf(targetProofKeys);
-        }
+    private CompletableFuture<Void> startProofFuture(@NonNull final TreeMap<Long, Bytes> signatures) {
+        // Finalize inputs to the async prover
+        final var ledgerId = requireNonNull(this.ledgerId);
         final var targetMetadata = requireNonNull(this.targetMetadata);
+        final var sourceProof =
+                construction.sourceProofOrThrow().chainOfTrustProofOrThrow().wrapsProofOrThrow();
+        final var sourceProofKeys = proofKeyMapFrom(construction.sourceProofOrThrow());
         final long[] sourceNodeIds = weights.sourceNodeWeights().keySet().stream()
                 .mapToLong(Long::longValue)
                 .toArray();
@@ -455,22 +469,18 @@ public class ProofControllerImpl implements ProofController {
         final var proofKeyList = proofKeyListFrom(targetProofKeys);
         RUNNING_PROOF_FUTURE = CompletableFuture.runAsync(
                         () -> {
-                            final var sourceHash = library.hashAddressBook(sourceWeights, sourceProofKeysArray);
                             final var targetHash = library.hashAddressBook(targetWeights, targetProofKeysArray);
                             // Nodes that did not submit signatures have null in their array index here
-                            final var verifyingSignatures = Arrays.stream(sourceNodeIds)
-                                    .mapToObj(i -> Optional.ofNullable(signatures.get(i))
+                            final var verifyingSignatures = weights.sourceNodeWeights().keySet().stream()
+                                    .map(i -> Optional.ofNullable(signatures.get(i))
                                             .map(Bytes::toByteArray)
                                             .orElse(null))
                                     .toArray(byte[][]::new);
-                            log.info("Starting chain-of-trust proof for construction #{}", inProgressId);
+                            log.info("Starting recursive chain-of-trust proof for construction #{}", inProgressId);
                             // If the ledger id is set, its first 32 bytes is the genesis book hash
-                            final var genesisAddressBookHash = Optional.ofNullable(ledgerId)
-                                    .map(l -> Bytes.wrap(l.toByteArray(0, ADDRESS_BOOK_HASH_LEN)))
-                                    .orElse(sourceHash);
                             final var targetMetadataHash = library.hashHintsVerificationKey(targetMetadata);
                             final var proof = library.proveChainOfTrust(
-                                    genesisAddressBookHash,
+                                    ledgerId,
                                     sourceProof,
                                     sourceWeights,
                                     sourceProofKeysArray,
@@ -478,12 +488,11 @@ public class ProofControllerImpl implements ProofController {
                                     targetProofKeysArray,
                                     verifyingSignatures,
                                     targetMetadataHash);
-                            log.info("Finished chain-of-trust proof for construction #{}", inProgressId);
+                            log.info("Finished recursive chain-of-trust proof for construction #{}", inProgressId);
                             final var chainOfTrustProof = ChainOfTrustProof.newBuilder()
                                     .wrapsProof(proof)
                                     .build();
                             final var metadataProof = HistoryProof.newBuilder()
-                                    .sourceAddressBookHash(sourceHash)
                                     .targetProofKeys(proofKeyList)
                                     .targetHistory(new History(targetHash, targetMetadata))
                                     .chainOfTrustProof(chainOfTrustProof)
@@ -560,16 +569,6 @@ public class ProofControllerImpl implements ProofController {
         return targetProofKeys.keySet().stream()
                 .mapToLong(weights::targetWeightOf)
                 .sum();
-    }
-
-    /**
-     * Returns the proof keys used for the given proof.
-     *
-     * @param proof the proof
-     * @return the proof keys
-     */
-    private static Map<Long, Bytes> proofKeyMapFrom(@NonNull final HistoryProof proof) {
-        return proof.targetProofKeys().stream().collect(toMap(ProofKey::nodeId, ProofKey::key));
     }
 
     /**

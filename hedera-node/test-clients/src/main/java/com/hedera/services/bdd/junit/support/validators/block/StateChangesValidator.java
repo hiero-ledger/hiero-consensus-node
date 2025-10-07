@@ -5,6 +5,7 @@ import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_ACTIV
 import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_ACTIVE_PROOF_CONSTRUCTION;
 import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_FILES;
 import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_LEDGER_ID;
+import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_NEXT_HINTS_CONSTRUCTION;
 import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_PROOF_KEY_SETS;
 import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_ROSTERS;
 import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_ROSTER_STATE;
@@ -14,6 +15,7 @@ import static com.hedera.node.app.blocks.impl.BlockImplUtils.combine;
 import static com.hedera.node.app.blocks.impl.BlockStreamManagerImpl.NULL_HASH;
 import static com.hedera.node.app.hapi.utils.CommonUtils.noThrowSha384HashOf;
 import static com.hedera.node.app.hapi.utils.CommonUtils.sha384DigestOrThrow;
+import static com.hedera.node.app.history.impl.ProofControllerImpl.EMPTY_PUBLIC_KEY;
 import static com.hedera.node.app.ids.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
 import static com.hedera.node.app.roster.RosterTransitionWeights.moreThanTwoThirdsOfTotal;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.APPLICATION_PROPERTIES;
@@ -70,6 +72,7 @@ import com.hedera.node.app.history.HistoryLibrary;
 import com.hedera.node.app.history.impl.HistoryLibraryImpl;
 import com.hedera.node.app.ids.EntityIdService;
 import com.hedera.node.app.info.DiskStartupNetworks;
+import com.hedera.node.app.roster.ActiveRosters;
 import com.hedera.node.config.data.VersionConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNetwork;
@@ -146,9 +149,10 @@ public class StateChangesValidator implements BlockStreamValidator {
     @Nullable
     private Bytes ledgerId;
 
-    @Nullable
-    private RosterState rosterState;
-
+    /**
+     * Initialized to the weights in the genesis roster, and updated to the weights in the active
+     * hinTS construction as it is updated.
+     */
     @Nullable
     private Map<Long, Long> activeWeights;
 
@@ -163,6 +167,29 @@ public class StateChangesValidator implements BlockStreamValidator {
     private final Map<Long, PreprocessedKeys> preprocessedKeys = new HashMap<>();
     private final Map<Long, Bytes> proofKeys = new HashMap<>();
     private final Map<Bytes, Roster> rosters = new HashMap<>();
+
+    /**
+     * The relevant context from a history proof construction.
+     * @param proverWeights the weights of the nodes in the prover history roster
+     * @param targetWeights the weights of the nodes in the target history roster
+     * @param proofKeys the proof keys of the nodes in the target history roster
+     */
+    private record HistoryContext(
+            Map<Long, Long> proverWeights, Map<Long, Long> targetWeights, Map<Long, Bytes> proofKeys) {
+        public Bytes targetBookHash(@NonNull final HistoryLibrary library) {
+            requireNonNull(library);
+            return HistoryLibrary.computeHash(
+                    library,
+                    targetWeights.keySet(),
+                    targetWeights::get,
+                    id -> proofKeys.getOrDefault(id, EMPTY_PUBLIC_KEY));
+        }
+    }
+
+    /**
+     * The history proof contexts for each hinTS verification key when it first appeared in a next hinTS construction.
+     */
+    private final Map<Bytes, HistoryContext> vkContexts = new HashMap<>();
 
     public enum HintsEnabled {
         YES,
@@ -569,6 +596,50 @@ public class StateChangesValidator implements BlockStreamValidator {
             } else {
                 logger.info("Verified signature on #{}", proof.block());
             }
+            if (historyLibrary != null) {
+                assertTrue(
+                        proof.hasVerificationKeyProof(),
+                        "No chain-of-trust for hinTS key in proof (start round #" + firstRound + ") - " + proof);
+                final var chainOfTrustProof = proof.verificationKeyProofOrThrow();
+                switch (chainOfTrustProof.proof().kind()) {
+                    case UNSET ->
+                        Assertions.fail("Empty chain-of-trust for hinTS key in proof (start round #" + firstRound
+                                + ") - " + proof);
+                    case NODE_SIGNATURES -> {
+                        requireNonNull(activeWeights);
+                        final var context = vkContexts.get(vk);
+                        assertNotNull(context, "No context for verification key " + vk);
+                        // Signatures are over (targetBookHash || verificationKey)
+                        final var targetBookHash = context.targetBookHash(historyLibrary);
+                        final var message = targetBookHash.append(vk);
+                        long signingWeight = 0;
+                        final var signatures =
+                                chainOfTrustProof.nodeSignaturesOrThrow().nodeSignatures();
+                        final var weights = context.proverWeights();
+                        for (final var s : signatures) {
+                            final long nodeId = s.nodeId();
+                            assertTrue(
+                                    historyLibrary.verifySchnorr(s.signature(), message, proofKeys.get(nodeId)),
+                                    "Invalid signature for node" + nodeId
+                                            + " in chain-of-trust for hinTS key in proof (start round #" + firstRound
+                                            + ") - " + proof);
+                            signingWeight += weights.getOrDefault(s.nodeId(), 0L);
+                        }
+                        final long threshold = moreThanTwoThirdsOfTotal(weights);
+                        assertTrue(
+                                signingWeight >= threshold,
+                                "Insufficient weight in chain-of-trust for hinTS key in proof (start round #"
+                                        + firstRound + ") - " + proof
+                                        + " (expected >= " + threshold + ", got " + signingWeight
+                                        + ")");
+                    }
+                    case WRAPS_PROOF ->
+                        assertTrue(
+                                historyLibrary.verifyChainOfTrust(chainOfTrustProof.wrapsProofOrThrow()),
+                                "Insufficient weight in chain-of-trust for hinTS key in proof (start round #"
+                                        + firstRound + ") - " + proof);
+                }
+            }
         } else {
             final var expectedSignature = Bytes.wrap(noThrowSha384HashOf(provenHash.toByteArray()));
             assertEquals(expectedSignature, proof.blockSignature(), "Signature mismatch for " + proof);
@@ -609,66 +680,31 @@ public class StateChangesValidator implements BlockStreamValidator {
                     final var singleton = singletonPutFor(stateChange.singletonUpdateOrThrow());
                     singletonState.put(singleton);
                     stateChangesSummary.countSingletonPut(serviceName, stateId);
-                    if (historyLibrary != null) {
-                        if (stateChange.stateId() == STATE_ID_ACTIVE_PROOF_CONSTRUCTION.protoOrdinal()) {
-                            final var construction = (HistoryProofConstruction) singleton;
-                            if (construction.hasTargetProof()) {
-                                final var targetProof = construction.targetProofOrThrow();
-                                final long constructionId = construction.constructionId();
-                                assertTrue(
-                                        targetProof.hasChainOfTrustProof(),
-                                        "Chain-of-trust proof not set for construction #" + constructionId);
-                                assertNotNull(
-                                        ledgerId,
-                                        "Ledger id still missing but target proof set in construction #"
-                                                + constructionId);
-                                logger.info("Verifying chain of trust for #{}", constructionId);
-                                switch (targetProof
-                                        .chainOfTrustProofOrThrow()
-                                        .proof()
-                                        .kind()) {
-                                    case UNSET -> Assertions.fail("Chain-of-trust proof is unset");
-                                    case NODE_SIGNATURES -> {
-                                        syncActiveRosterWeights();
-                                        requireNonNull(activeWeights);
-                                        final var history = targetProof.targetHistoryOrThrow();
-                                        // Signatures are over (addressBookHash || verificationKey)
-                                        final var message =
-                                                history.addressBookHash().append(history.metadata());
-                                        long signingWeight = 0;
-                                        final var signatures = targetProof
-                                                .chainOfTrustProofOrThrow()
-                                                .nodeSignaturesOrThrow()
-                                                .nodeSignatures();
-                                        for (final var signature : signatures) {
-                                            final long nodeId = signature.nodeId();
-                                            assertTrue(
-                                                    historyLibrary.verifySchnorr(
-                                                            signature.signature(), message, proofKeys.get(nodeId)),
-                                                    "Invalid signature for node" + nodeId
-                                                            + " in chain-of-trust proof for construction #"
-                                                            + constructionId);
-                                            signingWeight += activeWeights.getOrDefault(signature.nodeId(), 0L);
-                                        }
-                                        final long threshold = moreThanTwoThirdsOfTotal(activeWeights);
-                                        assertTrue(
-                                                signingWeight >= threshold,
-                                                "Insufficient weight in chain-of-trust proof for " + construction
-                                                        + " (expected >= " + threshold + ", got " + signingWeight
-                                                        + ")");
-                                    }
-                                    case WRAPS_PROOF ->
-                                        assertTrue(
-                                                historyLibrary.verifyChainOfTrust(targetProof
-                                                        .chainOfTrustProofOrThrow()
-                                                        .wrapsProofOrThrow()),
-                                                "WRAPS chain-of-trust verification failed for " + construction);
-                                }
-                            }
-                        } else if (stateChange.stateId() == STATE_ID_LEDGER_ID.protoOrdinal()) {
-                            ledgerId = ((ProtoBytes) singleton).value();
-                        } else if (stateChange.stateId() == STATE_ID_ROSTER_STATE.protoOrdinal()) {
-                            rosterState = (RosterState) singleton;
+                    if (stateChange.stateId() == STATE_ID_NEXT_HINTS_CONSTRUCTION.protoOrdinal()) {
+                        final var construction = (HintsConstruction) singleton;
+                        if (construction.hasHintsScheme()) {
+                            final var nextScheme = construction.hintsSchemeOrThrow();
+                            final var nextVk =
+                                    nextScheme.preprocessedKeysOrThrow().verificationKey();
+                            requireNonNull(activeWeights);
+                            final var candidateRoster = rosters.get(construction.targetRosterHash());
+                            final var nextVkContext = new HistoryContext(
+                                    Map.copyOf(activeWeights),
+                                    ActiveRosters.weightsFrom(candidateRoster),
+                                    Map.copyOf(proofKeys));
+                            vkContexts.put(nextVk, nextVkContext);
+                        }
+                    } else if (stateChange.stateId() == STATE_ID_ACTIVE_PROOF_CONSTRUCTION.protoOrdinal()) {
+                        final var construction = (HistoryProofConstruction) singleton;
+                    } else if (stateChange.stateId() == STATE_ID_LEDGER_ID.protoOrdinal()) {
+                        ledgerId = ((ProtoBytes) singleton).value();
+                    } else if (stateChange.stateId() == STATE_ID_ROSTER_STATE.protoOrdinal()) {
+                        if (activeWeights == null) {
+                            final var rosterState = (RosterState) singleton;
+                            final var activeRoster = rosters.get(
+                                    rosterState.roundRosterPairs().getFirst().activeRosterHash());
+                            activeWeights = activeRoster.rosterEntries().stream()
+                                    .collect(toMap(RosterEntry::nodeId, RosterEntry::weight));
                         }
                     }
                 }
@@ -723,16 +759,6 @@ public class StateChangesValidator implements BlockStreamValidator {
             lastService = serviceName;
             lastWritableStates = (CommittableWritableStates) writableStates;
         }
-    }
-
-    /**
-     * Rebuilds the active roster's weights from the latest state changes.
-     */
-    private void syncActiveRosterWeights() {
-        requireNonNull(rosterState);
-        final var activeRoster =
-                rosters.get(rosterState.roundRosterPairs().getFirst().activeRosterHash());
-        activeWeights = activeRoster.rosterEntries().stream().collect(toMap(RosterEntry::nodeId, RosterEntry::weight));
     }
 
     /**
