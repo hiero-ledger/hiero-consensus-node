@@ -18,6 +18,7 @@ import com.hedera.services.bdd.junit.OrderedInIsolation;
 import com.hedera.services.bdd.junit.hedera.BlockNodeMode;
 import com.hedera.services.bdd.junit.hedera.NodeSelector;
 import com.hedera.services.bdd.spec.utilops.FakeNmt;
+import com.hedera.services.bdd.suites.regression.system.LifecycleTest;
 import java.time.Duration;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
@@ -26,50 +27,7 @@ import org.junit.jupiter.api.Tag;
 
 @Tag(BLOCK_NODE)
 @OrderedInIsolation
-public class NodeDeathReconnectBlockNodeSuite {
-
-    @HapiTest
-    @HapiBlockNode(
-            networkSize = 4,
-            blockNodeConfigs = {@HapiBlockNode.BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.REAL)},
-            subProcessNodeConfigs = {
-                @HapiBlockNode.SubProcessNodeConfig(
-                        nodeId = 0,
-                        blockNodeIds = {0},
-                        blockNodePriorities = {0},
-                        applicationPropertiesOverrides = {
-                            "blockStream.streamMode", "BLOCKS",
-                            "blockStream.writerMode", "GRPC"
-                        }),
-                @HapiBlockNode.SubProcessNodeConfig(
-                        nodeId = 1,
-                        blockNodeIds = {0},
-                        blockNodePriorities = {0},
-                        applicationPropertiesOverrides = {
-                            "blockStream.streamMode", "BLOCKS",
-                            "blockStream.writerMode", "GRPC"
-                        }),
-                @HapiBlockNode.SubProcessNodeConfig(
-                        nodeId = 2,
-                        blockNodeIds = {0},
-                        blockNodePriorities = {0},
-                        applicationPropertiesOverrides = {
-                            "blockStream.streamMode", "BLOCKS",
-                            "blockStream.writerMode", "GRPC"
-                        }),
-                @HapiBlockNode.SubProcessNodeConfig(
-                        nodeId = 3,
-                        blockNodeIds = {0},
-                        blockNodePriorities = {0},
-                        applicationPropertiesOverrides = {
-                            "blockStream.streamMode", "BLOCKS",
-                            "blockStream.writerMode", "GRPC"
-                        })
-            })
-    @Order(0)
-    final Stream<DynamicTest> nodeDeathReconnectBlocksOnlyGrpc() {
-        return nodeDeathTestSteps();
-    }
+public class NodeDeathReconnectBlockNodeSuite implements LifecycleTest {
 
     @HapiTest
     @HapiBlockNode(
@@ -91,7 +49,7 @@ public class NodeDeathReconnectBlockNodeSuite {
                         blockNodeIds = {0},
                         blockNodePriorities = {0},
                         applicationPropertiesOverrides = {
-                            "blockStream.streamMode", "BLOCKS",
+                            "blockStream.streamMode", "BOTH",
                             "blockStream.writerMode", "FILE_AND_GRPC"
                         }),
                 @HapiBlockNode.SubProcessNodeConfig(
@@ -99,7 +57,7 @@ public class NodeDeathReconnectBlockNodeSuite {
                         blockNodeIds = {0},
                         blockNodePriorities = {0},
                         applicationPropertiesOverrides = {
-                            "blockStream.streamMode", "BLOCKS",
+                            "blockStream.streamMode", "BOTH",
                             "blockStream.writerMode", "FILE_AND_GRPC"
                         }),
                 @HapiBlockNode.SubProcessNodeConfig(
@@ -107,16 +65,12 @@ public class NodeDeathReconnectBlockNodeSuite {
                         blockNodeIds = {0},
                         blockNodePriorities = {0},
                         applicationPropertiesOverrides = {
-                            "blockStream.streamMode", "BLOCKS",
+                            "blockStream.streamMode", "BOTH",
                             "blockStream.writerMode", "FILE_AND_GRPC"
                         })
             })
     @Order(1)
     final Stream<DynamicTest> nodeDeathReconnectBothAndFileAndGrpc() {
-        return nodeDeathTestSteps();
-    }
-
-    private Stream<DynamicTest> nodeDeathTestSteps() {
         return hapiTest(
                 // Validate we can initially submit transactions to node2
                 cryptoCreate("nobody").setNode("5"),

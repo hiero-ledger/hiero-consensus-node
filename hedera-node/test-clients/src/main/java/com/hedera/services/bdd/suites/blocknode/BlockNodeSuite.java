@@ -401,6 +401,7 @@ public class BlockNodeSuite {
                 doingContextual(spec -> {
                     portNumbers.add(spec.getBlockNodePortById(0));
                     portNumbers.add(spec.getBlockNodePortById(1));
+                    connectionResetTime.set(Instant.now());
                 }),
                 sourcingContextual(spec -> assertHgcaaLogContainsTimeframe(
                         byNodeId(0),
