@@ -27,6 +27,7 @@ import com.swirlds.platform.event.preconsensus.PcesFileReader;
 import com.swirlds.platform.event.preconsensus.PcesFileTracker;
 import com.swirlds.platform.freeze.FreezeCheckHolder;
 import com.swirlds.platform.gossip.DefaultIntakeEventCounter;
+import com.swirlds.platform.gossip.FallenBehindMonitor;
 import com.swirlds.platform.gossip.IntakeEventCounter;
 import com.swirlds.platform.gossip.NoOpIntakeEventCounter;
 import com.swirlds.platform.gossip.sync.config.SyncConfig;
@@ -510,7 +511,8 @@ public final class PlatformBuilder {
                 consensusStateEventHandler,
                 platformStateFacade,
                 execution,
-                createStateFromVirtualMap);
+                createStateFromVirtualMap,
+                new FallenBehindMonitor(rosterHistory.getCurrentRoster(), configuration, platformContext.getMetrics()));
 
         return new PlatformComponentBuilder(buildingBlocks);
     }

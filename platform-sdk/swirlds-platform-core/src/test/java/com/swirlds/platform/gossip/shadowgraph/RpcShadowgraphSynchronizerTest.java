@@ -13,7 +13,6 @@ import com.swirlds.common.io.filesystem.FileSystemManager;
 import com.swirlds.common.io.utility.NoOpRecycleBin;
 import com.swirlds.common.merkle.crypto.MerkleCryptography;
 import com.swirlds.common.merkle.crypto.MerkleCryptographyFactory;
-import com.swirlds.common.merkle.synchronization.config.ReconnectConfig;
 import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
@@ -26,9 +25,11 @@ import com.swirlds.platform.gossip.rpc.SyncData;
 import com.swirlds.platform.metrics.SyncMetrics;
 import com.swirlds.platform.system.status.StatusActionSubmitter;
 import com.swirlds.platform.system.status.actions.FallenBehindAction;
+import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.Random;
 import java.util.function.Consumer;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.consensus.model.hashgraph.EventWindow;
@@ -82,8 +83,8 @@ class RpcShadowgraphSynchronizerTest {
         this.selfId = NodeId.of(1);
         this.statusSubmitter = mock(StatusActionSubmitter.class);
         this.fallenBehindManager = new FallenBehindMonitor(
-                selfId, NUM_NODES - 1, statusSubmitter, configuration.getConfigData(ReconnectConfig.class));
-
+                RandomRosterBuilder.create(new Random()).withSize(NUM_NODES).build(), configuration, new NoOpMetrics());
+        fallenBehindManager.bind(statusSubmitter);
         this.eventHandler = mock(Consumer.class);
         this.gossipSender = mock(GossipRpcSender.class);
         this.lagReporter = mock(Consumer.class);

@@ -223,6 +223,7 @@ public class SwirldsPlatform implements Platform {
 
         final PlatformPublisher publisher = new DefaultPlatformPublisher(blocks.applicationCallbacks());
 
+        blocks.fallenBehindMonitor().bind(platformCoordinator);
         platformComponents.bind(
                 builder,
                 pcesReplayer,
