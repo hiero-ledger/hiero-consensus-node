@@ -395,13 +395,12 @@ public class BlockNodeSuite {
             })
     @Order(7)
     final Stream<DynamicTest> activeConnectionPeriodicallyRestarts() {
-        final AtomicReference<Instant> connectionResetTime = new AtomicReference<>();
+        final AtomicReference<Instant> connectionResetTime = new AtomicReference<>(Instant.now());
         final List<Integer> portNumbers = new ArrayList<>();
         return hapiTest(
                 doingContextual(spec -> {
                     portNumbers.add(spec.getBlockNodePortById(0));
                     portNumbers.add(spec.getBlockNodePortById(1));
-                    connectionResetTime.set(Instant.now());
                 }),
                 sourcingContextual(spec -> assertHgcaaLogContainsTimeframe(
                         byNodeId(0),
