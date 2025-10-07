@@ -884,7 +884,6 @@ public class BlockBufferService {
         if (!backpressureEnabled) {
             return;
         }
-        blockStreamMetrics.recordBackPressureActive();
 
         CompletableFuture<Boolean> oldCf;
         CompletableFuture<Boolean> newCf;
@@ -895,6 +894,8 @@ public class BlockBufferService {
             if (oldCf == null || oldCf.isDone()) {
                 // If the existing future is null or is completed, we need to create a new one
                 newCf = new CompletableFuture<>();
+                blockStreamMetrics.recordBackPressureActive();
+
                 logger.warn(
                         "Block buffer is saturated; backpressure is being enabled "
                                 + "(idealMaxBufferSize={}, blocksChecked={}, blocksPruned={}, blocksPendingAck={}, saturation={}%)",
