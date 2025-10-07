@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.infra;
 
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.HtsSystemContract.HTS_HOOKS_16D_CONTRACT_ID;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.tuweniToPbjBytes;
 import static java.util.Objects.requireNonNull;
 
@@ -63,6 +64,10 @@ public class IterableStorageManager {
         allAccesses.forEach(contractAccesses -> contractAccesses.accesses().forEach(access -> {
             if (access.isUpdate()) {
                 final var contractId = contractAccesses.contractID();
+                if(contractId.equals(HTS_HOOKS_16D_CONTRACT_ID)){
+                    // Skip managing linked list for 0x16d, as its storage is managed separately
+                    return;
+                }
                 // If we have already changed the head pointer for this contract,
                 // use that; otherwise, get the contract's head pointer from state
                 final var firstContractKey =
@@ -99,6 +104,10 @@ public class IterableStorageManager {
         // Update contract metadata with the net change in slots used
         long slotUsageChange = 0;
         for (final var change : allSizeChanges) {
+            if(change.contractID().equals(HTS_HOOKS_16D_CONTRACT_ID)){
+                // Skip managing slot count for 0x16d, as its storage is managed separately
+                continue;
+            }
             if (change.numInsertions() != 0 || change.numRemovals() != 0) {
                 enhancement
                         .operations()

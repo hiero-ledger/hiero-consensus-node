@@ -1,19 +1,27 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.state.hooks;
 
+import static com.hedera.hapi.util.HapiUtils.CONTRACT_ID_COMPARATOR;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.HtsSystemContract.HTS_HOOKS_16D_CONTRACT_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.HtsSystemContract.HTS_HOOKS_16D_CONTRACT_ID;
+import static com.hedera.node.app.service.contract.impl.state.WritableEvmHookStore.ZERO_KEY;
 import static com.hedera.node.app.service.contract.impl.state.WritableEvmHookStore.minimalKey;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.pbjToTuweniBytes;
+import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.pbjToTuweniUInt256;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.tuweniToPbjBytes;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.ContractID;
+import com.hedera.hapi.node.state.contract.SlotKey;
 import com.hedera.hapi.node.state.contract.SlotValue;
 import com.hedera.hapi.node.state.hooks.EvmHookState;
+import com.hedera.hapi.node.state.hooks.LambdaSlotKey;
 import com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations;
 import com.hedera.node.app.service.contract.impl.state.ContractStateStore;
 import com.hedera.node.app.service.contract.impl.state.DispatchingEvmFrameState;
+import com.hedera.node.app.service.contract.impl.state.StorageAccess;
+import com.hedera.node.app.service.contract.impl.state.StorageAccesses;
+import com.hedera.node.app.service.contract.impl.state.TxStorageUsage;
 import com.hedera.node.app.service.contract.impl.state.WritableEvmHookStore;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -22,6 +30,13 @@ import org.apache.tuweni.units.bigints.UInt256;
 import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.evm.account.MutableAccount;
 import org.hyperledger.besu.evm.code.CodeFactory;
+
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.TreeMap;
 
 /**
  * EVM frame state used during hook execution. For address 0x16d, it returns
@@ -111,4 +126,39 @@ public class HookEvmFrameState extends DispatchingEvmFrameState {
         }
         super.setStorageValue(contractID, key, value);
     }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public @NonNull TxStorageUsage getTxStorageUsage(final boolean includeChangedKeys) {
+        final Map<ContractID, List<StorageAccess>> modifications = new TreeMap<>(CONTRACT_ID_COMPARATOR);
+        final Set<SlotKey> changedKeys = includeChangedKeys ? new HashSet<>() : null;
+        writableEvmHookStore.getModifiedSlotKeys().forEach(slotKey -> {
+            final var access = StorageAccess.newWrite(
+                    slotKey.key().equals(ZERO_KEY) ? UInt256.ZERO : pbjToTuweniUInt256(slotKey.key()),
+                    valueOrZero(writableEvmHookStore.getOriginalSlotValue(slotKey)),
+                    valueOrZero(writableEvmHookStore.getSlotValue(slotKey)));
+            modifications
+                    .computeIfAbsent(HTS_HOOKS_16D_CONTRACT_ID, k -> new ArrayList<>())
+                    .add(access);
+            if (includeChangedKeys && access.isLogicalChange()) {
+                changedKeys.add(new SlotKey(HTS_HOOKS_16D_CONTRACT_ID, slotKey.key()));
+            }
+        });
+        final List<StorageAccesses> allChanges = new ArrayList<>();
+        modifications.forEach(
+                (number, storageAccesses) -> allChanges.add(new StorageAccesses(number, storageAccesses)));
+        // get super class changes too
+        final var contractStorageChanges = super.getTxStorageUsage(includeChangedKeys);
+        if(contractStorageChanges.accesses() != null){
+            allChanges.addAll(contractStorageChanges.accesses());
+        }
+        if(includeChangedKeys && contractStorageChanges.changedKeys() != null){
+            changedKeys.addAll(contractStorageChanges.changedKeys());
+        }
+
+        return new TxStorageUsage(allChanges, changedKeys);
+    }
+
 }
