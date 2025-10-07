@@ -214,7 +214,12 @@ public class ActionStack {
                     final var haltReason = maybeHaltReason.get();
                     builder.error(Bytes.wrap(haltReason.name().getBytes(UTF_8)));
                     if (CALL.equals(action.callType()) && haltReason == INVALID_SOLIDITY_ADDRESS) {
-                        allActions.add(new ActionWrapper(helper.createSynthActionForMissingAddressIn(frame)));
+                        final var invalidAddressContext = FrameUtils.invalidAddressContext(frame);
+                        // Only create the synth action if the invalid address was actually a call target
+                        if (invalidAddressContext != null && invalidAddressContext.raisedDueToInvalidCallTarget()) {
+                            allActions.add(new ActionWrapper(
+                                    helper.createSynthActionForMissingAddressIn(frame, invalidAddressContext)));
+                        }
                     }
                 } else {
                     builder.error(Bytes.EMPTY);
