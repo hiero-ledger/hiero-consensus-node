@@ -3,7 +3,6 @@ package org.hiero.otter.fixtures.app.model.codec;
 
 import static com.hedera.pbj.runtime.JsonTools.INDENT;
 import static com.hedera.pbj.runtime.JsonTools.field;
-import static com.hedera.pbj.runtime.JsonTools.parseBoolean;
 import static com.hedera.pbj.runtime.JsonTools.parseLong;
 
 import com.hedera.pbj.runtime.JsonCodec;
@@ -31,31 +30,37 @@ public final class IssStateJsonCodec implements JsonCodec<IssState> {
     /**
      * Parses a HashObject object from JSON parse tree for object JSONParser.ObjContext.
      * Throws an UnknownFieldException wrapped in a ParseException if in strict mode ONLY.
+     * <p>
+     * The {@code maxSize} specifies a custom value for the default `Codec.DEFAULT_MAX_SIZE` limit. IMPORTANT:
+     * specifying a value larger than the default one can put the application at risk because a maliciously-crafted
+     * payload can cause the parser to allocate too much memory which can result in OutOfMemory and/or crashes.
+     * It's important to carefully estimate the maximum size limit that a particular protobuf model type should support,
+     * and then pass that value as a parameter. Note that the estimated limit should apply to the **type** as a whole,
+     * rather than to individual instances of the model. In other words, this value should be a constant, or a config
+     * value that is controlled by the application, rather than come from the input that the application reads.
+     * When in doubt, use the other overloaded versions of this method that use the default `Codec.DEFAULT_MAX_SIZE`.
      *
      * @param root The JSON parsed object tree to parse data from
+     * @param maxSize a ParseException will be thrown if the size of a delimited field exceeds the limit
      * @return Parsed HashObject model object or null if data input was null or empty
      * @throws ParseException If parsing fails
      */
     public @NonNull IssState parse(
-            @Nullable final JSONParser.ObjContext root, final boolean strictMode, final int maxDepth)
+            @Nullable final JSONParser.ObjContext root, final boolean strictMode, final int maxDepth, final int maxSize)
             throws ParseException {
         if (maxDepth < 0) {
             throw new ParseException("Reached maximum allowed depth of nested messages");
         }
         try {
             // -- TEMP STATE FIELDS --------------------------------------
-            long temp_iss_state = 0;
-            boolean temp_recoverable_on_restart = false;
+            long temp_issState = 0;
 
             // -- EXTRACT VALUES FROM PARSE TREE ---------------------------------------------
 
             for (JSONParser.PairContext kvPair : root.pair()) {
                 switch (kvPair.STRING().getText()) {
                     case "issState" /* [1] */:
-                        temp_iss_state = parseLong(kvPair.value());
-                        break;
-                    case "recoverableOnRestart" /* [2] */:
-                        temp_recoverable_on_restart = parseBoolean(kvPair.value());
+                        temp_issState = parseLong(kvPair.value());
                         break;
 
                     default: {
@@ -67,7 +72,7 @@ public final class IssStateJsonCodec implements JsonCodec<IssState> {
                 }
             }
 
-            return new IssState(temp_iss_state, temp_recoverable_on_restart);
+            return new IssState(temp_issState);
         } catch (Exception ex) {
             throw new ParseException(ex);
         }
@@ -89,11 +94,8 @@ public final class IssStateJsonCodec implements JsonCodec<IssState> {
         final String childIndent = indent + INDENT;
         // collect field lines
         final List<String> fieldLines = new ArrayList<>();
-        // [1] - iss_state
+        // [1] - issState
         if (data.issState() != 0) fieldLines.add(field("issState", data.issState()));
-        // [2] - recoverable_on_restart
-        if (data.recoverableOnRestart() != false)
-            fieldLines.add(field("recoverableOnRestart", data.recoverableOnRestart()));
 
         // write field lines
         if (!fieldLines.isEmpty()) {

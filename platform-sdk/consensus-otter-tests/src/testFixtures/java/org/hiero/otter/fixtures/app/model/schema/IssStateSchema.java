@@ -23,13 +23,7 @@ public final class IssStateSchema implements Schema {
      * <b>(1)</b>
      */
     public static final FieldDefinition ISS_STATE =
-            new FieldDefinition("iss_state", FieldType.UINT64, false, false, false, 1);
-
-    /**
-     * <b>(2)</b>
-     */
-    public static final FieldDefinition RECOVERABLE_ON_RESTART =
-            new FieldDefinition("recoverable_on_restart", FieldType.BOOL, false, false, false, 2);
+            new FieldDefinition("issState", FieldType.UINT64, false, false, false, 1);
 
     // -- OTHER METHODS -------------------------------------------------
 
@@ -52,7 +46,6 @@ public final class IssStateSchema implements Schema {
     public static FieldDefinition getField(final int fieldNumber) {
         return switch (fieldNumber) {
             case 1 -> ISS_STATE;
-            case 2 -> RECOVERABLE_ON_RESTART;
             default -> null;
         };
     }

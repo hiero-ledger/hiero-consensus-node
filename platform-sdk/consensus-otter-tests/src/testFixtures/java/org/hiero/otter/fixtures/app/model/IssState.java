@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.app.model;
 
-import static com.hedera.pbj.runtime.ProtoWriterTools.sizeOfBoolean;
 import static com.hedera.pbj.runtime.ProtoWriterTools.sizeOfLong;
 import static com.hedera.pbj.runtime.ProtoWriterTools.sizeOfVarInt32;
 
@@ -12,6 +11,8 @@ import com.hedera.pbj.runtime.UnknownField;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Collections;
 import java.util.List;
+import org.hiero.otter.fixtures.app.model.codec.IssStateJsonCodec;
+import org.hiero.otter.fixtures.app.model.codec.IssStateProtoCodec;
 import org.hiero.otter.fixtures.app.model.schema.IssStateSchema;
 
 /**
@@ -19,16 +20,14 @@ import org.hiero.otter.fixtures.app.model.schema.IssStateSchema;
  */
 public final class IssState {
     /** Protobuf codec for reading and writing in protobuf format */
-    public static final Codec<IssState> PROTOBUF = new org.hiero.otter.fixtures.app.model.codec.IssStateProtoCodec();
+    public static final Codec<IssState> PROTOBUF = new IssStateProtoCodec();
     /** JSON codec for reading and writing in JSON format */
-    public static final JsonCodec<IssState> JSON = new org.hiero.otter.fixtures.app.model.codec.IssStateJsonCodec();
+    public static final JsonCodec<IssState> JSON = new IssStateJsonCodec();
     /** Default instance with all fields set to default values */
     public static final IssState DEFAULT = newBuilder().build();
 
-    /** Field <b>(1)</b> */
+    /** Field <b>(1)</b>  */
     private final long issState;
-    /** Field <b>(2)</b> */
-    private final boolean recoverableOnRestart;
     /** Computed hash code, manual input ignored. */
     private int $hashCode = -1;
     /** Computed protobuf encoded size, manual input ignored. */
@@ -40,24 +39,20 @@ public final class IssState {
      * Create a pre-populated IssState.
      *
      * @param issState <b>(1)</b>
-     * @param recoverableOnRestart <b>(2)</b>
      */
-    public IssState(long issState, boolean recoverableOnRestart) {
+    public IssState(long issState) {
         this.$unknownFields = null;
         this.issState = issState;
-        this.recoverableOnRestart = recoverableOnRestart;
     }
 
     /**
      * Create a pre-populated IssState.
      *
      * @param issState <b>(1)</b>
-     * @param recoverableOnRestart <b>(2)</b>
      */
-    public IssState(long issState, boolean recoverableOnRestart, final List<UnknownField> $unknownFields) {
+    public IssState(long issState, final List<UnknownField> $unknownFields) {
         this.$unknownFields = $unknownFields == null ? null : Collections.unmodifiableList($unknownFields);
         this.issState = issState;
-        this.recoverableOnRestart = recoverableOnRestart;
     }
 
     /**
@@ -70,28 +65,21 @@ public final class IssState {
     }
 
     /**
-     * Get field <b>(2)</b>
-     *
-     * @return the value of the recoverableOnRestart field
-     */
-    public boolean recoverableOnRestart() {
-        return recoverableOnRestart;
-    }
-
-    /**
-     * Get an unmodifiable list of all unknown fields parsed from the original data, i.e. the fields that are unknown to
-     * the .proto model which generated this Java model class. The fields are sorted by their field numbers in an
-     * increasing order.
+     * Get an unmodifiable list of all unknown fields parsed from the original data, i.e. the fields
+     * that are unknown to the .proto model which generated this Java model class. The fields are sorted
+     * by their field numbers in an increasing order.
      * <p>
-     * Note that by default, PBJ Codec discards unknown fields for performance reasons. The parse() method has to be
-     * invoked with `parseUnknownFields = true` in order to populate the unknown fields.
+     * Note that by default, PBJ Codec discards unknown fields for performance reasons.
+     * The parse() method has to be invoked with `parseUnknownFields = true` in order to populate the
+     * unknown fields.
      * <p>
-     * Also note that there may be multiple `UnknownField` items with the same field number in case a repeated field
-     * uses the unpacked wire format. It's up to the application to interpret these unknown fields correctly if
-     * necessary.
+     * Also note that there may be multiple `UnknownField` items with the same field number
+     * in case a repeated field uses the unpacked wire format. It's up to the application
+     * to interpret these unknown fields correctly if necessary.
      * <p>
-     * If the parsing of unknown fields was enabled when this model instance was parsed originally and the unknown
-     * fields were present, then a subsequent `Codec.write()` call will persist all the parsed unknown fields.
+     * If the parsing of unknown fields was enabled when this model instance was parsed originally and
+     * the unknown fields were present, then a subsequent `Codec.write()` call will persist all the parsed
+     * unknown fields.
      *
      * @return a (potentially empty) list of unknown fields
      */
@@ -114,10 +102,8 @@ public final class IssState {
 
         if ($protobufEncodedSize == -1) {
             int _size = 0;
-            // [1] - iss_state
+            // [1] - issState
             _size += sizeOfLong(IssStateSchema.ISS_STATE, issState, true);
-            // [2] - recoverable_on_restart
-            _size += sizeOfBoolean(IssStateSchema.RECOVERABLE_ON_RESTART, recoverableOnRestart, true);
 
             if ($unknownFields != null) {
                 for (int i = 0; i < $unknownFields.size(); i++) {
@@ -134,9 +120,9 @@ public final class IssState {
     }
 
     /**
-     * Override the default hashCode method for to make hashCode better distributed and follows protobuf rules for
-     * default values. This is important for backward compatibility. This also lazy computes and caches the hashCode for
-     * future calls. It is designed to be thread safe.
+     * Override the default hashCode method for to make hashCode better distributed and follows protobuf rules
+     * for default values. This is important for backward compatibility. This also lazy computes and caches the
+     * hashCode for future calls. It is designed to be thread safe.
      */
     @Override
     public int hashCode() {
@@ -151,9 +137,6 @@ public final class IssState {
             int result = 1;
             if (issState != DEFAULT.issState) {
                 result = 31 * result + Long.hashCode(issState);
-            }
-            if (recoverableOnRestart != DEFAULT.recoverableOnRestart) {
-                result = 31 * result + Boolean.hashCode(recoverableOnRestart);
             }
             if ($unknownFields != null) {
                 for (int i = 0; i < $unknownFields.size(); i++) {
@@ -192,9 +175,6 @@ public final class IssState {
         if (issState != thatObj.issState) {
             return false;
         }
-        if (recoverableOnRestart != thatObj.recoverableOnRestart) {
-            return false;
-        }
         // Treat null and empty lists as equal
         if ($unknownFields != null && !$unknownFields.isEmpty()) {
             if (thatObj.$unknownFields == null || $unknownFields.size() != thatObj.$unknownFields.size()) {
@@ -222,18 +202,12 @@ public final class IssState {
         if ($unknownFields != null && !$unknownFields.isEmpty()) {
             final StringBuilder sb = new StringBuilder();
             for (int i = 0; i < $unknownFields.size(); i++) {
-                if (i > 0) {
-                    sb.append(", ");
-                }
+                if (i > 0) sb.append(", ");
                 $unknownFields.get(i).printToString(sb);
             }
             $ufstr = sb.toString();
         }
-        return "IssState["
-                + "issState=" + issState + ", "
-                + "recoverableOnRestart=" + recoverableOnRestart
-                + ($ufstr == null ? "" : (", " + $ufstr))
-                + "]";
+        return "IssState[" + "issState=" + issState + ($ufstr == null ? "" : (", " + $ufstr)) + "]";
     }
 
     /**
@@ -243,7 +217,7 @@ public final class IssState {
      * @return a pre-populated builder
      */
     public Builder copyBuilder() {
-        return new Builder(issState, recoverableOnRestart, $unknownFields);
+        return new Builder(issState, $unknownFields);
     }
 
     /**
@@ -261,7 +235,6 @@ public final class IssState {
      */
     public static final class Builder {
         private long issState = 0;
-        private boolean recoverableOnRestart = false;
         private final List<UnknownField> $unknownFields;
 
         /**
@@ -275,24 +248,20 @@ public final class IssState {
          * Create a pre-populated Builder.
          *
          * @param issState <b>(1)</b>
-         * @param recoverableOnRestart <b>(2)</b>
          */
-        public Builder(long issState, boolean recoverableOnRestart) {
+        public Builder(long issState) {
             this.$unknownFields = null;
             this.issState = issState;
-            this.recoverableOnRestart = recoverableOnRestart;
         }
 
         /**
          * Create a pre-populated Builder.
          *
          * @param issState <b>(1)</b>
-         * @param recoverableOnRestart <b>(2)</b>
          */
-        public Builder(long issState, boolean recoverableOnRestart, final List<UnknownField> $unknownFields) {
+        public Builder(long issState, final List<UnknownField> $unknownFields) {
             this.$unknownFields = $unknownFields == null ? null : Collections.unmodifiableList($unknownFields);
             this.issState = issState;
-            this.recoverableOnRestart = recoverableOnRestart;
         }
 
         /**
@@ -301,7 +270,7 @@ public final class IssState {
          * @return new model record with data set
          */
         public IssState build() {
-            return new IssState(issState, recoverableOnRestart);
+            return new IssState(issState);
         }
 
         /**
@@ -312,17 +281,6 @@ public final class IssState {
          */
         public Builder issState(long issState) {
             this.issState = issState;
-            return this;
-        }
-
-        /**
-         * <b>(2)</b>
-         *
-         * @param recoverableOnRestart value to set
-         * @return builder to continue building with
-         */
-        public Builder recoverableOnRestart(boolean recoverableOnRestart) {
-            this.recoverableOnRestart = recoverableOnRestart;
             return this;
         }
     }
