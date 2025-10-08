@@ -94,10 +94,6 @@ public class BlockNodeConnectionManager {
      */
     private static final long RETRY_BACKOFF_MULTIPLIER = 2;
     /**
-     * The maximum delay used for retries.
-     */
-    private static final Duration MAX_RETRY_DELAY = Duration.ofSeconds(10);
-    /**
      * Tracks what the last verified block for each connection is. Note: The data maintained here is based on what the
      * block node has informed the consensus node of. If a block node is not actively connected, then this data may be
      * incorrect from the perspective of the block node. It is only when the block node informs the consensus node of
@@ -336,6 +332,13 @@ public class BlockNodeConnectionManager {
                 .protocolExpBackoffTimeframeReset();
     }
 
+    private Duration maxBackoffDelay() {
+        return configProvider
+                .getConfiguration()
+                .getConfigData(BlockNodeConnectionConfig.class)
+                .maxBackoffDelay();
+    }
+
     /**
      * @return the batch size for a request to send to the block node
      */
@@ -410,18 +413,23 @@ public class BlockNodeConnectionManager {
     private @NonNull BlockStreamPublishServiceClient createNewGrpcClient(@NonNull final BlockNodeConfig nodeConfig) {
         requireNonNull(nodeConfig);
 
+        final Duration timeoutDuration = configProvider
+                .getConfiguration()
+                .getConfigData(BlockNodeConnectionConfig.class)
+                .grpcOverallTimeout();
+
         final Tls tls = Tls.builder().enabled(false).build();
         final PbjGrpcClientConfig grpcConfig =
-                new PbjGrpcClientConfig(Duration.ofSeconds(30), tls, Optional.of(""), "application/grpc");
+                new PbjGrpcClientConfig(timeoutDuration, tls, Optional.of(""), "application/grpc");
 
         final WebClient webClient = WebClient.builder()
                 .baseUri("http://" + nodeConfig.address() + ":" + nodeConfig.port())
                 .tls(tls)
                 .protocolConfigs(List.of(GrpcClientProtocolConfig.builder()
                         .abortPollTimeExpired(false)
-                        .pollWaitTime(Duration.ofSeconds(30))
+                        .pollWaitTime(timeoutDuration)
                         .build()))
-                .connectTimeout(Duration.ofSeconds(10))
+                .connectTimeout(timeoutDuration)
                 .build();
         logWithContext(
                 DEBUG, "Created BlockStreamPublishServiceClient for {}:{}.", nodeConfig.address(), nodeConfig.port());
@@ -1056,7 +1064,9 @@ public class BlockNodeConnectionManager {
         final BlockState blockState = blockBufferService.getBlockState(currentStreamingBlockNumber);
         final long latestBlockNumber = blockBufferService.getLastBlockNumberProduced();
 
-        if (blockState == null && latestBlockNumber > currentStreamingBlockNumber) {
+        if (blockState == null
+                && latestBlockNumber > currentStreamingBlockNumber
+                && currentStreamingBlockNumber != -1) {
             logWithContext(
                     DEBUG,
                     "Block {} not found in buffer (latestBlock={}). Closing and rescheduling.",
@@ -1286,8 +1296,9 @@ public class BlockNodeConnectionManager {
                     ? INITIAL_RETRY_DELAY // Start with the initial delay if previous was 0
                     : currentBackoffDelayMs.multipliedBy(RETRY_BACKOFF_MULTIPLIER);
 
-            if (nextDelay.compareTo(MAX_RETRY_DELAY) > 0) {
-                nextDelay = MAX_RETRY_DELAY;
+            final Duration maxBackoff = maxBackoffDelay();
+            if (nextDelay.compareTo(maxBackoff) > 0) {
+                nextDelay = maxBackoff;
             }
 
             // Apply jitter
@@ -1332,12 +1343,13 @@ public class BlockNodeConnectionManager {
         }
     }
 
-    private static long calculateJitteredDelayMs(final int retryAttempt) {
+    private long calculateJitteredDelayMs(final int retryAttempt) {
         // Calculate delay using exponential backoff starting from INITIAL_RETRY_DELAY
         Duration nextDelay = INITIAL_RETRY_DELAY.multipliedBy((long) Math.pow(RETRY_BACKOFF_MULTIPLIER, retryAttempt));
 
-        if (nextDelay.compareTo(MAX_RETRY_DELAY) > 0) {
-            nextDelay = MAX_RETRY_DELAY;
+        final Duration maxBackoff = maxBackoffDelay();
+        if (nextDelay.compareTo(maxBackoff) > 0) {
+            nextDelay = maxBackoff;
         }
 
         // Apply jitter to delay
