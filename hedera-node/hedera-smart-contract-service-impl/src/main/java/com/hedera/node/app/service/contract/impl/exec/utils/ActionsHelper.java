@@ -3,6 +3,7 @@ package com.hedera.node.app.service.contract.impl.exec.utils;
 
 import static com.hedera.hapi.streams.CallOperationType.OP_UNKNOWN;
 import static com.hedera.hapi.streams.ContractActionType.NO_ACTION;
+import static com.hedera.node.app.service.contract.impl.exec.operations.CustomizedOpcodes.SELFDESTRUCT;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.entityIdFactory;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.hederaIdNumOfContractIn;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.tuweniToPbjBytes;
@@ -16,12 +17,16 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.hyperledger.besu.evm.frame.MessageFrame;
+import org.hyperledger.besu.evm.internal.UnderflowException;
 
 /**
  * Helper class for pretty-printing, validating, and creating synthetic {@link ContractAction}s.
  */
 public class ActionsHelper {
+    private static final Logger log = LogManager.getLogger(ActionsHelper.class);
     private static final Bytes MISSING_ADDRESS_ERROR = Bytes.wrap("INVALID_SOLIDITY_ADDRESS".getBytes(UTF_8));
 
     /**
@@ -31,12 +36,26 @@ public class ActionsHelper {
      * @return the {@link ContractAction} representing the frame as a call to a missing address
      */
     public ContractAction createSynthActionForMissingAddressIn(@NonNull final MessageFrame frame) {
+        Bytes targetAddress = Bytes.EMPTY;
+        try {
+            if (frame.getCurrentOperation().getOpcode() == SELFDESTRUCT.opcode()) {
+                // For selfdestruct, the target address is at stack item 0
+                targetAddress = tuweniToPbjBytes(frame.getStackItem(0));
+            } else {
+                // For all other calls, the target address is at stack item 1
+                targetAddress = tuweniToPbjBytes(frame.getStackItem(1));
+            }
+        } catch (final UnderflowException ignored) {
+            // If the stack is too small, just fall through and use empty bytes
+            log.error("Stack too small to get target address for synthetic action in frame");
+        }
+
         return ContractAction.newBuilder()
                 .callType(ContractActionType.CALL)
                 .gas(frame.getRemainingGas())
                 .callDepth(frame.getDepth() + 1)
                 .callingContract(contractIdWith(frame, hederaIdNumOfContractIn(frame)))
-                .targetedAddress(tuweniToPbjBytes(frame.getStackItem(1)))
+                .targetedAddress(targetAddress)
                 .error(MISSING_ADDRESS_ERROR)
                 .callOperationType(
                         asCallOperationType(frame.getCurrentOperation().getOpcode()))
