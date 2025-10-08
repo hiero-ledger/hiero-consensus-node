@@ -606,6 +606,10 @@ public class StateChangesValidator implements BlockStreamValidator {
                                 + ") - " + proof);
                     case NODE_SIGNATURES -> {
                         requireNonNull(activeWeights);
+                        logger.info(
+                                "Proof on block #{} used VK hash {}",
+                                proof.block(),
+                                historyLibrary.hashHintsVerificationKey(proof.verificationKey()));
                         final var context = vkContexts.get(vk);
                         assertNotNull(
                                 context, "No context for verification key in proof (start round #" + firstRound + ")");
@@ -687,6 +691,8 @@ public class StateChangesValidator implements BlockStreamValidator {
                             final var nextScheme = construction.hintsSchemeOrThrow();
                             final var nextVk =
                                     nextScheme.preprocessedKeysOrThrow().verificationKey();
+                            logger.info(
+                                    "Found a NEXT vk with hash {}", historyLibrary.hashHintsVerificationKey(nextVk));
                             requireNonNull(activeWeights);
                             final var candidateRoster = rosters.get(construction.targetRosterHash());
                             final var nextVkContext = new HistoryContext(
@@ -698,16 +704,22 @@ public class StateChangesValidator implements BlockStreamValidator {
                     } else if (stateChange.stateId() == STATE_ID_ACTIVE_HINTS_CONSTRUCTION.protoOrdinal()) {
                         final var construction = (HintsConstruction) singleton;
                         if (construction.hasHintsScheme()) {
+                            logger.info(
+                                    "Found an ACTIVE vk with hash {}",
+                                    historyLibrary.hashHintsVerificationKey(construction
+                                            .hintsSchemeOrThrow()
+                                            .preprocessedKeysOrThrow()
+                                            .verificationKey()));
+                            final var proverWeights = Map.copyOf(requireNonNull(activeWeights));
                             activeWeights = requireNonNull(maybeWeightsFrom(construction));
-                            if (vkContexts.isEmpty()) {
-                                final var genesisVk = construction
-                                        .hintsSchemeOrThrow()
-                                        .preprocessedKeysOrThrow()
-                                        .verificationKey();
-                                vkContexts.put(
-                                        genesisVk,
-                                        new HistoryContext(activeWeights, activeWeights, Map.copyOf(proofKeys)));
-                            }
+                            final var activeVk = construction
+                                    .hintsSchemeOrThrow()
+                                    .preprocessedKeysOrThrow()
+                                    .verificationKey();
+                            vkContexts.put(
+                                    activeVk,
+                                    new HistoryContext(
+                                            proverWeights, Map.copyOf(activeWeights), Map.copyOf(proofKeys)));
                         }
                     } else if (stateChange.stateId() == STATE_ID_LEDGER_ID.protoOrdinal()) {
                         ledgerId = ((ProtoBytes) singleton).value();
