@@ -13,7 +13,7 @@ public interface ReconnectNetworkHelper {
      * Attempts to receive a new signed state by reconnecting with the specified neighbor.
      *
      * @return the signed state received from the neighbor
-     * @throws ReconnectException if any error occurs during the reconnect attempt
+     * @throws StateSyncException if any error occurs during the reconnect attempt
      */
     @NonNull
     ReservedSignedState receiveSignedState(SignedStateValidator signedStateValidator) throws InterruptedException;

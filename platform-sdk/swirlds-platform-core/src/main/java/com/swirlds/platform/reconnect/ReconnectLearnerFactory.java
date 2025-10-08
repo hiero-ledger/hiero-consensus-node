@@ -15,7 +15,7 @@ import java.util.Objects;
 import java.util.function.Function;
 
 /**
- * Creates instances of {@link ReconnectLearner}
+ * Creates instances of {@link StateSyncLearner}
  */
 public class ReconnectLearnerFactory {
     private final Roster roster;
@@ -53,14 +53,14 @@ public class ReconnectLearnerFactory {
     }
 
     /**
-     * Create an instance of {@link ReconnectLearner}
+     * Create an instance of {@link StateSyncLearner}
      *
      * @param conn         the connection to use
      * @param workingState the state to use to perform a delta based reconnect
      * @return a new instance
      */
-    public ReconnectLearner create(final Connection conn, final MerkleNodeState workingState) {
-        return new ReconnectLearner(
+    public StateSyncLearner create(final Connection conn, final MerkleNodeState workingState) {
+        return new StateSyncLearner(
                 platformContext,
                 threadManager,
                 conn,

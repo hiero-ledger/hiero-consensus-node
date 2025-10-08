@@ -123,7 +123,7 @@ final class ReconnectTest {
             // hash the underlying VM
             signedState.getState().getRoot().getHash();
 
-            final ReconnectLearner receiver = buildReceiver(
+            final StateSyncLearner receiver = buildReceiver(
                     stateCopy,
                     new DummyConnection(
                             platformContext, pairedStreams.getLearnerInput(), pairedStreams.getLearnerOutput()),
@@ -133,7 +133,7 @@ final class ReconnectTest {
             final Thread thread = new Thread(() -> {
                 try {
                     signedState.reserve("test");
-                    final ReconnectTeacher sender = buildSender(
+                    final StateSyncTeacher sender = buildSender(
                             new DummyConnection(
                                     platformContext, pairedStreams.getTeacherInput(), pairedStreams.getTeacherOutput()),
                             reconnectMetrics,
@@ -155,7 +155,7 @@ final class ReconnectTest {
         }
     }
 
-    private ReconnectTeacher buildSender(
+    private StateSyncTeacher buildSender(
             final SocketConnection connection,
             final ReconnectMetrics reconnectMetrics,
             final PlatformStateFacade platformStateFacade)
@@ -167,7 +167,7 @@ final class ReconnectTest {
         final NodeId selfId = NodeId.of(0);
         final NodeId otherId = NodeId.of(3);
         final long lastRoundReceived = 100;
-        return new ReconnectTeacher(
+        return new StateSyncTeacher(
                 platformContext,
                 Time.getCurrent(),
                 getStaticThreadManager(),
@@ -180,7 +180,7 @@ final class ReconnectTest {
                 platformStateFacade);
     }
 
-    private ReconnectLearner buildReceiver(
+    private StateSyncLearner buildReceiver(
             final MerkleNodeState state,
             final Connection connection,
             final ReconnectMetrics reconnectMetrics,
@@ -188,7 +188,7 @@ final class ReconnectTest {
         final Roster roster =
                 RandomRosterBuilder.create(getRandomPrintSeed()).withSize(5).build();
 
-        return new ReconnectLearner(
+        return new StateSyncLearner(
                 TestPlatformContextBuilder.create().build(),
                 getStaticThreadManager(),
                 connection,

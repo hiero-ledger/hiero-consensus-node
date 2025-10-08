@@ -6,9 +6,9 @@ import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.threading.manager.ThreadManager;
 import com.swirlds.platform.gossip.FallenBehindMonitor;
 import com.swirlds.platform.metrics.ReconnectMetrics;
-import com.swirlds.platform.reconnect.ReconnectPeerProtocol;
 import com.swirlds.platform.reconnect.ReconnectSyncHelper;
-import com.swirlds.platform.reconnect.ReconnectThrottle;
+import com.swirlds.platform.reconnect.StateSyncPeerProtocol;
+import com.swirlds.platform.reconnect.StateSyncThrottle;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -22,9 +22,9 @@ import org.hiero.consensus.model.status.PlatformStatus;
 /**
  * Implementation of a factory for reconnect protocol
  */
-public class ReconnectProtocol implements Protocol {
+public class StateSyncProtocol implements Protocol {
 
-    private final ReconnectThrottle reconnectThrottle;
+    private final StateSyncThrottle stateSyncThrottle;
     private final Supplier<ReservedSignedState> lastCompleteSignedState;
     private final Duration reconnectSocketTimeout;
     private final ReconnectMetrics reconnectMetrics;
@@ -36,21 +36,23 @@ public class ReconnectProtocol implements Protocol {
     private final PlatformContext platformContext;
     private final AtomicReference<PlatformStatus> platformStatus = new AtomicReference<>(PlatformStatus.STARTING_UP);
     private final ReconnectSyncHelper reconnectSyncHelper;
+    private final ReservedSignedStatePromise reservedSignedStatePromise;
 
-    public ReconnectProtocol(
+    public StateSyncProtocol(
             @NonNull final PlatformContext platformContext,
             @NonNull final ThreadManager threadManager,
-            @NonNull final ReconnectThrottle reconnectThrottle,
+            @NonNull final StateSyncThrottle stateSyncThrottle,
             @NonNull final Supplier<ReservedSignedState> lastCompleteSignedState,
             @NonNull final Duration reconnectSocketTimeout,
             @NonNull final ReconnectMetrics reconnectMetrics,
             @NonNull final ReconnectSyncHelper reconnectSyncHelper,
             @NonNull final FallenBehindMonitor fallenBehindManager,
-            @NonNull final PlatformStateFacade platformStateFacade) {
+            @NonNull final PlatformStateFacade platformStateFacade,
+            @NonNull final ReservedSignedStatePromise reservedSignedStatePromise) {
 
         this.platformContext = Objects.requireNonNull(platformContext);
         this.threadManager = Objects.requireNonNull(threadManager);
-        this.reconnectThrottle = Objects.requireNonNull(reconnectThrottle);
+        this.stateSyncThrottle = Objects.requireNonNull(stateSyncThrottle);
         this.lastCompleteSignedState = Objects.requireNonNull(lastCompleteSignedState);
         this.reconnectSocketTimeout = Objects.requireNonNull(reconnectSocketTimeout);
         this.reconnectMetrics = Objects.requireNonNull(reconnectMetrics);
@@ -58,6 +60,7 @@ public class ReconnectProtocol implements Protocol {
         this.fallenBehindManager = Objects.requireNonNull(fallenBehindManager);
         this.platformStateFacade = platformStateFacade;
         this.time = Objects.requireNonNull(platformContext.getTime());
+        this.reservedSignedStatePromise = Objects.requireNonNull(reservedSignedStatePromise);
     }
 
     /**
@@ -65,12 +68,12 @@ public class ReconnectProtocol implements Protocol {
      */
     @NonNull
     @Override
-    public ReconnectPeerProtocol createPeerInstance(@NonNull final NodeId peerId) {
-        return new ReconnectPeerProtocol(
+    public StateSyncPeerProtocol createPeerInstance(@NonNull final NodeId peerId) {
+        return new StateSyncPeerProtocol(
                 platformContext,
                 threadManager,
                 Objects.requireNonNull(peerId),
-                reconnectThrottle,
+                stateSyncThrottle,
                 lastCompleteSignedState,
                 reconnectSocketTimeout,
                 reconnectMetrics,
@@ -78,7 +81,8 @@ public class ReconnectProtocol implements Protocol {
                 fallenBehindManager,
                 platformStatus::get,
                 time,
-                platformStateFacade);
+                platformStateFacade,
+                reservedSignedStatePromise);
     }
 
     /**

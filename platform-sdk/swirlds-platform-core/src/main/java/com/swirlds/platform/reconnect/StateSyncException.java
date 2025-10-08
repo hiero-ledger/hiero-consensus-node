@@ -4,17 +4,17 @@ package com.swirlds.platform.reconnect;
 /**
  * This exception is thrown if there is a failure during reconnect.
  */
-public class ReconnectException extends RuntimeException {
+public class StateSyncException extends RuntimeException {
 
-    public ReconnectException(final String message) {
+    public StateSyncException(final String message) {
         super(message);
     }
 
-    public ReconnectException(final String message, final Throwable cause) {
+    public StateSyncException(final String message, final Throwable cause) {
         super(message, cause);
     }
 
-    public ReconnectException(final Throwable cause) {
+    public StateSyncException(final Throwable cause) {
         super(cause);
     }
 }
