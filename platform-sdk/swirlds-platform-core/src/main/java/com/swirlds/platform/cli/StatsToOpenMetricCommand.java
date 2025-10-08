@@ -20,7 +20,7 @@ import picocli.CommandLine;
 @CommandLine.Command(
         name = "stats-to-open-metrics",
         mixinStandardHelpOptions = true,
-        description = "Converts list of stat CSV files to OpenMetric format")
+        description = "Converts list of stat CSV files to OpenMetrics format")
 @SubcommandOf(PlatformCli.class)
 public class StatsToOpenMetricCommand extends AbstractCommand {
 
