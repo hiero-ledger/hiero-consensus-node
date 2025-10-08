@@ -13,22 +13,17 @@ import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.component.framework.wires.input.BindableInputWire;
 import com.swirlds.component.framework.wires.output.StandardOutputWire;
 import com.swirlds.platform.Utilities;
-import com.swirlds.platform.gossip.shadowgraph.AbstractShadowgraphSynchronizer;
-import com.swirlds.platform.gossip.shadowgraph.RpcShadowgraphSynchronizer;
-import com.swirlds.platform.gossip.shadowgraph.Shadowgraph;
 import com.swirlds.platform.gossip.shadowgraph.ShadowgraphSynchronizer;
 import com.swirlds.platform.metrics.ReconnectMetrics;
 import com.swirlds.platform.metrics.SyncMetrics;
 import com.swirlds.platform.network.PeerCommunication;
 import com.swirlds.platform.network.PeerInfo;
 import com.swirlds.platform.network.communication.handshake.VersionCompareHandshake;
-import com.swirlds.platform.network.protocol.AbstractSyncProtocol;
 import com.swirlds.platform.network.protocol.HeartbeatProtocol;
 import com.swirlds.platform.network.protocol.Protocol;
 import com.swirlds.platform.network.protocol.ProtocolRunnable;
 import com.swirlds.platform.network.protocol.ReconnectStateSyncProtocol;
 import com.swirlds.platform.network.protocol.ReservedSignedStateResult;
-import com.swirlds.platform.network.protocol.SyncProtocol;
 import com.swirlds.platform.network.protocol.rpc.RpcProtocol;
 import com.swirlds.platform.reconnect.FallenBehindMonitor;
 import com.swirlds.platform.reconnect.ReconnectStateTeacherThrottle;
@@ -68,9 +63,9 @@ public class SyncGossipModular implements Gossip {
 
     private final PeerCommunication network;
     private final ImmutableList<Protocol> protocols;
-    private final AbstractSyncProtocol<?> syncProtocol;
+    private final RpcProtocol rpcProtocol;
     private final FallenBehindMonitor fallenBehindMonitor;
-    private final AbstractShadowgraphSynchronizer synchronizer;
+    private final ShadowgraphSynchronizer synchronizer;
     private final StateLifecycleManager stateLifecycleManager;
 
     // this is not a nice dependency, should be removed as well as the sharedState
@@ -80,16 +75,19 @@ public class SyncGossipModular implements Gossip {
     /**
      * Builds the gossip engine, depending on which flavor is requested in the configuration.
      *
-     * @param platformContext               the platform context
-     * @param threadManager                 the thread manager
-     * @param ownKeysAndCerts               private keys and public certificates for this node
-     * @param roster                        the current roster
-     * @param selfId                        this node's ID
-     * @param appVersion                    the version of the app
+     * @param platformContext                  the platform context
+     * @param threadManager                    the thread manager
+     * @param ownKeysAndCerts                  private keys and public certificates for this node
+     * @param roster                           the current roster
+     * @param selfId                           this node's ID
+     * @param appVersion                       the version of the app
      * @param stateLifecycleManager            manages the mutable state
-     * @param latestCompleteState           holds the latest signed state that has enough signatures to be verifiable
-     * @param intakeEventCounter            keeps track of the number of events in the intake pipeline from each peer
-     * @param fallenBehindMonitor           an instance of the fallenBehind Monitor which tracks if the node has fallen behind
+     * @param latestCompleteState              holds the latest signed state that has enough signatures to be
+     *                                         verifiable
+     * @param intakeEventCounter               keeps track of the number of events in the intake pipeline from each
+     *                                         peer
+     * @param fallenBehindMonitor              an instance of the fallenBehind Monitor which tracks if the node has
+     *                                         fallen behind
      * @param reservedSignedStateResultPromise a mechanism to get a SignedState or block while it is not available
      */
     public SyncGossipModular(
@@ -132,60 +130,35 @@ public class SyncGossipModular implements Gossip {
         final int rosterSize = peers.size() + 1;
         final SyncMetrics syncMetrics = new SyncMetrics(platformContext.getMetrics(), platformContext.getTime(), peers);
 
-        if (protocolConfig.rpcGossip()) {
+        final ShadowgraphSynchronizer rpcSynchronizer = new ShadowgraphSynchronizer(
+                platformContext,
+                rosterSize,
+                syncMetrics,
+                fallenBehindMonitor,
+                intakeEventCounter,
+                lag -> syncProgressHandler.accept(lag));
 
-            final RpcShadowgraphSynchronizer rpcSynchronizer = new RpcShadowgraphSynchronizer(
-                    platformContext,
-                    rosterSize,
-                    syncMetrics,
-                    event -> receivedEventHandler.accept(event),
-                    fallenBehindMonitor,
-                    intakeEventCounter,
-                    selfId,
-                    lag -> syncProgressHandler.accept(lag));
+        this.synchronizer = rpcSynchronizer;
 
-            this.synchronizer = rpcSynchronizer;
-
-            this.syncProtocol = RpcProtocol.create(
-                    platformContext,
-                    rpcSynchronizer,
-                    intakeEventCounter,
-                    threadManager,
-                    rosterSize,
-                    this.network.getNetworkMetrics(),
-                    syncMetrics);
-
-        } else {
-            final Shadowgraph shadowgraph = new Shadowgraph(platformContext, rosterSize, intakeEventCounter);
-
-            final ShadowgraphSynchronizer shadowgraphSynchronizer = new ShadowgraphSynchronizer(
-                    platformContext,
-                    shadowgraph,
-                    rosterSize,
-                    syncMetrics,
-                    event -> receivedEventHandler.accept(event),
-                    this.fallenBehindMonitor,
-                    intakeEventCounter,
-                    new CachedPoolParallelExecutor(threadManager, "node-sync"),
-                    lag -> syncProgressHandler.accept(lag));
-
-            this.synchronizer = shadowgraphSynchronizer;
-
-            this.syncProtocol = SyncProtocol.create(
-                    platformContext,
-                    shadowgraphSynchronizer,
-                    this.fallenBehindMonitor,
-                    intakeEventCounter,
-                    rosterSize,
-                    syncMetrics);
-        }
+        this.rpcProtocol = new RpcProtocol(
+                rpcSynchronizer,
+                new CachedPoolParallelExecutor(threadManager, "node-rpc-sync"),
+                intakeEventCounter,
+                platformContext,
+                rosterSize,
+                this.network.getNetworkMetrics(),
+                platformContext.getTime(),
+                syncMetrics,
+                selfId,
+                fallenBehindMonitor,
+                event -> receivedEventHandler.accept(event));
 
         final ReconnectStateSyncProtocol reconnectStateSyncProtocol = createStateSyncProtocol(
                 platformContext, threadManager, latestCompleteState, reservedSignedStateResultPromise);
         this.protocols = ImmutableList.of(
                 HeartbeatProtocol.create(platformContext, this.network.getNetworkMetrics()),
                 reconnectStateSyncProtocol,
-                syncProtocol);
+                rpcProtocol);
 
         final VersionCompareHandshake versionCompareHandshake =
                 new VersionCompareHandshake(appVersion, !protocolConfig.tolerateMismatchedVersion());
@@ -197,9 +170,9 @@ public class SyncGossipModular implements Gossip {
     /**
      * Utility method for creating ReconnectProtocol from shared state, while staying compatible with pre-refactor code
      *
-     * @param platformContext               the platform context
-     * @param threadManager                 the thread manager
-     * @param latestCompleteState           holds the latest signed state that has enough signatures to be verifiable
+     * @param platformContext     the platform context
+     * @param threadManager       the thread manager
+     * @param latestCompleteState holds the latest signed state that has enough signatures to be verifiable
      * @return constructed ReconnectProtocol
      */
     public ReconnectStateSyncProtocol createStateSyncProtocol(
@@ -241,7 +214,7 @@ public class SyncGossipModular implements Gossip {
     public void addRemovePeers(@NonNull final List<PeerInfo> added, @NonNull final List<PeerInfo> removed) {
         synchronized (this) {
             // if this is needed we should update fallenBehindMonitor
-            syncProtocol.adjustTotalPermits(
+            rpcProtocol.adjustTotalPermits(
                     added.size() - removed.size()); // Review, needs to make sure that the removed are part of the AB?
             network.addRemovePeers(added, removed);
         }
@@ -266,28 +239,28 @@ public class SyncGossipModular implements Gossip {
             @NonNull final StandardOutputWire<SyncProgress> syncLagOutput) {
 
         startInput.bindConsumer(ignored -> {
-            syncProtocol.start();
+            rpcProtocol.start();
             network.start();
         });
         stopInput.bindConsumer(ignored -> {
-            syncProtocol.stop();
+            rpcProtocol.stop();
             network.stop();
         });
 
-        clearInput.bindConsumer(ignored -> syncProtocol.clear());
+        clearInput.bindConsumer(ignored -> rpcProtocol.clear());
         eventInput.bindConsumer(synchronizer::addEvent);
         eventWindowInput.bindConsumer(synchronizer::updateEventWindow);
 
-        systemHealthInput.bindConsumer(syncProtocol::reportUnhealthyDuration);
+        systemHealthInput.bindConsumer(rpcProtocol::reportUnhealthyDuration);
         platformStatusInput.bindConsumer(status -> {
             protocols.forEach(protocol -> protocol.updatePlatformStatus(status));
         });
         pauseGossip.bindConsumer(ignored -> {
-            syncProtocol.pause();
+            rpcProtocol.pause();
             fallenBehindMonitor.notifySyncProtocolPaused();
         });
         resumeGossip.bindConsumer(ignored -> {
-            syncProtocol.resume();
+            rpcProtocol.resume();
         });
         this.receivedEventHandler = eventOutput::forward;
         this.syncProgressHandler = syncLagOutput::forward;
