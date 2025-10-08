@@ -62,6 +62,24 @@ jobs:
           ref: ${{ steps.validate.outputs.build-tag }}
           token: ${{ secrets.GH_ACCESS_TOKEN }}
 
+      - name: Test Rev List
+        id: rev_list
+        run: |
+          echo "Running comparison between ls-remote and rev-list"
+          echo "ls-remote here"
+          if git ls-remote --exit-code --heads origin "20148-ci-clean-up-the-workflow-dispatch-input-fields" >/dev/null 2>&1; then
+            echo "Found '20148-ci-clean-up-the-workflow-dispatch-input-fields'"
+          else
+            echo "Did not find '20148-ci-clean-up-the-workflow-dispatch-input-fields'"
+          
+          echo "rev-list here"
+          if git rev-list -n 1 "origin/20148-ci-clean-up-the-workflow-dispatch-input-fields" >/dev/null 2>&1; then
+            echo "Found '20148-ci-clean-up-the-workflow-dispatch-input-fields'"
+          else
+            echo "Did not find '20148-ci-clean-up-the-workflow-dispatch-input-fields'"
+          
+          exit 1
+
       - name: Import GPG Key
         uses: step-security/ghaction-import-gpg@c86c374c0659a6c2d1284bccf8af889e73ce8fe0 # v6.3.0
         with:
