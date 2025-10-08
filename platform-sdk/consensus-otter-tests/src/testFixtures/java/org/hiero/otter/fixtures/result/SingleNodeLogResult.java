@@ -9,7 +9,6 @@ import java.util.stream.Collectors;
 import org.apache.logging.log4j.Marker;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.otter.fixtures.logging.StructuredLog;
-import org.jetbrains.annotations.NotNull;
 
 /**
  * Interface that provides access to the log results of a single node.
@@ -61,7 +60,7 @@ public interface SingleNodeLogResult extends OtterResult {
      * @return a new {@code SingleNodeLogResult} instance with the specified logger's results removed
      */
     @NonNull
-    SingleNodeLogResult suppressingLoggerName(@NotNull String loggerName);
+    SingleNodeLogResult suppressingLoggerName(@NonNull String loggerName);
 
     /**
      * Returns the set of unique markers present in the log entries for this node.

@@ -84,32 +84,11 @@ public interface Node {
     void stopSyntheticBottleneck();
 
     /**
-     * Triggers a recoverable self-ISS on this node. The node will be able to recover from the ISS by restarting.
-     *
-     * @see #triggerSelfIss(boolean)
+     * Triggers a self-ISS on this node. The node will be able to recover from the ISS by restarting. This type of ISS
+     * simulates a bug where a transaction updates the state based on data in memory that is different on other nodes
+     * (due to the bug).
      */
-    default void triggerRecoverableSelfIss() {
-        triggerSelfIss(true);
-    }
-
-    /**
-     * Triggers a non-recoverable self-ISS on this node. The node will not be able to recover from the ISS by
-     * restarting.
-     *
-     * @see #triggerSelfIss(boolean)
-     */
-    default void triggerUnrecoverableSelfIss() {
-        triggerSelfIss(false);
-    }
-
-    /**
-     * Triggers a self-ISS on this node. If {@code recoverableOnRestart} is true, the node should be able to recover
-     * from the ISS by restarting. This type of ISS simulates a bug where a transaction updates the state based on data
-     * in memory that is different on other nodes (due to the bug).
-     *
-     * @param recoverableOnRestart if true, the ISS will be recoverable by restarting the node
-     */
-    void triggerSelfIss(boolean recoverableOnRestart);
+    void triggerSelfIss();
 
     /**
      * Sets the quiescence command of the node.

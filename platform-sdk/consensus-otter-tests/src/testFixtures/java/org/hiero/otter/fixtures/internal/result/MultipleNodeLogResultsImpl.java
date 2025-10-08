@@ -19,7 +19,6 @@ import org.hiero.otter.fixtures.result.MultipleNodeLogResults;
 import org.hiero.otter.fixtures.result.OtterResult;
 import org.hiero.otter.fixtures.result.SingleNodeLogResult;
 import org.hiero.otter.fixtures.result.SubscriberAction;
-import org.jetbrains.annotations.NotNull;
 
 /**
  * Default implementation of {@link MultipleNodeLogResults}
@@ -88,8 +87,9 @@ public class MultipleNodeLogResultsImpl implements MultipleNodeLogResults {
     /**
      * {@inheritDoc}
      */
+    @NonNull
     @Override
-    public @NonNull MultipleNodeLogResults suppressingNodes(@NonNull final Collection<Node> nodes) {
+    public MultipleNodeLogResults suppressingNodes(@NonNull final Collection<Node> nodes) {
         final Set<NodeId> nodeIdsToSuppress = nodes.stream().map(Node::selfId).collect(Collectors.toSet());
         final List<SingleNodeLogResult> filtered = results.stream()
                 .filter(result -> !nodeIdsToSuppress.contains(result.nodeId()))
@@ -110,8 +110,12 @@ public class MultipleNodeLogResultsImpl implements MultipleNodeLogResults {
         return new MultipleNodeLogResultsImpl(filteredResults);
     }
 
+    /**
+     * {@inheritDoc}
+     */
+    @NonNull
     @Override
-    public MultipleNodeLogResults suppressingLoggerName(@NotNull final Class<?> clazz) {
+    public MultipleNodeLogResults suppressingLoggerName(@NonNull final Class<?> clazz) {
         requireNonNull(clazz, "clazz cannot be null");
         final List<SingleNodeLogResult> filteredResults =
                 results.stream().map(res -> res.suppressingLoggerName(clazz)).toList();
@@ -119,8 +123,12 @@ public class MultipleNodeLogResultsImpl implements MultipleNodeLogResults {
         return new MultipleNodeLogResultsImpl(filteredResults);
     }
 
+    /**
+     * {@inheritDoc}
+     */
+    @NonNull
     @Override
-    public MultipleNodeLogResults suppressingLoggerName(@NotNull final String loggerName) {
+    public MultipleNodeLogResults suppressingLoggerName(@NonNull final String loggerName) {
         requireNonNull(loggerName, "loggerName cannot be null");
         final List<SingleNodeLogResult> filteredResults = results.stream()
                 .map(res -> res.suppressingLoggerName(loggerName))

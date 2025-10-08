@@ -14,7 +14,6 @@ import org.hiero.otter.fixtures.logging.StructuredLog;
 import org.hiero.otter.fixtures.result.LogSubscriber;
 import org.hiero.otter.fixtures.result.SingleNodeLogResult;
 import org.hiero.otter.fixtures.result.SubscriberAction;
-import org.jetbrains.annotations.NotNull;
 
 /**
  * Default implementation of {@link SingleNodeLogResult}
@@ -46,8 +45,8 @@ public class SingleNodeLogResultImpl implements SingleNodeLogResult {
     /**
      * {@inheritDoc}
      */
-    @Override
     @NonNull
+    @Override
     public NodeId nodeId() {
         return collector.nodeId();
     }
@@ -55,8 +54,8 @@ public class SingleNodeLogResultImpl implements SingleNodeLogResult {
     /**
      * {@inheritDoc}
      */
-    @Override
     @NonNull
+    @Override
     public List<StructuredLog> logs() {
         return collector.currentLogEntries(startIndex, suppressedLogMarkers, suppressedLoggerNames);
     }
@@ -78,8 +77,9 @@ public class SingleNodeLogResultImpl implements SingleNodeLogResult {
     /**
      * {@inheritDoc}
      */
+    @NonNull
     @Override
-    public @NonNull SingleNodeLogResult suppressingLoggerName(@NonNull final Class<?> clazz) {
+    public SingleNodeLogResult suppressingLoggerName(@NonNull final Class<?> clazz) {
         requireNonNull(clazz, "clazz cannot be null");
         return suppressingLoggerName(clazz.getCanonicalName());
     }
@@ -87,8 +87,9 @@ public class SingleNodeLogResultImpl implements SingleNodeLogResult {
     /**
      * {@inheritDoc}
      */
+    @NonNull
     @Override
-    public @NotNull SingleNodeLogResult suppressingLoggerName(@NotNull final String loggerName) {
+    public SingleNodeLogResult suppressingLoggerName(@NonNull final String loggerName) {
         requireNonNull(loggerName, "loggerName cannot be null");
 
         final Set<String> loggerNames = new HashSet<>(suppressedLoggerNames);

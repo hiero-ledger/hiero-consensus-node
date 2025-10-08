@@ -63,7 +63,7 @@ public class IssService implements OtterService {
             @NonNull final WritableStates writableStates,
             @NonNull final ConsensusEvent event,
             @NonNull final OtterTransaction transaction,
-            @NonNull final Instant timestamp,
+            @NonNull final Instant transactionTimestamp,
             @NonNull final Consumer<ScopedSystemTransaction<StateSignatureTransaction>> callback) {
 
         if (!transaction.hasIssTransaction()) {
@@ -82,7 +82,7 @@ public class IssService implements OtterService {
              * a partition will apply the same value and will disagree on
              * the value with all other nodes.
              */
-            if (partition.getNodeIdList().contains(selfId.id()) && !previouslyTriggered(timestamp)) {
+            if (partition.getNodeIdList().contains(selfId.id()) && !previouslyTriggered(transactionTimestamp)) {
                 log.info(
                         "Triggering ISS - selfId: {}, partition index: {}, partition nodes: {}",
                         selfId.id(),
@@ -91,10 +91,9 @@ public class IssService implements OtterService {
                 final WritableIssStateStore store = new WritableIssStateStore(writableStates);
                 store.setStateValue(i + 1);
 
-                if (issTransaction.getRecoverableOnRestart()) {
-                    // Record the consensus time at which this ISS was provoked
-                    scratchPad.set(IssServiceScratchpad.PROVOKED_ISS, new SerializableLong(timestamp.toEpochMilli()));
-                }
+                // Record the consensus time at which this ISS was provoked
+                scratchPad.set(
+                        IssServiceScratchpad.PROVOKED_ISS, new SerializableLong(transactionTimestamp.toEpochMilli()));
             }
         }
     }

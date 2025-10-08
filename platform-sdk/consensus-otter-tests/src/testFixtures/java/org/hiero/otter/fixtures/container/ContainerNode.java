@@ -357,7 +357,7 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
     @Override
     @NonNull
     public SingleNodePcesResult newPcesResult() {
-        throwIfNotIn(SHUTDOWN, "Node must be in the shutdown state to retrieve PCES results.");
+        throwIsNotInLifecycle(SHUTDOWN, "Node must be in the shutdown state to retrieve PCES results.");
 
         final Configuration configuration = nodeConfiguration.current();
         try {

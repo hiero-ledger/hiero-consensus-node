@@ -110,6 +110,7 @@ public interface OtterService {
      * @param writableStates the {@link WritableStates} to use to modify state
      * @param event the event that contains the transaction
      * @param transaction the transaction to handle
+     * @param transactionTimestamp the consensus timestamp of the transaction
      * @param callback a callback to pass any system transactions to be handled by the platform
      */
     default void handleTransaction(

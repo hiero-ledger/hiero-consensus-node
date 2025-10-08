@@ -54,7 +54,7 @@ public class PlatformStateService implements OtterService {
             @NonNull final WritableStates writableStates,
             @NonNull final ConsensusEvent event,
             @NonNull final OtterTransaction transaction,
-            @NonNull final Instant timestamp,
+            @NonNull final Instant transactionTimestamp,
             @NonNull final Consumer<ScopedSystemTransaction<StateSignatureTransaction>> callback) {
         switch (transaction.getDataCase()) {
             case FREEZETRANSACTION -> handleFreeze(writableStates, transaction.getFreezeTransaction());

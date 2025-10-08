@@ -89,6 +89,7 @@ public interface MultipleNodeLogResults extends OtterResult {
      * @param clazz the class whose log results are to be excluded
      * @return a new {@code MultipleNodeLogResults} instance with the specified log marker's results removed
      */
+    @NonNull
     MultipleNodeLogResults suppressingLoggerName(@NonNull final Class<?> clazz);
 
     /**
@@ -97,5 +98,6 @@ public interface MultipleNodeLogResults extends OtterResult {
      * @param loggerName - the name of the logger to suppress
      * @return a new {@code MultipleNodeLogResults} instance with the specified logger name's results removed
      */
+    @NonNull
     MultipleNodeLogResults suppressingLoggerName(@NonNull final String loggerName);
 }

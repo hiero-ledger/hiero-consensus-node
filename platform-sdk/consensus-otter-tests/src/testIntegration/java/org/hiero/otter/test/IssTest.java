@@ -40,7 +40,7 @@ public class IssTest {
         network.start();
 
         final Node issNode = network.nodes().getFirst();
-        issNode.triggerRecoverableSelfIss();
+        issNode.triggerSelfIss();
 
         final SingleNodePlatformStatusResult issNodeStatusResult = issNode.newPlatformStatusResult();
         assertThat(issNodeStatusResult)

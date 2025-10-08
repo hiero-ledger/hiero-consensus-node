@@ -261,18 +261,17 @@ public abstract class AbstractNode implements Node {
      * {@inheritDoc}
      */
     @Override
-    public void triggerSelfIss(final boolean recoverableOnRestart) {
-        doTriggerSelfIss(DEFAULT_TIMEOUT, recoverableOnRestart);
+    public void triggerSelfIss() {
+        doTriggerSelfIss(DEFAULT_TIMEOUT);
     }
 
-    private void doTriggerSelfIss(@NonNull final Duration timeout, final boolean recoverableOnRestart) {
-        throwIfInLifecycle(LifeCycle.INIT, "Network has not been started yet.");
-        throwIfInLifecycle(LifeCycle.SHUTDOWN, "Network has been shut down.");
+    private void doTriggerSelfIss(@NonNull final Duration timeout) {
+        throwIsNotInLifecycle(LifeCycle.RUNNING, "Node must be running to trigger a self ISS.");
 
         log.info("Sending Self ISS triggering transaction...");
         final Instant start = timeManager().now();
         final OtterTransaction issTransaction =
-                TransactionFactory.createSelfIssTransaction(random().nextLong(), selfId, recoverableOnRestart);
+                TransactionFactory.createSelfIssTransaction(random().nextLong(), selfId);
 
         submitTransaction(issTransaction);
         final Duration elapsed = Duration.between(start, timeManager().now());
@@ -305,7 +304,7 @@ public abstract class AbstractNode implements Node {
      */
     @Override
     public void sendQuiescenceCommand(@NonNull final QuiescenceCommand command) {
-        throwIfNotIn(RUNNING, "Can send quiescence commands only while the node is running");
+        throwIsNotInLifecycle(RUNNING, "Can send quiescence commands only while the node is running");
         doSendQuiescenceCommand(command, DEFAULT_TIMEOUT);
     }
 
@@ -335,7 +334,7 @@ public abstract class AbstractNode implements Node {
      * @param expected throw if the lifecycle is not in this state
      * @param message the message for the exception
      */
-    protected void throwIfNotIn(@NonNull final LifeCycle expected, @NonNull final String message) {
+    protected void throwIsNotInLifecycle(@NonNull final LifeCycle expected, @NonNull final String message) {
         if (lifeCycle != expected) {
             throw new IllegalStateException(message);
         }
@@ -393,8 +392,8 @@ public abstract class AbstractNode implements Node {
          * {@inheritDoc}
          */
         @Override
-        public void triggerSelfIss(final boolean recoverableOnRestart) {
-            doTriggerSelfIss(timeout, recoverableOnRestart);
+        public void triggerSelfIss() {
+            doTriggerSelfIss(timeout);
         }
 
         /**
@@ -402,7 +401,7 @@ public abstract class AbstractNode implements Node {
          */
         @Override
         public void sendQuiescenceCommand(@NonNull final QuiescenceCommand command) {
-            throwIfNotIn(RUNNING, "Can send quiescence commands only while the node is running");
+            throwIsNotInLifecycle(RUNNING, "Can send quiescence commands only while the node is running");
             doSendQuiescenceCommand(command, timeout);
         }
     }

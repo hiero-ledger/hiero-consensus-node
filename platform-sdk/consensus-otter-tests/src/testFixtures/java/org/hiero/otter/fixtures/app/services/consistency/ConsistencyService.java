@@ -141,7 +141,7 @@ public class ConsistencyService implements OtterService {
             @NonNull final WritableStates writableStates,
             @NonNull final ConsensusEvent event,
             @NonNull final OtterTransaction transaction,
-            @NonNull final Instant timestamp,
+            @NonNull final Instant transactionTimestamp,
             @NonNull final Consumer<ScopedSystemTransaction<StateSignatureTransaction>> callback) {
         final long transactionNonce = transaction.getNonce();
         new WritableConsistencyStateStore(writableStates).accumulateRunningChecksum(transactionNonce);

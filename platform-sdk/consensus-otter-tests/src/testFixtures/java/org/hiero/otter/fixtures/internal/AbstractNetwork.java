@@ -44,6 +44,7 @@ import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
+import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.otter.fixtures.AsyncNetworkActions;
 import org.hiero.otter.fixtures.InstrumentedNode;
 import org.hiero.otter.fixtures.Network;
@@ -456,8 +457,7 @@ public abstract class AbstractNetwork implements Network {
     }
 
     private void doTriggerCatastrophicIss(@NonNull final Duration defaultTimeout) {
-        throwIfInLifecycle(Lifecycle.INIT, "Network has not been started yet.");
-        throwIfInLifecycle(Lifecycle.SHUTDOWN, "Network has been shut down.");
+        throwIfNotInLifecycle(Lifecycle.RUNNING, "Network must be running to trigger an ISS.");
 
         log.info("Sending Catastrophic ISS triggering transaction...");
         final Instant start = timeManager().now();
@@ -474,7 +474,7 @@ public abstract class AbstractNetwork implements Network {
                         this::allNodesInCheckingOrCatastrophicFailure,
                         defaultTimeout.minus(elapsed),
                         "Not all nodes entered CHECKING or CATASTROPHIC_FAILURE before timeout");
-        final int numInCatastrophicFailure = (int) nodes().stream()
+        final long numInCatastrophicFailure = nodes().stream()
                 .filter(node -> node.platformStatus() == CATASTROPHIC_FAILURE)
                 .count();
         if (numInCatastrophicFailure < 1) {
@@ -484,7 +484,7 @@ public abstract class AbstractNetwork implements Network {
 
     private boolean allNodesInCheckingOrCatastrophicFailure() {
         return nodes().stream().allMatch(node -> {
-            final var status = node.platformStatus();
+            final PlatformStatus status = node.platformStatus();
             return status == CATASTROPHIC_FAILURE || status == CHECKING;
         });
     }
@@ -499,7 +499,7 @@ public abstract class AbstractNetwork implements Network {
                 .filter(Node::isActive)
                 .findFirst()
                 .map(node -> (AbstractNode) node)
-                .orElseThrow(() -> new AssertionError("No active node found to send freeze transaction to."))
+                .orElseThrow(() -> new AssertionError("No active node found to send transaction to."))
                 .submitTransaction(transaction);
     }
 
@@ -730,6 +730,19 @@ public abstract class AbstractNetwork implements Network {
      */
     protected void throwIfInLifecycle(@NonNull final Lifecycle expected, @NonNull final String message) {
         if (lifecycle == expected) {
+            throw new IllegalStateException(message);
+        }
+    }
+
+    /**
+     * Throws an {@link IllegalStateException} if the network is not in the given state.
+     *
+     * @param desiredLifecycle the state that will NOT cause the exception to be thrown
+     * @param message the message to include in the exception
+     * @throws IllegalStateException if the network is not in the expected state
+     */
+    protected void throwIfNotInLifecycle(@NonNull final Lifecycle desiredLifecycle, @NonNull final String message) {
+        if (lifecycle != desiredLifecycle) {
             throw new IllegalStateException(message);
         }
     }
