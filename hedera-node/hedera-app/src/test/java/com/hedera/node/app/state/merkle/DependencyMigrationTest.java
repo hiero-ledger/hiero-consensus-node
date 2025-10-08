@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.state.merkle;
 
+import static com.hedera.hapi.util.HapiUtils.SEMANTIC_VERSION_COMPARATOR;
 import static com.hedera.node.app.fixtures.AppTestBase.DEFAULT_CONFIG;
 import static com.hedera.node.app.ids.schemas.V0490EntityIdSchema.ENTITY_ID_KEY;
 import static com.hedera.node.app.ids.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_ID;
 import static com.hedera.node.app.ids.schemas.V0590EntityIdSchema.ENTITY_COUNTS_KEY;
 import static com.hedera.node.app.ids.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
+import static com.hedera.node.app.spi.fixtures.TestSchema.CURRENT_VERSION;
 import static com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade.TEST_PLATFORM_STATE_FACADE;
-import static com.swirlds.state.test.fixtures.merkle.TestSchema.CURRENT_VERSION;
 import static org.mockito.Mockito.mock;
 
 import com.hedera.hapi.node.base.SemanticVersion;
@@ -20,6 +21,7 @@ import com.hedera.node.app.ids.EntityIdService;
 import com.hedera.node.app.metrics.StoreMetricsServiceImpl;
 import com.hedera.node.app.services.OrderedServiceMigrator;
 import com.hedera.node.app.services.ServicesRegistryImpl;
+import com.hedera.node.app.spi.migrate.StartupNetworks;
 import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.swirlds.common.metrics.noop.NoOpMetrics;
@@ -28,7 +30,6 @@ import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.lifecycle.SchemaRegistry;
 import com.swirlds.state.lifecycle.Service;
-import com.swirlds.state.lifecycle.StartupNetworks;
 import com.swirlds.state.lifecycle.StateDefinition;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -148,7 +149,7 @@ class DependencyMigrationTest extends MerkleTestBase {
         final EntityIdService entityIdService = new EntityIdService() {
             @Override
             public void registerSchemas(@NonNull final SchemaRegistry registry) {
-                registry.register(new Schema(VERSION) {
+                registry.register(new Schema<>(VERSION, SEMANTIC_VERSION_COMPARATOR) {
                     @NonNull
                     public Set<StateDefinition> statesToCreate() {
                         return Set.of(
@@ -173,7 +174,7 @@ class DependencyMigrationTest extends MerkleTestBase {
 
             @Override
             public void registerSchemas(@NonNull final SchemaRegistry registry) {
-                registry.register(new Schema(VERSION) {
+                registry.register(new Schema<>(VERSION, SEMANTIC_VERSION_COMPARATOR) {
                     public void migrate(@NonNull MigrationContext ctx) {
                         orderedInvocations.add("A-Service#migrate");
                     }
@@ -190,7 +191,7 @@ class DependencyMigrationTest extends MerkleTestBase {
 
             @Override
             public void registerSchemas(@NonNull final SchemaRegistry registry) {
-                registry.register(new Schema(VERSION) {
+                registry.register(new Schema<>(VERSION, SEMANTIC_VERSION_COMPARATOR) {
                     public void migrate(@NonNull MigrationContext ctx) {
                         orderedInvocations.add("B-Service#migrate");
                     }
@@ -201,7 +202,7 @@ class DependencyMigrationTest extends MerkleTestBase {
         final DependentService dsService = new DependentService() {
             @Override
             public void registerSchemas(@NonNull final SchemaRegistry registry) {
-                registry.register(new Schema(VERSION) {
+                registry.register(new Schema<>(VERSION, SEMANTIC_VERSION_COMPARATOR) {
                     public void migrate(@NonNull MigrationContext ctx) {
                         orderedInvocations.add("DependentService#migrate");
                     }
@@ -252,7 +253,7 @@ class DependencyMigrationTest extends MerkleTestBase {
 
         public void registerSchemas(@NonNull final SchemaRegistry registry) {
             // Schema #1 - initial schema
-            registry.register(new Schema(VERSION) {
+            registry.register(new Schema<>(VERSION, SEMANTIC_VERSION_COMPARATOR) {
                 @NonNull
                 @Override
                 public Set<StateDefinition> statesToCreate() {
@@ -272,7 +273,7 @@ class DependencyMigrationTest extends MerkleTestBase {
             });
 
             // Schema #2 - schema that adds new mappings, dependent on EntityIdService
-            registry.register(new Schema(SemanticVersion.newBuilder().major(2).build()) {
+            registry.register(new Schema<>(SemanticVersion.newBuilder().major(2).build(), SEMANTIC_VERSION_COMPARATOR) {
                 public void migrate(@NonNull final MigrationContext ctx) {
                     final WritableStates dsWritableStates = ctx.newStates();
                     dsWritableStates.get(STATE_ID).put(new EntityNumber(1L), new ProtoString("newly-added 1"));

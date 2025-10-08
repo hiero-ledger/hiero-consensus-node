@@ -11,8 +11,10 @@ import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_TRANSFER;
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_UPDATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.FREEZE;
 import static com.hedera.hapi.node.base.HederaFunctionality.LAMBDA_S_STORE;
+import static com.hedera.hapi.node.base.HederaFunctionality.SCHEDULE_CREATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.SYSTEM_DELETE;
 import static com.hedera.hapi.node.base.HederaFunctionality.SYSTEM_UNDELETE;
+import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_AIRDROP;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.BUSY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CREATING_SYSTEM_ENTITIES;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.DUPLICATE_TRANSACTION;
@@ -32,13 +34,14 @@ import static com.hedera.node.app.workflows.handle.dispatch.DispatchValidator.Wo
 import static java.util.Objects.requireNonNull;
 import static org.hiero.consensus.model.status.PlatformStatus.ACTIVE;
 
-import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.SignaturePair;
+import com.hedera.hapi.node.base.TokenTransferList;
 import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.base.TransferList;
 import com.hedera.hapi.node.state.token.Account;
-import com.hedera.node.app.annotations.NodeSelfId;
+import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
+import com.hedera.hapi.node.token.TokenAirdropTransactionBody;
 import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.fees.FeeContextImpl;
 import com.hedera.node.app.fees.FeeManager;
@@ -50,6 +53,7 @@ import com.hedera.node.app.signature.SignatureExpander;
 import com.hedera.node.app.signature.SignatureVerifier;
 import com.hedera.node.app.spi.authorization.Authorizer;
 import com.hedera.node.app.spi.fees.FeeContext;
+import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.signatures.SignatureVerification;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.state.DeduplicationCache;
@@ -90,8 +94,15 @@ import org.apache.logging.log4j.Logger;
 @Singleton
 public final class IngestChecker {
     private static final Logger logger = LogManager.getLogger(IngestChecker.class);
-    private static final Set<HederaFunctionality> FEATURE_FLAGGED_TRANSACTIONS =
-            EnumSet.of(LAMBDA_S_STORE, CRYPTO_CREATE, CONTRACT_CREATE, CRYPTO_UPDATE, CONTRACT_UPDATE, CRYPTO_TRANSFER);
+    private static final Set<HederaFunctionality> FEATURE_FLAGGED_TRANSACTIONS = EnumSet.of(
+            LAMBDA_S_STORE,
+            CRYPTO_CREATE,
+            CONTRACT_CREATE,
+            CRYPTO_UPDATE,
+            CONTRACT_UPDATE,
+            CRYPTO_TRANSFER,
+            SCHEDULE_CREATE,
+            TOKEN_AIRDROP);
     private static final Set<HederaFunctionality> UNSUPPORTED_TRANSACTIONS =
             EnumSet.of(CRYPTO_ADD_LIVE_HASH, CRYPTO_DELETE_LIVE_HASH);
     private static final Set<HederaFunctionality> PRIVILEGED_TRANSACTIONS =
@@ -106,7 +117,7 @@ public final class IngestChecker {
     private final DeduplicationCache deduplicationCache;
     private final TransactionDispatcher dispatcher;
     private final FeeManager feeManager;
-    private final AccountID nodeAccount;
+    private final NetworkInfo networkInfo;
     private final Authorizer authorizer;
     private final SynchronizedThrottleAccumulator synchronizedThrottleAccumulator;
     private final InstantSource instantSource;
@@ -144,7 +155,7 @@ public final class IngestChecker {
     /**
      * Constructor of the {@code IngestChecker}
      *
-     * @param nodeAccount the {@link AccountID} of the node
+     * @param networkInfo the {@link NetworkInfo} that contains information about the network
      * @param currentPlatformStatus the {@link CurrentPlatformStatus} that contains the current status of the platform
      * @param transactionChecker the {@link TransactionChecker} that pre-processes the bytes of a transaction
      * @param solvencyPreCheck the {@link SolvencyPreCheck} that checks payer balance
@@ -159,7 +170,7 @@ public final class IngestChecker {
      */
     @Inject
     public IngestChecker(
-            @NodeSelfId @NonNull final AccountID nodeAccount,
+            @NonNull final NetworkInfo networkInfo,
             @NonNull final CurrentPlatformStatus currentPlatformStatus,
             @NonNull final BlockStreamManager blockStreamManager,
             @NonNull final TransactionChecker transactionChecker,
@@ -174,7 +185,7 @@ public final class IngestChecker {
             @NonNull final InstantSource instantSource,
             @NonNull final OpWorkflowMetrics workflowMetrics,
             @Nullable final AtomicBoolean systemEntitiesCreatedFlag) {
-        this.nodeAccount = requireNonNull(nodeAccount, "nodeAccount must not be null");
+        this.networkInfo = requireNonNull(networkInfo, "networkInfo must not be null");
         this.currentPlatformStatus = requireNonNull(currentPlatformStatus, "currentPlatformStatus must not be null");
         this.blockStreamManager = requireNonNull(blockStreamManager, "blockStreamManager must not be null");
         this.transactionChecker = requireNonNull(transactionChecker, "transactionChecker must not be null");
@@ -264,7 +275,8 @@ public final class IngestChecker {
         final var functionality = txInfo.functionality();
 
         // 1a. Verify the transaction has been sent to *this* node
-        if (!nodeAccount.equals(txBody.nodeAccountID()) && innerTransaction == NO) {
+        final var nodeAccountId = networkInfo.selfNodeInfo().accountId();
+        if (!nodeAccountId.equals(txBody.nodeAccountID()) && innerTransaction == NO) {
             throw new PreCheckException(INVALID_NODE_ACCOUNT);
         }
 
@@ -402,31 +414,102 @@ public final class IngestChecker {
                                         && op.hookCreationDetails().isEmpty(),
                                 HOOKS_NOT_ENABLED);
                     }
-                    case CRYPTO_TRANSFER -> {
-                        final var op = txInfo.txBody().cryptoTransferOrThrow();
-                        for (final var adjust :
-                                op.transfersOrElse(TransferList.DEFAULT).accountAmounts()) {
-                            validateFalsePreCheck(
-                                    adjust.hasPreTxAllowanceHook() || adjust.hasPrePostTxAllowanceHook(),
-                                    HOOKS_NOT_ENABLED);
-                        }
-                        for (final var tokenTransfers : op.tokenTransfers()) {
-                            for (final var adjust : tokenTransfers.transfers()) {
-                                validateFalsePreCheck(
-                                        adjust.hasPreTxAllowanceHook() || adjust.hasPrePostTxAllowanceHook(),
+                    case CRYPTO_TRANSFER -> validateNoHooks(txInfo.txBody().cryptoTransferOrThrow());
+                    case TOKEN_AIRDROP -> validateNoHooks(txInfo.txBody().tokenAirdropOrThrow());
+                    case SCHEDULE_CREATE -> {
+                        final var op = txInfo.txBody().scheduleCreateOrThrow();
+                        final var scheduledBody = op.scheduledTransactionBody();
+                        if (scheduledBody != null) {
+                            if (scheduledBody.hasCryptoCreateAccount()) {
+                                validateTruePreCheck(
+                                        scheduledBody
+                                                .cryptoCreateAccountOrThrow()
+                                                .hookCreationDetails()
+                                                .isEmpty(),
                                         HOOKS_NOT_ENABLED);
-                            }
-                            for (final var nftTransfer : tokenTransfers.nftTransfers()) {
-                                validateFalsePreCheck(
-                                        nftTransfer.hasPreTxSenderAllowanceHook()
-                                                || nftTransfer.hasPrePostTxSenderAllowanceHook()
-                                                || nftTransfer.hasPreTxReceiverAllowanceHook()
-                                                || nftTransfer.hasPrePostTxReceiverAllowanceHook(),
+                            } else if (scheduledBody.hasContractCreateInstance()) {
+                                validateTruePreCheck(
+                                        scheduledBody
+                                                .contractCreateInstanceOrThrow()
+                                                .hookCreationDetails()
+                                                .isEmpty(),
                                         HOOKS_NOT_ENABLED);
+                            } else if (scheduledBody.hasCryptoUpdateAccount()) {
+                                validateTruePreCheck(
+                                        scheduledBody
+                                                        .cryptoUpdateAccountOrThrow()
+                                                        .hookIdsToDelete()
+                                                        .isEmpty()
+                                                && scheduledBody
+                                                        .cryptoUpdateAccountOrThrow()
+                                                        .hookCreationDetails()
+                                                        .isEmpty(),
+                                        HOOKS_NOT_ENABLED);
+                            } else if (scheduledBody.hasContractUpdateInstance()) {
+                                validateTruePreCheck(
+                                        scheduledBody
+                                                        .contractUpdateInstanceOrThrow()
+                                                        .hookIdsToDelete()
+                                                        .isEmpty()
+                                                && scheduledBody
+                                                        .contractUpdateInstanceOrThrow()
+                                                        .hookCreationDetails()
+                                                        .isEmpty(),
+                                        HOOKS_NOT_ENABLED);
+                            } else if (scheduledBody.hasCryptoTransfer()) {
+                                validateNoHooks(scheduledBody.cryptoTransferOrThrow());
+                            } else if (scheduledBody.hasTokenAirdrop()) {
+                                validateNoHooks(scheduledBody.tokenAirdropOrThrow());
                             }
                         }
                     }
                 }
+            }
+        }
+    }
+
+    /**
+     * Validates that no allowance hooks are used in airdrops, as they are not supported.
+     *
+     * @param op the {@link TokenAirdropTransactionBody} to validate
+     * @throws PreCheckException if any allowance hooks are used
+     */
+    private static void validateNoHooks(final @NonNull TokenAirdropTransactionBody op) throws PreCheckException {
+        validateNoHooks(op.tokenTransfers());
+    }
+
+    /**
+     * Validates that no allowance hooks are used in crypto transfers, as they are not supported.
+     * @param op the {@link CryptoTransferTransactionBody} to validate
+     * @throws PreCheckException if any allowance hooks are used
+     */
+    private static void validateNoHooks(final @NonNull CryptoTransferTransactionBody op) throws PreCheckException {
+        for (final var adjust : op.transfersOrElse(TransferList.DEFAULT).accountAmounts()) {
+            validateFalsePreCheck(
+                    adjust.hasPreTxAllowanceHook() || adjust.hasPrePostTxAllowanceHook(), HOOKS_NOT_ENABLED);
+        }
+        validateNoHooks(op.tokenTransfers());
+    }
+
+    /**
+     * Validates that no allowance hooks are used in the given token transfers, as they are not supported.
+     * @param tokenTransferLists the token transfers to validate
+     * @throws PreCheckException if any allowance hooks are used
+     */
+    private static void validateNoHooks(@NonNull final List<TokenTransferList> tokenTransferLists)
+            throws PreCheckException {
+        for (final var tokenTransfers : tokenTransferLists) {
+            for (final var adjust : tokenTransfers.transfers()) {
+                validateFalsePreCheck(
+                        adjust.hasPreTxAllowanceHook() || adjust.hasPrePostTxAllowanceHook(), HOOKS_NOT_ENABLED);
+            }
+            for (final var nftTransfer : tokenTransfers.nftTransfers()) {
+                validateFalsePreCheck(
+                        nftTransfer.hasPreTxSenderAllowanceHook()
+                                || nftTransfer.hasPrePostTxSenderAllowanceHook()
+                                || nftTransfer.hasPreTxReceiverAllowanceHook()
+                                || nftTransfer.hasPrePostTxReceiverAllowanceHook(),
+                        HOOKS_NOT_ENABLED);
             }
         }
     }

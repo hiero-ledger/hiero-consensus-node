@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.demo.consistency;
 
+import static com.swirlds.demo.consistency.ConsistencyTestingToolMain.CONFIGURATION;
 import static com.swirlds.platform.state.service.PlatformStateFacade.DEFAULT_PLATFORM_STATE_FACADE;
 import static org.assertj.core.api.AssertionsForInterfaceTypes.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -57,7 +58,7 @@ public class ConsistencyTestingToolStateTest {
     static void initState() {
         state = new ConsistencyTestingToolState();
         stateLifecycle = new ConsistencyTestingToolConsensusStateEventHandler(DEFAULT_PLATFORM_STATE_FACADE);
-        TestingAppStateInitializer.DEFAULT.initStates(state);
+        TestingAppStateInitializer.initConsensusModuleStates(state, CONFIGURATION);
     }
 
     @BeforeEach

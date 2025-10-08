@@ -220,7 +220,7 @@ public class RecordStreamBuilder
      * The next hook ID after the hook dispatch.
      * This is useful to set the first hookId on the account if the head is deleted
      */
-    private long nextHookId;
+    private Long nextHookId;
 
     public RecordStreamBuilder(
             @NonNull final ReversingBehavior reversingBehavior,
@@ -1123,6 +1123,11 @@ public class RecordStreamBuilder
         return this;
     }
 
+    @Override
+    public Bytes getEvmCallResult() {
+        return requireNonNull(contractFunctionResult).contractCallResult();
+    }
+
     /**
      * Sets the contractStateChanges which are part of sidecar records.
      *
@@ -1315,12 +1320,12 @@ public class RecordStreamBuilder
     }
 
     @Override
-    public void nextHookId(final long nextHookId) {
+    public void nextHookId(final Long nextHookId) {
         this.nextHookId = nextHookId;
     }
 
     @Override
-    public long getNextHookId() {
+    public Long getNextHookId() {
         return nextHookId;
     }
 }

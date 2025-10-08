@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.schemas;
 
+import static com.hedera.hapi.util.HapiUtils.SEMANTIC_VERSION_COMPARATOR;
 import static com.hedera.node.app.service.token.impl.handlers.TokenClaimAirdropHandler.asAccountAmount;
 import static com.swirlds.state.lifecycle.StateMetadata.computeLabel;
 
@@ -21,7 +22,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 
-public class V0610TokenSchema extends Schema {
+public class V0610TokenSchema extends Schema<SemanticVersion> {
 
     public static final String NODE_REWARDS_KEY = "NODE_REWARDS";
     public static final int NODE_REWARDS_STATE_ID = SingletonType.TOKENSERVICE_I_NODE_REWARDS.protoOrdinal();
@@ -31,7 +32,7 @@ public class V0610TokenSchema extends Schema {
             SemanticVersion.newBuilder().major(0).minor(61).patch(0).build();
 
     public V0610TokenSchema() {
-        super(VERSION);
+        super(VERSION, SEMANTIC_VERSION_COMPARATOR);
     }
 
     @SuppressWarnings("rawtypes")

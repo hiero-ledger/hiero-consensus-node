@@ -19,22 +19,16 @@ import static com.hedera.services.bdd.suites.HapiSuite.flattened;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BUSY;
 
 import com.hedera.services.bdd.junit.HapiTest;
-import com.hedera.services.bdd.junit.HapiTestLifecycle;
-import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.HapiSpecOperation;
-import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Arrays;
-import java.util.Map;
 import java.util.stream.Stream;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
 // This test cases are direct copies of ConsensusServiceFeesSuite. The difference here is that
 // we are wrapping the operations in an atomic batch to confirm the fees are the same
-@HapiTestLifecycle
-public class AtomicConsensusServiceFeesSuite {
+class AtomicConsensusServiceFeesSuite {
 
     private static final double BASE_FEE_TOPIC_CREATE = 0.01;
     private static final double BASE_FEE_TOPIC_CREATE_WITH_CUSTOM_FEE = 2.00;
@@ -47,12 +41,6 @@ public class AtomicConsensusServiceFeesSuite {
 
     private static final String PAYER = "payer";
     private static final String TOPIC_NAME = "testTopic";
-
-    @BeforeAll
-    static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
-        testLifecycle.overrideInClass(
-                Map.of("atomicBatch.isEnabled", "true", "atomicBatch.maxNumberOfTransactions", "50"));
-    }
 
     private HapiSpecOperation[] topicCreateSetup() {
         return new HapiSpecOperation[] {

@@ -52,7 +52,6 @@ import com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoDelete;
 import com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoDeleteAllowance;
 import com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer;
 import com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoUpdate;
-import com.hedera.services.bdd.spec.transactions.crypto.HapiFromBodyTxnOp;
 import com.hedera.services.bdd.spec.transactions.file.HapiFileAppend;
 import com.hedera.services.bdd.spec.transactions.file.HapiFileCreate;
 import com.hedera.services.bdd.spec.transactions.file.HapiFileDelete;
@@ -99,6 +98,7 @@ import com.hederahashgraph.api.proto.java.EthereumTransactionBody;
 import com.hederahashgraph.api.proto.java.HederaFunctionality;
 import com.hederahashgraph.api.proto.java.PendingAirdropId;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
+import com.hederahashgraph.api.proto.java.TokenAirdropTransactionBody;
 import com.hederahashgraph.api.proto.java.TokenReference;
 import com.hederahashgraph.api.proto.java.TokenType;
 import com.hederahashgraph.api.proto.java.TopicID;
@@ -117,6 +117,18 @@ import java.util.function.Supplier;
 import java.util.stream.IntStream;
 
 public class TxnVerbs {
+    /* MISC */
+    /**
+     * Returns an operation that customizes the to-be-signed tx body as the given function by using the given spec.
+     * @param function the function the tx should claim to be
+     * @param explicitDef the function that will customize the tx body
+     * @return the operation that will customize the tx body
+     */
+    public static HapiExplicitTxn explicit(
+            HederaFunctionality function, BiConsumer<HapiSpec, TransactionBody.Builder> explicitDef) {
+        return new HapiExplicitTxn(function, explicitDef);
+    }
+
     /* CRYPTO */
     public static HapiCryptoCreate cryptoCreate(String account) {
         return new HapiCryptoCreate(account);
@@ -191,6 +203,11 @@ public class TxnVerbs {
 
     public static HapiTokenAirdrop tokenAirdrop(TokenMovement... sources) {
         return new HapiTokenAirdrop(sources);
+    }
+
+    public static HapiTokenAirdrop tokenAirdrop(
+            @NonNull final BiConsumer<HapiSpec, TokenAirdropTransactionBody.Builder> explicitDef) {
+        return new HapiTokenAirdrop(explicitDef);
     }
 
     public static HapiCryptoUpdate cryptoUpdateAliased(final String alias) {
@@ -823,9 +840,5 @@ public class TxnVerbs {
 
     public static HapiLambdaSStore accountLambdaSStore(@NonNull final String account, final long hookId) {
         return new HapiLambdaSStore(HookEntityId.EntityIdOneOfType.ACCOUNT_ID, account, hookId);
-    }
-
-    public static HapiTxnOp fromTxnBodyOp(HederaFunctionality functionality, TransactionBody body) {
-        return new HapiFromBodyTxnOp(functionality, body);
     }
 }

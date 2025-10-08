@@ -126,7 +126,8 @@ public class ReconnectHashLeafFlusherTest {
                 COUNT + 198,
                 Stream.of(),
                 IntStream.range(COUNT / 2 + 99, COUNT + 199).mapToObj(i -> leaf(i, i, i)),
-                Stream.of());
+                Stream.of(),
+                false);
         final VirtualMapStatistics stats = new VirtualMapStatistics("testLeavesDeleted");
         final ReconnectHashLeafFlusher flusher = new ReconnectHashLeafFlusher(ds, flushInterval, stats);
         flusher.start(COUNT - 1, COUNT * 2 - 2);
@@ -139,7 +140,7 @@ public class ReconnectHashLeafFlusherTest {
         flusher.finish();
         // I can't call loadLeafRecord(COUNT / 2 + 99), since it's outside the current ds path range. Let's
         // adjust the path range first, then check that the leaves are actually deleted
-        ds.saveRecords(COUNT / 2 + 99, COUNT + 198, Stream.of(), Stream.of(), Stream.of());
+        ds.saveRecords(COUNT / 2 + 99, COUNT + 198, Stream.of(), Stream.of(), Stream.of(), false);
         for (int i = COUNT / 2 + 99; i < COUNT - 1; i++) {
             final int fi = i;
             // InMemoryDataSource.loadLeafRecord() throws an assertion error, when the record doesn't exist

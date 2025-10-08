@@ -6,6 +6,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.DUPLICATE_TRANSACTION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.NOT_SUPPORTED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.PLATFORM_NOT_ACTIVE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.UNKNOWN;
+import static com.hedera.hapi.util.HapiUtils.SEMANTIC_VERSION_COMPARATOR;
 import static com.hedera.hapi.util.HapiUtils.functionOf;
 import static com.hedera.node.app.blocks.BlockStreamManager.ZERO_BLOCK_HASH;
 import static com.hedera.node.app.blocks.impl.BlockImplUtils.combine;
@@ -23,7 +24,6 @@ import static com.swirlds.platform.state.service.PlatformStateService.PLATFORM_S
 import static com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID;
 import static com.swirlds.platform.system.InitTrigger.GENESIS;
 import static com.swirlds.platform.system.InitTrigger.RECONNECT;
-import static com.swirlds.state.lifecycle.HapiUtils.SEMANTIC_VERSION_COMPARATOR;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.util.Objects.requireNonNull;
 import static java.util.concurrent.CompletableFuture.completedFuture;
@@ -76,13 +76,13 @@ import com.hedera.node.app.info.CurrentPlatformStatusImpl;
 import com.hedera.node.app.info.StateNetworkInfo;
 import com.hedera.node.app.metrics.StoreMetricsServiceImpl;
 import com.hedera.node.app.records.BlockRecordService;
-import com.hedera.node.app.roster.RosterService;
 import com.hedera.node.app.service.addressbook.impl.AddressBookServiceImpl;
 import com.hedera.node.app.service.consensus.impl.ConsensusServiceImpl;
 import com.hedera.node.app.service.contract.impl.ContractServiceImpl;
 import com.hedera.node.app.service.file.impl.FileServiceImpl;
 import com.hedera.node.app.service.networkadmin.impl.FreezeServiceImpl;
 import com.hedera.node.app.service.networkadmin.impl.NetworkServiceImpl;
+import com.hedera.node.app.service.roster.impl.RosterServiceImpl;
 import com.hedera.node.app.service.schedule.impl.ScheduleServiceImpl;
 import com.hedera.node.app.service.token.impl.TokenServiceImpl;
 import com.hedera.node.app.service.util.impl.UtilServiceImpl;
@@ -93,6 +93,7 @@ import com.hedera.node.app.signature.AppSignatureVerifier;
 import com.hedera.node.app.signature.impl.SignatureExpanderImpl;
 import com.hedera.node.app.signature.impl.SignatureVerifierImpl;
 import com.hedera.node.app.spi.AppContext;
+import com.hedera.node.app.spi.migrate.StartupNetworks;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.state.ConsensusStateEventHandlerImpl;
 import com.hedera.node.app.state.recordcache.RecordCacheService;
@@ -134,8 +135,6 @@ import com.swirlds.platform.system.state.notifications.AsyncFatalIssListener;
 import com.swirlds.platform.system.state.notifications.StateHashedListener;
 import com.swirlds.state.State;
 import com.swirlds.state.StateChangeListener;
-import com.swirlds.state.lifecycle.StartupNetworks;
-import com.swirlds.state.merkle.MerkleStateRoot;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.state.spi.WritableSingletonStateBase;
@@ -168,6 +167,7 @@ import org.hiero.consensus.model.hashgraph.Round;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
+import org.hiero.consensus.model.transaction.TimestampedTransaction;
 import org.hiero.consensus.model.transaction.Transaction;
 import org.hiero.consensus.roster.ReadableRosterStore;
 import org.hiero.consensus.roster.RosterUtils;
@@ -527,7 +527,8 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
         transactionPool = new TransactionPoolNexus(
                 transactionLimits,
                 bootstrapConfig.getConfigData(HederaConfig.class).throttleTransactionQueueSize(),
-                metrics);
+                metrics,
+                instantSource);
 
         // Register all service schema RuntimeConstructable factories before platform init
         Set.of(
@@ -549,7 +550,7 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
                         new CongestionThrottleService(),
                         new NetworkServiceImpl(),
                         new AddressBookServiceImpl(),
-                        new RosterService(
+                        new RosterServiceImpl(
                                 this::canAdoptRoster,
                                 this::onAdoptRoster,
                                 () -> requireNonNull(initState),
@@ -626,11 +627,6 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
                     // Disabling start up mode, so since now singletons will be commited only on block close
                     if (initState instanceof VirtualMapState<?> virtualMapState) {
                         virtualMapState.disableStartupMode();
-                    } else if (initState instanceof MerkleStateRoot<?> merkleStateRoot) {
-                        // Non production case (testing tools)
-                        // Otherwise assume it is a MerkleStateRoot
-                        // This branch should be removed once the MerkleStateRoot is removed
-                        merkleStateRoot.disableStartupMode();
                     }
                 }
             }
@@ -744,6 +740,17 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
         if (!onceOnlyServiceInitializationPostDaggerHasHappened) {
             contractServiceImpl.createMetrics();
             onceOnlyServiceInitializationPostDaggerHasHappened = true;
+            try {
+                // Verify the native libraries
+                contractServiceImpl.nativeLibVerifier().verifyNativeLibs();
+            } catch (final IllegalStateException e) {
+                // This block will be invoked only if the contracts.evm.nativeLibVerification.halt is enabled
+                // We should be shutting down the node if the verification fails
+                // to ensure that no unhandled exceptions from the native libs are thrown
+                // so that we prevent possibly catastrophic failures.
+                shutdown();
+                System.exit(1);
+            }
         }
     }
 
@@ -1144,9 +1151,8 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
         transactionPool.submitPriorityTransaction(encodeSystemTransaction(stateSignatureTransaction));
     }
 
-    @NonNull
     @Override
-    public List<Bytes> getTransactionsForEvent() {
+    public @NonNull List<TimestampedTransaction> getTransactionsForEvent() {
         return transactionPool.getTransactionsForEvent();
     }
 

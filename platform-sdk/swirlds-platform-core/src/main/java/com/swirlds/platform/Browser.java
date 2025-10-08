@@ -26,6 +26,8 @@ import static com.swirlds.platform.util.BootstrapUtils.getNodesToRun;
 import static com.swirlds.platform.util.BootstrapUtils.loadSwirldMains;
 import static com.swirlds.platform.util.BootstrapUtils.setupBrowserWindow;
 
+import com.hedera.hapi.node.state.roster.Roster;
+import com.hedera.hapi.util.HapiUtils;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.filesystem.FileSystemManager;
@@ -49,7 +51,6 @@ import com.swirlds.platform.gui.model.InfoApp;
 import com.swirlds.platform.gui.model.InfoMember;
 import com.swirlds.platform.gui.model.InfoSwirld;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
-import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.HashedReservedSignedState;
 import com.swirlds.platform.state.signed.ReservedSignedState;
@@ -57,8 +58,6 @@ import com.swirlds.platform.system.SwirldMain;
 import com.swirlds.platform.system.SystemExitCode;
 import com.swirlds.platform.util.BootstrapUtils;
 import com.swirlds.state.State;
-import com.swirlds.state.lifecycle.HapiUtils;
-import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.awt.GraphicsEnvironment;
 import java.util.ArrayList;
@@ -68,7 +67,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Function;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Cryptography;
@@ -78,6 +76,7 @@ import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.roster.AddressBook;
 import org.hiero.consensus.roster.RosterHistory;
+import org.hiero.consensus.roster.RosterRetriever;
 import org.hiero.consensus.roster.RosterUtils;
 
 /**
@@ -192,6 +191,7 @@ public class Browser {
         final HashgraphGuiSource guiSource;
         Metrics guiMetrics = null;
         if (showUi) {
+            final Roster guiRoster = RosterRetriever.buildRoster(appDefinition.getConfigAddressBook());
             setupBrowserWindow();
             setStateHierarchy(new StateHierarchy(null));
             final InfoApp infoApp = getStateHierarchy().getInfoApp(appDefinition.getApplicationName());
@@ -199,9 +199,9 @@ public class Browser {
             new InfoMember(infoSwirld, "Node" + nodesToRun.getFirst().id());
 
             initNodeSecurity(appDefinition.getConfigAddressBook(), bootstrapConfiguration, Set.copyOf(nodesToRun));
-            guiEventStorage = new GuiEventStorage(bootstrapConfiguration, appDefinition.getConfigAddressBook());
+            guiEventStorage = new GuiEventStorage(bootstrapConfiguration, guiRoster);
 
-            guiSource = new StandardGuiSource(appDefinition.getConfigAddressBook(), guiEventStorage);
+            guiSource = new StandardGuiSource(guiRoster, guiEventStorage);
         } else {
             guiSource = null;
             guiEventStorage = null;
@@ -264,7 +264,7 @@ public class Browser {
                     recycleBin,
                     appMain.getSemanticVersion(),
                     appMain::newStateRoot,
-                    stateRootFromVirtualMap(appMain),
+                    appMain.stateRootFromVirtualMap(),
                     appMain.getClass().getName(),
                     appDefinition.getSwirldName(),
                     nodeId,
@@ -309,7 +309,7 @@ public class Browser {
                     String.valueOf(nodeId),
                     rosterHistory,
                     platformStateFacade,
-                    stateRootFromVirtualMap(appMain));
+                    appMain.stateRootFromVirtualMap());
             if (showUi && index == 0) {
                 builder.withPreconsensusEventCallback(guiEventStorage::handlePreconsensusEvent);
                 builder.withConsensusSnapshotOverrideCallback(guiEventStorage::handleSnapshotOverride);
@@ -394,15 +394,5 @@ public class Browser {
                 .setRunnable(appMain)
                 .setDaemon(false)
                 .build(true);
-    }
-
-    /**
-     * A function to instantiate the state root object from a Virtual Map.
-     *
-     * @return a function that accepts a {@code VirtualMap} and returns the state root object.
-     */
-    private static Function<VirtualMap, MerkleNodeState> stateRootFromVirtualMap(@NonNull final SwirldMain appMain) {
-        Objects.requireNonNull(appMain);
-        return (virtualMap) -> (com.swirlds.platform.state.MerkleNodeState) appMain.stateRootFromVirtualMap();
     }
 }

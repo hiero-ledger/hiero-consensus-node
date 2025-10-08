@@ -32,9 +32,11 @@ import com.hedera.node.app.fixtures.state.FakeState;
 import com.hedera.node.app.ids.EntityIdService;
 import com.hedera.node.app.info.DiskStartupNetworks.InfoType;
 import com.hedera.node.app.metrics.StoreMetricsServiceImpl;
-import com.hedera.node.app.roster.RosterService;
 import com.hedera.node.app.service.addressbook.AddressBookService;
 import com.hedera.node.app.service.addressbook.impl.AddressBookServiceImpl;
+import com.hedera.node.app.service.roster.RosterService;
+import com.hedera.node.app.service.roster.impl.RosterServiceImpl;
+import com.hedera.node.app.spi.migrate.StartupNetworks;
 import com.hedera.node.app.tss.TssBaseServiceImpl;
 import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.data.VersionConfig;
@@ -48,7 +50,6 @@ import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.state.State;
-import com.swirlds.state.lifecycle.StartupNetworks;
 import com.swirlds.state.spi.CommittableWritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.File;
@@ -297,7 +298,7 @@ class DiskStartupNetworksTest {
                         tssBaseService,
                         PLATFORM_STATE_SERVICE,
                         new EntityIdService(),
-                        new RosterService(roster -> true, (r, b) -> {}, () -> state, TEST_PLATFORM_STATE_FACADE),
+                        new RosterServiceImpl(roster -> true, (r, b) -> {}, () -> state, TEST_PLATFORM_STATE_FACADE),
                         new AddressBookServiceImpl())
                 .forEach(servicesRegistry::register);
         final var migrator = new FakeServiceMigrator();

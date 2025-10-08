@@ -11,6 +11,7 @@ import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.AC
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.BYTECODE_SIDECARS_VARIABLE;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.CONFIG_CONTEXT_VARIABLE;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.HAPI_RECORD_BUILDER_CONTEXT_VARIABLE;
+import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.IS_HOOK_VARIABLE;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.OPS_DURATION_COUNTER;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.PENDING_CREATION_BUILDER_CONTEXT_VARIABLE;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.PROPAGATED_CALL_FAILURE_CONTEXT_VARIABLE;
@@ -74,6 +75,8 @@ public class FrameBuilder {
      * @param from the sender of the transaction
      * @param to the recipient of the transaction
      * @param intrinsicGas the intrinsic gas cost, needed to calculate remaining gas
+     * @param codeFactory the factory used to construct an instance of {@link org.hyperledger.besu.evm.Code}
+     * *                    from raw bytecode.
      * @return the initial frame
      */
     @SuppressWarnings("java:S107")
@@ -86,11 +89,13 @@ public class FrameBuilder {
             @NonNull final FeatureFlags featureFlags,
             @NonNull final Address from,
             @NonNull final Address to,
-            final long intrinsicGas) {
+            final long intrinsicGas,
+            @NonNull final CodeFactory codeFactory) {
         final var value = transaction.weiValue();
         final var ledgerConfig = config.getConfigData(LedgerConfig.class);
         final var nominalCoinbase = asLongZeroAddress(ledgerConfig.fundingAccount());
-        final var contextVariables = contextVariablesFrom(config, opsDurationCounter, context);
+        final var contextVariables =
+                contextVariablesFrom(config, opsDurationCounter, context, transaction.isHookDispatch());
         final var builder = MessageFrame.builder()
                 .maxStackSize(MAX_STACK_SIZE)
                 .worldUpdater(worldUpdater.updater())
@@ -108,17 +113,24 @@ public class FrameBuilder {
                 .blockHashLookup(context.blocks()::blockHashOf)
                 .contextVariables(contextVariables);
         if (transaction.isCreate()) {
-            return finishedAsCreate(to, builder, transaction);
+            return finishedAsCreate(to, builder, transaction, codeFactory);
         } else {
             return finishedAsCall(
-                    to, worldUpdater, builder, transaction, featureFlags, config.getConfigData(ContractsConfig.class));
+                    to,
+                    worldUpdater,
+                    builder,
+                    transaction,
+                    featureFlags,
+                    config.getConfigData(ContractsConfig.class),
+                    codeFactory);
         }
     }
 
     private Map<String, Object> contextVariablesFrom(
             @NonNull final Configuration config,
             @NonNull final OpsDurationCounter opsDurationCounter,
-            @NonNull final HederaEvmContext context) {
+            @NonNull final HederaEvmContext context,
+            final boolean hookDispatch) {
         final Map<String, Object> contextEntries = new HashMap<>();
         contextEntries.put(CONFIG_CONTEXT_VARIABLE, config);
         contextEntries.put(TINYBAR_VALUES_CONTEXT_VARIABLE, context.tinybarValues());
@@ -144,18 +156,22 @@ public class FrameBuilder {
                     PENDING_CREATION_BUILDER_CONTEXT_VARIABLE, context.pendingCreationRecordBuilderReference());
         }
         contextEntries.put(OPS_DURATION_COUNTER, opsDurationCounter);
+        if (hookDispatch) {
+            contextEntries.put(IS_HOOK_VARIABLE, true);
+        }
         return contextEntries;
     }
 
     private MessageFrame finishedAsCreate(
             @NonNull final Address to,
             @NonNull final MessageFrame.Builder builder,
-            @NonNull final HederaEvmTransaction transaction) {
+            @NonNull final HederaEvmTransaction transaction,
+            final CodeFactory codeFactory) {
         return builder.type(MessageFrame.Type.CONTRACT_CREATION)
                 .address(to)
                 .contract(to)
                 .inputData(Bytes.EMPTY)
-                .code(CodeFactory.createCode(transaction.evmPayload(), 0, false))
+                .code(codeFactory.createCode(transaction.evmPayload(), false))
                 .build();
     }
 
@@ -165,7 +181,8 @@ public class FrameBuilder {
             @NonNull final MessageFrame.Builder builder,
             @NonNull final HederaEvmTransaction transaction,
             @NonNull final FeatureFlags featureFlags,
-            @NonNull final ContractsConfig config) {
+            @NonNull final ContractsConfig config,
+            @NonNull final CodeFactory codeFactory) {
         Code code = CodeV0.EMPTY_CODE;
         final var contractId = transaction.contractIdOrThrow();
         final var contractMustBePresent = contractMustBePresent(config, featureFlags, contractId);
@@ -186,7 +203,7 @@ public class FrameBuilder {
         final var account = worldUpdater.getHederaAccount(contractId);
         if (account != null) {
             // Hedera account for contract is present, get the byte code
-            code = account.getEvmCode(Bytes.wrap(transaction.payload().toByteArray()));
+            code = account.getEvmCode(Bytes.wrap(transaction.payload().toByteArray()), codeFactory);
 
             // If after getting the code, it is empty, then check if this is allowed
             if (code.equals(CodeV0.EMPTY_CODE)) {

@@ -4,7 +4,6 @@ package com.swirlds.state.test.fixtures;
 import static com.swirlds.state.lifecycle.StateMetadata.computeLabel;
 import static org.mockito.ArgumentMatchers.any;
 
-import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.spi.ReadableSingletonState;
@@ -13,9 +12,6 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.concurrent.atomic.AtomicReference;
 
 public class StateTestBase extends TestBase {
-
-    public static final SemanticVersion TEST_VERSION =
-            SemanticVersion.newBuilder().major(1).build();
 
     public static final String FIRST_SERVICE = "First-Service";
 
@@ -146,11 +142,6 @@ public class StateTestBase extends TestBase {
                 computeLabel(COUNTRY_STATE_KEY, COUNTRY_STATE_LABEL),
                 backingValue::get,
                 backingValue::set);
-    }
-
-    /** A convenience method for creating {@link SemanticVersion}. */
-    protected SemanticVersion version(int major, int minor, int patch) {
-        return new SemanticVersion(major, minor, patch, null, null);
     }
 
     protected static ProtoBytes anyProtoBytes() {

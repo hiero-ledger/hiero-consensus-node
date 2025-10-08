@@ -15,7 +15,7 @@ import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.fees.ExchangeRateManager;
 import com.hedera.node.app.records.BlockRecordManager;
 import com.hedera.node.app.records.ReadableBlockRecordStore;
-import com.hedera.node.app.roster.RosterService;
+import com.hedera.node.app.service.roster.RosterService;
 import com.hedera.node.app.service.token.ReadableStakingInfoStore;
 import com.hedera.node.app.service.token.impl.handlers.staking.EndOfStakingPeriodUpdater;
 import com.hedera.node.app.service.token.records.TokenContext;

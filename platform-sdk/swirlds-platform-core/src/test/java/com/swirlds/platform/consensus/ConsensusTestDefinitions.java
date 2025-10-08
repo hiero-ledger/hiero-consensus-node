@@ -22,8 +22,8 @@ import com.swirlds.platform.test.fixtures.event.DynamicValue;
 import com.swirlds.platform.test.fixtures.event.emitter.PriorityEventEmitter;
 import com.swirlds.platform.test.fixtures.event.emitter.StandardEventEmitter;
 import com.swirlds.platform.test.fixtures.event.generator.StandardGraphGenerator;
+import com.swirlds.platform.test.fixtures.event.source.BranchingEventSource;
 import com.swirlds.platform.test.fixtures.event.source.EventSource;
-import com.swirlds.platform.test.fixtures.event.source.ForkingEventSource;
 import com.swirlds.platform.test.fixtures.event.source.StandardEventSource;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
@@ -102,21 +102,21 @@ public final class ConsensusTestDefinitions {
         orchestrator.validateAndClear(consensusOutputValidatorWithConsensusRatio05);
     }
 
-    /** Test consensus in the presence of forks. */
-    public static void forkingTests(@NonNull final TestInput input) {
-        // Use a custom event source generator that creates forking event sources
+    /** Test consensus in the presence of branches. */
+    public static void branchingTests(@NonNull final TestInput input) {
+        // Use a custom event source generator that creates branching event sources
         final Function<List<Long>, List<EventSource>> eventSourceBuilder = nodeWeights -> {
-            final double forkProbability = 0.1;
-            final int numberOfForkedBranches = 10;
+            final double branchProbability = 0.1;
+            final int maxBranchCount = 10;
             final long totalWeight = nodeWeights.stream().reduce(0L, Long::sum);
 
-            // Determine a single forking event source that has less than a strong minority
+            // Determine a single branching event source that has less than a strong minority
             // of weigh
-            int forkingNodeId = -1;
+            int branchingNodeId = -1;
             for (int i = 0; i < nodeWeights.size(); i++) {
                 final long weight = nodeWeights.get(i);
                 if (!Threshold.STRONG_MINORITY.isSatisfiedBy(weight, totalWeight)) {
-                    forkingNodeId = i;
+                    branchingNodeId = i;
                     break;
                 }
             }
@@ -124,10 +124,10 @@ public final class ConsensusTestDefinitions {
             final List<EventSource> eventSources = new ArrayList<>(nodeWeights.size());
             for (int i = 0; i < nodeWeights.size(); i++) {
                 final long weight = nodeWeights.get(i);
-                if (i == forkingNodeId) {
-                    eventSources.add(new ForkingEventSource()
-                            .setForkProbability(forkProbability)
-                            .setMaximumBranchCount(numberOfForkedBranches));
+                if (i == branchingNodeId) {
+                    eventSources.add(new BranchingEventSource()
+                            .setBranchProbability(branchProbability)
+                            .setMaximumBranchCount(maxBranchCount));
                 } else {
                     eventSources.add(new StandardEventSource());
                 }
