@@ -766,9 +766,7 @@ public class PlatformComponentBuilder {
     public IssHandler buildIssHandler() {
         if (issHandler == null) {
             issHandler = new DefaultIssHandler(
-                    blocks.platformContext(),
-                    SystemExitUtils::handleFatalError,
-                    blocks.issScratchpad());
+                    blocks.platformContext(), SystemExitUtils::handleFatalError, blocks.issScratchpad());
         }
         return issHandler;
     }

@@ -11,7 +11,6 @@ import com.swirlds.platform.state.iss.IssScratchpad;
 import com.swirlds.platform.system.SystemExitCode;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
-import java.util.function.Consumer;
 import org.hiero.consensus.model.notification.IssNotification;
 
 /**
