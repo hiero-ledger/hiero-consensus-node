@@ -1466,7 +1466,7 @@ public class BlockNodeConnectionManager {
             ipAsInteger = calculateIpAsInteger(blockAddress);
 
             logWithContext(
-                    DEBUG,
+                    INFO,
                     "Active block node connection updated to: {}:{} (resolvedIp: {}, resolvedIpAsInt={})",
                     nodeConfig.address(),
                     nodeConfig.port(),
