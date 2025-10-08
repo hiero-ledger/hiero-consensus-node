@@ -104,37 +104,52 @@ public class HookUtils {
         long totalGasLimit = 0;
         for (final AccountAmount aa : op.transfersOrElse(TransferList.DEFAULT).accountAmounts()) {
             if (aa.hasPreTxAllowanceHook()) {
-                totalGasLimit += requireNonNull(aa.preTxAllowanceHook()).evmHookCallOrThrow().gasLimit();
+                totalGasLimit += requireNonNull(aa.preTxAllowanceHook())
+                        .evmHookCallOrThrow()
+                        .gasLimit();
             }
             if (aa.hasPrePostTxAllowanceHook()) {
-                totalGasLimit += requireNonNull(aa.prePostTxAllowanceHook()).evmHookCallOrThrow().gasLimit();
+                totalGasLimit += requireNonNull(aa.prePostTxAllowanceHook())
+                        .evmHookCallOrThrow()
+                        .gasLimit();
             }
         }
-        for( final TokenTransferList ttl : op.tokenTransfers()) {
+        for (final TokenTransferList ttl : op.tokenTransfers()) {
             for (final AccountAmount aa : ttl.transfers()) {
                 if (aa.hasPreTxAllowanceHook()) {
-                    totalGasLimit += requireNonNull(aa.preTxAllowanceHook()).evmHookCallOrThrow().gasLimit();
+                    totalGasLimit += requireNonNull(aa.preTxAllowanceHook())
+                            .evmHookCallOrThrow()
+                            .gasLimit();
                 }
                 if (aa.hasPrePostTxAllowanceHook()) {
-                    totalGasLimit += requireNonNull(aa.prePostTxAllowanceHook()).evmHookCallOrThrow().gasLimit();
+                    totalGasLimit += requireNonNull(aa.prePostTxAllowanceHook())
+                            .evmHookCallOrThrow()
+                            .gasLimit();
                 }
             }
             for (final NftTransfer nft : ttl.nftTransfers()) {
                 if (nft.hasPreTxSenderAllowanceHook()) {
-                    totalGasLimit += requireNonNull(nft.preTxSenderAllowanceHook()).evmHookCallOrThrow().gasLimit();
+                    totalGasLimit += requireNonNull(nft.preTxSenderAllowanceHook())
+                            .evmHookCallOrThrow()
+                            .gasLimit();
                 }
                 if (nft.hasPrePostTxSenderAllowanceHook()) {
-                    totalGasLimit += requireNonNull(nft.prePostTxSenderAllowanceHook()).evmHookCallOrThrow().gasLimit();
+                    totalGasLimit += requireNonNull(nft.prePostTxSenderAllowanceHook())
+                            .evmHookCallOrThrow()
+                            .gasLimit();
                 }
                 if (nft.hasPreTxReceiverAllowanceHook()) {
-                    totalGasLimit += requireNonNull(nft.preTxReceiverAllowanceHook()).evmHookCallOrThrow().gasLimit();
+                    totalGasLimit += requireNonNull(nft.preTxReceiverAllowanceHook())
+                            .evmHookCallOrThrow()
+                            .gasLimit();
                 }
                 if (nft.hasPrePostTxReceiverAllowanceHook()) {
-                    totalGasLimit += requireNonNull(nft.prePostTxReceiverAllowanceHook()).evmHookCallOrThrow().gasLimit();
+                    totalGasLimit += requireNonNull(nft.prePostTxReceiverAllowanceHook())
+                            .evmHookCallOrThrow()
+                            .gasLimit();
                 }
             }
         }
         return totalGasLimit;
     }
-
 }

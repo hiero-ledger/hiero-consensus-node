@@ -22,7 +22,6 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.PROXY_ACCOUNT_ID_FIELD_
 import static com.hedera.hapi.node.base.ResponseCodeEnum.REQUESTED_NUM_AUTOMATIC_ASSOCIATIONS_EXCEEDS_ASSOCIATION_LIMIT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SERIALIZATION_FAILED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.WRONG_CHAIN_ID;
-import static com.hedera.node.app.hapi.utils.contracts.HookUtils.totalGasLimitOf;
 import static com.hedera.node.app.hapi.utils.keys.KeyUtils.isEmpty;
 import static com.hedera.node.app.service.contract.impl.handlers.ContractUpdateHandler.UNLIMITED_AUTOMATIC_ASSOCIATIONS;
 import static com.hedera.node.app.service.contract.impl.hevm.HederaEvmTransaction.NOT_APPLICABLE;
@@ -284,7 +283,7 @@ public class HevmTransactionFactory {
         AccountID sender = null;
         AccountID relayer = null;
 
-        final var gasPrice =
+        final var gasLimit =
                 switch (body.data().kind()) {
                     case CONTRACT_CREATE_INSTANCE ->
                         body.contractCreateInstanceOrThrow().gas();
@@ -296,7 +295,11 @@ public class HevmTransactionFactory {
                         yield ethTxData.gasLimit();
                     }
                     case HOOK_DISPATCH ->
-                         body.hookDispatchOrThrow().executionOrThrow().callOrThrow().evmHookCallOrThrow().gasLimit();
+                        body.hookDispatchOrThrow()
+                                .executionOrThrow()
+                                .callOrThrow()
+                                .evmHookCallOrThrow()
+                                .gasLimit();
                     default -> throw new IllegalArgumentException("Not a contract operation");
                 };
         return new HederaEvmTransaction(
@@ -307,7 +310,7 @@ public class HevmTransactionFactory {
                 Bytes.EMPTY,
                 null,
                 0,
-                gasPrice,
+                gasLimit,
                 NOT_APPLICABLE,
                 NOT_APPLICABLE,
                 null,
@@ -352,6 +355,7 @@ public class HevmTransactionFactory {
         final var execution = body.executionOrThrow();
 
         final var gasLimit = execution.callOrThrow().evmHookCallOrThrow().gasLimit();
+        validateTrue(gasLimit > 0, INSUFFICIENT_GAS);
         validateTrue(gasLimit >= hooksConfig.lambdaIntrinsicGasCost(), INSUFFICIENT_GAS);
         validateTrue(gasLimit <= getMaxGasLimit(contractsConfig), MAX_GAS_LIMIT_EXCEEDED);
 

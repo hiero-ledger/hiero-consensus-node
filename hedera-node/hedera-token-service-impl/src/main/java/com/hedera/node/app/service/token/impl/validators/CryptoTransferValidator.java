@@ -6,6 +6,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.BATCH_SIZE_LIMIT_EXCEED
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CANNOT_SET_HOOKS_AND_APPROVAL;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.EMPTY_TOKEN_TRANSFER_ACCOUNT_AMOUNTS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOKS_NOT_ENABLED;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_GAS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_AMOUNTS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TOKEN_ID;
@@ -22,10 +23,10 @@ import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateFalsePreCheck;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
 import static java.math.BigInteger.ZERO;
-import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountAmount;
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.EvmHookCall;
 import com.hedera.hapi.node.base.NftTransfer;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.base.TokenTransferList;
@@ -40,7 +41,6 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.math.BigInteger;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Objects;
 import java.util.Set;
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -78,10 +78,41 @@ public class CryptoTransferValidator {
             final var acctId = validateAccountID(acctAmount.accountIDOrThrow(), null);
             uniqueAcctIds.add(acctId);
             validateFalsePreCheck(hasApprovalAndHookExecution(acctAmount), CANNOT_SET_HOOKS_AND_APPROVAL);
+            validateHooksGasLimit(acctAmount);
         }
         validateFalsePreCheck(uniqueAcctIds.size() < acctAmounts.size(), ACCOUNT_REPEATED_IN_ACCOUNT_AMOUNTS);
 
         validateTokenTransfers(op.tokenTransfers(), AllowanceStrategy.ALLOWANCES_ALLOWED);
+    }
+
+    private static void validateHooksGasLimit(final AccountAmount acctAmount) throws PreCheckException {
+        if (acctAmount.hasPreTxAllowanceHook()) {
+            validatePositiveGas(acctAmount.preTxAllowanceHookOrThrow().evmHookCallOrThrow());
+        }
+        if (acctAmount.hasPrePostTxAllowanceHook()) {
+            validatePositiveGas(acctAmount.prePostTxAllowanceHookOrThrow().evmHookCallOrThrow());
+        }
+    }
+
+    private static void validateHooksGasLimit(final NftTransfer nftTransfer) throws PreCheckException {
+        if (nftTransfer.hasPreTxSenderAllowanceHook()) {
+            validatePositiveGas(nftTransfer.preTxSenderAllowanceHookOrThrow().evmHookCallOrThrow());
+        }
+        if (nftTransfer.hasPrePostTxSenderAllowanceHook()) {
+            validatePositiveGas(
+                    nftTransfer.prePostTxSenderAllowanceHookOrThrow().evmHookCallOrThrow());
+        }
+        if (nftTransfer.hasPreTxReceiverAllowanceHook()) {
+            validatePositiveGas(nftTransfer.preTxReceiverAllowanceHookOrThrow().evmHookCallOrThrow());
+        }
+        if (nftTransfer.hasPrePostTxReceiverAllowanceHook()) {
+            validatePositiveGas(
+                    nftTransfer.prePostTxReceiverAllowanceHookOrThrow().evmHookCallOrThrow());
+        }
+    }
+
+    private static void validatePositiveGas(final EvmHookCall evmHookCall) throws PreCheckException {
+        validateTruePreCheck(evmHookCall.gasLimit() > 0, INSUFFICIENT_GAS);
     }
 
     /**
@@ -180,6 +211,7 @@ public class CryptoTransferValidator {
                 nonZeroFungibleValueFound = true;
             }
             validateFalsePreCheck(hasApprovalAndHookExecution(acctAmount), CANNOT_SET_HOOKS_AND_APPROVAL);
+            validateHooksGasLimit(acctAmount);
         }
         validateFalsePreCheck(
                 uniqueTokenAcctIds.size() < fungibleTransfers.size(), ACCOUNT_REPEATED_IN_ACCOUNT_AMOUNTS);
@@ -211,6 +243,7 @@ public class CryptoTransferValidator {
                     nftTransfer.senderAccountIDOrThrow().equals(nftTransfer.receiverAccountID()),
                     ACCOUNT_REPEATED_IN_ACCOUNT_AMOUNTS);
             validateFalsePreCheck(hasApprovalAndHookExecution(nftTransfer), CANNOT_SET_HOOKS_AND_APPROVAL);
+            validateHooksGasLimit(nftTransfer);
             nftIds.add(nftTransfer.serialNumber());
         }
     }

@@ -400,62 +400,62 @@ public class HapiCryptoTransfer extends HapiBaseTransfer<HapiCryptoTransfer> {
 
     public HapiCryptoTransfer withPreHookFor(
             final String account, final long hookId, final long gasLimit, final ByteString dataUtf8) {
-        fungibleHooksByAccount.computeIfAbsent(account, k -> new ArrayList<>())
-                .add(HookSpec.pre(
-                        hookId, gasLimit, dataUtf8 == null ? ByteString.EMPTY : dataUtf8));
+        fungibleHooksByAccount
+                .computeIfAbsent(account, k -> new ArrayList<>())
+                .add(HookSpec.pre(hookId, gasLimit, dataUtf8 == null ? ByteString.EMPTY : dataUtf8));
         return this;
     }
 
     public HapiCryptoTransfer withPreHookFor(
             final String account, final long hookId, final long gasLimit, final String dataUtf8) {
-        fungibleHooksByAccount.computeIfAbsent(account, k -> new ArrayList<>())
-                              .add(HookSpec.pre(
+        fungibleHooksByAccount
+                .computeIfAbsent(account, k -> new ArrayList<>())
+                .add(HookSpec.pre(
                         hookId, gasLimit, dataUtf8 == null ? ByteString.EMPTY : ByteString.copyFromUtf8(dataUtf8)));
         return this;
     }
 
     public HapiCryptoTransfer withPrePostHookFor(
             final String account, final long hookId, final long gasLimit, final String dataUtf8) {
-        fungibleHooksByAccount.computeIfAbsent(account, k -> new ArrayList<>())
-                .add(
-                HookSpec.prePost(
+        fungibleHooksByAccount
+                .computeIfAbsent(account, k -> new ArrayList<>())
+                .add(HookSpec.prePost(
                         hookId, gasLimit, dataUtf8 == null ? ByteString.EMPTY : ByteString.copyFromUtf8(dataUtf8)));
         return this;
     }
 
-
     public HapiCryptoTransfer withNftSenderPreHookFor(
             final String account, final long hookId, final long gasLimit, final String dataUtf8) {
-        nftSenderHooksByAccount.computeIfAbsent(account, k -> new ArrayList<>())
-                .add(
-                HookSpec.pre(
+        nftSenderHooksByAccount
+                .computeIfAbsent(account, k -> new ArrayList<>())
+                .add(HookSpec.pre(
                         hookId, gasLimit, dataUtf8 == null ? ByteString.EMPTY : ByteString.copyFromUtf8(dataUtf8)));
         return this;
     }
 
     public HapiCryptoTransfer withNftSenderPrePostHookFor(
             final String account, final long hookId, final long gasLimit, final String dataUtf8) {
-        nftSenderHooksByAccount.computeIfAbsent(account, k -> new ArrayList<>())
-                .add(
-                HookSpec.prePost(
+        nftSenderHooksByAccount
+                .computeIfAbsent(account, k -> new ArrayList<>())
+                .add(HookSpec.prePost(
                         hookId, gasLimit, dataUtf8 == null ? ByteString.EMPTY : ByteString.copyFromUtf8(dataUtf8)));
         return this;
     }
 
     public HapiCryptoTransfer withNftReceiverPreHookFor(
             final String account, final long hookId, final long gasLimit, final String dataUtf8) {
-        nftReceiverHooksByAccount.computeIfAbsent(account, k -> new ArrayList<>())
-                .add(
-                HookSpec.pre(
+        nftReceiverHooksByAccount
+                .computeIfAbsent(account, k -> new ArrayList<>())
+                .add(HookSpec.pre(
                         hookId, gasLimit, dataUtf8 == null ? ByteString.EMPTY : ByteString.copyFromUtf8(dataUtf8)));
         return this;
     }
 
     public HapiCryptoTransfer withNftReceiverPrePostHookFor(
             final String account, final long hookId, final long gasLimit, final String dataUtf8) {
-        nftReceiverHooksByAccount.computeIfAbsent(account, k -> new ArrayList<>())
-                .add(
-                HookSpec.prePost(
+        nftReceiverHooksByAccount
+                .computeIfAbsent(account, k -> new ArrayList<>())
+                .add(HookSpec.prePost(
                         hookId, gasLimit, dataUtf8 == null ? ByteString.EMPTY : ByteString.copyFromUtf8(dataUtf8)));
         return this;
     }
@@ -499,7 +499,7 @@ public class HapiCryptoTransfer extends HapiBaseTransfer<HapiCryptoTransfer> {
                 final var aaB = tl.getAccountAmountsBuilder(i);
                 final var hooks = fungibleResolved.get(aaB.getAccountID());
                 if (hooks != null) {
-                    for(var specHook : hooks) {
+                    for (var specHook : hooks) {
                         applyHookToAccountAmount(aaB, specHook);
                     }
                 }
@@ -516,7 +516,7 @@ public class HapiCryptoTransfer extends HapiBaseTransfer<HapiCryptoTransfer> {
                     final var aaB = ttlB.getTransfersBuilder(j);
                     final var hooks = fungibleResolved.get(aaB.getAccountID());
                     if (hooks != null) {
-                        for(var specHook : hooks) {
+                        for (var specHook : hooks) {
                             applyHookToAccountAmount(aaB, specHook);
                         }
                     }
@@ -529,15 +529,15 @@ public class HapiCryptoTransfer extends HapiBaseTransfer<HapiCryptoTransfer> {
                     final var nftB = ttlB.getNftTransfersBuilder(j);
 
                     final var sHook = nftSenderResolved.get(nftB.getSenderAccountID());
-                    if (sHook != null){
-                        for(var specHook : sHook) {
+                    if (sHook != null) {
+                        for (var specHook : sHook) {
                             applyHookToNftSender(nftB, specHook);
                         }
                     }
 
                     final var rHook = nftReceiverResolved.get(nftB.getReceiverAccountID());
                     if (rHook != null) {
-                        for(var specHook : rHook){
+                        for (var specHook : rHook) {
                             applyHookToNftReceiver(nftB, specHook);
                         }
                     }
@@ -549,8 +549,8 @@ public class HapiCryptoTransfer extends HapiBaseTransfer<HapiCryptoTransfer> {
     }
 
     /** Map every known AccountID form for each name to the same HookSpec. */
-    private static Map<AccountID, List<HookSpec>> resolveByAllForms(final HapiSpec spec,
-                                                                    final Map<String, List<HookSpec>> byName) {
+    private static Map<AccountID, List<HookSpec>> resolveByAllForms(
+            final HapiSpec spec, final Map<String, List<HookSpec>> byName) {
         final var out = new HashMap<AccountID, List<HookSpec>>();
         for (var e : byName.entrySet()) {
             final var name = e.getKey();
@@ -564,7 +564,8 @@ public class HapiCryptoTransfer extends HapiBaseTransfer<HapiCryptoTransfer> {
 
             // Key-lookup id (often key-alias)
             try {
-                out.computeIfAbsent(asIdForKeyLookUp(name, spec), k -> new ArrayList<>()).addAll(hsList);
+                out.computeIfAbsent(asIdForKeyLookUp(name, spec), k -> new ArrayList<>())
+                        .addAll(hsList);
             } catch (Throwable ignore) {
             }
 

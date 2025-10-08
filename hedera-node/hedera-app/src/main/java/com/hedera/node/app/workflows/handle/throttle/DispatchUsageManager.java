@@ -4,6 +4,7 @@ package com.hedera.node.app.workflows.handle.throttle;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CALL;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CREATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_CREATE;
+import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_TRANSFER;
 import static com.hedera.hapi.node.base.HederaFunctionality.ETHEREUM_TRANSACTION;
 import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_ASSOCIATE_TO_ACCOUNT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
@@ -38,7 +39,7 @@ import javax.inject.Singleton;
 @Singleton
 public class DispatchUsageManager {
     public static final Set<HederaFunctionality> CONTRACT_OPERATIONS =
-            EnumSet.of(CONTRACT_CREATE, CONTRACT_CALL, ETHEREUM_TRANSACTION);
+            EnumSet.of(CONTRACT_CREATE, CONTRACT_CALL, ETHEREUM_TRANSACTION, CRYPTO_TRANSFER);
 
     private final NetworkInfo networkInfo;
     private final OpWorkflowMetrics opWorkflowMetrics;

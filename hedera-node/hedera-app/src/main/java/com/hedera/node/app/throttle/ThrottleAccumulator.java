@@ -8,10 +8,10 @@ import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_CREATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_GET_ACCOUNT_BALANCE;
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_TRANSFER;
 import static com.hedera.hapi.node.base.HederaFunctionality.ETHEREUM_TRANSACTION;
+import static com.hedera.hapi.node.base.HederaFunctionality.HOOK_DISPATCH;
 import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_ASSOCIATE_TO_ACCOUNT;
 import static com.hedera.hapi.util.HapiUtils.functionOf;
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
-import static com.hedera.node.app.hapi.utils.contracts.HookUtils.hasHooks;
 import static com.hedera.node.app.hapi.utils.contracts.HookUtils.totalGasLimitOf;
 import static com.hedera.node.app.hapi.utils.ethereum.EthTxData.populateEthTxData;
 import static com.hedera.node.app.hapi.utils.sysfiles.domain.throttling.ScaleFactor.ONE_TO_ONE;
@@ -95,7 +95,7 @@ import org.apache.logging.log4j.Logger;
 public class ThrottleAccumulator {
     private static final Logger log = LogManager.getLogger(ThrottleAccumulator.class);
     private static final Set<HederaFunctionality> CONTRACT_FUNCTIONS =
-            EnumSet.of(CONTRACT_CALL_LOCAL, CONTRACT_CALL, CONTRACT_CREATE, ETHEREUM_TRANSACTION);
+            EnumSet.of(CONTRACT_CALL_LOCAL, CONTRACT_CALL, CONTRACT_CREATE, ETHEREUM_TRANSACTION, HOOK_DISPATCH);
     private static final Set<HederaFunctionality> AUTO_CREATE_FUNCTIONS =
             EnumSet.of(CRYPTO_TRANSFER, ETHEREUM_TRANSACTION);
     private static final int UNKNOWN_NUM_IMPLICIT_CREATIONS = -1;
@@ -385,17 +385,9 @@ public class ThrottleAccumulator {
     /**
      * Checks if the given functionality is a contract function.
      *
-     * @param txnInfo the transaction info to check
+     * @param functionality the functionality to check
      * @return whether the given functionality is a contract function
      */
-    public static boolean isGasThrottledTxn(@NonNull final TransactionInfo txnInfo) {
-        final var function = txnInfo.functionality();
-        if (txnInfo.txBody().hasCryptoTransfer()) {
-            return hasHooks(txnInfo.txBody().cryptoTransferOrThrow());
-        }
-        return isGasThrottled(function);
-    }
-
     public static boolean isGasThrottled(@NonNull final HederaFunctionality functionality) {
         return CONTRACT_FUNCTIONS.contains(functionality);
     }
@@ -619,7 +611,7 @@ public class ThrottleAccumulator {
             @Nullable final List<ThrottleUsage> throttleUsages) {
         final boolean shouldThrottleByGas =
                 configuration.getConfigData(ContractsConfig.class).throttleThrottleByGas();
-        if (shouldThrottleByGas && isGasThrottledTxn(txnInfo)) {
+        if (shouldThrottleByGas && isGasThrottled(txnInfo.functionality())) {
             final long amount = getGasLimitForContractTx(txnInfo.txBody(), txnInfo.functionality());
             final boolean answer = !gasThrottle.allow(now, amount);
             if (!answer && throttleUsages != null) {

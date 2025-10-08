@@ -8,6 +8,7 @@ import static com.hedera.services.bdd.junit.hedera.NodeSelector.byNodeId;
 import static com.hedera.services.bdd.junit.hedera.embedded.EmbeddedMode.CONCURRENT;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asAccount;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
+import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.accountAllowanceHook;
@@ -30,6 +31,7 @@ import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.viewAccount;
 import static com.hedera.services.bdd.spec.utilops.SidecarVerbs.GLOBAL_WATCHER;
 import static com.hedera.services.bdd.spec.utilops.SidecarVerbs.expectContractStateChangesSidecarFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
@@ -38,12 +40,11 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.contract.Utils.asHexedSolidityAddress;
 import static com.hedera.services.bdd.suites.contract.traceability.EncodingUtils.formattedAssertionValue;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BUSY;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONSENSUS_GAS_EXHAUSTED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.HOOK_DELETION_REQUIRES_ZERO_STORAGE_SLOTS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.HOOK_ID_IN_USE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.HOOK_ID_REPEATED_IN_CREATION_DETAILS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.HOOK_NOT_FOUND;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_GAS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.MAX_GAS_LIMIT_EXCEEDED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK;
@@ -60,6 +61,7 @@ import com.hedera.hapi.node.state.token.Account;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
+import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.junit.TargetEmbeddedMode;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.assertions.StateChange;
@@ -146,18 +148,20 @@ public class Hip1195EnabledTest {
                 cryptoTransfer(TokenMovement.movingHbar(10).between("testAccount", GENESIS))
                         .withPreHookFor("testAccount", 124L, 15000000000000L, "")
                         .payingWith("payer")
-                        .hasPrecheck(BUSY),
+                        .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK)
+                        .via("payerTxnGasLimitExceeded"),
                 cryptoTransfer(TokenMovement.movingHbar(10).between("testAccount", GENESIS))
                         .withPreHookFor("testAccount", 124L, 15000000000000L, "")
-                        .payingWith("payer")
-                        .hasKnownStatus(MAX_GAS_LIMIT_EXCEEDED),
-                cryptoTransfer(TokenMovement.movingHbar(10).between("testAccount", GENESIS))
-                        .withPreHookFor("testAccount", 124L, 1500000000L, "")
-                        .withPreHookFor("testAccount", 123L, 1500000000L, "")
-                        .withPrePostHookFor("testAccount", 125L, 1500000000L, "")
-                        .withPrePostHookFor("testAccount", 126L, 1500000000L, "")
-                        .payingWith("payer")
-                        .hasKnownStatus(CONSENSUS_GAS_EXHAUSTED));
+                        .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK)
+                        .via("defaultPayerMaxGasLimitExceededTxn"),
+                getTxnRecord("payerTxnGasLimitExceeded")
+                        .andAllChildRecords()
+                        .hasChildRecords(recordWith().status(MAX_GAS_LIMIT_EXCEEDED))
+                        .logged(),
+                getTxnRecord("defaultPayerMaxGasLimitExceededTxn")
+                        .andAllChildRecords()
+                        .hasChildRecords(recordWith().status(MAX_GAS_LIMIT_EXCEEDED))
+                        .logged());
     }
 
     @HapiTest
@@ -165,7 +169,7 @@ public class Hip1195EnabledTest {
         return hapiTest(
                 cryptoCreate(OWNER)
                         .withHooks(
-                                accountAllowanceHook(123L, TRUE_ALLOWANCE_HOOK.name()),
+                                accountAllowanceHook(123L, FALSE_ALLOWANCE_HOOK.name()),
                                 accountAllowanceHook(124L, TRUE_ALLOWANCE_HOOK.name())),
                 cryptoTransfer(TokenMovement.movingHbar(10).between(OWNER, GENESIS))
                         .withPreHookFor(OWNER, 123L, 25_000L, "")
@@ -224,7 +228,12 @@ public class Hip1195EnabledTest {
                 cryptoTransfer(TokenMovement.movingHbar(10).between(OWNER, GENESIS))
                         .withPrePostHookFor(OWNER, 125L, 25_000L, "")
                         .signedBy(DEFAULT_PAYER)
-                        .hasKnownStatus(HOOK_NOT_FOUND),
+                        .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK)
+                        .via("txnWithWrongHook"),
+                getTxnRecord("txnWithWrongHook")
+                        .andAllChildRecords()
+                        .hasChildRecords(recordWith().status(HOOK_NOT_FOUND))
+                        .logged(),
                 cryptoTransfer(TokenMovement.movingHbar(10).between(OWNER, GENESIS))
                         .withPrePostHookFor("accountWithDifferentHooks", 123L, 25_000L, "")
                         .signedBy(DEFAULT_PAYER)
@@ -360,6 +369,133 @@ public class Hip1195EnabledTest {
                 cryptoTransfer(TokenMovement.movingHbar(10).between(GENESIS, OWNER))
                         .withPreHookFor(OWNER, 124L, 25_000L, "")
                         .signedBy(DEFAULT_PAYER));
+    }
+
+    @LeakyHapiTest(overrides = {"contracts.maxGasPerTransaction"})
+    final Stream<DynamicTest> invalidGasLimitsFailInTransferList() {
+        return hapiTest(
+                cryptoCreate(OWNER).withHooks(accountAllowanceHook(123L, TRUE_ALLOWANCE_HOOK.name())),
+                cryptoTransfer(TokenMovement.movingHbar(10).between(OWNER, GENESIS))
+                        .withPreHookFor(OWNER, 123L, 0L, "")
+                        .signedBy(DEFAULT_PAYER)
+                        .hasPrecheck(INSUFFICIENT_GAS),
+                cryptoTransfer(TokenMovement.movingHbar(10).between(OWNER, GENESIS))
+                        .withPreHookFor(OWNER, 123L, -1L, "")
+                        .signedBy(DEFAULT_PAYER)
+                        .hasPrecheck(INSUFFICIENT_GAS),
+                // less than minimum intrinsic gas of 1000
+                cryptoTransfer(TokenMovement.movingHbar(10).between(OWNER, GENESIS))
+                        .withPreHookFor(OWNER, 123L, 999L, "")
+                        .signedBy(DEFAULT_PAYER)
+                        .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK)
+                        .via("txnWithLessThanIntrinsicGas"),
+                getTxnRecord("txnWithLessThanIntrinsicGas")
+                        .andAllChildRecords()
+                        .hasChildRecords(recordWith().status(INSUFFICIENT_GAS))
+                        .logged(),
+                overriding("contracts.maxGasPerTransaction", "15_000_000"),
+                // more than maximum gas limit of 15 million
+                cryptoTransfer(TokenMovement.movingHbar(10).between(OWNER, GENESIS))
+                        .withPreHookFor(OWNER, 123L, 15_000_001L, "")
+                        .signedBy(DEFAULT_PAYER)
+                        .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK)
+                        .via("txnWithMoreThanMaxGas"),
+                getTxnRecord("txnWithMoreThanMaxGas")
+                        .andAllChildRecords()
+                        .hasChildRecords(recordWith().status(MAX_GAS_LIMIT_EXCEEDED))
+                        .logged());
+    }
+
+    @LeakyHapiTest(overrides = {"contracts.maxGasPerTransaction"})
+    final Stream<DynamicTest> invalidGasLimitsFailInTokenTransferList() {
+        return hapiTest(
+                newKeyNamed("supplyKey"),
+                cryptoCreate(OWNER).withHooks(accountAllowanceHook(123L, TRUE_ALLOWANCE_HOOK.name())),
+                tokenCreate("token")
+                        .treasury(OWNER)
+                        .supplyType(TokenSupplyType.FINITE)
+                        .supplyKey("supplyKey")
+                        .initialSupply(10L)
+                        .maxSupply(1000L),
+                mintToken("token", 10),
+                cryptoTransfer(TokenMovement.moving(10, "token").between(OWNER, GENESIS))
+                        .withPreHookFor(OWNER, 123L, 0L, "")
+                        .signedBy(DEFAULT_PAYER)
+                        .hasPrecheck(INSUFFICIENT_GAS),
+                cryptoTransfer(TokenMovement.moving(10, "token").between(OWNER, GENESIS))
+                        .withPreHookFor(OWNER, 123L, -1L, "")
+                        .signedBy(DEFAULT_PAYER)
+                        .hasPrecheck(INSUFFICIENT_GAS),
+                // less than minimum intrinsic gas of 1000
+                cryptoTransfer(TokenMovement.moving(10, "token").between(OWNER, GENESIS))
+                        .withPreHookFor(OWNER, 123L, 999L, "")
+                        .signedBy(DEFAULT_PAYER)
+                        .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK)
+                        .via("txnWithLessThanIntrinsicGas"),
+                getTxnRecord("txnWithLessThanIntrinsicGas")
+                        .andAllChildRecords()
+                        .hasChildRecords(recordWith().status(INSUFFICIENT_GAS))
+                        .logged(),
+                overriding("contracts.maxGasPerTransaction", "15_000_000"),
+                // more than maximum gas limit of 15 million
+                cryptoTransfer(TokenMovement.moving(10, "token").between(OWNER, GENESIS))
+                        .withPreHookFor(OWNER, 123L, 15_000_001L, "")
+                        .signedBy(DEFAULT_PAYER)
+                        .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK)
+                        .via("txnWithMoreThanMaxGas"),
+                getTxnRecord("txnWithMoreThanMaxGas")
+                        .andAllChildRecords()
+                        .hasChildRecords(recordWith().status(MAX_GAS_LIMIT_EXCEEDED))
+                        .logged());
+    }
+
+    @LeakyHapiTest(overrides = {"contracts.maxGasPerTransaction"})
+    final Stream<DynamicTest> invalidGasLimitsFailInNftTransfers() {
+        return hapiTest(
+                newKeyNamed("supplyKey"),
+                cryptoCreate(OWNER).withHooks(accountAllowanceHook(123L, TRUE_ALLOWANCE_HOOK.name())),
+                tokenCreate("token")
+                        .treasury(OWNER)
+                        .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
+                        .supplyType(TokenSupplyType.FINITE)
+                        .supplyKey("supplyKey")
+                        .initialSupply(0)
+                        .maxSupply(1000L),
+                mintToken(
+                        "token",
+                        IntStream.range(0, 10)
+                                .mapToObj(a -> ByteString.copyFromUtf8(String.valueOf(a)))
+                                .toList()),
+                tokenAssociate(GENESIS, "token"),
+                cryptoTransfer(TokenMovement.movingUnique("token", 1L).between(OWNER, GENESIS))
+                        .withNftSenderPrePostHookFor(OWNER, 123L, 0L, "")
+                        .signedBy(DEFAULT_PAYER)
+                        .hasPrecheck(INSUFFICIENT_GAS),
+                cryptoTransfer(TokenMovement.movingUnique("token", 1L).between(OWNER, GENESIS))
+                        .withNftSenderPreHookFor(OWNER, 123L, -1L, "")
+                        .signedBy(DEFAULT_PAYER)
+                        .hasPrecheck(INSUFFICIENT_GAS),
+                // less than minimum intrinsic gas of 1000
+                cryptoTransfer(TokenMovement.movingUnique("token", 1L).between(OWNER, GENESIS))
+                        .withNftSenderPreHookFor(OWNER, 123L, 999L, "")
+                        .signedBy(DEFAULT_PAYER)
+                        .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK)
+                        .via("txnWithLessThanIntrinsicGas"),
+                getTxnRecord("txnWithLessThanIntrinsicGas")
+                        .andAllChildRecords()
+                        .hasChildRecords(recordWith().status(INSUFFICIENT_GAS))
+                        .logged(),
+                overriding("contracts.maxGasPerTransaction", "15_000_000"),
+                //                 more than maximum gas limit of 15 million
+                cryptoTransfer(TokenMovement.movingUnique("token", 1L).between(OWNER, GENESIS))
+                        .withNftSenderPreHookFor(OWNER, 123L, 15_000_001L, "")
+                        .signedBy(DEFAULT_PAYER)
+                        .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK)
+                        .via("txnWithMoreThanMaxGas"),
+                getTxnRecord("txnWithMoreThanMaxGas")
+                        .andAllChildRecords()
+                        .hasChildRecords(recordWith().status(MAX_GAS_LIMIT_EXCEEDED))
+                        .logged());
     }
 
     @HapiTest
