@@ -3,8 +3,8 @@ plugins {
     id("org.hiero.gradle.module.library")
     id("org.hiero.gradle.feature.protobuf")
     id("org.hiero.gradle.feature.test-fixtures")
-    // ATTENTION: keep pbj version in sync with 'hiero-dependency-versions/build.gradle.kts'
-    id("com.hedera.pbj.pbj-compiler") version "0.12.0"
+    id("com.hedera.pbj.pbj-compiler") version "0.11.15"
+    // ATTENTION: keep in sync with pbj version in 'hiero-dependency-versions/build.gradle.kts'
 }
 
 description = "Hedera API"
@@ -15,28 +15,28 @@ tasks.withType<JavaCompile>().configureEach {
     options.compilerArgs.add("-Xlint:-exports,-deprecation,-removal")
 }
 
-// If the 'block-node-protobuf-sources.jar' would also contain the generated Java classes, we could
-// replace the 'dependencies' block with a 'requires org.hiero.block.protobuf.sources' entry in
-// 'module-info.java'. Then, the 'srcDir(tasks.extractProto)' below inside the 'main { pbj {} }'
-// block would not be needed.
 dependencies {
     protobuf(platform(project(":hiero-dependency-versions")))
     protobuf("org.hiero.block:block-node-protobuf-sources")
 }
 
+tasks.generatePbjSource { dependsOn(tasks.extractProto) }
+
 sourceSets {
-    val protoApiSrc = layout.projectDirectory.dir("../hedera-protobuf-java-api/src/main/proto")
+    val protoApiSrc = "../hedera-protobuf-java-api/src/main/proto"
+    val blockNodeApiSrc = layout.buildDirectory.dir("./extracted-protos/main/block-node/api")
     main {
         pbj {
-            srcDir(protoApiSrc)
-            srcDir(tasks.extractProto) // see comment on the 'dependencies' block
-            exclude("mirror", "sdk", "internal")
+            srcDir(layout.projectDirectory.dir(protoApiSrc))
+            srcDir(blockNodeApiSrc)
+            exclude("mirror", "sdk")
         }
         // The below should be replaced with a 'requires com.hedera.protobuf.java.api'
         // in testFixtures scope - #14026
         proto {
-            srcDir(protoApiSrc)
-            exclude("mirror", "sdk", "internal")
+            srcDir(layout.projectDirectory.dir(protoApiSrc))
+            srcDir(blockNodeApiSrc)
+            exclude("mirror", "sdk")
         }
     }
 }
