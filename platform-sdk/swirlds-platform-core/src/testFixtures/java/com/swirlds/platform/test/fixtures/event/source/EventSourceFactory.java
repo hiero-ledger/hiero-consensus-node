@@ -57,7 +57,7 @@ public class EventSourceFactory {
         return new StandardEventSource(false);
     }
 
-    public static ForkingEventSource newForkingEventSource() {
-        return new ForkingEventSource(false);
+    public static BranchingEventSource newBranchingEventSource() {
+        return new BranchingEventSource(false);
     }
 }

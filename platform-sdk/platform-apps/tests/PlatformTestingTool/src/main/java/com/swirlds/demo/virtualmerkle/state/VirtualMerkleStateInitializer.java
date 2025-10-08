@@ -1,11 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.demo.virtualmerkle.state;
 
-import com.swirlds.common.config.StateCommonConfig;
-import com.swirlds.common.io.config.TemporaryFileConfig;
+import static com.swirlds.demo.platform.PlatformTestingToolMain.CONFIGURATION;
+
 import com.swirlds.common.utility.AutoCloseableWrapper;
-import com.swirlds.config.api.Configuration;
-import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.demo.platform.PlatformTestingToolState;
 import com.swirlds.demo.platform.UnsafeMutablePTTStateAccessor;
 import com.swirlds.demo.virtualmerkle.config.VirtualMerkleConfig;
@@ -14,7 +12,6 @@ import com.swirlds.merkledb.MerkleDbDataSourceBuilder;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.virtualmap.VirtualMap;
-import com.swirlds.virtualmap.config.VirtualMapConfig;
 import com.swirlds.virtualmap.datasource.VirtualDataSourceBuilder;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -24,13 +21,6 @@ import org.apache.logging.log4j.Marker;
  * This is a helper class to initialize the part of the state that corresponds to virtual map tests.
  */
 public final class VirtualMerkleStateInitializer {
-
-    private static final Configuration CONFIGURATION = ConfigurationBuilder.create()
-            .withConfigDataType(MerkleDbConfig.class)
-            .withConfigDataType(VirtualMapConfig.class)
-            .withConfigDataType(TemporaryFileConfig.class)
-            .withConfigDataType(StateCommonConfig.class)
-            .build();
 
     private static final MerkleDbConfig MERKLE_DB_CONFIG = CONFIGURATION.getConfigData(MerkleDbConfig.class);
 

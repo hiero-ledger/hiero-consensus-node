@@ -2,9 +2,14 @@
 package com.swirlds.demo.iss;
 
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
+import static com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer.registerConstructablesForSchemas;
+import static com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer.registerConstructablesForStorage;
 import static com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer.registerMerkleStateRootClassIds;
 
 import com.hedera.hapi.node.base.SemanticVersion;
+import com.swirlds.config.api.Configuration;
+import com.swirlds.config.api.ConfigurationBuilder;
+import com.swirlds.config.extensions.sources.SimpleConfigSource;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.system.DefaultSwirldMain;
 import com.swirlds.platform.system.Platform;
@@ -39,7 +44,14 @@ public class ISSTestingToolMain extends DefaultSwirldMain<ISSTestingToolState> {
     private static final SemanticVersion semanticVersion =
             SemanticVersion.newBuilder().major(1).build();
 
+    private static final Configuration CONFIGURATION;
+
     static {
+        CONFIGURATION = ConfigurationBuilder.create()
+                .autoDiscoverExtensions()
+                .withSource(new SimpleConfigSource().withValue("merkleDb.initialCapacity", 1000000))
+                .build();
+
         try {
             logger.info(STARTUP.getMarker(), "Registering ISSTestingToolState with ConstructableRegistry");
             ConstructableRegistry constructableRegistry = ConstructableRegistry.getInstance();
@@ -48,6 +60,8 @@ public class ISSTestingToolMain extends DefaultSwirldMain<ISSTestingToolState> {
                 return issTestingToolState;
             }));
             registerMerkleStateRootClassIds();
+            registerConstructablesForStorage(CONFIGURATION);
+            registerConstructablesForSchemas();
             logger.info(STARTUP.getMarker(), "ISSTestingToolState is registered with ConstructableRegistry");
         } catch (ConstructableRegistryException e) {
             logger.error(STARTUP.getMarker(), "Failed to register ISSTestingToolState", e);
@@ -100,7 +114,7 @@ public class ISSTestingToolMain extends DefaultSwirldMain<ISSTestingToolState> {
     @NonNull
     public ISSTestingToolState newStateRoot() {
         final ISSTestingToolState state = new ISSTestingToolState();
-        TestingAppStateInitializer.DEFAULT.initConsensusModuleStates(state);
+        TestingAppStateInitializer.initConsensusModuleStates(state, CONFIGURATION);
         return state;
     }
 
@@ -112,7 +126,9 @@ public class ISSTestingToolMain extends DefaultSwirldMain<ISSTestingToolState> {
      */
     @Override
     public Function<VirtualMap, ISSTestingToolState> stateRootFromVirtualMap() {
-        throw new UnsupportedOperationException();
+        return (virtualMap) -> {
+            throw new UnsupportedOperationException();
+        };
     }
 
     @Override

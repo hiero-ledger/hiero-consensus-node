@@ -30,7 +30,6 @@ import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.keys.KeyShape;
 import com.hedera.services.bdd.spec.keys.SigControl;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.Map;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
@@ -47,7 +46,7 @@ import org.junit.jupiter.api.Tag;
  */
 @Tag(CRYPTO)
 @HapiTestLifecycle
-public class AtomicAutoAccountUpdateSuite {
+class AtomicAutoAccountUpdateSuite {
 
     public static final long INITIAL_BALANCE = 1000L;
 
@@ -60,8 +59,6 @@ public class AtomicAutoAccountUpdateSuite {
 
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
-        testLifecycle.overrideInClass(
-                Map.of("atomicBatch.isEnabled", "true", "atomicBatch.maxNumberOfTransactions", "50"));
         testLifecycle.doAdhoc(cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS));
     }
 
