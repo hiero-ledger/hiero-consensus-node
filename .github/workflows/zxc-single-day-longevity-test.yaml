@@ -126,8 +126,20 @@ jobs:
         run: |
           if [ "${{ inputs.perf_analysis }}" == "true" ]
           then
-            git clone --branch v0.11.15 --single-branch https://"${{ secrets.perf_ghp }}"@github.com/hashgraph/pbj.git pbj
+            git clone https://"${{ secrets.perf_ghp }}"@github.com/hashgraph/pbj.git pbj
             git clone --branch 24.3.3 --single-branch https://github.com/hyperledger/besu.git besu
+          fi
+
+      - name: Build PBJ
+        run: |
+          if [ "${{ inputs.perf_analysis }}" == "true" ]
+          then
+            cd pbj
+            git checkout 620-stringByteArray
+            cd pbj-core
+            echo "0.12.1-SNAPSHOTALEX" >version.txt
+           ./gradlew --no-daemon clean publishToMavenLocal
+            cd ../..
           fi
 
       - name: Check Test Asset
