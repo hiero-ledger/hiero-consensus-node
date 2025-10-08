@@ -6,7 +6,7 @@ import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import com.swirlds.common.merkle.crypto.MerkleCryptography;
 import com.swirlds.logging.legacy.payload.ReconnectFailurePayload;
 import com.swirlds.platform.network.Connection;
-import com.swirlds.platform.state.MerkleNodeState;
+import com.swirlds.state.MerkleNodeState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.util.concurrent.ExecutionException;

@@ -200,7 +200,7 @@ public class OtterApp implements ConsensusStateEventHandler<OtterAppState> {
             @Nullable final SemanticVersion previousVersion) {
         final Configuration configuration = platform.getContext().getConfiguration();
         if (state.getReadableStates(ConsistencyService.NAME).isEmpty()) {
-            OtterStateInitializer.initOtterAppState(configuration, state, version, appServices);
+            OtterStateInitializer.initOtterAppState(state, version, appServices);
         }
 
         for (final OtterService service : allServices) {

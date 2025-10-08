@@ -586,7 +586,7 @@ class ShadowgraphByBirthRoundTests {
             assertEquals(
                     tipsSize,
                     shadowGraph.getTips().size(),
-                    "There are no forks, so the number of tips should stay the same.");
+                    "There are no branches, so the number of tips should stay the same.");
             assertTrue(shadowGraph.getTips().contains(tipShadow), "The tips should now contain the new tip.");
             assertFalse(
                     shadowGraph.getTips().contains(tipShadow.getSelfParent()),

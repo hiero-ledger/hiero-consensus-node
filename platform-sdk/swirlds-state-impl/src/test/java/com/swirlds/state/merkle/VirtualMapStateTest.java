@@ -27,7 +27,6 @@ import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.platform.state.PlatformStateAccessor;
 import com.swirlds.platform.test.fixtures.state.MerkleTestBase;
-import com.swirlds.platform.test.fixtures.state.TestVirtualMapState;
 import com.swirlds.state.StateChangeListener;
 import com.swirlds.state.lifecycle.StateDefinition;
 import com.swirlds.state.lifecycle.StateMetadata;
@@ -39,6 +38,7 @@ import com.swirlds.state.spi.WritableKVState;
 import com.swirlds.state.spi.WritableQueueState;
 import com.swirlds.state.spi.WritableSingletonState;
 import com.swirlds.state.test.fixtures.StateTestBase;
+import com.swirlds.state.test.fixtures.merkle.TestVirtualMapState;
 import com.swirlds.virtualmap.VirtualMap;
 import java.util.EnumSet;
 import org.hiero.base.crypto.Hash;
@@ -63,7 +63,7 @@ public class VirtualMapStateTest extends MerkleTestBase {
      */
     @BeforeEach
     void setUp() {
-        virtualMapState = new TestVirtualMapState(CONFIGURATION, new NoOpMetrics());
+        virtualMapState = new TestVirtualMapState(new NoOpMetrics());
         virtualMapState.init(
                 new FakeTime(),
                 new NoOpMetrics(),
