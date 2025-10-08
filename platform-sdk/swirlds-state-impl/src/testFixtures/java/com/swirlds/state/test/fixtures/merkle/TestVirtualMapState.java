@@ -52,6 +52,11 @@ public class TestVirtualMapState extends VirtualMapState<TestVirtualMapState> im
         return new TestVirtualMapState(virtualMap);
     }
 
+    public static TestVirtualMapState createInstanceWithVirtualMapLabel(@NonNull final String virtualMapLabel) {
+        final var virtualMap = VirtualMapUtils.createVirtualMap(CONFIGURATION, virtualMapLabel);
+        return new TestVirtualMapState(virtualMap);
+    }
+
     public static TestVirtualMapState createInstanceWithVirtualMapLabel(
             @NonNull final Configuration configuration, @NonNull final String virtualMapLabel) {
         final var virtualMap = VirtualMapUtils.createVirtualMap(configuration, virtualMapLabel);

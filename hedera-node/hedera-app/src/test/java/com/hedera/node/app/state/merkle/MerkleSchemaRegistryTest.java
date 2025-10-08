@@ -201,7 +201,7 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
             }
             final var virtualMapLabel =
                     "vm-" + MerkleSchemaRegistryTest.class.getSimpleName() + "-" + java.util.UUID.randomUUID();
-            merkleTree = TestVirtualMapState.createInstanceWithVirtualMapLabel(CONFIGURATION, virtualMapLabel);
+            merkleTree = TestVirtualMapState.createInstanceWithVirtualMapLabel(virtualMapLabel);
         }
 
         @AfterEach

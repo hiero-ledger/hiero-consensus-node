@@ -155,7 +155,7 @@ public class RandomSignedStateGenerator {
         if (state == null) {
             final String virtualMapLabel =
                     "vm-" + RandomSignedStateGenerator.class.getSimpleName() + "-" + java.util.UUID.randomUUID();
-            stateInstance = TestVirtualMapState.createInstanceWithVirtualMapLabel(CONFIGURATION, virtualMapLabel);
+            stateInstance = TestVirtualMapState.createInstanceWithVirtualMapLabel(virtualMapLabel);
             stateInstance.init(
                     Time.getCurrent(),
                     new NoOpMetrics(),
