@@ -193,7 +193,6 @@ final class ReconnectTest {
                 testPlatformContext,
                 getStaticThreadManager(),
                 connection,
-                roster,
                 state,
                 RECONNECT_SOCKET_TIMEOUT,
                 reconnectMetrics,
