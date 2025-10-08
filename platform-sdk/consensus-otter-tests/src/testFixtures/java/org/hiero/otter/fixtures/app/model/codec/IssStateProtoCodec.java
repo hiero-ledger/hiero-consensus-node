@@ -10,14 +10,12 @@ import static com.hedera.pbj.runtime.ProtoWriterTools.writeLong;
 
 import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.ParseException;
-import com.hedera.pbj.runtime.ProtoArrayWriterTools;
 import com.hedera.pbj.runtime.ProtoConstants;
 import com.hedera.pbj.runtime.UnknownField;
 import com.hedera.pbj.runtime.UnknownFieldException;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
 import com.hedera.pbj.runtime.io.stream.EOFException;
-import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -48,15 +46,6 @@ public final class IssStateProtoCodec implements Codec<IssState> {
 
     /**
      * Parses a IssState object from ProtoBuf bytes in a {@link ReadableSequentialData}. Throws if in strict mode ONLY.
-     * <p>
-     * The {@code maxSize} specifies a custom value for the default `Codec.DEFAULT_MAX_SIZE` limit. IMPORTANT:
-     * specifying a value larger than the default one can put the application at risk because a maliciously-crafted
-     * payload can cause the parser to allocate too much memory which can result in OutOfMemory and/or crashes.
-     * It's important to carefully estimate the maximum size limit that a particular protobuf model type should support,
-     * and then pass that value as a parameter. Note that the estimated limit should apply to the **type** as a whole,
-     * rather than to individual instances of the model. In other words, this value should be a constant, or a config
-     * value that is controlled by the application, rather than come from the input that the application reads.
-     * When in doubt, use the other overloaded versions of this method that use the default `Codec.DEFAULT_MAX_SIZE`.
      *
      * @param input The data input to parse data from, it is assumed to be in a state ready to read with position at start
      *              of data to read and limit set at the end of data to read. The data inputs limit will be changed by this
@@ -66,7 +55,6 @@ public final class IssStateProtoCodec implements Codec<IssState> {
      * @param parseUnknownFields when {@code true} and strictMode is {@code false}, the parser will collect unknown
      *                           fields in the unknownFields list in the model; otherwise they'll be simply skipped.
      * @param maxDepth a ParseException will be thrown if the depth of nested messages exceeds the maxDepth value.
-     * @param maxSize a ParseException will be thrown if the size of a delimited field exceeds the limit
      * @return Parsed IssState model object or null if data input was null or empty
      * @throws ParseException If parsing fails
      */
@@ -74,8 +62,7 @@ public final class IssStateProtoCodec implements Codec<IssState> {
             @NonNull final ReadableSequentialData input,
             final boolean strictMode,
             final boolean parseUnknownFields,
-            final int maxDepth,
-            final int maxSize)
+            final int maxDepth)
             throws ParseException {
         if (maxDepth < 0) {
             throw new ParseException("Reached maximum allowed depth of nested messages");
@@ -142,11 +129,11 @@ public final class IssStateProtoCodec implements Codec<IssState> {
                                 $unknownFields.add(new UnknownField(
                                         field,
                                         ProtoConstants.get(wireType),
-                                        extractField(input, ProtoConstants.get(wireType), maxSize)));
+                                        extractField(input, ProtoConstants.get(wireType), 2097152)));
                             } else {
                                 // We just need to read off the bytes for this field to skip it
                                 // and move on to the next one.
-                                skipField(input, ProtoConstants.get(wireType), maxSize);
+                                skipField(input, ProtoConstants.get(wireType), 2097152);
                             }
                         } else {
                             throw new IOException(
@@ -188,30 +175,6 @@ public final class IssStateProtoCodec implements Codec<IssState> {
                 uf.bytes().writeTo(out);
             });
         }
-    }
-
-    /**
-     * Writes an item to the given byte array, this is a performance focused method. In non-performance centric use
-     * cases there are simpler methods such as toBytes() or writing to a {@link WritableStreamingData}.
-     *
-     * @param data The item to write. Must not be null.
-     * @param output The byte array to write to, this must be large enough to hold the entire item.
-     * @param startOffset The offset in the output array to start writing at.
-     * @return The number of bytes written to the output array.
-     * @throws IndexOutOfBoundsException If the output array is not large enough to hold the entire item.
-     */
-    public int write(@NonNull IssState data, @NonNull byte[] output, final int startOffset) {
-        int offset = startOffset;
-        // [1] - issState
-        offset += ProtoArrayWriterTools.writeInt64(output, offset, IssStateSchema.ISS_STATE, data.issState(), true);
-
-        // Write unknown fields if there are any
-        for (final UnknownField uf : data.getUnknownFields()) {
-            final int tag = (uf.field() << TAG_FIELD_OFFSET) | uf.wireType().ordinal();
-            offset += ProtoArrayWriterTools.writeUnsignedVarInt(output, offset, tag);
-            offset += uf.bytes().writeTo(output, offset);
-        }
-        return offset - startOffset;
     }
 
     /**

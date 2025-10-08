@@ -11,8 +11,6 @@ import com.hedera.pbj.runtime.UnknownField;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Collections;
 import java.util.List;
-import org.hiero.otter.fixtures.app.model.codec.IssStateJsonCodec;
-import org.hiero.otter.fixtures.app.model.codec.IssStateProtoCodec;
 import org.hiero.otter.fixtures.app.model.schema.IssStateSchema;
 
 /**
@@ -20,9 +18,9 @@ import org.hiero.otter.fixtures.app.model.schema.IssStateSchema;
  */
 public final class IssState {
     /** Protobuf codec for reading and writing in protobuf format */
-    public static final Codec<IssState> PROTOBUF = new IssStateProtoCodec();
+    public static final Codec<IssState> PROTOBUF = new org.hiero.otter.fixtures.app.model.codec.IssStateProtoCodec();
     /** JSON codec for reading and writing in JSON format */
-    public static final JsonCodec<IssState> JSON = new IssStateJsonCodec();
+    public static final JsonCodec<IssState> JSON = new org.hiero.otter.fixtures.app.model.codec.IssStateJsonCodec();
     /** Default instance with all fields set to default values */
     public static final IssState DEFAULT = newBuilder().build();
 
