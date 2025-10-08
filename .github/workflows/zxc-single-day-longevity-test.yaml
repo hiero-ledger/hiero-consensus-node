@@ -130,18 +130,6 @@ jobs:
             git clone --branch 24.3.3 --single-branch https://github.com/hyperledger/besu.git besu
           fi
 
-      - name: Build PBJ
-        run: |
-          if [ "${{ inputs.perf_analysis }}" == "true" ]
-          then
-            cd pbj
-            git checkout 620-stringByteArray
-            cd pbj-core
-            echo "0.12.1-SNAPSHOTALEX" >version.txt
-           ./gradlew --no-daemon clean publishToMavenLocal
-            cd ../..
-          fi
-
       - name: Check Test Asset
         id: set-k8s-cluster
         run: |
@@ -274,6 +262,18 @@ jobs:
           hederahash="$(git -C target_consensus_node rev-parse HEAD)"
           echo "sha=${hederahash}" >> "${GITHUB_OUTPUT}"
           echo "hederahash=${hederahash}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
+
+      - name: Build PBJ
+        run: |
+          if [ "${{ inputs.perf_analysis }}" == "true" ]
+          then
+            cd "${{ github.workspace }}"/pbj
+            git checkout 620-stringByteArray
+            cd pbj-core
+            echo "0.12.1-SNAPSHOTALEX" >version.txt
+           ./gradlew --no-daemon clean publishToMavenLocal
+            cd ../..
+          fi
 
       - name: Compile
         run: |
