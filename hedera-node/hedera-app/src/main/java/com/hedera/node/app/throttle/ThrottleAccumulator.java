@@ -69,6 +69,7 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+
 import java.math.BigInteger;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -81,6 +82,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.IntSupplier;
 import java.util.function.Supplier;
+
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -247,9 +249,9 @@ public class ThrottleAccumulator {
                     configuration.getConfigData(ContractsConfig.class).throttleThrottleByGas();
             return enforceGasThrottle
                     && !gasThrottle.allow(
-                            now,
-                            query.contractCallLocalOrElse(ContractCallLocalQuery.DEFAULT)
-                                    .gas());
+                    now,
+                    query.contractCallLocalOrElse(ContractCallLocalQuery.DEFAULT)
+                            .gas());
         }
         resetLastAllowedUse();
         final var manager = functionReqs.get(queryFunction);
@@ -463,7 +465,7 @@ public class ThrottleAccumulator {
                 yield shouldThrottleScheduleCreate(manager, txnInfo, now, state, throttleUsages);
             }
             case TOKEN_MINT ->
-                shouldThrottleMint(manager, txnInfo.txBody().tokenMint(), now, configuration, throttleUsages);
+                    shouldThrottleMint(manager, txnInfo.txBody().tokenMint(), now, configuration, throttleUsages);
             case CRYPTO_TRANSFER -> {
                 final var accountStore = new ReadableStoreFactory(state).getStore(ReadableAccountStore.class);
                 final var relationStore = new ReadableStoreFactory(state).getStore(ReadableTokenRelationStore.class);
@@ -492,7 +494,7 @@ public class ThrottleAccumulator {
             List<ThrottleUsage> throttleUsages) {
         final var txnBody = txnInfo.txBody();
         final var op = txnBody.scheduleCreateOrThrow();
-        final var scheduled = op.scheduledTransactionBodyOrThrow();
+        final var scheduled = op.scheduledTransactionBody();
         final var schedule = Schedule.newBuilder()
                 .originalCreateTransaction(txnBody)
                 .payerAccountId(txnInfo.payerID())
@@ -538,9 +540,9 @@ public class ThrottleAccumulator {
                 } else {
                     final var ledgerConfig = config.getConfigData(LedgerConfig.class);
                     expiry = Optional.ofNullable(txnInfo.transactionID())
-                                    .orElse(TransactionID.DEFAULT)
-                                    .transactionValidStartOrElse(Timestamp.DEFAULT)
-                                    .seconds()
+                            .orElse(TransactionID.DEFAULT)
+                            .transactionValidStartOrElse(Timestamp.DEFAULT)
+                            .seconds()
                             + ledgerConfig.scheduleTxExpiryTimeSecs();
                 }
                 final var entityIdStore = new ReadableEntityIdStoreImpl(state.getReadableStates(EntityIdService.NAME));
@@ -577,7 +579,7 @@ public class ThrottleAccumulator {
     /**
      * Returns the gas limit for a contract transaction.
      *
-     * @param txnBody  the transaction body
+     * @param txnBody the transaction body
      * @param function the functionality
      * @return the gas limit for a contract transaction
      */
@@ -585,16 +587,14 @@ public class ThrottleAccumulator {
             @NonNull final TransactionBody txnBody, @NonNull final HederaFunctionality function) {
         final long nominalGas =
                 switch (function) {
-                    case CONTRACT_CREATE ->
-                        txnBody.contractCreateInstanceOrThrow().gas();
+                    case CONTRACT_CREATE -> txnBody.contractCreateInstanceOrThrow().gas();
                     case CONTRACT_CALL -> txnBody.contractCallOrThrow().gas();
-                    case ETHEREUM_TRANSACTION ->
-                        Optional.of(txnBody.ethereumTransactionOrThrow()
-                                        .ethereumData()
-                                        .toByteArray())
-                                .map(EthTxData::populateEthTxData)
-                                .map(EthTxData::gasLimit)
-                                .orElse(0L);
+                    case ETHEREUM_TRANSACTION -> Optional.of(txnBody.ethereumTransactionOrThrow()
+                                    .ethereumData()
+                                    .toByteArray())
+                            .map(EthTxData::populateEthTxData)
+                            .map(EthTxData::gasLimit)
+                            .orElse(0L);
                     default -> 0L;
                 };
         // Interpret negative gas as overflow
