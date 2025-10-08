@@ -3,13 +3,11 @@ package org.hiero.otter.fixtures.app.services.iss;
 
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 
-import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.swirlds.common.merkle.utility.SerializableLong;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.scratchpad.Scratchpad;
 import com.swirlds.platform.system.InitTrigger;
-import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
@@ -24,6 +22,7 @@ import org.hiero.otter.fixtures.app.OtterAppState;
 import org.hiero.otter.fixtures.app.OtterIssTransaction;
 import org.hiero.otter.fixtures.app.OtterService;
 import org.hiero.otter.fixtures.app.OtterTransaction;
+import org.hiero.otter.fixtures.app.state.OtterServiceStateSpecification;
 
 /**
  * A service that can trigger ISSes based on transactions it receives.
@@ -31,6 +30,8 @@ import org.hiero.otter.fixtures.app.OtterTransaction;
 public class IssService implements OtterService {
 
     private static final Logger log = LogManager.getLogger();
+
+    private static final IssStateSpecification STATE_SPECIFICATION = new IssStateSpecification();
 
     /** The name of this service. */
     public static final String NAME = "IssService";
@@ -116,16 +117,18 @@ public class IssService implements OtterService {
     /**
      * {@inheritDoc}
      */
+    @NonNull
     @Override
-    public @NonNull String name() {
+    public String name() {
         return NAME;
     }
 
     /**
      * {@inheritDoc}
      */
+    @NonNull
     @Override
-    public @NonNull Schema<SemanticVersion> genesisSchema(@NonNull final SemanticVersion version) {
-        return new V1IssStateSchema(version);
+    public OtterServiceStateSpecification stateSpecification() {
+        return STATE_SPECIFICATION;
     }
 }
