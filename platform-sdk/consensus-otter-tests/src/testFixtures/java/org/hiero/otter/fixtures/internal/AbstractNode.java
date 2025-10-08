@@ -2,11 +2,11 @@
 package org.hiero.otter.fixtures.internal;
 
 import static java.util.Objects.requireNonNull;
+import static org.hiero.consensus.model.status.PlatformStatus.CATASTROPHIC_FAILURE;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
-import com.swirlds.logging.legacy.payload.IssPayload;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.security.cert.X509Certificate;
@@ -23,7 +23,6 @@ import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.TimeManager;
 import org.hiero.otter.fixtures.TransactionFactory;
 import org.hiero.otter.fixtures.app.OtterTransaction;
-import org.hiero.otter.fixtures.result.LogPayloadFinder;
 
 /**
  * Base implementation of the {@link Node} interface that provides common functionality.
@@ -278,13 +277,11 @@ public abstract class AbstractNode implements Node {
 
         log.debug("Waiting for Self ISS to trigger...");
 
-        try (final LogPayloadFinder logPayloadFinder = newLogResult().findNextLogPayload(IssPayload.class.getName())) {
-            timeManager()
-                    .waitForCondition(
-                            logPayloadFinder::found,
-                            timeout.minus(elapsed),
-                            "Did not receive IssPayload log before timeout");
-        }
+        timeManager()
+                .waitForCondition(
+                        () -> platformStatus == CATASTROPHIC_FAILURE,
+                        timeout.minus(elapsed),
+                        "Did not receive IssPayload log before timeout");
     }
 
     /**

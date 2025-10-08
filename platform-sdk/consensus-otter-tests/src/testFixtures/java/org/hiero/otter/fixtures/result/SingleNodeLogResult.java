@@ -81,14 +81,4 @@ public interface SingleNodeLogResult extends OtterResult {
      * @param subscriber the subscriber that will receive the log entries
      */
     void subscribe(@NonNull LogSubscriber subscriber);
-
-    /**
-     * Sets up a temporary subscription to find the next log entry that contains the specified string payload. When the
-     * next match is found, the subscription is canceled and the {@link LogPayloadFinder} returns {@code true}.
-     *
-     * @param payload the payload to search for
-     * @return a LogPayloadFinder that will be return true if/when a matching log entry is found
-     */
-    @NonNull
-    LogPayloadFinder findNextLogPayload(@NonNull final String payload);
 }

@@ -23,6 +23,11 @@ import org.hiero.otter.fixtures.result.SingleNodePlatformStatusResult;
 
 public class IssTest {
 
+    /**
+     * Triggers a recoverable ISS on a single node and verifies that it recovers by restarting.
+     *
+     * @param env the environment to test in
+     */
     @OtterTest
     void testRecoverableSelfIss(@NonNull final TestEnvironment env) {
         final Network network = env.network();
@@ -34,26 +39,28 @@ public class IssTest {
         final Node issNode = network.nodes().getFirst();
         issNode.triggerRecoverableSelfIss();
 
+        final SingleNodePlatformStatusResult issNodeStatusResult = issNode.newPlatformStatusResult();
+        assertThat(issNodeStatusResult)
+                .hasSteps(target(CATASTROPHIC_FAILURE).requiringInterim(REPLAYING_EVENTS, OBSERVING, CHECKING, ACTIVE));
+        issNodeStatusResult.clear();
+
         final SingleNodeLogResult issLogResult = issNode.newLogResult();
-        assertThat(issLogResult.suppressingLoggerName(DefaultIssDetector.class))
-                .hasNoErrorLevelMessages();
+        assertThat(issLogResult.suppressingLoggerName(DefaultIssDetector.class)).hasNoErrorLevelMessages();
         issLogResult.clear();
         assertThat(network.newLogResults().suppressingNode(issNode)).haveNoErrorLevelMessages();
 
-        assertThat(network.newPlatformStatusResults().suppressingNode(issNode)).haveSteps(
-                target(ACTIVE).requiringInterim(REPLAYING_EVENTS, OBSERVING, CHECKING));
-
-        final SingleNodePlatformStatusResult issNodeStatusResult = issNode.newPlatformStatusResult();
-        issNodeStatusResult.clear();
+        assertThat(network.newPlatformStatusResults().suppressingNode(issNode))
+                .haveSteps(target(ACTIVE).requiringInterim(REPLAYING_EVENTS, OBSERVING, CHECKING));
 
         issNode.killImmediately();
         issNode.start();
 
-        env.timeManager().waitForCondition(issNode::isActive, Duration.ofSeconds(60),
-                "Node did not become ACTIVE in the time allowed.");
+        env.timeManager()
+                .waitForCondition(
+                        issNode::isActive, Duration.ofSeconds(60), "Node did not become ACTIVE in the time allowed.");
 
-        assertThat(issNodeStatusResult).hasSteps(
-                target(ACTIVE).requiringInterim(REPLAYING_EVENTS, OBSERVING, CHECKING));
+        assertThat(issNodeStatusResult)
+                .hasSteps(target(ACTIVE).requiringInterim(REPLAYING_EVENTS, OBSERVING, CHECKING));
         assertThat(issLogResult).hasNoErrorLevelMessages();
     }
 

@@ -64,15 +64,14 @@ public class TransactionFactory {
      * @return the created ISS transaction
      */
     @NonNull
-    public static OtterTransaction createSelfIssTransaction(final long nonce, @NonNull final NodeId nodeId,
-            final boolean recoverableOnRestart) {
+    public static OtterTransaction createSelfIssTransaction(
+            final long nonce, @NonNull final NodeId nodeId, final boolean recoverableOnRestart) {
         final HashPartition hashPartition =
                 HashPartition.newBuilder().addNodeId(nodeId.id()).build();
-        final OtterIssTransaction issTransaction =
-                OtterIssTransaction.newBuilder()
-                        .addPartition(hashPartition)
-                        .setRecoverableOnRestart(recoverableOnRestart)
-                        .build();
+        final OtterIssTransaction issTransaction = OtterIssTransaction.newBuilder()
+                .addPartition(hashPartition)
+                .setRecoverableOnRestart(recoverableOnRestart)
+                .build();
         return OtterTransaction.newBuilder()
                 .setNonce(nonce)
                 .setIssTransaction(issTransaction)
