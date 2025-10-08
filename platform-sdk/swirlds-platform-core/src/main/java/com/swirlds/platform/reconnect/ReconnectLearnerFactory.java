@@ -64,7 +64,6 @@ public class ReconnectLearnerFactory {
                 platformContext,
                 threadManager,
                 conn,
-                roster,
                 workingState,
                 reconnectSocketTimeout,
                 statistics,
