@@ -403,7 +403,7 @@ jobs:
           TAG_WITH_EPOCH: ${{ inputs.enable-promotion || 'false' }}
         run: |
           if [[ -n "${RC_TAG}" ]] && [[ "${TAG_WITH_EPOCH}" == "false" ]]; then
-            TAG="xts-pass-${RC_TAG}"
+            TAG="adhoc-xts-pass-${RC_TAG}"
 
             set +e
               TAG_COMMIT="$(git rev-list -n 1 "${TAG}")" >/dev/null 2>&1
