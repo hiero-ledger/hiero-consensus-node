@@ -1845,7 +1845,7 @@ class ThrottleAccumulatorTest {
         final var shouldThrottle =
                 assertDoesNotThrow(() -> subject.checkAndEnforceThrottle(txnInfo, TIME_INSTANT, state, null));
 
-        assertFalse(shouldThrottle, "ScheduleCreate without scheduledTransactionBody should not be throttled");
+        assertTrue(shouldThrottle, "ScheduleCreate without scheduledTransactionBody should be throttled");
     }
 
     @Test
@@ -1885,7 +1885,7 @@ class ThrottleAccumulatorTest {
         final var shouldThrottle =
                 assertDoesNotThrow(() -> subject.checkAndEnforceThrottle(txnInfo, TIME_INSTANT, state, null));
 
-        assertFalse(shouldThrottle, "TokenMint without tokenMint body should not be throttled");
+        assertTrue(shouldThrottle, "TokenMint without tokenMint body should be throttled");
     }
 
     @Test
