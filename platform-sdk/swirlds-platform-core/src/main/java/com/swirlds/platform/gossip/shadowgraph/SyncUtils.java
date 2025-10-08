@@ -484,7 +484,7 @@ public final class SyncUtils {
     /**
      * Computes the number of creators that have more than one tip. If a single creator has more than two tips, this
      * method will only report once for each such creator. The execution time cost for this method is O(T + N) where T
-     * is the number of tips including all forks and N is the number of network nodes. There is some memory overhead,
+     * is the number of tips including all branches and N is the number of network nodes. There is some memory overhead,
      * but it is fairly nominal in favor of the time complexity savings.
      *
      * @return the number of event creators that have more than one tip.
@@ -493,7 +493,7 @@ public final class SyncUtils {
         // The number of tips per creator encountered when iterating over the sending tips
         final Map<NodeId, Integer> tipCountByCreator = new HashMap<>();
 
-        // Make a single O(N) where N is the number of tips including all forks. Typically, N will be equal to the
+        // Make a single O(N) where N is the number of tips including all branches. Typically, N will be equal to the
         // number of network nodes.
         for (final ShadowEvent tip : tips) {
             tipCountByCreator.compute(tip.getEvent().getCreatorId(), (k, v) -> (v != null) ? (v + 1) : 1);
@@ -501,17 +501,17 @@ public final class SyncUtils {
 
         // Walk the entrySet() which is O(N) where N is the number network nodes. This is still more efficient than a
         // O(N^2) loop.
-        int creatorsWithForks = 0;
+        int creatorsWithBranches = 0;
         for (final Map.Entry<NodeId, Integer> entry : tipCountByCreator.entrySet()) {
-            // If the number of tips for a given creator is greater than 1 then we have a fork.
+            // If the number of tips for a given creator is greater than 1 then we might have a branch.
             // This map is broken down by creator ID already as the key so this is guaranteed to be a single increment
-            // for each creator with a fork. Therefore, this holds to the method contract.
+            // for each creator with a branch. Therefore, this holds to the method contract.
             if (entry.getValue() > 1) {
-                creatorsWithForks++;
+                creatorsWithBranches++;
             }
         }
 
-        return creatorsWithForks; // total number of unique creators with more than one tip
+        return creatorsWithBranches; // total number of unique creators with more than one tip
     }
 
     /**

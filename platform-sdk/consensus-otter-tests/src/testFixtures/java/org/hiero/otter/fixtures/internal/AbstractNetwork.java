@@ -39,6 +39,7 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.otter.fixtures.AsyncNetworkActions;
 import org.hiero.otter.fixtures.InstrumentedNode;
 import org.hiero.otter.fixtures.Network;
@@ -284,6 +285,22 @@ public abstract class AbstractNetwork implements Network {
         } catch (final CertificateEncodingException e) {
             throw new RuntimeException("Exception while creating roster entry", e);
         }
+    }
+
+    /**
+     * The actual implementation of sending a quiescence command, to be provided by subclasses.
+     *
+     * @param command the quiescence command to send
+     * @param timeout the maximum duration to wait for the command to be processed
+     */
+    protected abstract void doSendQuiescenceCommand(@NonNull QuiescenceCommand command, @NonNull Duration timeout);
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void sendQuiescenceCommand(@NonNull final QuiescenceCommand command) {
+        doSendQuiescenceCommand(command, DEFAULT_TIMEOUT);
     }
 
     /**
@@ -718,6 +735,14 @@ public abstract class AbstractNetwork implements Network {
         @Override
         public void shutdown() {
             doShutdown(timeout);
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public void sendQuiescenceCommand(@NonNull final QuiescenceCommand command) {
+            doSendQuiescenceCommand(command, timeout);
         }
     }
 

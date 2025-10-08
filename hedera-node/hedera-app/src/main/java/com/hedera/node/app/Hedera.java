@@ -167,6 +167,7 @@ import org.hiero.consensus.model.hashgraph.Round;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
+import org.hiero.consensus.model.transaction.TimestampedTransaction;
 import org.hiero.consensus.model.transaction.Transaction;
 import org.hiero.consensus.roster.ReadableRosterStore;
 import org.hiero.consensus.roster.RosterUtils;
@@ -526,7 +527,8 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
         transactionPool = new TransactionPoolNexus(
                 transactionLimits,
                 bootstrapConfig.getConfigData(HederaConfig.class).throttleTransactionQueueSize(),
-                metrics);
+                metrics,
+                instantSource);
 
         // Register all service schema RuntimeConstructable factories before platform init
         Set.of(
@@ -1149,9 +1151,8 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
         transactionPool.submitPriorityTransaction(encodeSystemTransaction(stateSignatureTransaction));
     }
 
-    @NonNull
     @Override
-    public List<Bytes> getTransactionsForEvent() {
+    public @NonNull List<TimestampedTransaction> getTransactionsForEvent() {
         return transactionPool.getTransactionsForEvent();
     }
 
