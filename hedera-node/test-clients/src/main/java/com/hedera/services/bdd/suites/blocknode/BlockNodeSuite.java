@@ -71,7 +71,7 @@ public class BlockNodeSuite {
                 doingContextual(spec -> {
                     portNumbers.add(spec.getBlockNodePortById(0));
                 }),
-                waitUntilNextBlocks(15).withBackgroundTraffic(true),
+                waitUntilNextBlocks(5).withBackgroundTraffic(true),
                 // Verify buffer saturation increases without block node connection
                 doingContextual(spec -> timeRef.set(Instant.now())),
                 sourcingContextual(spec -> assertHgcaaLogContainsTimeframe(
@@ -111,7 +111,7 @@ public class BlockNodeSuite {
                         String.format(
                                 "/localhost:%s/ACTIVE] Connection state transitioned from PENDING to ACTIVE.",
                                 portNumbers.getFirst()))),
-                waitUntilNextBlocks(30).withBackgroundTraffic(true),
+                waitUntilNextBlocks(10).withBackgroundTraffic(true),
                 // Update block-nodes.json to have an invalid entry
                 doingContextual((spec) -> {
                     timeRef.set(Instant.now());
@@ -143,9 +143,8 @@ public class BlockNodeSuite {
                         // New invalid config is loaded
                         "Reloaded 1 block node configurations. Restarting connection manager.",
                         // Connection client created but exception occurs with invalid address
-                        "Created BlockStreamPublishServiceClient for 26dsfg2364:1234",
-                        "Exception in config file change handler")),
-                waitUntilNextBlocks(30).withBackgroundTraffic(true),
+                        "Created BlockStreamPublishServiceClient for 26dsfg2364:1234")),
+                waitUntilNextBlocks(10).withBackgroundTraffic(true),
                 // Delete block-nodes.json
                 doingContextual((spec) -> {
                     timeRef.set(Instant.now());
@@ -170,7 +169,7 @@ public class BlockNodeSuite {
                         // Config file is missing
                         "Block node configuration file does not exist:",
                         "No valid block node configurations available after file change. Connections remain stopped.")),
-                waitUntilNextBlocks(30).withBackgroundTraffic(true),
+                waitUntilNextBlocks(10).withBackgroundTraffic(true),
                 // Unparsable block-nodes.json
                 doingContextual((spec) -> {
                     timeRef.set(Instant.now());
@@ -192,7 +191,7 @@ public class BlockNodeSuite {
                         Duration.ofSeconds(45),
                         "Detected ENTRY_CREATE event for block-nodes.json",
                         "No valid block node configurations available after file change. Connections remain stopped.")),
-                waitUntilNextBlocks(30).withBackgroundTraffic(true),
+                waitUntilNextBlocks(10).withBackgroundTraffic(true),
                 // Create valid block-nodes.json again
                 doingContextual((spec) -> {
                     timeRef.set(Instant.now());

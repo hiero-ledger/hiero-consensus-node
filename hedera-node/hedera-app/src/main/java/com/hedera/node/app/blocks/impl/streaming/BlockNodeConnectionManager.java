@@ -946,7 +946,10 @@ public class BlockNodeConnectionManager {
                                         try {
                                             handleConfigFileChange();
                                         } catch (Exception e) {
-                                            logWithContext(INFO, "Exception in config file change handler.", e);
+                                            logWithContext(
+                                                    INFO,
+                                                    "Exception in BlockNodesConfigWatcher config file change handler. {}",
+                                                    e);
                                         }
                                     }
                                 }
