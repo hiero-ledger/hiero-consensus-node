@@ -155,9 +155,15 @@ public class ShadowgraphSynchronizer extends AbstractShadowgraphSynchronizer {
 
             reportRoundDifference(myWindow, theirTipsAndEventWindow.eventWindow(), connection.getOtherId());
 
-            if (hasFallenBehind(myWindow, theirTipsAndEventWindow.eventWindow(), connection.getOtherId())
-                    != SyncFallenBehindStatus.NONE_FALLEN_BEHIND) {
+            final SyncFallenBehindStatus status =
+                    checkFallenBehindStatus(myWindow, theirTipsAndEventWindow.eventWindow(), connection.getOtherId());
+            if (status != SyncFallenBehindStatus.NONE_FALLEN_BEHIND) {
                 // aborting the sync since someone has fallen behind
+                logger.info(
+                        SYNC_INFO.getMarker(),
+                        "Connection against {} aborting sync due to {}",
+                        connection.getOtherId(),
+                        status);
                 return false;
             }
 

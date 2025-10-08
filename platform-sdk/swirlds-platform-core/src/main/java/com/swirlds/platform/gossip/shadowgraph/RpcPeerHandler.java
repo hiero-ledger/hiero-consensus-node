@@ -290,7 +290,7 @@ public class RpcPeerHandler implements GossipRpcReceiver {
         this.sharedShadowgraphSynchronizer.reportRoundDifference(
                 state.mySyncData.eventWindow(), remoteEventWindow, peerId);
 
-        final SyncFallenBehindStatus behindStatus = sharedShadowgraphSynchronizer.hasFallenBehind(
+        final SyncFallenBehindStatus behindStatus = sharedShadowgraphSynchronizer.checkFallenBehindStatus(
                 state.mySyncData.eventWindow(), state.remoteSyncData.eventWindow(), peerId);
         if (behindStatus != SyncFallenBehindStatus.NONE_FALLEN_BEHIND) {
             logger.info(
@@ -323,7 +323,7 @@ public class RpcPeerHandler implements GossipRpcReceiver {
 
     private boolean tryFixSelfFallBehind(final EventWindow remoteEventWindow) {
         try (final ReservedEventWindow latestShadowWindow = sharedShadowgraphSynchronizer.reserveEventWindow()) {
-            final SyncFallenBehindStatus behindStatus = sharedShadowgraphSynchronizer.hasFallenBehind(
+            final SyncFallenBehindStatus behindStatus = sharedShadowgraphSynchronizer.checkFallenBehindStatus(
                     latestShadowWindow.getEventWindow(), remoteEventWindow, peerId);
             if (behindStatus != SyncFallenBehindStatus.SELF_FALLEN_BEHIND) {
                 // we seem to be ok after all, let's wait for another sync to happen
