@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.prehandle;
 
+import static com.hedera.hapi.node.base.ResponseCodeEnum.ACCOUNT_DELETED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_ACCOUNT_BALANCE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_CONTRACT_ID;
@@ -37,6 +38,7 @@ import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.store.ReadableStoreFactory;
 import com.hedera.node.app.workflows.TransactionChecker;
 import com.hedera.node.app.workflows.dispatcher.TransactionDispatcher;
+import com.hedera.node.config.data.AccountsConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import java.util.Set;
@@ -301,6 +303,53 @@ class PreHandleContextImplTest implements Scenarios {
             assertThat(subject.requiredHollowAccounts()).hasSize(1);
             assertThat(subject.requiredHollowAccounts().iterator().next().alias())
                     .isEqualTo(alias);
+        }
+    }
+
+    @Nested
+    @DisplayName("GetKeyFromAccount method")
+    class GetKeyFromAccountTests {
+        @Test
+        void getKeyFromAccountThrowsWhenAccountDoesNotExist() {
+            final var accountId = AccountID.newBuilder().accountNum(456L).build();
+            given(accountStore.getAccountById(accountId)).willReturn(null);
+
+            assertThatThrownBy(() -> subject.getKeyFromAccount(accountId))
+                    .isInstanceOf(PreCheckException.class)
+                    .has(responseCode(INVALID_ACCOUNT_ID));
+        }
+
+        @Test
+        void getKeyFromAccountThrowsWhenAccountIsDeleted() {
+            final var accountId = AccountID.newBuilder().accountNum(456L).build();
+            final var account = mock(Account.class);
+            given(accountStore.getAccountById(accountId)).willReturn(account);
+            given(account.deleted()).willReturn(true);
+
+            assertThatThrownBy(() -> subject.getKeyFromAccount(accountId))
+                    .isInstanceOf(PreCheckException.class)
+                    .has(responseCode(ACCOUNT_DELETED));
+        }
+
+        @Test
+        void getKeyFromAccountReturnsKeyWhenAccountExists() throws PreCheckException {
+            final var accountId = AccountID.newBuilder().accountNum(1456L).build();
+            final var account = mock(Account.class);
+            final var accountKey =
+                    Key.newBuilder().ed25519(Bytes.wrap("account_key")).build();
+            final var accountsConfig = mock(AccountsConfig.class);
+
+            given(accountStore.getAccountById(accountId)).willReturn(account);
+            given(account.deleted()).willReturn(false);
+            given(account.accountIdOrThrow()).willReturn(accountId);
+            given(account.keyOrThrow()).willReturn(accountKey);
+            given(configuration.getConfigData(AccountsConfig.class)).willReturn(accountsConfig);
+            given(accountsConfig.stakingRewardAccount()).willReturn(789L);
+            given(accountsConfig.nodeRewardAccount()).willReturn(987L);
+
+            final var result = subject.getKeyFromAccount(accountId);
+
+            assertThat(result).isEqualTo(accountKey);
         }
     }
 

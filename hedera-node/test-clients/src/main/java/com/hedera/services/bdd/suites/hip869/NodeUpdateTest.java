@@ -3,8 +3,14 @@ package com.hedera.services.bdd.suites.hip869;
 
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.toPbj;
 import static com.hedera.services.bdd.junit.EmbeddedReason.NEEDS_STATE_ACCESS;
+import static com.hedera.services.bdd.junit.RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION;
 import static com.hedera.services.bdd.junit.TestTags.MATS;
+import static com.hedera.services.bdd.junit.hedera.NodeSelector.exceptNodeIds;
+import static com.hedera.services.bdd.junit.hedera.utils.AddressBookUtils.CLASSIC_NODE_NAMES;
+import static com.hedera.services.bdd.junit.hedera.utils.AddressBookUtils.classicFeeCollectorIdFor;
 import static com.hedera.services.bdd.junit.hedera.utils.AddressBookUtils.endpointFor;
+import static com.hedera.services.bdd.junit.hedera.utils.AddressBookUtils.nodeIdsFrom;
+import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.VALID_CERT;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asAccount;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asDnsServiceEndpoint;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asServiceEndpoint;
@@ -12,6 +18,7 @@ import static com.hedera.services.bdd.spec.HapiPropertySource.invalidServiceEndp
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.WRONG_LENGTH_EDDSA_KEY;
+import static com.hedera.services.bdd.spec.transactions.TxnUtils.sysFileUpdateTo;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeDelete;
@@ -20,8 +27,13 @@ import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.viewNode;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.recordStreamMustIncludePassFrom;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.selectedItems;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateCandidateRoster;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitUntilStartOfNextStakingPeriod;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
+import static com.hedera.services.bdd.spec.utilops.streams.assertions.VisibleItemsValidator.EXISTENCE_ONLY_VALIDATOR;
 import static com.hedera.services.bdd.suites.HapiSuite.ADDRESS_BOOK_CONTROL;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
@@ -44,6 +56,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.KEY_REQUIRED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.NOT_SUPPORTED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SERVICE_ENDPOINTS_EXCEEDED_LIMIT;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.UPDATE_NODE_ACCOUNT_NOT_ALLOWED;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertIterableEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -56,6 +69,7 @@ import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.LeakyEmbeddedHapiTest;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
+import com.hedera.services.bdd.junit.RepeatableHapiTest;
 import com.hederahashgraph.api.proto.java.AccountID;
 import java.security.cert.CertificateEncodingException;
 import java.security.cert.X509Certificate;
@@ -332,24 +346,59 @@ public class NodeUpdateTest {
                         throw new RuntimeException(e);
                     }
                 }),
-                // no admin key or old node account key, so fails
+                // no admin key or old node account key fails
                 nodeUpdate("testNode")
                         .fullAccountId(sentinelValue)
                         .payingWith(DEFAULT_PAYER)
                         .signedBy(DEFAULT_PAYER)
                         .hasPrecheck(INVALID_SIGNATURE),
-                // signed by old node account key, so works
+                // signed by old node account key works
                 nodeUpdate("testNode")
                         .fullAccountId(sentinelValue)
                         .payingWith(DEFAULT_PAYER)
                         .signedByPayerAnd("initialNodeAccount"),
-                viewNode("testNode", node -> assertNull(node.accountId())),
-                // signed by admin key so works
+                viewNode("testNode", node -> assertNull(node.accountId(), "node account ID should be unset")),
+                // signed by admin key works, verify that node update is idempotent as well
                 nodeUpdate("testNode")
                         .fullAccountId(sentinelValue)
                         .payingWith(DEFAULT_PAYER)
                         .signedByPayerAnd("adminKey"),
                 viewNode("testNode", node -> assertNull(node.accountId(), "node account ID should be unset")));
+    }
+
+    @LeakyEmbeddedHapiTest(
+            reason = NEEDS_STATE_ACCESS,
+            overrides = {"nodes.updateAccountIdAllowed"})
+    final Stream<DynamicTest> updateAccountIdIsIdempotent() {
+        final AtomicReference<AccountID> initialNodeAccountId = new AtomicReference<>();
+        final AtomicReference<AccountID> newAccountId = new AtomicReference<>();
+        return hapiTest(
+                overriding("nodes.updateAccountIdAllowed", "true"),
+                newKeyNamed("adminKey"),
+                cryptoCreate("initialNodeAccount").exposingCreatedIdTo(initialNodeAccountId::set),
+                cryptoCreate("newAccount").exposingCreatedIdTo(newAccountId::set),
+                sourcing(() -> {
+                    try {
+                        return nodeCreate("testNode")
+                                .accountId(initialNodeAccountId.get())
+                                .adminKey("adminKey")
+                                .gossipCaCertificate(
+                                        gossipCertificates.getFirst().getEncoded());
+                    } catch (CertificateEncodingException e) {
+                        throw new RuntimeException(e);
+                    }
+                }),
+                nodeUpdate("testNode")
+                        .accountId("newAccount")
+                        .payingWith(DEFAULT_PAYER)
+                        .signedByPayerAnd("adminKey", "newAccount"),
+                viewNode("testNode", node -> assertEquals(toPbj(newAccountId.get()), node.accountId())),
+                // node update with the same accountId should pass
+                nodeUpdate("testNode")
+                        .accountId("newAccount")
+                        .payingWith(DEFAULT_PAYER)
+                        .signedByPayerAnd("adminKey", "newAccount"),
+                viewNode("testNode", node -> assertEquals(toPbj(newAccountId.get()), node.accountId())));
     }
 
     @HapiTest
@@ -506,5 +555,31 @@ public class NodeUpdateTest {
                         .signedByPayerAnd("adminKey")
                         .grpcProxyEndpoint(CommonPbjConverters.toPbj(GRPC_PROXY_ENDPOINT_IP))
                         .hasKnownStatus(INVALID_SERVICE_ENDPOINT));
+    }
+
+    @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
+    final Stream<DynamicTest> newNodeId4InCandidateRosterAfterAddition() {
+        return hapiTest(
+                recordStreamMustIncludePassFrom(selectedItems(
+                        EXISTENCE_ONLY_VALIDATOR, 2, sysFileUpdateTo("files.nodeDetails", "files.addressBook"))),
+                nodeCreate("node4")
+                        .adminKey(DEFAULT_PAYER)
+                        .accountNum(classicFeeCollectorIdFor(4))
+                        .description(CLASSIC_NODE_NAMES[4])
+                        .gossipCaCertificate(VALID_CERT),
+                nodeCreate("node5")
+                        .adminKey(DEFAULT_PAYER)
+                        .accountNum(classicFeeCollectorIdFor(5))
+                        .description(CLASSIC_NODE_NAMES[5])
+                        .gossipCaCertificate(VALID_CERT),
+                // node4 was not active before this the upgrade, so it could not have written a config.txt
+                validateCandidateRoster(exceptNodeIds(4L), addressBook -> assertThat(nodeIdsFrom(addressBook))
+                        .contains(4L, 5L)),
+                waitUntilStartOfNextStakingPeriod(1),
+                nodeUpdate("node4")
+                        .fullAccountId(AccountID.newBuilder().setAccountNum(0).build())
+                        .signedByPayerAnd(DEFAULT_PAYER),
+                validateCandidateRoster(exceptNodeIds(4L), addressBook -> assertThat(nodeIdsFrom(addressBook))
+                        .contains(4L, 5L)));
     }
 }

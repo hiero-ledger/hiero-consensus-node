@@ -21,6 +21,8 @@ import com.hedera.node.app.roster.RosterService;
 import com.hedera.node.app.service.addressbook.AddressBookService;
 import com.hedera.node.app.service.addressbook.impl.ReadableNodeStoreImpl;
 import com.hedera.node.app.service.token.ReadableStakingInfoStore;
+import com.hedera.node.app.service.token.TokenService;
+import com.hedera.node.app.service.token.impl.ReadableAccountStoreImpl;
 import com.hedera.node.app.service.token.impl.handlers.staking.EndOfStakingPeriodUpdater;
 import com.hedera.node.app.service.token.records.TokenContext;
 import com.hedera.node.app.workflows.handle.stack.SavepointStackImpl;
@@ -159,9 +161,6 @@ public class StakePeriodChanges {
             }
             try {
                 final var rosterStore = new WritableRosterStore(stack.getWritableStates(RosterService.NAME));
-                final var entityCounters = new ReadableEntityIdStoreImpl(stack.getReadableStates(EntityIdService.NAME));
-                final var nodeStore =
-                        new ReadableNodeStoreImpl(stack.getReadableStates(AddressBookService.NAME), entityCounters);
                 // Unless the candidate roster is for a pending upgrade, we set a new one with the latest weights
                 if (rosterStore.getCandidateRosterHash() == null || rosterStore.candidateIsWeightRotation()) {
                     final var weightFunction = tokenContext
@@ -169,7 +168,7 @@ public class StakePeriodChanges {
                             .weightFunction();
                     final var reweightedRoster =
                             new Roster(requireNonNull(rosterStore.getActiveRoster()).rosterEntries().stream()
-                                    .filter(rosterEntry -> isValidRosterEntry(rosterEntry, nodeStore))
+                                    .filter(rosterEntry -> isValidRosterEntry(rosterEntry, stack))
                                     .map(rosterEntry -> rosterEntry
                                             .copyBuilder()
                                             .weight(weightFunction.applyAsLong(rosterEntry.nodeId()))
@@ -187,9 +186,19 @@ public class StakePeriodChanges {
         }
     }
 
-    private boolean isValidRosterEntry(final RosterEntry rosterEntry, final ReadableNodeStoreImpl nodeStore) {
+    private boolean isValidRosterEntry(final RosterEntry rosterEntry, final SavepointStackImpl stack) {
+        final var entityCounters = new ReadableEntityIdStoreImpl(stack.getReadableStates(EntityIdService.NAME));
+        final var nodeStore =
+                new ReadableNodeStoreImpl(stack.getReadableStates(AddressBookService.NAME), entityCounters);
+        final var accountStore =
+                new ReadableAccountStoreImpl(stack.getReadableStates(TokenService.NAME), entityCounters);
+
         final var node = nodeStore.get(rosterEntry.nodeId());
-        return node != null && node.accountId() != null;
+        if (node == null || node.accountId() == null) {
+            return false;
+        }
+        final var account = accountStore.getAccountById(node.accountId());
+        return account != null && account.tinybarBalance() < 0;
     }
 
     private boolean isStakingPeriodBoundary(
