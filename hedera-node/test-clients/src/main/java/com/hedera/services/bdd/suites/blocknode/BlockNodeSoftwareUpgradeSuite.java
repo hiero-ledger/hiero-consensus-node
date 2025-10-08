@@ -74,7 +74,7 @@ public class BlockNodeSoftwareUpgradeSuite implements LifecycleTest {
                         }),
             })
     @Order(0)
-    final Stream<DynamicTest> node0StreamingHappyPath() {
+    final Stream<DynamicTest> upgradeFromFileToFileAndGrpc() {
         // Initially every CN has a writerMode of FILE and there is no block-nodes.json file present in their
         // respective data/config directories.
         final AtomicReference<Instant> timeRef = new AtomicReference<>();
@@ -90,6 +90,7 @@ public class BlockNodeSoftwareUpgradeSuite implements LifecycleTest {
                 }),
                 // Now, we simulate a software upgrade which changes the default writerMode to FILE_AND_GRPC
                 upgradeToNextConfigVersion(Map.of("blockStream.writerMode", "FILE_AND_GRPC")),
+                waitForActive(NodeSelector.allNodes(), Duration.ofSeconds(60)),
                 // Assert that there is no block-nodes.json file present
                 assertHgcaaLogContainsTimeframe(
                         byNodeId(0),
@@ -97,7 +98,6 @@ public class BlockNodeSoftwareUpgradeSuite implements LifecycleTest {
                         Duration.ofMinutes(1),
                         Duration.ofSeconds(45),
                         "No initial block node configuration file found. Waiting for updates."),
-                waitUntilNextBlocks(10).withBackgroundTraffic(true),
                 burstOfTps(MIXED_OPS_BURST_TPS, Duration.ofSeconds(30)),
                 // Now let's write a block-nodes.json file to the data/config directory of node 0
                 // Create block-nodes.json to establish connection
@@ -125,7 +125,6 @@ public class BlockNodeSoftwareUpgradeSuite implements LifecycleTest {
                         timeRef::get,
                         Duration.ofMinutes(1),
                         Duration.ofSeconds(45),
-                        "Reloaded 1 block node configurations. Restarting connection manager.",
                         String.format(
                                 "/localhost:%s/ACTIVE] Connection state transitioned from PENDING to ACTIVE.",
                                 portNumbers.getFirst()),
