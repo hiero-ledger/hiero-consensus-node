@@ -9,9 +9,9 @@ import java.util.List;
 import java.util.Random;
 
 /**
- * An AbstractEventSource that will periodically fork.
+ * An AbstractEventSource that will periodically branch.
  */
-public class ForkingEventSource extends AbstractEventSource {
+public class BranchingEventSource extends AbstractEventSource {
 
     /**
      * The maximum number of branches to maintain.
@@ -19,9 +19,9 @@ public class ForkingEventSource extends AbstractEventSource {
     private int maximumBranchCount;
 
     /**
-     * For any particular event, the probability (out of 1.0) that the event will start a new forked branch.
+     * For any particular event, the probability (out of 1.0) that the event will start a new branched branch.
      */
-    private double forkProbability;
+    private double branchProbability;
 
     /**
      * An collection of branches. Each branch contains a number of recent events on that branch.
@@ -33,42 +33,42 @@ public class ForkingEventSource extends AbstractEventSource {
      */
     private int currentBranch;
 
-    public ForkingEventSource() {
+    public BranchingEventSource() {
         this(true, DEFAULT_TRANSACTION_GENERATOR);
     }
 
-    public ForkingEventSource(final boolean useFakeHashes) {
+    public BranchingEventSource(final boolean useFakeHashes) {
         this(useFakeHashes, DEFAULT_TRANSACTION_GENERATOR);
     }
 
-    public ForkingEventSource(final boolean useFakeHashes, final TransactionGenerator transactionGenerator) {
+    public BranchingEventSource(final boolean useFakeHashes, final TransactionGenerator transactionGenerator) {
         super(useFakeHashes, transactionGenerator);
         maximumBranchCount = 3;
-        forkProbability = 0.01;
+        branchProbability = 0.01;
         setMaximumBranchCount(maximumBranchCount);
     }
 
-    private ForkingEventSource(final ForkingEventSource that) {
+    private BranchingEventSource(final BranchingEventSource that) {
         super(that);
         setMaximumBranchCount(that.maximumBranchCount);
-        this.forkProbability = that.forkProbability;
+        this.branchProbability = that.branchProbability;
     }
 
     /**
-     * Get the maximum number of forked branches that this source maintains.
+     * Get the maximum number of branched branches that this source maintains.
      */
     public int getMaximumBranchCount() {
         return maximumBranchCount;
     }
 
     /**
-     * Set the maximum number of forced branches that this source maintains.
+     * Set the maximum number of branches that this source maintains.
      *
      * Undefined behavior if set after events have already been generated.
      *
      * @return this
      */
-    public ForkingEventSource setMaximumBranchCount(final int maximumBranchCount) {
+    public BranchingEventSource setMaximumBranchCount(final int maximumBranchCount) {
         if (maximumBranchCount < 1) {
             throw new IllegalArgumentException("Requires at least one branch");
         }
@@ -78,27 +78,27 @@ public class ForkingEventSource extends AbstractEventSource {
     }
 
     /**
-     * Get the probability that any particular event will form a new forked branch.
+     * Get the probability that any particular event will form a new branched branch.
      *
      * @return A probability as a fraction of 1.0.
      */
-    public double getForkProbability() {
-        return forkProbability;
+    public double getBranchProbability() {
+        return branchProbability;
     }
 
     /***
-     * Set the probability that any particular event will form a new forked branch.
-     * @param forkProbability A probability as a fraction of 1.0.
+     * Set the probability that any particular event will form a new branched branch.
+     * @param branchProbability A probability as a fraction of 1.0.
      * @return this
      */
-    public ForkingEventSource setForkProbability(final double forkProbability) {
-        this.forkProbability = forkProbability;
+    public BranchingEventSource setBranchProbability(final double branchProbability) {
+        this.branchProbability = branchProbability;
         return this;
     }
 
     @Override
-    public ForkingEventSource copy() {
-        return new ForkingEventSource(this);
+    public BranchingEventSource copy() {
+        return new BranchingEventSource(this);
     }
 
     @Override
@@ -128,17 +128,17 @@ public class ForkingEventSource extends AbstractEventSource {
     }
 
     /**
-     * Decide if the next event created should fork.
+     * Decide if the next event created should branch.
      */
-    private boolean shouldFork(final Random random) {
-        return maximumBranchCount > 1 && random.nextDouble() < forkProbability;
+    private boolean shouldBranch(final Random random) {
+        return maximumBranchCount > 1 && random.nextDouble() < branchProbability;
     }
 
     /**
-     * Fork. This creates a new branch, replacing a random branch if the maximum number of
+     * Branch. This creates a new branch, replacing a random branch if the maximum number of
      * branches is exceeded.
      */
-    private void fork(final Random random) {
+    private void branch(final Random random) {
         if (branches.size() < maximumBranchCount) {
             // Add the new branch
             currentBranch = branches.size();
@@ -156,8 +156,8 @@ public class ForkingEventSource extends AbstractEventSource {
 
     @Override
     public void setLatestEvent(final Random random, final EventImpl event) {
-        if (shouldFork(random)) {
-            fork(random);
+        if (shouldBranch(random)) {
+            branch(random);
         }
 
         // Make sure there is at least one branch
@@ -173,7 +173,7 @@ public class ForkingEventSource extends AbstractEventSource {
     }
 
     /**
-     * Get the list of all branches for this forking source.
+     * Get the list of all branches for this branching source.
      *
      * @return A list of all branches. Each branch is a list of events.
      */
