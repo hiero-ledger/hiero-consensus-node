@@ -218,7 +218,7 @@ public final class EventUtils {
      * recent event from it's parent node 1 = the other parent is the second most recent event from
      * its other parent etc.
      *
-     * <p>This method will not work correctly in the presence of forking. Age may not be constant
+     * <p>This method will not work correctly in the presence of branching. Age may not be constant
      * after shuffling node order.
      *
      * @param events a list of events

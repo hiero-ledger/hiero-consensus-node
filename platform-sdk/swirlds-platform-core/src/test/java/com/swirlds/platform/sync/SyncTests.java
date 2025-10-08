@@ -23,7 +23,7 @@ import com.swirlds.platform.test.fixtures.event.source.EventSourceFactory;
 import com.swirlds.platform.test.fixtures.event.source.StandardEventSource;
 import com.swirlds.platform.test.fixtures.graph.OtherParentMatrixFactory;
 import com.swirlds.platform.test.fixtures.graph.PartitionedGraphCreator;
-import com.swirlds.platform.test.fixtures.graph.SplitForkGraphCreator;
+import com.swirlds.platform.test.fixtures.graph.SplitBranchGraphCreator;
 import com.swirlds.platform.test.fixtures.sync.SyncNode;
 import com.swirlds.platform.test.fixtures.sync.SyncTestExecutor;
 import com.swirlds.platform.test.fixtures.sync.SyncTestParams;
@@ -129,7 +129,7 @@ public class SyncTests {
                 Arguments.of(new SyncTestParams(10, 100, 50, 50), 3, 2));
     }
 
-    private static Stream<Arguments> splitForkParams() {
+    private static Stream<Arguments> splitBranchParams() {
         return Stream.of(
                 // This seed makes the caller send the whole graph, should not be the case once we change the tip
                 // definition
@@ -142,7 +142,7 @@ public class SyncTests {
                 Arguments.of(new SyncTestParams(10, 100, 50, 100)));
     }
 
-    private static Stream<Arguments> splitForkParamsBreakingSeed() {
+    private static Stream<Arguments> splitBranchParamsBreakingSeed() {
         return Stream.of(
                 // This seed used to make the caller send the whole graph back when the definition of a tip was an
                 // event with no children (self or other). Now that the definition of a tip is an event with no
@@ -211,7 +211,7 @@ public class SyncTests {
     }
 
     /**
-     * Tests small, simple graphs using a standard generator and no forking sources.
+     * Tests small, simple graphs using a standard generator and no branching sources.
      */
     @ParameterizedTest
     @MethodSource({
@@ -255,35 +255,35 @@ public class SyncTests {
     }
 
     /**
-     * Tests syncing graphs with forking event sources.
+     * Tests syncing graphs with branching event sources.
      */
     @ParameterizedTest
     @MethodSource({"fourNodeGraphParams", "tenNodeGraphParams"})
-    void forkingGraph(final SyncTestParams params) throws Exception {
+    void branchingGraph(final SyncTestParams params) throws Exception {
         final SyncTestExecutor executor = new SyncTestExecutor(params);
 
         executor.setCallerSupplier(
-                (factory) -> new SyncNode(params.getNumNetworkNodes(), 0, factory.newForkingShuffledGenerator()));
+                (factory) -> new SyncNode(params.getNumNetworkNodes(), 0, factory.newBranchingShuffledGenerator()));
         executor.setListenerSupplier((factory) -> new SyncNode(
-                params.getNumNetworkNodes(), params.getNumNetworkNodes() - 1, factory.newForkingShuffledGenerator()));
+                params.getNumNetworkNodes(), params.getNumNetworkNodes() - 1, factory.newBranchingShuffledGenerator()));
 
         executor.execute();
 
-        // Some extra events could be transferred in the case of a split fork graph. This is explicitly tested in
-        // splitForkGraph()
+        // Some extra events could be transferred in the case of a split branch graph. This is explicitly tested in
+        // splitBranchGraph()
         SyncValidator.assertRequiredEventsTransferred(executor.getCaller(), executor.getListener());
         SyncValidator.assertStreamsEmpty(executor.getCaller(), executor.getListener());
     }
 
     /**
-     * Tests cases where each node has one branch of a fork. Neither node knows there is a fork until after the sync.
+     * Tests cases where each node has one branch of a branch. Neither node knows there is a branch until after the sync.
      */
     @ParameterizedTest
-    @MethodSource({"splitForkParams", "splitForkParamsBreakingSeed"})
-    void splitForkGraph(final SyncTestParams params) throws Exception {
+    @MethodSource({"splitBranchParams", "splitBranchParamsBreakingSeed"})
+    void splitBranchGraph(final SyncTestParams params) throws Exception {
         final SyncTestExecutor executor = new SyncTestExecutor(params);
 
-        final int creatorToFork = 0;
+        final int creatorToBranch = 0;
         final int callerOtherParent = 1;
         final int listenerOtherParent = 2;
 
@@ -301,15 +301,15 @@ public class SyncTests {
         });
 
         executor.setCustomInitialization((caller, listener) -> {
-            SplitForkGraphCreator.createSplitForkConditions(
+            SplitBranchGraphCreator.createSplitBranchConditions(
                     (StandardEventEmitter) caller.getEmitter(),
-                    creatorToFork,
+                    creatorToBranch,
                     callerOtherParent,
                     params.getNumCommonEvents(),
                     params.getNumNetworkNodes());
-            SplitForkGraphCreator.createSplitForkConditions(
+            SplitBranchGraphCreator.createSplitBranchConditions(
                     (StandardEventEmitter) listener.getEmitter(),
-                    creatorToFork,
+                    creatorToBranch,
                     listenerOtherParent,
                     params.getNumCommonEvents(),
                     params.getNumNetworkNodes());
@@ -317,7 +317,7 @@ public class SyncTests {
 
         executor.execute();
 
-        // In split fork graphs, some extra events will be sent because each node has a different tip for the same
+        // In split branch graphs, some extra events will be sent because each node has a different tip for the same
         // creator, causing each to think the other does not have any ancestors of that creator's event when they in
         // fact do.
         SyncValidator.assertRequiredEventsTransferred(executor.getCaller(), executor.getListener());
@@ -488,7 +488,7 @@ public class SyncTests {
                         return normalOtherMatrix;
                     } else {
                         // after common events, do not use the unknown creator as an other parent to prevent
-                        // forking between the caller and listener
+                        // branching between the caller and listener
                         return unknownCreatorOtherMatrix;
                     }
                 }));

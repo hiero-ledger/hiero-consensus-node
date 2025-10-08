@@ -101,7 +101,7 @@ public class ConsensusNodeManager {
 
         initLogging();
         BootstrapUtils.setupConstructableRegistry();
-        TestingAppStateInitializer.registerMerkleStateRootClassIds();
+        TestingAppStateInitializer.registerConstructablesForStorage(platformConfig);
 
         final var legacySelfId = org.hiero.consensus.model.node.NodeId.of(selfId.id());
 
@@ -140,7 +140,7 @@ public class ConsensusNodeManager {
         final MerkleNodeState state = initialState.get().getState();
 
         final RosterHistory rosterHistory = RosterUtils.createRosterHistory(state);
-        executionCallback = new OtterExecutionLayer(new Random(), metrics);
+        executionCallback = new OtterExecutionLayer(new Random(), metrics, time);
         final PlatformBuilder builder = PlatformBuilder.create(
                         OtterApp.APP_NAME,
                         OtterApp.SWIRLD_NAME,
