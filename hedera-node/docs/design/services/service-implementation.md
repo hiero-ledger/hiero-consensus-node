@@ -62,16 +62,16 @@ A `Front-End Service` is commonly developed in the following stages:
 
 ## Summary Table
 
-| Step         | File(s) to Modify                                                                 | What to Add/Change                        |
-|--------------|----------------------------------------------------------------------------------|-------------------------------------------|
-| Protobuf     | `.proto` files, `module-info.java`, `HapiUtils.java`                             | New messages, enums, exports, mappings    |
-| Service Impl | New Java/Kotlin classes in `service.<yourservice>`                               | Service logic, handlers                   |
-| Bindings     | `Hedera.java`, `ServiceScopeLookup.java`, `*StoreFactory.java`, `*Dispatcher.java`, `*Handlers.java`, `*Module.java`, `module-info.java` | Registration, mapping, exports            |
-| Tests        | Test sources                                                                     | End-to-end and unit tests                 |
+|     Step     |                                                            File(s) to Modify                                                             |           What to Add/Change           |
+|--------------|------------------------------------------------------------------------------------------------------------------------------------------|----------------------------------------|
+| Protobuf     | `.proto` files, `module-info.java`, `HapiUtils.java`                                                                                     | New messages, enums, exports, mappings |
+| Service Impl | New Java/Kotlin classes in `service.<yourservice>`                                                                                       | Service logic, handlers                |
+| Bindings     | `Hedera.java`, `ServiceScopeLookup.java`, `*StoreFactory.java`, `*Dispatcher.java`, `*Handlers.java`, `*Module.java`, `module-info.java` | Registration, mapping, exports         |
+| Tests        | Test sources                                                                                                                             | End-to-end and unit tests              |
 
 ---
 
-**Note:**  
+**Note:**
 - Always follow the enforced protobuf style guide.
 - Ensure all new functionality is properly mapped and exported.
 - For back-end services, document and register lifecycle hooks as needed.

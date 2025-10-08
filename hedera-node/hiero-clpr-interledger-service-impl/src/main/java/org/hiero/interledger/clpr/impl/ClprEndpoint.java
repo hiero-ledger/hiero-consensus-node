@@ -9,8 +9,8 @@ import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.ClprConfig;
 import com.hedera.node.config.data.GrpcConfig;
-import edu.umd.cs.findbugs.annotations.NonNull;
 import com.swirlds.metrics.api.Metrics;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import java.net.UnknownHostException;
 import java.time.Duration;
 import java.util.concurrent.*;
@@ -105,7 +105,11 @@ public class ClprEndpoint {
             System.out.println("CLPR Endpoint Routine: Connecting to " + adhocServiceEndpoint);
             ledgerConfig = client.getConfiguration();
         } catch (final UnknownHostException e) {
-            log.warn("CLPR Endpoint Routine: Unknown host when connecting to {}: {}", adhocServiceEndpoint, e.getMessage(), e);
+            log.warn(
+                    "CLPR Endpoint Routine: Unknown host when connecting to {}: {}",
+                    adhocServiceEndpoint,
+                    e.getMessage(),
+                    e);
             throw new RuntimeException(e);
         } catch (final Throwable t) {
             System.err.println("CLPR Endpoint Routine: Failed to connect to " + adhocServiceEndpoint);
