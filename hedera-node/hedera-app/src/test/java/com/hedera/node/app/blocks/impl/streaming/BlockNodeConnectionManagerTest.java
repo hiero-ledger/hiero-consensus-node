@@ -295,6 +295,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
         verify(executorService).schedule(any(BlockNodeConnectionTask.class), eq(2_000L), eq(TimeUnit.MILLISECONDS));
         verify(metrics).recordConnectionClosed();
+        verify(metrics).recordActiveConnectionIp(-1L);
 
         verifyNoInteractions(bufferService);
         verifyNoMoreInteractions(metrics);

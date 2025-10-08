@@ -661,6 +661,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
             closePipeline(callOnComplete);
             jumpToBlock(-1L);
             blockStreamMetrics.recordConnectionClosed();
+            blockStreamMetrics.recordActiveConnectionIp(-1L);
             logWithContext(DEBUG, "Connection successfully closed.");
         } catch (final RuntimeException e) {
             logWithContext(WARN, "Error occurred while attempting to close connection.", e);
