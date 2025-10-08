@@ -214,7 +214,7 @@ class SignedStateTests {
     @DisplayName("Alternate Constructor Reservations Test")
     void alternateConstructorReservationsTest() {
         final var virtualMapLabel = "vm-" + SignedStateTests.class.getSimpleName() + "-" + java.util.UUID.randomUUID();
-        final var virtualMap = VirtualMapUtils.createVirtualMap(CONFIGURATION, virtualMapLabel);
+        final var virtualMap = VirtualMapUtils.createVirtualMap(virtualMapLabel);
 
         final MerkleNodeState state = spy(new TestVirtualMapState(virtualMap));
         final PlatformStateModifier platformState = mock(PlatformStateModifier.class);

@@ -13,7 +13,6 @@ import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.AL
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ALIASES_STATE_LABEL;
 import static com.hedera.node.app.spi.fixtures.TestSchema.CURRENT_VERSION;
 import static com.swirlds.platform.system.address.AddressBookUtils.endpointFor;
-import static com.swirlds.platform.test.fixtures.config.ConfigUtils.CONFIGURATION;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.consensus.roster.RosterRetriever.buildRoster;
 
@@ -146,7 +145,7 @@ public class AppTestBase extends TestBase implements TransactionFactory, Scenari
                 .build();
 
         final var virtualMapLabel = "vm-" + AppTestBase.class.getSimpleName() + "-" + java.util.UUID.randomUUID();
-        final var virtualMap = VirtualMapUtils.createVirtualMap(CONFIGURATION, virtualMapLabel);
+        final var virtualMap = VirtualMapUtils.createVirtualMap(virtualMapLabel);
 
         state = new TestVirtualMapState(virtualMap) {
             @NonNull

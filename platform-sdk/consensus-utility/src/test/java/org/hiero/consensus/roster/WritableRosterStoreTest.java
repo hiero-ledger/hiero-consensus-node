@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.roster;
 
-import static com.swirlds.platform.test.fixtures.config.ConfigUtils.CONFIGURATION;
 import static org.hiero.consensus.roster.WritableRosterStore.MAXIMUM_ROSTER_HISTORY_SIZE;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -49,7 +48,7 @@ class WritableRosterStoreTest {
     void setUp() {
         final String virtualMapLabel =
                 "vm-" + WritableRosterStoreTest.class.getSimpleName() + java.util.UUID.randomUUID();
-        final var virtualMap = VirtualMapUtils.createVirtualMap(CONFIGURATION, virtualMapLabel, 1);
+        final var virtualMap = VirtualMapUtils.createVirtualMap(virtualMapLabel, 1);
 
         final WritableKVState<ProtoBytes, Roster> rosters = MapWritableKVState.<ProtoBytes, Roster>builder(
                         RosterStateId.ROSTERS_STATE_ID, RosterStateId.ROSTERS_STATE_LABEL)

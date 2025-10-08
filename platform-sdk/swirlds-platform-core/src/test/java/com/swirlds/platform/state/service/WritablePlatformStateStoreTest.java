@@ -5,7 +5,6 @@ import static com.swirlds.platform.state.service.PbjConverter.toPbjPlatformState
 import static com.swirlds.platform.state.service.PbjConverterTest.randomPlatformState;
 import static com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID;
 import static com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema.PLATFORM_STATE_STATE_LABEL;
-import static com.swirlds.platform.test.fixtures.config.ConfigUtils.CONFIGURATION;
 import static org.hiero.base.crypto.test.fixtures.CryptoRandomUtils.randomHash;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.nextInt;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -50,7 +49,7 @@ class WritablePlatformStateStoreTest {
 
         final String virtualMapLabel =
                 "vm-" + WritablePlatformStateStoreTest.class.getSimpleName() + java.util.UUID.randomUUID();
-        virtualMap = VirtualMapUtils.createVirtualMap(CONFIGURATION, virtualMapLabel, 1);
+        virtualMap = VirtualMapUtils.createVirtualMap(virtualMapLabel, 1);
 
         final Bytes key = StateUtils.getStateKeyForSingleton(PLATFORM_STATE_STATE_ID);
         final StateValue<PlatformState> value = StateUtils.getStateValueForSingleton(
