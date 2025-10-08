@@ -2,7 +2,6 @@
 package com.hedera.services.bdd.junit.support.validators.block;
 
 import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_ACTIVE_HINTS_CONSTRUCTION;
-import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_ACTIVE_PROOF_CONSTRUCTION;
 import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_FILES;
 import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_LEDGER_ID;
 import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_NEXT_HINTS_CONSTRUCTION;
@@ -15,9 +14,10 @@ import static com.hedera.node.app.blocks.impl.BlockImplUtils.combine;
 import static com.hedera.node.app.blocks.impl.BlockStreamManagerImpl.NULL_HASH;
 import static com.hedera.node.app.hapi.utils.CommonUtils.noThrowSha384HashOf;
 import static com.hedera.node.app.hapi.utils.CommonUtils.sha384DigestOrThrow;
+import static com.hedera.node.app.hints.HintsService.maybeWeightsFrom;
 import static com.hedera.node.app.history.impl.ProofControllerImpl.EMPTY_PUBLIC_KEY;
 import static com.hedera.node.app.ids.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
-import static com.hedera.node.app.roster.RosterTransitionWeights.moreThanTwoThirdsOfTotal;
+import static com.hedera.node.app.roster.RosterTransitionWeights.atLeastOneThirdOfTotal;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.APPLICATION_PROPERTIES;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.DATA_CONFIG_DIR;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.SAVED_STATES_DIR;
@@ -27,8 +27,6 @@ import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.STATE_M
 import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.workingDirFor;
 import static com.hedera.services.bdd.junit.support.validators.block.BlockStreamUtils.stateNameOf;
 import static com.hedera.services.bdd.junit.support.validators.block.RootHashUtils.extractRootMnemonic;
-import static com.hedera.services.bdd.spec.HapiPropertySource.getConfigRealm;
-import static com.hedera.services.bdd.spec.HapiPropertySource.getConfigShard;
 import static com.hedera.services.bdd.spec.TargetNetworkType.SUBPROCESS_NETWORK;
 import static com.swirlds.platform.system.InitTrigger.GENESIS;
 import static java.util.Objects.requireNonNull;
@@ -52,7 +50,6 @@ import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.entity.EntityCounts;
 import com.hedera.hapi.node.state.hints.HintsConstruction;
 import com.hedera.hapi.node.state.hints.PreprocessedKeys;
-import com.hedera.hapi.node.state.history.HistoryProofConstruction;
 import com.hedera.hapi.node.state.history.ProofKeySet;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.hapi.node.state.primitives.ProtoLong;
@@ -207,7 +204,9 @@ public class StateChangesValidator implements BlockStreamValidator {
                 .toAbsolutePath()
                 .normalize();
         // 3 if debugging most PR checks, 4 if debugging the HAPI (Restart) check
-        final long hintsThresholdDenominator = 3;
+        final long hintsThresholdDenominator = 4;
+        final long shard = 11;
+        final long realm = 12;
         final var validator = new StateChangesValidator(
                 Bytes.fromHex(
                         "525279ce448629033053af7fd64e1439f415c0acb5ad6819b73363807122847b2d68ded6d47db36b59920474093f0651"),
@@ -216,12 +215,12 @@ public class StateChangesValidator implements BlockStreamValidator {
                 node0Dir.resolve("data/config"),
                 16,
                 HintsEnabled.YES,
-                HistoryEnabled.NO,
+                HistoryEnabled.YES,
                 hintsThresholdDenominator,
-                getConfigShard(),
-                getConfigRealm());
-        final var blocks =
-                BlockStreamAccess.BLOCK_STREAM_ACCESS.readBlocks(node0Dir.resolve("data/blockStreams/block-0.0.3"));
+                shard,
+                realm);
+        final var blocks = BlockStreamAccess.BLOCK_STREAM_ACCESS.readBlocks(
+                node0Dir.resolve("data/blockStreams/block-%d.%d.3".formatted(shard, realm)));
         validator.validateBlocks(blocks);
     }
 
@@ -608,24 +607,26 @@ public class StateChangesValidator implements BlockStreamValidator {
                     case NODE_SIGNATURES -> {
                         requireNonNull(activeWeights);
                         final var context = vkContexts.get(vk);
-                        assertNotNull(context, "No context for verification key " + vk);
-                        // Signatures are over (targetBookHash || verificationKey)
+                        assertNotNull(
+                                context, "No context for verification key in proof (start round #" + firstRound + ")");
+                        // Signatures are over (targetBookHash || hash(verificationKey))
                         final var targetBookHash = context.targetBookHash(historyLibrary);
-                        final var message = targetBookHash.append(vk);
+                        final var message = targetBookHash.append(historyLibrary.hashHintsVerificationKey(vk));
                         long signingWeight = 0;
                         final var signatures =
                                 chainOfTrustProof.nodeSignaturesOrThrow().nodeSignatures();
                         final var weights = context.proverWeights();
                         for (final var s : signatures) {
                             final long nodeId = s.nodeId();
+                            final var proofKey = context.proofKeys().get(nodeId);
                             assertTrue(
-                                    historyLibrary.verifySchnorr(s.signature(), message, proofKeys.get(nodeId)),
+                                    historyLibrary.verifySchnorr(s.signature(), message, proofKey),
                                     "Invalid signature for node" + nodeId
                                             + " in chain-of-trust for hinTS key in proof (start round #" + firstRound
                                             + ") - " + proof);
                             signingWeight += weights.getOrDefault(s.nodeId(), 0L);
                         }
-                        final long threshold = moreThanTwoThirdsOfTotal(weights);
+                        final long threshold = atLeastOneThirdOfTotal(weights);
                         assertTrue(
                                 signingWeight >= threshold,
                                 "Insufficient weight in chain-of-trust for hinTS key in proof (start round #"
@@ -694,8 +695,20 @@ public class StateChangesValidator implements BlockStreamValidator {
                                     Map.copyOf(proofKeys));
                             vkContexts.put(nextVk, nextVkContext);
                         }
-                    } else if (stateChange.stateId() == STATE_ID_ACTIVE_PROOF_CONSTRUCTION.protoOrdinal()) {
-                        final var construction = (HistoryProofConstruction) singleton;
+                    } else if (stateChange.stateId() == STATE_ID_ACTIVE_HINTS_CONSTRUCTION.protoOrdinal()) {
+                        final var construction = (HintsConstruction) singleton;
+                        if (construction.hasHintsScheme()) {
+                            activeWeights = requireNonNull(maybeWeightsFrom(construction));
+                            if (vkContexts.isEmpty()) {
+                                final var genesisVk = construction
+                                        .hintsSchemeOrThrow()
+                                        .preprocessedKeysOrThrow()
+                                        .verificationKey();
+                                vkContexts.put(
+                                        genesisVk,
+                                        new HistoryContext(activeWeights, activeWeights, Map.copyOf(proofKeys)));
+                            }
+                        }
                     } else if (stateChange.stateId() == STATE_ID_LEDGER_ID.protoOrdinal()) {
                         ledgerId = ((ProtoBytes) singleton).value();
                     } else if (stateChange.stateId() == STATE_ID_ROSTER_STATE.protoOrdinal()) {
@@ -733,11 +746,6 @@ public class StateChangesValidator implements BlockStreamValidator {
                         maybeTrackedKeys.remove(keyToRemove);
                     }
                     stateChangesSummary.countMapDelete(serviceName, stateId);
-                    if (stateId == STATE_ID_ROSTERS.protoOrdinal()) {
-                        rosters.remove(((ProtoBytes) keyToRemove).value());
-                    } else if (stateId == STATE_ID_PROOF_KEY_SETS.protoOrdinal()) {
-                        proofKeys.remove(((NodeId) keyToRemove).id());
-                    }
                 }
                 case QUEUE_PUSH -> {
                     final var queueState = writableStates.getQueue(stateId);

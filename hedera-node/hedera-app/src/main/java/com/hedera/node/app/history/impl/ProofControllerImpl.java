@@ -332,19 +332,22 @@ public class ProofControllerImpl implements ProofController {
 
     @Override
     public void cancelPendingWork() {
-        final var sb =
-                new StringBuilder("Cancelled work on proof construction #").append(construction.constructionId());
+        final var sb = new StringBuilder("Canceled work on proof construction #").append(construction.constructionId());
+        boolean canceledSomething = false;
         if (publicationFuture != null && !publicationFuture.isDone()) {
             sb.append("\n  * In-flight publication");
             publicationFuture.cancel(true);
+            canceledSomething = true;
         }
         if (signingFuture != null && !signingFuture.isDone()) {
             sb.append("\n  * In-flight signing");
             signingFuture.cancel(true);
+            canceledSomething = true;
         }
         if (proofFuture != null && !proofFuture.isDone()) {
             sb.append("\n  * In-flight proof");
             proofFuture.cancel(true);
+            canceledSomething = true;
         }
         final var numCancelledVerifications = new AtomicInteger();
         verificationFutures.values().forEach(future -> {
@@ -355,8 +358,11 @@ public class ProofControllerImpl implements ProofController {
         });
         if (numCancelledVerifications.get() > 0) {
             sb.append("\n  * ").append(numCancelledVerifications.get()).append(" in-flight verifications");
+            canceledSomething = true;
         }
-        log.info(sb.toString());
+        if (canceledSomething) {
+            log.info(sb.toString());
+        }
     }
 
     /**

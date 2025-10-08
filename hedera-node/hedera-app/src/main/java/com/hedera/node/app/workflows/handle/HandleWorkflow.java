@@ -80,7 +80,6 @@ import com.hedera.node.config.data.ConsensusConfig;
 import com.hedera.node.config.data.SchedulingConfig;
 import com.hedera.node.config.data.TssConfig;
 import com.hedera.node.config.types.StreamMode;
-import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.service.PlatformStateService;
 import com.swirlds.platform.state.service.ReadablePlatformStateStore;
@@ -916,6 +915,8 @@ public class HandleWorkflow {
                                 requireNonNull(rosterStore.getActiveRoster()),
                                 requireNonNull(rosterStore.getCandidateRoster()),
                                 requireNonNull(rosterStore.getCandidateRosterHash()));
+                        // Make sure we include the latest chain-of-trust proof in following block proofs
+                        historyService.setLatestHistoryProof(construction.targetProofOrThrow());
                         final var writableHintsStates = state.getWritableStates(HintsService.NAME);
                         final var writableEntityStates = state.getWritableStates(EntityIdService.NAME);
                         final var entityCounters = new WritableEntityIdStore(writableEntityStates);
@@ -966,25 +967,31 @@ public class HandleWorkflow {
                                 roundTimestamp,
                                 tssConfig,
                                 isActive));
-            }
-            if (tssConfig.historyEnabled()) {
-                final Bytes currentMetadata = tssConfig.hintsEnabled()
-                        ? new ReadableHintsStoreImpl(state.getReadableStates(HintsService.NAME), entityCounters)
-                                .getActiveVerificationKey()
-                        : HintsService.DISABLED_HINTS_METADATA;
-                final var historyWritableStates = state.getWritableStates(HistoryService.NAME);
-                final var historyStore = new WritableHistoryStoreImpl(historyWritableStates);
-                doStreamingKVChanges(
-                        historyWritableStates,
-                        null,
-                        () -> historyService.reconcile(
-                                activeRosters,
-                                currentMetadata,
-                                historyStore,
-                                blockStreamManager.lastUsedConsensusTime(),
-                                tssConfig,
-                                isActive,
-                                tssConfig.hintsEnabled() ? hintsService.activeConstruction() : null));
+                if (tssConfig.historyEnabled()) {
+                    final var historyWritableStates = state.getWritableStates(HistoryService.NAME);
+                    final var hintsStore = new ReadableHintsStoreImpl(hintsWritableStates, entityCounters);
+                    final var historyStore = new WritableHistoryStoreImpl(historyWritableStates);
+                    // If we are doing a chain-of-trust proof, this is the verification key we are proving;
+                    // at genesis, the active construction's key---otherwise, the next construction's key
+                    final var vk = Optional.ofNullable(
+                                    historyStore.getLedgerId() == null
+                                            ? hintsStore.getActiveConstruction().hintsScheme()
+                                            : hintsStore.getNextConstruction().hintsScheme())
+                            .map(s -> s.preprocessedKeysOrThrow().verificationKey())
+                            .orElse(null);
+                    // If applicable, this is the verification key that needs a chain-of-trust proof
+                    doStreamingKVChanges(
+                            historyWritableStates,
+                            null,
+                            () -> historyService.reconcile(
+                                    activeRosters,
+                                    vk,
+                                    historyStore,
+                                    blockStreamManager.lastUsedConsensusTime(),
+                                    tssConfig,
+                                    isActive,
+                                    hintsService.activeConstruction()));
+                }
             }
         }
     }

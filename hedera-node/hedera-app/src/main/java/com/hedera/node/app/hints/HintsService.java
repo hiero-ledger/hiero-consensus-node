@@ -66,11 +66,6 @@ public interface HintsService extends Service {
     int MIGRATION_ORDER = RosterService.MIGRATION_ORDER - 1;
 
     /**
-     * Placeholder for the history service to use when hinTS is disabled.
-     */
-    Bytes DISABLED_HINTS_METADATA = Bytes.wrap(new byte[1288]);
-
-    /**
      * Returns the active verification key, or throws if none is active.
      */
     @NonNull
