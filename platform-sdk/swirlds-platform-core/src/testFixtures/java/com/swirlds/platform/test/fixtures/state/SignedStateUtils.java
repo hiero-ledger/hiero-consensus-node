@@ -2,7 +2,7 @@
 package com.swirlds.platform.test.fixtures.state;
 
 import static com.swirlds.platform.test.fixtures.PlatformStateUtils.randomPlatformState;
-import static com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer.CONFIGURATION;
+import static com.swirlds.platform.test.fixtures.config.ConfigUtils.CONFIGURATION;
 
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.platform.crypto.CryptoStatic;
