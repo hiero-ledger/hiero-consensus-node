@@ -4,6 +4,7 @@ package org.hiero.otter.fixtures;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.hiero.consensus.model.status.PlatformStatus.ACTIVE;
+import static org.hiero.otter.fixtures.Constants.RANDOM_SEED;
 
 import com.swirlds.common.test.fixtures.WeightGenerators;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -21,8 +22,6 @@ import org.junit.jupiter.params.provider.MethodSource;
  * Tests for the node isolation functionality in the Network interface.
  */
 class NetworkIsolationTest {
-
-    private static final long RANDOM_SEED = 0L;
 
     /**
      * Provides a stream of test environments for the parameterized tests.

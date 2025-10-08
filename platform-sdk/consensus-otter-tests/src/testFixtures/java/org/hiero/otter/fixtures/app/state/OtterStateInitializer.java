@@ -37,7 +37,7 @@ public class OtterStateInitializer {
             final Schema<SemanticVersion> schema = service.genesisSchema(version);
             for (final StateDefinition<?, ?> stateDefinition : schema.statesToCreate()) {
                 // the metadata associates the state definition with the service
-                final StateMetadata<?, ?> stateMetadata = new StateMetadata<>(service.name(), schema, stateDefinition);
+                final StateMetadata<?, ?> stateMetadata = new StateMetadata<>(service.name(), stateDefinition);
                 state.initializeState(stateMetadata);
             }
 
