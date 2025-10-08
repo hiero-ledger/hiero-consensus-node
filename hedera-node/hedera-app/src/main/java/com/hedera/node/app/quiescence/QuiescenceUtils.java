@@ -1,11 +1,12 @@
 package com.hedera.node.app.quiescence;
 
-import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.workflows.TransactionInfo;
-import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.hedera.node.app.workflows.prehandle.PreHandleResult;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.util.Iterator;
+import org.hiero.consensus.model.transaction.Transaction;
 
 public final class QuiescenceUtils {
     private QuiescenceUtils() {
@@ -24,5 +25,23 @@ public final class QuiescenceUtils {
 
     public static boolean isRelevantTransaction(@NonNull final TransactionBody body) {
         return !body.hasStateSignatureTransaction() && !body.hasHintsPartialSignature();
+    }
+
+    public static boolean isRelevantTransaction(@NonNull final Transaction txn) throws BadMetadataException {
+        if (!(txn.getMetadata() instanceof final PreHandleResult preHandleResult)) {
+            throw new BadMetadataException(txn);
+        }
+        return isRelevantTransaction(preHandleResult.txInfo());
+    }
+
+    public static long countRelevantTransactions(@NonNull final Iterator<Transaction> transactions)
+            throws BadMetadataException {
+        long count = 0;
+        while (transactions.hasNext()) {
+            if (isRelevantTransaction(transactions.next())) {
+                count++;
+            }
+        }
+        return count;
     }
 }

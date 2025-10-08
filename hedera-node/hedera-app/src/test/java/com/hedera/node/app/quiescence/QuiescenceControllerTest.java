@@ -6,29 +6,22 @@ import static org.hiero.consensus.model.quiescence.QuiescenceCommand.DONT_QUIESC
 import static org.hiero.consensus.model.quiescence.QuiescenceCommand.QUIESCE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import com.hedera.hapi.block.stream.Block;
-import com.hedera.hapi.block.stream.BlockItem;
-import com.hedera.hapi.block.stream.output.StateChanges;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
-import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.hapi.services.auxiliary.hints.HintsPartialSignatureTransactionBody;
-import com.hedera.hapi.util.HapiUtils;
 import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.app.workflows.prehandle.PreHandleResult;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.test.fixtures.time.FakeTime;
 import java.time.Duration;
-import java.time.Instant;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Random;
 import java.util.concurrent.atomic.AtomicLong;
 import org.hiero.consensus.model.event.Event;
 import org.hiero.consensus.model.status.PlatformStatus;
-import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
 import org.hiero.consensus.model.transaction.Transaction;
+import org.hiero.consensus.model.transaction.TransactionWrapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
@@ -64,7 +57,18 @@ class QuiescenceControllerTest {
                 DONT_QUIESCE,
                 controller.getQuiescenceStatus(),
                 "Since a transaction was received through pre-handle, the status should be not quiescent");
-        controller.fullySignedBlock(createBlock(TXN_TRANSFER));
+        final QuiescenceBlockTracker blockTracker = controller.startingBlock(1);
+        blockTracker.blockTransaction(createTransaction(TXN_TRANSFER));
+        assertEquals(
+                DONT_QUIESCE,
+                controller.getQuiescenceStatus(),
+                "The transaction has been handled, but we should remain not quiescent until the block is signed");
+        blockTracker.finishedHandlingTransactions();
+        assertEquals(
+                DONT_QUIESCE,
+                controller.getQuiescenceStatus(),
+                "The block is finalized, but we should remain not quiescent until the block is signed");
+        controller.blockFullySigned(1);
         assertEquals(
                 QUIESCE,
                 controller.getQuiescenceStatus(),
@@ -79,12 +83,16 @@ class QuiescenceControllerTest {
                 QUIESCE,
                 controller.getQuiescenceStatus(),
                 "Signature transactions should be ignored, so the status should remain quiescent");
-        controller.onPreHandle(createTransactions(TXN_STATE_SIG, TXN_HINTS_SIG, TXN_TRANSFER));
+        controller.onPreHandle(createTransactions(TXN_TRANSFER));
         assertEquals(
                 DONT_QUIESCE,
                 controller.getQuiescenceStatus(),
                 "A single non-signature transaction should make the status not quiescent");
-        controller.fullySignedBlock(createBlock(TXN_STATE_SIG, TXN_HINTS_SIG));
+        final QuiescenceBlockTracker blockTracker = controller.startingBlock(1);
+        blockTracker.blockTransaction(createTransaction(TXN_STATE_SIG));
+        blockTracker.blockTransaction(createTransaction(TXN_HINTS_SIG));
+        blockTracker.finishedHandlingTransactions();
+        controller.blockFullySigned(1);
         assertEquals(
                 DONT_QUIESCE,
                 controller.getQuiescenceStatus(),
@@ -118,13 +126,19 @@ class QuiescenceControllerTest {
                 DONT_QUIESCE,
                 controller.getQuiescenceStatus(),
                 "Wall-clock time has advanced past the TCT threshold, so the status should be not quiescent");
-        controller.fullySignedBlock(createBlock(time.now()));
+        final QuiescenceBlockTracker blockTracker1 = controller.startingBlock(1);
+        blockTracker1.consensusTimeAdvanced(time.now());
+        blockTracker1.finishedHandlingTransactions();
+        controller.blockFullySigned(1);
         time.tick(CONFIG.tctDuration().multipliedBy(2));
         assertEquals(
                 DONT_QUIESCE,
                 controller.getQuiescenceStatus(),
                 "Wall-clock time has advanced past the TCT, but consensus time has not, so the status should remain not quiescent");
-        controller.fullySignedBlock(createBlock(time.now()));
+        final QuiescenceBlockTracker blockTracker2 = controller.startingBlock(2);
+        blockTracker2.consensusTimeAdvanced(time.now());
+        blockTracker2.finishedHandlingTransactions();
+        controller.blockFullySigned(2);
         assertEquals(
                 QUIESCE,
                 controller.getQuiescenceStatus(),
@@ -162,48 +176,24 @@ class QuiescenceControllerTest {
                 "Once there are pipeline transactions, pending transactions should not matter");
     }
 
-    private Block createBlock(final TransactionBody... txns) {
-        final List<BlockItem> blockItems = Arrays.stream(txns)
-                .map(TransactionBody.PROTOBUF::toBytes)
-                .map(b -> SignedTransaction.newBuilder().bodyBytes(b).build())
-                .map(SignedTransaction.PROTOBUF::toBytes)
-                .map(b -> BlockItem.newBuilder().signedTransaction(b).build())
-                .toList();
-        return Block.newBuilder().items(blockItems).build();
-    }
-
-    private Block createBlock(final Instant consensusTime) {
-        final BlockItem blockItem = BlockItem.newBuilder()
-                .stateChanges(StateChanges.newBuilder()
-                        .consensusTimestamp(HapiUtils.asTimestamp(consensusTime))
-                        .build())
-                .build();
-        return Block.newBuilder().items(List.of(blockItem)).build();
-    }
-
     private Event createEvent(final TransactionBody... txns) {
-        final List<Bytes> transactions = Arrays.stream(txns)
-                .map(TransactionBody.PROTOBUF::toBytes)
-                .map(b -> SignedTransaction.newBuilder().bodyBytes(b).build())
-                .map(SignedTransaction.PROTOBUF::toBytes)
-                .toList();
-
-        return new TestingEventBuilder(new Random())
-                .setTransactionBytes(transactions)
-                .build();
+        final Event event = Mockito.mock(Event.class);
+        final List<Transaction> transactions = createTransactions(txns);
+        Mockito.when(event.transactionIterator()).thenReturn(transactions.iterator());
+        return event;
     }
 
     private static List<Transaction> createTransactions(final TransactionBody... txns) {
-        return Arrays.stream(txns).map(QuiescenceControllerTest::mockTransaction).toList();
+        return Arrays.stream(txns).map(QuiescenceControllerTest::createTransaction).toList();
     }
 
-    private static Transaction mockTransaction(final TransactionBody txnBody) {
+    private static Transaction createTransaction(final TransactionBody txnBody) {
         final TransactionInfo transactionInfo = Mockito.mock(TransactionInfo.class);
         Mockito.when(transactionInfo.txBody()).thenReturn(txnBody);
         final PreHandleResult preHandleResult = Mockito.mock(PreHandleResult.class);
         Mockito.when(preHandleResult.txInfo()).thenReturn(transactionInfo);
-        final Transaction transaction = Mockito.mock(Transaction.class);
-        Mockito.when(transaction.getMetadata()).thenReturn(preHandleResult);
+        final Transaction transaction = new TransactionWrapper(Bytes.EMPTY);
+        transaction.setMetadata(preHandleResult);
         return transaction;
     }
 }

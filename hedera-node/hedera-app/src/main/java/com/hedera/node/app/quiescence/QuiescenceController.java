@@ -1,24 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.quiescence;
 
-import com.hedera.hapi.block.stream.Block;
-import com.hedera.hapi.block.stream.BlockItem;
-import com.hedera.hapi.block.stream.output.SingletonUpdateChange;
-import com.hedera.hapi.block.stream.output.StateChange;
-import com.hedera.hapi.block.stream.output.StateChanges;
-import com.hedera.hapi.node.base.Timestamp;
-import com.hedera.hapi.node.state.blockstream.BlockStreamInfo;
-import com.hedera.hapi.util.HapiUtils;
-import com.hedera.node.app.workflows.TransactionChecker;
-import com.hedera.node.app.workflows.prehandle.PreHandleResult;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.time.InstantSource;
-import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.LongSupplier;
@@ -41,6 +31,7 @@ public class QuiescenceController {
 
     private final AtomicReference<Instant> nextTct;
     private final AtomicLong pipelineTransactionCount;
+    private final Map<Long, QuiescenceBlockTracker> blockTrackers;
 
     /**
      * Constructs a new quiescence controller.
@@ -59,50 +50,7 @@ public class QuiescenceController {
         this.pendingTransactionCount = Objects.requireNonNull(pendingTransactionCount);
         nextTct = new AtomicReference<>();
         pipelineTransactionCount = new AtomicLong(0);
-    }
-
-    /**
-     * Notifies the controller that a block has been fully signed.
-     *
-     * @param block the fully signed block
-     */
-    public void fullySignedBlock(@NonNull final Block block) {
-        //TODO in HandleWorkflow:540 we should get the cons time & txn & block number
-        // then we need another method for when a block is fully signed
-        if (!config.enabled()) {
-            return;
-        }
-        // FOR EXECUTION REVIEWERS:
-        // Can we avoid parsing transactions here?
-        final long transactionCount = block.items().stream()
-                .filter(BlockItem::hasSignedTransaction)
-                .map(BlockItem::signedTransaction)
-                .filter(Objects::nonNull)
-                //.filter(QuiescenceUtils::isRelevantTransaction)
-                .count();
-        final long updatedValue = pipelineTransactionCount.addAndGet(-transactionCount);
-        if (updatedValue < 0) {
-            logger.error("Quiescence transaction count overflow, turning off quiescence");
-            disableQuiescence();
-        }
-        final Optional<Timestamp> maxConsensusTime = block.items().stream()
-                .filter(BlockItem::hasStateChanges)
-                .map(BlockItem::stateChanges)
-                .filter(Objects::nonNull)
-                .map(StateChanges::stateChanges)
-                .flatMap(List::stream)
-                .filter(StateChange::hasSingletonUpdate)
-                .map(StateChange::singletonUpdate)
-                .filter(Objects::nonNull)
-                .filter(SingletonUpdateChange::hasBlockStreamInfoValue)
-                .map(SingletonUpdateChange::blockStreamInfoValue)
-                .map(BlockStreamInfo::lastHandleTime)
-                .max(HapiUtils.TIMESTAMP_COMPARATOR);
-        if (maxConsensusTime.isEmpty()) {
-            return;
-        }
-        final Instant maxConsensusInstant = HapiUtils.asInstant(maxConsensusTime.get());
-        nextTct.accumulateAndGet(maxConsensusInstant, QuiescenceController::tctUpdate);
+        blockTrackers = new ConcurrentHashMap<>();
     }
 
     /**
@@ -117,12 +65,43 @@ public class QuiescenceController {
             return;
         }
         try {
-            pipelineTransactionCount.addAndGet(countRelevantTransactions(transactions.iterator()));
-        } catch (IllegalArgumentException e) {
-            logger.error("Failed to count relevant transactions. Turning off quiescence.", e);
-            disableQuiescence();
+            pipelineTransactionCount.addAndGet(QuiescenceUtils.countRelevantTransactions(transactions.iterator()));
+        } catch (final BadMetadataException e) {
+            disableQuiescence(e);
         }
 
+    }
+
+    public QuiescenceBlockTracker startingBlock(final long blockNumber){
+        //TODO in HandleWorkflow:540 we should get the cons time & txn & block number
+        // then we need another method for when a block is fully signed
+        return new QuiescenceBlockTracker(blockNumber, this);
+    }
+
+    void blockFinalized(@NonNull final QuiescenceBlockTracker blockTracker){
+        if(!config.enabled()){
+            // If quiescence is not enabled, ignore these calls
+            return;
+        }
+        final QuiescenceBlockTracker prevValue = blockTrackers.put(blockTracker.getBlockNumber(), blockTracker);
+        if(prevValue != null){
+            disableQuiescence("Block %d was already finalized".formatted(blockTracker.getBlockNumber()));
+        }
+    }
+
+    /**
+     * Notifies the controller that a block has been fully signed.
+     *
+     * @param blockNumber the fully signed block number
+     */
+    public void blockFullySigned(final long blockNumber){
+        final QuiescenceBlockTracker blockTracker = blockTrackers.remove(blockNumber);
+        if(blockTracker == null){
+            disableQuiescence("Cannot find block tracker for block %d".formatted(blockNumber));
+            return;
+        }
+        updateTransactionCount(-blockTracker.getRelevantTransactionCount());
+        nextTct.accumulateAndGet(blockTracker.getMaxConsensusTime(), QuiescenceController::tctUpdate);
     }
 
     /**
@@ -134,7 +113,11 @@ public class QuiescenceController {
         if (!config.enabled()) {
             return;
         }
-        pipelineTransactionCount.addAndGet(-countRelevantTransactions(event.transactionIterator()));
+        try {
+            pipelineTransactionCount.addAndGet(-QuiescenceUtils.countRelevantTransactions(event.transactionIterator()));
+        } catch (final BadMetadataException e) {
+            disableQuiescence("Failed to count relevant transactions in staleEvent()");
+        }
     }
 
     /**
@@ -182,9 +165,29 @@ public class QuiescenceController {
         return QuiescenceCommand.QUIESCE;
     }
 
-    private static Instant tctUpdate(@NonNull final Instant currentTct, @NonNull final Instant currentConsensusTime) {
+    private static Instant tctUpdate(@Nullable final Instant currentTct, @NonNull final Instant currentConsensusTime) {
+        if (currentTct == null) {
+            return null;
+        }
         // once consensus time passes the TCT, we want to return null to indicate that there is no TCT
         return currentConsensusTime.isAfter(currentTct) ? null : currentTct;
+    }
+
+    private void updateTransactionCount(final long delta) {
+        final long updatedValue = pipelineTransactionCount.addAndGet(delta);
+        if (updatedValue < 0) {
+            disableQuiescence("Quiescence transaction count is negative, this indicates a bug");
+        }
+    }
+    void disableQuiescence(@NonNull final String reason) {
+        disableQuiescence();
+        logger.error("Disabling quiescence, reason: {}", reason);
+
+    }
+
+    void disableQuiescence(@NonNull final Exception exception) {
+        disableQuiescence();
+        logger.error("Disabling quiescence due to exception:", exception);
     }
 
     private void disableQuiescence() {
@@ -193,20 +196,9 @@ public class QuiescenceController {
         pipelineTransactionCount.set(Long.MAX_VALUE / 2);
     }
 
-    public static long countRelevantTransactions(@NonNull final Iterator<Transaction> transactions) {
-        long count = 0;
-        while (transactions.hasNext()) {
-            final Transaction transaction = transactions.next();
-            final Object metadata = transaction.getMetadata();
-            if (!(transaction.getMetadata() instanceof final PreHandleResult preHandleResult)) {
-                throw new IllegalArgumentException("Failed to find PreHandleResult in transaction metadata (%s)"
-                        .formatted(metadata));
-            }
-            if (QuiescenceUtils.isRelevantTransaction(preHandleResult.txInfo())) {
-                count++;
-            }
-        }
-        return count;
+    boolean isDisabled(){
+        //TODO expand isEnabled with message and pipeline check
+        return !config.enabled();
     }
 
 }
