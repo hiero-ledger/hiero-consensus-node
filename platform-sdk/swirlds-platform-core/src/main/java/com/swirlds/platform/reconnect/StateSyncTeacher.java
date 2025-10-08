@@ -3,6 +3,7 @@ package com.swirlds.platform.reconnect;
 
 import static com.swirlds.common.formatting.StringFormattingUtils.formattedList;
 import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
+import static com.swirlds.platform.reconnect.StateSyncLearner.endReconnectHandshake;
 
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
@@ -156,7 +157,7 @@ public class StateSyncTeacher {
         try {
             sendSignatures(signedState);
             reconnect(signedState);
-            ReconnectUtils.endReconnectHandshake(connection);
+            endReconnectHandshake(connection);
         } catch (final InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new StateSyncException(e);

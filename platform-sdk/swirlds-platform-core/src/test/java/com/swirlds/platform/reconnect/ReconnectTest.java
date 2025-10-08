@@ -192,7 +192,6 @@ final class ReconnectTest {
                 TestPlatformContextBuilder.create().build(),
                 getStaticThreadManager(),
                 connection,
-                roster,
                 state,
                 RECONNECT_SOCKET_TIMEOUT,
                 reconnectMetrics,
