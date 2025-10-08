@@ -59,12 +59,13 @@ of a corrupted state.
 2. Run the following command to execute the introspection:
 
    ```shell
-   java -jar ./validator-<version>.jar {path-to-state-round} analyze [--path-to-kv] [--path-to-hash]
+   java -jar ./validator-<version>.jar {path-to-state-round} analyze [--path-to-kv] [--key-to-path] [--path-to-hash]
    ```
 
 ### Analysis Options
 
 - `--path-to-kv` (or `-p2kv`) - Analyze path-to-key-value storage.
+- `--key-to-path` (or `-k2p`) - Analyze key to path storage.
 - `--path-to-hash` (or `-p2h`) - Analyze path-to-hash storage.
 
 If no options are specified, both storage types are analyzed by default.
@@ -88,19 +89,25 @@ The results are displayed in the console and saved to a `state-analysis.log` fil
 Report for node: 0
 
 Path-to-Hash Storage:
-  Path Range: 0 to 1482
+  Key Range: 0 to 1484
   Size: 0 MB
   Files: 1
   Items: 0
   Waste: 0.00%
 
-Path-to-KeyValue Storage:
-  Path Range: 741 to 1482
+Key-to-Path Storage:
+  Key Range: 0 to 33554431
   Size: 0 MB
   Files: 1
-  Items: 742
+  Items: 743
   Waste: 0.00%
 
+Path-to-KeyValue Storage:
+  Key Range: 742 to 1484
+  Size: 0 MB
+  Files: 1
+  Items: 743
+  Waste: 0.00%
 ```
 
 ## Export

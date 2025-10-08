@@ -37,6 +37,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.otter.fixtures.KeysAndCertsConverter;
 import org.hiero.otter.fixtures.Node;
@@ -50,6 +51,7 @@ import org.hiero.otter.fixtures.container.proto.KillImmediatelyRequest;
 import org.hiero.otter.fixtures.container.proto.NodeCommunicationServiceGrpc;
 import org.hiero.otter.fixtures.container.proto.NodeCommunicationServiceGrpc.NodeCommunicationServiceStub;
 import org.hiero.otter.fixtures.container.proto.PlatformStatusChange;
+import org.hiero.otter.fixtures.container.proto.QuiescenceRequest;
 import org.hiero.otter.fixtures.container.proto.StartRequest;
 import org.hiero.otter.fixtures.container.proto.SyntheticBottleneckRequest;
 import org.hiero.otter.fixtures.container.proto.TransactionRequest;
@@ -143,6 +145,9 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
         containerControlBlockingStub = ContainerControlServiceGrpc.newBlockingStub(containerControlChannel);
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     protected void doStart(@NonNull final Duration timeout) {
         throwIfIn(LifeCycle.RUNNING, "Node has already been started.");
@@ -205,6 +210,9 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
         lifeCycle = RUNNING;
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     @SuppressWarnings("ResultOfMethodCallIgnored")
     protected void doKillImmediately(@NonNull final Duration timeout) {
@@ -224,6 +232,9 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
         }
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     @SuppressWarnings("ResultOfMethodCallIgnored")
     protected void doStartSyntheticBottleneck(@NonNull final Duration delayPerRound, @NonNull final Duration timeout) {
@@ -235,6 +246,9 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
                         .build());
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     @SuppressWarnings("ResultOfMethodCallIgnored")
     protected void doStopSyntheticBottleneck(@NonNull final Duration timeout) {
@@ -244,6 +258,25 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
                 .syntheticBottleneckUpdate(SyntheticBottleneckRequest.newBuilder()
                         .setSleepMillisPerRound(0)
                         .build());
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @SuppressWarnings("ResultOfMethodCallIgnored")
+    @Override
+    protected void doSendQuiescenceCommand(@NonNull final QuiescenceCommand command, @NonNull final Duration timeout) {
+        log.info("Sending quiescence command {} on node {}", command, selfId);
+        final org.hiero.otter.fixtures.container.proto.QuiescenceCommand dto =
+                switch (command) {
+                    case QUIESCE -> org.hiero.otter.fixtures.container.proto.QuiescenceCommand.QUIESCE;
+                    case BREAK_QUIESCENCE ->
+                        org.hiero.otter.fixtures.container.proto.QuiescenceCommand.BREAK_QUIESCENCE;
+                    case DONT_QUIESCE -> org.hiero.otter.fixtures.container.proto.QuiescenceCommand.DONT_QUIESCE;
+                };
+        nodeCommBlockingStub
+                .withDeadlineAfter(timeout)
+                .quiescence(QuiescenceRequest.newBuilder().setCommand(dto).build());
     }
 
     /**

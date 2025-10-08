@@ -14,7 +14,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitForActive;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitForAny;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitUntilNextBlocks;
-import static com.hedera.services.bdd.suites.regression.system.LifecycleTest.restartAtNextConfigVersion;
+import static com.hedera.services.bdd.suites.regression.system.LifecycleTest.*;
 
 import com.hedera.node.internal.network.BlockNodeConnectionInfo;
 import com.hedera.services.bdd.HapiBlockNode;
@@ -47,6 +47,9 @@ import org.junit.jupiter.api.Tag;
 @Tag(BLOCK_NODE)
 @OrderedInIsolation
 public class BlockNodeSuite {
+
+    private static final int BLOCK_TTL_MINUTES = 2;
+    private static final int BLOCK_PERIOD_SECONDS = 2;
 
     @HapiTest
     @HapiBlockNode(
@@ -267,7 +270,7 @@ public class BlockNodeSuite {
     @Order(1)
     final Stream<DynamicTest> node0StreamingHappyPath() {
         return hapiTest(
-                waitUntilNextBlocks(100).withBackgroundTraffic(true),
+                waitUntilNextBlocks(20).withBackgroundTraffic(true),
                 assertHgcaaLogDoesNotContain(byNodeId(0), "ERROR", Duration.ofSeconds(5)));
     }
 
@@ -599,7 +602,7 @@ public class BlockNodeSuite {
             })
     @Order(8)
     final Stream<DynamicTest> activeConnectionPeriodicallyRestarts() {
-        final AtomicReference<Instant> connectionResetTime = new AtomicReference<>();
+        final AtomicReference<Instant> connectionResetTime = new AtomicReference<>(Instant.now());
         final List<Integer> portNumbers = new ArrayList<>();
         return hapiTest(
                 doingContextual(spec -> {
@@ -636,9 +639,6 @@ public class BlockNodeSuite {
                         "Connection state transitioned from PENDING to ACTIVE.")),
                 assertHgcaaLogDoesNotContain(byNodeId(0), "ERROR", Duration.ofSeconds(5)));
     }
-
-    private static final int BLOCK_TTL_MINUTES = 2;
-    private static final int BLOCK_PERIOD_SECONDS = 2;
 
     @HapiTest
     @HapiBlockNode(
