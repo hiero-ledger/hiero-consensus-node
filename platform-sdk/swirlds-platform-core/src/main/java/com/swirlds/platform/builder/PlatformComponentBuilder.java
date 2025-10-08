@@ -811,7 +811,8 @@ public class PlatformComponentBuilder {
                     blocks.intakeEventCounter(),
                     blocks.platformStateFacade(),
                     blocks.createStateFromVirtualMap(),
-                    blocks.fallenBehindMonitor());
+                    blocks.fallenBehindMonitor(),
+                    blocks.reservedSignedStatePromise());
         }
         return gossip;
     }
