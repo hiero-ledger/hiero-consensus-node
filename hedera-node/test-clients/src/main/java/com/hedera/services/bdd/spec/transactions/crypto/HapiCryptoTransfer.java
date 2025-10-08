@@ -399,6 +399,14 @@ public class HapiCryptoTransfer extends HapiBaseTransfer<HapiCryptoTransfer> {
     }
 
     public HapiCryptoTransfer withPreHookFor(
+            final String account, final long hookId, final long gasLimit, final ByteString dataUtf8) {
+        fungibleHooksByAccount.computeIfAbsent(account, k -> new ArrayList<>())
+                .add(HookSpec.pre(
+                        hookId, gasLimit, dataUtf8 == null ? ByteString.EMPTY : dataUtf8));
+        return this;
+    }
+
+    public HapiCryptoTransfer withPreHookFor(
             final String account, final long hookId, final long gasLimit, final String dataUtf8) {
         fungibleHooksByAccount.computeIfAbsent(account, k -> new ArrayList<>())
                               .add(HookSpec.pre(
