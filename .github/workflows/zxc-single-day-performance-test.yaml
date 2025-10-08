@@ -457,8 +457,6 @@ jobs:
           benchmark.csvWriteFrequency,          10000
           benchmark.csvAppend,              true
           benchmark.deviceName,             md0
-          virtualMap.familyThrottleThreshold,      10000000000
-          virtualMap.flushThrottleStepSize,       500ms
           merkleDb.hashesRamToDiskThreshold,       134217728
           merkleDb.compactionThreads,          1
           EOPROPF
@@ -1078,9 +1076,13 @@ jobs:
           set +e
           cd "${{ github.workspace }}"
           merklebenchpod="$(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.performance-tests-start.outputs.namespace }}" get pods | grep merklebench | awk '{print $1}')"
-          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.performance-tests-start.outputs.namespace }}" cp ${merklebenchpod}:/app/swirlds-benchmarks.log ./swirlds-benchmarks.log
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.performance-tests-start.outputs.namespace }}" exec ${merklebenchpod} -- bash -c "cd /app; tar cfz swirlds-benchmarks_logs.tgz swirlds-benchmarks.log output ./*/BenchmarkMetrics.csv"
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.performance-tests-start.outputs.namespace }}" cp ${merklebenchpod}:/app/swirlds-benchmarks_logs.tgz ./swirlds-benchmarks_logs.tgz
           rm -rf "${{ github.workspace }}"/report/*
-          cp swirlds-benchmarks.log "${{ github.workspace }}"/report/swirlds-benchmarks.log
+          cp swirlds-benchmarks_logs.tgz "${{ github.workspace }}"/report/swirlds-benchmarks_logs.tgz
+          cd "${{ github.workspace }}"/report
+          tar xfz swirlds-benchmarks_logs.tgz
+          cd "${{ github.workspace }}"
           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.performance-tests-start.outputs.namespace }}" delete deployment merklebench-network-load-generator
 
       - name: Extract benchmark score of CryptoBenchMerkleDb test
