@@ -4,6 +4,7 @@ package org.hiero.otter.fixtures;
 import com.hedera.hapi.node.base.SemanticVersion;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.nio.file.Path;
 import java.time.Duration;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
@@ -240,4 +241,22 @@ public interface Node {
      */
     @NonNull
     SingleNodeMarkerFileResult newMarkerFileResult();
+
+    /**
+     * Sets the directory of the saved state directory.
+     *
+     * <p>If no directory is set, genesis state will be generated. This method can only be called while the node is
+     * not running.
+     *
+     * @param savedStateDirectory the software version to set for the node
+     */
+    void savedStateDirectory(@NonNull final String savedStateDirectory);
+
+    /**
+     * Gets the directory of the saved state directory.
+     *
+     * @return {@code null} if no saved state is set
+     */
+    @Nullable
+    Path savedStateDirectory();
 }

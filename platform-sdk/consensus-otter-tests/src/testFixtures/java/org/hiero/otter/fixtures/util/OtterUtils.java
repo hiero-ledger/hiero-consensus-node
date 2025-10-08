@@ -2,6 +2,7 @@
 package org.hiero.otter.fixtures.util;
 
 import static org.hiero.otter.fixtures.tools.GenerateStateTool.PCES_DIRECTORY;
+import static org.hiero.otter.fixtures.tools.GenerateStateTool.SAVE_STATE_DIRECTORY;
 
 import com.swirlds.common.io.utility.FileUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -12,7 +13,6 @@ import java.util.Objects;
 import java.util.stream.Stream;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.otter.fixtures.app.OtterApp;
-import org.jetbrains.annotations.Nullable;
 
 /**
  * Utility methods for Otter
@@ -31,22 +31,28 @@ public class OtterUtils {
     /**
      * Finds the path to a saved state directory within the test resources.
      *
-     * @param savedStateDirectory the name of the saved state directory (relative to consensus-otter-tests/saved-states)
+     * @param savedStateDirectory the name or path of the saved state directory, either relative to
+     *                            {@code consensus-otter-tests/saved-states} or an absolute path
      * @return the {@link Path} to the saved state directory, or {@code null} if the input is empty
      * @throws IllegalArgumentException if the directory does not exist
      */
-    @Nullable
-    public static Path findSaveState(final @NonNull String savedStateDirectory) {
-        final Path savedState;
-        if (!savedStateDirectory.isEmpty()) {
-            savedState = Path.of("saved-states", savedStateDirectory);
-            if (!Files.exists(savedState)) {
-                throw new IllegalArgumentException("Saved state directory not found");
-            }
-        } else {
-            savedState = null;
+    @NonNull
+    public static Path findSaveState(@NonNull final String savedStateDirectory) {
+        if (savedStateDirectory.isEmpty()) {
+            throw new IllegalArgumentException("Saved state directory is empty");
         }
-        return savedState;
+
+        final Path directPath = Path.of(savedStateDirectory);
+        if (Files.exists(directPath)) {
+            return directPath;
+        }
+
+        final Path fallbackPath = Path.of(SAVE_STATE_DIRECTORY, savedStateDirectory);
+        if (Files.exists(fallbackPath)) {
+            return fallbackPath;
+        }
+
+        throw new IllegalArgumentException("Saved state directory not found");
     }
 
     /**

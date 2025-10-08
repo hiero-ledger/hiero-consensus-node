@@ -658,6 +658,11 @@ public abstract class AbstractNetwork implements Network {
         return (numNodesAhead / (1.0 * otherNodes.size())) >= fraction;
     }
 
+    @Override
+    public void savedStateDirectory(@NonNull final String savedStateDirectory) {
+        nodes().forEach(node -> node.savedStateDirectory(savedStateDirectory));
+    }
+
     /**
      * Throws an {@link IllegalStateException} if the network is in the given state.
      *

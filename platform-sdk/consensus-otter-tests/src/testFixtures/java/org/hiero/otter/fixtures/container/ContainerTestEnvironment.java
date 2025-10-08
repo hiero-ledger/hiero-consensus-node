@@ -17,7 +17,6 @@ import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.TimeManager;
 import org.hiero.otter.fixtures.TransactionGenerator;
 import org.hiero.otter.fixtures.internal.RegularTimeManager;
-import org.hiero.otter.fixtures.util.OtterUtils;
 
 /**
  * Implementation of {@link TestEnvironment} for tests running on a container network.
@@ -37,10 +36,9 @@ public class ContainerTestEnvironment implements TestEnvironment {
     /**
      * Constructor for the {@link ContainerTestEnvironment} class.
      *
-     * @param savedStateDirectory the directory for the saved state, relative to the resource directory; if empty, a genesis state will be generated
      * @param randomNodeIds {@code true} if the node IDs should be selected randomly; {@code false} otherwise
      */
-    public ContainerTestEnvironment(@NonNull final String savedStateDirectory, final boolean randomNodeIds) {
+    public ContainerTestEnvironment(final boolean randomNodeIds) {
 
         ContainerLogConfigBuilder.configure();
 
@@ -54,10 +52,7 @@ public class ContainerTestEnvironment implements TestEnvironment {
             fail("Failed to prepare directory: " + rootOutputDirectory, ex);
         }
 
-        final Path savedState = OtterUtils.findSaveState(savedStateDirectory);
-
-        network =
-                new ContainerNetwork(timeManager, transactionGenerator, rootOutputDirectory, savedState, randomNodeIds);
+        network = new ContainerNetwork(timeManager, transactionGenerator, rootOutputDirectory, randomNodeIds);
     }
 
     /**

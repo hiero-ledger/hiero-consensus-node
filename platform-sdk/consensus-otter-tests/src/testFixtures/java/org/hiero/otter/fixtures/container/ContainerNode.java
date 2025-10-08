@@ -24,7 +24,6 @@ import com.google.protobuf.ProtocolStringList;
 import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 import io.grpc.Status.Code;
@@ -128,8 +127,7 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
             @NonNull final KeysAndCerts keysAndCerts,
             @NonNull final Network network,
             @NonNull final ImageFromDockerfile dockerImage,
-            @NonNull final Path outputDirectory,
-            @Nullable final Path savedStateDirectory) {
+            @NonNull final Path outputDirectory) {
         super(selfId, keysAndCerts);
 
         this.localOutputDirectory = requireNonNull(outputDirectory, "outputDirectory must not be null");
@@ -139,6 +137,31 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
 
         container = new ContainerImage(dockerImage, network, selfId);
         container.start();
+
+        containerControlChannel = ManagedChannelBuilder.forAddress(
+                        container.getHost(), container.getMappedPort(CONTAINER_CONTROL_PORT))
+                .maxInboundMessageSize(32 * 1024 * 1024)
+                .usePlaintext()
+                .build();
+        nodeCommChannel = ManagedChannelBuilder.forAddress(
+                        container.getHost(), container.getMappedPort(NODE_COMMUNICATION_PORT))
+                .maxInboundMessageSize(32 * 1024 * 1024)
+                .usePlaintext()
+                .build();
+
+        // Blocking stub for initializing and killing the consensus node
+        containerControlBlockingStub = ContainerControlServiceGrpc.newBlockingStub(containerControlChannel);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    protected void doStart(@NonNull final Duration timeout) {
+        throwIfIn(LifeCycle.RUNNING, "Node has already been started.");
+        throwIfIn(LifeCycle.DESTROYED, "Node has already been destroyed.");
+
+        log.info("Starting node {}...", selfId);
 
         if (savedStateDirectory != null) {
             try {
@@ -165,31 +188,6 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
                 log.error("Unable to copy saved state directory", exception);
             }
         }
-
-        containerControlChannel = ManagedChannelBuilder.forAddress(
-                        container.getHost(), container.getMappedPort(CONTAINER_CONTROL_PORT))
-                .maxInboundMessageSize(32 * 1024 * 1024)
-                .usePlaintext()
-                .build();
-        nodeCommChannel = ManagedChannelBuilder.forAddress(
-                        container.getHost(), container.getMappedPort(NODE_COMMUNICATION_PORT))
-                .maxInboundMessageSize(32 * 1024 * 1024)
-                .usePlaintext()
-                .build();
-
-        // Blocking stub for initializing and killing the consensus node
-        containerControlBlockingStub = ContainerControlServiceGrpc.newBlockingStub(containerControlChannel);
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    protected void doStart(@NonNull final Duration timeout) {
-        throwIfIn(LifeCycle.RUNNING, "Node has already been started.");
-        throwIfIn(LifeCycle.DESTROYED, "Node has already been destroyed.");
-
-        log.info("Starting node {}...", selfId);
 
         final InitRequest initRequest = InitRequest.newBuilder()
                 .setSelfId(ProtobufConverter.toLegacy(selfId))

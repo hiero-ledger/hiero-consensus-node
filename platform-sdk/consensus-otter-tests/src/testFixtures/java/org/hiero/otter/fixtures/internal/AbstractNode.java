@@ -9,6 +9,7 @@ import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.nio.file.Path;
 import java.security.cert.X509Certificate;
 import java.time.Duration;
 import org.hiero.consensus.model.node.KeysAndCerts;
@@ -18,6 +19,7 @@ import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.otter.fixtures.AsyncNodeActions;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.app.OtterTransaction;
+import org.hiero.otter.fixtures.util.OtterUtils;
 
 /**
  * Base implementation of the {@link Node} interface that provides common functionality.
@@ -57,6 +59,9 @@ public abstract class AbstractNode implements Node {
 
     /** Current software version of the platform */
     protected SemanticVersion version = Node.DEFAULT_VERSION;
+
+    /** Saved state directory */
+    protected Path savedStateDirectory;
 
     /**
      * The current state of the platform. Volatile because it is set by the container callback thread and read by the
@@ -152,6 +157,26 @@ public abstract class AbstractNode implements Node {
         throwIfIn(LifeCycle.DESTROYED, "Cannot set version after the node has been destroyed");
 
         this.version = requireNonNull(version);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void savedStateDirectory(@NonNull final String savedStateDirectory) {
+        throwIfIn(LifeCycle.RUNNING, "Cannot set saved state directory while the node is running");
+        throwIfIn(LifeCycle.DESTROYED, "Cannot set saved state directory after the node has been destroyed");
+
+        this.savedStateDirectory = OtterUtils.findSaveState(requireNonNull(savedStateDirectory));
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @Nullable
+    public Path savedStateDirectory() {
+        return savedStateDirectory;
     }
 
     /**

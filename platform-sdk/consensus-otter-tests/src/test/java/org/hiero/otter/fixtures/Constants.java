@@ -12,11 +12,6 @@ public class Constants {
     public static final long RANDOM_SEED = 0L;
 
     /**
-     * Empty string to signal to not use a saved state
-     */
-    public static final String NO_SAVED_STATE = "";
-
-    /**
      * Enables random node IDs
      */
     public static final boolean RANDOM_NODE_IDS = true;

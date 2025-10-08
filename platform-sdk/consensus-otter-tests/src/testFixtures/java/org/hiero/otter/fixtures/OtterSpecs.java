@@ -12,12 +12,6 @@ import java.lang.annotation.Target;
 @Target({ElementType.TYPE, ElementType.METHOD})
 @Retention(RetentionPolicy.RUNTIME)
 public @interface OtterSpecs {
-    /**
-     * Directory to the state directory relative to the resource directory. If empty a new genesis state will be generated.
-     *
-     * @return the relative path
-     */
-    String savedState() default "";
 
     /**
      * Determines whether the node IDs should be selected randomly.

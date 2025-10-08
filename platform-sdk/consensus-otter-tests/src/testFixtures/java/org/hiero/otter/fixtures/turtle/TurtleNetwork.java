@@ -6,8 +6,6 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.common.test.fixtures.Randotron;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
-import java.io.IOException;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
@@ -33,7 +31,6 @@ import org.hiero.otter.fixtures.logging.context.NodeLoggingContext.LoggingContex
 import org.hiero.otter.fixtures.network.Topology.ConnectionData;
 import org.hiero.otter.fixtures.turtle.gossip.SimulatedNetwork;
 import org.hiero.otter.fixtures.turtle.logging.TurtleLogging;
-import org.hiero.otter.fixtures.util.OtterUtils;
 
 /**
  * An implementation of {@link Network} that is based on the Turtle framework.
@@ -42,7 +39,6 @@ public class TurtleNetwork extends AbstractNetwork implements TimeTickReceiver {
 
     private static final Logger log = LogManager.getLogger();
 
-    private final Path savedState;
     private final Randotron randotron;
     private final TurtleTimeManager timeManager;
     private final TurtleLogging logging;
@@ -55,7 +51,6 @@ public class TurtleNetwork extends AbstractNetwork implements TimeTickReceiver {
     /**
      * Constructor for TurtleNetwork.
      *
-     * @param savedState           the directory to the saved state, if empty a genesis state gets generated
      * @param randotron            the random generator
      * @param timeManager          the time manager
      * @param logging              the logging utility
@@ -64,7 +59,6 @@ public class TurtleNetwork extends AbstractNetwork implements TimeTickReceiver {
      * @param randomNodeIds {@code true} if the node IDs should be selected randomly; {@code false} otherwise
      */
     public TurtleNetwork(
-            @Nullable final Path savedState,
             @NonNull final Randotron randotron,
             @NonNull final TurtleTimeManager timeManager,
             @NonNull final TurtleLogging logging,
@@ -72,7 +66,6 @@ public class TurtleNetwork extends AbstractNetwork implements TimeTickReceiver {
             @NonNull final TurtleTransactionGenerator transactionGenerator,
             final boolean randomNodeIds) {
         super(randotron, randomNodeIds);
-        this.savedState = savedState;
         this.randotron = requireNonNull(randotron);
         this.timeManager = requireNonNull(timeManager);
         this.logging = requireNonNull(logging);
@@ -115,13 +108,6 @@ public class TurtleNetwork extends AbstractNetwork implements TimeTickReceiver {
     protected TurtleNode doCreateNode(@NonNull final NodeId nodeId, @NonNull final KeysAndCerts keysAndCerts) {
         simulatedNetwork.addNode(nodeId);
         final Path outputDir = rootOutputDirectory.resolve(NODE_IDENTIFIER_FORMAT.formatted(nodeId.id()));
-        if (savedState != null) {
-            try {
-                OtterUtils.copySaveState(nodeId, savedState, outputDir);
-            } catch (final IOException exception) {
-                log.error("Failed to copy save state to output directory", exception);
-            }
-        }
         return new TurtleNode(
                 randotron, timeManager.time(), nodeId, keysAndCerts, simulatedNetwork, logging, outputDir);
     }
@@ -147,6 +133,13 @@ public class TurtleNetwork extends AbstractNetwork implements TimeTickReceiver {
         final int size = nodes().size();
         executorService = NodeLoggingContext.wrap(Executors.newFixedThreadPool(
                 Math.min(size, Runtime.getRuntime().availableProcessors()), new ContextAwareThreadFactory()));
+
+        // The saved state was generated with the same seed; without advancing time,
+        // all nodes would start simultaneously, and the saved state would lie in their future.
+        final boolean runFromState = nodes().stream().anyMatch(node -> node.savedStateDirectory() != null);
+        if (runFromState) {
+            timeManager.advanceTime(Duration.ofHours(1));
+        }
     }
 
     @Override

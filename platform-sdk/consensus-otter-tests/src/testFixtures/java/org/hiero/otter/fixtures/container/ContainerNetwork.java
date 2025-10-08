@@ -7,7 +7,6 @@ import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.platform.gossip.config.GossipConfig_;
 import com.swirlds.platform.gossip.config.NetworkEndpoint;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.List;
@@ -45,7 +44,6 @@ public class ContainerNetwork extends AbstractNetwork {
     private final Path rootOutputDirectory;
     private final ContainerTransactionGenerator transactionGenerator;
     private final ImageFromDockerfile dockerImage;
-    private final Path savedStateDirectory;
     private final Executor executor = Executors.newCachedThreadPool();
 
     private ToxiproxyContainer toxiproxyContainer;
@@ -63,13 +61,11 @@ public class ContainerNetwork extends AbstractNetwork {
             @NonNull final RegularTimeManager timeManager,
             @NonNull final ContainerTransactionGenerator transactionGenerator,
             @NonNull final Path rootOutputDirectory,
-            @Nullable final Path savedStateDirectory,
             final boolean randomNodeIds) {
         super(new Random(), randomNodeIds);
         this.timeManager = requireNonNull(timeManager);
         this.transactionGenerator = requireNonNull(transactionGenerator);
         this.rootOutputDirectory = requireNonNull(rootOutputDirectory);
-        this.savedStateDirectory = savedStateDirectory;
         this.dockerImage = new ImageFromDockerfile()
                 .withDockerfile(Path.of("..", "consensus-otter-docker-app", "build", "data", "Dockerfile"));
         transactionGenerator.setNodesSupplier(this::nodes);
@@ -108,8 +104,7 @@ public class ContainerNetwork extends AbstractNetwork {
     @NonNull
     protected ContainerNode doCreateNode(@NonNull final NodeId nodeId, @NonNull final KeysAndCerts keysAndCerts) {
         final Path outputDir = rootOutputDirectory.resolve(NODE_IDENTIFIER_FORMAT.formatted(nodeId.id()));
-        final ContainerNode node =
-                new ContainerNode(nodeId, keysAndCerts, network, dockerImage, outputDir, savedStateDirectory);
+        final ContainerNode node = new ContainerNode(nodeId, keysAndCerts, network, dockerImage, outputDir);
         timeManager.addTimeTickReceiver(node);
         return node;
     }
@@ -122,8 +117,8 @@ public class ContainerNetwork extends AbstractNetwork {
     protected InstrumentedNode doCreateInstrumentedNode(
             @NonNull final NodeId nodeId, @NonNull final KeysAndCerts keysAndCerts) {
         final Path outputDir = rootOutputDirectory.resolve(NODE_IDENTIFIER_FORMAT.formatted(nodeId.id()));
-        final InstrumentedContainerNode node = new InstrumentedContainerNode(
-                nodeId, keysAndCerts, network, dockerImage, outputDir, savedStateDirectory);
+        final InstrumentedContainerNode node =
+                new InstrumentedContainerNode(nodeId, keysAndCerts, network, dockerImage, outputDir);
         timeManager.addTimeTickReceiver(node);
         return node;
     }

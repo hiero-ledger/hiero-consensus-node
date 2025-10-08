@@ -43,6 +43,9 @@ public class GenerateStateTool {
     /** Deterministic seed used to initialize the turtle test environment. */
     public static final long SEED = 5045275509048911830L;
 
+    /** Path relative to the project root */
+    public static final String SAVE_STATE_DIRECTORY = "saved-states";
+
     /** Name of PCES directory */
     public static final String PCES_DIRECTORY = "preconsensus-events";
 
@@ -179,7 +182,7 @@ public class GenerateStateTool {
      */
     public void copyFilesInPlace(@NonNull final Path rootOutputDirectory) throws IOException {
         final Path savedStateDirectory =
-                Path.of("platform-sdk", "consensus-otter-tests", "saved-states", "previous-version-state");
+                Path.of("platform-sdk", "consensus-otter-tests", SAVE_STATE_DIRECTORY, "previous-version-state");
 
         if (Files.exists(savedStateDirectory)) {
             FileUtils.deleteDirectory(savedStateDirectory);
@@ -204,8 +207,7 @@ public class GenerateStateTool {
                 FileUtils.deleteDirectory(turtleDir);
             }
 
-            final GenerateStateTool generateStateTool =
-                    new GenerateStateTool(new TurtleTestEnvironment("", SEED, false));
+            final GenerateStateTool generateStateTool = new GenerateStateTool(new TurtleTestEnvironment(SEED, false));
             generateStateTool.generateState();
 
             final Path rootOutputDirectory = Path.of("build", "turtle", "node-" + SELF_ID, "data", "saved");

@@ -264,14 +264,13 @@ public class OtterTestExtension
     private TestEnvironment createTurtleTestEnvironment(@NonNull final ExtensionContext extensionContext) {
         final Optional<OtterSpecs> otterSpecs =
                 AnnotationSupport.findAnnotation(extensionContext.getElement(), OtterSpecs.class);
-        final String savedState = otterSpecs.map(OtterSpecs::savedState).orElse("");
         final boolean randomNodeIds = otterSpecs.map(OtterSpecs::randomNodeIds).orElse(true);
 
         final Optional<TurtleSpecs> turtleSpecs =
                 AnnotationSupport.findAnnotation(extensionContext.getElement(), TurtleSpecs.class);
         final long randomSeed = turtleSpecs.map(TurtleSpecs::randomSeed).orElse(0L);
 
-        return new TurtleTestEnvironment(savedState, randomSeed, randomNodeIds);
+        return new TurtleTestEnvironment(randomSeed, randomNodeIds);
     }
 
     /**
@@ -285,10 +284,9 @@ public class OtterTestExtension
     private TestEnvironment createContainerTestEnvironment(@NonNull final ExtensionContext extensionContext) {
         final Optional<OtterSpecs> otterSpecs =
                 AnnotationSupport.findAnnotation(extensionContext.getElement(), OtterSpecs.class);
-        final String savedState = otterSpecs.map(OtterSpecs::savedState).orElse("");
         final boolean randomNodeIds = otterSpecs.map(OtterSpecs::randomNodeIds).orElse(true);
 
-        return new ContainerTestEnvironment(savedState, randomNodeIds);
+        return new ContainerTestEnvironment(randomNodeIds);
     }
 
     /**
