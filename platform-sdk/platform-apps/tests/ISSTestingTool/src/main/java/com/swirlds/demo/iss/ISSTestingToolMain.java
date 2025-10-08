@@ -88,12 +88,7 @@ public class ISSTestingToolMain extends DefaultSwirldMain<ISSTestingToolState> {
     @Override
     @NonNull
     public ISSTestingToolState newStateRoot() {
-        final Configuration configuration = ConfigurationBuilder.create()
-                .autoDiscoverExtensions()
-                .withSource(new SimpleConfigSource().withValue("merkleDb.initialCapacity", 1000000))
-                .build();
-
-        final ISSTestingToolState state = new ISSTestingToolState(configuration, getGlobalMetrics());
+        final ISSTestingToolState state = new ISSTestingToolState(CONFIGURATION, getGlobalMetrics());
         TestingAppStateInitializer.initConsensusModuleStates(state, CONFIGURATION);
         return state;
     }

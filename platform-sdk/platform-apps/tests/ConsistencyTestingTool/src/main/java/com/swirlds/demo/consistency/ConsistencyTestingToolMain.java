@@ -82,12 +82,7 @@ public class ConsistencyTestingToolMain extends DefaultSwirldMain<ConsistencyTes
     @Override
     @NonNull
     public ConsistencyTestingToolState newStateRoot() {
-        final Configuration configuration = ConfigurationBuilder.create()
-                .autoDiscoverExtensions()
-                .withSource(new SimpleConfigSource().withValue("merkleDb.initialCapacity", 1000000))
-                .build();
-
-        final ConsistencyTestingToolState state = new ConsistencyTestingToolState(configuration, getGlobalMetrics());
+        final ConsistencyTestingToolState state = new ConsistencyTestingToolState(CONFIGURATION, getGlobalMetrics());
         TestingAppStateInitializer.initConsensusModuleStates(state, CONFIGURATION);
         return state;
     }
