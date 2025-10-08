@@ -7,6 +7,7 @@ import static com.hedera.node.app.blocks.impl.streaming.BlockTestUtils.writeBloc
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.assertAll;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyDouble;
 import static org.mockito.ArgumentMatchers.anyInt;
@@ -385,10 +386,8 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         blockBufferService = initBufferService(configProvider);
 
         // when and then
-        assertThatThrownBy(() -> blockBufferService.addItem(
-                        TEST_BLOCK_NUMBER, BlockItem.newBuilder().build()))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("Block state not found for block " + TEST_BLOCK_NUMBER);
+        assertDoesNotThrow(() -> blockBufferService.addItem(
+                TEST_BLOCK_NUMBER, BlockItem.newBuilder().build()));
 
         verify(blockStreamMetrics).recordBlockMissing();
         verifyNoMoreInteractions(blockStreamMetrics);
@@ -438,13 +437,13 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         assertThat(block).isNotNull();
         block.processPendingItems(10); // process the items to create a request
         block.markRequestSent(0); // mark the request that was created as sent
+        block.closeBlock();
         assertThat(block.isBlockProofSent()).isTrue();
 
-        // we've sent the block proof, re-opening is not permitted
-        assertThatThrownBy(() -> blockBufferService.openBlock(10))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessage("Attempted to open block 10, but this block already has the block proof sent");
+        // we've sent the block proof, opening is permitted and is a no-op
+        assertDoesNotThrow(() -> blockBufferService.openBlock(10));
 
+        assertThat(block.isBlockProofSent()).isTrue();
         verify(blockStreamMetrics).recordLatestBlockOpened(10L);
         verify(blockStreamMetrics).recordBlockOpened();
         verifyNoMoreInteractions(blockStreamMetrics);
