@@ -25,7 +25,7 @@ public class StateEventHandlerManagerUtilsTests {
                 "vm-" + StateEventHandlerManagerUtilsTests.class.getSimpleName() + "-" + java.util.UUID.randomUUID();
         final MerkleNodeState state =
                 TestVirtualMapState.createInstanceWithVirtualMapLabel(CONFIGURATION, virtualMapLabel);
-        TestingAppStateInitializer.DEFAULT.initPlatformState(state);
+        TestingAppStateInitializer.initPlatformState(state);
         state.getRoot().reserve();
         final StateMetrics stats = mock(StateMetrics.class);
         final State result = SwirldStateManagerUtils.fastCopy(

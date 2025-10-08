@@ -43,7 +43,7 @@ class PlatformStateFacadeTest {
         final String virtualMapLabelForState =
                 "vm-state-" + PlatformStateFacadeTest.class.getSimpleName() + "-" + java.util.UUID.randomUUID();
         state = TestVirtualMapState.createInstanceWithVirtualMapLabel(CONFIGURATION, virtualMapLabelForState);
-        TestingAppStateInitializer.DEFAULT.initPlatformState(state);
+        TestingAppStateInitializer.initPlatformState(state);
         final String virtualMapLabelForEmptyState =
                 "vm-state-empty-" + PlatformStateFacadeTest.class.getSimpleName() + "-" + java.util.UUID.randomUUID();
         emptyState = TestVirtualMapState.createInstanceWithVirtualMapLabel(CONFIGURATION, virtualMapLabelForEmptyState);
@@ -185,7 +185,7 @@ class PlatformStateFacadeTest {
                 "vm-" + PlatformStateFacadeTest.class.getSimpleName() + "-" + java.util.UUID.randomUUID();
         final TestVirtualMapState randomState =
                 TestVirtualMapState.createInstanceWithVirtualMapLabel(CONFIGURATION, virtualMapLabel);
-        TestingAppStateInitializer.DEFAULT.initPlatformState(randomState);
+        TestingAppStateInitializer.initPlatformState(randomState);
         PlatformStateModifier randomPlatformState = randomPlatformState(randomState, platformStateFacade);
         final var newSnapshot = randomPlatformState.getSnapshot();
         platformStateFacade.setSnapshotTo(state, newSnapshot);

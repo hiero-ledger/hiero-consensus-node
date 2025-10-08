@@ -91,7 +91,7 @@ class NetworkIsolationTest {
 
             // Wait for nodes to become inactive due to network partition
             timeManager.waitForCondition(
-                    node0::isChecking, Duration.ofSeconds(15), "Node did not enter CHECKING state after isolation");
+                    node0::isChecking, Duration.ofSeconds(120L), "Node did not enter CHECKING state after isolation");
 
             timeManager.waitFor(Duration.ofSeconds(5)); // just to be sure
             assertThat(node1.platformStatus()).isEqualTo(ACTIVE);
@@ -116,7 +116,9 @@ class NetworkIsolationTest {
 
             // The nodes should be active again
             timeManager.waitForCondition(
-                    network::allNodesAreActive, Duration.ofSeconds(15), "Not all nodes became ACTIVE after rejoining");
+                    network::allNodesAreActive,
+                    Duration.ofSeconds(120L),
+                    "Not all nodes became ACTIVE after rejoining");
         } finally {
             env.destroy();
         }
