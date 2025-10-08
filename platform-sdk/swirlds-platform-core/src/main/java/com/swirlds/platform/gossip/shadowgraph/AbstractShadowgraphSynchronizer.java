@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.gossip.shadowgraph;
 
-import static com.swirlds.logging.legacy.LogMarker.SYNC_INFO;
 import static com.swirlds.platform.gossip.shadowgraph.SyncUtils.filterLikelyDuplicates;
 
 import com.swirlds.base.time.Time;
@@ -60,7 +59,7 @@ public class AbstractShadowgraphSynchronizer {
     /**
      * manages sync related decisions
      */
-    private final FallenBehindMonitor fallenBehindManager;
+    private final FallenBehindMonitor fallenBehindMonitor;
 
     /**
      * Keeps track of how many events from each peer have been received, but haven't yet made it through the intake
@@ -106,7 +105,7 @@ public class AbstractShadowgraphSynchronizer {
      * @param numberOfNodes        number of nodes in the network
      * @param syncMetrics          metrics for sync
      * @param receivedEventHandler events that are received are passed here
-     * @param fallenBehindManager  tracks if we have fallen behind
+     * @param fallenBehindMonitor  tracks if we have fallen behind
      * @param intakeEventCounter   used for tracking events in the intake pipeline per peer
      * @param syncLagHandler       callback for reporting median sync lag
      */
@@ -116,7 +115,7 @@ public class AbstractShadowgraphSynchronizer {
             final int numberOfNodes,
             @NonNull final SyncMetrics syncMetrics,
             @NonNull final Consumer<PlatformEvent> receivedEventHandler,
-            @NonNull final FallenBehindMonitor fallenBehindManager,
+            @NonNull final FallenBehindMonitor fallenBehindMonitor,
             @NonNull final IntakeEventCounter intakeEventCounter,
             @NonNull final Consumer<Double> syncLagHandler) {
         Objects.requireNonNull(platformContext);
@@ -125,7 +124,7 @@ public class AbstractShadowgraphSynchronizer {
         this.shadowGraph = Objects.requireNonNull(shadowGraph);
         this.numberOfNodes = numberOfNodes;
         this.syncMetrics = Objects.requireNonNull(syncMetrics);
-        this.fallenBehindManager = Objects.requireNonNull(fallenBehindManager);
+        this.fallenBehindMonitor = Objects.requireNonNull(fallenBehindMonitor);
         this.intakeEventCounter = Objects.requireNonNull(intakeEventCounter);
 
         this.eventHandler = Objects.requireNonNull(receivedEventHandler);
@@ -147,14 +146,14 @@ public class AbstractShadowgraphSynchronizer {
     }
 
     /**
-     * Decide if we have fallen behind with respect to this peer.
+     * checks if we have fallen behind with respect to this peer.
      *
      * @param self   our event window
      * @param other  their event window
      * @param nodeId node id against which we have fallen behind
      * @return status about who has fallen behind
      */
-    protected SyncFallenBehindStatus hasFallenBehind(
+    protected SyncFallenBehindStatus checkFallenBehindStatus(
             @NonNull final EventWindow self, @NonNull final EventWindow other, @NonNull final NodeId nodeId) {
         Objects.requireNonNull(self);
         Objects.requireNonNull(other);
@@ -162,15 +161,10 @@ public class AbstractShadowgraphSynchronizer {
 
         final SyncFallenBehindStatus status = SyncFallenBehindStatus.getStatus(self, other);
         if (status == SyncFallenBehindStatus.SELF_FALLEN_BEHIND) {
-            fallenBehindManager.report(nodeId);
+            fallenBehindMonitor.report(nodeId);
         } else {
-            fallenBehindManager.clear(nodeId);
+            fallenBehindMonitor.clear(nodeId);
         }
-
-        if (status != SyncFallenBehindStatus.NONE_FALLEN_BEHIND) {
-            logger.info(SYNC_INFO.getMarker(), "Connection against {} aborting sync due to {}", nodeId, status);
-        }
-
         return status;
     }
 
