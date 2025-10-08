@@ -17,7 +17,6 @@ import static com.swirlds.demo.iss.V0680ISSTestingToolSchema.PLANNED_ISS_LIST_ST
 import static com.swirlds.demo.iss.V0680ISSTestingToolSchema.PLANNED_LOG_ERROR_LIST_STATE_ID;
 import static com.swirlds.demo.iss.V0680ISSTestingToolSchema.RUNNING_SUM_STATE_ID;
 import static com.swirlds.platform.state.service.PlatformStateFacade.DEFAULT_PLATFORM_STATE_FACADE;
-import static com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer.registerMerkleStateRootClassIds;
 
 import com.hedera.hapi.node.state.primitives.ProtoLong;
 import com.hedera.hapi.node.state.primitives.ProtoString;
@@ -51,10 +50,6 @@ import org.hiero.consensus.model.event.ConsensusEvent;
  * State for the ISSTestingTool.
  */
 public class ISSTestingToolState extends VirtualMapState<ISSTestingToolState> implements MerkleNodeState {
-
-    static {
-        registerMerkleStateRootClassIds();
-    }
 
     /**
      * The true "state" of this app. Each transaction is just an integer that gets added to this value.
@@ -119,7 +114,7 @@ public class ISSTestingToolState extends VirtualMapState<ISSTestingToolState> im
         schema.statesToCreate().stream()
                 .sorted(Comparator.comparing(StateDefinition::stateId))
                 .forEach(def -> {
-                    super.initializeState(new StateMetadata<>(ISS_SERVICE_NAME, schema, def));
+                    super.initializeState(new StateMetadata<>(ISS_SERVICE_NAME, def));
                 });
 
         // since the test occurrences are relative to the genesis timestamp, the data only needs to be parsed at genesis

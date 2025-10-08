@@ -3,7 +3,6 @@ package com.swirlds.demo.consistency;
 
 import static com.swirlds.demo.consistency.ConsistencyTestingToolMain.CONFIGURATION;
 import static com.swirlds.platform.state.service.PlatformStateFacade.DEFAULT_PLATFORM_STATE_FACADE;
-import static com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer.CONFIGURATION;
 import static org.assertj.core.api.AssertionsForInterfaceTypes.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
@@ -63,8 +62,8 @@ public class ConsistencyTestingToolStateTest {
     @BeforeAll
     static void initState() {
         final MerkleDbConfig merkleDbConfig = CONFIGURATION.getConfigData(MerkleDbConfig.class);
-        final VirtualDataSourceBuilder dsBuilder =
-                new MerkleDbDataSourceBuilder(CONFIGURATION, 1_000_000, merkleDbConfig.hashesRamToDiskThreshold());
+        final VirtualDataSourceBuilder dsBuilder = new MerkleDbDataSourceBuilder(
+                CONFIGURATION, merkleDbConfig.initialCapacity(), merkleDbConfig.hashesRamToDiskThreshold());
         final VirtualMap virtualMap = new VirtualMap("ConsistencyTestingToolStateTest", dsBuilder, CONFIGURATION);
         state = new ConsistencyTestingToolState(virtualMap);
         stateLifecycle = new ConsistencyTestingToolConsensusStateEventHandler(DEFAULT_PLATFORM_STATE_FACADE);

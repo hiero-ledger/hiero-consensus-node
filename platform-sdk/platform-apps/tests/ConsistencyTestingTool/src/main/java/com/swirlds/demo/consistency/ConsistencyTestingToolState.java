@@ -128,7 +128,7 @@ public class ConsistencyTestingToolState extends VirtualMapState<ConsistencyTest
         schema.statesToCreate().stream()
                 .sorted(Comparator.comparing(StateDefinition::stateId))
                 .forEach(def -> {
-                    super.initializeState(new StateMetadata<>(CONSISTENCY_SERVICE_NAME, schema, def));
+                    super.initializeState(new StateMetadata<>(CONSISTENCY_SERVICE_NAME, def));
                 });
 
         final ReadableStates readableStates = getReadableStates(CONSISTENCY_SERVICE_NAME);

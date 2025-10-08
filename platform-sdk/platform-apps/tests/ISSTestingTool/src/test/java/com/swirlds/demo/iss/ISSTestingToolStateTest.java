@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.demo.iss;
 
+import static com.swirlds.demo.iss.ISSTestingToolMain.CONFIGURATION;
 import static com.swirlds.demo.iss.V0680ISSTestingToolSchema.ISS_SERVICE_NAME;
 import static com.swirlds.demo.iss.V0680ISSTestingToolSchema.RUNNING_SUM_STATE_ID;
-import static com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer.CONFIGURATION;
 import static org.assertj.core.api.AssertionsForInterfaceTypes.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -55,8 +55,8 @@ class ISSTestingToolStateTest {
     @BeforeEach
     void setUp() {
         final MerkleDbConfig merkleDbConfig = CONFIGURATION.getConfigData(MerkleDbConfig.class);
-        final VirtualDataSourceBuilder dsBuilder =
-                new MerkleDbDataSourceBuilder(CONFIGURATION, 1_000_000, merkleDbConfig.hashesRamToDiskThreshold());
+        final VirtualDataSourceBuilder dsBuilder = new MerkleDbDataSourceBuilder(
+                CONFIGURATION, merkleDbConfig.initialCapacity(), merkleDbConfig.hashesRamToDiskThreshold());
         final VirtualMap virtualMap = new VirtualMap("ISSTestingToolStateTest", dsBuilder, CONFIGURATION);
         state = new ISSTestingToolState(virtualMap);
 
@@ -64,7 +64,7 @@ class ISSTestingToolStateTest {
         schema.statesToCreate().stream()
                 .sorted(Comparator.comparing(StateDefinition::stateId))
                 .forEach(def -> {
-                    state.initializeState(new StateMetadata<>(ISS_SERVICE_NAME, schema, def));
+                    state.initializeState(new StateMetadata<>(ISS_SERVICE_NAME, def));
                 });
 
         consensusStateEventHandler = new ISSTestingToolConsensusStateEventHandler();
