@@ -934,26 +934,33 @@ public class BlockNodeConnectionManager {
                     .name("BlockNodesConfigWatcher")
                     .start(() -> {
                         while (true) {
+                            WatchKey key = null;
                             try {
-                                final WatchKey key = watchService.take();
+                                key = watchService.take();
                                 for (WatchEvent<?> event : key.pollEvents()) {
                                     final WatchEvent.Kind<?> kind = event.kind();
                                     final Object ctx = event.context();
                                     if (ctx instanceof Path changed
                                             && BLOCK_NODES_FILE_NAME.equals(changed.toString())) {
                                         logWithContext(INFO, "Detected {} event for {}.", kind.name(), changed);
-                                        handleConfigFileChange();
+                                        try {
+                                            handleConfigFileChange();
+                                        } catch (Exception e) {
+                                            logWithContext(INFO, "Exception in config file change handler.", e);
+                                        }
                                     }
-                                }
-                                if (!key.reset()) {
-                                    logWithContext(INFO, "WatchKey could not be reset. Exiting config watcher loop.");
-                                    break;
                                 }
                             } catch (InterruptedException e) {
                                 Thread.currentThread().interrupt();
                                 break;
                             } catch (Exception e) {
                                 logWithContext(INFO, "Exception in config watcher loop.", e);
+                            } finally {
+                                // Always reset the key to continue watching for events, even if an exception occurred
+                                if (key != null && !key.reset()) {
+                                    logWithContext(INFO, "WatchKey could not be reset. Exiting config watcher loop.");
+                                    break;
+                                }
                             }
                         }
                     });

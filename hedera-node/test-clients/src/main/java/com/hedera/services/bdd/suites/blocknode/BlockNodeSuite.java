@@ -142,10 +142,9 @@ public class BlockNodeSuite {
                                 portNumbers.getFirst()),
                         // New invalid config is loaded
                         "Reloaded 1 block node configurations. Restarting connection manager.",
-                        // Connection attempt with invalid address
-                        "/26dsfg2364:1234/UNINITIALIZED] Running connection task",
-                        "/26dsfg2364:1234/UNINITIALIZED] Failed to establish connection to block node. Will schedule a retry.",
-                        "/26dsfg2364:1234/UNINITIALIZED] Rescheduled connection attempt")),
+                        // Connection client created but exception occurs with invalid address
+                        "Created BlockStreamPublishServiceClient for 26dsfg2364:1234",
+                        "Exception in config file change handler")),
                 waitUntilNextBlocks(30).withBackgroundTraffic(true),
                 // Delete block-nodes.json
                 doingContextual((spec) -> {
@@ -168,10 +167,6 @@ public class BlockNodeSuite {
                         Duration.ofSeconds(45),
                         "Detected ENTRY_DELETE event for block-nodes.json",
                         "Stopping block node connections (keeping worker loop running)",
-                        // Invalid connection is closed
-                        "26dsfg2364:1234/CLOSING] Connection state transitioned from UNINITIALIZED to CLOSING",
-                        "26dsfg2364:1234/CLOSING] Connection successfully closed",
-                        "26dsfg2364:1234/CLOSED] Connection state transitioned from CLOSING to CLOSED",
                         // Config file is missing
                         "Block node configuration file does not exist:",
                         "No valid block node configurations available after file change. Connections remain stopped.")),
