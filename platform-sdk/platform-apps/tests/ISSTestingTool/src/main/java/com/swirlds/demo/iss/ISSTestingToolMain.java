@@ -9,6 +9,8 @@ import com.hedera.hapi.node.base.SemanticVersion;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.config.extensions.sources.SimpleConfigSource;
+import com.swirlds.config.api.ConfigurationBuilder;
+import com.swirlds.config.extensions.sources.SimpleConfigSource;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.system.DefaultSwirldMain;
 import com.swirlds.platform.system.Platform;
@@ -40,11 +42,10 @@ public class ISSTestingToolMain extends DefaultSwirldMain<ISSTestingToolState> {
     private static final SemanticVersion semanticVersion =
             SemanticVersion.newBuilder().major(1).build();
 
-    static {
-        logger.info(STARTUP.getMarker(), "Registering MerkleStateRoot Class Ids with ConstructableRegistry...");
-        registerMerkleStateRootClassIds();
-        logger.info(STARTUP.getMarker(), " MerkleStateRoot Class Ids are registered with the ConstructableRegistry!");
-    }
+    private static final Configuration CONFIGURATION = ConfigurationBuilder.create()
+            .autoDiscoverExtensions()
+            .withSource(new SimpleConfigSource().withValue("merkleDb.initialCapacity", 1000000))
+            .build();
 
     private Platform platform;
 
@@ -96,7 +97,7 @@ public class ISSTestingToolMain extends DefaultSwirldMain<ISSTestingToolState> {
                 .build();
 
         final ISSTestingToolState state = new ISSTestingToolState(configuration, getGlobalMetrics());
-        TestingAppStateInitializer.initConsensusModuleStates(state);
+        TestingAppStateInitializer.initConsensusModuleStates(state, CONFIGURATION);
         return state;
     }
 
@@ -107,7 +108,7 @@ public class ISSTestingToolMain extends DefaultSwirldMain<ISSTestingToolState> {
     public Function<VirtualMap, ISSTestingToolState> stateRootFromVirtualMap() {
         return virtualMap -> {
             final ISSTestingToolState state = new ISSTestingToolState(virtualMap);
-            TestingAppStateInitializer.initConsensusModuleStates(state);
+            TestingAppStateInitializer.initConsensusModuleStates(state, CONFIGURATION);
             return state;
         };
     }

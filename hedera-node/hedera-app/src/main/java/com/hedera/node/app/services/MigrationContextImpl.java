@@ -7,7 +7,6 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.state.lifecycle.MigrationContext;
-import com.swirlds.state.lifecycle.StartupNetworks;
 import com.swirlds.state.merkle.VirtualMapState.MerkleWritableStates;
 import com.swirlds.state.spi.FilteredWritableStates;
 import com.swirlds.state.spi.ReadableStates;
@@ -34,7 +33,7 @@ public record MigrationContextImpl(
         long roundNumber,
         @NonNull Map<String, Object> sharedValues,
         @NonNull StartupNetworks startupNetworks)
-        implements MigrationContext<SemanticVersion> {
+        implements HederaMigrationContext {
     public MigrationContextImpl {
         requireNonNull(previousStates);
         requireNonNull(newStates);
@@ -52,11 +51,6 @@ public record MigrationContextImpl(
         } else {
             throw new UnsupportedOperationException("On-disk state is inaccessible");
         }
-    }
-
-    @Override
-    public SemanticVersion getDefaultVersion() {
-        return SemanticVersion.DEFAULT;
     }
 
     @Override

@@ -92,19 +92,19 @@ class ConsensusTests extends PlatformTest {
     }
 
     @ParameterizedTest
-    @MethodSource("com.swirlds.platform.consensus.ConsensusTestArgs#forkingTests")
+    @MethodSource("com.swirlds.platform.consensus.ConsensusTestArgs#branchingTests")
     @Tag(TestComponentTags.PLATFORM)
     @Tag(TestComponentTags.CONSENSUS)
-    @DisplayName("Forking Tests")
-    void forkingTests(final ConsensusTestParams params) {
+    @DisplayName("Branching Tests")
+    void branchingTests(final ConsensusTestParams params) {
         ConsensusTestRunner.create()
-                .setTest(ConsensusTestDefinitions::forkingTests)
+                .setTest(ConsensusTestDefinitions::branchingTests)
                 .setParams(params)
                 .setContexts(contexts())
                 .setIterations(NUM_ITER)
                 .run();
-        // Some forking tests make too many forkers.  When there is  > 1/3 nodes forking, both no super majority and
-        // possibly no judges can result. This is expected, so ignore the marker file generated for these tests.
+        // Some branching tests make too many branchers. When there is  > 1/3 nodes branching, both no super majority
+        // and possibly no judges can result. This is expected, so ignore the marker file generated for these tests.
         ignoreNoSuperMajorityMarkerFile = true;
         ignoreNoJudgesMarkerFile = true;
     }

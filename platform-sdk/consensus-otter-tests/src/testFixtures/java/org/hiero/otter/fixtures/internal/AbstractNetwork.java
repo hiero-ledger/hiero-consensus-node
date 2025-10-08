@@ -39,6 +39,7 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.otter.fixtures.AsyncNetworkActions;
 import org.hiero.otter.fixtures.InstrumentedNode;
 import org.hiero.otter.fixtures.Network;
@@ -46,6 +47,7 @@ import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.TimeManager;
 import org.hiero.otter.fixtures.TransactionFactory;
 import org.hiero.otter.fixtures.TransactionGenerator;
+import org.hiero.otter.fixtures.app.OtterTransaction;
 import org.hiero.otter.fixtures.internal.network.ConnectionKey;
 import org.hiero.otter.fixtures.internal.network.GeoMeshTopologyImpl;
 import org.hiero.otter.fixtures.internal.result.MultipleNodeConsensusResultsImpl;
@@ -286,6 +288,22 @@ public abstract class AbstractNetwork implements Network {
     }
 
     /**
+     * The actual implementation of sending a quiescence command, to be provided by subclasses.
+     *
+     * @param command the quiescence command to send
+     * @param timeout the maximum duration to wait for the command to be processed
+     */
+    protected abstract void doSendQuiescenceCommand(@NonNull QuiescenceCommand command, @NonNull Duration timeout);
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void sendQuiescenceCommand(@NonNull final QuiescenceCommand command) {
+        doSendQuiescenceCommand(command, DEFAULT_TIMEOUT);
+    }
+
+    /**
      * {@inheritDoc}
      */
     @Override
@@ -411,12 +429,12 @@ public abstract class AbstractNetwork implements Network {
         throwIfInState(State.SHUTDOWN, "Network has been shut down.");
 
         log.info("Sending freeze transaction...");
-        final byte[] freezeTransaction = TransactionFactory.createFreezeTransaction(
-                        random.nextLong(), timeManager().now().plus(FREEZE_DELAY))
-                .toByteArray();
+        final OtterTransaction freezeTransaction = TransactionFactory.createFreezeTransaction(
+                random.nextLong(), timeManager().now().plus(FREEZE_DELAY));
         nodes().stream()
                 .filter(Node::isActive)
                 .findFirst()
+                .map(node -> (AbstractNode) node)
                 .orElseThrow(() -> new AssertionError("No active node found to send freeze transaction to."))
                 .submitTransaction(freezeTransaction);
 
@@ -717,6 +735,14 @@ public abstract class AbstractNetwork implements Network {
         @Override
         public void shutdown() {
             doShutdown(timeout);
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public void sendQuiescenceCommand(@NonNull final QuiescenceCommand command) {
+            doSendQuiescenceCommand(command, timeout);
         }
     }
 

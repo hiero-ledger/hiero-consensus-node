@@ -59,12 +59,6 @@ public interface MigrationContext<V> {
     Configuration platformConfig();
 
     /**
-     * Returns the startup networks in use.
-     */
-    @NonNull
-    StartupNetworks startupNetworks();
-
-    /**
      * Copies and releases the underlying on-disk state for the given ID. If this is not called
      * periodically during a large migration, the underlying {@code VirtualMap} will grow too large
      * and apply extreme backpressure during transaction handling post-migration.
@@ -92,16 +86,8 @@ public interface MigrationContext<V> {
      * Returns whether this is a genesis migration.
      */
     default boolean isGenesis() {
-        return previousVersion() == null || previousVersion() == getDefaultVersion();
+        return previousVersion() == null;
     }
-
-    /**
-     * Returns the default version of the schema being managed within the migration context.
-     * This is typically used to determine the base version to be applied or referenced.
-     *
-     * @return the default version of the schema
-     */
-    V getDefaultVersion();
 
     /**
      * Provides a comparator for comparing versions of type {@code V}.

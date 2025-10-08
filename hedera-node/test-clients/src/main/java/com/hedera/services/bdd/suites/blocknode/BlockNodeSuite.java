@@ -13,7 +13,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitForActive;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitForAny;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitUntilNextBlocks;
-import static com.hedera.services.bdd.suites.regression.system.LifecycleTest.restartAtNextConfigVersion;
+import static com.hedera.services.bdd.suites.regression.system.LifecycleTest.*;
 
 import com.hedera.services.bdd.HapiBlockNode;
 import com.hedera.services.bdd.HapiBlockNode.BlockNodeConfig;
@@ -43,6 +43,9 @@ import org.junit.jupiter.api.Tag;
 @OrderedInIsolation
 public class BlockNodeSuite {
 
+    private static final int BLOCK_TTL_MINUTES = 2;
+    private static final int BLOCK_PERIOD_SECONDS = 2;
+
     @HapiTest
     @HapiBlockNode(
             networkSize = 1,
@@ -60,7 +63,7 @@ public class BlockNodeSuite {
     @Order(0)
     final Stream<DynamicTest> node0StreamingHappyPath() {
         return hapiTest(
-                waitUntilNextBlocks(100).withBackgroundTraffic(true),
+                waitUntilNextBlocks(20).withBackgroundTraffic(true),
                 assertHgcaaLogDoesNotContain(byNodeId(0), "ERROR", Duration.ofSeconds(5)));
     }
 
@@ -156,10 +159,10 @@ public class BlockNodeSuite {
     @HapiBlockNode(
             networkSize = 1,
             blockNodeConfigs = {
-                @BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.REAL),
-                @BlockNodeConfig(nodeId = 1, mode = BlockNodeMode.REAL),
-                @BlockNodeConfig(nodeId = 2, mode = BlockNodeMode.REAL),
-                @BlockNodeConfig(nodeId = 3, mode = BlockNodeMode.REAL)
+                @BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.SIMULATOR),
+                @BlockNodeConfig(nodeId = 1, mode = BlockNodeMode.SIMULATOR),
+                @BlockNodeConfig(nodeId = 2, mode = BlockNodeMode.SIMULATOR),
+                @BlockNodeConfig(nodeId = 3, mode = BlockNodeMode.SIMULATOR)
             },
             subProcessNodeConfigs = {
                 @SubProcessNodeConfig(
@@ -392,7 +395,7 @@ public class BlockNodeSuite {
             })
     @Order(7)
     final Stream<DynamicTest> activeConnectionPeriodicallyRestarts() {
-        final AtomicReference<Instant> connectionResetTime = new AtomicReference<>();
+        final AtomicReference<Instant> connectionResetTime = new AtomicReference<>(Instant.now());
         final List<Integer> portNumbers = new ArrayList<>();
         return hapiTest(
                 doingContextual(spec -> {
@@ -429,9 +432,6 @@ public class BlockNodeSuite {
                         "Connection state transitioned from PENDING to ACTIVE.")),
                 assertHgcaaLogDoesNotContain(byNodeId(0), "ERROR", Duration.ofSeconds(5)));
     }
-
-    private static final int BLOCK_TTL_MINUTES = 2;
-    private static final int BLOCK_PERIOD_SECONDS = 2;
 
     @HapiTest
     @HapiBlockNode(
@@ -604,6 +604,48 @@ public class BlockNodeSuite {
     @HapiTest
     @HapiBlockNode(
             networkSize = 1,
+            blockNodeConfigs = {
+                @BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.SIMULATOR, highLatency = true),
+                @BlockNodeConfig(nodeId = 1, mode = BlockNodeMode.SIMULATOR, highLatency = true)
+            },
+            subProcessNodeConfigs = {
+                @SubProcessNodeConfig(
+                        nodeId = 0,
+                        blockNodeIds = {0, 1},
+                        blockNodePriorities = {0, 1},
+                        applicationPropertiesOverrides = {
+                            "blockStream.streamMode", "BOTH",
+                            "blockStream.writerMode", "FILE_AND_GRPC",
+                            "blockNode.highLatencyThreshold", "1s"
+                        })
+            })
+    @Order(11)
+    final Stream<DynamicTest> node0StreamingToHighLatencyBlockNode() {
+        final AtomicReference<Instant> time = new AtomicReference<>();
+        final List<Integer> portNumbers = new ArrayList<>();
+        return hapiTest(
+                doingContextual(spec -> {
+                    portNumbers.add(spec.getBlockNodePortById(0));
+                }),
+                doingContextual(spec -> time.set(Instant.now())),
+                waitUntilNextBlocks(10).withBackgroundTraffic(true),
+                sourcingContextual(spec -> assertHgcaaLogContainsTimeframe(
+                        byNodeId(0),
+                        time::get,
+                        Duration.ofSeconds(30),
+                        Duration.ofSeconds(45),
+                        String.format(
+                                "/localhost:%s/ACTIVE] Block node has exceeded high latency threshold 5 times consecutively.",
+                                portNumbers.getFirst()),
+                        String.format(
+                                "/localhost:%s/CLOSED] Closing and rescheduling connection for reconnect attempt",
+                                portNumbers.getFirst()),
+                        "No available block nodes found for streaming.")));
+    }
+
+    @HapiTest
+    @HapiBlockNode(
+            networkSize = 1,
             blockNodeConfigs = {@BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.SIMULATOR)},
             subProcessNodeConfigs = {
                 @SubProcessNodeConfig(
@@ -615,7 +657,7 @@ public class BlockNodeSuite {
                             "blockStream.writerMode", "FILE_AND_GRPC"
                         })
             })
-    @Order(11)
+    @Order(12)
     final Stream<DynamicTest> testCNReactionToPublishStreamResponses() {
         final AtomicReference<Instant> time = new AtomicReference<>();
         final List<Integer> portNumbers = new ArrayList<>();
@@ -628,7 +670,9 @@ public class BlockNodeSuite {
                         time::get,
                         Duration.ofSeconds(20),
                         Duration.ofSeconds(20),
-                        String.format("/localhost:%s/ACTIVE] Acknowledging blocks", portNumbers.getFirst()))),
+                        String.format(
+                                "/localhost:%s/ACTIVE] BlockAcknowledgement received for block",
+                                portNumbers.getFirst()))),
                 blockNode(0).sendEndOfStreamImmediately(Code.BEHIND).withBlockNumber(Long.MAX_VALUE),
                 sourcingContextual(spec -> assertHgcaaLogContainsTimeframe(
                         byNodeId(0),

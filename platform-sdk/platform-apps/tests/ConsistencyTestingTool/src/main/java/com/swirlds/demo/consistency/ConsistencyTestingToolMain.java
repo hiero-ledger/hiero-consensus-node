@@ -9,6 +9,8 @@ import com.hedera.hapi.node.base.SemanticVersion;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.config.extensions.sources.SimpleConfigSource;
+import com.swirlds.config.api.ConfigurationBuilder;
+import com.swirlds.config.extensions.sources.SimpleConfigSource;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.system.DefaultSwirldMain;
@@ -35,11 +37,10 @@ public class ConsistencyTestingToolMain extends DefaultSwirldMain<ConsistencyTes
     private static final SemanticVersion semanticVersion =
             SemanticVersion.newBuilder().major(1).build();
 
-    static {
-        logger.info(STARTUP.getMarker(), "Registering MerkleStateRoot Class Ids with ConstructableRegistry...");
-        registerMerkleStateRootClassIds();
-        logger.info(STARTUP.getMarker(), " MerkleStateRoot Class Ids are registered with the ConstructableRegistry!");
-    }
+    static final Configuration CONFIGURATION = ConfigurationBuilder.create()
+            .autoDiscoverExtensions()
+            .withSource(new SimpleConfigSource().withValue("merkleDb.initialCapacity", 1000000))
+            .build();
 
     /**
      * The platform instance
@@ -90,7 +91,7 @@ public class ConsistencyTestingToolMain extends DefaultSwirldMain<ConsistencyTes
                 .build();
 
         final ConsistencyTestingToolState state = new ConsistencyTestingToolState(configuration, getGlobalMetrics());
-        TestingAppStateInitializer.initConsensusModuleStates(state);
+        TestingAppStateInitializer.initConsensusModuleStates(state, CONFIGURATION);
         return state;
     }
 
@@ -101,7 +102,7 @@ public class ConsistencyTestingToolMain extends DefaultSwirldMain<ConsistencyTes
     public Function<VirtualMap, ConsistencyTestingToolState> stateRootFromVirtualMap() {
         return virtualMap -> {
             final ConsistencyTestingToolState state = new ConsistencyTestingToolState(virtualMap);
-            TestingAppStateInitializer.initConsensusModuleStates(state);
+            TestingAppStateInitializer.initConsensusModuleStates(state, CONFIGURATION);
             return state;
         };
     }
