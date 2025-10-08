@@ -139,4 +139,11 @@ public interface State extends FastCopyable, Hashable {
     default String getInfoJson() {
         return "";
     }
+
+    /**
+     * @return state proof view of this instate
+     */
+    default StateProofView getStateProofView() {
+        throw new UnsupportedOperationException();
+    }
 }

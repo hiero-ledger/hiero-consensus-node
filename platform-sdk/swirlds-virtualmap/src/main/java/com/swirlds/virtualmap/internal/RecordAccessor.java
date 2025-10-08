@@ -169,7 +169,7 @@ public final class RecordAccessor {
      * @param key The key. Must not be null.
      * @return The path or INVALID_PATH if the key is not found.
      */
-    public long findKey(final @NonNull Bytes key) {
+    public long findPath(final @NonNull Bytes key) {
         final VirtualLeafBytes rec = cache.lookupLeafByKey(key);
         if (rec != null) {
             return rec.path();
