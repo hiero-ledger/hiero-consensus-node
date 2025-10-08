@@ -155,16 +155,28 @@ public abstract class AbstractNetwork implements Network {
      * {@inheritDoc}
      */
     @Override
-    public void setWeightGenerator(@NonNull final WeightGenerator weightGenerator) {
-        if (!nodes().isEmpty()) {
-            throw new IllegalStateException("Cannot set weight generator after nodes have been added to the network.");
-        }
+    public void weightGenerator(@NonNull final WeightGenerator weightGenerator) {
+        throwIfInState(State.RUNNING, "Cannot set weight generator when the network is running.");
         this.weightGenerator = requireNonNull(weightGenerator);
     }
 
     /**
-     * Creates a new node with the given ID and keys and certificates. This is a factory method that must be implemented
-     * by subclasses to create nodes specific to the environment.
+     * {@inheritDoc}
+     */
+    @Override
+    public void nodeWeight(final long weight) {
+        if (weight <= 0) {
+            throw new IllegalArgumentException("Weight must be positive");
+        }
+        if (nodes().isEmpty()) {
+            throw new IllegalStateException("Cannot set node weight when there are no nodes in the network.");
+        }
+        nodes().forEach(n -> n.weight(weight));
+    }
+
+    /**
+     * Creates a new node with the given ID and keys and certificates. This is a factory method that subclasses must
+     * implement to create nodes specific to the environment.
      *
      * @param nodeId the ID of the node to create
      * @param keysAndCerts the keys and certificates for the node
@@ -243,16 +255,7 @@ public abstract class AbstractNetwork implements Network {
         throwIfInState(State.RUNNING, "Network is already running.");
         log.info("Starting network...");
 
-        final int count = nodes().size();
-        final Iterator<Long> weightIterator =
-                weightGenerator.getWeights(random.nextLong(), count).iterator();
-
-        final List<RosterEntry> rosterEntries = nodes().stream()
-                .sorted(Comparator.comparing(Node::selfId))
-                .map(node -> createRosterEntry(node, weightIterator.next()))
-                .toList();
-        final Roster roster = Roster.newBuilder().rosterEntries(rosterEntries).build();
-
+        final Roster roster = createRoster();
         preStartHook(roster);
 
         state = State.RUNNING;
@@ -266,6 +269,27 @@ public abstract class AbstractNetwork implements Network {
 
         log.debug("Waiting for nodes to become active...");
         timeManager().waitForCondition(() -> allNodesInStatus(ACTIVE), timeout);
+    }
+
+    private Roster createRoster() {
+        final boolean anyNodeHasExplicitWeight = nodes().stream().anyMatch(node -> node.weight() > 0);
+        final List<RosterEntry> rosterEntries;
+        if (anyNodeHasExplicitWeight) {
+            rosterEntries = nodes().stream()
+                    .sorted(Comparator.comparing(Node::selfId))
+                    .map(node -> createRosterEntry(node, node.weight() < 0 ? 0 : node.weight()))
+                    .toList();
+        } else {
+            final int count = nodes().size();
+            final Iterator<Long> weightIterator =
+                    weightGenerator.getWeights(random.nextLong(), count).iterator();
+
+            rosterEntries = nodes().stream()
+                    .sorted(Comparator.comparing(Node::selfId))
+                    .map(node -> createRosterEntry(node, weightIterator.next()))
+                    .toList();
+        }
+        return Roster.newBuilder().rosterEntries(rosterEntries).build();
     }
 
     private RosterEntry createRosterEntry(final Node node, final long weight) {
