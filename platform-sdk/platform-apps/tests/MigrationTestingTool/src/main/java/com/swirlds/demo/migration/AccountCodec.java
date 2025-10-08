@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.demo.migration.virtual;
+package com.swirlds.demo.migration;
 
 import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.ParseException;
@@ -8,30 +8,30 @@ import com.hedera.pbj.runtime.io.WritableSequentialData;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 
-public class AccountVirtualMapValueCodec implements Codec<AccountVirtualMapValue> {
+public class AccountCodec implements Codec<Account> {
 
-    public static final AccountVirtualMapValueCodec INSTANCE = new AccountVirtualMapValueCodec();
+    public static final AccountCodec INSTANCE = new AccountCodec();
 
-    private static final AccountVirtualMapValue DEFAULT_VALUE = new AccountVirtualMapValue(0, 0, 0, false, 0);
+    private static final Account DEFAULT_VALUE = new Account();
 
     @Override
-    public AccountVirtualMapValue getDefaultInstance() {
+    public Account getDefaultInstance() {
         return DEFAULT_VALUE;
     }
 
     @NonNull
     @Override
-    public AccountVirtualMapValue parse(
+    public Account parse(
             @NonNull ReadableSequentialData in,
             boolean strictMode,
             boolean parseUnknownFields,
             int maxDepth,
             int maxSize) {
-        return new AccountVirtualMapValue(in);
+        return new Account(in);
     }
 
     @Override
-    public void write(@NonNull AccountVirtualMapValue value, @NonNull WritableSequentialData out) throws IOException {
+    public void write(@NonNull Account value, @NonNull WritableSequentialData out) throws IOException {
         value.writeTo(out);
     }
 
@@ -41,14 +41,13 @@ public class AccountVirtualMapValueCodec implements Codec<AccountVirtualMapValue
     }
 
     @Override
-    public int measureRecord(AccountVirtualMapValue value) {
+    public int measureRecord(Account value) {
         return value.getSizeInBytes();
     }
 
     @Override
-    public boolean fastEquals(@NonNull AccountVirtualMapValue value, @NonNull ReadableSequentialData in)
-            throws ParseException {
-        final AccountVirtualMapValue other = parse(in);
+    public boolean fastEquals(@NonNull Account value, @NonNull ReadableSequentialData in) throws ParseException {
+        final Account other = parse(in);
         return value.equals(other);
     }
 }
