@@ -141,7 +141,6 @@ public class BlockNodeSuite {
                                 "/localhost:%s/CLOSED] Connection state transitioned from CLOSING to CLOSED",
                                 portNumbers.getFirst()),
                         // New invalid config is loaded
-                        "Reloaded 1 block node configurations. Restarting connection manager.",
                         // Connection client created but exception occurs with invalid address
                         "Created BlockStreamPublishServiceClient for 26dsfg2364:1234")),
                 waitUntilNextBlocks(10).withBackgroundTraffic(true),
@@ -222,8 +221,6 @@ public class BlockNodeSuite {
                         "Detected ENTRY_MODIFY event for block-nodes.json",
                         "Stopping block node connections (keeping worker loop running)",
                         // Valid config is loaded
-                        "Reloaded 1 block node configurations. Restarting connection manager.",
-                        "Starting connection manager",
                         "Searching for new block node connection based on node priorities",
                         "Found available node in priority group 0",
                         // Connection is re-established

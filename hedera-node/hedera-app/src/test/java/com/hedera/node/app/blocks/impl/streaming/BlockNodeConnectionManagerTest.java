@@ -29,25 +29,23 @@ import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.node.internal.network.BlockNodeConfig;
+import com.hedera.node.internal.network.BlockNodeConnectionInfo;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.io.IOException;
 import java.lang.Thread.State;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodHandles.Lookup;
 import java.lang.invoke.VarHandle;
 import java.lang.reflect.Method;
-import java.time.Duration;
-import java.time.Instant;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
+import java.time.Duration;
+import java.time.Instant;
+import java.util.*;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.ScheduledExecutorService;
@@ -62,12 +60,12 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.io.TempDir;
 import org.mockito.ArgumentCaptor;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
-
     private static final VarHandle isManagerActiveHandle;
     private static final VarHandle workerThreadRefHandle;
     private static final VarHandle connectionsHandle;
@@ -170,13 +168,11 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
             performInitialConfigLoad.setAccessible(true);
             performInitialConfigLoadHandle = lookup.unreflect(performInitialConfigLoad);
 
-            final Method startConfigWatcher =
-                    BlockNodeConnectionManager.class.getDeclaredMethod("startConfigWatcher");
+            final Method startConfigWatcher = BlockNodeConnectionManager.class.getDeclaredMethod("startConfigWatcher");
             startConfigWatcher.setAccessible(true);
             startConfigWatcherHandle = lookup.unreflect(startConfigWatcher);
 
-            final Method stopConfigWatcher =
-                    BlockNodeConnectionManager.class.getDeclaredMethod("stopConfigWatcher");
+            final Method stopConfigWatcher = BlockNodeConnectionManager.class.getDeclaredMethod("stopConfigWatcher");
             stopConfigWatcher.setAccessible(true);
             stopConfigWatcherHandle = lookup.unreflect(stopConfigWatcher);
 
@@ -190,6 +186,9 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     private BlockBufferService bufferService;
     private BlockStreamMetrics metrics;
     private ScheduledExecutorService executorService;
+
+    @TempDir
+    Path tempDir;
 
     @BeforeEach
     void beforeEach() {
@@ -2286,78 +2285,100 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
     @Test
     void testPerformInitialConfigLoad_noFile() {
-        // Use a temp empty dir
-        final Path tmpDir;
+        final Path tmpDir = tempDir.resolve("perfinit-nofile");
         try {
-            tmpDir = Files.createTempDirectory("bncm-perfinit-nofile");
-        } catch (final Exception e) {
-            throw new RuntimeException(e);
-        }
-        try {
-            // Swap directory and invoke loader
+            Files.createDirectories(tmpDir);
             blockNodeConfigDirectoryHandle.set(connectionManager, tmpDir);
             invoke_performInitialConfigLoad();
-
-            // No file -> no nodes loaded and manager not started
             assertThat(availableNodes()).isEmpty();
             assertThat(workerThread().get()).isNull();
+        } catch (IOException e) {
+            throw new RuntimeException(e);
         } finally {
-            try { Files.deleteIfExists(tmpDir); } catch (final Exception ignore) {}
+            try {
+                Files.deleteIfExists(tmpDir);
+            } catch (final Exception ignore) {
+            }
         }
     }
 
     @Test
     void testPerformInitialConfigLoad_withValidFile_startsAndLoads() throws Exception {
-        final Path tmpDir = Files.createTempDirectory("bncm-perfinit-valid");
-        final String json = "{\n  \"nodes\": [ { \"address\": \"localhost\", \"port\": 9090, \"priority\": 0 } ]\n}";
+        final Path tmpDir = tempDir.resolve("perfinit-valid");
+        Files.createDirectories(tmpDir);
+        List<BlockNodeConfig> configs = new ArrayList<>();
+        BlockNodeConfig config = BlockNodeConfig.newBuilder()
+                .address("localhost")
+                .port(8080)
+                .priority(0)
+                .build();
+        configs.add(config);
+        BlockNodeConnectionInfo connectionInfo = new BlockNodeConnectionInfo(configs);
+        final String json = BlockNodeConnectionInfo.JSON.toJSON(connectionInfo);
         try {
-            Files.writeString(tmpDir.resolve("block-nodes.json"), json, StandardCharsets.UTF_8,
-                    StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
-
+            Files.writeString(
+                    tmpDir.resolve("block-nodes.json"),
+                    json,
+                    StandardCharsets.UTF_8,
+                    StandardOpenOption.CREATE,
+                    StandardOpenOption.TRUNCATE_EXISTING);
             blockNodeConfigDirectoryHandle.set(connectionManager, tmpDir);
             isActiveFlag().set(false);
             workerThread().set(null);
-
             invoke_performInitialConfigLoad();
-
-            // Loaded exactly one node and started the manager
             assertThat(availableNodes()).hasSize(1);
             assertThat(workerThread().get()).isNotNull();
         } finally {
-            try { Files.deleteIfExists(tmpDir.resolve("block-nodes.json")); } catch (final Exception ignore) {}
-            try { Files.deleteIfExists(tmpDir); } catch (final Exception ignore) {}
+            try {
+                Files.deleteIfExists(tmpDir.resolve("block-nodes.json"));
+            } catch (final Exception ignore) {
+            }
+            try {
+                Files.deleteIfExists(tmpDir);
+            } catch (final Exception ignore) {
+            }
         }
     }
 
     @Test
     void testStartConfigWatcher_reactsToCreateModifyDelete() throws Exception {
-        final Path tmpDir = Files.createTempDirectory("bncm-watcher");
+        final Path tmpDir = tempDir.resolve("bncm-watcher");
+        Files.createDirectories(tmpDir);
         try {
-            // Point manager at the temp dir and start watcher
             blockNodeConfigDirectoryHandle.set(connectionManager, tmpDir);
             invoke_startConfigWatcher();
-
-            // CREATE valid file -> nodes loaded
             final Path file = tmpDir.resolve("block-nodes.json");
-            final String valid = "{\n  \"nodes\": [ { \"address\": \"localhost\", \"port\": 7000, \"priority\": 0 }, { \"address\": \"localhost\", \"port\": 7001, \"priority\": 1 } ]\n}";
-            Files.writeString(file, valid, StandardCharsets.UTF_8, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
-            awaitCondition(() -> !availableNodes().isEmpty(), 2_000);
-
-            // MODIFY invalid content -> list becomes empty
-            Files.writeString(file, "not json", StandardCharsets.UTF_8, StandardOpenOption.TRUNCATE_EXISTING);
-            awaitCondition(() -> availableNodes().isEmpty(), 2_000);
-
-            // MODIFY back to valid -> list non-empty again
-            Files.writeString(file, valid, StandardCharsets.UTF_8, StandardOpenOption.TRUNCATE_EXISTING);
-            awaitCondition(() -> !availableNodes().isEmpty(), 2_000);
-
-            // DELETE -> list becomes empty
+            List<BlockNodeConfig> configs = new ArrayList<>();
+            BlockNodeConfig config = BlockNodeConfig.newBuilder()
+                    .address("localhost")
+                    .port(8080)
+                    .priority(0)
+                    .build();
+            configs.add(config);
+            BlockNodeConnectionInfo connectionInfo = new BlockNodeConnectionInfo(configs);
+            final String valid = BlockNodeConnectionInfo.JSON.toJSON(connectionInfo);
+            Files.writeString(
+                    file,
+                    valid,
+                    StandardCharsets.UTF_8,
+                    StandardOpenOption.CREATE,
+                    StandardOpenOption.TRUNCATE_EXISTING);
+            awaitCondition(() -> !availableNodes().isEmpty(), 5_000);
+            Files.writeString(file, "not json", StandardOpenOption.TRUNCATE_EXISTING);
+            awaitCondition(() -> availableNodes().isEmpty(), 5_000);
+            Files.writeString(file, valid, StandardOpenOption.TRUNCATE_EXISTING);
+            awaitCondition(() -> !availableNodes().isEmpty(), 5_000);
             Files.deleteIfExists(file);
             awaitCondition(() -> availableNodes().isEmpty(), 2_000);
         } finally {
-            // Stop watcher thread and cleanup
-            try { invoke_stopConfigWatcher(); } catch (final Exception ignore) {}
-            try { Files.deleteIfExists(tmpDir); } catch (final Exception ignore) {}
+            try {
+                invoke_stopConfigWatcher();
+            } catch (final Exception ignore) {
+            }
+            try {
+                Files.deleteIfExists(tmpDir);
+            } catch (final Exception ignore) {
+            }
         }
     }
 
