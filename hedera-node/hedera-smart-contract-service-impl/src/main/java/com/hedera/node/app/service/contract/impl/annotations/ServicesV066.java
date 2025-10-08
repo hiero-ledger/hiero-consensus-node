@@ -12,8 +12,9 @@ import java.lang.annotation.Target;
 import javax.inject.Qualifier;
 
 /**
- * Qualifies a binding for use with the {@code v0.66} (Cancun/Pectra) Services EVM.  Adds support for the
- * Hedera Account Service system contract.
+ * Qualifies a binding for use with the {@code v0.66} (Cancun/Pectra) Services EVM.
+ * Adds besu native library check and temporarily removes support for the
+ * Hedera EVM class for calculating and alternate ops duration and throttling system (due to release process).
  */
 @Target({METHOD, PARAMETER, TYPE})
 @Retention(RUNTIME)

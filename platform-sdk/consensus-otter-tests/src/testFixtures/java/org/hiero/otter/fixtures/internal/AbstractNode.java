@@ -3,6 +3,7 @@ package org.hiero.otter.fixtures.internal;
 
 import static java.util.Objects.requireNonNull;
 import static org.hiero.consensus.model.status.PlatformStatus.CATASTROPHIC_FAILURE;
+import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.RUNNING;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
@@ -17,6 +18,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.otter.fixtures.AsyncNodeActions;
 import org.hiero.otter.fixtures.Node;
@@ -299,6 +301,23 @@ public abstract class AbstractNode implements Node {
     protected abstract void doStopSyntheticBottleneck(@NonNull Duration timeout);
 
     /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void sendQuiescenceCommand(@NonNull final QuiescenceCommand command) {
+        throwIfNotIn(RUNNING, "Can send quiescence commands only while the node is running");
+        doSendQuiescenceCommand(command, DEFAULT_TIMEOUT);
+    }
+
+    /**
+     * The actual implementation of sending the quiescence command, to be provided by subclasses.
+     *
+     * @param command the quiescence command to send
+     * @param timeout the maximum duration to wait for the command to be processed
+     */
+    protected abstract void doSendQuiescenceCommand(@NonNull QuiescenceCommand command, @NonNull Duration timeout);
+
+    /**
      * Throws an {@link IllegalStateException} if the node is in the specified lifecycle state.
      *
      * @param expected throw if the node is in this lifecycle state
@@ -338,21 +357,33 @@ public abstract class AbstractNode implements Node {
             this.timeout = requireNonNull(timeout);
         }
 
+        /**
+         * {@inheritDoc}
+         */
         @Override
         public void start() {
             doStart(timeout);
         }
 
+        /**
+         * {@inheritDoc}
+         */
         @Override
         public void killImmediately() {
             doKillImmediately(timeout);
         }
 
+        /**
+         * {@inheritDoc}
+         */
         @Override
         public void startSyntheticBottleneck(@NonNull final Duration delayPerRound) {
             doStartSyntheticBottleneck(delayPerRound, timeout);
         }
 
+        /**
+         * {@inheritDoc}
+         */
         @Override
         public void stopSyntheticBottleneck() {
             doStopSyntheticBottleneck(timeout);
@@ -364,6 +395,15 @@ public abstract class AbstractNode implements Node {
         @Override
         public void triggerSelfIss(final boolean recoverableOnRestart) {
             doTriggerSelfIss(timeout, recoverableOnRestart);
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public void sendQuiescenceCommand(@NonNull final QuiescenceCommand command) {
+            throwIfNotIn(RUNNING, "Can send quiescence commands only while the node is running");
+            doSendQuiescenceCommand(command, timeout);
         }
     }
 }

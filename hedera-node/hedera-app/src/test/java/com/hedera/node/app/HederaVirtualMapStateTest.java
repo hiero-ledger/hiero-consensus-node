@@ -41,7 +41,6 @@ class HederaVirtualMapStateTest extends MerkleTestBase {
         ((CommittableWritableStates) writableStates).commit();
         virtualMapState.init(
                 new FakeTime(),
-                CONFIGURATION,
                 new NoOpMetrics(),
                 mock(MerkleCryptography.class),
                 () -> PlatformStateAccessor.GENESIS_ROUND);

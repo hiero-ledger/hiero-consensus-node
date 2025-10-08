@@ -8,7 +8,6 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.utility.ThresholdLimitingHandler;
-import com.swirlds.config.api.Configuration;
 import com.swirlds.demo.merkle.map.FCMConfig;
 import com.swirlds.demo.merkle.map.FCMFamily;
 import com.swirlds.demo.merkle.map.internal.ExpectedFCMFamily;
@@ -204,7 +203,7 @@ public class PlatformTestingToolState extends MerkleStateRoot<PlatformTestingToo
 
     // FUTURE WORK: https://github.com/hiero-ledger/hiero-consensus-node/issues/19002
     @Override
-    public MerkleNode migrate(@NonNull final Configuration configuration, int version) {
+    public MerkleNode migrate(int version) {
         return this;
     }
 

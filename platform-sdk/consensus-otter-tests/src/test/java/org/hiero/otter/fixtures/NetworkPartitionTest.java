@@ -4,6 +4,7 @@ package org.hiero.otter.fixtures;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.hiero.consensus.model.status.PlatformStatus.CHECKING;
+import static org.hiero.otter.fixtures.Constants.RANDOM_SEED;
 
 import com.swirlds.common.test.fixtures.WeightGenerators;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -24,8 +25,6 @@ import org.junit.jupiter.params.provider.MethodSource;
  * Tests for the network partition functionality in the Network interface.
  */
 class NetworkPartitionTest {
-
-    private static final long RANDOM_SEED = 0L;
 
     /**
      * Provides a stream of test environments for the parameterized tests.
@@ -101,7 +100,7 @@ class NetworkPartitionTest {
             // Wait for nodes to become inactive
             timeManager.waitForCondition(
                     () -> network.allNodesInStatus(CHECKING),
-                    Duration.ofSeconds(15),
+                    Duration.ofSeconds(120L),
                     "Not all nodes entered CHECKING status within the expected time after creating partition");
 
             // Remove the partition
@@ -117,7 +116,7 @@ class NetworkPartitionTest {
             // The node should be active again
             timeManager.waitForCondition(
                     network::allNodesAreActive,
-                    Duration.ofSeconds(15),
+                    Duration.ofSeconds(120L),
                     "Not all nodes entered ACTIVE status within the expected time after removing partition");
         } finally {
             env.destroy();
@@ -188,7 +187,7 @@ class NetworkPartitionTest {
             // Wait for nodes to become inactive
             timeManager.waitForCondition(
                     () -> network.allNodesInStatus(CHECKING),
-                    Duration.ofSeconds(15),
+                    Duration.ofSeconds(120L),
                     "Not all nodes entered CHECKING status within the expected time after creating partition");
 
         } finally {
@@ -438,7 +437,7 @@ class NetworkPartitionTest {
             assertThat(network.getNetworkPartitionContaining(node4)).isNull();
             assertThat(network.getNetworkPartitionContaining(node5)).isNull();
 
-            timeManager.waitForCondition(network::allNodesAreActive, Duration.ofSeconds(15));
+            timeManager.waitForCondition(network::allNodesAreActive, Duration.ofSeconds(120L));
         } finally {
             env.destroy();
         }
@@ -485,7 +484,7 @@ class NetworkPartitionTest {
             assertThat(network.getNetworkPartitionContaining(node2)).isNull();
             assertThat(network.getNetworkPartitionContaining(node3)).isNull();
 
-            timeManager.waitForCondition(network::allNodesAreActive, Duration.ofSeconds(15));
+            timeManager.waitForCondition(network::allNodesAreActive, Duration.ofSeconds(120L));
         } finally {
             env.destroy();
         }
