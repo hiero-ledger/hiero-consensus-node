@@ -5,6 +5,7 @@ import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.node.app.hints.HintsLibrary;
 import com.hedera.node.app.hints.handlers.HintsHandlers;
 import com.hedera.node.app.spi.AppContext;
+import com.hedera.node.config.data.TssConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
@@ -29,7 +30,8 @@ public interface HintsServiceComponent {
                 @BindsInstance Metrics metrics,
                 @BindsInstance AtomicReference<Roster> currentRoster,
                 @BindsInstance Duration blockPeriod,
-                @BindsInstance OnHintsFinished onHintsFinished);
+                @BindsInstance OnHintsFinished onHintsFinished,
+                @BindsInstance TssConfig tssConfig);
     }
 
     HintsHandlers handlers();
