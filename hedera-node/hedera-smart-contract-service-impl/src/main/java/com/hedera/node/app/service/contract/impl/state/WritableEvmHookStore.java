@@ -277,7 +277,11 @@ public class WritableEvmHookStore extends ReadableEvmHookStoreImpl {
         storage.remove(slotKey);
         return firstKey;
     }
-
+    /**
+     * Returns the set of slot keys that have been modified in this transaction.
+     *
+     * @return the set of modified slot keys
+     */
     public Set<LambdaSlotKey> getModifiedSlotKeys() {
         return storage.modifiedKeys();
     }
@@ -329,7 +333,13 @@ public class WritableEvmHookStore extends ReadableEvmHookStoreImpl {
         final var value = slotValueFor(key, "Missing prev key");
         storage.put(key, value.copyBuilder().nextKey(newNextKey).build());
     }
-
+    /**
+     * Returns a minimal representation of the given key, by stripping leading zeros.
+     * If the key is all zeros, returns {@link #ZERO_KEY}.
+     *
+     * @param key the key to minimize
+     * @return the minimal representation of the key
+     */
     public static Bytes minimalKey(@NonNull final Bytes key) {
         final var len = key.length();
         if (len == 0) {
@@ -342,7 +352,12 @@ public class WritableEvmHookStore extends ReadableEvmHookStoreImpl {
         // All zeros -> ZERO_KEY, otherwise strip leading zeros
         return (i == len) ? ZERO_KEY : key.slice(i, len - i);
     }
-
+    /**
+     * Returns true if the given value is a 32-byte word with all bytes zero.
+     *
+     * @param val the value to check
+     * @return true if the value is a 32-byte word with all bytes zero
+     */
     private static boolean isAllZeroWord(@NonNull final Bytes val) {
         for (long i = 0, n = val.length(); i < n; i++) {
             if (val.getByte(i) != 0) return false;
@@ -354,7 +369,16 @@ public class WritableEvmHookStore extends ReadableEvmHookStoreImpl {
     private SlotValue slotValueFor(@NonNull final LambdaSlotKey slotKey, @NonNull final String msgOnError) {
         return requireNonNull(storage.get(slotKey), () -> msgOnError + " " + slotKey.key());
     }
-
+    /**
+     * Applies the given storage mutations to the storage of the given lambda, ensuring linked list pointers
+     * are preserved.
+     *
+     * @param hookId the lambda ID
+     * @param keys the slot keys to update
+     * @param values the new slot values; use {@link Bytes#EMPTY} to remove a slot
+     * @return the net change in number of storage slots used
+     * @throws HandleException if the lambda ID is not found
+     */
     private int applyStorageMutations(
             @NonNull final HookId hookId, @NonNull final List<Bytes> keys, @NonNull final List<Bytes> values) {
         final var view = getView(hookId, keys);
