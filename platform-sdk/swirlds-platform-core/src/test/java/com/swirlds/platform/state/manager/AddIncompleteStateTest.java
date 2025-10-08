@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state.manager;
 
-import static com.swirlds.platform.test.fixtures.config.ConfigUtils.CONFIGURATION;
 import static com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator.changeStateHashRandomly;
 import static com.swirlds.platform.test.fixtures.state.manager.SignatureVerificationTestUtils.buildFakeSignature;
 import static org.hiero.base.crypto.test.fixtures.CryptoRandomUtils.randomHash;
@@ -101,7 +100,7 @@ class AddIncompleteStateTest extends AbstractStateSignatureCollectorTest {
                 .setRoster(roster)
                 .setRound(firstRound)
                 .setSignatures(signatures)
-                .setState(new TestVirtualMapState(CONFIGURATION))
+                .setState(new TestVirtualMapState())
                 .build();
 
         changeStateHashRandomly(stateFromDisk);

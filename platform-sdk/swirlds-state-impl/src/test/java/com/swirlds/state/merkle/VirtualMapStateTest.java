@@ -63,7 +63,7 @@ public class VirtualMapStateTest extends MerkleTestBase {
      */
     @BeforeEach
     void setUp() {
-        virtualMapState = new TestVirtualMapState(CONFIGURATION, new NoOpMetrics());
+        virtualMapState = new TestVirtualMapState(new NoOpMetrics());
         virtualMapState.init(
                 new FakeTime(),
                 new NoOpMetrics(),

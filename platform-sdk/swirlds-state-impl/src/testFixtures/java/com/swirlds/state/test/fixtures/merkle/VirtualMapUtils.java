@@ -16,7 +16,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 
 public final class VirtualMapUtils {
 
-    private static final Configuration CONFIGURATION = ConfigurationBuilder.create()
+    static final Configuration CONFIGURATION = ConfigurationBuilder.create()
             .withConfigDataType(MerkleDbConfig.class)
             .withSource(new SimpleConfigSource().withValue(MerkleDbConfig_.INITIAL_CAPACITY, "" + 65_536L))
             .withConfigDataType(VirtualMapConfig.class)

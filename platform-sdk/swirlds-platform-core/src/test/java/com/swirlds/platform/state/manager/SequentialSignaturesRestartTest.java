@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state.manager;
 
-import static com.swirlds.platform.test.fixtures.config.ConfigUtils.CONFIGURATION;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -86,7 +85,7 @@ public class SequentialSignaturesRestartTest extends AbstractStateSignatureColle
                 .setRoster(roster)
                 .setRound(firstRound)
                 .useSignatureSupplierFromRoster()
-                .setState(new TestVirtualMapState(CONFIGURATION))
+                .setState(new TestVirtualMapState())
                 .build();
 
         signedStates.put(firstRound, stateFromDisk);

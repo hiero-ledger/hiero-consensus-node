@@ -2,7 +2,6 @@
 package com.swirlds.platform.reconnect;
 
 import static com.swirlds.common.utility.Threshold.MAJORITY;
-import static com.swirlds.platform.test.fixtures.config.ConfigUtils.CONFIGURATION;
 import static com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade.TEST_PLATFORM_STATE_FACADE;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -314,7 +313,7 @@ class DefaultSignedStateValidatorTests {
      * @return the signed state
      */
     private SignedState stateSignedByNodes(final List<Node> signingNodes) {
-        final TestVirtualMapState state = new TestVirtualMapState(CONFIGURATION);
+        final TestVirtualMapState state = new TestVirtualMapState();
 
         final SignatureVerifier signatureVerifier = (data, signature, key) -> {
             // a signature with a 0 byte is always invalid

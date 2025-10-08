@@ -3,7 +3,6 @@ package com.swirlds.platform.state;
 
 import static com.swirlds.common.utility.Threshold.MAJORITY;
 import static com.swirlds.common.utility.Threshold.SUPER_MAJORITY;
-import static com.swirlds.platform.test.fixtures.config.ConfigUtils.CONFIGURATION;
 import static com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator.changeStateHashRandomly;
 import static com.swirlds.platform.test.fixtures.state.manager.SignatureVerificationTestUtils.buildFakeSignature;
 import static org.hiero.base.crypto.test.fixtures.CryptoRandomUtils.randomSignature;
@@ -352,7 +351,7 @@ class StateSigningTests {
         final SignedState signedState = new RandomSignedStateGenerator(random)
                 .setRoster(roster)
                 .setSignatures(new HashMap<>())
-                .setState(new TestVirtualMapState(CONFIGURATION))
+                .setState(new TestVirtualMapState())
                 .build();
 
         final SigSet sigSet = signedState.getSigSet();

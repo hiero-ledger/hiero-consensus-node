@@ -2,7 +2,6 @@
 package com.swirlds.platform.reconnect;
 
 import static com.swirlds.common.threading.manager.AdHocThreadManager.getStaticThreadManager;
-import static com.swirlds.platform.test.fixtures.config.ConfigUtils.CONFIGURATION;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -115,7 +114,7 @@ final class ReconnectTest {
             final Pair<SignedState, TestPlatformStateFacade> signedStateFacadePair = new RandomSignedStateGenerator()
                     .setRoster(roster)
                     .setSigningNodeIds(nodeIds)
-                    .setState(new TestVirtualMapState(CONFIGURATION))
+                    .setState(new TestVirtualMapState())
                     .buildWithFacade();
             final SignedState signedState = signedStateFacadePair.left();
             final PlatformStateFacade platformStateFacade = signedStateFacadePair.right();

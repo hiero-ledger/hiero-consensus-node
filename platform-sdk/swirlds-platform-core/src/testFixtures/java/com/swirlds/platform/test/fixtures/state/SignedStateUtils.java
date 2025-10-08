@@ -2,7 +2,6 @@
 package com.swirlds.platform.test.fixtures.state;
 
 import static com.swirlds.platform.test.fixtures.PlatformStateUtils.randomPlatformState;
-import static com.swirlds.platform.test.fixtures.config.ConfigUtils.CONFIGURATION;
 
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.platform.crypto.CryptoStatic;
@@ -20,7 +19,7 @@ public class SignedStateUtils {
 
     public static SignedState randomSignedState(Random random) {
         TestPlatformStateFacade platformStateFacade = new TestPlatformStateFacade();
-        MerkleNodeState root = new TestVirtualMapState(CONFIGURATION);
+        MerkleNodeState root = new TestVirtualMapState();
         TestingAppStateInitializer.initPlatformState(root);
         randomPlatformState(random, root, platformStateFacade);
         boolean shouldSaveToDisk = random.nextBoolean();
