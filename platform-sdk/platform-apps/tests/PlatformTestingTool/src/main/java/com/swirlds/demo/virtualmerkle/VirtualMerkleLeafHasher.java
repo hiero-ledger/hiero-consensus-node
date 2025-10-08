@@ -3,17 +3,12 @@ package com.swirlds.demo.virtualmerkle;
 
 import static com.swirlds.common.io.utility.FileUtils.getAbsolutePath;
 import static com.swirlds.common.merkle.iterators.MerkleIterationOrder.BREADTH_FIRST;
+import static com.swirlds.demo.platform.PlatformTestingToolMain.CONFIGURATION;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.swirlds.common.config.StateCommonConfig;
-import com.swirlds.common.io.config.TemporaryFileConfig;
 import com.swirlds.common.merkle.MerkleNode;
-import com.swirlds.config.api.Configuration;
-import com.swirlds.config.api.ConfigurationBuilder;
-import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.virtualmap.VirtualMap;
-import com.swirlds.virtualmap.config.VirtualMapConfig;
 import com.swirlds.virtualmap.internal.merkle.VirtualLeafNode;
 import java.io.ByteArrayOutputStream;
 import java.io.FileOutputStream;
@@ -38,13 +33,6 @@ import org.hiero.base.io.streams.SerializableDataOutputStream;
 public class VirtualMerkleLeafHasher {
 
     private static final Cryptography CRYPTOGRAPHY = CryptographyProvider.getInstance();
-
-    private static final Configuration CONFIGURATION = ConfigurationBuilder.create()
-            .withConfigDataType(MerkleDbConfig.class)
-            .withConfigDataType(VirtualMapConfig.class)
-            .withConfigDataType(TemporaryFileConfig.class)
-            .withConfigDataType(StateCommonConfig.class)
-            .build();
 
     /** The data source we are validating */
     private final VirtualMap virtualMap;

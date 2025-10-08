@@ -1245,10 +1245,10 @@ jobs:
     if: ${{ (needs.performance-tests-start.result != 'success' ||
       needs.performance-NftTransferLoadTest-watch1.result != 'success' ||
       needs.performance-NftTransferLoadTest-report.result != 'success' ||
-      needs.HCSLoadTest.result != 'success' ||
-      needs.CryptoTransferLoadTest.result != 'success' ||
-      needs.HeliSwapLoadTest.result != 'success' ||
-      needs.SmartContractLoadTest.result != 'success' ||
+      needs.performance-HCSLoadTest.result != 'success' ||
+      needs.performance-CryptoTransferLoadTest.result != 'success' ||
+      needs.performance-HeliSwapLoadTest.result != 'success' ||
+      needs.performance-SmartContractLoadTest.result != 'success' ||
       needs.single-day-performance-test-result.result != 'success' ||
       needs.single-day-performance-test-result.outputs.result == 'failure') &&
       !cancelled() && always() }}
@@ -1285,10 +1285,10 @@ jobs:
             echo "- Performance Tests Start: ${{ needs.performance-tests-start.result }}"
             echo "- Performance NFT Transfer Load Test (Watch 1): ${{ needs.performance-NftTransferLoadTest-watch1.result }}"
             echo "- Performance NFT Transfer Load Test (Report): ${{ needs.performance-NftTransferLoadTest-report.result }}"
-            echo "- HCS Load Test: ${{ needs.HCSLoadTest.result }}"
-            echo "- Crypto Transfer Load Test: ${{ needs.CryptoTransferLoadTest.result }}"
-            echo "- HeliSwap Load Test: ${{ needs.HeliSwapLoadTest.result }}"
-            echo "- Smart Contract Load Test: ${{ needs.SmartContractLoadTest.result }}"
+            echo "- HCS Load Test: ${{ needs.performance-HCSLoadTest.result }}"
+            echo "- Crypto Transfer Load Test: ${{ needs.performance-CryptoTransferLoadTest.result }}"
+            echo "- HeliSwap Load Test: ${{ needs.performance-HeliSwapLoadTest.result }}"
+            echo "- Smart Contract Load Test: ${{ needs.performance-SmartContractLoadTest.result }}"
             echo "- Single Day Performance Test Result (Workflow): ${{ needs.single-day-performance-test-result.result }}"
             echo "- Single Day Performance Test Result: ${{ needs.single-day-performance-test-result.outputs.result }}"
             echo "------------------------------------"
