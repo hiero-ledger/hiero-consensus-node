@@ -54,7 +54,7 @@ public class ConsensusTestArgs {
                 new ConsensusTestParams(6, ONE_THIRD_ZERO_WEIGHT, ONE_THIRD_NODES_ZERO_WEIGHT_DESC));
     }
 
-    static Stream<ConsensusTestParams> forkingTests() {
+    static Stream<ConsensusTestParams> branchingTests() {
         return Stream.of(
                 new ConsensusTestParams(2, BALANCED, BALANCED_WEIGHT_DESC),
                 new ConsensusTestParams(4, INCREMENTING, INCREMENTAL_NODE_WEIGHT_DESC),
