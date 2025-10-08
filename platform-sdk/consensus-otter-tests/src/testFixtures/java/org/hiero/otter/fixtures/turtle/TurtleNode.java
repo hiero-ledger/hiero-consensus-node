@@ -58,6 +58,7 @@ import org.hiero.otter.fixtures.internal.AbstractNode;
 import org.hiero.otter.fixtures.internal.result.NodeResultsCollector;
 import org.hiero.otter.fixtures.internal.result.SingleNodeMarkerFileResultImpl;
 import org.hiero.otter.fixtures.internal.result.SingleNodePcesResultImpl;
+import org.hiero.otter.fixtures.internal.result.SingleNodeReconnectResultImpl;
 import org.hiero.otter.fixtures.logging.context.NodeLoggingContext;
 import org.hiero.otter.fixtures.logging.context.NodeLoggingContext.LoggingContextScope;
 import org.hiero.otter.fixtures.logging.internal.InMemorySubscriptionManager;
@@ -382,7 +383,12 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
     @Override
     @NonNull
     public SingleNodeReconnectResult newReconnectResult() {
-        throw new UnsupportedOperationException("Reconnect is not supported in TurtleNode.");
+        // Turtle networks do not support reconnects. However we can
+        // still provide a result object that contains the base results.
+        // Doing so allows tests that can run in multiple environments can
+        // still make basic verifications, like the absence of reconnects.
+        return new SingleNodeReconnectResultImpl(
+                selfId, resultsCollector.newStatusProgression(), resultsCollector.newLogResult());
     }
 
     /**
