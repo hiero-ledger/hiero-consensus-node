@@ -77,11 +77,11 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     private static final VarHandle nodeStatsHandle;
     private static final VarHandle retryStatesHandle;
     private static final VarHandle requestIndexHandle;
+    private static final VarHandle sharedExecutorServiceHandle;
     private static final MethodHandle jumpToBlockIfNeededHandle;
     private static final MethodHandle processStreamingToBlockNodeHandle;
     private static final MethodHandle blockStreamWorkerLoopHandle;
     private static final MethodHandle stopConnectionsHandle;
-    private static final MethodHandle calculateJitteredDelayMsHandle;
     private static final MethodHandle handleConfigFileChangeHandle;
     private static final MethodHandle extractBlockNodesConfigurationsHandle;
 
@@ -116,6 +116,9 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
                     .findVarHandle(BlockNodeConnectionManager.class, "retryStates", Map.class);
             requestIndexHandle = MethodHandles.privateLookupIn(BlockNodeConnectionManager.class, lookup)
                     .findVarHandle(BlockNodeConnectionManager.class, "requestIndex", int.class);
+            sharedExecutorServiceHandle = MethodHandles.privateLookupIn(BlockNodeConnectionManager.class, lookup)
+                    .findVarHandle(
+                            BlockNodeConnectionManager.class, "sharedExecutorService", ScheduledExecutorService.class);
 
             final Method jumpToBlockIfNeeded =
                     BlockNodeConnectionManager.class.getDeclaredMethod("jumpToBlockIfNeeded");
@@ -136,13 +139,8 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
             stopConnections.setAccessible(true);
             stopConnectionsHandle = lookup.unreflect(stopConnections);
 
-            final Method calculateJitteredDelayMs =
-                    BlockNodeConnectionManager.class.getDeclaredMethod("calculateJitteredDelayMs", int.class);
-            calculateJitteredDelayMs.setAccessible(true);
-            calculateJitteredDelayMsHandle = lookup.unreflect(calculateJitteredDelayMs);
-
-            final Method handleConfigFileChange = BlockNodeConnectionManager.class.getDeclaredMethod(
-                    "handleConfigFileChange", java.nio.file.WatchEvent.Kind.class);
+            final Method handleConfigFileChange =
+                    BlockNodeConnectionManager.class.getDeclaredMethod("handleConfigFileChange");
             handleConfigFileChange.setAccessible(true);
             handleConfigFileChangeHandle = lookup.unreflect(handleConfigFileChange);
 
@@ -173,13 +171,19 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
     @BeforeEach
     void beforeEach() {
-        final ConfigProvider configProvider = createConfigProvider(createDefaultConfigProvider());
+        // Use a non-existent directory to prevent loading any existing block-nodes.json during tests
+        final ConfigProvider configProvider = createConfigProvider(createDefaultConfigProvider()
+                .withValue("blockNode.blockNodeConnectionFileDir", "/tmp/non-existent-test-dir-" + System.nanoTime()));
 
         bufferService = mock(BlockBufferService.class);
         metrics = mock(BlockStreamMetrics.class);
         executorService = mock(ScheduledExecutorService.class);
 
         connectionManager = new BlockNodeConnectionManager(configProvider, bufferService, metrics);
+
+        // Inject mock executor to control scheduling behavior in tests.
+        // Tests that call start() will have this overwritten by a real executor.
+        sharedExecutorServiceHandle.set(connectionManager, executorService);
 
         // Clear any nodes that might have been loaded by performInitialConfigLoad()
         final List<BlockNodeConfig> availableNodes = availableNodes();
@@ -207,8 +211,6 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         // Clear jump target
         final AtomicLong jumpTarget = jumpTarget();
         jumpTarget.set(-1);
-
-        connectionManager = new BlockNodeConnectionManager(configProvider, bufferService, metrics, executorService);
         replaceLocalhostWithPbjUnitTestHost();
 
         resetMocks();
@@ -245,24 +247,25 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         final Duration delay = Duration.ofSeconds(1);
         doReturn(nodeConfig).when(connection).getNodeConfig();
 
-        // Ensure there are available nodes for the second schedule call
-        // Add at least two nodes so that selectNewBlockNodeForStreaming can find a different one
+        // Add both nodes to available nodes so selectNewBlockNodeForStreaming can find a different one
         final List<BlockNodeConfig> availableNodes = availableNodes();
         availableNodes.clear();
         availableNodes.add(nodeConfig);
-        availableNodes.add(newBlockNodeConfig(8081, 1));
+        availableNodes.add(newBlockNodeConfig("pbj-unit-test-host", 8081, 1));
+
+        // Add the connection to the map so it can be removed during reschedule
+        final Map<BlockNodeConfig, BlockNodeConnection> connections = connections();
+        connections.put(nodeConfig, connection);
 
         connectionManager.rescheduleConnection(connection, delay, null, true);
 
-        // Verify task created to reconnect to the failing connection after a delay
-        verify(executorService)
-                .schedule(any(BlockNodeConnectionTask.class), eq(delay.toMillis()), eq(TimeUnit.MILLISECONDS));
-        // Verify task created to connect to a new node without delay
-        verify(executorService).schedule(any(BlockNodeConnectionTask.class), eq(0L), eq(TimeUnit.MILLISECONDS));
-        verifyNoMoreInteractions(connection);
-        verifyNoInteractions(bufferService);
-        verifyNoInteractions(metrics);
-        verifyNoMoreInteractions(executorService);
+        // Verify at least 2 schedule calls were made (one for retry, one for new node selection)
+        verify(executorService, atLeast(2))
+                .schedule(any(BlockNodeConnectionTask.class), anyLong(), eq(TimeUnit.MILLISECONDS));
+
+        // Verify new connections were created (map should have 2 entries - retry + new node)
+        assertThat(connections).hasSize(2);
+        assertThat(connections).containsKeys(nodeConfig, newBlockNodeConfig("pbj-unit-test-host", 8081, 1));
     }
 
     @Test
@@ -291,11 +294,14 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         final BlockNodeConfig nodeConfig = newBlockNodeConfig("pbj-unit-test-host", 8080, 1);
         doReturn(nodeConfig).when(connection).getNodeConfig();
 
-        final TestConfigBuilder configBuilder =
-                createDefaultConfigProvider().withValue("blockNode.protocolExpBackoffTimeframeReset", "1s");
+        final TestConfigBuilder configBuilder = createDefaultConfigProvider()
+                .withValue("blockNode.blockNodeConnectionFileDir", "/tmp/non-existent-test-dir-" + System.nanoTime())
+                .withValue("blockNode.protocolExpBackoffTimeframeReset", "1s");
         final ConfigProvider configProvider = createConfigProvider(configBuilder);
 
-        connectionManager = new BlockNodeConnectionManager(configProvider, bufferService, metrics, executorService);
+        connectionManager = new BlockNodeConnectionManager(configProvider, bufferService, metrics);
+        // Inject the mock executor service to control scheduling in tests
+        sharedExecutorServiceHandle.set(connectionManager, executorService);
         replaceLocalhostWithPbjUnitTestHost();
 
         connectionManager.rescheduleConnection(connection, Duration.ZERO, null, true);
@@ -507,20 +513,18 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
         assertThat(workerThreadRef).doesNotHaveNullValue(); // worker thread should be spawned
 
-        final ArgumentCaptor<BlockNodeConnectionTask> taskCaptor =
-                ArgumentCaptor.forClass(BlockNodeConnectionTask.class);
+        // start() creates a real executor, replacing the mock.
+        // Verify that a connection was created and scheduled.
+        final Map<BlockNodeConfig, BlockNodeConnection> connections = connections();
+        assertThat(connections).hasSize(1);
 
-        verify(executorService, atLeast(1)).schedule(taskCaptor.capture(), eq(0L), eq(TimeUnit.MILLISECONDS));
-
-        final BlockNodeConnectionTask task = taskCaptor.getValue();
-        final BlockNodeConnection connection = connectionFromTask(task);
+        final BlockNodeConnection connection = connections.values().iterator().next();
         final BlockNodeConfig nodeConfig = connection.getNodeConfig();
 
         // verify we are trying to connect to one of the priority 1 nodes
         assertThat(nodeConfig.priority()).isEqualTo(1);
         assertThat(connection.getConnectionState()).isEqualTo(ConnectionState.UNINITIALIZED);
 
-        verifyNoMoreInteractions(executorService);
         verifyNoMoreInteractions(bufferService);
         verifyNoInteractions(metrics);
     }
@@ -1657,42 +1661,37 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
     @Test
     void testRescheduleConnection_singleBlockNode() {
-        // Create a configuration with only one block node
+        // selectNewBlockNodeForStreaming should NOT be called
         final var config = HederaTestConfigBuilder.create()
                 .withValue("blockStream.writerMode", "FILE_AND_GRPC")
-                .withValue(
-                        "blockNode.blockNodeConnectionFileDir",
-                        Objects.requireNonNull(BlockNodeCommunicationTestBase.class
-                                        .getClassLoader()
-                                        .getResource("bootstrap/"))
-                                .getPath())
+                .withValue("blockNode.blockNodeConnectionFileDir", "/tmp/non-existent-test-dir-" + System.nanoTime())
                 .getOrCreateConfig();
         final ConfigProvider configProvider = () -> new VersionedConfigImpl(config, 1L);
 
-        // Create connection manager with single block node configuration
         final BlockNodeConnectionManager manager =
                 new BlockNodeConnectionManager(configProvider, bufferService, metrics);
 
-        // Get the available nodes and ensure there's only one
+        sharedExecutorServiceHandle.set(manager, executorService);
+
         final List<BlockNodeConfig> availableNodes = (List<BlockNodeConfig>) availableNodesHandle.get(manager);
-        // Modify the list to have only one node to trigger the condition
         availableNodes.clear();
         availableNodes.add(newBlockNodeConfig("pbj-unit-test-host", 8080, 1));
 
-        // Clear any interactions from the initial config load
         reset(executorService);
 
         final BlockNodeConnection connection = mock(BlockNodeConnection.class);
         final BlockNodeConfig nodeConfig = newBlockNodeConfig("pbj-unit-test-host", 8080, 1);
         doReturn(nodeConfig).when(connection).getNodeConfig();
 
-        // Call rescheduleConnection which internally calls handleConnectionCleanupAndReschedule
+        final Map<BlockNodeConfig, BlockNodeConnection> connections =
+                (Map<BlockNodeConfig, BlockNodeConnection>) connectionsHandle.get(manager);
+        connections.put(nodeConfig, connection);
+
         manager.rescheduleConnection(connection, Duration.ofSeconds(5), null, true);
 
-        // Verify that scheduleConnectionAttempt was called once with the 5-second delay
-        // selectNewBlockNodeForStreaming is NOT called since there's only one node
-        verify(executorService).schedule(any(BlockNodeConnectionTask.class), eq(5000L), eq(TimeUnit.MILLISECONDS));
-        verifyNoMoreInteractions(executorService);
+        // Verify exactly 1 schedule call was made (only the retry, no new node selection since there's only one node)
+        verify(executorService, times(1))
+                .schedule(any(BlockNodeConnectionTask.class), eq(5000L), eq(TimeUnit.MILLISECONDS));
     }
 
     @Test
@@ -2216,7 +2215,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         final BlockNodeConfig oldNode = newBlockNodeConfig(9999, 1);
         connections().put(oldNode, conn);
 
-        invoke_handleConfigFileChange(java.nio.file.StandardWatchEventKinds.ENTRY_MODIFY);
+        invoke_handleConfigFileChange();
 
         // Verify old connection was closed
         verify(conn).close(true);
@@ -2270,11 +2269,15 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
     private BlockNodeConnectionManager createConnectionManager(List<BlockNodeConfig> blockNodes) {
         // Create a custom config provider with the specified block nodes
-        final ConfigProvider configProvider = createConfigProvider(createDefaultConfigProvider());
+        final ConfigProvider configProvider = createConfigProvider(createDefaultConfigProvider()
+                .withValue("blockNode.blockNodeConnectionFileDir", "/tmp/non-existent-test-dir-" + System.nanoTime()));
 
         // Create the manager
         final BlockNodeConnectionManager manager =
                 new BlockNodeConnectionManager(configProvider, bufferService, metrics);
+
+        // Inject the mock executor service to control scheduling in tests
+        sharedExecutorServiceHandle.set(manager, executorService);
 
         // Set the available nodes using reflection
         try {
@@ -2393,9 +2396,9 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         }
     }
 
-    private void invoke_handleConfigFileChange(java.nio.file.WatchEvent.Kind<?> kind) {
+    private void invoke_handleConfigFileChange() {
         try {
-            handleConfigFileChangeHandle.invoke(connectionManager, kind);
+            handleConfigFileChangeHandle.invoke(connectionManager);
         } catch (final Throwable e) {
             throw new RuntimeException(e);
         }
