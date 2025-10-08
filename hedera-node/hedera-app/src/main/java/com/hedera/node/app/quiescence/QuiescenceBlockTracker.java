@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.quiescence;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -12,14 +13,13 @@ public class QuiescenceBlockTracker {
     private Instant maxConsensusTime = Instant.EPOCH;
     private boolean blockFinalized = false;
 
-
     public QuiescenceBlockTracker(final long blockNumber, final QuiescenceController controller) {
         this.blockNumber = blockNumber;
         this.controller = controller;
     }
 
     public void blockTransaction(@NonNull final Transaction txn) {
-        if(controller.isDisabled()){
+        if (controller.isDisabled()) {
             // If quiescence is not enabled, ignore these calls
             return;
         }
@@ -37,7 +37,7 @@ public class QuiescenceBlockTracker {
     }
 
     public void consensusTimeAdvanced(@NonNull final Instant newConsensusTime) {
-        if(controller.isDisabled()){
+        if (controller.isDisabled()) {
             // If quiescence is not enabled, ignore these calls
             return;
         }
@@ -48,7 +48,7 @@ public class QuiescenceBlockTracker {
     }
 
     public void finishedHandlingTransactions() {
-        if(controller.isDisabled()){
+        if (controller.isDisabled()) {
             // If quiescence is not enabled, ignore these calls
             return;
         }

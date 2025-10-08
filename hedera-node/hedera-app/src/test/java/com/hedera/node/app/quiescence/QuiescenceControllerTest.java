@@ -184,7 +184,9 @@ class QuiescenceControllerTest {
     }
 
     private static List<Transaction> createTransactions(final TransactionBody... txns) {
-        return Arrays.stream(txns).map(QuiescenceControllerTest::createTransaction).toList();
+        return Arrays.stream(txns)
+                .map(QuiescenceControllerTest::createTransaction)
+                .toList();
     }
 
     private static Transaction createTransaction(final TransactionBody txnBody) {

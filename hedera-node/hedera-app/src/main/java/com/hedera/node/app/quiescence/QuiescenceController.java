@@ -42,9 +42,7 @@ public class QuiescenceController {
      *                                yet included put into an event
      */
     public QuiescenceController(
-            final QuiescenceConfig config,
-            final InstantSource time,
-            final LongSupplier pendingTransactionCount) {
+            final QuiescenceConfig config, final InstantSource time, final LongSupplier pendingTransactionCount) {
         this.config = Objects.requireNonNull(config);
         this.time = Objects.requireNonNull(time);
         this.pendingTransactionCount = Objects.requireNonNull(pendingTransactionCount);
@@ -69,22 +67,21 @@ public class QuiescenceController {
         } catch (final BadMetadataException e) {
             disableQuiescence(e);
         }
-
     }
 
-    public QuiescenceBlockTracker startingBlock(final long blockNumber){
-        //TODO in HandleWorkflow:540 we should get the cons time & txn & block number
+    public QuiescenceBlockTracker startingBlock(final long blockNumber) {
+        // TODO in HandleWorkflow:540 we should get the cons time & txn & block number
         // then we need another method for when a block is fully signed
         return new QuiescenceBlockTracker(blockNumber, this);
     }
 
-    void blockFinalized(@NonNull final QuiescenceBlockTracker blockTracker){
-        if(!config.enabled()){
+    void blockFinalized(@NonNull final QuiescenceBlockTracker blockTracker) {
+        if (!config.enabled()) {
             // If quiescence is not enabled, ignore these calls
             return;
         }
         final QuiescenceBlockTracker prevValue = blockTrackers.put(blockTracker.getBlockNumber(), blockTracker);
-        if(prevValue != null){
+        if (prevValue != null) {
             disableQuiescence("Block %d was already finalized".formatted(blockTracker.getBlockNumber()));
         }
     }
@@ -94,9 +91,9 @@ public class QuiescenceController {
      *
      * @param blockNumber the fully signed block number
      */
-    public void blockFullySigned(final long blockNumber){
+    public void blockFullySigned(final long blockNumber) {
         final QuiescenceBlockTracker blockTracker = blockTrackers.remove(blockNumber);
-        if(blockTracker == null){
+        if (blockTracker == null) {
             disableQuiescence("Cannot find block tracker for block %d".formatted(blockNumber));
             return;
         }
@@ -179,10 +176,10 @@ public class QuiescenceController {
             disableQuiescence("Quiescence transaction count is negative, this indicates a bug");
         }
     }
+
     void disableQuiescence(@NonNull final String reason) {
         disableQuiescence();
         logger.error("Disabling quiescence, reason: {}", reason);
-
     }
 
     void disableQuiescence(@NonNull final Exception exception) {
@@ -196,9 +193,8 @@ public class QuiescenceController {
         pipelineTransactionCount.set(Long.MAX_VALUE / 2);
     }
 
-    boolean isDisabled(){
-        //TODO expand isEnabled with message and pipeline check
+    boolean isDisabled() {
+        // TODO expand isEnabled with message and pipeline check
         return !config.enabled();
     }
-
 }
