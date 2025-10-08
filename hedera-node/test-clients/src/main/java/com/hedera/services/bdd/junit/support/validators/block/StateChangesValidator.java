@@ -17,7 +17,7 @@ import static com.hedera.node.app.hapi.utils.CommonUtils.sha384DigestOrThrow;
 import static com.hedera.node.app.hints.HintsService.maybeWeightsFrom;
 import static com.hedera.node.app.history.impl.ProofControllerImpl.EMPTY_PUBLIC_KEY;
 import static com.hedera.node.app.ids.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
-import static com.hedera.node.app.roster.RosterTransitionWeights.atLeastOneThirdOfTotal;
+import static com.hedera.node.app.service.roster.impl.RosterTransitionWeights.atLeastOneThirdOfTotal;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.APPLICATION_PROPERTIES;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.DATA_CONFIG_DIR;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.SAVED_STATES_DIR;
@@ -69,7 +69,7 @@ import com.hedera.node.app.history.HistoryLibrary;
 import com.hedera.node.app.history.impl.HistoryLibraryImpl;
 import com.hedera.node.app.ids.EntityIdService;
 import com.hedera.node.app.info.DiskStartupNetworks;
-import com.hedera.node.app.roster.ActiveRosters;
+import com.hedera.node.app.service.roster.impl.ActiveRosters;
 import com.hedera.node.config.data.VersionConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNetwork;
@@ -103,6 +103,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.SortedMap;
 import java.util.SplittableRandom;
 import java.util.TreeMap;
 import java.util.regex.Pattern;
@@ -1061,5 +1062,10 @@ public class StateChangesValidator implements BlockStreamValidator {
 
     private static EntityIDPair pairFrom(@NonNull final TokenAssociation tokenAssociation) {
         return new EntityIDPair(tokenAssociation.accountId(), tokenAssociation.tokenId());
+    }
+
+    private static @NonNull SortedMap<Long, Long> weightsFrom(@NonNull final Roster roster) {
+        return requireNonNull(roster).rosterEntries().stream()
+                .collect(toMap(RosterEntry::nodeId, RosterEntry::weight, (a, b) -> a, TreeMap::new));
     }
 }

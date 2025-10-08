@@ -2,6 +2,8 @@
 package com.hedera.node.app.service.roster.impl.test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
@@ -67,8 +69,8 @@ class ActiveRostersTest {
         assertEquals(A_ROSTER_HASH, activeRosters.currentRosterHash());
         assertEquals(A_ROSTER_HASH, activeRosters.sourceRosterHash());
         assertEquals(A_ROSTER_HASH, activeRosters.targetRosterHash());
-        assertSame(A_ROSTER, activeRosters.findRelatedRoster(A_ROSTER_HASH));
-        assertSame(A_ROSTER, activeRosters.targetRoster());
+        assertEquals(A_ROSTER, activeRosters.findRelatedRoster(A_ROSTER_HASH));
+        assertEquals(A_ROSTER, activeRosters.targetRoster());
         final var weights = activeRosters.transitionWeights(null);
         assertEquals(A_ROSTER_WEIGHTS, weights.sourceNodeWeights());
         assertEquals(A_ROSTER_WEIGHTS, weights.targetNodeWeights());

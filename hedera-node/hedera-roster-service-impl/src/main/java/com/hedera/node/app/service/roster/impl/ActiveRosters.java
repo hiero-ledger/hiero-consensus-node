@@ -167,7 +167,7 @@ public class ActiveRosters {
      * from the source roster to the target roster.
      *
      * @param sourceWeights the source weights, if they are not to be derived from the source roster
-     * @throws IllegalStateException if the {@link RosterService} is in a handoff phase
+     * @throws IllegalStateException if the {@link RosterServiceImpl} is in a handoff phase
      */
     public RosterTransitionWeights transitionWeights(@Nullable final SortedMap<Long, Long> sourceWeights) {
         return switch (phase) {
