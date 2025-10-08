@@ -9,7 +9,7 @@ import com.swirlds.common.merkle.synchronization.config.ReconnectConfig;
 import com.swirlds.common.merkle.synchronization.config.ReconnectConfig_;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
-import com.swirlds.platform.reconnect.ReconnectThrottle;
+import com.swirlds.platform.reconnect.StateSyncThrottle;
 import java.time.Instant;
 import org.hiero.base.utility.test.fixtures.tags.TestComponentTags;
 import org.hiero.consensus.model.node.NodeId;
@@ -18,7 +18,7 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 @DisplayName("Reconnect Throttle Tests")
-class ReconnectThrottleTest {
+class StateSyncThrottleTest {
 
     private ReconnectConfig buildSettings(final String minimumTimeBetweenReconnects) {
         final Configuration config = new TestConfigBuilder()
@@ -35,36 +35,36 @@ class ReconnectThrottleTest {
     @Tag(TestComponentTags.PLATFORM)
     @DisplayName("Simultaneous Reconnect Test")
     void simultaneousReconnectTest() {
-        final ReconnectThrottle reconnectThrottle = new ReconnectThrottle(buildSettings("10m"), Time.getCurrent());
+        final StateSyncThrottle stateSyncThrottle = new StateSyncThrottle(buildSettings("10m"), Time.getCurrent());
 
-        assertTrue(reconnectThrottle.initiateReconnect(NodeId.of(0)), "reconnect should be allowed");
-        assertFalse(reconnectThrottle.initiateReconnect(NodeId.of(1)), "reconnect should be blocked");
-        reconnectThrottle.reconnectAttemptFinished();
+        assertTrue(stateSyncThrottle.initiateReconnect(NodeId.of(0)), "reconnect should be allowed");
+        assertFalse(stateSyncThrottle.initiateReconnect(NodeId.of(1)), "reconnect should be blocked");
+        stateSyncThrottle.reconnectAttemptFinished();
 
-        assertTrue(reconnectThrottle.initiateReconnect(NodeId.of(1)), "reconnect should be allowed");
+        assertTrue(stateSyncThrottle.initiateReconnect(NodeId.of(1)), "reconnect should be allowed");
     }
 
     @Test
     @Tag(TestComponentTags.PLATFORM)
     @DisplayName("Simultaneous Reconnect Test")
     void repeatedReconnectTest() {
-        final ReconnectThrottle reconnectThrottle = new ReconnectThrottle(buildSettings("1s"), Time.getCurrent());
-        reconnectThrottle.setCurrentTime(() -> Instant.ofEpochMilli(0));
+        final StateSyncThrottle stateSyncThrottle = new StateSyncThrottle(buildSettings("1s"), Time.getCurrent());
+        stateSyncThrottle.setCurrentTime(() -> Instant.ofEpochMilli(0));
 
-        assertTrue(reconnectThrottle.initiateReconnect(NodeId.of(0)), "reconnect should be allowed");
-        reconnectThrottle.reconnectAttemptFinished();
-        assertFalse(reconnectThrottle.initiateReconnect(NodeId.of(0)), "reconnect should be blocked");
+        assertTrue(stateSyncThrottle.initiateReconnect(NodeId.of(0)), "reconnect should be allowed");
+        stateSyncThrottle.reconnectAttemptFinished();
+        assertFalse(stateSyncThrottle.initiateReconnect(NodeId.of(0)), "reconnect should be blocked");
 
-        assertTrue(reconnectThrottle.initiateReconnect(NodeId.of(1)), "reconnect should be allowed");
-        reconnectThrottle.reconnectAttemptFinished();
-        assertFalse(reconnectThrottle.initiateReconnect(NodeId.of(1)), "reconnect should be blocked");
+        assertTrue(stateSyncThrottle.initiateReconnect(NodeId.of(1)), "reconnect should be allowed");
+        stateSyncThrottle.reconnectAttemptFinished();
+        assertFalse(stateSyncThrottle.initiateReconnect(NodeId.of(1)), "reconnect should be blocked");
 
-        reconnectThrottle.setCurrentTime(() -> Instant.ofEpochMilli(2000));
+        stateSyncThrottle.setCurrentTime(() -> Instant.ofEpochMilli(2000));
 
-        assertTrue(reconnectThrottle.initiateReconnect(NodeId.of(0)), "reconnect should be allowed");
-        reconnectThrottle.reconnectAttemptFinished();
-        assertTrue(reconnectThrottle.initiateReconnect(NodeId.of(1)), "reconnect should be allowed");
-        reconnectThrottle.reconnectAttemptFinished();
+        assertTrue(stateSyncThrottle.initiateReconnect(NodeId.of(0)), "reconnect should be allowed");
+        stateSyncThrottle.reconnectAttemptFinished();
+        assertTrue(stateSyncThrottle.initiateReconnect(NodeId.of(1)), "reconnect should be allowed");
+        stateSyncThrottle.reconnectAttemptFinished();
     }
 
     /**
@@ -76,25 +76,25 @@ class ReconnectThrottleTest {
     @DisplayName("Many Node Test")
     void manyNodeTest() {
 
-        final ReconnectThrottle reconnectThrottle = new ReconnectThrottle(buildSettings("1s"), Time.getCurrent());
+        final StateSyncThrottle stateSyncThrottle = new StateSyncThrottle(buildSettings("1s"), Time.getCurrent());
         int time = 0;
         final int now = time;
-        reconnectThrottle.setCurrentTime(() -> Instant.ofEpochMilli(now));
+        stateSyncThrottle.setCurrentTime(() -> Instant.ofEpochMilli(now));
 
         for (int i = 0; i < 3; i++) {
             for (int j = 0; j < 100; j++) {
                 // Each request is for a unique node
-                reconnectThrottle.initiateReconnect(NodeId.of((i + 1000) * (j + 1)));
-                reconnectThrottle.reconnectAttemptFinished();
+                stateSyncThrottle.initiateReconnect(NodeId.of((i + 1000) * (j + 1)));
+                stateSyncThrottle.reconnectAttemptFinished();
 
                 assertTrue(
-                        reconnectThrottle.getNumberOfRecentReconnects() <= 100,
+                        stateSyncThrottle.getNumberOfRecentReconnects() <= 100,
                         "old requests should have been forgotten");
             }
             if (i + 1 < 3) {
                 time += 2_000;
                 final int later = time;
-                reconnectThrottle.setCurrentTime(() -> Instant.ofEpochMilli(later));
+                stateSyncThrottle.setCurrentTime(() -> Instant.ofEpochMilli(later));
             }
         }
     }
