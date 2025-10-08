@@ -51,7 +51,6 @@ import com.hedera.services.bdd.spec.keys.KeyShape;
 import com.hederahashgraph.api.proto.java.TokenSupplyType;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
-import java.util.Map;
 import java.util.OptionalLong;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
@@ -61,15 +60,13 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 
 @HapiTestLifecycle
-public class AtomicBatchInvalidSignaturesTests {
+class AtomicBatchInvalidSignaturesTests {
 
     private static final String TOKEN_TREASURY = "treasury";
     private static final String DEFAULT_BATCH_OPERATOR = "DEFAULT_BATCH_OPERATOR";
 
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
-        testLifecycle.overrideInClass(
-                Map.of("atomicBatch.isEnabled", "true", "atomicBatch.maxNumberOfTransactions", "50"));
         testLifecycle.doAdhoc(cryptoCreate(DEFAULT_BATCH_OPERATOR).balance(ONE_MILLION_HBARS));
     }
 
@@ -79,7 +76,7 @@ public class AtomicBatchInvalidSignaturesTests {
 
         @HapiTest
         @DisplayName("Batch with token creation, contract creation, and association - missing admin key")
-        public Stream<DynamicTest> fullBatchTokenContractAssociationWithoutAdminKey() {
+        Stream<DynamicTest> fullBatchTokenContractAssociationWithoutAdminKey() {
             final var batchOperator = "batchOperator";
             final var misc = "someToken";
             final var contract = "CalldataSize";
@@ -107,7 +104,7 @@ public class AtomicBatchInvalidSignaturesTests {
 
         @HapiTest
         @DisplayName("Batch with multiple contract associations - mixed admin key scenarios")
-        public Stream<DynamicTest> mixedContractAssociationScenarios() {
+        Stream<DynamicTest> mixedContractAssociationScenarios() {
             final var batchOperator = "batchOperator";
             final var token1 = "token1";
             final var token2 = "token2";
@@ -158,7 +155,7 @@ public class AtomicBatchInvalidSignaturesTests {
         @HapiTest
         @DisplayName("Batch with multiple contracts and complex association patterns")
         @Tag(MATS)
-        public Stream<DynamicTest> complexContractAssociationPatterns() {
+        Stream<DynamicTest> complexContractAssociationPatterns() {
             final var batchOperator = "batchOperator";
             final var adminKey1 = "adminKey1";
             final var adminKey2 = "adminKey2";
@@ -225,7 +222,7 @@ public class AtomicBatchInvalidSignaturesTests {
 
         @HapiTest
         @DisplayName("Batch with contract deletion and association attempt")
-        public Stream<DynamicTest> contractDeletionAndAssociationAttempt() {
+        Stream<DynamicTest> contractDeletionAndAssociationAttempt() {
             final var batchOperator = "batchOperator";
             final var adminKey = "adminKey";
             final var misc = "someToken";
@@ -269,7 +266,7 @@ public class AtomicBatchInvalidSignaturesTests {
 
     @HapiTest
     @DisplayName("Batch with deleted token association to contract")
-    public Stream<DynamicTest> deletedTokenAssociationWithContract() {
+    Stream<DynamicTest> deletedTokenAssociationWithContract() {
         final var batchOperator = "batchOperator";
         final var adminKey = "adminKey";
         final var tokenAdminKey = "tokenAdminKey";
@@ -315,7 +312,7 @@ public class AtomicBatchInvalidSignaturesTests {
 
         @HapiTest
         @DisplayName("Batch with invalid token create transactions")
-        public Stream<DynamicTest> batchWithInvalidTokenCreateTransactions() {
+        Stream<DynamicTest> batchWithInvalidTokenCreateTransactions() {
             final var batchOperator = "batchOperator";
             final var alice = "ALICE";
             final var aliceKey1 = "aliceKey1";
@@ -366,7 +363,7 @@ public class AtomicBatchInvalidSignaturesTests {
 
         @HapiTest
         @DisplayName("Batch with missing treasury signature failure")
-        public Stream<DynamicTest> batchWithMissingTreasurySignature() {
+        Stream<DynamicTest> batchWithMissingTreasurySignature() {
             final var batchOperator = "batchOperator";
             final var tokenName = "PRIMARY";
             final var tokenCreateTxnId = "tokenCreateTxnId";
@@ -402,7 +399,7 @@ public class AtomicBatchInvalidSignaturesTests {
         @HapiTest
         @DisplayName("Batch with fee collector signing requirements")
         @Tag(MATS)
-        public Stream<DynamicTest> batchFeeCollectorSigningRequirements() {
+        Stream<DynamicTest> batchFeeCollectorSigningRequirements() {
             final var batchOperator = "batchOperator";
             final var customFeesKey = "customFeesKey";
             final var htsCollector = "htsCollector";
@@ -452,7 +449,7 @@ public class AtomicBatchInvalidSignaturesTests {
 
         @HapiTest
         @DisplayName("Batch with token wipe failure cases")
-        public Stream<DynamicTest> batchWithTokenWipeFailures() {
+        Stream<DynamicTest> batchWithTokenWipeFailures() {
             final var batchOperator = "batchOperator";
             final var unwipeableToken = "without";
             final var wipeableToken = "with";
@@ -503,7 +500,7 @@ public class AtomicBatchInvalidSignaturesTests {
 
         @HapiTest
         @DisplayName("Batch with KYC management failure cases")
-        public Stream<DynamicTest> batchWithKycManagementFailures() {
+        Stream<DynamicTest> batchWithKycManagementFailures() {
             final var batchOperator = "batchOperator";
             final var withoutKycKey = "withoutKycKey";
             final var withKycKey = "withKycKey";
@@ -544,7 +541,7 @@ public class AtomicBatchInvalidSignaturesTests {
 
         @HapiTest
         @DisplayName("Batch fails when NFT metadata update lacks required signatures")
-        public Stream<DynamicTest> batchFailsWithoutMetadataKeySignature() {
+        Stream<DynamicTest> batchFailsWithoutMetadataKeySignature() {
             final var batchOperator = "batchOperator";
             final var nftToken = "nftToken";
             final var updateTxnId = "updateTxnId";
@@ -588,7 +585,7 @@ public class AtomicBatchInvalidSignaturesTests {
 
         @HapiTest
         @DisplayName("Batch with auto renew account update signature requirements")
-        public Stream<DynamicTest> batchWithAutoRenewAccountSignatureRequirement() {
+        Stream<DynamicTest> batchWithAutoRenewAccountSignatureRequirement() {
             final var batchOperator = "batchOperator";
             final var tokenName = "autoRenewToken";
             final var secondPeriod = THREE_MONTHS_IN_SECONDS + 1234;

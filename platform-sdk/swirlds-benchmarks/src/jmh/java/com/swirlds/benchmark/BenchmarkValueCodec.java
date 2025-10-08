@@ -24,8 +24,7 @@ public class BenchmarkValueCodec implements Codec<BenchmarkValue> {
             @NonNull final ReadableSequentialData in,
             final boolean strictMode,
             final boolean parseUnknownFields,
-            final int maxDepth,
-            final int maxSize) {
+            final int maxDepth) {
         return new BenchmarkValue(in);
     }
 

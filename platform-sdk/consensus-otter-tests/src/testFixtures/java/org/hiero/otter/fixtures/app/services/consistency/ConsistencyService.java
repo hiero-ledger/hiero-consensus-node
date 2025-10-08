@@ -3,12 +3,10 @@ package org.hiero.otter.fixtures.app.services.consistency;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 
-import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.system.InitTrigger;
-import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
@@ -28,6 +26,7 @@ import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 import org.hiero.otter.fixtures.app.OtterAppState;
 import org.hiero.otter.fixtures.app.OtterService;
 import org.hiero.otter.fixtures.app.OtterTransaction;
+import org.hiero.otter.fixtures.app.state.OtterServiceStateSpecification;
 import org.jetbrains.annotations.NotNull;
 
 /**
@@ -48,6 +47,8 @@ public class ConsistencyService implements OtterService {
 
     /** The name of this service. */
     public static final String NAME = "ConsistencyStateService";
+
+    private static final ConsistencyStateSpecification STATE_SPECIFICATION = new ConsistencyStateSpecification();
 
     /** A set of transaction nonce values seen in pre-handle that have not yet been handled. */
     private final Set<Long> transactionsAwaitingHandle = ConcurrentHashMap.newKeySet();
@@ -188,7 +189,7 @@ public class ConsistencyService implements OtterService {
      */
     @Override
     @NonNull
-    public Schema genesisSchema(@NonNull final SemanticVersion version) {
-        return new V1ConsistencyStateSchema(version);
+    public OtterServiceStateSpecification stateSpecification() {
+        return STATE_SPECIFICATION;
     }
 }

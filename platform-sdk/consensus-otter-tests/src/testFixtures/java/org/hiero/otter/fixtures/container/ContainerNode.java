@@ -276,7 +276,8 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
                 };
         nodeCommBlockingStub
                 .withDeadlineAfter(timeout)
-                .quiescence(QuiescenceRequest.newBuilder().setCommand(dto).build());
+                .quiescenceCommandUpdate(
+                        QuiescenceRequest.newBuilder().setCommand(dto).build());
     }
 
     /**

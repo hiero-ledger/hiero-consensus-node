@@ -460,6 +460,14 @@ jobs:
         with:
           egress-policy: audit
 
+      - name: JSON Stringify Commit List
+        id: stringify-commit-list
+        run: |
+          COMMIT_LIST="${{ needs.fetch-xts-candidate.outputs.commit-list }}"
+          # Escape double quotes and backslashes for JSON
+          ESCAPED_COMMIT_LIST=$(jq -Rs . <<< "${COMMIT_LIST}")
+          echo "commit-list=${ESCAPED_COMMIT_LIST}" >> "${GITHUB_OUTPUT}"
+
       - name: Report Success (slack)
         uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
         with:
@@ -588,7 +596,7 @@ jobs:
                       "fields": [
                         {
                           "type": "mrkdwn",
-                          "text": "${{ needs.fetch-xts-candidate.outputs.commit-list }}"
+                          "text": "${{ steps.stringify-commit-list.outputs.commit-list }}"
                         }
                       ]
                     }
@@ -628,6 +636,17 @@ jobs:
         uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
         with:
           egress-policy: audit
+
+      - name: JSON Stringify Commit List
+        id: stringify-commit-list
+        run: |
+          COMMIT_LIST="${{ needs.fetch-xts-candidate.outputs.commit-list }}"
+          # Escape double quotes and backslashes for JSON
+          ESCAPED_COMMIT_LIST=$(jq -Rs . <<< "${COMMIT_LIST}")
+
+          # Remove the surrounding quotes added by jq
+          ESCAPED_COMMIT_LIST=${ESCAPED_COMMIT_LIST:1:-1}
+          echo "commit-list=${ESCAPED_COMMIT_LIST}" >> "${GITHUB_OUTPUT}"
 
       - name: Checkout Code
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -914,7 +933,7 @@ jobs:
                     "fields": [
                       {
                         "type": "mrkdwn",
-                        "text": "${{ needs.fetch-xts-candidate.outputs.commit-list }}"
+                        "text": "${{ steps.stringify-commit-list.outputs.commit-list }}"
                       }
                     ]
                   }

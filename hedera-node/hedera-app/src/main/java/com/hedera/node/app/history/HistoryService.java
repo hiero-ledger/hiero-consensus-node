@@ -3,8 +3,8 @@ package com.hedera.node.app.history;
 
 import com.hedera.node.app.history.handlers.HistoryHandlers;
 import com.hedera.node.app.history.impl.OnProofFinished;
-import com.hedera.node.app.roster.ActiveRosters;
-import com.hedera.node.app.roster.RosterService;
+import com.hedera.node.app.service.roster.impl.ActiveRosters;
+import com.hedera.node.app.service.roster.impl.RosterServiceImpl;
 import com.hedera.node.config.data.TssConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.lifecycle.Service;
@@ -27,7 +27,7 @@ public interface HistoryService extends Service {
      * the history service depends on the roster service to know how to set up
      * its ongoing construction work for roster transitions.)
      */
-    int MIGRATION_ORDER = RosterService.MIGRATION_ORDER - 1;
+    int MIGRATION_ORDER = RosterServiceImpl.MIGRATION_ORDER - 1;
 
     @Override
     default @NonNull String getServiceName() {
