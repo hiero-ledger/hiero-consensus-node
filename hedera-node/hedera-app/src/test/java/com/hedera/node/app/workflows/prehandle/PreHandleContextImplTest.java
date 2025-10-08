@@ -2,6 +2,8 @@
 package com.hedera.node.app.workflows.prehandle;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_ACCOUNT_BALANCE;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_CONTRACT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.UNRESOLVABLE_REQUIRED_SIGNERS;
 import static com.hedera.node.app.spi.fixtures.workflows.ExceptionConditions.responseCode;
@@ -13,6 +15,9 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mock.Strictness.LENIENT;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
@@ -120,6 +125,185 @@ class PreHandleContextImplTest implements Scenarios {
                 .build();
     }
 
+    @Test
+    void creatorInfoWorks() {
+        final var result = subject.creatorInfo();
+        assertThat(result).isEqualTo(creatorInfo);
+    }
+
+    @Nested
+    @DisplayName("Optional keys methods")
+    class OptionalKeysTests {
+        private static final Key PAYER_KEY = Key.newBuilder().build();
+
+        @Test
+        void optionalKeyAddsKeyToOptionalSet() throws PreCheckException {
+            subject.optionalKey(otherKey);
+            assertThat(subject.optionalNonPayerKeys()).contains(otherKey);
+        }
+
+        @Test
+        void optionalKeyDoesNotAddPayerKey() throws PreCheckException {
+            subject.optionalKey(PAYER_KEY);
+            assertThat(subject.optionalNonPayerKeys()).isEmpty();
+        }
+
+        @Test
+        void optionalKeysAddsMultipleKeys() throws PreCheckException {
+            subject.optionalKeys(Set.of(payerKey, otherKey));
+            assertThat(subject.optionalNonPayerKeys()).containsExactlyInAnyOrder(otherKey);
+        }
+    }
+
+    @Nested
+    @DisplayName("requireKeyIfReceiverSigRequired methods")
+    class RequireKeyIfReceiverSigRequiredTests {
+
+        @Test
+        void requireKeyIfReceiverSigRequiredForAccountIDReturnsEarlyForNullAccount() throws PreCheckException {
+            subject.requireKeyIfReceiverSigRequired((AccountID) null, INVALID_ACCOUNT_ID);
+
+            verify(accountStore).getAccountById(PAYER);
+            verifyNoMoreInteractions(accountStore);
+        }
+
+        @Test
+        void requireKeyIfReceiverSigRequiredForAccountIDReturnsEarlyForDefaultAccount() throws PreCheckException {
+            subject.requireKeyIfReceiverSigRequired(AccountID.DEFAULT, INVALID_ACCOUNT_ID);
+
+            verify(accountStore).getAccountById(PAYER);
+            verifyNoMoreInteractions(accountStore);
+        }
+
+        @Test
+        void requireKeyIfReceiverSigRequiredForAccountIDThrowsWhenAccountNotFound() {
+            final var accountId = AccountID.newBuilder().accountNum(123L).build();
+            given(accountStore.getAccountById(accountId)).willReturn(null);
+
+            assertThatThrownBy(() -> subject.requireKeyIfReceiverSigRequired(accountId, INVALID_ACCOUNT_ID))
+                    .isInstanceOf(PreCheckException.class)
+                    .has(responseCode(INVALID_ACCOUNT_ID));
+        }
+
+        @Test
+        void requireKeyIfReceiverSigRequiredForAccountIDReturnsEarlyWhenReceiverSigNotRequired()
+                throws PreCheckException {
+            final var accountId = AccountID.newBuilder().accountNum(123L).build();
+            final var account = mock(Account.class);
+            given(accountStore.getAccountById(accountId)).willReturn(account);
+            given(account.receiverSigRequired()).willReturn(false);
+
+            subject.requireKeyIfReceiverSigRequired(accountId, INVALID_ACCOUNT_ID);
+
+            verify(account).receiverSigRequired();
+            verifyNoMoreInteractions(account);
+        }
+
+        @Test
+        void requireKeyIfReceiverSigRequiredForContractIDReturnsEarlyForNullContract() throws PreCheckException {
+            subject.requireKeyIfReceiverSigRequired((ContractID) null, INVALID_CONTRACT_ID);
+
+            verify(accountStore).getAccountById(PAYER);
+            verifyNoMoreInteractions(accountStore);
+        }
+
+        @Test
+        void requireKeyIfReceiverSigRequiredForContractIDThrowsWhenContractNotFound() {
+            final var contractID = ContractID.newBuilder().contractNum(123L).build();
+            given(accountStore.getContractById(contractID)).willReturn(null);
+
+            assertThatThrownBy(() -> subject.requireKeyIfReceiverSigRequired(contractID, INVALID_CONTRACT_ID))
+                    .isInstanceOf(PreCheckException.class)
+                    .has(responseCode(INVALID_CONTRACT_ID));
+        }
+
+        @Test
+        void requireKeyIfReceiverSigRequiredForContractIDReturnsEarlyWhenReceiverSigNotRequired()
+                throws PreCheckException {
+            final var contractID = ContractID.newBuilder().contractNum(123L).build();
+            final var contract = mock(Account.class);
+            given(accountStore.getContractById(contractID)).willReturn(contract);
+            given(contract.receiverSigRequired()).willReturn(false);
+
+            subject.requireKeyIfReceiverSigRequired(contractID, INVALID_CONTRACT_ID);
+
+            verify(contract).receiverSigRequired();
+            verifyNoMoreInteractions(contract);
+        }
+    }
+
+    @Nested
+    @DisplayName("HollowAccount methods")
+    class HollowAccountTests {
+
+        private static final Key EMPTY_KEY_LIST =
+                Key.newBuilder().keyList(KeyList.DEFAULT).build();
+        private static final Bytes HOLLOW_ALIAS = Bytes.wrap("12345678909876543210");
+
+        @Test
+        void requireSignatureForHollowAccountAddsAccountToRequiredSet() {
+            final var hollowAccount = mock(Account.class);
+            final var accountId = AccountID.newBuilder().accountNum(1234L).build();
+            given(hollowAccount.accountId()).willReturn(accountId);
+            given(hollowAccount.accountIdOrThrow()).willReturn(accountId);
+            given(hollowAccount.keyOrElse(EMPTY_KEY_LIST)).willReturn(EMPTY_KEY_LIST);
+            given(hollowAccount.alias()).willReturn(HOLLOW_ALIAS);
+
+            subject.requireSignatureForHollowAccount(hollowAccount);
+
+            assertThat(subject.requiredHollowAccounts()).contains(hollowAccount);
+        }
+
+        @Test
+        void requireSignatureForHollowAccountThrowsForNonHollowAccount() {
+            final var nonHollowAccount = mock(Account.class);
+            final var accountId = AccountID.newBuilder().accountNum(123L).build();
+            given(nonHollowAccount.accountId()).willReturn(accountId);
+            given(nonHollowAccount.accountIdOrThrow()).willReturn(accountId);
+
+            assertThatThrownBy(() -> subject.requireSignatureForHollowAccount(nonHollowAccount))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("is not a hollow account");
+        }
+
+        @Test
+        void optionalSignatureForHollowAccountAddsAccountToOptionalSet() {
+            final var hollowAccount = mock(Account.class);
+            final var accountId = AccountID.newBuilder().accountNum(1234L).build();
+            given(hollowAccount.accountId()).willReturn(accountId);
+            given(hollowAccount.accountIdOrThrow()).willReturn(accountId);
+            given(hollowAccount.keyOrElse(EMPTY_KEY_LIST)).willReturn(EMPTY_KEY_LIST);
+            given(hollowAccount.alias()).willReturn(HOLLOW_ALIAS);
+
+            subject.optionalSignatureForHollowAccount(hollowAccount);
+
+            assertThat(subject.optionalHollowAccounts()).contains(hollowAccount);
+        }
+
+        @Test
+        void optionalSignatureForHollowAccountThrowsForNonHollowAccount() {
+            final var nonHollowAccount = mock(Account.class);
+            final var accountId = AccountID.newBuilder().accountNum(123L).build();
+            given(nonHollowAccount.accountId()).willReturn(accountId);
+            given(nonHollowAccount.accountIdOrThrow()).willReturn(accountId);
+
+            assertThatThrownBy(() -> subject.optionalSignatureForHollowAccount(nonHollowAccount))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("is not a hollow account");
+        }
+
+        @Test
+        void requireSignatureForHollowAccountCreationAddsToRequiredSet() {
+            final var alias = Bytes.wrap("hollowAccountAlias");
+
+            subject.requireSignatureForHollowAccountCreation(alias);
+
+            assertThat(subject.requiredHollowAccounts()).hasSize(1);
+            assertThat(subject.requiredHollowAccounts().iterator().next().alias())
+                    .isEqualTo(alias);
+        }
+    }
+
     @Nested
     @DisplayName("Requesting keys of child transactions")
     final class KeyRequestTest {
@@ -131,7 +315,7 @@ class PreHandleContextImplTest implements Scenarios {
 
         @SuppressWarnings("ConstantConditions")
         @Test
-        void testAllKeysForTransactionWithInvalidParameters() throws PreCheckException {
+        void testAllKeysForTransactionWithInvalidParameters() {
             // given
             final var bob = BOB.accountID();
 

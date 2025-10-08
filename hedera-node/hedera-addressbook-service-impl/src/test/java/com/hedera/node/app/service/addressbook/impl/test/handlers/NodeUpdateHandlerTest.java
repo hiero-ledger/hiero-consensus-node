@@ -62,6 +62,7 @@ import com.swirlds.state.test.fixtures.MapWritableKVState;
 import java.security.cert.CertificateEncodingException;
 import java.security.cert.X509Certificate;
 import java.util.List;
+import java.util.Optional;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -525,7 +526,7 @@ class NodeUpdateHandlerTest extends AddressBookTestBase {
         Node nodeWithAccount = Node.newBuilder()
                 .nodeId(nodeId.number())
                 .accountId(accountId)
-                .adminKey(key)
+                .adminKey(bPrimitiveKey)
                 .build();
 
         // Set up the readable node state with our node - using correct builder pattern
@@ -541,7 +542,13 @@ class NodeUpdateHandlerTest extends AddressBookTestBase {
                 .withAccountId(SENTINEL_NODE_ACCOUNT_ID)
                 .build();
 
-        final var context = setupPreHandle(true, txn);
+        final var config = HederaTestConfigBuilder.create()
+                .withValue("nodes.updateAccountIdAllowed", true)
+                .getOrCreateConfig();
+        mockAccountKeyOrThrow(aPrimitiveKey, accountId, accountStore);
+        mockAccountLookup(anotherKey, payerId, accountStore);
+        final var context = new FakePreHandleContext(accountStore, txn, config);
+        context.registerStore(ReadableNodeStore.class, readableStore);
 
         // Execute the method
         subject.preHandle(context);
@@ -635,25 +642,11 @@ class NodeUpdateHandlerTest extends AddressBookTestBase {
                 .withAccountId(SENTINEL_NODE_ACCOUNT_ID)
                 .build();
 
-        given(handleContext.body()).willReturn(txn);
-
         // Create a node with existing account ID
         Node nodeWithAccount =
                 Node.newBuilder().nodeId(nodeId.number()).accountId(accountId).build();
-
-        // Set up writable store with our node that has an account ID
-        writableNodeState = MapWritableKVState.<EntityNumber, Node>builder(NODES_STATE_ID, NODES_STATE_LABEL)
-                .value(nodeId, nodeWithAccount)
-                .build();
-
-        given(writableStates.<EntityNumber, Node>get(NODES_STATE_ID)).willReturn(writableNodeState);
-        writableStore = new WritableNodeStore(writableStates, writableEntityCounters);
-
-        given(handleContext.configuration())
-                .willReturn(HederaTestConfigBuilder.create().getOrCreateConfig());
-        given(handleContext.storeFactory()).willReturn(storeFactory);
-        given(storeFactory.writableStore(WritableNodeStore.class)).willReturn(writableStore);
-
+        setupWritableNodeStore(nodeWithAccount);
+        setupMinimalHandle();
         // Execute the method
         assertDoesNotThrow(() -> subject.handle(handleContext));
 
@@ -664,14 +657,12 @@ class NodeUpdateHandlerTest extends AddressBookTestBase {
 
     @Test
     void testHandleProxyEndpointSentinelValueResetsProxy() {
-        // Setup a transaction with sentinel proxy endpoint
+        // Set up a transaction with sentinel proxy endpoint
         ServiceEndpoint sentinelEndpoint = ServiceEndpoint.DEFAULT;
         txn = new NodeUpdateBuilder()
                 .withNodeId(nodeId.number())
                 .withGrpcProxyEndpoint(sentinelEndpoint)
                 .build();
-
-        given(handleContext.body()).willReturn(txn);
 
         // Create a node with existing proxy endpoint
         Node nodeWithProxy = Node.newBuilder()
@@ -679,14 +670,8 @@ class NodeUpdateHandlerTest extends AddressBookTestBase {
                 .grpcProxyEndpoint(endpoint1)
                 .build();
 
-        // Set up writable store with our node
-        writableNodeState = MapWritableKVState.<EntityNumber, Node>builder(NODES_STATE_ID, NODES_STATE_LABEL)
-                .value(nodeId, nodeWithProxy)
-                .build();
-
-        given(writableStates.<EntityNumber, Node>get(NODES_STATE_ID)).willReturn(writableNodeState);
-        writableStore = new WritableNodeStore(writableStates, writableEntityCounters);
-
+        setupWritableNodeStore(nodeWithProxy);
+        given(handleContext.body()).willReturn(txn);
         given(handleContext.configuration())
                 .willReturn(HederaTestConfigBuilder.create()
                         .withValue("nodes.webProxyEndpointsEnabled", true)
@@ -757,6 +742,7 @@ class NodeUpdateHandlerTest extends AddressBookTestBase {
                 .build();
 
         final var context = setupPreHandle(true, txn);
+        mockAccountKeyOrThrow(aPrimitiveKey, accountId, accountStore);
 
         // Execute preHandle
         subject.preHandle(context);
@@ -764,8 +750,8 @@ class NodeUpdateHandlerTest extends AddressBookTestBase {
         // Verify the threshold key was correctly created with threshold 1
         Key requiredKey = context.requiredNonPayerKeys().iterator().next();
         assertThat(requiredKey.hasThresholdKey()).isTrue();
-        assertThat(requiredKey.thresholdKeyOrThrow().threshold()).isEqualTo(2);
-        assertThat(requiredKey.thresholdKeyOrThrow().keys().keys().size()).isEqualTo(3);
+        assertThat(requiredKey.thresholdKeyOrThrow().threshold()).isEqualTo(1);
+        assertThat(requiredKey.thresholdKeyOrThrow().keys().keys().size()).isEqualTo(2);
     }
 
     @Test
@@ -949,7 +935,7 @@ class NodeUpdateHandlerTest extends AddressBookTestBase {
         private Bytes grpcCertificateHash = null;
         private Key adminKey = null;
         private AccountID contextPayerId = payerId;
-        private boolean declineReward = false;
+        private Optional<Boolean> declineReward = Optional.empty();
 
         private NodeUpdateBuilder() {}
 
@@ -982,7 +968,7 @@ class NodeUpdateHandlerTest extends AddressBookTestBase {
             if (adminKey != null) {
                 op.adminKey(adminKey);
             }
-            op.declineReward(declineReward);
+            declineReward.ifPresent(op::declineReward);
 
             return TransactionBody.newBuilder()
                     .transactionID(txnId)
@@ -1041,7 +1027,7 @@ class NodeUpdateHandlerTest extends AddressBookTestBase {
         }
 
         public NodeUpdateBuilder withDeclineReward(final boolean declineReward) {
-            this.declineReward = declineReward;
+            this.declineReward = Optional.of(declineReward);
             return this;
         }
     }

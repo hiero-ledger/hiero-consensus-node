@@ -348,6 +348,12 @@ public class AddressBookTestBase {
         given(accountStore.getAccountById(contextPayerId)).willReturn(account);
     }
 
+    protected void mockAccountKeyOrThrow(Key key, AccountID contextPayerId, ReadableAccountStore accountStore) {
+        final var account = mock(Account.class);
+        given(account.keyOrThrow()).willReturn(key);
+        given(accountStore.getAccountById(contextPayerId)).willReturn(account);
+    }
+
     public static List<X509Certificate> generateX509Certificates(final int n) {
         final var randomAddressBook = RandomAddressBookBuilder.create(new Random())
                 .withSize(n)

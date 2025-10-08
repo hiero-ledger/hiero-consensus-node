@@ -14,6 +14,7 @@ import static com.hedera.node.app.service.addressbook.impl.validators.AddressBoo
 import static com.hedera.node.app.spi.workflows.HandleException.validateFalse;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateFalsePreCheck;
+import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.addressbook.NodeUpdateTransactionBody;
@@ -90,26 +91,23 @@ public class NodeUpdateHandler implements TransactionHandler {
         validateFalsePreCheck(existingNode == null, INVALID_NODE_ID);
         validateFalsePreCheck(existingNode.deleted(), INVALID_NODE_ID);
 
-        // On updating only the account ID, require the existing account or the admin key signature
-        if (config.updateAccountIdAllowed() && onlyUpdatesAccountID(op)) {
-            handleAccountIdOnlyUpdate(context, existingNode);
-            return;
+        if (op.hasAccountId()) {
+            validateTruePreCheck(config.updateAccountIdAllowed(), UPDATE_NODE_ACCOUNT_NOT_ALLOWED);
+            final var newAccountId = op.accountIdOrThrow();
+            if (!newAccountId.equals(SENTINEL_NODE_ACCOUNT_ID)) {
+                addressBookValidator.validateAccountId(newAccountId);
+                context.requireKeyOrThrow(newAccountId, INVALID_SIGNATURE);
+            }
+            // On updating only the account ID, require the existing account or the admin key signature
+            if (onlyUpdatesAccountID(op)) {
+                handleAccountIdOnlyUpdate(context, existingNode);
+                return;
+            }
         }
 
         context.requireKeyOrThrow(existingNode.adminKey(), INVALID_ADMIN_KEY);
         if (op.hasAdminKey()) {
             context.requireKeyOrThrow(op.adminKeyOrThrow(), INVALID_ADMIN_KEY);
-        }
-        if (config.updateAccountIdAllowed()) {
-            if (op.hasAccountId()) {
-                final var newAccountId = op.accountIdOrThrow();
-                if (!newAccountId.equals(SENTINEL_NODE_ACCOUNT_ID)) {
-                    addressBookValidator.validateAccountId(newAccountId);
-                    context.requireKeyOrThrow(newAccountId, INVALID_SIGNATURE);
-                }
-            }
-        } else {
-            validateFalsePreCheck(op.hasAccountId(), UPDATE_NODE_ACCOUNT_NOT_ALLOWED);
         }
     }
 
@@ -225,7 +223,6 @@ public class NodeUpdateHandler implements TransactionHandler {
 
     private boolean onlyUpdatesAccountID(@NonNull final NodeUpdateTransactionBody op) {
         return op.hasAccountId()
-                && op.accountIdOrThrow().equals(SENTINEL_NODE_ACCOUNT_ID)
                 && !op.hasDescription()
                 && !op.hasAdminKey()
                 && op.gossipEndpoint().isEmpty()
