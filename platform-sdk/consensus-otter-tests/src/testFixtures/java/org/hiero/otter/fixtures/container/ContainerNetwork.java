@@ -48,6 +48,7 @@ public class ContainerNetwork extends AbstractNetwork {
 
     private ToxiproxyContainer toxiproxyContainer;
     private NetworkBehavior networkBehavior;
+    private boolean restartNodesOnSelfShutdown;
 
     /**
      * Constructor for {@link ContainerNetwork}.
@@ -165,5 +166,13 @@ public class ContainerNetwork extends AbstractNetwork {
         if (toxiproxyContainer != null) {
             toxiproxyContainer.stop();
         }
+    }
+
+    public void restartNodesOnSelfShutdown(final boolean restartOnSelfShutdown) {
+        this.restartNodesOnSelfShutdown = restartOnSelfShutdown;
+        newLogResults().subscribe(log -> {
+            
+        });
+
     }
 }
