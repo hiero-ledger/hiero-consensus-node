@@ -113,13 +113,14 @@ public class ContextTransactionProcessor implements Callable<CallOutcome> {
         // Try to translate the HAPI operation to a Hedera EVM transaction, throw HandleException on failure
         // if an exception occurs during a ContractCall, charge fees to the sender and return a CallOutcome reflecting
         // the error.
-        final var hevmTransaction = safeCreateHevmTransaction();
+        final var hevmTransaction = requireNonNull(safeCreateHevmTransaction().hevmTransaction());
+        final var isHookDispatch = safeCreateHevmTransaction().isHookDispatch();
         if (hevmTransaction.isException()) {
             final var outcome = maybeChargeFeesAndReturnOutcome(
                     hevmTransaction,
-                    context.body().transactionIDOrThrow().accountIDOrThrow(),
+                    hevmTransaction.senderId(),
                     rootProxyWorldUpdater.getHederaAccount(hevmTransaction.senderId()),
-                    contractsConfig.chargeGasOnEvmHandleException());
+                    contractsConfig.chargeGasOnEvmHandleException() && !isHookDispatch);
 
             final var elapsedNanos = System.nanoTime() - startTimeNanos;
             recordProcessedTransactionToMetrics(hevmTransaction, outcome, elapsedNanos, 0L);
@@ -237,15 +238,20 @@ public class ContextTransactionProcessor implements Callable<CallOutcome> {
                 outcome.isSuccess()));
     }
 
-    private HederaEvmTransaction safeCreateHevmTransaction() {
+    private HevmTransactionCreationResult safeCreateHevmTransaction() {
         try {
             final var hevmTransaction = hevmTransactionFactory.fromHapiTransaction(context.body(), context.payer());
             validatePayloadLength(hevmTransaction);
-            return hevmTransaction;
+            return new HevmTransactionCreationResult(hevmTransaction, hevmTransaction.isHookDispatch());
         } catch (HandleException e) {
             // Return a HederaEvmTransaction that represents the error in order to charge fees to the sender
-            return hevmTransactionFactory.fromContractTxException(context.body(), e);
+            return new HevmTransactionCreationResult(hevmTransactionFactory.fromContractTxException(context.body(), e),
+                    context.body().hasHookDispatch());
         }
+    }
+
+    private record HevmTransactionCreationResult(
+            @Nullable HederaEvmTransaction hevmTransaction, boolean isHookDispatch) {
     }
 
     private void validatePayloadLength(HederaEvmTransaction hevmTransaction) {
