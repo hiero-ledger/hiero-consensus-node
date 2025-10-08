@@ -110,7 +110,10 @@ public class StatsToOpenMetricCommand extends AbstractCommand {
     private void readRealHeaders() throws IOException {
         firstHeaders = currentLine.split(",");
         secondHeaders = readLine().split(",");
-        timeIndex = List.of(secondHeaders).indexOf("time");
+timeIndex = IntStream.range(0, secondHeaders.length)
+    .filter(i -> "time".equalsIgnoreCase(secondHeaders[i].trim()))
+    .findFirst()
+    .orElseThrow(() -> new IllegalArgumentException("No 'time' column found in second header line"));
     }
 
     private void skipUselessHeaders() throws IOException {
