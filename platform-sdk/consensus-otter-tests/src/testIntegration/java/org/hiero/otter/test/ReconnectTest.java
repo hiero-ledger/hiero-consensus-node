@@ -110,5 +110,7 @@ public class ReconnectTest {
         assertThat(nodeToReconnectStatusResults)
                 .hasSteps(target(ACTIVE)
                         .requiringInterim(REPLAYING_EVENTS, OBSERVING, BEHIND, RECONNECT_COMPLETE, CHECKING));
+
+        assertThat(network.newEventStreamResults()).haveEqualFiles();
     }
 }

@@ -51,8 +51,8 @@ public class HappyPathTest {
 
         env.transactionGenerator().start();
 
-        // Wait for 30 seconds
-        timeManager.waitFor(Duration.ofSeconds(30L));
+        // Wait for 5 seconds
+        timeManager.waitFor(Duration.ofSeconds(5L));
 
         env.transactionGenerator().stop();
 
@@ -63,5 +63,7 @@ public class HappyPathTest {
 
         assertThat(network.newPlatformStatusResults())
                 .haveSteps(target(ACTIVE).requiringInterim(REPLAYING_EVENTS, OBSERVING, CHECKING));
+
+        assertThat(network.newEventStreamResults()).haveEqualFiles();
     }
 }
