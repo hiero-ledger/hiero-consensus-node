@@ -23,7 +23,6 @@ import org.hiero.hapi.interledger.clpr.ClprServiceInterface;
 import org.hiero.hapi.interledger.state.clpr.ClprLedgerConfiguration;
 import org.hiero.hapi.interledger.state.clpr.ClprLedgerId;
 import org.hiero.interledger.clpr.client.ClprClient;
-import org.jetbrains.annotations.NotNull;
 
 /**
  * Implementation of the CLPR (Cross-Ledger Protocol) client.
@@ -40,18 +39,24 @@ public class ClprClientImpl implements ClprClient {
             ServiceInterface.RequestOptions.APPLICATION_GRPC_PROTO);
     private static final ServiceInterface.RequestOptions requestOptions = new ServiceInterface.RequestOptions() {
         @Override
-        public @NotNull Optional<String> authority() {
+        public @NonNull Optional<String> authority() {
             return Optional.empty();
         }
 
         @Override
-        public @NotNull String contentType() {
+        public @NonNull String contentType() {
             return ServiceInterface.RequestOptions.APPLICATION_GRPC_PROTO;
         }
     };
 
     final ClprServiceInterface.ClprServiceClient clprServiceClient;
 
+    /**
+     * Constructs a ClprClientImpl instance with the specified service endpoint.
+     *
+     * @param serviceEndpoint the service endpoint to connect to
+     * @throws UnknownHostException if the IP address of the service endpoint cannot be determined
+     */
     public ClprClientImpl(@NonNull final ServiceEndpoint serviceEndpoint) throws UnknownHostException {
         final ClprServiceInterface.ClprServiceClient client;
 

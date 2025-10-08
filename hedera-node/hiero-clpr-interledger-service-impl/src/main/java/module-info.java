@@ -20,6 +20,5 @@ module org.hiero.interledger.clpr.impl {
     requires com.swirlds.metrics.api;
     requires io.helidon.common.tls;
     requires org.apache.logging.log4j;
-    requires org.jetbrains.annotations;
     requires static transitive com.github.spotbugs.annotations;
 }

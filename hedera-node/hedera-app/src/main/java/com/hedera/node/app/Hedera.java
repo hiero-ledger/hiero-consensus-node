@@ -634,6 +634,7 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
                         virtualMapState.disableStartupMode();
                     }
                 }
+                daggerApp.clprEndpoint().start();
             }
             case FREEZE_COMPLETE -> {
                 logger.info("Platform status is now FREEZE_COMPLETE");
@@ -659,6 +660,7 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
             }
             case REPLAYING_EVENTS, STARTING_UP, OBSERVING, RECONNECT_COMPLETE, CHECKING, FREEZING, BEHIND -> {
                 // Nothing to do here, just enumerate for completeness
+                daggerApp.clprEndpoint().stop();
             }
         }
     }
