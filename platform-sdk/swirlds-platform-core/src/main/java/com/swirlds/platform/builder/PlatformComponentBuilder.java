@@ -767,11 +767,6 @@ public class PlatformComponentBuilder {
         if (issHandler == null) {
             issHandler = new DefaultIssHandler(
                     blocks.platformContext(),
-                    ignored -> {
-                        // FUTURE WORK: Previously this lambda was needed in order to stop gossip.
-                        // Now that gossip pays attention to the platform status, it will naturally
-                        // halt without needing to be stopped here. This should eventually be cleaned up.
-                    },
                     SystemExitUtils::handleFatalError,
                     blocks.issScratchpad());
         }

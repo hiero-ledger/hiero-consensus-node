@@ -1,10 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
-
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.merkle.utility.SerializableLong;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
@@ -18,11 +14,14 @@ import com.swirlds.platform.state.iss.IssScratchpad;
 import com.swirlds.platform.state.iss.internal.DefaultIssHandler;
 import com.swirlds.platform.test.fixtures.SimpleScratchpad;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Consumer;
 import org.hiero.consensus.model.notification.IssNotification;
 import org.hiero.consensus.model.notification.IssNotification.IssType;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 
 @DisplayName("IssHandler Tests")
 class IssHandlerTests {
@@ -36,26 +35,21 @@ class IssHandlerTests {
                 .withConfiguration(configuration)
                 .build();
 
-        final AtomicInteger freezeCount = new AtomicInteger();
         final AtomicInteger shutdownCount = new AtomicInteger();
-
-        final Consumer<String> haltRequestedConsumer = (final String reason) -> freezeCount.getAndIncrement();
 
         final FatalErrorConsumer fatalErrorConsumer = (msg, t, code) -> shutdownCount.getAndIncrement();
 
         final Scratchpad<IssScratchpad> simpleScratchpad = new SimpleScratchpad<>();
         final IssHandler handler =
-                new DefaultIssHandler(platformContext, haltRequestedConsumer, fatalErrorConsumer, simpleScratchpad);
+                new DefaultIssHandler(platformContext, fatalErrorConsumer, simpleScratchpad);
 
         handler.issObserved(new IssNotification(1234L, IssType.OTHER_ISS));
 
-        assertEquals(1, freezeCount.get(), "unexpected freeze count");
         assertEquals(0, shutdownCount.get(), "unexpected shutdown count");
 
         // Once frozen, this should become a no-op
         handler.issObserved(new IssNotification(1234L, IssType.OTHER_ISS));
 
-        assertEquals(1, freezeCount.get(), "unexpected freeze count");
         assertEquals(0, shutdownCount.get(), "unexpected shutdown count");
 
         // Another node ISSed, we will not record that on the scratchpad.
@@ -72,20 +66,16 @@ class IssHandlerTests {
                 .withConfiguration(configuration)
                 .build();
 
-        final AtomicInteger freezeCount = new AtomicInteger();
         final AtomicInteger shutdownCount = new AtomicInteger();
-
-        final Consumer<String> haltRequestedConsumer = (final String reason) -> freezeCount.getAndIncrement();
 
         final FatalErrorConsumer fatalErrorConsumer = (msg, t, code) -> shutdownCount.getAndIncrement();
 
         final Scratchpad<IssScratchpad> simpleScratchpad = new SimpleScratchpad<>();
         final IssHandler handler =
-                new DefaultIssHandler(platformContext, haltRequestedConsumer, fatalErrorConsumer, simpleScratchpad);
+                new DefaultIssHandler(platformContext, fatalErrorConsumer, simpleScratchpad);
 
         handler.issObserved(new IssNotification(1234L, IssType.OTHER_ISS));
 
-        assertEquals(0, freezeCount.get(), "unexpected freeze count");
         assertEquals(0, shutdownCount.get(), "unexpected shutdown count");
 
         assertNull(simpleScratchpad.get(IssScratchpad.LAST_ISS_ROUND));
@@ -102,20 +92,16 @@ class IssHandlerTests {
                 .withConfiguration(configuration)
                 .build();
 
-        final AtomicInteger freezeCount = new AtomicInteger();
         final AtomicInteger shutdownCount = new AtomicInteger();
-
-        final Consumer<String> haltRequestedConsumer = (final String reason) -> freezeCount.getAndIncrement();
 
         final FatalErrorConsumer fatalErrorConsumer = (msg, t, code) -> shutdownCount.getAndIncrement();
 
         final Scratchpad<IssScratchpad> simpleScratchpad = new SimpleScratchpad<>();
         final IssHandler handler =
-                new DefaultIssHandler(platformContext, haltRequestedConsumer, fatalErrorConsumer, simpleScratchpad);
+                new DefaultIssHandler(platformContext, fatalErrorConsumer, simpleScratchpad);
 
         handler.issObserved(new IssNotification(1234L, IssType.SELF_ISS));
 
-        assertEquals(0, freezeCount.get(), "unexpected freeze count");
         assertEquals(1, shutdownCount.get(), "unexpected shutdown count");
 
         final SerializableLong issRound = simpleScratchpad.get(IssScratchpad.LAST_ISS_ROUND);
@@ -134,20 +120,16 @@ class IssHandlerTests {
                 .withConfiguration(configuration)
                 .build();
 
-        final AtomicInteger freezeCount = new AtomicInteger();
         final AtomicInteger shutdownCount = new AtomicInteger();
-
-        final Consumer<String> haltRequestedConsumer = (final String reason) -> freezeCount.getAndIncrement();
 
         final FatalErrorConsumer fatalErrorConsumer = (msg, t, code) -> shutdownCount.getAndIncrement();
 
         final Scratchpad<IssScratchpad> simpleScratchpad = new SimpleScratchpad<>();
         final IssHandler handler =
-                new DefaultIssHandler(platformContext, haltRequestedConsumer, fatalErrorConsumer, simpleScratchpad);
+                new DefaultIssHandler(platformContext, fatalErrorConsumer, simpleScratchpad);
 
         handler.issObserved(new IssNotification(1234L, IssType.SELF_ISS));
 
-        assertEquals(0, freezeCount.get(), "unexpected freeze count");
         assertEquals(0, shutdownCount.get(), "unexpected shutdown count");
 
         final SerializableLong issRound = simpleScratchpad.get(IssScratchpad.LAST_ISS_ROUND);
@@ -166,26 +148,21 @@ class IssHandlerTests {
                 .withConfiguration(configuration)
                 .build();
 
-        final AtomicInteger freezeCount = new AtomicInteger();
         final AtomicInteger shutdownCount = new AtomicInteger();
-
-        final Consumer<String> haltRequestedConsumer = (final String reason) -> freezeCount.getAndIncrement();
 
         final FatalErrorConsumer fatalErrorConsumer = (msg, t, code) -> shutdownCount.getAndIncrement();
 
         final Scratchpad<IssScratchpad> simpleScratchpad = new SimpleScratchpad<>();
         final IssHandler handler =
-                new DefaultIssHandler(platformContext, haltRequestedConsumer, fatalErrorConsumer, simpleScratchpad);
+                new DefaultIssHandler(platformContext, fatalErrorConsumer, simpleScratchpad);
 
         handler.issObserved(new IssNotification(1234L, IssType.SELF_ISS));
 
-        assertEquals(1, freezeCount.get(), "unexpected freeze count");
         assertEquals(0, shutdownCount.get(), "unexpected shutdown count");
 
         // Once frozen, this should become a no-op
-        handler.issObserved(new IssNotification(1234L, IssType.SELF_ISS));
+        handler.issObserved(new IssNotification(1235L, IssType.SELF_ISS));
 
-        assertEquals(1, freezeCount.get(), "unexpected freeze count");
         assertEquals(0, shutdownCount.get(), "unexpected shutdown count");
 
         final SerializableLong issRound = simpleScratchpad.get(IssScratchpad.LAST_ISS_ROUND);
@@ -204,20 +181,16 @@ class IssHandlerTests {
                 .withConfiguration(configuration)
                 .build();
 
-        final AtomicInteger freezeCount = new AtomicInteger();
         final AtomicInteger shutdownCount = new AtomicInteger();
-
-        final Consumer<String> haltRequestedConsumer = (final String reason) -> freezeCount.getAndIncrement();
 
         final FatalErrorConsumer fatalErrorConsumer = (msg, t, code) -> shutdownCount.getAndIncrement();
 
         final Scratchpad<IssScratchpad> simpleScratchpad = new SimpleScratchpad<>();
         final IssHandler handler =
-                new DefaultIssHandler(platformContext, haltRequestedConsumer, fatalErrorConsumer, simpleScratchpad);
+                new DefaultIssHandler(platformContext, fatalErrorConsumer, simpleScratchpad);
 
         handler.issObserved(new IssNotification(1234L, IssType.CATASTROPHIC_ISS));
 
-        assertEquals(0, freezeCount.get(), "unexpected freeze count");
         assertEquals(0, shutdownCount.get(), "unexpected shutdown count");
 
         final SerializableLong issRound = simpleScratchpad.get(IssScratchpad.LAST_ISS_ROUND);
@@ -236,26 +209,21 @@ class IssHandlerTests {
                 .withConfiguration(configuration)
                 .build();
 
-        final AtomicInteger freezeCount = new AtomicInteger();
         final AtomicInteger shutdownCount = new AtomicInteger();
-
-        final Consumer<String> haltRequestedConsumer = (final String reason) -> freezeCount.getAndIncrement();
 
         final FatalErrorConsumer fatalErrorConsumer = (msg, t, code) -> shutdownCount.getAndIncrement();
 
         final Scratchpad<IssScratchpad> simpleScratchpad = new SimpleScratchpad<>();
         final IssHandler handler =
-                new DefaultIssHandler(platformContext, haltRequestedConsumer, fatalErrorConsumer, simpleScratchpad);
+                new DefaultIssHandler(platformContext, fatalErrorConsumer, simpleScratchpad);
 
         handler.issObserved(new IssNotification(1234L, IssType.CATASTROPHIC_ISS));
 
-        assertEquals(1, freezeCount.get(), "unexpected freeze count");
         assertEquals(0, shutdownCount.get(), "unexpected shutdown count");
 
         // Once frozen, this should become a no-op
-        handler.issObserved(new IssNotification(1234L, IssType.CATASTROPHIC_ISS));
+        handler.issObserved(new IssNotification(1235L, IssType.CATASTROPHIC_ISS));
 
-        assertEquals(1, freezeCount.get(), "unexpected freeze count");
         assertEquals(0, shutdownCount.get(), "unexpected shutdown count");
 
         final SerializableLong issRound = simpleScratchpad.get(IssScratchpad.LAST_ISS_ROUND);
@@ -274,26 +242,21 @@ class IssHandlerTests {
                 .withConfiguration(configuration)
                 .build();
 
-        final AtomicInteger freezeCount = new AtomicInteger();
         final AtomicInteger shutdownCount = new AtomicInteger();
-
-        final Consumer<String> haltRequestedConsumer = (final String reason) -> freezeCount.getAndIncrement();
 
         final FatalErrorConsumer fatalErrorConsumer = (msg, t, code) -> shutdownCount.getAndIncrement();
 
         final Scratchpad<IssScratchpad> simpleScratchpad = new SimpleScratchpad<>();
         final IssHandler handler =
-                new DefaultIssHandler(platformContext, haltRequestedConsumer, fatalErrorConsumer, simpleScratchpad);
+                new DefaultIssHandler(platformContext, fatalErrorConsumer, simpleScratchpad);
 
         handler.issObserved(new IssNotification(1234L, IssType.CATASTROPHIC_ISS));
 
-        assertEquals(1, freezeCount.get(), "unexpected freeze count");
         assertEquals(0, shutdownCount.get(), "unexpected shutdown count");
 
         // Once frozen, this should become a no-op
-        handler.issObserved(new IssNotification(1234L, IssType.CATASTROPHIC_ISS));
+        handler.issObserved(new IssNotification(1235L, IssType.CATASTROPHIC_ISS));
 
-        assertEquals(1, freezeCount.get(), "unexpected freeze count");
         assertEquals(0, shutdownCount.get(), "unexpected shutdown count");
 
         final SerializableLong issRound = simpleScratchpad.get(IssScratchpad.LAST_ISS_ROUND);
