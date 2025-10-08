@@ -30,7 +30,8 @@ import com.swirlds.platform.network.protocol.AbstractSyncProtocol;
 import com.swirlds.platform.network.protocol.HeartbeatProtocol;
 import com.swirlds.platform.network.protocol.Protocol;
 import com.swirlds.platform.network.protocol.ProtocolRunnable;
-import com.swirlds.platform.network.protocol.ReconnectProtocol;
+import com.swirlds.platform.network.protocol.ReservedSignedStatePromise;
+import com.swirlds.platform.network.protocol.StateSyncProtocol;
 import com.swirlds.platform.network.protocol.SyncProtocol;
 import com.swirlds.platform.network.protocol.rpc.RpcProtocol;
 import com.swirlds.platform.reconnect.DefaultSignedStateValidator;
@@ -40,7 +41,8 @@ import com.swirlds.platform.reconnect.ReconnectLearnerThrottle;
 import com.swirlds.platform.reconnect.ReconnectPlatformHelper;
 import com.swirlds.platform.reconnect.ReconnectPlatformHelperImpl;
 import com.swirlds.platform.reconnect.ReconnectSyncHelper;
-import com.swirlds.platform.reconnect.ReconnectThrottle;
+import com.swirlds.platform.reconnect.StateSyncThrottle;
+import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.SwirldStateManager;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.ReservedSignedState;
@@ -105,6 +107,7 @@ public class SyncGossipModular implements Gossip {
      * @param platformStateFacade           the facade to access the platform state
      * @param createStateFromVirtualMap     a function to instantiate the state object from a Virtual Map
      * @param fallenBehindMonitor           an instance of the FallenBehindMonitor
+     * @param reservedSignedStatePromise a mechanism to get a SignedState or block while it is not available
      */
     public SyncGossipModular(
             @NonNull final PlatformContext platformContext,
@@ -120,7 +123,8 @@ public class SyncGossipModular implements Gossip {
             @NonNull final IntakeEventCounter intakeEventCounter,
             @NonNull final PlatformStateFacade platformStateFacade,
             @NonNull final Function<VirtualMap, MerkleNodeState> createStateFromVirtualMap,
-            @NonNull final FallenBehindMonitor fallenBehindMonitor) {
+            @NonNull final FallenBehindMonitor fallenBehindMonitor,
+            @NonNull final ReservedSignedStatePromise reservedSignedStatePromise) {
 
         final RosterEntry selfEntry = RosterUtils.getRosterEntry(roster, selfId.id());
         final X509Certificate selfCert = RosterUtils.fetchGossipCaCertificate(selfEntry);
@@ -196,21 +200,23 @@ public class SyncGossipModular implements Gossip {
                     syncMetrics);
         }
 
+        final StateSyncProtocol stateSyncProtocol = createStateSyncProtocol(
+                platformContext,
+                this.fallenBehindMonitor,
+                threadManager,
+                latestCompleteState,
+                roster,
+                loadReconnectState,
+                clearAllPipelinesForReconnect,
+                swirldStateManager,
+                selfId,
+                this.syncProtocol,
+                platformStateFacade,
+                createStateFromVirtualMap,
+                reservedSignedStatePromise);
         this.protocols = ImmutableList.of(
                 HeartbeatProtocol.create(platformContext, this.network.getNetworkMetrics()),
-                createReconnectProtocol(
-                        platformContext,
-                        this.fallenBehindMonitor,
-                        threadManager,
-                        latestCompleteState,
-                        roster,
-                        loadReconnectState,
-                        clearAllPipelinesForReconnect,
-                        swirldStateManager,
-                        selfId,
-                        this.syncProtocol,
-                        platformStateFacade,
-                        createStateFromVirtualMap),
+                stateSyncProtocol,
                 syncProtocol);
 
         final VersionCompareHandshake versionCompareHandshake =
@@ -237,7 +243,7 @@ public class SyncGossipModular implements Gossip {
      * @param createStateFromVirtualMap     a function to instantiate the state root object from a Virtual Map
      * @return constructed ReconnectProtocol
      */
-    public ReconnectProtocol createReconnectProtocol(
+    public StateSyncProtocol createStateSyncProtocol(
             @NonNull final PlatformContext platformContext,
             @NonNull final FallenBehindMonitor fallenBehindManager,
             @NonNull final ThreadManager threadManager,
@@ -249,12 +255,13 @@ public class SyncGossipModular implements Gossip {
             @NonNull final NodeId selfId,
             @NonNull final GossipController gossipController,
             @NonNull final PlatformStateFacade platformStateFacade,
-            @NonNull final Function<VirtualMap, MerkleNodeState> createStateFromVirtualMap) {
+            @NonNull final Function<VirtualMap, MerkleNodeState> createStateFromVirtualMap,
+            @NonNull final ReservedSignedStatePromise reservedSignedStatePromise) {
 
         final ReconnectConfig reconnectConfig =
                 platformContext.getConfiguration().getConfigData(ReconnectConfig.class);
 
-        final ReconnectThrottle reconnectThrottle = new ReconnectThrottle(reconnectConfig, platformContext.getTime());
+        final StateSyncThrottle stateSyncThrottle = new StateSyncThrottle(reconnectConfig, platformContext.getTime());
 
         final ReconnectMetrics reconnectMetrics = new ReconnectMetrics(platformContext.getMetrics());
 
@@ -306,16 +313,17 @@ public class SyncGossipModular implements Gossip {
                 throttle,
                 new DefaultSignedStateValidator(platformContext, platformStateFacade));
 
-        return new ReconnectProtocol(
+        return new StateSyncProtocol(
                 platformContext,
                 threadManager,
-                reconnectThrottle,
+                stateSyncThrottle,
                 latestCompleteState,
                 reconnectConfig.asyncStreamTimeout(),
                 reconnectMetrics,
                 reconnectNetworkHelper,
                 fallenBehindManager,
-                platformStateFacade);
+                platformStateFacade,
+                reservedSignedStatePromise);
     }
 
     /**

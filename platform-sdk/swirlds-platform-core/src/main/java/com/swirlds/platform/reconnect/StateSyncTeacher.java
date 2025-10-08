@@ -33,10 +33,10 @@ import org.hiero.consensus.roster.RosterUtils;
  * This class encapsulates reconnect logic for the up to date node which is helping an out of date node obtain a recent
  * state.
  */
-public class ReconnectTeacher {
+public class StateSyncTeacher {
 
     /** use this for all logging, as controlled by the optional data/log4j2.xml file */
-    private static final Logger logger = LogManager.getLogger(ReconnectTeacher.class);
+    private static final Logger logger = LogManager.getLogger(StateSyncTeacher.class);
 
     private final Connection connection;
     private final Duration reconnectSocketTimeout;
@@ -70,7 +70,7 @@ public class ReconnectTeacher {
      * @param statistics             reconnect metrics
      * @param platformStateFacade    the facade to access the platform state
      */
-    public ReconnectTeacher(
+    public StateSyncTeacher(
             @NonNull final PlatformContext platformContext,
             @NonNull final Time time,
             @NonNull final ThreadManager threadManager,
@@ -99,23 +99,23 @@ public class ReconnectTeacher {
     /**
      * increase socketTimout before performing reconnect
      *
-     * @throws ReconnectException thrown when there is an error in the underlying protocol
+     * @throws StateSyncException thrown when there is an error in the underlying protocol
      */
-    private void increaseSocketTimeout() throws ReconnectException {
+    private void increaseSocketTimeout() throws StateSyncException {
         try {
             originalSocketTimeout = connection.getTimeout();
             connection.setTimeout(reconnectSocketTimeout.toMillis());
         } catch (final SocketException e) {
-            throw new ReconnectException(e);
+            throw new StateSyncException(e);
         }
     }
 
     /**
      * Reset socketTimeout to original value
      *
-     * @throws ReconnectException thrown when there is an error in the underlying protocol
+     * @throws StateSyncException thrown when there is an error in the underlying protocol
      */
-    private void resetSocketTimeout() throws ReconnectException {
+    private void resetSocketTimeout() throws StateSyncException {
         if (!connection.connected()) {
             logger.debug(
                     RECONNECT.getMarker(),
@@ -128,17 +128,17 @@ public class ReconnectTeacher {
         try {
             connection.setTimeout(originalSocketTimeout);
         } catch (final SocketException e) {
-            throw new ReconnectException(e);
+            throw new StateSyncException(e);
         }
     }
 
     /**
      * Perform the reconnect operation.
      *
-     * @throws ReconnectException thrown when current thread is interrupted, or when any I/O related errors occur, or
+     * @throws StateSyncException thrown when current thread is interrupted, or when any I/O related errors occur, or
      *                            when there is an error in the underlying protocol
      */
-    public void execute(final SignedState signedState) throws ReconnectException {
+    public void execute(final SignedState signedState) throws StateSyncException {
 
         // If the connection object to be used here has been disconnected on another thread, we can
         // not reconnect with this connection.
@@ -159,9 +159,9 @@ public class ReconnectTeacher {
             ReconnectUtils.endReconnectHandshake(connection);
         } catch (final InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw new ReconnectException(e);
+            throw new StateSyncException(e);
         } catch (final IOException e) {
-            throw new ReconnectException(e);
+            throw new StateSyncException(e);
         } finally {
             resetSocketTimeout();
         }

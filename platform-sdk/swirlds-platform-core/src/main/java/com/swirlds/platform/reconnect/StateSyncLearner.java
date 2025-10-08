@@ -39,10 +39,10 @@ import org.apache.logging.log4j.Logger;
  * This class encapsulates reconnect logic for the out of date node which is
  * requesting a recent state from another node.
  */
-public class ReconnectLearner {
+public class StateSyncLearner {
 
     /** use this for all logging, as controlled by the optional data/log4j2.xml file */
-    private static final Logger logger = LogManager.getLogger(ReconnectLearner.class);
+    private static final Logger logger = LogManager.getLogger(StateSyncLearner.class);
 
     private final Connection connection;
     private final Roster roster;
@@ -80,7 +80,7 @@ public class ReconnectLearner {
      * @param createStateFromVirtualMap
      *      a function to instantiate the state object from a Virtual Map
      */
-    public ReconnectLearner(
+    public StateSyncLearner(
             @NonNull final PlatformContext platformContext,
             @NonNull final ThreadManager threadManager,
             @NonNull final Connection connection,
@@ -109,23 +109,23 @@ public class ReconnectLearner {
     }
 
     /**
-     * @throws ReconnectException
+     * @throws StateSyncException
      * 		thrown when there is an error in the underlying protocol
      */
-    private void increaseSocketTimeout() throws ReconnectException {
+    private void increaseSocketTimeout() throws StateSyncException {
         try {
             originalSocketTimeout = connection.getTimeout();
             connection.setTimeout(reconnectSocketTimeout.toMillis());
         } catch (final SocketException e) {
-            throw new ReconnectException(e);
+            throw new StateSyncException(e);
         }
     }
 
     /**
-     * @throws ReconnectException
+     * @throws StateSyncException
      * 		thrown when there is an error in the underlying protocol
      */
-    private void resetSocketTimeout() throws ReconnectException {
+    private void resetSocketTimeout() throws StateSyncException {
         if (!connection.connected()) {
             logger.debug(
                     RECONNECT.getMarker(),
@@ -138,20 +138,20 @@ public class ReconnectLearner {
         try {
             connection.setTimeout(originalSocketTimeout);
         } catch (final SocketException e) {
-            throw new ReconnectException(e);
+            throw new StateSyncException(e);
         }
     }
 
     /**
      * Perform the reconnect operation.
      *
-     * @throws ReconnectException
+     * @throws StateSyncException
      * 		thrown if I/O related errors occur, when there is an error in the underlying protocol, or the received
      * 		state is invalid
      * @return the state received from the other node
      */
     @NonNull
-    public ReservedSignedState execute(@NonNull final SignedStateValidator validator) throws ReconnectException {
+    public ReservedSignedState execute(@NonNull final SignedStateValidator validator) throws StateSyncException {
         increaseSocketTimeout();
         ReservedSignedState reservedSignedState = null;
         try {
@@ -165,11 +165,11 @@ public class ReconnectLearner {
                 // if the state was received, we need to release it or it will be leaked
                 reservedSignedState.close();
             }
-            throw new ReconnectException(e);
+            throw new StateSyncException(e);
         } catch (final InterruptedException e) {
             // an interrupt can only occur in the reconnect() method, so we don't need to close the reservedSignedState
             Thread.currentThread().interrupt();
-            throw new ReconnectException("interrupted while attempting to reconnect", e);
+            throw new StateSyncException("interrupted while attempting to reconnect", e);
         } finally {
             resetSocketTimeout();
         }

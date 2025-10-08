@@ -56,7 +56,7 @@ public final class ReconnectUtils {
                                     ReconnectFailurePayload.CauseOfFailure.ERROR)
                             .toString(),
                     e);
-            throw new ReconnectException(e);
+            throw new StateSyncException(e);
         } catch (final InterruptedException e) {
             Thread.currentThread().interrupt();
             logger.error(

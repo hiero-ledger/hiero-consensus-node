@@ -32,7 +32,7 @@ public class ReconnectSyncHelper implements ReconnectNetworkHelper {
     private final Supplier<MerkleNodeState> workingStateSupplier;
     /** provides the latest signed state round for which we have a supermajority of signatures */
     private final LongSupplier lastCompleteRoundSupplier;
-    /** Creates instances of {@link ReconnectLearner} to execute the second phase, receiving a signed state */
+    /** Creates instances of {@link StateSyncLearner} to execute the second phase, receiving a signed state */
     private final ReconnectLearnerFactory reconnectLearnerFactory;
     /** configuration for the state from the platform */
     private final StateConfig stateConfig;
@@ -46,7 +46,7 @@ public class ReconnectSyncHelper implements ReconnectNetworkHelper {
      *                                  reconnect
      * @param lastCompleteRoundSupplier provides the latest signed state round for which we have a supermajority of
      *                                  signatures
-     * @param reconnectLearnerFactory   Creates instances of {@link ReconnectLearner} to execute the second phase,
+     * @param reconnectLearnerFactory   Creates instances of {@link StateSyncLearner} to execute the second phase,
      *                                  receiving a signed state
      * @param stateConfig               configuration for the state from the platform
      * @param platformStateFacade       provides access to the platform state
@@ -71,7 +71,7 @@ public class ReconnectSyncHelper implements ReconnectNetworkHelper {
      */
     @Override
     public @NonNull ReservedSignedState receiveSignedState(@NonNull final SignedStateValidator validator)
-            throws ReconnectException, InterruptedException {
+            throws StateSyncException, InterruptedException {
         Connection connection = null;
         try (final LockedResource<Connection> conn = connectionProvider.waitForResource()) {
             connection = conn.getResource();
@@ -94,7 +94,7 @@ public class ReconnectSyncHelper implements ReconnectNetworkHelper {
     }
 
     private @NonNull ReservedSignedState reconnectLearner(
-            @NonNull final Connection conn, @NonNull final SignedStateValidator validator) throws ReconnectException {
+            @NonNull final Connection conn, @NonNull final SignedStateValidator validator) throws StateSyncException {
 
         logger.info(RECONNECT.getMarker(), () -> new ReconnectStartPayload(
                         "Starting reconnect in role of the receiver.",
@@ -104,7 +104,7 @@ public class ReconnectSyncHelper implements ReconnectNetworkHelper {
                         lastCompleteRoundSupplier.getAsLong())
                 .toString());
 
-        final ReconnectLearner reconnect = reconnectLearnerFactory.create(conn, workingStateSupplier.get());
+        final StateSyncLearner reconnect = reconnectLearnerFactory.create(conn, workingStateSupplier.get());
 
         final ReservedSignedState reservedState = reconnect.execute(validator);
         final long lastRoundReceived = reservedState.get().getRound();
