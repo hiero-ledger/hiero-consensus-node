@@ -21,6 +21,9 @@ import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.result.SingleNodeLogResult;
 import org.hiero.otter.fixtures.result.SingleNodePlatformStatusResult;
 
+/**
+ * Tests for the detection and response to ISSes (Inconsistent State Signatures).
+ */
 public class IssTest {
 
     /**
