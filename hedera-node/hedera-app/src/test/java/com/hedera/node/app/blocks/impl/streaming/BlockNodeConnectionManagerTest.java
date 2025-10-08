@@ -39,6 +39,10 @@ import java.lang.invoke.VarHandle;
 import java.lang.reflect.Method;
 import java.time.Duration;
 import java.time.Instant;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -78,12 +82,18 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     private static final VarHandle retryStatesHandle;
     private static final VarHandle requestIndexHandle;
     private static final VarHandle sharedExecutorServiceHandle;
+    private static final VarHandle configWatcherThreadRefHandle;
+    private static final VarHandle configWatchServiceRefHandle;
+    private static final VarHandle blockNodeConfigDirectoryHandle;
     private static final MethodHandle jumpToBlockIfNeededHandle;
     private static final MethodHandle processStreamingToBlockNodeHandle;
     private static final MethodHandle blockStreamWorkerLoopHandle;
     private static final MethodHandle stopConnectionsHandle;
     private static final MethodHandle handleConfigFileChangeHandle;
     private static final MethodHandle extractBlockNodesConfigurationsHandle;
+    private static final MethodHandle performInitialConfigLoadHandle;
+    private static final MethodHandle startConfigWatcherHandle;
+    private static final MethodHandle stopConfigWatcherHandle;
 
     static {
         try {
@@ -119,6 +129,12 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
             sharedExecutorServiceHandle = MethodHandles.privateLookupIn(BlockNodeConnectionManager.class, lookup)
                     .findVarHandle(
                             BlockNodeConnectionManager.class, "sharedExecutorService", ScheduledExecutorService.class);
+            configWatcherThreadRefHandle = MethodHandles.privateLookupIn(BlockNodeConnectionManager.class, lookup)
+                    .findVarHandle(BlockNodeConnectionManager.class, "configWatcherThreadRef", AtomicReference.class);
+            configWatchServiceRefHandle = MethodHandles.privateLookupIn(BlockNodeConnectionManager.class, lookup)
+                    .findVarHandle(BlockNodeConnectionManager.class, "configWatchServiceRef", AtomicReference.class);
+            blockNodeConfigDirectoryHandle = MethodHandles.privateLookupIn(BlockNodeConnectionManager.class, lookup)
+                    .findVarHandle(BlockNodeConnectionManager.class, "blockNodeConfigDirectory", Path.class);
 
             final Method jumpToBlockIfNeeded =
                     BlockNodeConnectionManager.class.getDeclaredMethod("jumpToBlockIfNeeded");
@@ -148,6 +164,21 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
                     BlockNodeConnectionManager.class.getDeclaredMethod("extractBlockNodesConfigurations", String.class);
             extractBlockNodesConfigurations.setAccessible(true);
             extractBlockNodesConfigurationsHandle = lookup.unreflect(extractBlockNodesConfigurations);
+
+            final Method performInitialConfigLoad =
+                    BlockNodeConnectionManager.class.getDeclaredMethod("performInitialConfigLoad");
+            performInitialConfigLoad.setAccessible(true);
+            performInitialConfigLoadHandle = lookup.unreflect(performInitialConfigLoad);
+
+            final Method startConfigWatcher =
+                    BlockNodeConnectionManager.class.getDeclaredMethod("startConfigWatcher");
+            startConfigWatcher.setAccessible(true);
+            startConfigWatcherHandle = lookup.unreflect(startConfigWatcher);
+
+            final Method stopConfigWatcher =
+                    BlockNodeConnectionManager.class.getDeclaredMethod("stopConfigWatcher");
+            stopConfigWatcher.setAccessible(true);
+            stopConfigWatcherHandle = lookup.unreflect(stopConfigWatcher);
 
         } catch (final Exception e) {
             throw new RuntimeException(e);
@@ -2222,6 +2253,115 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     }
 
     @Test
+    void testHandleConfigFileChange_shutsDownExecutorAndReloads_whenValid() throws Exception {
+        // Point manager at real bootstrap config directory so reload finds valid JSON
+        final var configPath = Objects.requireNonNull(
+                        BlockNodeCommunicationTestBase.class.getClassLoader().getResource("bootstrap/"))
+                .getPath();
+        // Replace the directory used by the manager
+        blockNodeConfigDirectoryHandle.set(connectionManager, Path.of(configPath));
+
+        // Populate with a dummy existing connection and a mock executor to be shut down
+        final BlockNodeConnection existing = mock(BlockNodeConnection.class);
+        connections().put(newBlockNodeConfig(4242, 0), existing);
+        final ScheduledExecutorService oldExecutor = mock(ScheduledExecutorService.class);
+        sharedExecutorServiceHandle.set(connectionManager, oldExecutor);
+
+        // Ensure manager is initially inactive
+        isActiveFlag().set(false);
+        workerThread().set(null);
+
+        invoke_handleConfigFileChange();
+
+        // Old connection closed and executor shut down
+        verify(existing).close(true);
+        verify(oldExecutor).shutdownNow();
+
+        // Available nodes should be reloaded from bootstrap JSON (non-empty)
+        assertThat(availableNodes()).isNotEmpty();
+
+        // Manager should have started a worker thread due to valid configs
+        assertThat(workerThread().get()).isNotNull();
+    }
+
+    @Test
+    void testPerformInitialConfigLoad_noFile() {
+        // Use a temp empty dir
+        final Path tmpDir;
+        try {
+            tmpDir = Files.createTempDirectory("bncm-perfinit-nofile");
+        } catch (final Exception e) {
+            throw new RuntimeException(e);
+        }
+        try {
+            // Swap directory and invoke loader
+            blockNodeConfigDirectoryHandle.set(connectionManager, tmpDir);
+            invoke_performInitialConfigLoad();
+
+            // No file -> no nodes loaded and manager not started
+            assertThat(availableNodes()).isEmpty();
+            assertThat(workerThread().get()).isNull();
+        } finally {
+            try { Files.deleteIfExists(tmpDir); } catch (final Exception ignore) {}
+        }
+    }
+
+    @Test
+    void testPerformInitialConfigLoad_withValidFile_startsAndLoads() throws Exception {
+        final Path tmpDir = Files.createTempDirectory("bncm-perfinit-valid");
+        final String json = "{\n  \"nodes\": [ { \"address\": \"localhost\", \"port\": 9090, \"priority\": 0 } ]\n}";
+        try {
+            Files.writeString(tmpDir.resolve("block-nodes.json"), json, StandardCharsets.UTF_8,
+                    StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
+
+            blockNodeConfigDirectoryHandle.set(connectionManager, tmpDir);
+            isActiveFlag().set(false);
+            workerThread().set(null);
+
+            invoke_performInitialConfigLoad();
+
+            // Loaded exactly one node and started the manager
+            assertThat(availableNodes()).hasSize(1);
+            assertThat(workerThread().get()).isNotNull();
+        } finally {
+            try { Files.deleteIfExists(tmpDir.resolve("block-nodes.json")); } catch (final Exception ignore) {}
+            try { Files.deleteIfExists(tmpDir); } catch (final Exception ignore) {}
+        }
+    }
+
+    @Test
+    void testStartConfigWatcher_reactsToCreateModifyDelete() throws Exception {
+        final Path tmpDir = Files.createTempDirectory("bncm-watcher");
+        try {
+            // Point manager at the temp dir and start watcher
+            blockNodeConfigDirectoryHandle.set(connectionManager, tmpDir);
+            invoke_startConfigWatcher();
+
+            // CREATE valid file -> nodes loaded
+            final Path file = tmpDir.resolve("block-nodes.json");
+            final String valid = "{\n  \"nodes\": [ { \"address\": \"localhost\", \"port\": 7000, \"priority\": 0 }, { \"address\": \"localhost\", \"port\": 7001, \"priority\": 1 } ]\n}";
+            Files.writeString(file, valid, StandardCharsets.UTF_8, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
+            awaitCondition(() -> !availableNodes().isEmpty(), 2_000);
+
+            // MODIFY invalid content -> list becomes empty
+            Files.writeString(file, "not json", StandardCharsets.UTF_8, StandardOpenOption.TRUNCATE_EXISTING);
+            awaitCondition(() -> availableNodes().isEmpty(), 2_000);
+
+            // MODIFY back to valid -> list non-empty again
+            Files.writeString(file, valid, StandardCharsets.UTF_8, StandardOpenOption.TRUNCATE_EXISTING);
+            awaitCondition(() -> !availableNodes().isEmpty(), 2_000);
+
+            // DELETE -> list becomes empty
+            Files.deleteIfExists(file);
+            awaitCondition(() -> availableNodes().isEmpty(), 2_000);
+        } finally {
+            // Stop watcher thread and cleanup
+            try { invoke_stopConfigWatcher(); } catch (final Exception ignore) {}
+            try { Files.deleteIfExists(tmpDir); } catch (final Exception ignore) {}
+        }
+    }
+
+    @Test
     void testStopConnections_withException() {
         final BlockNodeConnection conn = mock(BlockNodeConnection.class);
         doThrow(new RuntimeException("Close failed")).when(conn).close(true);
@@ -2411,6 +2551,38 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         } catch (final Throwable e) {
             throw new RuntimeException(e);
         }
+    }
+
+    private void invoke_performInitialConfigLoad() {
+        try {
+            performInitialConfigLoadHandle.invoke(connectionManager);
+        } catch (final Throwable e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private void invoke_startConfigWatcher() {
+        try {
+            startConfigWatcherHandle.invoke(connectionManager);
+        } catch (final Throwable e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private void invoke_stopConfigWatcher() {
+        try {
+            stopConfigWatcherHandle.invoke(connectionManager);
+        } catch (final Throwable e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private void awaitCondition(final java.util.function.BooleanSupplier condition, final long timeoutMs) {
+        final long start = System.currentTimeMillis();
+        while (!condition.getAsBoolean() && (System.currentTimeMillis() - start) < timeoutMs) {
+            LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(10));
+        }
+        assertThat(condition.getAsBoolean()).isTrue();
     }
 
     private void resetMocks() {
