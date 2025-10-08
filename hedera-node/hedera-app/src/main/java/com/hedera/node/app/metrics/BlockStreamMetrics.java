@@ -371,9 +371,6 @@ public class BlockStreamMetrics {
                     final String namePrefix = respTypeName + "_";
                     for (final PublishStreamResponse.EndOfStream.Code eosCode :
                             PublishStreamResponse.EndOfStream.Code.values()) {
-                        if (PublishStreamResponse.EndOfStream.Code.UNKNOWN == eosCode) {
-                            continue;
-                        }
                         final String name = respTypeName + "_" + toCamelCase(eosCode.protoName());
                         final Counter.Config cfg = newCounter(
                                         GROUP_CONN_RECV, namePrefix + toCamelCase(eosCode.protoName()))
