@@ -9,8 +9,8 @@ import static com.hedera.node.app.hints.schemas.V059HintsSchema.NEXT_HINTS_CONST
 import static com.hedera.node.app.hints.schemas.V059HintsSchema.PREPROCESSING_VOTES_STATE_ID;
 import static com.hedera.node.app.hints.schemas.V060HintsSchema.CRS_PUBLICATIONS_STATE_ID;
 import static com.hedera.node.app.hints.schemas.V060HintsSchema.CRS_STATE_STATE_ID;
-import static com.hedera.node.app.roster.ActiveRosters.Phase.BOOTSTRAP;
-import static com.hedera.node.app.roster.ActiveRosters.Phase.HANDOFF;
+import static com.hedera.node.app.service.roster.impl.ActiveRosters.Phase.BOOTSTRAP;
+import static com.hedera.node.app.service.roster.impl.ActiveRosters.Phase.HANDOFF;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.state.hints.CRSState;
@@ -26,7 +26,7 @@ import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.state.NodeId;
 import com.hedera.hapi.services.auxiliary.hints.CrsPublicationTransactionBody;
 import com.hedera.node.app.hints.WritableHintsStore;
-import com.hedera.node.app.roster.ActiveRosters;
+import com.hedera.node.app.service.roster.impl.ActiveRosters;
 import com.hedera.node.app.spi.ids.WritableEntityCounters;
 import com.hedera.node.config.data.TssConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;

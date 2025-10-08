@@ -7,7 +7,7 @@ import com.hedera.hapi.node.state.hints.PreprocessedKeys;
 import com.hedera.hapi.node.state.hints.PreprocessingVote;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.services.auxiliary.hints.CrsPublicationTransactionBody;
-import com.hedera.node.app.roster.ActiveRosters;
+import com.hedera.node.app.service.roster.impl.ActiveRosters;
 import com.hedera.node.config.data.TssConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;

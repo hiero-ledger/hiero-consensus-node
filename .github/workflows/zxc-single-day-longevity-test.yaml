@@ -39,6 +39,11 @@ on:
         default: ""
         type: string
         description: 'Add props to settings.txt, e.g. "state.saveStatePeriod, 300". Newline is "\n"'
+      delete-namespace:
+        required: false
+        default: true
+        type: boolean
+        description: "If true, automatically delete namespace when done"
     secrets:
       slack-report-webhook:
         required: true
@@ -637,6 +642,11 @@ jobs:
           sh "${{ github.workspace }}"/.github/workflows/support/citr/getClusterErrors.sh "${{ needs.longevity-tests-start.outputs.namespace }}"
           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.longevity-tests-start.outputs.namespace }}" cp ${nlgpod}:/app/version_run.txt "${{ github.workspace }}"/report/version_run.txt
           cp -r podlog_"${{ needs.longevity-tests-start.outputs.namespace }}" "${{ github.workspace }}"/report/
+
+      - name: Delete namespace
+        if: ${{ inputs.delete-namespace == true }}
+        run: |
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt delete namespace "${{ needs.longevity-tests-start.outputs.namespace }}"
 
       - name: Extract benchmark score of NftTransferLoadTest test
         id: NftTransferLoadTestLogs

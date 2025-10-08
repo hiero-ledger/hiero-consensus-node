@@ -13,6 +13,7 @@ open module com.swirlds.state.impl.test.fixtures {
     requires transitive org.hiero.base.utility;
     requires transitive org.junit.jupiter.params;
     requires com.swirlds.common.test.fixtures;
+    requires com.swirlds.config.extensions;
     requires com.swirlds.fcqueue;
     requires com.swirlds.logging;
     requires com.swirlds.merkle;
