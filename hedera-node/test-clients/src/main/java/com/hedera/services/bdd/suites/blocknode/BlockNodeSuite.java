@@ -648,6 +648,7 @@ public class BlockNodeSuite {
                             "blockStream.streamMode", "BLOCKS",
                             "blockStream.writerMode", "FILE_AND_GRPC",
                             "blockStream.buffer.blockTtl", BLOCK_TTL_MINUTES + "m",
+                            "blockStream.buffer.isBufferPersistenceEnabled", "true",
                             "blockStream.blockPeriod", BLOCK_PERIOD_SECONDS + "s",
                             "blockNode.streamResetPeriod", "20s",
                         })
