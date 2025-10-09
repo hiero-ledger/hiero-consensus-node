@@ -110,8 +110,8 @@ public interface Network {
     void weightGenerator(@NonNull WeightGenerator weightGenerator);
 
     /**
-     * Sets the weight of each node in the network to the specified value. Calling this method results in balanced, or
-     * evenly distributed weight.
+     * Sets the weight of each node in the network to the specified value. Calling this method results in balanced
+     * weight distribution.
      *
      * @param weight the weight to assign to each node. Must be positive.
      */

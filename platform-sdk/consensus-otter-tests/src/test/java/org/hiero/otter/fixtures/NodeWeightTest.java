@@ -6,12 +6,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.hiero.otter.fixtures.Constants.RANDOM_SEED;
 
 import com.swirlds.common.test.fixtures.WeightGenerators;
-import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
-import java.util.stream.Stream;
 import org.hiero.otter.fixtures.turtle.TurtleTestEnvironment;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.api.Test;
 
 /**
  * Tests for node weight functionality in the Network and Node interfaces.
@@ -19,23 +16,11 @@ import org.junit.jupiter.params.provider.MethodSource;
 class NodeWeightTest {
 
     /**
-     * Provides a stream of test environments for the parameterized tests. Only uses the Turtle environment because the
-     * functionality is in abstract classes, and it is much faster than the container environment.
-     *
-     * @return a stream of {@link TestEnvironment} instances
-     */
-    public static Stream<TestEnvironment> environments() {
-        return Stream.of(new TurtleTestEnvironment(RANDOM_SEED));
-    }
-
-    /**
      * Test that individual node weights can be set before the network starts.
-     *
-     * @param env the test environment for this test
      */
-    @ParameterizedTest
-    @MethodSource("environments")
-    void testSetIndividualNodeWeightsBeforeNetworkStarts(@NonNull final TestEnvironment env) {
+    @Test
+    void testSetIndividualNodeWeightsBeforeNetworkStarts() {
+        final TurtleTestEnvironment env = new TurtleTestEnvironment(RANDOM_SEED);
         try {
             final Network network = env.network();
 
@@ -75,12 +60,10 @@ class NodeWeightTest {
 
     /**
      * Test that node weight cannot be set while the node is running.
-     *
-     * @param env the test environment for this test
      */
-    @ParameterizedTest
-    @MethodSource("environments")
-    void testCannotSetNodeWeightWhileRunning(@NonNull final TestEnvironment env) {
+    @Test
+    void testCannotSetNodeWeightWhileRunning() {
+        final TurtleTestEnvironment env = new TurtleTestEnvironment(RANDOM_SEED);
         try {
             final Network network = env.network();
 
@@ -105,12 +88,10 @@ class NodeWeightTest {
 
     /**
      * Test that Network.nodeWeight() sets all nodes to the same weight.
-     *
-     * @param env the test environment for this test
      */
-    @ParameterizedTest
-    @MethodSource("environments")
-    void testNetworkNodeWeightSetsAllNodes(@NonNull final TestEnvironment env) {
+    @Test
+    void testNetworkNodeWeightSetsAllNodes() {
+        final TurtleTestEnvironment env = new TurtleTestEnvironment(RANDOM_SEED);
         try {
             final Network network = env.network();
 
@@ -141,12 +122,10 @@ class NodeWeightTest {
 
     /**
      * Test that Network.nodeWeight() throws when no nodes exist.
-     *
-     * @param env the test environment for this test
      */
-    @ParameterizedTest
-    @MethodSource("environments")
-    void testNodeWeightThrowsWhenNoNodes(@NonNull final TestEnvironment env) {
+    @Test
+    void testNodeWeightThrowsWhenNoNodes() {
+        final TurtleTestEnvironment env = new TurtleTestEnvironment(RANDOM_SEED);
         try {
             final Network network = env.network();
 
@@ -161,12 +140,10 @@ class NodeWeightTest {
 
     /**
      * Test that Network.nodeWeight() throws when weight is zero.
-     *
-     * @param env the test environment for this test
      */
-    @ParameterizedTest
-    @MethodSource("environments")
-    void testNodeWeightThrowsWhenWeightIsZero(@NonNull final TestEnvironment env) {
+    @Test
+    void testNodeWeightThrowsWhenWeightIsZero() {
+        final TurtleTestEnvironment env = new TurtleTestEnvironment(RANDOM_SEED);
         try {
             final Network network = env.network();
             network.addNodes(2);
@@ -182,12 +159,10 @@ class NodeWeightTest {
 
     /**
      * Test that Network.nodeWeight() throws when weight is negative.
-     *
-     * @param env the test environment for this test
      */
-    @ParameterizedTest
-    @MethodSource("environments")
-    void testNodeWeightThrowsWhenWeightIsNegative(@NonNull final TestEnvironment env) {
+    @Test
+    void testNodeWeightThrowsWhenWeightIsNegative() {
+        final TurtleTestEnvironment env = new TurtleTestEnvironment(RANDOM_SEED);
         try {
             final Network network = env.network();
             network.addNodes(2);
@@ -203,12 +178,10 @@ class NodeWeightTest {
 
     /**
      * Test that Node.weight() accepts zero as valid weight.
-     *
-     * @param env the test environment for this test
      */
-    @ParameterizedTest
-    @MethodSource("environments")
-    void testNodeWeightCanBeZero(@NonNull final TestEnvironment env) {
+    @Test
+    void testNodeWeightCanBeZero() {
+        final TurtleTestEnvironment env = new TurtleTestEnvironment(RANDOM_SEED);
         try {
             final Network network = env.network();
             final List<Node> nodes = network.addNodes(1);
@@ -226,12 +199,10 @@ class NodeWeightTest {
 
     /**
      * Test that Node.weight() throws when weight is negative.
-     *
-     * @param env the test environment for this test
      */
-    @ParameterizedTest
-    @MethodSource("environments")
-    void testNodeWeightThrowsForNegative(@NonNull final TestEnvironment env) {
+    @Test
+    void testNodeWeightThrowsForNegative() {
+        final TurtleTestEnvironment env = new TurtleTestEnvironment(RANDOM_SEED);
         try {
             final Network network = env.network();
             final List<Node> nodes = network.addNodes(1);
@@ -248,12 +219,10 @@ class NodeWeightTest {
 
     /**
      * Test that node weight can be updated multiple times before starting.
-     *
-     * @param env the test environment for this test
      */
-    @ParameterizedTest
-    @MethodSource("environments")
-    void testNodeWeightCanBeUpdatedMultipleTimes(@NonNull final TestEnvironment env) {
+    @Test
+    void testNodeWeightCanBeUpdatedMultipleTimes() {
+        final TurtleTestEnvironment env = new TurtleTestEnvironment(RANDOM_SEED);
         try {
             final Network network = env.network();
             final List<Node> nodes = network.addNodes(1);
@@ -279,12 +248,10 @@ class NodeWeightTest {
 
     /**
      * Test that explicit node weights take precedence over weight generator.
-     *
-     * @param env the test environment for this test
      */
-    @ParameterizedTest
-    @MethodSource("environments")
-    void testExplicitWeightsTakePrecedenceOverGenerator(@NonNull final TestEnvironment env) {
+    @Test
+    void testExplicitWeightsTakePrecedenceOverGenerator() {
+        final TurtleTestEnvironment env = new TurtleTestEnvironment(RANDOM_SEED);
         try {
             final Network network = env.network();
 
@@ -312,12 +279,10 @@ class NodeWeightTest {
 
     /**
      * Test that weight generator is used when no explicit weights are set.
-     *
-     * @param env the test environment for this test
      */
-    @ParameterizedTest
-    @MethodSource("environments")
-    void testWeightGeneratorUsedWhenNoExplicitWeights(@NonNull final TestEnvironment env) {
+    @Test
+    void testWeightGeneratorUsedWhenNoExplicitWeights() {
+        final TurtleTestEnvironment env = new TurtleTestEnvironment(RANDOM_SEED);
         try {
             final Network network = env.network();
 
@@ -347,12 +312,10 @@ class NodeWeightTest {
 
     /**
      * Test mixed scenario: some nodes with explicit weights, some without.
-     *
-     * @param env the test environment for this test
      */
-    @ParameterizedTest
-    @MethodSource("environments")
-    void testMixedExplicitAndGeneratedWeights(@NonNull final TestEnvironment env) {
+    @Test
+    void testMixedExplicitAndGeneratedWeights() {
+        final TurtleTestEnvironment env = new TurtleTestEnvironment(RANDOM_SEED);
         try {
             final Network network = env.network();
 

@@ -4,6 +4,7 @@ package org.hiero.otter.fixtures.internal;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.consensus.model.status.PlatformStatus.ACTIVE;
 import static org.hiero.consensus.model.status.PlatformStatus.FREEZE_COMPLETE;
+import static org.hiero.otter.fixtures.internal.AbstractNode.UNSET_WEIGHT;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.ServiceEndpoint;
@@ -277,7 +278,7 @@ public abstract class AbstractNetwork implements Network {
         if (anyNodeHasExplicitWeight) {
             rosterEntries = nodes().stream()
                     .sorted(Comparator.comparing(Node::selfId))
-                    .map(node -> createRosterEntry(node, node.weight() < 0 ? 0 : node.weight()))
+                    .map(node -> createRosterEntry(node, node.weight() == UNSET_WEIGHT ? 0 : node.weight()))
                     .toList();
         } else {
             final int count = nodes().size();

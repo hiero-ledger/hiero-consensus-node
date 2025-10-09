@@ -24,6 +24,8 @@ import org.hiero.otter.fixtures.app.OtterTransaction;
  */
 public abstract class AbstractNode implements Node {
 
+    static final long UNSET_WEIGHT = -1;
+
     /**
      * Represents the lifecycle states of a node.
      */
@@ -42,7 +44,6 @@ public abstract class AbstractNode implements Node {
     }
 
     private static final Duration DEFAULT_TIMEOUT = Duration.ofMinutes(1);
-    private static final long UNSET_WEIGHT = -1;
 
     protected final NodeId selfId;
     protected final KeysAndCerts keysAndCerts;
