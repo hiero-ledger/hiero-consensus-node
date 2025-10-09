@@ -17,15 +17,20 @@ import org.hyperledger.besu.evm.worldstate.WorldUpdater;
 /**
  * An abstract {@link Account} implementation that reads and writes data for the given entity number
  * by proxying calls to the given {@link EvmFrameState}.
- *
- * <p>The {@link EvmFrameState} reflects all changes to the state of the world that have been
+ * <p>
+ * The {@link EvmFrameState} reflects all changes to the state of the world that have been
  * made up to and including the current {@link org.hyperledger.besu.evm.frame.MessageFrame}.
- *
- * <p>There is no implementation difference between mutable and immutable proxy accounts,
+ * <p>
+ * There is no implementation difference between mutable and immutable proxy accounts,
  * since all changes are made to the {@link EvmFrameState} and not to the proxy account.
  * So we just need one implementation, which the EVM will request from {@link WorldUpdater}s
  * as an immutable {@link Account} in read-only contexts; and as a mutable {@link MutableAccount}
- * in a context where writes are allowed.
+ * in a context where writes are allowed.>
+ *
+ * @implNote <b>Important:</b> Uses {@link HederaEvmAccount#hederaContractId()} to decide what contract to read or
+ * write in implementations of {@link org.hyperledger.besu.evm.account.AccountState#getStorageValue(UInt256)},
+ * {@link org.hyperledger.besu.evm.account.AccountState#getOriginalStorageValue(UInt256)}, and
+ * {@link MutableAccount#setStorageValue(UInt256, UInt256)}.
  */
 public abstract class AbstractProxyEvmAccount extends AbstractMutableEvmAccount {
     protected final AccountID accountID;

@@ -33,11 +33,7 @@ public class TestStringCodec implements Codec<String> {
     @NonNull
     @Override
     public String parse(
-            @NonNull ReadableSequentialData input,
-            boolean strictMode,
-            boolean parseUnknownFields,
-            int maxDepth,
-            int maxSize)
+            @NonNull ReadableSequentialData input, boolean strictMode, boolean parseUnknownFields, int maxDepth)
             throws ParseException {
         Objects.requireNonNull(input);
         final var len = input.readInt();

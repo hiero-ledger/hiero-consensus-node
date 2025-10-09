@@ -69,6 +69,7 @@ jobs:
       nlg-time: "960"
       add-app-props: ""
       add-settings: ""
+      delete-namespace: true
     secrets:
       slack-report-webhook: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
       rootly-api-token: ${{ secrets.ROOTLY_API_TOKEN }}
