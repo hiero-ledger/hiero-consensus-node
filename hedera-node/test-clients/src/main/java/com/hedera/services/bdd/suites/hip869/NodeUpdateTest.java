@@ -14,7 +14,6 @@ import static com.hedera.services.bdd.spec.HapiPropertySource.invalidServiceEndp
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.WRONG_LENGTH_EDDSA_KEY;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.atomicBatch;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeDelete;
@@ -68,7 +67,6 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
@@ -196,28 +194,86 @@ public class NodeUpdateTest {
                 })));
     }
 
-    @Disabled // enable when handling in-flight accountId update is supported
-    @Tag(ONLY_SUBPROCESS)
-    @LeakyHapiTest(overrides = {"nodes.updateAccountIdAllowed"})
-    final Stream<DynamicTest> accountIdUpdateInBatch() {
-        final var nodeIdToUpdate = 1;
-        final var oldNodeAccountId = nodeIdToUpdate + CLASSIC_FIRST_NODE_ACCOUNT_NUM;
+    @LeakyEmbeddedHapiTest(
+            reason = NEEDS_STATE_ACCESS,
+            overrides = {"nodes.updateAccountIdAllowed"})
+    final Stream<DynamicTest> updateAccountIdWithSentinelRequiredSignatures() {
+        final AccountID sentinelValue = AccountID.newBuilder()
+                .setShardNum(0)
+                .setRealmNum(0)
+                .setAccountNum(0)
+                .build();
+        final AtomicReference<AccountID> initialNodeAccountId = new AtomicReference<>();
+        final AtomicReference<AccountID> newAccountId = new AtomicReference<>();
         return hapiTest(
                 overriding("nodes.updateAccountIdAllowed", "true"),
-                cryptoCreate("batchOperator"),
-                cryptoCreate("newNodeAccount"),
-                atomicBatch(
-                                nodeUpdate(String.valueOf(nodeIdToUpdate))
-                                        .accountId("newNodeAccount")
-                                        .payingWith(DEFAULT_PAYER)
-                                        .signedByPayerAnd(GENESIS)
-                                        .batchKey("batchOperator"),
-                                // check that the transaction after update passes,when the nodeAccountId is updated
-                                cryptoCreate("foo").batchKey("batchOperator").via("createTxn"))
-                        // Setting nodeId on the batch transaction
-                        // automatically sets it for the inner transactions as well
-                        .setNode(oldNodeAccountId)
-                        .payingWith("batchOperator"));
+                newKeyNamed("adminKey"),
+                cryptoCreate("initialNodeAccount").exposingCreatedIdTo(initialNodeAccountId::set),
+                cryptoCreate("newAccount").exposingCreatedIdTo(newAccountId::set),
+                sourcing(() -> {
+                    try {
+                        return nodeCreate("testNode")
+                                .accountId(initialNodeAccountId.get())
+                                .adminKey("adminKey")
+                                .gossipCaCertificate(
+                                        gossipCertificates.getFirst().getEncoded());
+                    } catch (CertificateEncodingException e) {
+                        throw new RuntimeException(e);
+                    }
+                }),
+                // no admin key or old node account key fails
+                nodeUpdate("testNode")
+                        .fullAccountId(sentinelValue)
+                        .payingWith(DEFAULT_PAYER)
+                        .signedBy(DEFAULT_PAYER)
+                        .hasPrecheck(INVALID_SIGNATURE),
+                // signed by old node account key works
+                nodeUpdate("testNode")
+                        .fullAccountId(sentinelValue)
+                        .payingWith(DEFAULT_PAYER)
+                        .signedByPayerAnd("initialNodeAccount"),
+                viewNode("testNode", node -> assertNull(node.accountId(), "node account ID should be unset")),
+                // update to new account when node account is null works with admin key and new account key
+                nodeUpdate("testNode")
+                        .accountId("newAccount")
+                        .payingWith(DEFAULT_PAYER)
+                        .signedByPayerAnd("adminKey", "newAccount"),
+                viewNode("testNode", node -> assertEquals(toPbj(newAccountId.get()), node.accountId())));
+    }
+
+    @LeakyEmbeddedHapiTest(
+            reason = NEEDS_STATE_ACCESS,
+            overrides = {"nodes.updateAccountIdAllowed"})
+    final Stream<DynamicTest> updateAccountIdIsIdempotent() {
+        final AtomicReference<AccountID> initialNodeAccountId = new AtomicReference<>();
+        final AtomicReference<AccountID> newAccountId = new AtomicReference<>();
+        return hapiTest(
+                overriding("nodes.updateAccountIdAllowed", "true"),
+                newKeyNamed("adminKey"),
+                cryptoCreate("initialNodeAccount").exposingCreatedIdTo(initialNodeAccountId::set),
+                cryptoCreate("newAccount").exposingCreatedIdTo(newAccountId::set),
+                sourcing(() -> {
+                    try {
+                        return nodeCreate("testNode")
+                                .accountId(initialNodeAccountId.get())
+                                .adminKey("adminKey")
+                                .gossipCaCertificate(
+                                        gossipCertificates.getFirst().getEncoded());
+                    } catch (CertificateEncodingException e) {
+                        throw new RuntimeException(e);
+                    }
+                }),
+                nodeUpdate("testNode")
+                        .accountId("newAccount")
+                        .payingWith(DEFAULT_PAYER)
+                        .signedByPayerAnd("adminKey", "newAccount"),
+                viewNode("testNode", node -> assertEquals(toPbj(newAccountId.get()), node.accountId())),
+                // node update with the same accountId should pass
+                nodeUpdate("testNode")
+                        .accountId("newAccount")
+                        .payingWith(DEFAULT_PAYER)
+                        .signedByPayerAnd("adminKey", "newAccount"),
+                viewNode("testNode", node -> assertEquals(toPbj(newAccountId.get()), node.accountId())));
     }
 
     @HapiTest

@@ -238,7 +238,7 @@ public class ReadableFreezeUpgradeActions {
                 .mapToLong(EntityNumber::number)
                 .sorted()
                 .mapToObj(nodeStore::get)
-                .filter(node -> node != null && !node.deleted())
+                .filter(node -> node != null && !node.deleted() && node.hasAccountId())
                 .map(node -> new ActiveNode(node, stakingInfoStore.get(node.nodeId())))
                 .toList();
     }
