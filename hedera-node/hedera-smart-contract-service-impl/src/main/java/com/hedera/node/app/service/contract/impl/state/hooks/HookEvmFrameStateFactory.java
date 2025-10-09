@@ -33,6 +33,11 @@ public class HookEvmFrameStateFactory implements EvmFrameStateFactory {
 
     @Override
     public EvmFrameState get() {
-        return new HookEvmFrameState(hederaNativeOperations, hederaOperations.getStore(), codeFactory, hook);
+        return new HookEvmFrameState(
+                hederaNativeOperations,
+                hederaOperations.getStore(),
+                hederaNativeOperations.readableHookStore(),
+                codeFactory,
+                hook);
     }
 }

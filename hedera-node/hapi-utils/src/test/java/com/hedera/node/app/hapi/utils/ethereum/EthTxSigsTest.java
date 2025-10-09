@@ -94,6 +94,7 @@ class EthTxSigsTest {
                 BigInteger.ZERO,
                 ZERO_BYTES,
                 ZERO_BYTES,
+                null,
                 3,
                 new byte[0],
                 allFs,
@@ -117,6 +118,7 @@ class EthTxSigsTest {
                 BigInteger.ZERO,
                 ZERO_BYTES,
                 ZERO_BYTES,
+                null,
                 1,
                 new byte[0],
                 new byte[32],
@@ -132,5 +134,29 @@ class EthTxSigsTest {
 
         // failed recovery
         assertArrayEquals(new byte[0], recoverAddressFromPubKey(TRUFFLE0_PRIVATE_ECDSA_KEY));
+    }
+
+    @Test
+    void isAddressEqualForTransactionWithAccessList() {
+        // based on transaction from Sepolia
+        // https://sepolia.etherscan.io/tx/0xcadccd1934c0fda481414a756cd227cf87a215444d11f3f38c1186cce7a98235
+        final var expectedFromAddress = CommonUtils.unhex("eA1B261FB7Ec1C4F2BEeA2476f17017537b4B507");
+        final var ethTxData = EthTxData.populateEthTxData(CommonUtils.unhex(
+                "02f8cb83aa36a781d6843b9aca00843b9aca0e82653394bdf6a09235fa130c5e5ddb60a3c06852e794347580a42e64cec10000000000000000000000000000000000000000000000000000000000000000f838f794bdf6a09235fa130c5e5ddb60a3c06852e7943475e1a0000000000000000000000000000000000000000000000000000000000000000001a0db915ded35296ff17f81c4e4075ba39a7cc6a0a1bf622eb969a578dad169d04aa03471b14e0f6ada15f1e5ab0eac0ed3c71dd3447ba98dc4669c82d2e406bb16be" // INPROPER
+                ));
+        final var ethTxSigs = EthTxSigs.extractSignatures(ethTxData);
+        assertArrayEquals(expectedFromAddress, ethTxSigs.address());
+    }
+
+    @Test
+    void isAddressEqualForTransactionWithoutAccessList() {
+        // based on transaction from Sepolia
+        // https://sepolia.etherscan.io/tx/0xd26abe8a34f53a7a2062bf7f8dd0c7218d9cf760fa6cca289eb06a5905894a98
+        final var expectedFromAddress = CommonUtils.unhex("eA1B261FB7Ec1C4F2BEeA2476f17017537b4B507");
+        final var ethTxData = EthTxData.populateEthTxData(CommonUtils.unhex(
+                "02f89283aa36a781d5843b9aca00843b9aca0e825c3794bdf6a09235fa130c5e5ddb60a3c06852e794347580a42e64cec10000000000000000000000000000000000000000000000000000000000000000c080a09a3e200427a4d4eff9df54400d8a161b9439a0faae8d9d2a0b2275586011b3eba042defab332de10085042867558826d9bf16f8ff6e4a3c4f46640c9de16f927b0" // INPROPER
+                ));
+        final var ethTxSigs = EthTxSigs.extractSignatures(ethTxData);
+        assertArrayEquals(expectedFromAddress, ethTxSigs.address());
     }
 }
