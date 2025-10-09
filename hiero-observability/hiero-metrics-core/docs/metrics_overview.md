@@ -1,10 +1,11 @@
 ## Metrics Overview
 
-Metrics are one of the three pillars of observability, alongside logging and tracing.  
-Metrics provide quantitative, numerical data about a system’s state and performance, typically sampled at regular intervals. 
+Metrics are one of the three pillars of observability, alongside logging and tracing.<br/>
+Metrics provide quantitative, numerical data about a system’s state and performance, typically sampled at regular intervals.
 They help track trends, resource usage, and system health over time.
 
 ### Goals
+
 1. Compatibility with [OpenMetrics1.1](https://github.com/prometheus/OpenMetrics/blob/main/specification/OpenMetrics.md).
 2. Minimum dependencies.
 3. High performance with low memory footprint.
@@ -14,9 +15,11 @@ They help track trends, resource usage, and system health over time.
 7. Provide SPI for easy configuration.
 
 ### Architecture
+
 ![metrics_architecture.jpeg](img/metrics_architecture.jpeg)
 
 ### Key Concepts
+
 In many standards like **OpenMetrics** and **OpenTelemetry** metric has next key attributes:
 - Metadata (name, description, unit, type)
 - Labels (key-value string pairs)
@@ -24,17 +27,17 @@ In many standards like **OpenMetrics** and **OpenTelemetry** metric has next key
 
 Metric labels provide dimensionality to metrics, allowing for more granular analysis.
 Each unique combination of labels (even empty) represents a distinct time series within the metric over time.
-Metric value(s), uniquely identified by the combination of metric metadata and labels, 
-are called **Data Points**, which serve as a container for the actual metric value(s) and provide methods 
+Metric value(s), uniquely identified by the combination of metric metadata and labels,
+are called **Data Points**, which serve as a container for the actual metric value(s) and provide methods
 to update them on observation and retrieve value(s) during exporting.
 
 See more about metrics here: [📘Metrics Details](metrics_details.md).
 
 ---
 
-Metric API doesn't provide explicit methods to export metrics. 
-Instead, it provides interfaces to implement exporters and a manager to configure and run them.  
-Some metrics support client aggregations (tracking min, max, etc.) and allow to reset aggregated value on export. 
+Metric API doesn't provide explicit methods to export metrics.
+Instead, it provides interfaces to implement exporters and a manager to configure and run them.
+Some metrics support client aggregations (tracking min, max, etc.) and allow to reset aggregated value on export.
 
 See more about metrics exporting here: [📘Metrics Exporting](metrics_exporting.md).
 
@@ -49,6 +52,7 @@ Entry points for clients are:
 - [MetricsFacade](../src/main/java/org/hiero/metrics/api/core/MetricsFacade.java), that allows to register metrics and setup export manager.
 
 ### Key classes
+
 - [Metric](../src/main/java/org/hiero/metrics/api/core/Metric.java)
 - [DataPoint](../src/main/java/org/hiero/metrics/api/datapoint/DataPoint.java)
 - [MetricRegistry](../src/main/java/org/hiero/metrics/api/core/MetricRegistry.java)
