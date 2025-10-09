@@ -507,7 +507,6 @@ public final class PlatformBuilder {
                 swirldStateManager,
                 new AtomicReference<>(),
                 new AtomicReference<>(),
-                new AtomicReference<>(),
                 firstPlatform,
                 consensusStateEventHandler,
                 platformStateFacade,
