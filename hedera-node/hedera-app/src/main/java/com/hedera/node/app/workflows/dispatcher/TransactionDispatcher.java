@@ -221,7 +221,6 @@ public class TransactionDispatcher {
                     case FILE_ID -> handlers.fileSystemUndeleteHandler();
                     default -> throw new UnsupportedOperationException(SYSTEM_UNDELETE_WITHOUT_ID_CASE);
                 };
-
             default -> throw new UnsupportedOperationException(TYPE_NOT_SUPPORTED);
         };
     }
