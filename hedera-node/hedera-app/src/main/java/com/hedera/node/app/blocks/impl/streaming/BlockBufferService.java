@@ -385,7 +385,7 @@ public class BlockBufferService {
     public @Nullable BlockState getBlockState(final long blockNumber) {
         final BlockState block = blockBuffer.get(blockNumber);
 
-        if (block == null) {
+        if (block == null && blockNumber <= lastProducedBlockNumber.get()) {
             blockStreamMetrics.recordBlockMissing();
         }
 
