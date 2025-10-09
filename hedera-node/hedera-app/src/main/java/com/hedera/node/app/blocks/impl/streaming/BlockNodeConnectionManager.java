@@ -598,15 +598,17 @@ public class BlockNodeConnectionManager {
         // Stop config watcher
         stopConfigWatcher();
 
+        if (!isConnectionManagerActive.compareAndSet(true, false)) {
+            logWithContext(DEBUG, "Connection Manager already shutdown.");
+            return;
+        }
+
         // Shutdown the block buffer
         blockBufferService.shutdown();
 
         // Stop the scheduled executor service
-        sharedExecutorService.shutdownNow();
-
-        if (!isConnectionManagerActive.compareAndSet(true, false)) {
-            logWithContext(DEBUG, "Connection Manager already shutdown.");
-            return;
+        if (sharedExecutorService != null) {
+            sharedExecutorService.shutdownNow();
         }
 
         // Stop the block stream worker loop thread
@@ -951,7 +953,7 @@ public class BlockNodeConnectionManager {
             final Thread watcherThread = Thread.ofPlatform()
                     .name("BlockNodesConfigWatcher")
                     .start(() -> {
-                        while (true) {
+                        while (!Thread.currentThread().isInterrupted()) {
                             WatchKey key = null;
                             try {
                                 key = watchService.take();
@@ -972,10 +974,13 @@ public class BlockNodeConnectionManager {
                                     }
                                 }
                             } catch (InterruptedException e) {
-                                Thread.currentThread().interrupt();
                                 break;
                             } catch (Exception e) {
                                 logWithContext(INFO, "Exception in config watcher loop.", e);
+                                if (Thread.currentThread().isInterrupted()) {
+                                    logWithContext(DEBUG, "Config watcher thread interrupted, exiting.");
+                                    return;
+                                }
                             } finally {
                                 // Always reset the key to continue watching for events, even if an exception occurred
                                 if (key != null && !key.reset()) {
