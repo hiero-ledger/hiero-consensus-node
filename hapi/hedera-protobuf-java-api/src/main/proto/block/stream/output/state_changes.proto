@@ -1074,6 +1074,11 @@ message MapChangeValue {
          * An EVM hook's state.
          */
         com.hedera.hapi.node.state.hooks.EvmHookState evm_hook_state_value = 29;
+
+        /**
+         * A list of node identifiers.
+         */
+        com.hedera.hapi.node.state.addressbook.NodeIdList node_id_list_value = 30;
     }
 }
 
