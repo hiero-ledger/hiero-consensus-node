@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.system.state.notifications;
 
-import com.swirlds.platform.state.MerkleNodeState;
+import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.State;
 import java.time.Instant;
 import org.hiero.consensus.model.notification.AbstractNotification;

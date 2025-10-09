@@ -28,6 +28,11 @@ public enum OtterStateId {
         this.id = id;
     }
 
+    /**
+     * Get the state id.
+     *
+     * @return the state id
+     */
     public int id() {
         return id;
     }

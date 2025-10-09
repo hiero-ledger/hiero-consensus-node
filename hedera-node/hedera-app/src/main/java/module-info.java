@@ -8,6 +8,7 @@ module com.hedera.node.app {
     requires transitive com.hedera.node.app.service.contract.impl;
     requires transitive com.hedera.node.app.service.file.impl;
     requires transitive com.hedera.node.app.service.network.admin.impl;
+    requires transitive com.hedera.node.app.service.roster.impl;
     requires transitive com.hedera.node.app.service.schedule.impl;
     requires transitive com.hedera.node.app.service.schedule;
     requires transitive com.hedera.node.app.service.token.impl;
@@ -43,6 +44,7 @@ module com.hedera.node.app {
     requires com.hedera.node.app.service.contract;
     requires com.hedera.node.app.service.file;
     requires com.hedera.node.app.service.network.admin;
+    requires com.hedera.node.app.service.roster;
     requires com.hedera.node.app.service.util;
     requires com.hedera.pbj.grpc.client.helidon;
     requires com.swirlds.config.extensions;
@@ -109,7 +111,6 @@ module com.hedera.node.app {
     exports com.hedera.node.app.blocks.impl;
     exports com.hedera.node.app.blocks.impl.streaming;
     exports com.hedera.node.app.workflows.handle.metric;
-    exports com.hedera.node.app.roster;
     exports com.hedera.node.app.tss;
     exports com.hedera.node.app.workflows.handle.stack;
     exports com.hedera.node.app.fees.congestion;
@@ -124,7 +125,6 @@ module com.hedera.node.app {
     exports com.hedera.node.app.tss.schemas;
     exports com.hedera.node.app.blocks.schemas;
     exports com.hedera.node.app.records.schemas;
-    exports com.hedera.node.app.roster.schemas;
     exports com.hedera.node.app.ids.schemas;
     exports com.hedera.node.app.hints.schemas;
 

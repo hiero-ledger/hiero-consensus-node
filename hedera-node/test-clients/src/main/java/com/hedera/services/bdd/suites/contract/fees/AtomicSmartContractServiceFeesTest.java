@@ -30,7 +30,6 @@ import com.hedera.services.bdd.spec.dsl.annotations.Account;
 import com.hedera.services.bdd.spec.dsl.annotations.Contract;
 import com.hedera.services.bdd.spec.dsl.entities.SpecAccount;
 import com.hedera.services.bdd.spec.dsl.entities.SpecContract;
-import java.util.Map;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -43,7 +42,7 @@ import org.junit.jupiter.api.Tag;
 @HapiTestLifecycle
 @OrderedInIsolation
 @Tag(SMART_CONTRACT)
-public class AtomicSmartContractServiceFeesTest {
+class AtomicSmartContractServiceFeesTest {
 
     private static final String ATOMIC_BATCH = "atomicBatch";
     private static final String BATCH_OPERATOR = "batchOperator";
@@ -60,7 +59,6 @@ public class AtomicSmartContractServiceFeesTest {
     @BeforeAll
     public static void setup(final TestLifecycle lifecycle) {
         lifecycle.doAdhoc(contract.getInfo(), civilian.getInfo(), relayer.getInfo());
-        lifecycle.overrideInClass(Map.of("atomicBatch.isEnabled", "true", "atomicBatch.maxNumberOfTransactions", "50"));
     }
 
     @HapiTest

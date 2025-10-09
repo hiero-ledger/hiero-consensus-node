@@ -35,22 +35,16 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.UNAUTHORIZED;
 
 import com.hedera.services.bdd.junit.HapiTest;
-import com.hedera.services.bdd.junit.HapiTestLifecycle;
-import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.SpecOperation;
 import com.hedera.services.bdd.spec.transactions.consensus.HapiTopicCreate;
-import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
-import java.util.Map;
 import java.util.stream.Stream;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 
-@HapiTestLifecycle
-public class AtomicBatchConsensusServiceEndToEndTest {
+class AtomicBatchConsensusServiceEndToEndTest {
 
     private static final double BASE_FEE_BATCH_TRANSACTION = 0.001;
     private static final long HBAR_FEE = 1L;
@@ -91,17 +85,12 @@ public class AtomicBatchConsensusServiceEndToEndTest {
     private static final String newAdminKey = "newAdminKey";
     private static final String feeScheduleKey = "feeScheduleKey";
 
-    @BeforeAll
-    static void beforeAll(@NonNull final TestLifecycle lifecycle) {
-        lifecycle.overrideInClass(Map.of("atomicBatch.isEnabled", "true", "atomicBatch.maxNumberOfTransactions", "50"));
-    }
-
     @Nested
     @DisplayName(
             "Atomic Batch Consensus Service End-to-End Tests - Test Cases with Topic Submit Messages, Topic Updates and Deletes")
     class AtomicBatchConsensusServiceEndToEndTestsWithSubmitMessagesTopicUpdatesAndDeletes {
         @HapiTest
-        public Stream<DynamicTest> submitMessagesToMutableTopicWithSubmitKeyAndUpdateTopicSuccessInBatch() {
+        Stream<DynamicTest> submitMessagesToMutableTopicWithSubmitKeyAndUpdateTopicSuccessInBatch() {
 
             // submit message to topic inner transactions
             final var submitMessageBeforeUpdate = submitMessageTo(TOPIC_ID)
@@ -144,7 +133,7 @@ public class AtomicBatchConsensusServiceEndToEndTest {
         }
 
         @HapiTest
-        public Stream<DynamicTest> submitMessageToMutableTopicWithSubmitKeyAndDeleteTheTopicSuccessInBatch() {
+        Stream<DynamicTest> submitMessageToMutableTopicWithSubmitKeyAndDeleteTheTopicSuccessInBatch() {
 
             // submit message to topic inner transaction
             final var submitMessageBeforeDelete = submitMessageTo(TOPIC_ID)
@@ -177,7 +166,7 @@ public class AtomicBatchConsensusServiceEndToEndTest {
         }
 
         @HapiTest
-        public Stream<DynamicTest> submitMultipleMessagesToMutableTopicWithSubmitKeySuccessInBatch() {
+        Stream<DynamicTest> submitMultipleMessagesToMutableTopicWithSubmitKeySuccessInBatch() {
 
             // submit message to topic inner transactions
             final var submitMessageFirstTransaction = submitMessageTo(TOPIC_ID)
@@ -215,7 +204,7 @@ public class AtomicBatchConsensusServiceEndToEndTest {
         }
 
         @HapiTest
-        public Stream<DynamicTest> submitMultipleMessagesToImmutableTopicWithSubmitKeySuccessInBatch() {
+        Stream<DynamicTest> submitMultipleMessagesToImmutableTopicWithSubmitKeySuccessInBatch() {
 
             // submit message to topic inner transactions
             final var submitMessageFirstTransaction = submitMessageTo(TOPIC_ID)
@@ -253,7 +242,7 @@ public class AtomicBatchConsensusServiceEndToEndTest {
         }
 
         @HapiTest
-        public Stream<DynamicTest> updateMutableTopicWithSubmitKeySubmitMessageAndDeleteTheTopicSuccessInBatch() {
+        Stream<DynamicTest> updateMutableTopicWithSubmitKeySubmitMessageAndDeleteTheTopicSuccessInBatch() {
 
             // update topic inner transaction
             final var updateTopic = updateTopic(TOPIC_ID)
@@ -294,7 +283,7 @@ public class AtomicBatchConsensusServiceEndToEndTest {
         }
 
         @HapiTest
-        public Stream<DynamicTest> submitMessagesToDeletedTopicFailsInBatch() {
+        Stream<DynamicTest> submitMessagesToDeletedTopicFailsInBatch() {
 
             // submit message to topic inner transaction
             final var submitMessageBeforeDelete = submitMessageTo(TOPIC_ID)
@@ -338,7 +327,7 @@ public class AtomicBatchConsensusServiceEndToEndTest {
         }
 
         @HapiTest
-        public Stream<DynamicTest> updateTopicDeleteTopicAndSubmitMessagesToTheDeletedTopicFailsInBatch() {
+        Stream<DynamicTest> updateTopicDeleteTopicAndSubmitMessagesToTheDeletedTopicFailsInBatch() {
 
             // update topic inner transaction
             final var updateTopic = updateTopic(TOPIC_ID)
@@ -383,7 +372,7 @@ public class AtomicBatchConsensusServiceEndToEndTest {
         }
 
         @HapiTest
-        public Stream<DynamicTest> submitMessageDeleteTopicAndUpdateTheDeletedTopicFailsInBatch() {
+        Stream<DynamicTest> submitMessageDeleteTopicAndUpdateTheDeletedTopicFailsInBatch() {
 
             // submit message to topic inner transaction
             final var submitMessageBeforeDelete = submitMessageTo(TOPIC_ID)
@@ -427,7 +416,7 @@ public class AtomicBatchConsensusServiceEndToEndTest {
         }
 
         @HapiTest
-        public Stream<DynamicTest> updateMutableTopicWithNewAutoRenewAccountAndPeriodAndSubmitMessagesSuccessInBatch() {
+        Stream<DynamicTest> updateMutableTopicWithNewAutoRenewAccountAndPeriodAndSubmitMessagesSuccessInBatch() {
 
             // submit message to topic inner transactions
             final var submitMessageBeforeUpdate = submitMessageTo(TOPIC_ID)
@@ -474,7 +463,7 @@ public class AtomicBatchConsensusServiceEndToEndTest {
         }
 
         @HapiTest
-        public Stream<DynamicTest>
+        Stream<DynamicTest>
                 updateMutableTopicWithoutAutoRenewWithAutoRenewAccountAndPeriodAndSubmitMessagesSuccessInBatch() {
 
             // submit message to topic inner transactions
@@ -522,7 +511,7 @@ public class AtomicBatchConsensusServiceEndToEndTest {
         }
 
         @HapiTest
-        public Stream<DynamicTest>
+        Stream<DynamicTest>
                 updateMutableTopicWithoutAutoRenewWithAutoRenewAndSubmitMessagesNotSignedByAutoRenewFailsInBatch() {
 
             // submit message to topic inner transactions
@@ -569,7 +558,7 @@ public class AtomicBatchConsensusServiceEndToEndTest {
         }
 
         @HapiTest
-        public Stream<DynamicTest> updateImmutableTopicWithNewAutoRenewAccountAndPeriodAndSubmitMessagesFailsInBatch() {
+        Stream<DynamicTest> updateImmutableTopicWithNewAutoRenewAccountAndPeriodAndSubmitMessagesFailsInBatch() {
 
             // submit message to topic inner transactions
             final var submitMessageBeforeUpdate = submitMessageTo(TOPIC_ID)
@@ -614,7 +603,7 @@ public class AtomicBatchConsensusServiceEndToEndTest {
         }
 
         @HapiTest
-        public Stream<DynamicTest>
+        Stream<DynamicTest>
                 updateImmutableTopicWithoutAutoRenewWithAutoRenewAccountAndPeriodAndSubmitMessagesFailsInBatch() {
 
             // submit message to topic inner transactions
@@ -661,7 +650,7 @@ public class AtomicBatchConsensusServiceEndToEndTest {
         }
 
         @HapiTest
-        public Stream<DynamicTest> deleteImmutableTopicAndSubmitMessageFailsInBatch() {
+        Stream<DynamicTest> deleteImmutableTopicAndSubmitMessageFailsInBatch() {
 
             // submit message to topic inner transactions
             final var submitMessageBeforeUpdate = submitMessageTo(TOPIC_ID)
@@ -704,7 +693,7 @@ public class AtomicBatchConsensusServiceEndToEndTest {
 
         @HapiTest
         @Tag(MATS)
-        public Stream<DynamicTest> updateMutableTopicWithNewAdminKeyAndSubmitMessagesSuccessInBatch() {
+        Stream<DynamicTest> updateMutableTopicWithNewAdminKeyAndSubmitMessagesSuccessInBatch() {
 
             // submit message to topic inner transactions
             final var submitMessageBeforeUpdate = submitMessageTo(TOPIC_ID)
@@ -747,8 +736,7 @@ public class AtomicBatchConsensusServiceEndToEndTest {
         }
 
         @HapiTest
-        public Stream<DynamicTest>
-                updateMutableTopicWithNewAdminKeyAndSubmitMessagesNotSignedByOldAdminKeyFailsInBatch() {
+        Stream<DynamicTest> updateMutableTopicWithNewAdminKeyAndSubmitMessagesNotSignedByOldAdminKeyFailsInBatch() {
 
             // submit message to topic inner transactions
             final var submitMessageBeforeUpdate = submitMessageTo(TOPIC_ID)
@@ -792,8 +780,7 @@ public class AtomicBatchConsensusServiceEndToEndTest {
         }
 
         @HapiTest
-        public Stream<DynamicTest>
-                updateMutableTopicWithNewAdminKeyAndSubmitMessagesNotSignedByNewAdminKeyFailsInBatch() {
+        Stream<DynamicTest> updateMutableTopicWithNewAdminKeyAndSubmitMessagesNotSignedByNewAdminKeyFailsInBatch() {
 
             // submit message to topic inner transactions
             final var submitMessageBeforeUpdate = submitMessageTo(TOPIC_ID)
@@ -837,7 +824,7 @@ public class AtomicBatchConsensusServiceEndToEndTest {
         }
 
         @HapiTest
-        public Stream<DynamicTest> updateMutableTopicWithNewAdminKeyAndUpdateTheTopicSuccessInBatch() {
+        Stream<DynamicTest> updateMutableTopicWithNewAdminKeyAndUpdateTheTopicSuccessInBatch() {
 
             // submit message to topic inner transactions
             final var submitMessageBeforeUpdate = submitMessageTo(TOPIC_ID)
@@ -891,8 +878,7 @@ public class AtomicBatchConsensusServiceEndToEndTest {
         }
 
         @HapiTest
-        public Stream<DynamicTest>
-                updateMutableTopicWithNewAdminKeyAndUpdateTheTopicNotSignedByTheNewAdminKeyFailsInBatch() {
+        Stream<DynamicTest> updateMutableTopicWithNewAdminKeyAndUpdateTheTopicNotSignedByTheNewAdminKeyFailsInBatch() {
 
             // submit message to topic inner transactions
             final var submitMessageBeforeUpdate = submitMessageTo(TOPIC_ID)
@@ -947,7 +933,7 @@ public class AtomicBatchConsensusServiceEndToEndTest {
         }
 
         @HapiTest
-        public Stream<DynamicTest> updateMutableTopicWithNewSubmitKeyAndSubmitMessagesSuccessInBatch() {
+        Stream<DynamicTest> updateMutableTopicWithNewSubmitKeyAndSubmitMessagesSuccessInBatch() {
 
             // submit message to topic inner transactions
             final var submitMessageBeforeUpdate = submitMessageTo(TOPIC_ID)
@@ -990,7 +976,7 @@ public class AtomicBatchConsensusServiceEndToEndTest {
         }
 
         @HapiTest
-        public Stream<DynamicTest> updateMutableTopicWithNewAdminKeyAndNewSubmitKeyAndSubmitMessagesSuccessInBatch() {
+        Stream<DynamicTest> updateMutableTopicWithNewAdminKeyAndNewSubmitKeyAndSubmitMessagesSuccessInBatch() {
 
             // submit message to topic inner transactions
             final var submitMessageBeforeUpdate = submitMessageTo(TOPIC_ID)
@@ -1048,7 +1034,7 @@ public class AtomicBatchConsensusServiceEndToEndTest {
     @DisplayName("Atomic Batch Consensus Service End-to-End Tests with Submit Messages to Topics with Custom Fees")
     class AtomicBatchConsensusServiceWithCustomFees {
         @HapiTest
-        public Stream<DynamicTest> submitMessagesToMutableTopicWithHBARCustomFeeAndUpdateTopicSuccessInBatch() {
+        Stream<DynamicTest> submitMessagesToMutableTopicWithHBARCustomFeeAndUpdateTopicSuccessInBatch() {
 
             // submit message to topic inner transactions
             final var submitMessageBeforeUpdate = submitMessageTo(TOPIC_ID)
@@ -1094,7 +1080,7 @@ public class AtomicBatchConsensusServiceEndToEndTest {
         }
 
         @HapiTest
-        public Stream<DynamicTest> submitMessagesToMutableTopicWithHTSCustomFeeAndUpdateTopicSuccessInBatch() {
+        Stream<DynamicTest> submitMessagesToMutableTopicWithHTSCustomFeeAndUpdateTopicSuccessInBatch() {
 
             // submit message to topic inner transactions
             final var submitMessageBeforeUpdate = submitMessageTo(TOPIC_ID)
@@ -1143,7 +1129,7 @@ public class AtomicBatchConsensusServiceEndToEndTest {
         }
 
         @HapiTest
-        public Stream<DynamicTest> submitMessagesToMultipleTopicsWithCustomFeesSuccessInBatch() {
+        Stream<DynamicTest> submitMessagesToMultipleTopicsWithCustomFeesSuccessInBatch() {
 
             // submit message to topic inner transactions
             final var submitMessageToFirstTopic = submitMessageTo(TOPIC_ID)
@@ -1179,7 +1165,7 @@ public class AtomicBatchConsensusServiceEndToEndTest {
         }
 
         @HapiTest
-        public Stream<DynamicTest>
+        Stream<DynamicTest>
                 submitMessagesToTopicWithCustomFeesWithInvalidInnerTxnFailInBatchAndNoCustomFeesAreTransferred() {
 
             // submit message to topic inner transactions
@@ -1228,7 +1214,7 @@ public class AtomicBatchConsensusServiceEndToEndTest {
         }
 
         @HapiTest
-        public Stream<DynamicTest> submitMessagesToTopicWithCustomFeesWithInsufficientPayerBalanceFailsInBatch() {
+        Stream<DynamicTest> submitMessagesToTopicWithCustomFeesWithInsufficientPayerBalanceFailsInBatch() {
 
             // submit message to topic inner transactions
             final var submitMessageToFirstTopic = submitMessageTo(TOPIC_ID)
@@ -1265,7 +1251,7 @@ public class AtomicBatchConsensusServiceEndToEndTest {
         }
 
         @HapiTest
-        public Stream<DynamicTest> submitMessagesToTopicWithMaxCustomFeeLessThanRequiredFeeFailsInBatch() {
+        Stream<DynamicTest> submitMessagesToTopicWithMaxCustomFeeLessThanRequiredFeeFailsInBatch() {
 
             // set custom fees limit
             final var htsFeeLimit = htsLimit(DENOM_TOKEN, 1 / 2);
@@ -1311,7 +1297,7 @@ public class AtomicBatchConsensusServiceEndToEndTest {
     class AtomicBatchConsensusServiceWithCustomFeesUpdates {
         @HapiTest
         @Tag(MATS)
-        public Stream<DynamicTest> submitMessagesToMultipleTopicsWithCustomFeesUpdatesSuccessInBatch() {
+        Stream<DynamicTest> submitMessagesToMultipleTopicsWithCustomFeesUpdatesSuccessInBatch() {
 
             // submit message to topic inner transactions
             final var submitMessageToFirstTopicBeforeUpdate = submitMessageTo(TOPIC_ID)
@@ -1383,7 +1369,7 @@ public class AtomicBatchConsensusServiceEndToEndTest {
         }
 
         @HapiTest
-        public Stream<DynamicTest> submitMessagesToTopicsWithUpdatedToHTSCustomFeesSuccessInBatch() {
+        Stream<DynamicTest> submitMessagesToTopicsWithUpdatedToHTSCustomFeesSuccessInBatch() {
 
             // submit message to topic inner transactions
             final var submitMessageToFirstTopicBeforeUpdate = submitMessageTo(TOPIC_ID)
@@ -1437,7 +1423,7 @@ public class AtomicBatchConsensusServiceEndToEndTest {
         }
 
         @HapiTest
-        public Stream<DynamicTest> submitMessagesToTopicsWithUpdatedToHBARCustomFeesSuccessInBatch() {
+        Stream<DynamicTest> submitMessagesToTopicsWithUpdatedToHBARCustomFeesSuccessInBatch() {
 
             // submit message to topic inner transactions
             final var submitMessageToSecondTopicBeforeUpdate = submitMessageTo(TOPIC_ID_SECOND)
@@ -1491,7 +1477,7 @@ public class AtomicBatchConsensusServiceEndToEndTest {
         }
 
         @HapiTest
-        public Stream<DynamicTest> submitMessagesToTopicsWithRemovedCustomFeesSuccessInBatch() {
+        Stream<DynamicTest> submitMessagesToTopicsWithRemovedCustomFeesSuccessInBatch() {
 
             // submit message to topic inner transactions
             final var submitMessageToFirstTopicBeforeUpdate = submitMessageTo(TOPIC_ID)
@@ -1541,7 +1527,7 @@ public class AtomicBatchConsensusServiceEndToEndTest {
         }
 
         @HapiTest
-        public Stream<DynamicTest> submitMessagesToMultipleTopicsWithCustomFeesUpdatesAddAndRemoveFeesSuccessInBatch() {
+        Stream<DynamicTest> submitMessagesToMultipleTopicsWithCustomFeesUpdatesAddAndRemoveFeesSuccessInBatch() {
 
             // submit message to topic inner transactions
             final var submitMessageToFirstTopicBeforeFirstUpdate = submitMessageTo(TOPIC_ID)
@@ -1612,7 +1598,7 @@ public class AtomicBatchConsensusServiceEndToEndTest {
         }
 
         @HapiTest
-        public Stream<DynamicTest> topicCustomFeesUpdatesNotSignedByFeeScheduleKeyFailsInBatch() {
+        Stream<DynamicTest> topicCustomFeesUpdatesNotSignedByFeeScheduleKeyFailsInBatch() {
 
             // submit message to topic inner transactions
             final var submitMessageToTopicBeforeUpdate = submitMessageTo(TOPIC_ID)
@@ -1666,7 +1652,7 @@ public class AtomicBatchConsensusServiceEndToEndTest {
         }
 
         @HapiTest
-        public Stream<DynamicTest> topicWithMoreThanTenCustomFeesFailsInBatch() {
+        Stream<DynamicTest> topicWithMoreThanTenCustomFeesFailsInBatch() {
 
             // submit message to topic inner transactions
             final var submitMessageToTopicBeforeUpdate = submitMessageTo(TOPIC_ID)
@@ -1734,7 +1720,7 @@ public class AtomicBatchConsensusServiceEndToEndTest {
     @DisplayName("Atomic Batch Consensus Service End-to-End Tests with Custom Fees Exempt List")
     class AtomicBatchConsensusServiceWithCustomFeesExemptList {
         @HapiTest
-        public Stream<DynamicTest> submitMessagesToTopicsWithCustomFeesExemptListSuccessInBatch() {
+        Stream<DynamicTest> submitMessagesToTopicsWithCustomFeesExemptListSuccessInBatch() {
 
             // submit message to topic inner transactions
             final var submitFirstMessageToTopicExempt = submitMessageTo(TOPIC_ID)
@@ -1774,7 +1760,7 @@ public class AtomicBatchConsensusServiceEndToEndTest {
         }
 
         @HapiTest
-        public Stream<DynamicTest> submitMessagesToTopicsWithCustomFeesExemptAndNonExemptPayersSuccessInBatch() {
+        Stream<DynamicTest> submitMessagesToTopicsWithCustomFeesExemptAndNonExemptPayersSuccessInBatch() {
 
             // submit message to topic inner transactions
             final var submitFirstMessageToTopicExempt = submitMessageTo(TOPIC_ID)
@@ -1814,7 +1800,7 @@ public class AtomicBatchConsensusServiceEndToEndTest {
         }
 
         @HapiTest
-        public Stream<DynamicTest>
+        Stream<DynamicTest>
                 submitMessagesToTopicsWithCustomFeesUpdateFeesExemptListAddExemptPayersListSuccessInBatch() {
 
             // submit message to topic inner transactions
@@ -1867,7 +1853,7 @@ public class AtomicBatchConsensusServiceEndToEndTest {
         }
 
         @HapiTest
-        public Stream<DynamicTest>
+        Stream<DynamicTest>
                 submitMessagesToTopicsWithCustomFeesUpdateFeesExemptListRemoveExemptPayersListSuccessInBatch() {
 
             // submit message to topic inner transactions
@@ -1921,7 +1907,7 @@ public class AtomicBatchConsensusServiceEndToEndTest {
         }
 
         @HapiTest
-        public Stream<DynamicTest> submitMessagesToTopicsWithCustomFeesExemptListWithMoreThanTenPayersFailsInBatch() {
+        Stream<DynamicTest> submitMessagesToTopicsWithCustomFeesExemptListWithMoreThanTenPayersFailsInBatch() {
 
             // submit message to topic inner transactions
             final var submitFirstMessageToTopicBeforeUpdateExempt = submitMessageTo(TOPIC_ID)
