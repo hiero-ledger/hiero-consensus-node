@@ -53,7 +53,7 @@ class NetworkPartitionTest {
             final TimeManager timeManager = env.timeManager();
 
             // Setup network with 4 nodes
-            network.setWeightGenerator(WeightGenerators.BALANCED);
+            network.weightGenerator(WeightGenerators.BALANCED);
             final List<Node> nodes = network.addNodes(4);
             final Node node0 = nodes.get(0);
             final Node node1 = nodes.get(1);
@@ -139,7 +139,7 @@ class NetworkPartitionTest {
             final TimeManager timeManager = env.timeManager();
 
             // Setup network with 4 nodes
-            network.setWeightGenerator(WeightGenerators.BALANCED);
+            network.weightGenerator(WeightGenerators.BALANCED);
             final List<Node> nodes = network.addNodes(4);
             final Node node0 = nodes.get(0);
             final Node node1 = nodes.get(1);

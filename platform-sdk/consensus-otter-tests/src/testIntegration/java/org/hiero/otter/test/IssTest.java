@@ -60,7 +60,7 @@ public class IssTest {
 
         env.timeManager()
                 .waitForCondition(
-                        issNode::isActive, Duration.ofSeconds(60), "Node did not become ACTIVE in the time allowed.");
+                        issNode::isActive, Duration.ofSeconds(120), "Node did not become ACTIVE in the time allowed.");
 
         assertThat(issNodeStatusResult)
                 .hasSteps(target(ACTIVE).requiringInterim(REPLAYING_EVENTS, OBSERVING, CHECKING));

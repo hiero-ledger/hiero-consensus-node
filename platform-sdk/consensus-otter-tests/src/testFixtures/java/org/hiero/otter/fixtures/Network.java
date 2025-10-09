@@ -97,16 +97,25 @@ public interface Network {
     }
 
     /**
-     * Sets the weight generator for the network. The weight generator is used to assign weights to nodes.
+     * Sets the weight generator for the network. The weight generator is used to assign weights to nodes if no nodes in
+     * the network have their weight set explicitly via {@link Node#weight(long)}.
      *
      * <p>If no weight generator is set, the default {@link WeightGenerators#GAUSSIAN} is used.
      *
-     * <p>Note that the weight generator can only be set before any nodes are added to the network.
+     * <p>Note that the weight generator can only be set before the network is started.
      *
      * @param weightGenerator the weight generator to use
      * @throws IllegalStateException if nodes have already been added to the network
      */
-    void setWeightGenerator(@NonNull WeightGenerator weightGenerator);
+    void weightGenerator(@NonNull WeightGenerator weightGenerator);
+
+    /**
+     * Sets the weight of each node in the network to the specified value. Calling this method results in balanced
+     * weight distribution.
+     *
+     * @param weight the weight to assign to each node. Must be positive.
+     */
+    void nodeWeight(long weight);
 
     /**
      * Gets the total weight of the network. Always positive.

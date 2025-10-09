@@ -8,7 +8,6 @@ import static com.swirlds.platform.state.signed.StartupStateUtils.loadInitialSta
 import static java.util.Objects.requireNonNull;
 import static org.assertj.core.api.Assertions.fail;
 import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.DESTROYED;
-import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.INIT;
 import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.RUNNING;
 import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.SHUTDOWN;
 import static org.hiero.otter.fixtures.result.SubscriberAction.CONTINUE;
@@ -321,9 +320,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
     @Override
     public void submitTransaction(@NonNull final OtterTransaction transaction) {
         try (final LoggingContextScope ignored = installNodeContext()) {
-            throwIfInLifecycle(INIT, "Node has not been started yet.");
-            throwIfInLifecycle(SHUTDOWN, "Node has been shut down.");
-            throwIfInLifecycle(DESTROYED, "Node has been destroyed.");
+            throwIsNotInLifecycle(RUNNING, "Cannot submit transaction when the network is not running.");
             assert platform != null; // platform must be initialized if lifeCycle is STARTED
             assert executionLayer != null; // executionLayer must be initialized
 
