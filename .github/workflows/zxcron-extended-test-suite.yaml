@@ -33,6 +33,7 @@ env:
   XTS_CANDIDATE_TAG: "xts-candidate"
   XTS_PASS_GREP_PATTERN: "xts-pass-*"
   PROMOTED_GREP_PATTERN: "build-.{5}"
+  BUILD_GREP_PATTERN: "build-*"
 
 jobs:
   fetch-xts-candidate:
@@ -71,6 +72,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           XTS_PASS_PATTERN: ${{ env.XTS_PASS_GREP_PATTERN }}
           BUILD_PROMO_PATTERN: ${{ env.PROMOTED_GREP_PATTERN }}
+          BUILD_PATTERN: ${{ env.BUILD_GREP_PATTERN }}
           RC_TAG: ${{ inputs.rc-tag || '' }}
         run: |
           # Check if the tag exists and if so grab its commit id
@@ -109,11 +111,16 @@ jobs:
 
             # Get the list of commits between the previous XTS Pass and the current commit
             COMMIT_LIST=""
-            LATEST_XTS_PASS_TAG="$(git tag --list --sort=-version:refname "xts-pass-*" | head --lines 1)"
+            LATEST_XTS_PASS_TAG="$(git tag --list --sort=-version:refname "${XTS_PASS_PATTERN}" | head --lines 1)"
+            LATEST_PROMOTED_BUILD_TAG="$(git tag --list --sort=-version:refname "${BUILD_PATTERN}" | head --lines 1)"
             if [[ -n "${LATEST_XTS_PASS_TAG}" ]]; then
               echo "Latest XTS Pass Tag: ${LATEST_XTS_PASS_TAG}"
               LATEST_XTS_PASS_COMMIT="$(git rev-list -n 1 "${LATEST_XTS_PASS_TAG}")"
               COMMIT_LIST="$(git log --pretty=format:"- [%h: %s](https://github.com/${{ github.repository }}/commit/%H)" "${LATEST_XTS_PASS_COMMIT}..${XTS_COMMIT}")"
+            else [[ -n "${LATEST_PROMOTED_BUILD_TAG}" ]]; then
+              echo "Latest Promoted Tag: ${LATEST_PROMOTED_BUILD_TAG}"
+              LATEST_PROMOTED_BUILD_COMMIT="$(git rev-list -n 1 "${LATEST_PROMOTED_BUILD_TAG}")"
+              COMMIT_LIST="$(git log --pretty=format:"- [%h: %s](https://github.com/${{ github.repository }}/commit/%H)" "${LATEST_PROMOTED_BUILD_TAG}..${XTS_COMMIT}")"
             fi
           fi
 
