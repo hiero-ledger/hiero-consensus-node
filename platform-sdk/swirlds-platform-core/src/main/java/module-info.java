@@ -106,6 +106,7 @@ module com.swirlds.platform.core {
     exports com.swirlds.platform.config.internal;
     exports com.swirlds.platform.freeze;
     exports com.swirlds.platform.network.protocol.rpc;
+    exports com.swirlds.platform.event.metrics;
 
     requires transitive com.hedera.node.hapi;
     requires transitive com.hedera.pbj.runtime;
