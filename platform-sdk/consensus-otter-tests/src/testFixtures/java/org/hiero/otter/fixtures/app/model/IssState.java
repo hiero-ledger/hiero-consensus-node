@@ -11,25 +11,21 @@ import com.hedera.pbj.runtime.UnknownField;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Collections;
 import java.util.List;
-import org.hiero.otter.fixtures.app.model.schema.ConsistencyStateSchema;
+import org.hiero.otter.fixtures.app.model.schema.IssStateSchema;
 
 /**
- * ConsistencyState
+ * IssState
  */
-public final class ConsistencyState {
+public final class IssState {
     /** Protobuf codec for reading and writing in protobuf format */
-    public static final Codec<ConsistencyState> PROTOBUF =
-            new org.hiero.otter.fixtures.app.model.codec.ConsistencyStateProtoCodec();
+    public static final Codec<IssState> PROTOBUF = new org.hiero.otter.fixtures.app.model.codec.IssStateProtoCodec();
     /** JSON codec for reading and writing in JSON format */
-    public static final JsonCodec<ConsistencyState> JSON =
-            new org.hiero.otter.fixtures.app.model.codec.ConsistencyStateJsonCodec();
+    public static final JsonCodec<IssState> JSON = new org.hiero.otter.fixtures.app.model.codec.IssStateJsonCodec();
     /** Default instance with all fields set to default values */
-    public static final ConsistencyState DEFAULT = newBuilder().build();
+    public static final IssState DEFAULT = newBuilder().build();
 
     /** Field <b>(1)</b>  */
-    private final long runningChecksum;
-    /** Field <b>(2)</b>  */
-    private final long roundsHandled;
+    private final long issState;
     /** Computed hash code, manual input ignored. */
     private int $hashCode = -1;
     /** Computed protobuf encoded size, manual input ignored. */
@@ -38,45 +34,32 @@ public final class ConsistencyState {
     private final List<UnknownField> $unknownFields;
 
     /**
-     * Create a pre-populated ConsistencyState.
+     * Create a pre-populated IssState.
      *
-     * @param runningChecksum <b>(1)</b>
-     * @param roundsHandled <b>(2)</b>
+     * @param issState <b>(1)</b>
      */
-    public ConsistencyState(long runningChecksum, long roundsHandled) {
+    public IssState(long issState) {
         this.$unknownFields = null;
-        this.runningChecksum = runningChecksum;
-        this.roundsHandled = roundsHandled;
+        this.issState = issState;
     }
 
     /**
-     * Create a pre-populated ConsistencyState.
+     * Create a pre-populated IssState.
      *
-     * @param runningChecksum <b>(1)</b>
-     * @param roundsHandled <b>(2)</b>
+     * @param issState <b>(1)</b>
      */
-    public ConsistencyState(long runningChecksum, long roundsHandled, final List<UnknownField> $unknownFields) {
+    public IssState(long issState, final List<UnknownField> $unknownFields) {
         this.$unknownFields = $unknownFields == null ? null : Collections.unmodifiableList($unknownFields);
-        this.runningChecksum = runningChecksum;
-        this.roundsHandled = roundsHandled;
+        this.issState = issState;
     }
 
     /**
      * Get field <b>(1)</b>
      *
-     * @return the value of the runningChecksum field
+     * @return the value of the issState field
      */
-    public long runningChecksum() {
-        return runningChecksum;
-    }
-
-    /**
-     * Get field <b>(2)</b>
-     *
-     * @return the value of the roundsHandled field
-     */
-    public long roundsHandled() {
-        return roundsHandled;
+    public long issState() {
+        return issState;
     }
 
     /**
@@ -117,10 +100,8 @@ public final class ConsistencyState {
 
         if ($protobufEncodedSize == -1) {
             int _size = 0;
-            // [1] - running_checksum
-            _size += sizeOfLong(ConsistencyStateSchema.RUNNING_CHECKSUM, runningChecksum, true);
-            // [2] - rounds_handled
-            _size += sizeOfLong(ConsistencyStateSchema.ROUNDS_HANDLED, roundsHandled, true);
+            // [1] - issState
+            _size += sizeOfLong(IssStateSchema.ISS_STATE, issState, true);
 
             if ($unknownFields != null) {
                 for (int i = 0; i < $unknownFields.size(); i++) {
@@ -152,11 +133,8 @@ public final class ConsistencyState {
 
         if ($hashCode == -1) {
             int result = 1;
-            if (runningChecksum != DEFAULT.runningChecksum) {
-                result = 31 * result + Long.hashCode(runningChecksum);
-            }
-            if (roundsHandled != DEFAULT.roundsHandled) {
-                result = 31 * result + Long.hashCode(roundsHandled);
+            if (issState != DEFAULT.issState) {
+                result = 31 * result + Long.hashCode(issState);
             }
             if ($unknownFields != null) {
                 for (int i = 0; i < $unknownFields.size(); i++) {
@@ -188,14 +166,11 @@ public final class ConsistencyState {
         if (that == null || this.getClass() != that.getClass()) {
             return false;
         }
-        ConsistencyState thatObj = (ConsistencyState) that;
+        IssState thatObj = (IssState) that;
         if ($hashCode != -1 && thatObj.$hashCode != -1 && $hashCode != thatObj.$hashCode) {
             return false;
         }
-        if (runningChecksum != thatObj.runningChecksum) {
-            return false;
-        }
-        if (roundsHandled != thatObj.roundsHandled) {
+        if (issState != thatObj.issState) {
             return false;
         }
         // Treat null and empty lists as equal
@@ -217,7 +192,7 @@ public final class ConsistencyState {
     }
 
     /**
-     * Override the default toString method for ConsistencyState to match the format of a Java record.
+     * Override the default toString method for IssState to match the format of a Java record.
      */
     @Override
     public String toString() {
@@ -230,11 +205,7 @@ public final class ConsistencyState {
             }
             $ufstr = sb.toString();
         }
-        return "ConsistencyState["
-                + "runningChecksum=" + runningChecksum + ", "
-                + "roundsHandled=" + roundsHandled
-                + ($ufstr == null ? "" : (", " + $ufstr))
-                + "]";
+        return "IssState[" + "issState=" + issState + ($ufstr == null ? "" : (", " + $ufstr)) + "]";
     }
 
     /**
@@ -244,7 +215,7 @@ public final class ConsistencyState {
      * @return a pre-populated builder
      */
     public Builder copyBuilder() {
-        return new Builder(runningChecksum, roundsHandled, $unknownFields);
+        return new Builder(issState, $unknownFields);
     }
 
     /**
@@ -261,8 +232,7 @@ public final class ConsistencyState {
      * paths use the constructor directly.
      */
     public static final class Builder {
-        private long runningChecksum = 0;
-        private long roundsHandled = 0;
+        private long issState = 0;
         private final List<UnknownField> $unknownFields;
 
         /**
@@ -275,25 +245,21 @@ public final class ConsistencyState {
         /**
          * Create a pre-populated Builder.
          *
-         * @param runningChecksum <b>(1)</b>
-         * @param roundsHandled <b>(2)</b>
+         * @param issState <b>(1)</b>
          */
-        public Builder(long runningChecksum, long roundsHandled) {
+        public Builder(long issState) {
             this.$unknownFields = null;
-            this.runningChecksum = runningChecksum;
-            this.roundsHandled = roundsHandled;
+            this.issState = issState;
         }
 
         /**
          * Create a pre-populated Builder.
          *
-         * @param runningChecksum <b>(1)</b>
-         * @param roundsHandled <b>(2)</b>
+         * @param issState <b>(1)</b>
          */
-        public Builder(long runningChecksum, long roundsHandled, final List<UnknownField> $unknownFields) {
+        public Builder(long issState, final List<UnknownField> $unknownFields) {
             this.$unknownFields = $unknownFields == null ? null : Collections.unmodifiableList($unknownFields);
-            this.runningChecksum = runningChecksum;
-            this.roundsHandled = roundsHandled;
+            this.issState = issState;
         }
 
         /**
@@ -301,29 +267,18 @@ public final class ConsistencyState {
          *
          * @return new model record with data set
          */
-        public ConsistencyState build() {
-            return new ConsistencyState(runningChecksum, roundsHandled);
+        public IssState build() {
+            return new IssState(issState);
         }
 
         /**
          * <b>(1)</b>
          *
-         * @param runningChecksum value to set
+         * @param issState value to set
          * @return builder to continue building with
          */
-        public Builder runningChecksum(long runningChecksum) {
-            this.runningChecksum = runningChecksum;
-            return this;
-        }
-
-        /**
-         * <b>(2)</b>
-         *
-         * @param roundsHandled value to set
-         * @return builder to continue building with
-         */
-        public Builder roundsHandled(long roundsHandled) {
-            this.roundsHandled = roundsHandled;
+        public Builder issState(long issState) {
+            this.issState = issState;
             return this;
         }
     }
