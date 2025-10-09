@@ -68,7 +68,6 @@ import org.hiero.otter.fixtures.result.MultipleNodePcesResults;
 import org.hiero.otter.fixtures.result.MultipleNodePlatformStatusResults;
 import org.hiero.otter.fixtures.result.MultipleNodeReconnectResults;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
-import org.hiero.otter.fixtures.result.SingleNodeEventStreamResult;
 import org.hiero.otter.fixtures.result.SingleNodeLogResult;
 import org.hiero.otter.fixtures.result.SingleNodeMarkerFileResult;
 import org.hiero.otter.fixtures.result.SingleNodePcesResult;
@@ -612,9 +611,7 @@ public abstract class AbstractNetwork implements Network {
     @Override
     @NonNull
     public MultipleNodeEventStreamResults newEventStreamResults() {
-        final List<SingleNodeEventStreamResult> results =
-                nodes().stream().map(Node::newEventStreamResult).toList();
-        return new MultipleNodeEventStreamResultsImpl(results);
+        return new MultipleNodeEventStreamResultsImpl(nodes());
     }
 
     /**

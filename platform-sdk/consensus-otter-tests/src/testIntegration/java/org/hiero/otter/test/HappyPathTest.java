@@ -54,8 +54,6 @@ public class HappyPathTest {
         // Wait for 5 seconds
         timeManager.waitFor(Duration.ofSeconds(5L));
 
-        env.transactionGenerator().stop();
-
         // Validations
         assertThat(network.newLogResults()).haveNoErrorLevelMessages();
 

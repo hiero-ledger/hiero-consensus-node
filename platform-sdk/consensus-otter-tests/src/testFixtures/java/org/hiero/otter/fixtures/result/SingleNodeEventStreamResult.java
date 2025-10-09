@@ -36,4 +36,19 @@ public interface SingleNodeEventStreamResult {
      */
     @NonNull
     List<Path> signatureFiles();
+
+    /**
+     * Marks the node as having reconnected during the test.
+     *
+     * @return a new instance of {@link SingleNodeEventStreamResult} with the node marked as reconnected
+     */
+    @NonNull
+    SingleNodeEventStreamResult markReconnected();
+
+    /**
+     * Returns whether the node has reconnected during the test.
+     *
+     * @return {@code true} if the node has reconnected, {@code false} otherwise
+     */
+    boolean hasNotReconnected();
 }

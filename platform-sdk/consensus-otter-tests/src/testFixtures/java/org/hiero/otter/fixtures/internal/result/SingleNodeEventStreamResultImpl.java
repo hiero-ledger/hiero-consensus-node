@@ -22,14 +22,20 @@ import org.hiero.otter.fixtures.result.SingleNodeEventStreamResult;
  */
 public class SingleNodeEventStreamResultImpl implements SingleNodeEventStreamResult {
 
-    private static final BiPredicate<Path, BasicFileAttributes> EVENT_STREAM_FILE_FILTER =
-            (path, attrs) -> attrs.isRegularFile() && path.toString().endsWith(".evts");
+    private static final BiPredicate<Path, BasicFileAttributes> EVENT_STREAM_FILE_FILTER = (path, attrs) -> {
+        if (attrs.isRegularFile() && path.toString().endsWith(".evts")) {
+            // We only care about event stream files that have a corresponding signature file
+            return Files.exists(Path.of(path + "_sig"));
+        }
+        return false;
+    };
 
     private static final BiPredicate<Path, BasicFileAttributes> SIGNATURE_FILE_FILTER =
             (path, attrs) -> attrs.isRegularFile() && path.toString().endsWith(".evts_sig");
 
     private final NodeId nodeId;
     private final Path eventStreamDir;
+    private final boolean reconnected;
 
     /**
      * Creates a new instance of {@link SingleNodeEventStreamResultImpl}.
@@ -42,11 +48,19 @@ public class SingleNodeEventStreamResultImpl implements SingleNodeEventStreamRes
             @NonNull final NodeId nodeId, @NonNull final Path baseDir, @NonNull final Configuration configuration) {
         this.nodeId = requireNonNull(nodeId);
         this.eventStreamDir = baseDir.resolve("events_" + nodeId.id());
+        this.reconnected = false;
 
         final EventConfig eventConfig = configuration.getConfigData(EventConfig.class);
         if (!eventConfig.enableEventStreaming()) {
             throw new IllegalStateException("Event streaming is not enabled");
         }
+    }
+
+    private SingleNodeEventStreamResultImpl(
+            @NonNull final NodeId nodeId, @NonNull final Path eventStreamDir, final boolean reconnected) {
+        this.nodeId = requireNonNull(nodeId);
+        this.eventStreamDir = requireNonNull(eventStreamDir);
+        this.reconnected = reconnected;
     }
 
     /**
@@ -82,5 +96,22 @@ public class SingleNodeEventStreamResultImpl implements SingleNodeEventStreamRes
         } catch (final IOException e) {
             throw new UncheckedIOException("Exception while traversing signature files", e);
         }
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
+    public SingleNodeEventStreamResult markReconnected() {
+        return new SingleNodeEventStreamResultImpl(nodeId, eventStreamDir, true);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public boolean hasNotReconnected() {
+        return !reconnected;
     }
 }

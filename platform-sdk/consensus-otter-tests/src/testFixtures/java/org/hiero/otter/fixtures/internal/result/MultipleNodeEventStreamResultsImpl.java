@@ -1,9 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.internal.result;
 
-import static java.util.Collections.unmodifiableList;
-import static java.util.Objects.requireNonNull;
-
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Collection;
 import java.util.List;
@@ -25,17 +22,29 @@ public class MultipleNodeEventStreamResultsImpl implements MultipleNodeEventStre
     /**
      * Constructor for {@link MultipleNodeEventStreamResultsImpl}.
      *
+     * @param nodes the list of nodes for which to capture event stream results
+     */
+    public MultipleNodeEventStreamResultsImpl(@NonNull final Collection<Node> nodes) {
+        this(nodes.stream().map(Node::newEventStreamResult).toList());
+    }
+
+    /**
+     * Constructor for {@link MultipleNodeEventStreamResultsImpl}.
+     *
      * @param results the list of {@link SingleNodeEventStreamResult} for all nodes
      */
-    public MultipleNodeEventStreamResultsImpl(@NonNull final List<SingleNodeEventStreamResult> results) {
+    private MultipleNodeEventStreamResultsImpl(@NonNull final List<SingleNodeEventStreamResult> results) {
         if (results.isEmpty()) {
             throw new IllegalArgumentException("At least one result must be provided");
         }
-        this.results = unmodifiableList(requireNonNull(results));
+        this.results = results;
     }
 
-    @NonNull
+    /**
+     * {@inheritDoc}
+     */
     @Override
+    @NonNull
     public List<SingleNodeEventStreamResult> results() {
         return results;
     }
@@ -63,5 +72,19 @@ public class MultipleNodeEventStreamResultsImpl implements MultipleNodeEventStre
                 .filter(node -> !nodeIdsToSuppress.contains(node.nodeId()))
                 .toList();
         return new MultipleNodeEventStreamResultsImpl(filtered);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
+    public MultipleNodeEventStreamResults withReconnectedNodes(@NonNull final Collection<Node> reconnectedNodes) {
+        final Set<NodeId> reconnectedNodeIds =
+                reconnectedNodes.stream().map(Node::selfId).collect(Collectors.toSet());
+        final List<SingleNodeEventStreamResult> mappedResults = results.stream()
+                .map(result -> reconnectedNodeIds.contains(result.nodeId()) ? result.markReconnected() : result)
+                .toList();
+        return new MultipleNodeEventStreamResultsImpl(mappedResults);
     }
 }

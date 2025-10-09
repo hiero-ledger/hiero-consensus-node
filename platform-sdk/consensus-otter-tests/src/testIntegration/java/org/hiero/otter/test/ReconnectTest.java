@@ -93,6 +93,9 @@ public class ReconnectTest {
         // Now we wait for the node to reconnect and become active again.
         timeManager.waitForCondition(nodeToReconnect::isActive, Duration.ofSeconds(120L));
 
+        // Allow some additional time to ensure we have at least one event stream file after reconnect
+        timeManager.waitFor(Duration.ofSeconds(10L));
+
         // Validations
         assertThat(network.newLogResults()).haveNoErrorLevelMessages();
 
@@ -111,6 +114,7 @@ public class ReconnectTest {
                 .hasSteps(target(ACTIVE)
                         .requiringInterim(REPLAYING_EVENTS, OBSERVING, BEHIND, RECONNECT_COMPLETE, CHECKING));
 
-        assertThat(network.newEventStreamResults()).haveEqualFiles();
+        assertThat(network.newEventStreamResults().withReconnectedNodes(nodeToReconnect))
+                .haveEqualFiles();
     }
 }

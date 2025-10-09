@@ -8,9 +8,13 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.IntSummaryStatistics;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
-import java.util.stream.IntStream;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 import org.assertj.core.api.AbstractAssert;
 import org.assertj.core.api.Assertions;
 import org.hiero.consensus.model.node.NodeId;
@@ -57,140 +61,152 @@ public class MultipleNodeEventStreamResultsAssert
     public MultipleNodeEventStreamResultsAssert haveEqualFiles() {
         isNotNull();
 
-        final List<List<Path>> allEventStreamFiles = actual.results().stream()
-                .map(SingleNodeEventStreamResult::eventStreamFiles)
-                .toList();
-        assert !allEventStreamFiles.isEmpty(); // MultipleNodeEventStreamResults requires at least one node
-
-        final List<List<Path>> allSignatureFiles = actual.results().stream()
-                .map(SingleNodeEventStreamResult::signatureFiles)
-                .toList();
-        assert !allSignatureFiles.isEmpty(); // MultipleNodeEventStreamResults requires at least one node
-
-        // Use the first node as the blueprint for comparison.
         final int nodeCount = actual.results().size();
-        final int minSignatureFileCount =
-                allSignatureFiles.stream().mapToInt(List::size).min().orElseThrow();
-        final int maxSignatureFileCount =
-                allSignatureFiles.stream().mapToInt(List::size).max().orElseThrow();
 
-        if (maxSignatureFileCount == 0) {
+        // determine statistics of signature file counts (ignoring nodes that have reconnected)
+        final IntSummaryStatistics statistics = actual.results().stream()
+                .filter(SingleNodeEventStreamResult::hasNotReconnected)
+                .map(SingleNodeEventStreamResult::signatureFiles)
+                .mapToInt(List::size)
+                .summaryStatistics();
+        if (statistics.getMax() == 0) {
             fail("No signature files found for any node");
         }
-        if (maxSignatureFileCount - minSignatureFileCount > 1) {
+        if (statistics.getMax() - statistics.getMin() > 1) {
             fail(
                     "Difference between min (%d) and max (%d) signature file count is greater than 1",
-                    minSignatureFileCount, maxSignatureFileCount);
+                    statistics.getMin(), statistics.getMax());
         }
 
-        // pick a node with the maximum number of signature files as the blueprint
-        // we will compare all other nodes with this one
-        final int bluePrintIndex = IntStream.range(0, nodeCount)
-                .filter(i -> allSignatureFiles.get(i).size() == maxSignatureFileCount)
+        // pick a node with the maximum number of signature files that has not reconnected
+        // this will be our blueprint and we will compare all other nodes with this one
+        final SingleNodeEventStreamResult bluePrint = actual.results().stream()
+                .filter(SingleNodeEventStreamResult::hasNotReconnected)
+                .filter(result -> result.signatureFiles().size() == statistics.getMax())
                 .findAny()
                 .orElseThrow();
-        final NodeId bluePrintNodeId = actual.results().get(bluePrintIndex).nodeId();
-        final List<Path> bluePrintEventStreamFiles = allEventStreamFiles.get(bluePrintIndex);
-        final List<Path> bluePrintSignatureFiles = allSignatureFiles.get(bluePrintIndex);
+
+        final List<Path> bluePrintEventStreamFiles = bluePrint.eventStreamFiles();
+        final Map<Path, Path> bluePrintEventStreamFileLookup = bluePrintEventStreamFiles.stream()
+                .collect(Collectors.toMap(Path::getFileName, Function.identity(), (a, b) -> a, LinkedHashMap::new));
+
+        final List<Path> bluePrintSignatureFiles = bluePrint.signatureFiles();
+        final Map<Path, Path> bluePrintSignatureFileLookup =
+                bluePrintSignatureFiles.stream().collect(Collectors.toMap(Path::getFileName, Function.identity()));
 
         try {
-            for (int nodeIndex = 0; nodeIndex < nodeCount; nodeIndex++) {
-                if (nodeIndex == bluePrintIndex) {
+            for (final SingleNodeEventStreamResult result : actual.results()) {
+                if (result.nodeId().equals(bluePrint.nodeId())) {
                     continue;
                 }
-
-                // get current node info
-                final NodeId currentNodeId = actual.results().get(nodeIndex).nodeId();
-                final List<Path> currentEventStreamFiles = allEventStreamFiles.get(nodeIndex);
-                final List<Path> currentSignatureFiles = allSignatureFiles.get(nodeIndex);
-                final int fileCount = currentSignatureFiles.size();
-
-                // compare event stream files
-                for (int fileIndex = 0; fileIndex < fileCount; fileIndex++) {
-                    final Path bluePrintFile = bluePrintEventStreamFiles.get(fileIndex);
-                    final Path currentFile = currentEventStreamFiles.get(fileIndex);
-                    if (!Objects.equals(currentFile.getFileName(), bluePrintFile.getFileName())) {
-                        fail(
-                                "Event stream file %s of node %s has a different name than the corresponding file %s of node %s",
-                                currentFile.getFileName(), currentNodeId, bluePrintFile.getFileName(), bluePrintNodeId);
-                    }
-                    Assertions.assertThat(currentFile)
-                            .withFailMessage(
-                                    "Event stream file %s differs between node %s and node %s",
-                                    currentFile.getFileName(), currentNodeId, bluePrintNodeId)
-                            .hasSameBinaryContentAs(bluePrintFile);
-                }
-
-                // compare signature files
-                for (int fileIndex = 0; fileIndex < fileCount; fileIndex++) {
-                    final Path bluePrintFile = bluePrintSignatureFiles.get(fileIndex);
-                    final long bluePrintFileSize = Files.size(bluePrintFile);
-                    final Path currentFile = currentSignatureFiles.get(fileIndex);
-                    if (!Objects.equals(currentFile.getFileName(), bluePrintFile.getFileName())) {
-                        fail(
-                                "Signature file %s of node %s has a different name than the corresponding file %s of node %s",
-                                currentFile.getFileName(), currentNodeId, bluePrintFile.getFileName(), bluePrintNodeId);
-                    }
-                    Assertions.assertThat(currentFile)
-                            .withFailMessage(
-                                    "Signature file %s differs between node %s and node %s",
-                                    currentFile.getFileName(), currentNodeId, bluePrintNodeId)
-                            .hasSize(bluePrintFileSize);
+                if (result.hasNotReconnected()) {
+                    compareEventStreamFiles(bluePrint.nodeId(), bluePrintEventStreamFiles, result);
+                    compareSignatureFiles(bluePrint.nodeId(), bluePrintSignatureFiles, result);
+                } else {
+                    compareReconnectedEventStreamFiles(bluePrint.nodeId(), bluePrintEventStreamFileLookup, result);
+                    compareReconnectedSignatureFiles(bluePrint.nodeId(), bluePrintSignatureFileLookup, result);
                 }
             }
-            //            // Compare event stream files and signature files of all other nodes to the blueprint node.
-            //            for (int nodeIndex = 1; nodeIndex < nodeCount; nodeIndex++) {
-            //                final NodeId currentNodeId = actual.results().get(nodeIndex).nodeId();
-            //
-            //                // compare event stream files
-            //                final List<Path> currentEventStreamFiles = allEventStreamFiles.get(nodeIndex);
-            //                if (currentEventStreamFiles.size() != eventStreamCount) {
-            //                    fail("Node %s has a different number of event stream files (%d) than node %s (%d)",
-            //                            bluePrintNodeId, eventStreamCount, currentNodeId,
-            // currentEventStreamFiles.size());
-            //                }
-            //                for (int fileIndex = 0; fileIndex < eventStreamCount - 1; fileIndex++) {
-            //                    final Path bluePrintFile = bluePrintEventStreamFiles.get(fileIndex);
-            //                    final Path currentFile = currentEventStreamFiles.get(fileIndex);
-            //                    if (!Objects.equals(currentFile.getFileName(), bluePrintFile.getFileName())) {
-            //                        fail("Event stream file %s of node %s has a different name than the corresponding
-            // file %s of node %s",
-            //                                currentFile.getFileName(), currentNodeId, bluePrintFile.getFileName(),
-            // bluePrintNodeId);
-            //                    }
-            //                    Assertions.assertThat(currentFile)
-            //                            .withFailMessage("Event stream file %s differs between node %s and node %s",
-            //                                    currentFile.getFileName(), currentNodeId, bluePrintNodeId)
-            //                            .hasSameBinaryContentAs(bluePrintFile);
-            //                }
-            //
-            //                // compare signature files
-            //                final List<Path> currentSignatureFiles = allSignatureFiles.get(nodeIndex);
-            //                if (currentSignatureFiles.size() != signatureFileCount) {
-            //                    fail("Node %s has a different number of signature files (%d) than node %s (%d)",
-            //                            bluePrintNodeId, signatureFileCount, currentNodeId,
-            // currentSignatureFiles.size());
-            //                }
-            //                for (int fileIndex = 0; fileIndex < signatureFileCount; fileIndex++) {
-            //                    final Path bluePrintFile = bluePrintSignatureFiles.get(fileIndex);
-            //                    final long bluePrintFileSize = Files.size(bluePrintFile);
-            //                    final Path currentFile = currentSignatureFiles.get(fileIndex);
-            //                    if (!Objects.equals(currentFile.getFileName(), bluePrintFile.getFileName())) {
-            //                        fail("Signature file %s of node %s has a different name than the corresponding
-            // file %s of node %s",
-            //                                currentFile.getFileName(), currentNodeId, bluePrintFile.getFileName(),
-            // bluePrintNodeId);
-            //                    }
-            //                    Assertions.assertThat(currentFile)
-            //                            .withFailMessage("Signature file %s differs between node %s and node %s",
-            //                                    currentFile.getFileName(), currentNodeId, bluePrintNodeId)
-            //                            .hasSize(bluePrintFileSize);
-            //                }
-            //            }
         } catch (final IOException e) {
             fail("I/O error when comparing files", e);
         }
 
         return this;
+    }
+
+    private void compareEventStreamFiles(
+            @NonNull final NodeId bluePrintNodeId,
+            @NonNull final List<Path> bluePrintFiles,
+            @NonNull final SingleNodeEventStreamResult current) {
+
+        final int fileCount = current.eventStreamFiles().size();
+        final NodeId currentNodeId = current.nodeId();
+        final List<Path> currentFiles = current.eventStreamFiles();
+
+        for (int fileIndex = 0; fileIndex < fileCount; fileIndex++) {
+            final Path bluePrintFile = bluePrintFiles.get(fileIndex);
+            final Path bluePrintFileName = bluePrintFile.getFileName();
+            final Path currentFile = currentFiles.get(fileIndex);
+            final Path currentFileName = currentFile.getFileName();
+            if (!Objects.equals(bluePrintFileName, currentFileName)) {
+                fail(
+                        "Event stream file %s of node %s has a different name than the corresponding file %s of node %s",
+                        bluePrintFileName, bluePrintNodeId, currentFileName, currentNodeId);
+            }
+
+            Assertions.assertThat(currentFile)
+                    .withFailMessage(
+                            "Event stream file %s differs between node %s and node %s",
+                            bluePrintFileName, currentNodeId, bluePrintNodeId)
+                    .hasSameBinaryContentAs(bluePrintFile);
+        }
+    }
+
+    private void compareSignatureFiles(
+            @NonNull final NodeId bluePrintNodeId,
+            @NonNull final List<Path> bluePrintFiles,
+            @NonNull final SingleNodeEventStreamResult current)
+            throws IOException {
+
+        final int fileCount = current.signatureFiles().size();
+        final NodeId currentNodeId = current.nodeId();
+        final List<Path> currentFiles = current.signatureFiles();
+
+        for (int fileIndex = 0; fileIndex < fileCount; fileIndex++) {
+            final Path bluePrintFile = bluePrintFiles.get(fileIndex);
+            final Path bluePrintFileName = bluePrintFile.getFileName();
+            final Path currentFile = currentFiles.get(fileIndex);
+            final Path currentFileName = currentFile.getFileName();
+            if (!Objects.equals(currentFileName, bluePrintFileName)) {
+                fail(
+                        "Signature file %s of node %s has a different name than the corresponding file %s of node %s",
+                        currentFileName, currentNodeId, bluePrintFileName, bluePrintNodeId);
+            }
+
+            final long bluePrintFileSize = Files.size(bluePrintFile);
+            Assertions.assertThat(currentFile)
+                    .withFailMessage(
+                            "Signature file %s differs between node %s and node %s",
+                            bluePrintFileName, currentNodeId, bluePrintNodeId)
+                    .hasSize(bluePrintFileSize);
+        }
+    }
+
+    private void compareReconnectedEventStreamFiles(
+            @NonNull final NodeId bluePrintNodeId,
+            @NonNull final Map<Path, Path> bluePrintFileLookup,
+            @NonNull final SingleNodeEventStreamResult current) {
+        // A reconnected node may be missing some event stream files.
+        // We only compare those files that are present on both nodes.
+        for (final Path currentFile : current.eventStreamFiles()) {
+            final Path bluePrintFile = bluePrintFileLookup.get(currentFile.getFileName());
+            if (bluePrintFile != null) {
+                Assertions.assertThat(currentFile)
+                        .withFailMessage(
+                                "Event stream file %s differs between node %s and node %s",
+                                currentFile.getFileName(), current.nodeId(), bluePrintNodeId)
+                        .hasSameBinaryContentAs(bluePrintFile);
+            }
+        }
+    }
+
+    private void compareReconnectedSignatureFiles(
+            @NonNull final NodeId bluePrintNodeId,
+            @NonNull final Map<Path, Path> bluePrintFileLookup,
+            @NonNull final SingleNodeEventStreamResult current)
+            throws IOException {
+        // A reconnected node may be missing some signature files.
+        // We only compare those files that are present on both nodes.
+        for (final Path currentFile : current.signatureFiles()) {
+            final Path bluePrintFile = bluePrintFileLookup.get(currentFile.getFileName());
+            if (bluePrintFile != null) {
+                final long bluePrintFileSize = Files.size(bluePrintFile);
+                Assertions.assertThat(currentFile)
+                        .withFailMessage(
+                                "Signature file %s differs between node %s and node %s",
+                                currentFile.getFileName(), current.nodeId(), bluePrintNodeId)
+                        .hasSize(bluePrintFileSize);
+            }
+        }
     }
 }
