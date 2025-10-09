@@ -156,10 +156,10 @@ public class BlockNodeSuite {
     @HapiBlockNode(
             networkSize = 1,
             blockNodeConfigs = {
-                @BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.REAL),
-                @BlockNodeConfig(nodeId = 1, mode = BlockNodeMode.REAL),
-                @BlockNodeConfig(nodeId = 2, mode = BlockNodeMode.REAL),
-                @BlockNodeConfig(nodeId = 3, mode = BlockNodeMode.REAL)
+                @BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.SIMULATOR),
+                @BlockNodeConfig(nodeId = 1, mode = BlockNodeMode.SIMULATOR),
+                @BlockNodeConfig(nodeId = 2, mode = BlockNodeMode.SIMULATOR),
+                @BlockNodeConfig(nodeId = 3, mode = BlockNodeMode.SIMULATOR)
             },
             subProcessNodeConfigs = {
                 @SubProcessNodeConfig(
@@ -604,6 +604,48 @@ public class BlockNodeSuite {
     @HapiTest
     @HapiBlockNode(
             networkSize = 1,
+            blockNodeConfigs = {
+                @BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.SIMULATOR, highLatency = true),
+                @BlockNodeConfig(nodeId = 1, mode = BlockNodeMode.SIMULATOR, highLatency = true)
+            },
+            subProcessNodeConfigs = {
+                @SubProcessNodeConfig(
+                        nodeId = 0,
+                        blockNodeIds = {0, 1},
+                        blockNodePriorities = {0, 1},
+                        applicationPropertiesOverrides = {
+                            "blockStream.streamMode", "BOTH",
+                            "blockStream.writerMode", "FILE_AND_GRPC",
+                            "blockNode.highLatencyThreshold", "1s"
+                        })
+            })
+    @Order(11)
+    final Stream<DynamicTest> node0StreamingToHighLatencyBlockNode() {
+        final AtomicReference<Instant> time = new AtomicReference<>();
+        final List<Integer> portNumbers = new ArrayList<>();
+        return hapiTest(
+                doingContextual(spec -> {
+                    portNumbers.add(spec.getBlockNodePortById(0));
+                }),
+                doingContextual(spec -> time.set(Instant.now())),
+                waitUntilNextBlocks(10).withBackgroundTraffic(true),
+                sourcingContextual(spec -> assertHgcaaLogContainsTimeframe(
+                        byNodeId(0),
+                        time::get,
+                        Duration.ofSeconds(30),
+                        Duration.ofSeconds(45),
+                        String.format(
+                                "/localhost:%s/ACTIVE] Block node has exceeded high latency threshold 5 times consecutively.",
+                                portNumbers.getFirst()),
+                        String.format(
+                                "/localhost:%s/CLOSED] Closing and rescheduling connection for reconnect attempt",
+                                portNumbers.getFirst()),
+                        "No available block nodes found for streaming.")));
+    }
+
+    @HapiTest
+    @HapiBlockNode(
+            networkSize = 1,
             blockNodeConfigs = {@BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.SIMULATOR)},
             subProcessNodeConfigs = {
                 @SubProcessNodeConfig(
@@ -615,7 +657,7 @@ public class BlockNodeSuite {
                             "blockStream.writerMode", "FILE_AND_GRPC"
                         })
             })
-    @Order(11)
+    @Order(12)
     final Stream<DynamicTest> testCNReactionToPublishStreamResponses() {
         final AtomicReference<Instant> time = new AtomicReference<>();
         final List<Integer> portNumbers = new ArrayList<>();

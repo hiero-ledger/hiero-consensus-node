@@ -37,6 +37,7 @@ import java.lang.invoke.MethodHandles.Lookup;
 import java.lang.invoke.VarHandle;
 import java.lang.reflect.Method;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -77,7 +78,6 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     private static final MethodHandle jumpToBlockIfNeededHandle;
     private static final MethodHandle processStreamingToBlockNodeHandle;
     private static final MethodHandle blockStreamWorkerLoopHandle;
-    private static final MethodHandle createNewGrpcClientHandle;
 
     static {
         try {
@@ -124,10 +124,6 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
             blockStreamWorkerLoop.setAccessible(true);
             blockStreamWorkerLoopHandle = lookup.unreflect(blockStreamWorkerLoop);
 
-            final Method createNewGrpcClientMethod =
-                    BlockNodeConnectionManager.class.getDeclaredMethod("createNewGrpcClient", BlockNodeConfig.class);
-            createNewGrpcClientMethod.setAccessible(true);
-            createNewGrpcClientHandle = lookup.unreflect(createNewGrpcClientMethod);
         } catch (final Exception e) {
             throw new RuntimeException(e);
         }
@@ -1876,12 +1872,25 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     }
 
     @Test
+    void testHighLatencyTracking() {
+        final BlockNodeConfig nodeConfig = newBlockNodeConfig(8080, 1);
+        final Instant ackedTime = Instant.now();
+
+        connectionManager.recordBlockProofSent(nodeConfig, 1L, ackedTime);
+        connectionManager.recordBlockAckAndCheckLatency(nodeConfig, 1L, ackedTime.plusMillis(30001));
+
+        verify(metrics).recordAcknowledgementLatency(30001);
+        verify(metrics).recordHighLatencyEvent();
+        verifyNoMoreInteractions(metrics);
+    }
+
+    @Test
     void testRecordEndOfStreamAndCheckLimit_streamingDisabled() {
         final AtomicBoolean isStreamingEnabled = isStreamingEnabled();
         isStreamingEnabled.set(false);
         final BlockNodeConfig nodeConfig = newBlockNodeConfig(8080, 1);
 
-        final boolean limitExceeded = connectionManager.recordEndOfStreamAndCheckLimit(nodeConfig);
+        final boolean limitExceeded = connectionManager.recordEndOfStreamAndCheckLimit(nodeConfig, Instant.now());
 
         assertThat(limitExceeded).isFalse();
     }
@@ -1890,7 +1899,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     void testRecordEndOfStreamAndCheckLimit_withinLimit() {
         final BlockNodeConfig nodeConfig = newBlockNodeConfig(8080, 1);
 
-        final boolean limitExceeded = connectionManager.recordEndOfStreamAndCheckLimit(nodeConfig);
+        final boolean limitExceeded = connectionManager.recordEndOfStreamAndCheckLimit(nodeConfig, Instant.now());
 
         assertThat(limitExceeded).isFalse();
     }
@@ -1902,9 +1911,9 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         // Record multiple EndOfStream events to exceed the limit
         // The default maxEndOfStreamsAllowed is 5
         for (int i = 0; i < 5; i++) {
-            connectionManager.recordEndOfStreamAndCheckLimit(nodeConfig);
+            connectionManager.recordEndOfStreamAndCheckLimit(nodeConfig, Instant.now());
         }
-        final boolean limitExceeded = connectionManager.recordEndOfStreamAndCheckLimit(nodeConfig);
+        final boolean limitExceeded = connectionManager.recordEndOfStreamAndCheckLimit(nodeConfig, Instant.now());
 
         assertThat(limitExceeded).isTrue();
     }
@@ -2082,14 +2091,6 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     }
 
     // Utilities
-
-    private void invoke_createNewGrpcClient(final BlockNodeConfig config) {
-        try {
-            createNewGrpcClientHandle.invoke(connectionManager, config);
-        } catch (final Throwable t) {
-            throw new RuntimeException(t);
-        }
-    }
 
     private BlockNodeConnectionManager createConnectionManager(List<BlockNodeConfig> blockNodes) {
         // Create a custom config provider with the specified block nodes

@@ -3,6 +3,7 @@ package com.hedera.node.app.metrics;
 
 import static java.util.Objects.requireNonNull;
 
+import com.swirlds.common.metrics.RunningAverageMetric;
 import com.swirlds.metrics.api.Counter;
 import com.swirlds.metrics.api.DoubleGauge;
 import com.swirlds.metrics.api.LongGauge;
@@ -12,8 +13,6 @@ import java.util.EnumMap;
 import java.util.Map;
 import javax.inject.Inject;
 import javax.inject.Singleton;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.hiero.block.api.PublishStreamRequest;
 import org.hiero.block.api.PublishStreamResponse;
 
@@ -23,8 +22,6 @@ import org.hiero.block.api.PublishStreamResponse;
  */
 @Singleton
 public class BlockStreamMetrics {
-    private static final Logger logger = LogManager.getLogger(BlockStreamMetrics.class);
-
     private static final String CATEGORY = "blockStream";
 
     private static final String GROUP_CONN = "conn";
@@ -37,6 +34,7 @@ public class BlockStreamMetrics {
     // connection send metrics
     private Counter connSend_failureCounter;
     private Counter connSend_blockItemsCounter;
+    private RunningAverageMetric connSend_publishStreamRequestLatency;
     private final Map<PublishStreamRequest.RequestOneOfType, Counter> connSend_counters =
             new EnumMap<>(PublishStreamRequest.RequestOneOfType.class);
     private final Map<PublishStreamRequest.EndStream.Code, Counter> connSend_endStreamCounters =
@@ -48,6 +46,9 @@ public class BlockStreamMetrics {
     private final Map<PublishStreamResponse.ResponseOneOfType, Counter> connRecv_counters =
             new EnumMap<>(PublishStreamResponse.ResponseOneOfType.class);
     private Counter connRecv_unknownCounter;
+    private LongGauge connRecv_latestBlockEndOfStreamGauge;
+    private LongGauge connRecv_latestBlockSkipBlockGauge;
+    private LongGauge connRecv_latestBlockResendBlockGauge;
 
     // connectivity metrics
     private Counter conn_onCompleteCounter;
@@ -58,6 +59,8 @@ public class BlockStreamMetrics {
     private Counter conn_createFailureCounter;
     private LongGauge conn_activeConnIpGauge;
     private Counter conn_endOfStreamLimitCounter;
+    private DoubleGauge conn_ackLatencyGauge;
+    private Counter conn_highLatencyCounter;
 
     // buffer metrics
     private static final long BACK_PRESSURE_ACTIVE = 3;
@@ -270,6 +273,15 @@ public class BlockStreamMetrics {
                 .withDescription(
                         "Number of times the active block node connection has exceeded the allowed number of EndOfStream responses");
         conn_endOfStreamLimitCounter = metrics.getOrCreate(endOfStreamLimitCfg);
+
+        final DoubleGauge.Config ackLatencyCfg = newDoubleGauge(GROUP_CONN, "acknowledgementLatency")
+                .withDescription(
+                        "Latency (ms) between the last sent BlockProof and the corresponding BlockAcknowledgement");
+        conn_ackLatencyGauge = metrics.getOrCreate(ackLatencyCfg);
+
+        final Counter.Config highLatencyCfg = newCounter(GROUP_CONN, "highLatencyEvents")
+                .withDescription("Count of high latency events from the active block node connection");
+        conn_highLatencyCounter = metrics.getOrCreate(highLatencyCfg);
     }
 
     /**
@@ -330,6 +342,21 @@ public class BlockStreamMetrics {
         conn_activeConnIpGauge.set(ipAddress);
     }
 
+    /**
+     * Records the latency for a block acknowledgement from a specific block node.
+     * @param latencyMs the latency in milliseconds
+     */
+    public void recordAcknowledgementLatency(final long latencyMs) {
+        conn_ackLatencyGauge.set(latencyMs);
+    }
+
+    /**
+     * Record a high-latency event for a specific block node.
+     */
+    public void recordHighLatencyEvent() {
+        conn_highLatencyCounter.increment();
+    }
+
     // Connection RECV metrics -----------------------------------------------------------------------------------------
 
     private void registerConnectionRecvMetrics() {
@@ -365,6 +392,18 @@ public class BlockStreamMetrics {
         final Counter.Config recvUnknownCfg = newCounter(GROUP_CONN_RECV, "unknown")
                 .withDescription("Number of responses received from block nodes that are of unknown types");
         this.connRecv_unknownCounter = metrics.getOrCreate(recvUnknownCfg);
+
+        final LongGauge.Config latestBlockEosCfg = newLongGauge(GROUP_CONN_RECV, "latestBlockEndOfStream")
+                .withDescription("The latest block number received in an EndOfStream response");
+        this.connRecv_latestBlockEndOfStreamGauge = metrics.getOrCreate(latestBlockEosCfg);
+
+        final LongGauge.Config latestBlockSkipCfg = newLongGauge(GROUP_CONN_RECV, "latestBlockSkipBlock")
+                .withDescription("The latest block number received in a SkipBlock response");
+        this.connRecv_latestBlockSkipBlockGauge = metrics.getOrCreate(latestBlockSkipCfg);
+
+        final LongGauge.Config latestBlockResendCfg = newLongGauge(GROUP_CONN_RECV, "latestBlockResendBlock")
+                .withDescription("The latest block number received in a ResendBlock response");
+        this.connRecv_latestBlockResendBlockGauge = metrics.getOrCreate(latestBlockResendCfg);
     }
 
     /**
@@ -394,6 +433,30 @@ public class BlockStreamMetrics {
         if (counter != null) {
             counter.increment();
         }
+    }
+
+    /**
+     * Record the latest block number received in an EndOfStream response.
+     * @param blockNumber the block number from the response
+     */
+    public void recordLatestBlockEndOfStream(final long blockNumber) {
+        connRecv_latestBlockEndOfStreamGauge.set(blockNumber);
+    }
+
+    /**
+     * Record the latest block number received in a SkipBlock response.
+     * @param blockNumber the block number from the response
+     */
+    public void recordLatestBlockSkipBlock(final long blockNumber) {
+        connRecv_latestBlockSkipBlockGauge.set(blockNumber);
+    }
+
+    /**
+     * Record the latest block number received in a ResendBlock response.
+     * @param blockNumber the block number from the response
+     */
+    public void recordLatestBlockResendBlock(final long blockNumber) {
+        connRecv_latestBlockResendBlockGauge.set(blockNumber);
     }
 
     // Connection SEND metrics -----------------------------------------------------------------------------------------
@@ -432,6 +495,12 @@ public class BlockStreamMetrics {
         final Counter.Config blockItemsCfg = newCounter(GROUP_CONN_SEND, "blockItemCount")
                 .withDescription("Number of individual block items sent to block nodes");
         this.connSend_blockItemsCounter = metrics.getOrCreate(blockItemsCfg);
+
+        final RunningAverageMetric.Config publishStreamRequestLatencyCfg = new RunningAverageMetric.Config(
+                        CATEGORY, GROUP_CONN_SEND + "_requestSendLatency")
+                .withDescription("The average latency (ms) for a PublishStreamRequest to be sent to a block node")
+                .withFormat("%,.2f");
+        this.connSend_publishStreamRequestLatency = metrics.getOrCreate(publishStreamRequestLatencyCfg);
     }
 
     /**
@@ -464,6 +533,14 @@ public class BlockStreamMetrics {
         if (counter != null) {
             counter.increment();
         }
+    }
+
+    /**
+     * Record the latency for a request to be sent to a block node.
+     * @param latencyMs the latency in milliseconds
+     */
+    public void recordRequestLatency(final long latencyMs) {
+        connSend_publishStreamRequestLatency.update(latencyMs);
     }
 
     /**
