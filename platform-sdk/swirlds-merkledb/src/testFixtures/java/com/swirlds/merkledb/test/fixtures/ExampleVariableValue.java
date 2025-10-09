@@ -95,7 +95,11 @@ public final class ExampleVariableValue extends ExampleByteArrayVirtualValue {
         @NonNull
         @Override
         public ExampleVariableValue parse(
-                @NonNull ReadableSequentialData in, boolean strictMode, boolean parseUnknownFields, int maxDepth) {
+                @NonNull ReadableSequentialData in,
+                boolean strictMode,
+                boolean parseUnknownFields,
+                int maxDepth,
+                int maxSize) {
             return new ExampleVariableValue(in);
         }
 
