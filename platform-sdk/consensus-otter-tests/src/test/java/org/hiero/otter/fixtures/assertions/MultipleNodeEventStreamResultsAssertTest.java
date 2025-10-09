@@ -12,7 +12,6 @@ import java.util.Collection;
 import java.util.List;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.otter.fixtures.Node;
-import org.hiero.otter.fixtures.internal.result.MultipleNodeEventStreamResultsImpl;
 import org.hiero.otter.fixtures.result.MultipleNodeEventStreamResults;
 import org.hiero.otter.fixtures.result.SingleNodeEventStreamResult;
 import org.junit.jupiter.api.BeforeEach;
@@ -289,8 +288,7 @@ class MultipleNodeEventStreamResultsAssertTest {
         createSignatureFile(dir, fileName + "_sig", 100);
     }
 
-    private void createEventStreamFile(final Path dir, final String fileName, final String content)
-            throws IOException {
+    private void createEventStreamFile(final Path dir, final String fileName, final String content) throws IOException {
         final Path file = dir.resolve(fileName);
         Files.writeString(file, content);
     }
