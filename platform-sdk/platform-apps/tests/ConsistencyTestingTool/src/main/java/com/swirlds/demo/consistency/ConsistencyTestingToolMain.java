@@ -2,9 +2,7 @@
 package com.swirlds.demo.consistency;
 
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
-import static com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer.registerConstructablesForSchemas;
-import static com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer.registerConstructablesForStorage;
-import static com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer.registerMerkleStateRootClassIds;
+import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.getGlobalMetrics;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.swirlds.config.api.Configuration;
@@ -24,9 +22,6 @@ import java.util.Objects;
 import java.util.function.Function;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.base.constructable.ClassConstructorPair;
-import org.hiero.base.constructable.ConstructableRegistry;
-import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.consensus.model.node.NodeId;
 
 /**
@@ -39,33 +34,10 @@ public class ConsistencyTestingToolMain extends DefaultSwirldMain<ConsistencyTes
     private static final SemanticVersion semanticVersion =
             SemanticVersion.newBuilder().major(1).build();
 
-    static final Configuration CONFIGURATION;
-
-    static {
-        CONFIGURATION = ConfigurationBuilder.create()
-                .autoDiscoverExtensions()
-                .withSource(new SimpleConfigSource().withValue("merkleDb.initialCapacity", 1000000))
-                .build();
-        try {
-            logger.info(STARTUP.getMarker(), "Registering ConsistencyTestingToolState with ConstructableRegistry");
-            ConstructableRegistry constructableRegistry = ConstructableRegistry.getInstance();
-            constructableRegistry.registerConstructable(
-                    new ClassConstructorPair(ConsistencyTestingToolState.class, () -> {
-                        ConsistencyTestingToolState consistencyTestingToolState = new ConsistencyTestingToolState();
-                        // Don't call FAKE_MERKLE_STATE_LIFECYCLES.initStates(consistencyTestingToolState) here.
-                        // The stub states are automatically initialized upon loading the state from disk,
-                        // or after finishing a reconnect.
-                        return consistencyTestingToolState;
-                    }));
-            registerMerkleStateRootClassIds();
-            registerConstructablesForStorage(CONFIGURATION);
-            registerConstructablesForSchemas();
-            logger.info(STARTUP.getMarker(), "ConsistencyTestingToolState is registered with ConstructableRegistry");
-        } catch (ConstructableRegistryException e) {
-            logger.error(STARTUP.getMarker(), "Failed to register ConsistencyTestingToolState", e);
-            throw new RuntimeException(e);
-        }
-    }
+    static final Configuration CONFIGURATION = ConfigurationBuilder.create()
+            .autoDiscoverExtensions()
+            .withSource(new SimpleConfigSource().withValue("merkleDb.initialCapacity", 1000000))
+            .build();
 
     /**
      * The platform instance
@@ -110,21 +82,20 @@ public class ConsistencyTestingToolMain extends DefaultSwirldMain<ConsistencyTes
     @Override
     @NonNull
     public ConsistencyTestingToolState newStateRoot() {
-        final ConsistencyTestingToolState state = new ConsistencyTestingToolState();
+        final ConsistencyTestingToolState state = new ConsistencyTestingToolState(CONFIGURATION, getGlobalMetrics());
         TestingAppStateInitializer.initConsensusModuleStates(state, CONFIGURATION);
         return state;
     }
 
     /**
      * {@inheritDoc}
-     * <p>
-     * FUTURE WORK: https://github.com/hiero-ledger/hiero-consensus-node/issues/19002
-     * </p>
      */
     @Override
     public Function<VirtualMap, ConsistencyTestingToolState> stateRootFromVirtualMap() {
-        return (virtualMap) -> {
-            throw new UnsupportedOperationException();
+        return virtualMap -> {
+            final ConsistencyTestingToolState state = new ConsistencyTestingToolState(virtualMap);
+            TestingAppStateInitializer.initConsensusModuleStates(state, CONFIGURATION);
+            return state;
         };
     }
 

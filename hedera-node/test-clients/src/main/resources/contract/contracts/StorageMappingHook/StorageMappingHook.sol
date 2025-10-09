@@ -5,7 +5,7 @@ pragma experimental ABIEncoderV2;
 import './IHieroAccountAllowanceHook.sol';
 
 /// A degenerate hook useful for basic HIP-1195 testing
-contract StorageMappingAllowanceHook is IHieroAccountAllowanceHook {
+contract StorageMappingHook is IHieroAccountAllowanceHook {
     mapping(address => bool) public allowedList;
     // HIP-1195 special hook address (0x...016d padded to 20 bytes)
     address constant HOOK_ADDR = address(uint160(0x16d));

@@ -4,6 +4,8 @@ package com.hedera.node.app.history.impl;
 import static java.util.Objects.requireNonNull;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.hedera.hapi.block.stream.ChainOfTrustProof;
+import com.hedera.hapi.node.state.hints.HintsConstruction;
 import com.hedera.hapi.node.state.history.HistoryProof;
 import com.hedera.hapi.node.state.history.HistoryProofConstruction;
 import com.hedera.node.app.history.HistoryLibrary;
@@ -22,12 +24,11 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.concurrent.Executor;
-import java.util.function.Consumer;
 
 /**
  * Default implementation of the {@link HistoryService}.
  */
-public class HistoryServiceImpl implements HistoryService, Consumer<HistoryProof>, OnProofFinished {
+public class HistoryServiceImpl implements HistoryService {
     @Deprecated
     private final Configuration bootstrapConfig;
 
@@ -71,7 +72,8 @@ public class HistoryServiceImpl implements HistoryService, Consumer<HistoryProof
             @NonNull final WritableHistoryStore historyStore,
             @NonNull final Instant now,
             @NonNull final TssConfig tssConfig,
-            final boolean isActive) {
+            final boolean isActive,
+            @Nullable final HintsConstruction activeConstruction) {
         requireNonNull(activeRosters);
         requireNonNull(historyStore);
         requireNonNull(now);
@@ -80,8 +82,14 @@ public class HistoryServiceImpl implements HistoryService, Consumer<HistoryProof
             case BOOTSTRAP, TRANSITION -> {
                 final var construction = historyStore.getOrCreateConstruction(activeRosters, now, tssConfig);
                 if (!construction.hasTargetProof()) {
-                    final var controller =
-                            component.controllers().getOrCreateFor(activeRosters, construction, historyStore);
+                    final var controller = component
+                            .controllers()
+                            .getOrCreateFor(
+                                    activeRosters,
+                                    construction,
+                                    historyStore,
+                                    activeConstruction,
+                                    tssConfig.wrapsEnabled());
                     controller.advanceConstruction(now, metadata, historyStore, isActive);
                 }
             }
@@ -97,32 +105,28 @@ public class HistoryServiceImpl implements HistoryService, Consumer<HistoryProof
     }
 
     @Override
-    public void accept(
+    public void onFinished(
             @NonNull final WritableHistoryStore historyStore, @NonNull final HistoryProofConstruction construction) {
         requireNonNull(historyStore);
         requireNonNull(construction);
         if (cb != null) {
-            cb.accept(historyStore, construction);
+            cb.onFinished(historyStore, construction);
         }
     }
 
     @Override
-    public void accept(@NonNull final HistoryProof historyProof) {
-        this.historyProof = historyProof;
+    public void setLatestHistoryProof(@NonNull final HistoryProof historyProof) {
+        this.historyProof = requireNonNull(historyProof);
     }
 
     @Override
     public boolean isReady() {
-        // We don't delay signing blocks until we have a proof for the genesis
-        // address book hash; and once we have adopted *any* subsequent roster
-        // with the HistoryService enabled, the proof will be available---c.f.
-        // Hedera#canAdoptRoster(), which requires a proof to be present for
-        // the candidate roster hash.
-        return true;
+        // Not ready until there is a chain-of-trust proof for the genesis hinTS verification key
+        return historyProof != null && historyProof.hasChainOfTrustProof();
     }
 
     @Override
-    public @NonNull Bytes getCurrentProof(@NonNull final Bytes metadata) {
+    public @NonNull ChainOfTrustProof getCurrentChainOfTrustProof(@NonNull final Bytes metadata) {
         requireNonNull(metadata);
         requireNonNull(historyProof);
         final var targetMetadata = historyProof.targetHistoryOrThrow().metadata();
@@ -130,7 +134,7 @@ public class HistoryServiceImpl implements HistoryService, Consumer<HistoryProof
             throw new IllegalArgumentException(
                     "Metadata '" + metadata + "' does not match proof (for '" + targetMetadata + "')");
         }
-        return historyProof.proof();
+        return historyProof.chainOfTrustProofOrThrow();
     }
 
     @Override

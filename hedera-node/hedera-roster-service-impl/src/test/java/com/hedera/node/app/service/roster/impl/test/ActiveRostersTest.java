@@ -2,6 +2,8 @@
 package com.hedera.node.app.service.roster.impl.test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
@@ -67,9 +69,9 @@ class ActiveRostersTest {
         assertEquals(A_ROSTER_HASH, activeRosters.currentRosterHash());
         assertEquals(A_ROSTER_HASH, activeRosters.sourceRosterHash());
         assertEquals(A_ROSTER_HASH, activeRosters.targetRosterHash());
-        Assertions.assertSame(A_ROSTER, activeRosters.findRelatedRoster(A_ROSTER_HASH));
-        Assertions.assertSame(A_ROSTER, activeRosters.targetRoster());
-        final var weights = activeRosters.transitionWeights();
+        assertEquals(A_ROSTER, activeRosters.findRelatedRoster(A_ROSTER_HASH));
+        assertEquals(A_ROSTER, activeRosters.targetRoster());
+        final var weights = activeRosters.transitionWeights(null);
         assertEquals(A_ROSTER_WEIGHTS, weights.sourceNodeWeights());
         assertEquals(A_ROSTER_WEIGHTS, weights.targetNodeWeights());
         assertEquals(A_ROSTER_STRONG_MINORITY_WEIGHT, weights.sourceWeightThreshold());
@@ -100,12 +102,12 @@ class ActiveRostersTest {
 
         assertEquals(ActiveRosters.Phase.HANDOFF, activeRosters.phase());
         assertEquals(A_ROSTER_HASH, activeRosters.currentRosterHash());
-        Assertions.assertThrows(IllegalStateException.class, activeRosters::targetRoster);
-        Assertions.assertThrows(IllegalStateException.class, activeRosters::sourceRosterHash);
-        Assertions.assertThrows(IllegalStateException.class, activeRosters::targetRosterHash);
-        Assertions.assertSame(A_ROSTER, activeRosters.findRelatedRoster(A_ROSTER_HASH));
-        Assertions.assertThrows(IllegalStateException.class, activeRosters::transitionWeights);
-        Assertions.assertThrows(IllegalStateException.class, activeRosters::removedNodeIds);
+        assertThrows(IllegalStateException.class, activeRosters::targetRoster);
+        assertThrows(IllegalStateException.class, activeRosters::sourceRosterHash);
+        assertThrows(IllegalStateException.class, activeRosters::targetRosterHash);
+        assertSame(A_ROSTER, activeRosters.findRelatedRoster(A_ROSTER_HASH));
+        assertThrows(IllegalStateException.class, () -> activeRosters.transitionWeights(null));
+        assertThrows(IllegalStateException.class, activeRosters::removedNodeIds);
     }
 
     @Test
@@ -123,9 +125,9 @@ class ActiveRostersTest {
         assertEquals(A_ROSTER_HASH, activeRosters.currentRosterHash());
         assertEquals(A_ROSTER_HASH, activeRosters.sourceRosterHash());
         assertEquals(B_ROSTER_HASH, activeRosters.targetRosterHash());
-        Assertions.assertSame(A_ROSTER, activeRosters.findRelatedRoster(A_ROSTER_HASH));
-        Assertions.assertSame(B_ROSTER, activeRosters.targetRoster());
-        final var weights = activeRosters.transitionWeights();
+        assertSame(A_ROSTER, activeRosters.findRelatedRoster(A_ROSTER_HASH));
+        assertSame(B_ROSTER, activeRosters.targetRoster());
+        final var weights = activeRosters.transitionWeights(null);
         assertEquals(A_ROSTER_WEIGHTS, weights.sourceNodeWeights());
         assertEquals(B_ROSTER_WEIGHTS, weights.targetNodeWeights());
         assertEquals(A_ROSTER_STRONG_MINORITY_WEIGHT, weights.sourceWeightThreshold());
