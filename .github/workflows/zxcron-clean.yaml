@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-name: "CronClean"
+name: "CronClean Latitude Namespaces"
 permissions:
   contents: read
   id-token: write
