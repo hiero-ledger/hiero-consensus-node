@@ -15,8 +15,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 
 /**
- * Provides read-only methods for interacting with the underlying data storage mechanisms for
- * working with Nodes.
+ * Provides read-only methods for interacting with the underlying data storage mechanisms.
  *
  * <p>This class is not exported from the module. It is an internal implementation detail.
  */
@@ -43,10 +42,11 @@ public class ReadableAccountNodeRelStoreImpl implements ReadableAccountNodeRelSt
     }
 
     /**
-     * Returns the node needed.
+     * Returns the list of node identifiers linked to the provided account.
+     * Returns null if relations are not found.
      *
-     * @param nodeId node id being looked up
-     * @return node
+     * @param accountId being looked up
+     * @return node's metadata
      */
     @Override
     @Nullable
@@ -55,11 +55,11 @@ public class ReadableAccountNodeRelStoreImpl implements ReadableAccountNodeRelSt
     }
 
     /**
-     * Returns the number of topics in the state.
+     * Returns the number of relations in the state.
      *
-     * @return the number of topics in the state
+     * @return the number of relations in the state
      */
     public long sizeOfState() {
-        return entityCounters.getCounterFor(EntityType.NODE);
+        return entityCounters.getCounterFor(EntityType.ACCOUNT_NODE_REL);
     }
 }

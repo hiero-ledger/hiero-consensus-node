@@ -32,8 +32,6 @@ public class V068AddressBookSchema extends Schema<SemanticVersion> {
     @NonNull
     @Override
     public Set<StateDefinition> statesToCreate() {
-        // EntityNumber is deprecated, but suggested alternatives are either primitive or google wrapper,
-        // and both don't satisfy the StateDefinition.onDisk signature.
         return Set.of(StateDefinition.onDisk(
                 ACCOUNT_NODE_REL_ID, ACCOUNT_NODE_REL_KEY, AccountID.PROTOBUF, NodeIdList.PROTOBUF, MAX_NODES));
     }

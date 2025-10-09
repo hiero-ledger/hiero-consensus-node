@@ -614,10 +614,11 @@ public class TokenServiceApiImpl implements TokenServiceApi {
             @NonNull final AccountID obtainerId,
             @NonNull final ExpiryValidator expiryValidator,
             @NonNull final DeleteCapableTransactionStreamBuilder recordBuilder,
-            @NonNull final ReadableAccountNodeRelStore nodeStore) {
+            @NonNull final ReadableAccountNodeRelStore accountNodeRelStore) {
         // validate the semantics involving dynamic properties and state.
         // Gets delete and transfer accounts from state
-        final var deleteAndTransferAccounts = validateSemantics(deletedId, obtainerId, expiryValidator, nodeStore);
+        final var deleteAndTransferAccounts =
+                validateSemantics(deletedId, obtainerId, expiryValidator, accountNodeRelStore);
         transferRemainingBalance(expiryValidator, deleteAndTransferAccounts);
 
         // get the account from account store that has all balance changes
@@ -638,7 +639,7 @@ public class TokenServiceApiImpl implements TokenServiceApi {
             @NonNull final AccountID deletedId,
             @NonNull final AccountID obtainerId,
             @NonNull final ExpiryValidator expiryValidator,
-            @NonNull final ReadableAccountNodeRelStore nodeStore) {
+            @NonNull final ReadableAccountNodeRelStore accountNodeRelStore) {
         // validate if accounts exist
         final var deletedAccount = accountStore.get(deletedId);
         validateTrue(deletedAccount != null, INVALID_ACCOUNT_ID);
@@ -654,7 +655,8 @@ public class TokenServiceApiImpl implements TokenServiceApi {
         validateTrue(deletedAccount.numberPositiveBalances() == 0, TRANSACTION_REQUIRES_ZERO_TOKEN_BALANCES);
         // Can't delete account with non-zero hooks
         validateTrue(deletedAccount.numberHooksInUse() == 0, TRANSACTION_REQUIRES_ZERO_HOOKS);
-        validateTrue(nodeStore.get(deletedAccount.accountId()) == null, ACCOUNT_IS_TREASURY);
+        // TODO Introduce new response code
+        validateTrue(accountNodeRelStore.get(deletedAccount.accountId()) == null, ACCOUNT_IS_TREASURY);
         return new InvolvedAccounts(deletedAccount, transferAccount);
     }
 

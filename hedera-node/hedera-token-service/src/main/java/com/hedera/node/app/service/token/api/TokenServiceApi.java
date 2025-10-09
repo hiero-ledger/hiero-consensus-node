@@ -41,6 +41,7 @@ public interface TokenServiceApi {
      * @param obtainerId the id of the account to transfer the remaining hbar balance to
      * @param expiryValidator the expiry validator to use
      * @param recordBuilder the record builder to record the transfer in
+     * @param accountNodeRelStore readable store to validate account node relation
      * @throws HandleException if the account could not be deleted for some reason
      */
     void deleteAndTransfer(
@@ -48,7 +49,7 @@ public interface TokenServiceApi {
             @NonNull AccountID obtainerId,
             @NonNull ExpiryValidator expiryValidator,
             @NonNull DeleteCapableTransactionStreamBuilder recordBuilder,
-            @NonNull ReadableAccountNodeRelStore nodeStore);
+            @NonNull ReadableAccountNodeRelStore accountNodeRelStore);
 
     /**
      * Validates the creation of a given staking election relative to the given account store, network info,

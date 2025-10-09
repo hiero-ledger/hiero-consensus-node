@@ -22,7 +22,6 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeDelete;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeUpdate;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.viewNode;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.logIt;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
@@ -68,7 +67,6 @@ import com.hederahashgraph.api.proto.java.AccountID;
 import java.security.cert.CertificateEncodingException;
 import java.security.cert.X509Certificate;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
@@ -556,7 +554,6 @@ public class NodeUpdateTest {
     @LeakyHapiTest(overrides = {"nodes.updateAccountIdAllowed"})
     final Stream<DynamicTest> restrictNodeAccountDeletion() throws CertificateEncodingException {
         final var adminKey = "adminKey";
-        final var nodeId = new AtomicLong();
         final var account = "account";
         final var secondAccount = "secondAccount";
         final var node = "testNode";
@@ -575,14 +572,13 @@ public class NodeUpdateTest {
                 cryptoDelete(account).hasKnownStatus(ACCOUNT_IS_TREASURY),
 
                 // update the new node account id
-                sourcing(() -> logIt("CREATED NODE ID " + nodeId.get())),
                 nodeUpdate(node).accountId(secondAccount).signedByPayerAnd(adminKey),
 
                 // verify now we can delete the old node account, and can't delete the new node account
                 cryptoDelete(account),
                 cryptoDelete(secondAccount).hasKnownStatus(ACCOUNT_IS_TREASURY),
 
-                // delete the new node
+                // delete the node
                 nodeDelete(node).signedByPayerAnd(adminKey),
                 // verify we can delete the second account
                 cryptoDelete(secondAccount));

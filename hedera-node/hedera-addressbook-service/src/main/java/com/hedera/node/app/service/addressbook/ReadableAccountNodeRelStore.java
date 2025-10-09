@@ -6,27 +6,24 @@ import com.hedera.hapi.node.state.addressbook.NodeIdList;
 import edu.umd.cs.findbugs.annotations.Nullable;
 
 /**
- * Provides read-only methods for interacting with the underlying data storage mechanisms for
- * working with Nodes.
- *
- * <p>This class is not exported from the module. It is an internal implementation detail.
+ * Provides read-only methods for interacting with the underlying data storage mechanisms.
  */
 public interface ReadableAccountNodeRelStore {
 
     /**
-     * TODO:
-     * Returns the node needed. If the node doesn't exist returns failureReason. If the
-     * node exists , the failure reason will be null.
+     * Returns the list of node identifiers linked to the provided account.
+     * Returns null if relations are not found.
      *
-     * @param nodeId node id being looked up
+     * @param accountId being looked up
      * @return node's metadata
      */
     @Nullable
     NodeIdList get(final AccountID accountId);
 
     /**
-     * Returns the number of nodes in the state.
-     * @return the number of nodes in the state
+     * Returns the number of relations in the state.
+     *
+     * @return the number of relations in the state
      */
     long sizeOfState();
 }

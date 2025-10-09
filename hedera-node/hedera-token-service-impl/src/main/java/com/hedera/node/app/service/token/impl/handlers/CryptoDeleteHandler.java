@@ -71,7 +71,7 @@ public class CryptoDeleteHandler implements TransactionHandler {
     public void handle(@NonNull final HandleContext context) {
         requireNonNull(context);
         final var op = context.body().cryptoDeleteOrThrow();
-        final var nodeStore = context.storeFactory().readableStore(ReadableAccountNodeRelStore.class);
+        final var accountNodeRelStore = context.storeFactory().readableStore(ReadableAccountNodeRelStore.class);
         context.storeFactory()
                 .serviceApi(TokenServiceApi.class)
                 .deleteAndTransfer(
@@ -79,7 +79,7 @@ public class CryptoDeleteHandler implements TransactionHandler {
                         op.transferAccountIDOrThrow(),
                         context.expiryValidator(),
                         context.savepointStack().getBaseBuilder(CryptoDeleteStreamBuilder.class),
-                        nodeStore);
+                        accountNodeRelStore);
     }
 
     @NonNull
