@@ -75,7 +75,6 @@ jobs:
         run: |
           # Check if the tag exists and if so grab its commit id
           if [[ -n "${RC_TAG}" ]]; then
-            COMMIT_ON_DEFAULT_BRANCH=0
             XTS_COMMIT=$(git rev-list -n 1 "${RC_TAG}") >/dev/null 2>&1
             XTS_COMMIT_FOUND="${?}"
             set -e
@@ -86,7 +85,6 @@ jobs:
             fi
 
             COMMIT_LIST="$(git log -n 1 --pretty=format:"- [%h: %s](https://github.com/${{ github.repository }}/commit/%H)" "${XTS_COMMIT}")"
-
           else
             set +e
             XTS_COMMIT="$(git rev-list -n 1 "${XTS_CANDIDATE_TAG}")" >/dev/null 2>&1
@@ -117,13 +115,6 @@ jobs:
               LATEST_XTS_PASS_COMMIT="$(git rev-list -n 1 "${LATEST_XTS_PASS_TAG}")"
               COMMIT_LIST="$(git log --pretty=format:"- [%h: %s](https://github.com/${{ github.repository }}/commit/%H)" "${LATEST_XTS_PASS_COMMIT}..${XTS_COMMIT}")"
             fi
-
-            # Check if the tag exists on the main branch
-            if [[ "${XTS_COMMIT_BRANCH}" != "main" ]]; then
-              COMMIT_ON_DEFAULT_BRANCH=0
-            else
-              COMMIT_ON_DEFAULT_BRANCH=1
-            fi
           fi
 
           # Get the short commit id
@@ -131,6 +122,12 @@ jobs:
 
           # Get the branch name for the commit
           XTS_COMMIT_BRANCH="$(git name-rev --name-only --refs="refs/remotes/*" "${XTS_COMMIT}" | sed 's~^.*origin/~~' | sed 's/~.*//')"
+
+          # Check if the tag exists on the main branch
+          COMMIT_ON_DEFAULT_BRANCH=1
+          if [[ "${XTS_COMMIT_BRANCH}" != "main" ]]; then
+            COMMIT_ON_DEFAULT_BRANCH=0
+          fi
 
           # Get commit author
           AUTHOR_NAME="$(git log -1 --format='%an' "${XTS_COMMIT}")"
@@ -148,12 +145,9 @@ jobs:
             echo "xts-tag-commit-email=${AUTHOR_EMAIL}" >> "${GITHUB_OUTPUT}"
             echo "xts-info=${XTS_COMMIT_BRANCH} - ${XTS_SHORT_COMMIT}" >> "${GITHUB_OUTPUT}"
 
-            # Commit list output (multiline)
-            {
-              echo 'commit-list<<EOF'
-              echo "${COMMIT_LIST//\`/}"
-              echo EOF
-            } >> "${GITHUB_OUTPUT}"
+            ESCAPED_COMMIT_LIST=$(jq -Rs . <<< "${COMMIT_LIST}")
+            ESCAPED_COMMIT_LIST=${ESCAPED_COMMIT_LIST:1:-1}
+            echo "commit-list=${ESCAPED_COMMIT_LIST}" >> "${GITHUB_OUTPUT}"
 
             # GitHub Step Summary
             echo "### XTS-Candidate commit found" >>  "${GITHUB_STEP_SUMMARY}"
@@ -170,6 +164,8 @@ jobs:
           else
             gh run cancel "${{ github.run_id }}"
           fi
+
+          exit 1 # set failure.
 
   xts-timing-sensitive-tests:
     name: XTS Timing Sensitive Tests
@@ -460,14 +456,6 @@ jobs:
         with:
           egress-policy: audit
 
-      - name: JSON Stringify Commit List
-        id: stringify-commit-list
-        run: |
-          COMMIT_LIST="${{ needs.fetch-xts-candidate.outputs.commit-list }}"
-          # Escape double quotes and backslashes for JSON
-          ESCAPED_COMMIT_LIST=$(jq -Rs . <<< "${COMMIT_LIST}")
-          echo "commit-list=${ESCAPED_COMMIT_LIST}" >> "${GITHUB_OUTPUT}"
-
       - name: Report Success (slack)
         uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
         with:
@@ -596,7 +584,7 @@ jobs:
                       "fields": [
                         {
                           "type": "mrkdwn",
-                          "text": "${{ steps.stringify-commit-list.outputs.commit-list }}"
+                          "text": "${{ needs.fetch-xts-candidate.outputs.commit-list }}"
                         }
                       ]
                     }
@@ -636,17 +624,6 @@ jobs:
         uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
         with:
           egress-policy: audit
-
-      - name: JSON Stringify Commit List
-        id: stringify-commit-list
-        run: |
-          COMMIT_LIST="${{ needs.fetch-xts-candidate.outputs.commit-list }}"
-          # Escape double quotes and backslashes for JSON
-          ESCAPED_COMMIT_LIST=$(jq -Rs . <<< "${COMMIT_LIST}")
-
-          # Remove the surrounding quotes added by jq
-          ESCAPED_COMMIT_LIST=${ESCAPED_COMMIT_LIST:1:-1}
-          echo "commit-list=${ESCAPED_COMMIT_LIST}" >> "${GITHUB_OUTPUT}"
 
       - name: Checkout Code
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -750,7 +727,7 @@ jobs:
       - name: Build Rootly Summary
         id: rootly-summary
         run: |
-          title="The eXtended Test Suite job failed (${{ needs.fetch-xts-candidate.outputs.xts-info }})."
+          title="!!!TEST!!! The eXtended Test Suite job failed (${{ needs.fetch-xts-candidate.outputs.xts-info }})."
           echo "title=${title}" >> "${GITHUB_OUTPUT}"
           {
             echo 'summary<<EOF'
@@ -813,7 +790,7 @@ jobs:
                     "type": "header",
                     "text": {
                       "type": "plain_text",
-                      "text": ":grey_exclamation: XTS - eXtended Test Suite Failure Report (${{ needs.fetch-xts-candidate.outputs.xts-info }}) Failed",
+                      "text": "!!!TEST!!! :grey_exclamation: XTS - eXtended Test Suite Failure Report (${{ needs.fetch-xts-candidate.outputs.xts-info }}) Failed",
                       "emoji": true
                     }
                   },
@@ -933,7 +910,7 @@ jobs:
                     "fields": [
                       {
                         "type": "mrkdwn",
-                        "text": "${{ steps.stringify-commit-list.outputs.commit-list }}"
+                        "text": "${{ needs.fetch-xts-candidate.outputs.commit-list }}"
                       }
                     ]
                   }
