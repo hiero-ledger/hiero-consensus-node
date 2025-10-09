@@ -107,7 +107,7 @@ public final class SystemContractUtils {
         requireNonNull(frame);
         final var builder = ContractFunctionResult.newBuilder()
                 .gasUsed(fullResult.gasRequirement())
-                .contractCallResult(tuweniToPbjBytes(fullResult.result().getOutput()))
+                .contractCallResult(tuweniToPbjBytes(fullResult.result().output()))
                 .senderId(senderId)
                 .contractID(HTS_PRECOMPILE_MIRROR_ID);
         if (includeTraceabilityFields) {
@@ -138,7 +138,7 @@ public final class SystemContractUtils {
         requireNonNull(frame);
         final var builder = EvmTransactionResult.newBuilder()
                 .gasUsed(fullResult.gasRequirement())
-                .resultData(tuweniToPbjBytes(fullResult.result().getOutput()))
+                .resultData(tuweniToPbjBytes(fullResult.result().output()))
                 .senderId(senderId)
                 .contractId(HTS_PRECOMPILE_MIRROR_ID);
         if (includeTraceabilityFields) {
@@ -164,7 +164,7 @@ public final class SystemContractUtils {
             final String errorMsg,
             final ContractID contractID) {
         return contractFunctionResultFailedFor(
-                senderId, fullResult.result().getOutput(), fullResult.gasRequirement(), errorMsg, contractID);
+                senderId, fullResult.result().output(), fullResult.gasRequirement(), errorMsg, contractID);
     }
 
     public static @NonNull ContractFunctionResult contractFunctionResultFailedFor(

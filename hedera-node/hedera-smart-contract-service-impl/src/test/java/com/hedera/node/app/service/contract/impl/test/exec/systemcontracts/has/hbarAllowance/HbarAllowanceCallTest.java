@@ -53,8 +53,8 @@ class HbarAllowanceCallTest extends CallTestBase {
 
         final var result = subject.execute(frame).fullResult().result();
 
-        assertEquals(MessageFrame.State.REVERT, result.getState());
-        assertEquals(revertOutputFor(ResponseCodeEnum.INVALID_ALLOWANCE_OWNER_ID), result.getOutput());
+        assertEquals(MessageFrame.State.REVERT, result.state());
+        assertEquals(revertOutputFor(ResponseCodeEnum.INVALID_ALLOWANCE_OWNER_ID), result.output());
     }
 
     @Test
@@ -65,7 +65,7 @@ class HbarAllowanceCallTest extends CallTestBase {
         subject = new HbarAllowanceCall(attempt, B_NEW_ACCOUNT_ID, UNAUTHORIZED_SPENDER_ID);
 
         final var result = subject.execute(frame).fullResult().result();
-        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.getState());
+        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.state());
         assertEquals(
                 Bytes.wrap(HbarAllowanceTranslator.HBAR_ALLOWANCE_PROXY
                         .getOutputs()
@@ -73,7 +73,7 @@ class HbarAllowanceCallTest extends CallTestBase {
                                 (long) com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS.getNumber(),
                                 BigInteger.valueOf(0L)))
                         .array()),
-                result.getOutput());
+                result.output());
     }
 
     @Test

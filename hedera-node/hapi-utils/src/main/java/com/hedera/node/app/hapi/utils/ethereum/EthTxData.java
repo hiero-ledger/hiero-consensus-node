@@ -12,6 +12,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.MoreObjects;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.math.BigInteger;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HexFormat;
 import java.util.List;
@@ -35,6 +36,7 @@ public record EthTxData(
         byte[] callData,
         byte[] accessList,
         Object[] accessListAsRlp,
+        byte[] authorizationList,
         int recId, // "recovery id" part of a v,r,s ECDSA signature - range 0..1
         byte[] v, // actual `v` value, incoming, recovery id (`recId` above) (possibly) encoded with chain id
         byte[] r,
@@ -74,6 +76,7 @@ public record EthTxData(
                 case 1 -> populateEip2390EthTxData(decoder.next(), data);
                 case 2 -> populateEip1559EthTxData(decoder.next(), data);
                 case 3 -> null; // We don't currently support Cancun "blob" transactions
+                case 4 -> populateEip7702EthTxData(decoder.next(), data);
                 default -> null;
             };
 
@@ -111,6 +114,7 @@ public record EthTxData(
                 newCallData,
                 accessList,
                 null,
+                authorizationList,
                 recId,
                 v,
                 r,
@@ -133,6 +137,7 @@ public record EthTxData(
                 callData,
                 accessList,
                 null,
+                authorizationList,
                 recId,
                 v,
                 r,
@@ -191,6 +196,23 @@ public record EthTxData(
                                 Integers.toBytes(recId),
                                 r,
                                 s));
+            case EIP7702 ->
+                RLPEncoder.sequence(
+                        Integers.toBytes(0x02),
+                        List.of(
+                                chainId,
+                                Integers.toBytes(nonce),
+                                maxPriorityGas,
+                                maxGas,
+                                Integers.toBytes(gasLimit),
+                                to,
+                                Integers.toBytesUnsigned(value),
+                                callData,
+                                List.of(/*accessList*/ ),
+                                authorizationList,
+                                Integers.toBytes(recId),
+                                r,
+                                s));
         };
     }
 
@@ -205,7 +227,7 @@ public record EthTxData(
         }
         return switch (type) {
             case LEGACY_ETHEREUM -> new BigInteger(1, gasPrice).multiply(BigInteger.valueOf(multiple));
-            case EIP2930 -> new BigInteger(1, gasPrice);
+            case EIP2930, EIP7702 -> new BigInteger(1, gasPrice);
             case EIP1559 -> new BigInteger(1, maxGas);
         };
     }
@@ -249,6 +271,7 @@ public record EthTxData(
         LEGACY_ETHEREUM,
         EIP2930,
         EIP1559,
+        EIP7702
     }
 
     @Override
@@ -272,6 +295,7 @@ public record EthTxData(
                 && (Arrays.equals(callData, ethTxData.callData))
                 && (Arrays.equals(accessList, ethTxData.accessList))
                 && (Arrays.deepEquals(accessListAsRlp, ethTxData.accessListAsRlp))
+                && (Arrays.equals(authorizationList, ethTxData.authorizationList))
                 && (Arrays.equals(v, ethTxData.v))
                 && (Arrays.equals(r, ethTxData.r))
                 && (Arrays.equals(s, ethTxData.s));
@@ -293,6 +317,7 @@ public record EthTxData(
         // accessListAsRlp is not considered when calculating the hash,
         // as it is simply a different representation of the same dataset.
         result = 31 * result + Arrays.hashCode(accessList);
+        result = 31 * result + Arrays.hashCode(authorizationList);
         result = 31 * result + recId;
         result = 31 * result + Arrays.hashCode(v);
         result = 31 * result + Arrays.hashCode(r);
@@ -315,6 +340,7 @@ public record EthTxData(
                 .add("value", value)
                 .add("callData", Hex.encodeHexString(callData))
                 .add("accessList", accessList == null ? null : Hex.encodeHexString(accessList))
+                .add("authorizationList", accessList == null ? null : Hex.encodeHexString(authorizationList))
                 .add("recId", recId)
                 .add("v", v == null ? null : Hex.encodeHexString(v))
                 .add("r", Hex.encodeHexString(r))
@@ -352,6 +378,7 @@ public record EthTxData(
                 callData,
                 accessList,
                 null,
+                authorizationList,
                 recId,
                 v,
                 r,
@@ -374,6 +401,7 @@ public record EthTxData(
                 callData,
                 accessList,
                 null,
+                authorizationList,
                 newRecId,
                 v,
                 r,
@@ -396,6 +424,7 @@ public record EthTxData(
                 callData,
                 accessList,
                 accessListAsRlp,
+                authorizationList,
                 recId,
                 v,
                 newR,
@@ -418,10 +447,44 @@ public record EthTxData(
                 callData,
                 accessList,
                 accessListAsRlp,
+                authorizationList,
                 recId,
                 v,
                 r,
                 newS);
+    }
+
+    @NonNull
+    public List<CodeDelegation> extractCodeDelegations() {
+        final List<CodeDelegation> codeDelegations = new ArrayList<>();
+        if (authorizationList != null) {
+            final var decoder = RLPDecoder.RLP_STRICT.sequenceIterator(authorizationList);
+            final var rlpItem = decoder.next();
+            if (!rlpItem.isList()) {
+                return codeDelegations;
+            }
+
+            for (final var rlpInner : rlpItem.asRLPList().elements()) {
+                if (!rlpInner.isList()) {
+                    continue;
+                }
+
+                final var rlpInnerList = rlpItem.asRLPList().elements();
+                if (rlpInnerList.size() != 6) {
+                    continue;
+                }
+
+                codeDelegations.add(new CodeDelegation(
+                        rlpInnerList.get(0).data(), // chainId)
+                        rlpInnerList.get(1).data(), // address
+                        asLong(rlpInnerList.get(2)), // nonce
+                        asByte(rlpInnerList.get(3)), // recId
+                        rlpInnerList.get(4).data(), // r
+                        rlpInnerList.get(5).data() // s
+                        ));
+            }
+        }
+        return codeDelegations;
     }
 
     /**
@@ -468,6 +531,7 @@ public record EthTxData(
                 rlpList.get(5).data(), // callData
                 null, // accessList
                 null,
+                null, // authorizationList
                 recId,
                 val,
                 rlpList.get(7).data(), // r
@@ -506,6 +570,7 @@ public record EthTxData(
                 rlpList.get(8) != null && rlpList.get(8).isList()
                         ? encodeRlpList(rlpList.get(8).asRLPList())
                         : new Object[0], // accessList as RLPList
+                null, // authorizationList
                 asByte(rlpList.get(9)), // recId
                 null, // v
                 rlpList.get(10).data(), // r
@@ -544,10 +609,50 @@ public record EthTxData(
                 rlpList.get(7).isList()
                         ? encodeRlpList(rlpList.get(7).asRLPList())
                         : new Object[0], // accessList encoded as Object
+                null, // authorizationList
                 asByte(rlpList.get(8)), // recId
                 null, // v
                 rlpList.get(9).data(), // r
                 rlpList.get(10).data() // s
+                );
+    }
+
+    /**
+     * Encodes the transaction data into a EthTxData according to EIP 7702 RLP format.
+     *
+     * @return the encoded transaction data
+     */
+    private static EthTxData populateEip7702EthTxData(RLPItem rlpItem, byte[] rawTx) {
+        if (!rlpItem.isList()) {
+            return null;
+        }
+
+        List<RLPItem> rlpList = rlpItem.asRLPList().elements();
+        if (rlpList.size() != 13) {
+            return null;
+        }
+
+        return new EthTxData(
+                rawTx,
+                EthTransactionType.EIP7702,
+                rlpList.get(0).data(), // chainId
+                asLong(rlpList.get(1)), // nonce
+                null, // gasPrice
+                rlpList.get(2).data(), // maxPriorityGas
+                rlpList.get(3).data(), // maxGas
+                asLong(rlpList.get(4)), // gasLimit
+                rlpList.get(5).data(), // to
+                rlpList.get(6).asBigInt(), // value
+                rlpList.get(7).data(), // callData
+                rlpList.get(8).data(), // accessList
+                rlpList.get(8) != null && rlpList.get(8).isList()
+                        ? encodeRlpList(rlpList.get(8).asRLPList())
+                        : new Object[0], // accessList as RLPList
+                rlpList.get(9).data(), // authorizationList
+                asByte(rlpList.get(10)), // recId
+                null, // v
+                rlpList.get(11).data(), // r
+                rlpList.get(12).data() // s
                 );
     }
 
