@@ -17,15 +17,12 @@ import static com.swirlds.demo.iss.V0680ISSTestingToolSchema.PLANNED_ISS_LIST_ST
 import static com.swirlds.demo.iss.V0680ISSTestingToolSchema.PLANNED_LOG_ERROR_LIST_STATE_ID;
 import static com.swirlds.demo.iss.V0680ISSTestingToolSchema.RUNNING_SUM_STATE_ID;
 import static com.swirlds.platform.state.service.PlatformStateFacade.DEFAULT_PLATFORM_STATE_FACADE;
-import static com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer.CONFIGURATION;
-import static com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer.registerMerkleStateRootClassIds;
 
 import com.hedera.hapi.node.state.primitives.ProtoLong;
 import com.hedera.hapi.node.state.primitives.ProtoString;
 import com.swirlds.base.time.Time;
+import com.swirlds.common.context.PlatformContext;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.common.merkle.crypto.MerkleCryptographyFactory;
-import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
@@ -75,13 +72,14 @@ public class ISSTestingToolState extends VirtualMapState<ISSTestingToolState> im
      */
     private List<PlannedLogError> plannedLogErrorList = new LinkedList<>();
 
-    // super(new NoOpMetrics(), Time.getCurrent(), MerkleCryptographyFactory.create(CONFIGURATION));
-    public ISSTestingToolState(@NonNull Configuration configuration, @NonNull Metrics metrics) {
-        super(configuration, metrics);
+    public ISSTestingToolState(
+            @NonNull final Configuration configuration, @NonNull final Metrics metrics, @NonNull final Time time) {
+        super(configuration, metrics, time);
     }
 
-    public ISSTestingToolState(@NonNull final VirtualMap virtualMap) {
-        super(virtualMap);
+    public ISSTestingToolState(
+            @NonNull final VirtualMap virtualMap, @NonNull final Metrics metrics, @NonNull final Time time) {
+        super(virtualMap, metrics, time);
     }
 
     /**
@@ -101,8 +99,9 @@ public class ISSTestingToolState extends VirtualMapState<ISSTestingToolState> im
     }
 
     @Override
-    protected ISSTestingToolState newInstance(@NonNull final VirtualMap virtualMap) {
-        return new ISSTestingToolState(virtualMap);
+    protected ISSTestingToolState newInstance(
+            @NonNull final VirtualMap virtualMap, @NonNull final Metrics metrics, @NonNull final Time time) {
+        return new ISSTestingToolState(virtualMap, metrics, time);
     }
 
     public void initState(InitTrigger trigger, Platform platform) {

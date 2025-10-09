@@ -11,8 +11,8 @@ package com.swirlds.demo.stats;
  * DISTRIBUTING THIS SOFTWARE OR ITS DERIVATIVES.
  */
 
+import static com.swirlds.demo.stats.StatsDemoMain.CONFIGURATION;
 import static com.swirlds.platform.state.service.PlatformStateFacade.DEFAULT_PLATFORM_STATE_FACADE;
-import static com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer.CONFIGURATION;
 
 import com.swirlds.base.time.Time;
 import com.swirlds.common.merkle.crypto.MerkleCryptographyFactory;

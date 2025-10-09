@@ -9,9 +9,9 @@ import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.config.extensions.sources.SimpleConfigSource;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.merkledb.config.MerkleDbConfig_;
-import com.swirlds.platform.config.StateConfig;
 import com.swirlds.platform.config.AddressBookConfig;
 import com.swirlds.platform.config.BasicConfig;
+import com.swirlds.platform.config.StateConfig;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
 import org.hiero.base.crypto.config.CryptoConfig;
 

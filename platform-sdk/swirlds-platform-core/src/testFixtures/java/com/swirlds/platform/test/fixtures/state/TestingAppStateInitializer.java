@@ -37,7 +37,6 @@ import java.util.function.Supplier;
 import org.hiero.base.constructable.ClassConstructorPair;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
-import org.hiero.base.crypto.config.CryptoConfig;
 import org.hiero.consensus.roster.RosterStateId;
 
 /**

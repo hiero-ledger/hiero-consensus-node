@@ -13,7 +13,6 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.config.extensions.sources.SimpleConfigSource;
 import com.swirlds.logging.legacy.payload.ApplicationFinishedPayload;
-import com.swirlds.merkle.map.MerkleMapMetrics;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.ParameterProvider;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
@@ -153,7 +152,8 @@ public class MigrationTestingToolMain extends DefaultSwirldMain<MigrationTesting
     @NonNull
     @Override
     public MigrationTestingToolState newStateRoot() {
-        final MigrationTestingToolState state = new MigrationTestingToolState(CONFIGURATION, getGlobalMetrics());
+        final MigrationTestingToolState state =
+                new MigrationTestingToolState(CONFIGURATION, getGlobalMetrics(), Time.getCurrent());
         TestingAppStateInitializer.initConsensusModuleStates(state, CONFIGURATION);
         return state;
     }
@@ -162,9 +162,10 @@ public class MigrationTestingToolMain extends DefaultSwirldMain<MigrationTesting
      * {@inheritDoc}
      */
     @Override
-    public Function<VirtualMap, MigrationTestingToolState> stateRootFromVirtualMap(@NonNull final Metrics metrics, @NonNull final Time time) {
+    public Function<VirtualMap, MigrationTestingToolState> stateRootFromVirtualMap(
+            @NonNull final Metrics metrics, @NonNull final Time time) {
         return virtualMap -> {
-            final MigrationTestingToolState state = new MigrationTestingToolState(virtualMap);
+            final MigrationTestingToolState state = new MigrationTestingToolState(virtualMap, metrics, time);
             TestingAppStateInitializer.initConsensusModuleStates(state, CONFIGURATION);
             return state;
         };

@@ -3,9 +3,6 @@ package com.swirlds.state.test.fixtures.merkle;
 
 import static com.swirlds.state.test.fixtures.merkle.VirtualMapUtils.CONFIGURATION;
 
-import static com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade.TEST_PLATFORM_STATE_FACADE;
-import static com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer.CONFIGURATION;
-
 import com.swirlds.base.time.Time;
 import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.config.api.Configuration;
@@ -28,10 +25,6 @@ public class TestVirtualMapState extends VirtualMapState<TestVirtualMapState> im
     public TestVirtualMapState(
             @NonNull final Configuration configuration, @NonNull final Metrics metrics, @NonNull final Time time) {
         super(configuration, metrics, time);
-    }
-
-    public TestVirtualMapState(@NonNull final Configuration configuration) {
-        this(VirtualMapUtils.createVirtualMap(configuration, VM_LABEL));
     }
 
     public TestVirtualMapState(
@@ -60,12 +53,6 @@ public class TestVirtualMapState extends VirtualMapState<TestVirtualMapState> im
     public static TestVirtualMapState createInstanceWithVirtualMapLabel(
             @NonNull final String virtualMapLabel, @NonNull final Metrics metrics, @NonNull final Time time) {
         final var virtualMap = VirtualMapUtils.createVirtualMap(CONFIGURATION, virtualMapLabel);
-        return new TestVirtualMapState(virtualMap);
-    }
-
-    public static TestVirtualMapState createInstanceWithVirtualMapLabel(
-            @NonNull final Configuration configuration, @NonNull final String virtualMapLabel) {
-        final var virtualMap = VirtualMapUtils.createVirtualMap(configuration, virtualMapLabel);
         return new TestVirtualMapState(virtualMap, metrics, time);
     }
 
@@ -74,6 +61,6 @@ public class TestVirtualMapState extends VirtualMapState<TestVirtualMapState> im
      */
     @Override
     protected long getRound() {
-        return TEST_PLATFORM_STATE_FACADE.roundOf(this);
+        return 0;
     }
 }
