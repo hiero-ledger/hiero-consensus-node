@@ -17,6 +17,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 
+import com.hedera.hapi.block.stream.ChainOfTrustProof;
 import com.hedera.hapi.node.state.history.History;
 import com.hedera.hapi.node.state.history.HistoryProof;
 import com.hedera.hapi.node.state.history.HistoryProofConstruction;
@@ -24,6 +25,7 @@ import com.hedera.hapi.node.state.history.HistoryProofVote;
 import com.hedera.hapi.node.state.history.HistorySignature;
 import com.hedera.hapi.node.state.history.ProofKey;
 import com.hedera.node.app.history.HistoryLibrary;
+import com.hedera.node.app.history.HistoryService;
 import com.hedera.node.app.history.ReadableHistoryStore.HistorySignaturePublication;
 import com.hedera.node.app.history.ReadableHistoryStore.ProofKeyPublication;
 import com.hedera.node.app.history.WritableHistoryStore;
@@ -38,7 +40,6 @@ import java.util.Deque;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
-import java.util.function.Consumer;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -50,7 +51,8 @@ class ProofControllerImplTest {
     private static final long CONSTRUCTION_ID = 123L;
     private static final Bytes METADATA = Bytes.wrap("M");
     private static final Bytes LEDGER_ID = Bytes.wrap("LID");
-    private static final Bytes PROOF = Bytes.wrap("P");
+    private static final ChainOfTrustProof PROOF =
+            ChainOfTrustProof.newBuilder().wrapsProof(Bytes.wrap("P")).build();
     private static final Bytes SIGNATURE = Bytes.wrap("S");
     private static final Instant CONSENSUS_NOW = Instant.ofEpochSecond(1_234_567L, 890);
     private static final SchnorrKeyPair PROOF_KEY_PAIR = new SchnorrKeyPair(Bytes.EMPTY, Bytes.EMPTY);
@@ -62,6 +64,10 @@ class ProofControllerImplTest {
             .constructionId(CONSTRUCTION_ID)
             .gracePeriodEndTime(asTimestamp(CONSENSUS_NOW.plusSeconds(1)))
             .build();
+    private static final HistoryProofConstruction FAILED_CONSTRUCTION = HistoryProofConstruction.newBuilder()
+            .constructionId(CONSTRUCTION_ID)
+            .failureReason("Didn't work out")
+            .build();
     private static final HistoryProofConstruction SCHEDULED_ASSEMBLY_CONSTRUCTION =
             HistoryProofConstruction.newBuilder()
                     .constructionId(CONSTRUCTION_ID)
@@ -71,8 +77,7 @@ class ProofControllerImplTest {
             HistoryProofConstruction.newBuilder()
                     .constructionId(CONSTRUCTION_ID)
                     .assemblyStartTime(asTimestamp(CONSENSUS_NOW))
-                    .sourceProof(new HistoryProof(
-                            Bytes.EMPTY, List.of(new ProofKey(SELF_ID, Bytes.EMPTY)), History.DEFAULT, PROOF))
+                    .sourceProof(new HistoryProof(List.of(new ProofKey(SELF_ID, Bytes.EMPTY)), History.DEFAULT, PROOF))
                     .build();
     private static final HistoryProofConstruction FINISHED_CONSTRUCTION = HistoryProofConstruction.newBuilder()
             .constructionId(CONSTRUCTION_ID)
@@ -89,7 +94,7 @@ class ProofControllerImplTest {
     private RosterTransitionWeights weights;
 
     @Mock
-    private Consumer<HistoryProof> proofConsumer;
+    private HistoryService historyService;
 
     @Mock
     private WritableHistoryStore store;
@@ -104,6 +109,15 @@ class ProofControllerImplTest {
 
         assertEquals(UNFINISHED_CONSTRUCTION.constructionId(), subject.constructionId());
         assertTrue(subject.isStillInProgress());
+    }
+
+    @Test
+    void noOpWithFailedConstruction() {
+        setupWith(FAILED_CONSTRUCTION);
+
+        assertDoesNotThrow(() -> subject.advanceConstruction(CONSENSUS_NOW, METADATA, store, true));
+
+        assertFalse(subject.isStillInProgress());
     }
 
     @Test
@@ -221,39 +235,7 @@ class ProofControllerImplTest {
     }
 
     @Test
-    void startsProofWithSufficientSignatures() {
-        given(library.hashHintsVerificationKey(any())).willReturn(Bytes.EMPTY);
-        given(weights.targetIncludes(SELF_ID)).willReturn(true);
-        given(library.verifySchnorr(any(), any(), any())).willReturn(true);
-        setupWith(
-                SCHEDULED_ASSEMBLY_CONSTRUCTION,
-                List.of(SELF_KEY_PUBLICATION),
-                List.of(SELF_SIGNATURE_PUBLICATION),
-                Map.of(),
-                LEDGER_ID);
-
-        runScheduledTasks();
-
-        given(weights.sourceWeightOf(SELF_ID)).willReturn(3L);
-        given(weights.sourceWeightThreshold()).willReturn(3L);
-
-        subject.advanceConstruction(CONSENSUS_NOW, METADATA, store, true);
-
-        given(library.hashAddressBook(any(), any())).willReturn(Bytes.EMPTY);
-        given(library.proveChainOfTrust(any(), any(), any(), any(), any(), any(), any(), any()))
-                .willReturn(Bytes.EMPTY);
-        given(submissions.submitProofVote(
-                        eq(CONSTRUCTION_ID), argThat(v -> v.proof().equals(PROOF))))
-                .willReturn(CompletableFuture.completedFuture(null));
-
-        runScheduledTasks();
-
-        verify(submissions).submitProofVote(eq(CONSTRUCTION_ID), any());
-        assertDoesNotThrow(() -> subject.cancelPendingWork());
-    }
-
-    @Test
-    void usesSourceProofIfAvailable() {
+    void startsAndUsesSourceProofWithSufficientSignatures() {
         given(library.hashHintsVerificationKey(any())).willReturn(Bytes.EMPTY);
         given(weights.targetIncludes(SELF_ID)).willReturn(true);
         given(library.verifySchnorr(any(), any(), any())).willReturn(true);
@@ -273,15 +255,41 @@ class ProofControllerImplTest {
 
         given(library.hashAddressBook(any(), any())).willReturn(Bytes.EMPTY);
         given(library.proveChainOfTrust(any(), any(), any(), any(), any(), any(), any(), any()))
-                .willReturn(PROOF);
-        given(submissions.submitProofVote(
-                        eq(CONSTRUCTION_ID), argThat(v -> v.proof().equals(PROOF))))
+                .willReturn(PROOF.wrapsProof());
+        given(submissions.submitProofVote(eq(CONSTRUCTION_ID), argThat(v -> v.chainOfTrustProofOrThrow()
+                        .equals(PROOF))))
                 .willReturn(CompletableFuture.completedFuture(null));
 
         runScheduledTasks();
 
-        verify(submissions)
-                .submitProofVote(eq(CONSTRUCTION_ID), argThat(v -> v.proof().equals(PROOF)));
+        verify(submissions).submitProofVote(eq(CONSTRUCTION_ID), argThat(v -> v.chainOfTrustProofOrThrow()
+                .equals(PROOF)));
+        assertDoesNotThrow(() -> subject.cancelPendingWork());
+    }
+
+    @Test
+    void withNullLedgerIdAndSufficientSignaturesUsesListProof() {
+        given(library.hashHintsVerificationKey(any())).willReturn(Bytes.EMPTY);
+        given(weights.targetIncludes(SELF_ID)).willReturn(true);
+        given(library.verifySchnorr(any(), any(), any())).willReturn(true);
+        setupWith(
+                SCHEDULED_ASSEMBLY_CONSTRUCTION,
+                List.of(SELF_KEY_PUBLICATION),
+                List.of(SELF_SIGNATURE_PUBLICATION),
+                Map.of(),
+                null);
+
+        runScheduledTasks();
+
+        given(weights.sourceWeightOf(SELF_ID)).willReturn(3L);
+        given(weights.sourceWeightThreshold()).willReturn(3L);
+        given(library.hashAddressBook(any(), any())).willReturn(Bytes.EMPTY);
+        given(store.completeProof(eq(CONSTRUCTION_ID), argThat(HistoryProof::hasChainOfTrustProof)))
+                .willReturn(FINISHED_CONSTRUCTION);
+
+        subject.advanceConstruction(CONSENSUS_NOW, METADATA, store, true);
+
+        assertFalse(subject.isStillInProgress());
     }
 
     @Test
@@ -297,7 +305,8 @@ class ProofControllerImplTest {
     void votingWorksAsExpectedWithKnownLedgerId() {
         setupWith(SCHEDULED_ASSEMBLY_CONSTRUCTION_WITH_SOURCE_PROOF);
 
-        final var expectedProof = HistoryProof.newBuilder().proof(PROOF).build();
+        final var expectedProof =
+                HistoryProof.newBuilder().chainOfTrustProof(PROOF).build();
         final var selfVote = HistoryProofVote.newBuilder().proof(expectedProof).build();
         given(weights.sourceWeightOf(SELF_ID)).willReturn(3L);
         given(weights.sourceWeightThreshold()).willReturn(4L);
@@ -312,8 +321,9 @@ class ProofControllerImplTest {
         verifyNoMoreInteractions(store);
 
         final long otherNodeId = 99L;
-        final var otherProof =
-                HistoryProof.newBuilder().proof(Bytes.wrap("OOPS")).build();
+        final var otherProof = HistoryProof.newBuilder()
+                .chainOfTrustProof(ChainOfTrustProof.newBuilder().wrapsProof(Bytes.wrap("OOPS")))
+                .build();
         final var otherVote = HistoryProofVote.newBuilder().proof(otherProof).build();
         given(weights.sourceWeightOf(otherNodeId)).willReturn(3L);
         subject.addProofVote(otherNodeId, otherVote, store);
@@ -325,20 +335,17 @@ class ProofControllerImplTest {
         final var congruentVote =
                 HistoryProofVote.newBuilder().congruentNodeId(SELF_ID).build();
         given(store.completeProof(CONSTRUCTION_ID, expectedProof)).willReturn(FINISHED_CONSTRUCTION);
-        given(store.getActiveConstruction()).willReturn(UNFINISHED_CONSTRUCTION);
 
         subject.addProofVote(congruentNodeId, congruentVote, store);
-
-        verify(proofConsumer).accept(expectedProof);
     }
 
     @Test
     void votingWorksAsExpectedWithUnknownLedgerId() {
-        given(library.snarkVerificationKey()).willReturn(Bytes.EMPTY);
         setupWith(SCHEDULED_ASSEMBLY_CONSTRUCTION_WITH_SOURCE_PROOF, List.of(), List.of(), Map.of(), null);
         subject.advanceConstruction(CONSENSUS_NOW, METADATA, store, true);
 
-        final var expectedProof = HistoryProof.newBuilder().proof(PROOF).build();
+        final var expectedProof =
+                HistoryProof.newBuilder().chainOfTrustProof(PROOF).build();
         final var selfVote = HistoryProofVote.newBuilder().proof(expectedProof).build();
         given(weights.sourceWeightOf(SELF_ID)).willReturn(3L);
         given(weights.sourceWeightThreshold()).willReturn(4L);
@@ -352,11 +359,10 @@ class ProofControllerImplTest {
         final var otherVote = HistoryProofVote.newBuilder().proof(expectedProof).build();
         given(weights.sourceWeightOf(otherNodeId)).willReturn(3L);
         given(store.completeProof(CONSTRUCTION_ID, expectedProof)).willReturn(FINISHED_CONSTRUCTION);
-        given(store.getActiveConstruction()).willReturn(UNFINISHED_CONSTRUCTION);
 
         subject.addProofVote(otherNodeId, otherVote, store);
 
-        verify(proofConsumer).accept(expectedProof);
+        verify(historyService).onFinished(store, FINISHED_CONSTRUCTION);
     }
 
     private void setupWith(@NonNull final HistoryProofConstruction construction) {
@@ -371,6 +377,7 @@ class ProofControllerImplTest {
             @Nullable final Bytes ledgerId) {
         subject = new ProofControllerImpl(
                 SELF_ID,
+                true,
                 PROOF_KEY_PAIR,
                 ledgerId,
                 construction,
@@ -381,7 +388,7 @@ class ProofControllerImplTest {
                 proofKeyPublications,
                 signaturePublications,
                 votes,
-                proofConsumer);
+                historyService);
     }
 
     private void runScheduledTasks() {

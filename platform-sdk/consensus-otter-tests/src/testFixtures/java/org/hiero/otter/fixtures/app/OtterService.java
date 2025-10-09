@@ -6,7 +6,9 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.time.Instant;
 import java.util.function.Consumer;
+import org.hiero.consensus.model.event.ConsensusEvent;
 import org.hiero.consensus.model.event.Event;
 import org.hiero.consensus.model.hashgraph.Round;
 import org.hiero.consensus.model.node.NodeId;
@@ -59,8 +61,9 @@ public interface OtterService {
 
     /**
      * Called when a new round of consensus has been received. The service should only do actions for the whole round in
-     * this method. For actions on individual events, use {@link #onEventStart(WritableStates, Event)}. For actions on
-     * individual transactions, use {@link #handleTransaction(WritableStates, Event, OtterTransaction, Consumer)} .
+     * this method. For actions on individual events, use {@link #onEventStart(WritableStates, ConsensusEvent)}. For
+     * actions on individual transactions, use
+     * {@link #handleTransaction(WritableStates, ConsensusEvent, OtterTransaction, Instant, Consumer)} .
      *
      * @param writableStates the {@link WritableStates} to use to modify state
      * @param round the round to handle
@@ -82,12 +85,12 @@ public interface OtterService {
     /**
      * Called when a new event has been received. The service should only do actions for the whole event in this method.
      * For actions on individual transactions, use
-     * {@link #handleTransaction(WritableStates, Event, OtterTransaction, Consumer)}.
+     * {@link #handleTransaction(WritableStates, ConsensusEvent, OtterTransaction, Instant, Consumer)}.
      *
      * @param writableStates the {@link WritableStates} to use to modify state
      * @param event the event to handle
      */
-    default void onEventStart(@NonNull final WritableStates writableStates, @NonNull final Event event) {
+    default void onEventStart(@NonNull final WritableStates writableStates, @NonNull final ConsensusEvent event) {
         // Default implementation does nothing
     }
 
@@ -97,7 +100,7 @@ public interface OtterService {
      *
      * @param event the event that was completed
      */
-    default void onEventComplete(@NonNull final Event event) {
+    default void onEventComplete(@NonNull final ConsensusEvent event) {
         // Default implementation does nothing
     }
 
@@ -107,12 +110,14 @@ public interface OtterService {
      * @param writableStates the {@link WritableStates} to use to modify state
      * @param event the event that contains the transaction
      * @param transaction the transaction to handle
+     * @param transactionTimestamp the consensus timestamp of the transaction
      * @param callback a callback to pass any system transactions to be handled by the platform
      */
     default void handleTransaction(
             @NonNull final WritableStates writableStates,
-            @NonNull final Event event,
+            @NonNull final ConsensusEvent event,
             @NonNull final OtterTransaction transaction,
+            @NonNull final Instant transactionTimestamp,
             @NonNull final Consumer<ScopedSystemTransaction<StateSignatureTransaction>> callback) {
         // Default implementation does nothing
     }

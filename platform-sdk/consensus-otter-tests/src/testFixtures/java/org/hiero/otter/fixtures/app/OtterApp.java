@@ -27,6 +27,7 @@ import org.hiero.consensus.model.transaction.ConsensusTransaction;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 import org.hiero.consensus.model.transaction.Transaction;
 import org.hiero.otter.fixtures.app.services.consistency.ConsistencyService;
+import org.hiero.otter.fixtures.app.services.iss.IssService;
 import org.hiero.otter.fixtures.app.services.platform.PlatformStateService;
 import org.hiero.otter.fixtures.app.services.roster.RosterService;
 import org.hiero.otter.fixtures.app.state.OtterStateInitializer;
@@ -56,8 +57,6 @@ public class OtterApp implements ConsensusStateEventHandler<OtterAppState> {
      */
     private final AtomicLong syntheticBottleneckMillis = new AtomicLong(0);
 
-    private final ConsistencyService consistencyService = new ConsistencyService();
-
     /**
      * Create the app and its services.
      *
@@ -65,8 +64,12 @@ public class OtterApp implements ConsensusStateEventHandler<OtterAppState> {
      */
     public OtterApp(@NonNull final SemanticVersion version) {
         this.version = requireNonNull(version);
-        this.appServices = List.of(consistencyService);
-        this.allServices = List.of(consistencyService, new PlatformStateService(), new RosterService());
+
+        final IssService issService = new IssService();
+        final ConsistencyService consistencyService = new ConsistencyService();
+
+        this.appServices = List.of(consistencyService, issService);
+        this.allServices = List.of(consistencyService, issService, new PlatformStateService(), new RosterService());
     }
 
     /**
@@ -135,14 +138,17 @@ public class OtterApp implements ConsensusStateEventHandler<OtterAppState> {
             }
             final Iterator<ConsensusTransaction> transactionIterator = consensusEvent.consensusTransactionIterator();
             while (transactionIterator.hasNext()) {
+                final ConsensusTransaction consensusTransaction = transactionIterator.next();
                 try {
-                    final OtterTransaction transaction = OtterTransaction.parseFrom(transactionIterator
-                            .next()
-                            .getApplicationTransaction()
-                            .toInputStream());
+                    final OtterTransaction transaction = OtterTransaction.parseFrom(
+                            consensusTransaction.getApplicationTransaction().toInputStream());
                     for (final OtterService service : allServices) {
                         service.handleTransaction(
-                                state.getWritableStates(service.name()), consensusEvent, transaction, callback);
+                                state.getWritableStates(service.name()),
+                                consensusEvent,
+                                transaction,
+                                consensusTransaction.getConsensusTimestamp(),
+                                callback);
                     }
                 } catch (final IOException ex) {
                     log.error(

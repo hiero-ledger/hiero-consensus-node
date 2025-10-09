@@ -13,11 +13,13 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Instant;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.model.event.ConsensusEvent;
 import org.hiero.consensus.model.event.Event;
 import org.hiero.consensus.model.hashgraph.ConsensusConstants;
 import org.hiero.consensus.model.hashgraph.Round;
@@ -137,8 +139,9 @@ public class ConsistencyService implements OtterService {
     @Override
     public void handleTransaction(
             @NonNull final WritableStates writableStates,
-            @NonNull final Event event,
+            @NonNull final ConsensusEvent event,
             @NonNull final OtterTransaction transaction,
+            @NonNull final Instant transactionTimestamp,
             @NonNull final Consumer<ScopedSystemTransaction<StateSignatureTransaction>> callback) {
         final long transactionNonce = transaction.getNonce();
         new WritableConsistencyStateStore(writableStates).accumulateRunningChecksum(transactionNonce);

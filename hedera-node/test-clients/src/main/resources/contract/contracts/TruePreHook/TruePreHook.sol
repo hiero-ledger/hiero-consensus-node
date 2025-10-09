@@ -5,11 +5,11 @@ pragma experimental ABIEncoderV2;
 import './IHieroAccountAllowanceHook.sol';
 
 /// A degenerate hook useful for basic HIP-1195 testing
-contract FalseAccountAllowanceHook is IHieroAccountAllowanceHook {
+contract TruePreHook is IHieroAccountAllowanceHook {
     function allow(
        IHieroHook.HookContext calldata context,
        ProposedTransfers memory proposedTransfers
     ) override external payable returns (bool) {
-      return false;
+      return true;
     }
 } 

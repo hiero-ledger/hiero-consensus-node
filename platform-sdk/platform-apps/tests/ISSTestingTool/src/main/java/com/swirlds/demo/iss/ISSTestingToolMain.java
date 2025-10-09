@@ -2,9 +2,7 @@
 package com.swirlds.demo.iss;
 
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
-import static com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer.registerConstructablesForSchemas;
-import static com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer.registerConstructablesForStorage;
-import static com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer.registerMerkleStateRootClassIds;
+import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.getGlobalMetrics;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.swirlds.config.api.Configuration;
@@ -23,9 +21,6 @@ import java.util.Random;
 import java.util.function.Function;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.base.constructable.ClassConstructorPair;
-import org.hiero.base.constructable.ConstructableRegistry;
-import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.notification.IssNotification;
 
@@ -44,30 +39,10 @@ public class ISSTestingToolMain extends DefaultSwirldMain<ISSTestingToolState> {
     private static final SemanticVersion semanticVersion =
             SemanticVersion.newBuilder().major(1).build();
 
-    private static final Configuration CONFIGURATION;
-
-    static {
-        CONFIGURATION = ConfigurationBuilder.create()
-                .autoDiscoverExtensions()
-                .withSource(new SimpleConfigSource().withValue("merkleDb.initialCapacity", 1000000))
-                .build();
-
-        try {
-            logger.info(STARTUP.getMarker(), "Registering ISSTestingToolState with ConstructableRegistry");
-            ConstructableRegistry constructableRegistry = ConstructableRegistry.getInstance();
-            constructableRegistry.registerConstructable(new ClassConstructorPair(ISSTestingToolState.class, () -> {
-                ISSTestingToolState issTestingToolState = new ISSTestingToolState();
-                return issTestingToolState;
-            }));
-            registerMerkleStateRootClassIds();
-            registerConstructablesForStorage(CONFIGURATION);
-            registerConstructablesForSchemas();
-            logger.info(STARTUP.getMarker(), "ISSTestingToolState is registered with ConstructableRegistry");
-        } catch (ConstructableRegistryException e) {
-            logger.error(STARTUP.getMarker(), "Failed to register ISSTestingToolState", e);
-            throw new RuntimeException(e);
-        }
-    }
+    static final Configuration CONFIGURATION = ConfigurationBuilder.create()
+            .autoDiscoverExtensions()
+            .withSource(new SimpleConfigSource().withValue("merkleDb.initialCapacity", 1000000))
+            .build();
 
     private Platform platform;
 
@@ -113,21 +88,20 @@ public class ISSTestingToolMain extends DefaultSwirldMain<ISSTestingToolState> {
     @Override
     @NonNull
     public ISSTestingToolState newStateRoot() {
-        final ISSTestingToolState state = new ISSTestingToolState();
+        final ISSTestingToolState state = new ISSTestingToolState(CONFIGURATION, getGlobalMetrics());
         TestingAppStateInitializer.initConsensusModuleStates(state, CONFIGURATION);
         return state;
     }
 
     /**
      * {@inheritDoc}
-     * <p>
-     * FUTURE WORK: https://github.com/hiero-ledger/hiero-consensus-node/issues/19002
-     * </p>
      */
     @Override
     public Function<VirtualMap, ISSTestingToolState> stateRootFromVirtualMap() {
-        return (virtualMap) -> {
-            throw new UnsupportedOperationException();
+        return virtualMap -> {
+            final ISSTestingToolState state = new ISSTestingToolState(virtualMap);
+            TestingAppStateInitializer.initConsensusModuleStates(state, CONFIGURATION);
+            return state;
         };
     }
 

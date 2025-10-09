@@ -7,10 +7,11 @@ module com.swirlds.demo.consistency {
     requires com.swirlds.config.api;
     requires com.swirlds.config.extensions;
     requires com.swirlds.logging;
+    requires com.swirlds.metrics.api;
     requires com.swirlds.platform.core.test.fixtures;
     requires com.swirlds.platform.core;
     requires com.swirlds.state.api;
-    requires com.swirlds.state.impl.test.fixtures;
+    requires com.swirlds.state.impl;
     requires com.swirlds.virtualmap;
     requires org.hiero.base.concurrent;
     requires org.hiero.base.utility;
