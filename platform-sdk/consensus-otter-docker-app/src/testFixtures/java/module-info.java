@@ -15,6 +15,7 @@ module org.hiero.consensus.otter.docker.app {
     requires com.swirlds.logging;
     requires com.swirlds.metrics.api;
     requires com.swirlds.platform.core.test.fixtures;
+    requires com.swirlds.state.api;
     requires org.hiero.base.crypto;
     requires org.hiero.consensus.utility;
     requires io.grpc;

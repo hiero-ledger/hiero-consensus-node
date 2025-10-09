@@ -189,8 +189,8 @@ public abstract class AbstractNode implements Node {
      */
     @Override
     public void savedStateDirectory(@NonNull final String savedStateDirectory) {
-        throwIfIn(LifeCycle.RUNNING, "Cannot set saved state directory while the node is running");
-        throwIfIn(LifeCycle.DESTROYED, "Cannot set saved state directory after the node has been destroyed");
+        throwIfInLifecycle(LifeCycle.RUNNING, "Cannot set saved state directory while the node is running");
+        throwIfInLifecycle(LifeCycle.DESTROYED, "Cannot set saved state directory after the node has been destroyed");
 
         this.savedStateDirectory = OtterUtils.findSaveState(requireNonNull(savedStateDirectory));
     }
