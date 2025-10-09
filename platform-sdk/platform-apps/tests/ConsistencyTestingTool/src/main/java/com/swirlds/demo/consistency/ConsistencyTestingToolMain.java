@@ -2,9 +2,14 @@
 package com.swirlds.demo.consistency;
 
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
+import static com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer.registerConstructablesForSchemas;
+import static com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer.registerConstructablesForStorage;
 import static com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer.registerMerkleStateRootClassIds;
 
 import com.hedera.hapi.node.base.SemanticVersion;
+import com.swirlds.config.api.Configuration;
+import com.swirlds.config.api.ConfigurationBuilder;
+import com.swirlds.config.extensions.sources.SimpleConfigSource;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.system.DefaultSwirldMain;
@@ -34,7 +39,13 @@ public class ConsistencyTestingToolMain extends DefaultSwirldMain<ConsistencyTes
     private static final SemanticVersion semanticVersion =
             SemanticVersion.newBuilder().major(1).build();
 
+    static final Configuration CONFIGURATION;
+
     static {
+        CONFIGURATION = ConfigurationBuilder.create()
+                .autoDiscoverExtensions()
+                .withSource(new SimpleConfigSource().withValue("merkleDb.initialCapacity", 1000000))
+                .build();
         try {
             logger.info(STARTUP.getMarker(), "Registering ConsistencyTestingToolState with ConstructableRegistry");
             ConstructableRegistry constructableRegistry = ConstructableRegistry.getInstance();
@@ -47,6 +58,8 @@ public class ConsistencyTestingToolMain extends DefaultSwirldMain<ConsistencyTes
                         return consistencyTestingToolState;
                     }));
             registerMerkleStateRootClassIds();
+            registerConstructablesForStorage(CONFIGURATION);
+            registerConstructablesForSchemas();
             logger.info(STARTUP.getMarker(), "ConsistencyTestingToolState is registered with ConstructableRegistry");
         } catch (ConstructableRegistryException e) {
             logger.error(STARTUP.getMarker(), "Failed to register ConsistencyTestingToolState", e);
@@ -98,8 +111,7 @@ public class ConsistencyTestingToolMain extends DefaultSwirldMain<ConsistencyTes
     @NonNull
     public ConsistencyTestingToolState newStateRoot() {
         final ConsistencyTestingToolState state = new ConsistencyTestingToolState();
-        TestingAppStateInitializer.DEFAULT.initConsensusModuleStates(state);
-
+        TestingAppStateInitializer.initConsensusModuleStates(state, CONFIGURATION);
         return state;
     }
 
@@ -111,7 +123,9 @@ public class ConsistencyTestingToolMain extends DefaultSwirldMain<ConsistencyTes
      */
     @Override
     public Function<VirtualMap, ConsistencyTestingToolState> stateRootFromVirtualMap() {
-        throw new UnsupportedOperationException();
+        return (virtualMap) -> {
+            throw new UnsupportedOperationException();
+        };
     }
 
     /**

@@ -45,7 +45,7 @@ public class ReconnectTest {
         // Setup simulation
 
         // Add more than 3 nodes with balanced weights so that one node can be taken down without halting consensus
-        network.setWeightGenerator(WeightGenerators.BALANCED);
+        network.weightGenerator(WeightGenerators.BALANCED);
         network.addNodes(4);
 
         // Set the rounds non-ancient and expired to smaller values to allow nodes to fall behind quickly

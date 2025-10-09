@@ -4,7 +4,6 @@ package com.hedera.node.app.blocks.impl.streaming;
 import static java.util.Objects.requireNonNull;
 import static org.apache.logging.log4j.Level.DEBUG;
 import static org.apache.logging.log4j.Level.TRACE;
-import static org.apache.logging.log4j.Level.WARN;
 import static org.hiero.block.api.PublishStreamRequest.EndStream.Code.RESET;
 import static org.hiero.block.api.PublishStreamRequest.EndStream.Code.TIMEOUT;
 import static org.hiero.block.api.PublishStreamRequest.EndStream.Code.TOO_FAR_BEHIND;
@@ -485,7 +484,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
             case Code.UNKNOWN -> {
                 // This should never happen, but if it does, schedule this connection for a retry attempt
                 // and in the meantime select a new node to stream to
-                logWithContext(WARN, "Block node reported an unknown error at block {}.", blockNumber);
+                logWithContext(DEBUG, "Block node reported an unknown error at block {}.", blockNumber);
                 closeAndReschedule(THIRTY_SECONDS, true);
             }
         }
@@ -660,11 +659,12 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
         try {
             closePipeline(callOnComplete);
             jumpToBlock(-1L);
-            blockStreamMetrics.recordConnectionClosed();
             logWithContext(DEBUG, "Connection successfully closed.");
         } catch (final RuntimeException e) {
-            logWithContext(WARN, "Error occurred while attempting to close connection.", e);
+            logWithContext(DEBUG, "Error occurred while attempting to close connection.", e);
         } finally {
+            blockStreamMetrics.recordConnectionClosed();
+            blockStreamMetrics.recordActiveConnectionIp(-1L);
             // regardless of outcome, mark the connection as closed
             updateConnectionState(ConnectionState.CLOSED);
         }
@@ -761,7 +761,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
             handleResendBlock(response.resendBlock());
         } else {
             blockStreamMetrics.recordUnknownResponseReceived();
-            logWithContext(WARN, "Unexpected response received: {}.", response);
+            logWithContext(DEBUG, "Unexpected response received: {}.", response);
         }
     }
 

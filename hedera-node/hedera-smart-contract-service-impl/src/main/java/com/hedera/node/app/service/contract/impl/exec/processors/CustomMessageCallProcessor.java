@@ -4,7 +4,7 @@ package com.hedera.node.app.service.contract.impl.exec.processors;
 import static com.hedera.hapi.streams.ContractActionType.PRECOMPILE;
 import static com.hedera.hapi.streams.ContractActionType.SYSTEM;
 import static com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalHaltReason.*;
-import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.HtsSystemContract.HTS_HOOKS_16D_CONTRACT_ADDRESS;
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.HtsSystemContract.HTS_HOOKS_CONTRACT_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.create.CreateCommons.createMethodsSet;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.*;
 import static com.hedera.node.app.service.contract.impl.hevm.HevmPropagatedCallFailure.MISSING_RECEIVER_SIGNATURE;
@@ -176,7 +176,7 @@ public class CustomMessageCallProcessor extends MessageCallProcessor {
      * address, false otherwise
      */
     private static boolean isNotAllowanceHook(final @NonNull MessageFrame frame, final Address codeAddress) {
-        return !FrameUtils.isHookExecution(frame) || !HTS_HOOKS_16D_CONTRACT_ADDRESS.equals(codeAddress);
+        return !FrameUtils.isHookExecution(frame) || !HTS_HOOKS_CONTRACT_ADDRESS.equals(codeAddress);
     }
 
     /**

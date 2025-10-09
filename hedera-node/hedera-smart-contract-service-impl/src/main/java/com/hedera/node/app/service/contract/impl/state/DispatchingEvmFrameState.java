@@ -604,7 +604,7 @@ public class DispatchingEvmFrameState implements EvmFrameState {
         return account;
     }
 
-    private UInt256 valueOrZero(@Nullable final SlotValue slotValue) {
+    protected UInt256 valueOrZero(@Nullable final SlotValue slotValue) {
         return (slotValue == null) ? UInt256.ZERO : pbjToTuweniUInt256(slotValue.value());
     }
 }

@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.swirldapp;
 
-import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.system.SwirldMain;
+import com.swirlds.state.MerkleNodeState;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.net.URL;
