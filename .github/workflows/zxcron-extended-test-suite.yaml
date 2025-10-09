@@ -749,7 +749,7 @@ jobs:
             echo "- Workflow: <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}>"
             echo "------------------------------------"
             echo "Commit List:"
-            echo "${{ needs.fetch-xts-candidate.outputs.commit-list }}"
+            echo -e "${{ needs.fetch-xts-candidate.outputs.commit-list }}"
             echo EOF
           } >> "${GITHUB_OUTPUT}"
 
