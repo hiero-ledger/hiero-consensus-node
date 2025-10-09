@@ -21,11 +21,7 @@ public class PlannedIssCodec implements Codec<PlannedIss> {
     @NonNull
     @Override
     public PlannedIss parse(
-            @NonNull final ReadableSequentialData in,
-            boolean strictMode,
-            boolean parseUnknownFields,
-            int maxDepth,
-            int maxSize) {
+            @NonNull final ReadableSequentialData in, boolean strictMode, boolean parseUnknownFields, int maxDepth) {
         return new PlannedIss(in);
     }
 
