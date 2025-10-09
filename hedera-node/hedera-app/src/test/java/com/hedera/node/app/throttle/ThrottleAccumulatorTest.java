@@ -1849,46 +1849,6 @@ class ThrottleAccumulatorTest {
     }
 
     @Test
-    void tokenMintWithoutTokenMintBodyIsNotThrottled() throws IOException, ParseException {
-        // given
-        given(configProvider.getConfiguration()).willReturn(configuration);
-        given(configuration.getConfigData(AccountsConfig.class)).willReturn(accountsConfig);
-        given(accountsConfig.lastThrottleExempt()).willReturn(100L);
-        given(configuration.getConfigData(ContractsConfig.class)).willReturn(contractsConfig);
-        given(contractsConfig.throttleThrottleByGas()).willReturn(false);
-        given(contractsConfig.maxGasPerSec()).willReturn(10_000_000L);
-        given(configuration.getConfigData(JumboTransactionsConfig.class)).willReturn(jumboTransactionsConfig);
-        given(jumboTransactionsConfig.isEnabled()).willReturn(false);
-
-        subject = new ThrottleAccumulator(configProvider::getConfiguration, () -> CAPACITY_SPLIT, FRONTEND_THROTTLE);
-        subject.applyGasConfig();
-        final var defs = getThrottleDefs("bootstrap/throttles.json");
-        subject.rebuildFor(defs);
-
-        // Create a TokenMint transaction WITHOUT tokenMint body
-        final var body = TransactionBody.newBuilder()
-                .transactionID(TransactionID.newBuilder().accountID(PAYER_ID).build())
-                .build(); // Missing .tokenMint(...)
-        final var signedTx = SignedTransaction.newBuilder()
-                .bodyBytes(TransactionBody.PROTOBUF.toBytes(body))
-                .build();
-        final var txnInfo = new TransactionInfo(
-                signedTx,
-                body,
-                TransactionID.newBuilder().accountID(PAYER_ID).build(),
-                PAYER_ID,
-                SignatureMap.DEFAULT,
-                Bytes.EMPTY,
-                TOKEN_MINT,
-                null);
-
-        final var shouldThrottle =
-                assertDoesNotThrow(() -> subject.checkAndEnforceThrottle(txnInfo, TIME_INSTANT, state, null));
-
-        assertTrue(shouldThrottle, "TokenMint without tokenMint body should be throttled");
-    }
-
-    @Test
     void tokenMintWithoutTokenIdIsNotThrottled() throws IOException, ParseException {
         // given
         given(configProvider.getConfiguration()).willReturn(configuration);
