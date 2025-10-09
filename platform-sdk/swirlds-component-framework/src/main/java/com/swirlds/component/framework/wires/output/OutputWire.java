@@ -148,6 +148,10 @@ public abstract class OutputWire<OUT> {
         }
     }
 
+    public void solderToMetrics(@NonNull final Consumer<OUT> metricsConsumer) {
+        addForwardingDestination(metricsConsumer);
+    }
+
     /**
      * Specify a consumer where output data should be forwarded. This method creates a direct task scheduler under the
      * hood and forwards output data to it.
