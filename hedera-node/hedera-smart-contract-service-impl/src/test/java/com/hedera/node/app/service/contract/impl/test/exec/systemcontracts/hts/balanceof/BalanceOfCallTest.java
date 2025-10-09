@@ -41,8 +41,8 @@ class BalanceOfCallTest extends CallTestBase {
 
         final var result = subject.execute().fullResult().result();
 
-        assertEquals(MessageFrame.State.REVERT, result.getState());
-        assertEquals(revertOutputFor(INVALID_TOKEN_ID), result.getOutput());
+        assertEquals(MessageFrame.State.REVERT, result.state());
+        assertEquals(revertOutputFor(INVALID_TOKEN_ID), result.output());
     }
 
     @Test
@@ -56,8 +56,8 @@ class BalanceOfCallTest extends CallTestBase {
         given(nativeOperations.configuration()).willReturn(HederaTestConfigBuilder.createConfig());
         final var result = subject.execute().fullResult().result();
 
-        assertEquals(MessageFrame.State.REVERT, result.getState());
-        assertEquals(revertOutputFor(INVALID_ACCOUNT_ID), result.getOutput());
+        assertEquals(MessageFrame.State.REVERT, result.state());
+        assertEquals(revertOutputFor(INVALID_ACCOUNT_ID), result.output());
     }
 
     @Test
@@ -73,13 +73,13 @@ class BalanceOfCallTest extends CallTestBase {
         given(nativeOperations.configuration()).willReturn(HederaTestConfigBuilder.createConfig());
         final var result = subject.execute().fullResult().result();
 
-        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.getState());
+        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.state());
         assertEquals(
                 Bytes.wrap(BalanceOfTranslator.BALANCE_OF
                         .getOutputs()
                         .encode(Tuple.singleton(BigInteger.ZERO))
                         .array()),
-                result.getOutput());
+                result.output());
     }
 
     @Test
@@ -97,12 +97,12 @@ class BalanceOfCallTest extends CallTestBase {
         given(nativeOperations.configuration()).willReturn(HederaTestConfigBuilder.createConfig());
         final var result = subject.execute().fullResult().result();
 
-        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.getState());
+        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.state());
         assertEquals(
                 Bytes.wrap(BalanceOfTranslator.BALANCE_OF
                         .getOutputs()
                         .encode(Tuple.singleton(BigInteger.valueOf(A_FUNGIBLE_RELATION.balance())))
                         .array()),
-                result.getOutput());
+                result.output());
     }
 }

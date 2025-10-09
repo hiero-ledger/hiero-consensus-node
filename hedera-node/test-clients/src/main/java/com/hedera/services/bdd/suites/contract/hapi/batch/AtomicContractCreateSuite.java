@@ -883,6 +883,7 @@ class AtomicContractCreateSuite {
                 new byte[] {},
                 new byte[] {},
                 null,
+                null,
                 0,
                 null,
                 null,

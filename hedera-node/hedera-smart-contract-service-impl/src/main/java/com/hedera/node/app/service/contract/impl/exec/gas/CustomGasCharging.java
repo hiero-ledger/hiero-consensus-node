@@ -17,7 +17,6 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import javax.inject.Inject;
 import javax.inject.Singleton;
-import org.hyperledger.besu.evm.gascalculator.GasCalculator;
 
 /**
  * Implements the Hedera gas charging logic. The main difference from Besu here is that we can have a
@@ -36,13 +35,13 @@ public class CustomGasCharging {
     /** One HBAR denominated in tinybars */
     public static final long ONE_HBAR_IN_TINYBARS = 100_000_000L;
 
-    private final GasCalculator gasCalculator;
+    private final HederaGasCalculator gasCalculator;
 
     /**
      * @param gasCalculator the gas calculator to use
      */
     @Inject
-    public CustomGasCharging(@NonNull final GasCalculator gasCalculator) {
+    public CustomGasCharging(@NonNull final HederaGasCalculator gasCalculator) {
         this.gasCalculator = gasCalculator;
     }
 

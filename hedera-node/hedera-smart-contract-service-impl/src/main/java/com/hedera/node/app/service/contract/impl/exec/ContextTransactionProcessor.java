@@ -156,6 +156,8 @@ public class ContextTransactionProcessor implements Callable<CallOutcome> {
             opsDurationCounter = OpsDurationCounter.disabled();
         }
 
+        // Handle code delegations
+
         // Process the transaction and return its outcome
         try {
             final var tracer = addOnTracers != null

@@ -32,11 +32,24 @@ public record EthTxSigs(byte[] publicKey, byte[] address) {
         return new EthTxSigs(compressedKey, address);
     }
 
+    public static EthTxSigs extractAuthoritySignature(CodeDelegation codeDelegation) {
+        try {
+            final var message = codeDelegation.calculateSignableMessage();
+            final var pubKey = extractSig(codeDelegation.recId(), codeDelegation.r(), codeDelegation.s(), message);
+            final var address = recoverAddressFromPubKey(pubKey);
+            final var compressedKey = recoverCompressedPubKey(pubKey);
+            return new EthTxSigs(compressedKey, address);
+        } catch (final Exception e) {
+            return null;
+        }
+    }
+
     public static byte[] calculateSignableMessage(EthTxData ethTx) {
         return switch (ethTx.type()) {
             case LEGACY_ETHEREUM -> resolveLegacy(ethTx);
             case EIP1559 -> resolveEIP1559(ethTx);
             case EIP2930 -> resolveEIP2930(ethTx);
+            case EIP7702 -> resolveEIP7702(ethTx);
         };
     }
 
@@ -93,6 +106,23 @@ public record EthTxSigs(byte[] publicKey, byte[] address) {
             Integers.toBytesUnsigned(ethTx.value()),
             ethTx.callData(),
             ethTx.accessListAsRlp() != null ? ethTx.accessListAsRlp() : new Object[0]
+        });
+    }
+
+    // EIP7702 introduces the authorizationList field, which allows one to specifying
+    // a list of EOA addresses (via signatures) that are authorized to call the code of a contract
+    // More details: https://eips.ethereum.org/EIPS/eip-7702
+    static byte[] resolveEIP7702(final EthTxData ethTx) {
+        return RLPEncoder.sequence(Integers.toBytes(1), new Object[] {
+            ethTx.chainId(),
+            Integers.toBytes(ethTx.nonce()),
+            ethTx.gasPrice(),
+            Integers.toBytes(ethTx.gasLimit()),
+            ethTx.to(),
+            Integers.toBytesUnsigned(ethTx.value()),
+            ethTx.callData(),
+            ethTx.accessListAsRlp() != null ? ethTx.accessListAsRlp() : new Object[0],
+            ethTx.authorizationList()
         });
     }
 

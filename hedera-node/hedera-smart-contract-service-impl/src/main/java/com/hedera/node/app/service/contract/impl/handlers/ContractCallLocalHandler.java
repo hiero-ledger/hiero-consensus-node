@@ -26,6 +26,7 @@ import com.hedera.node.app.hapi.utils.CommonPbjConverters;
 import com.hedera.node.app.hapi.utils.fee.SmartContractFeeBuilder;
 import com.hedera.node.app.service.contract.impl.exec.QueryComponent;
 import com.hedera.node.app.service.contract.impl.exec.QueryComponent.Factory;
+import com.hedera.node.app.service.contract.impl.exec.gas.HederaGasCalculator;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.ReadableTokenStore;
 import com.hedera.node.app.spi.fees.Fees;
@@ -49,7 +50,7 @@ import org.hyperledger.besu.evm.gascalculator.GasCalculator;
 @Singleton
 public class ContractCallLocalHandler extends PaidQueryHandler {
     private final Provider<QueryComponent.Factory> provider;
-    private final GasCalculator gasCalculator;
+    private final HederaGasCalculator gasCalculator;
     private final InstantSource instantSource;
     private final EntityIdFactory entityIdFactory;
 
@@ -63,7 +64,7 @@ public class ContractCallLocalHandler extends PaidQueryHandler {
     @Inject
     public ContractCallLocalHandler(
             @NonNull final Provider<Factory> provider,
-            @NonNull final GasCalculator gasCalculator,
+            @NonNull final HederaGasCalculator gasCalculator,
             @NonNull final InstantSource instantSource,
             @NonNull final EntityIdFactory entityIdFactory) {
         this.provider = requireNonNull(provider);

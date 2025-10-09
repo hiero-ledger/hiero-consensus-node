@@ -55,4 +55,14 @@ javaModules {
 
     // Platform test applications
     directory("platform-sdk/platform-apps/tests") { group = "com.hedera.hashgraph" }
+
+    gradle.lifecycle.beforeProject {
+        plugins.withId("org.hiero.gradle.base.jpms-modules") {
+            configure<org.gradlex.javamodule.moduleinfo.ExtraJavaModuleInfoPluginExtension> {
+                module("io.consensys.tuweni:tuweni-units", "tuweni.units")
+                module("io.consensys.tuweni:tuweni-bytes", "tuweni.bytes")
+                module("io.vertx:vertx-core", "io.vertx.core")
+            }
+        }
+    }
 }

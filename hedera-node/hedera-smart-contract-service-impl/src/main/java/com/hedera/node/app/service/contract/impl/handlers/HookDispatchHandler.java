@@ -17,6 +17,7 @@ import com.hedera.hapi.node.base.HookId;
 import com.hedera.node.app.service.contract.impl.ContractServiceComponent;
 import com.hedera.node.app.service.contract.impl.exec.CallOutcome;
 import com.hedera.node.app.service.contract.impl.exec.TransactionComponent;
+import com.hedera.node.app.service.contract.impl.exec.gas.HederaGasCalculator;
 import com.hedera.node.app.service.contract.impl.records.ContractCallStreamBuilder;
 import com.hedera.node.app.service.contract.impl.state.EvmFrameStates;
 import com.hedera.node.app.service.contract.impl.state.WritableEvmHookStore;
@@ -34,14 +35,13 @@ import com.hedera.node.config.data.HooksConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import javax.inject.Inject;
 import javax.inject.Provider;
-import org.hyperledger.besu.evm.gascalculator.GasCalculator;
 
 public class HookDispatchHandler extends AbstractContractTransactionHandler implements TransactionHandler {
 
     @Inject
     public HookDispatchHandler(
             @NonNull final Provider<TransactionComponent.Factory> provider,
-            @NonNull final GasCalculator gasCalculator,
+            @NonNull final HederaGasCalculator gasCalculator,
             @NonNull final ContractServiceComponent component) {
         super(provider, gasCalculator, component);
     }

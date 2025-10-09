@@ -29,14 +29,14 @@ class TokenUriCallTest extends CallTestBase {
 
         final var result = subject.execute(frame).fullResult().result();
 
-        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.getState());
+        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.state());
         assertEquals(
                 Bytes.wrap(TokenUriTranslator.TOKEN_URI
                         .getOutputs()
                         .encode(Tuple.singleton(
                                 new String(CIVILIAN_OWNED_NFT.metadata().toByteArray())))
                         .array()),
-                result.getOutput());
+                result.output());
     }
 
     @ParameterizedTest
@@ -48,12 +48,12 @@ class TokenUriCallTest extends CallTestBase {
         // when
         final var result = subject.execute(frame).fullResult().result();
         // then
-        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.getState());
+        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.state());
         assertEquals(
                 Bytes.wrap(TokenUriTranslator.TOKEN_URI
                         .getOutputs()
                         .encode(Tuple.singleton(TokenUriCall.URI_QUERY_NON_EXISTING_TOKEN_ERROR))
                         .array()),
-                result.getOutput());
+                result.output());
     }
 }

@@ -53,7 +53,7 @@ public class HederaAccountNumAliasCallTest extends CallTestBase {
         subject = new HederaAccountNumAliasCall(attempt, asHeadlongAddress(RECEIVER_ADDRESS.toByteArray()));
         final var result = subject.execute(frame).fullResult().result();
 
-        assertEquals(State.COMPLETED_SUCCESS, result.getState());
+        assertEquals(State.COMPLETED_SUCCESS, result.state());
         assertEquals(
                 Bytes.wrap(HEDERA_ACCOUNT_NUM_ALIAS
                         .getOutputs()
@@ -61,7 +61,7 @@ public class HederaAccountNumAliasCallTest extends CallTestBase {
                                 (long) ResponseCodeEnum.SUCCESS.protoOrdinal(),
                                 asHeadlongAddress(RECEIVER_ID.accountNumOrThrow())))
                         .array()),
-                result.getOutput());
+                result.output());
     }
 
     @Test
@@ -78,13 +78,13 @@ public class HederaAccountNumAliasCallTest extends CallTestBase {
         subject = new HederaAccountNumAliasCall(attempt, asHeadlongAddress(RECEIVER_ADDRESS.toByteArray()));
         final var result = subject.execute(frame).fullResult().result();
 
-        assertEquals(State.COMPLETED_SUCCESS, result.getState());
+        assertEquals(State.COMPLETED_SUCCESS, result.state());
         assertEquals(
                 Bytes.wrap(HEDERA_ACCOUNT_NUM_ALIAS
                         .getOutputs()
                         .encode(Tuple.of((long) ResponseCodeEnum.INVALID_SOLIDITY_ADDRESS.protoOrdinal(), ZERO_ADDRESS))
                         .array()),
-                result.getOutput());
+                result.output());
     }
 
     @Test
@@ -99,12 +99,12 @@ public class HederaAccountNumAliasCallTest extends CallTestBase {
         subject = new HederaAccountNumAliasCall(attempt, asHeadlongAddress(RECEIVER_ADDRESS.toByteArray()));
         final var result = subject.execute(frame).fullResult().result();
 
-        assertEquals(State.COMPLETED_SUCCESS, result.getState());
+        assertEquals(State.COMPLETED_SUCCESS, result.state());
         assertEquals(
                 Bytes.wrap(HEDERA_ACCOUNT_NUM_ALIAS
                         .getOutputs()
                         .encode(Tuple.of((long) ResponseCodeEnum.INVALID_SOLIDITY_ADDRESS.protoOrdinal(), ZERO_ADDRESS))
                         .array()),
-                result.getOutput());
+                result.output());
     }
 }
