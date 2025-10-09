@@ -6,6 +6,7 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
+import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.streams.ContractBytecode;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
 import com.hedera.node.app.service.contract.impl.annotations.TransactionScope;
@@ -133,7 +134,9 @@ public class ContextTransactionProcessor implements Callable<CallOutcome> {
             } else {
                 outcome = maybeChargeFeesAndReturnOutcome(
                         hevmTransaction,
-                        context.body().transactionIDOrThrow().accountIDOrThrow(),
+                        context.body()
+                                .transactionIDOrElse(TransactionID.DEFAULT)
+                                .accountIDOrElse(AccountID.DEFAULT),
                         rootProxyWorldUpdater.getHederaAccount(hevmTransaction.senderId()),
                         contractsConfig.chargeGasOnEvmHandleException());
             }
