@@ -32,6 +32,66 @@ A `Front-End Service` is commonly developed in the following stages:
   - `hapi/hapi/src/main/java/com/hedera/hapi/util/HapiUtils.java` ([Transaction Functionality](https://github.com/hiero-ledger/hiero-consensus-node/blob/main/hapi/hapi/src/main/java/com/hedera/hapi/util/HapiUtils.java#L169), [Query Declaration](https://github.com/hiero-ledger/hiero-consensus-node/blob/main/hapi/hapi/src/main/java/com/hedera/hapi/util/HapiUtils.java#L144))
 - **Follow the enforced protobuf style guide.**
 
+### Virtual-map state keys and values (what, where and why)
+
+When your new service defines persistent states (key/value or virtual map states) that the platform will serialize and persist, you must register those state types in the shared `virtual_map_state.proto` so the platform and other services agree on the numeric state id and the key/value PBJ types.
+
+Why this is required
+- The Swirlds/Hedera state lifecycle uses a compact numeric "state id" to identify each named state. The generated Java enum for the `StateKey` oneof in `virtual_map_state.proto` exposes the canonical ordinal for that state (via `StateKey.KeyOneOfType.<NAME>.protoOrdinal()`), and your `Schema` classes must use that ordinal when creating `StateDefinition`s. If the proto entry is missing or the ordinal is different, the runtime will not be able to map your Schema's state to the platform's persisted data and compilation/runtime errors will follow.
+
+Where to add the entries
+- Edit `hapi/hedera-protobuf-java-api/src/main/proto/platform/state/virtual_map_state.proto` and add two entries:
+1. In the `StateKey` message (the oneof named `key`) add an entry that declares the key protobuf type for your state and a unique field number.
+2. In the `StateValue` message (the oneof named `value`) add the corresponding entry for the value protobuf type and a unique field number.
+
+Guidelines and ranges
+- Follow existing conventions in `virtual_map_state.proto` for choosing field numbers and range allocation. Many services put core states in the low ranges; platform-reserved ranges and queue ranges are documented inside the file.
+- Don't reuse an existing field number; instead pick the next free number in the sensible range for your service or coordinate with the maintainers if unsure.
+
+How to wire it up in your Java schema
+1. After regenerating the protobuf/ PBJ sources, refer to the generated enum to get the canonical state id:
+
+- Example: `int stateId = StateKey.KeyOneOfType.ClprService_I_CONFIGURATIONS.protoOrdinal();`
+
+2. In your schema class (for example, `V0650ClprSchema.java`) create the `StateDefinition` using the public `StateDefinition.onDisk` overload that accepts the state id first, then the label and the protobuf serializers, for example:
+
+```java
+StateDefinition.onDisk(
+    stateId,
+    "CLPR_LEDGER_CONFIGURATION",
+    ClprLedgerId.PROTOBUF,
+    ClprLedgerConfiguration.PROTOBUF,
+    MAX_ENTRIES);
+```
+
+3. Use `StateMetadata.computeLabel(serviceName, stateKey)` if you want a consistent computed label for the state (many services do this).
+
+Checklist for adding a new state
+- [ ] Add key and value entries to `virtual_map_state.proto` with unique field numbers.
+- [ ] Regenerate protobuf / PBJ Java sources (build process or explicit codegen).
+- [ ] Use `StateKey.KeyOneOfType.<NAME>.protoOrdinal()` in your schema to derive the state id.
+- [ ] Create the `StateDefinition` with `StateDefinition.onDisk(stateId, label, keyProto, valueProto, maxEntries)`.
+- [ ] Run a local build and tests.
+
+Common pitfalls and troubleshooting
+- If you see a compiler error about a private `StateDefinition.onDisk` overload or "private access" to `onDisk`, that usually means you called the wrong overload (the internal/private one that doesn't accept the state id) — switch to the public `onDisk(int, String, ...)` overload.
+- If the runtime can't find your state, re-check the generated `StateKey.KeyOneOfType` enum to ensure you used the correct constant name and `protoOrdinal()`.
+- If you accidentally choose a field number that collides with another service, the generated enum ordinals will mismatch and you'll see state mapping errors; pick a unique number and re-generate sources.
+
+Example quick flow (concrete)
+1. Add entries in `virtual_map_state.proto`:
+- In `StateKey`: `org.hiero.hapi.interledger.state.clpr.ClprLedgerId ClprService_I_CONFIGURATIONS = 53;`
+- In `StateValue`: `org.hiero.hapi.interledger.state.clpr.ClprLedgerConfiguration ClprService_I_CONFIGURATIONS = <some-unique-number>`
+2. Rebuild codegen to produce updated `StateKey` enum.
+3. In `V0650ClprSchema.java` use:
+
+```java
+final int id = StateKey.KeyOneOfType.ClprService_I_CONFIGURATIONS.protoOrdinal();
+StateDefinition.onDisk(id, "CLPR_LEDGER_CONFIGURATION", ClprLedgerId.PROTOBUF, ClprLedgerConfiguration.PROTOBUF, 50_000L);
+```
+
+If you'd like, I can add a short example PR that updates `virtual_map_state.proto` and `V0650ClprSchema.java` consistently (I already made the schema call use `onDisk(int,...)` and left a placeholder id in that file). Let me know if you want me to perform the proto change and regenerate PBJ sources in this repo.
+
 ### 2. Basic Service and Handle Workflows
 
 - **Create service implementation classes:**

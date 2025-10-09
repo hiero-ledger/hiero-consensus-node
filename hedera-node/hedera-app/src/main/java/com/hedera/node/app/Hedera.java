@@ -560,7 +560,7 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
                                 () -> requireNonNull(initState),
                                 platformStateFacade),
                         PLATFORM_STATE_SERVICE,
-                        new ClprServiceImpl())
+                        clprServiceImpl)
                 .forEach(servicesRegistry::register);
         consensusStateEventHandler = new ConsensusStateEventHandlerImpl(this);
         final var blockStreamsEnabled = isBlockStreamEnabled();
@@ -939,7 +939,6 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
     @Override
     public void run() {
         logger.info("Starting the Hedera node");
-        daggerApp.clprEndpoint().start();
     }
 
     /**

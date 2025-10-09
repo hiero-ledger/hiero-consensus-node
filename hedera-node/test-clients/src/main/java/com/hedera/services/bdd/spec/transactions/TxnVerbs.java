@@ -846,8 +846,4 @@ public class TxnVerbs {
     public static HapiSetRemoteLedgerConfig clprSetRemoteLedgerConfig(String ledgerId) {
         return new HapiSetRemoteLedgerConfig(ledgerId);
     }
-
-    public static HapiSetRemoteLedgerConfig clprSetRemoteLedgerConfig(String ledgerId) {
-        return new HapiSetRemoteLedgerConfig(ledgerId);
-    }
 }

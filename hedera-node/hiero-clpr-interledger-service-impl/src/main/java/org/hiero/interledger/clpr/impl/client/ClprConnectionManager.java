@@ -2,6 +2,7 @@
 package org.hiero.interledger.clpr.impl.client;
 
 import com.hedera.hapi.node.base.ServiceEndpoint;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import java.net.UnknownHostException;
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -26,7 +27,7 @@ public class ClprConnectionManager {
      * @param serviceEndpoint The service endpoint to connect to.
      * @return A new instance of {@link ClprClient} connected to the specified service endpoint.
      */
-    public ClprClient createClient(ServiceEndpoint serviceEndpoint) throws UnknownHostException {
+    public ClprClient createClient(@NonNull final ServiceEndpoint serviceEndpoint) throws UnknownHostException {
         return new ClprClientImpl(serviceEndpoint);
     }
 }
