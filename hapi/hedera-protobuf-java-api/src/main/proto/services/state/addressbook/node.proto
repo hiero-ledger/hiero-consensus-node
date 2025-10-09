@@ -159,3 +159,14 @@ message Node {
      */
     proto.ServiceEndpoint grpc_proxy_endpoint = 12;
 }
+
+/**
+ * TODO
+ */
+message NodeIdList {
+
+  /**
+   * Node Id
+   */
+  repeated uint64 node_id = 1;
+}

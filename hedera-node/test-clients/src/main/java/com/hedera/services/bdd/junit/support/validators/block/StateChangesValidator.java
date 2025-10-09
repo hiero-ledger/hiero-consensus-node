@@ -912,6 +912,7 @@ public class StateChangesValidator implements BlockStreamValidator {
             case TOKEN_RELATION_VALUE -> mapChangeValue.tokenRelationValueOrThrow();
             case TOPIC_VALUE -> mapChangeValue.topicValueOrThrow();
             case NODE_VALUE -> mapChangeValue.nodeValueOrThrow();
+            case NODE_ID_LIST_VALUE -> mapChangeValue.nodeIdListValueOrThrow();
             case ACCOUNT_PENDING_AIRDROP_VALUE -> mapChangeValue.accountPendingAirdropValueOrThrow();
             case ROSTER_VALUE -> mapChangeValue.rosterValueOrThrow();
             case SCHEDULED_COUNTS_VALUE -> mapChangeValue.scheduledCountsValueOrThrow();

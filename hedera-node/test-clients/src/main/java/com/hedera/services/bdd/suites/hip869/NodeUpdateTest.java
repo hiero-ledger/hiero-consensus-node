@@ -16,11 +16,13 @@ import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.WRONG_LENGTH_EDDSA_KEY;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.atomicBatch;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoDelete;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeDelete;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeUpdate;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.viewNode;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.logIt;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
@@ -33,6 +35,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.hip869.NodeCreateTest.GRPC_PROXY_ENDPOINT_FQDN;
 import static com.hedera.services.bdd.suites.hip869.NodeCreateTest.GRPC_PROXY_ENDPOINT_IP;
 import static com.hedera.services.bdd.suites.hip869.NodeCreateTest.generateX509Certificates;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_IS_TREASURY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.GOSSIP_ENDPOINTS_EXCEEDED_LIMIT;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.GOSSIP_ENDPOINT_CANNOT_HAVE_FQDN;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.GRPC_WEB_PROXY_NOT_SUPPORTED;
@@ -65,6 +68,7 @@ import com.hederahashgraph.api.proto.java.AccountID;
 import java.security.cert.CertificateEncodingException;
 import java.security.cert.X509Certificate;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
@@ -546,5 +550,41 @@ public class NodeUpdateTest {
                         .signedByPayerAnd("adminKey")
                         .grpcProxyEndpoint(toPbj(GRPC_PROXY_ENDPOINT_IP))
                         .hasKnownStatus(INVALID_SERVICE_ENDPOINT));
+    }
+
+    @HapiTest
+    @LeakyHapiTest(overrides = {"nodes.updateAccountIdAllowed"})
+    final Stream<DynamicTest> restrictNodeAccountDeletion() throws CertificateEncodingException {
+        final var adminKey = "adminKey";
+        final var nodeId = new AtomicLong();
+        final var account = "account";
+        final var secondAccount = "secondAccount";
+        final var node = "testNode";
+        return hapiTest(
+                overriding("nodes.updateAccountIdAllowed", "true"),
+                cryptoCreate(account),
+                cryptoCreate(secondAccount),
+                newKeyNamed(adminKey),
+
+                // create new node
+                nodeCreate(node)
+                        .adminKey("adminKey")
+                        .gossipCaCertificate(gossipCertificates.getFirst().getEncoded())
+                        .accountId(account),
+                // verify we can't delete the node account
+                cryptoDelete(account).hasKnownStatus(ACCOUNT_IS_TREASURY),
+
+                // update the new node account id
+                sourcing(() -> logIt("CREATED NODE ID " + nodeId.get())),
+                nodeUpdate(node).accountId(secondAccount).signedByPayerAnd(adminKey),
+
+                // verify now we can delete the old node account, and can't delete the new node account
+                cryptoDelete(account),
+                cryptoDelete(secondAccount).hasKnownStatus(ACCOUNT_IS_TREASURY),
+
+                // delete the new node
+                nodeDelete(node).signedByPayerAnd(adminKey),
+                // verify we can delete the second account
+                cryptoDelete(secondAccount));
     }
 }

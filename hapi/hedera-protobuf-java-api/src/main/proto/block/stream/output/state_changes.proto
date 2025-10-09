@@ -1074,6 +1074,16 @@ message MapChangeValue {
          * An EVM hook's state.
          */
         com.hedera.hapi.node.state.hooks.EvmHookState evm_hook_state_value = 29;
+
+        /**
+         * TODO
+         * A change to the Entity Identifier singleton.
+         * <p>
+         * The Entity Identifier singleton SHALL track the highest entity
+         * identifier used for the current shard and realm and SHALL be used
+         * to issue new entity numbers.
+         */
+        com.hedera.hapi.node.state.addressbook.NodeIdList node_id_list_value = 30;
     }
 }
 

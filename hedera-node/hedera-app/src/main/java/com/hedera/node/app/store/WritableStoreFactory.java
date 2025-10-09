@@ -12,6 +12,7 @@ import com.hedera.node.app.history.impl.WritableHistoryStoreImpl;
 import com.hedera.node.app.ids.EntityIdService;
 import com.hedera.node.app.ids.WritableEntityIdStore;
 import com.hedera.node.app.service.addressbook.AddressBookService;
+import com.hedera.node.app.service.addressbook.impl.WritableAccountNodeRelStore;
 import com.hedera.node.app.service.addressbook.impl.WritableNodeStore;
 import com.hedera.node.app.service.consensus.ConsensusService;
 import com.hedera.node.app.service.consensus.impl.WritableTopicStore;
@@ -59,6 +60,9 @@ public class WritableStoreFactory {
         final Map<Class<?>, StoreEntry> newMap = new HashMap<>();
         // AddressBookService
         newMap.put(WritableNodeStore.class, new StoreEntry(AddressBookService.NAME, WritableNodeStore::new));
+        newMap.put(
+                WritableAccountNodeRelStore.class,
+                new StoreEntry(AddressBookService.NAME, WritableAccountNodeRelStore::new));
 
         // ConsensusService
         newMap.put(WritableTopicStore.class, new StoreEntry(ConsensusService.NAME, WritableTopicStore::new));

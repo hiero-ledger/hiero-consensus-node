@@ -11,6 +11,7 @@ public class BlockStreamUtils {
         return switch (StateIdentifier.fromProtobufOrdinal(stateId)) {
             case UNKNOWN -> throw new IllegalArgumentException("Unknown state identifier");
             case STATE_ID_NODES -> "AddressBookService.NODES";
+            // TODO add it here maybe?
             case STATE_ID_BLOCKS -> "BlockRecordService.BLOCKS";
             case STATE_ID_RUNNING_HASHES -> "BlockRecordService.RUNNING_HASHES";
             case STATE_ID_BLOCK_STREAM_INFO -> "BlockStreamService.BLOCK_STREAM_INFO";

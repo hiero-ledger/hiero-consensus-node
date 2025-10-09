@@ -319,6 +319,11 @@ message StateKey {
      */
     uint64 FileService_I_UPGRADE_DATA_159 = 10010;
 
+    /**
+     * A state identifier for account to node relationships.
+     */
+    uint64 AddressBookService_I_ACCOUNT_NODE_REL = 10011;
+
   }
 }
 
@@ -660,6 +665,11 @@ message StateValue {
      * Metadata of the `159` upgrade file data queue.
      */
     proto.ProtoBytes FileService_I_UPGRADE_DATA_159 = 10010;
+
+    /**
+     * A state identifier for account to node relationships.
+     */
+    com.hedera.hapi.node.state.addressbook.NodeIdList AddressBookService_I_ACCOUNT_NODE_REL = 10011;
 
   }
 }

@@ -5,6 +5,7 @@ import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
+import com.hedera.node.app.service.addressbook.ReadableAccountNodeRelStore;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.info.NetworkInfo;
@@ -46,7 +47,8 @@ public interface TokenServiceApi {
             @NonNull AccountID deletedId,
             @NonNull AccountID obtainerId,
             @NonNull ExpiryValidator expiryValidator,
-            @NonNull DeleteCapableTransactionStreamBuilder recordBuilder);
+            @NonNull DeleteCapableTransactionStreamBuilder recordBuilder,
+            @NonNull ReadableAccountNodeRelStore nodeStore);
 
     /**
      * Validates the creation of a given staking election relative to the given account store, network info,

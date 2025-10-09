@@ -25,6 +25,7 @@ module com.hedera.node.app.service.contract.impl {
     requires transitive org.hyperledger.besu.evm;
     requires transitive tuweni.bytes;
     requires transitive tuweni.units;
+    requires com.hedera.node.app.service.addressbook;
     requires com.swirlds.base;
     requires org.hiero.base.utility;
     requires com.github.benmanes.caffeine;
