@@ -1733,7 +1733,7 @@ enum ResponseCodeEnum {
      * The batch key is not valid
      */
     INVALID_BATCH_KEY = 394;
-    
+
     /**
      * The provided schedule expiry time is not configurable.
      */
@@ -1770,6 +1770,16 @@ enum ResponseCodeEnum {
      * A HAPI client cannot set the SignedTransaction#use_serialized_tx_message_hash_algorithm field.
      */
     INVALID_SERIALIZED_TX_MESSAGE_HASH_ALGORITHM = 401;
+
+    /**
+    * A HAPI client cannot set the SignedTransaction#use_serialized_tx_message_hash_algorithm field.
+    */
+    CLPR_LEDGER_CONFIGURATION_NOT_AVAILABLE = 402;
+
+    /**
+     * The state proof is not valid for the given transaction.
+     */
+    CLPR_INVALID_STATE_PROOF = 403;
 
     /**
      * An EVM hook execution was throttled due to high network gas utilization.
