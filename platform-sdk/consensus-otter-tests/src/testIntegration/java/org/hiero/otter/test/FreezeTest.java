@@ -10,6 +10,7 @@ import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.OtterTest;
 import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.TimeManager;
+import org.hiero.otter.fixtures.result.MultipleNodeConsensusResults;
 
 /**
  * Tests that multiple freezes of the network work correctly, and that all nodes are able to freeze, restart, and
@@ -24,6 +25,8 @@ public class FreezeTest {
      * Tests that multiple freezes of the network work correctly, and that all nodes are able to freeze, restart, and
      * continue reaching consensus.
      *
+     * seed 1794451103092207386L fails the PCES birth round maximum
+     *
      * @param env the test environment
      */
     @OtterTest
@@ -33,6 +36,8 @@ public class FreezeTest {
 
         network.addNodes(4);
         network.start();
+
+        final MultipleNodeConsensusResults networkConsensusResults = network.newConsensusResults();
 
         for (int i = 0; i < NUM_FREEZE_ITERATIONS; i++) {
             network.freeze();
@@ -49,11 +54,12 @@ public class FreezeTest {
             network.start();
 
             timeManager.waitForCondition(
-                    () -> network.newConsensusResults().allNodesAdvancedToRound(freezeRound + 20),
+                    () -> networkConsensusResults.allNodesAdvancedToRound(freezeRound + 20),
                     Duration.ofSeconds(120),
-                    "At least one node failed to advance 100 rounds past the freeze round in the time allowed");
+                    "At least one node failed to advance 20 rounds past the freeze round in the time allowed");
 
-            assertThat(network.newConsensusResults()).haveBirthRoundSplit(postFreezeTime, freezeRound);
+            assertThat(networkConsensusResults).haveBirthRoundSplit(postFreezeTime, freezeRound);
+            networkConsensusResults.clear();
         }
 
         assertThat(network.newLogResults()).haveNoErrorLevelMessages();
