@@ -145,7 +145,8 @@ jobs:
             echo "xts-tag-commit-email=${AUTHOR_EMAIL}" >> "${GITHUB_OUTPUT}"
             echo "xts-info=${XTS_COMMIT_BRANCH} - ${XTS_SHORT_COMMIT}" >> "${GITHUB_OUTPUT}"
 
-            ESCAPED_COMMIT_LIST=$(jq -Rs . <<< "${COMMIT_LIST}")
+            CLEANED_COMMIT_LIST="${COMMIT_LIST//\`/}"
+            ESCAPED_COMMIT_LIST=$(jq -Rs . <<< "${CLEANED_COMMIT_LIST}")
             ESCAPED_COMMIT_LIST=${ESCAPED_COMMIT_LIST:1:-1}
             echo "commit-list=${ESCAPED_COMMIT_LIST}" >> "${GITHUB_OUTPUT}"
 
