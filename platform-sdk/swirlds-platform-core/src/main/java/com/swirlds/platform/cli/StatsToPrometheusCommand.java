@@ -20,11 +20,11 @@ import java.util.stream.IntStream;
 import picocli.CommandLine;
 
 @CommandLine.Command(
-        name = "stats-to-open-metrics",
+        name = "stats-to-prometheus",
         mixinStandardHelpOptions = true,
-        description = "Converts list of stat CSV files to OpenMetrics format")
+        description = "Converts list of stat CSV files to prometheus format")
 @SubcommandOf(PlatformCli.class)
-public class StatsToOpenMetricCommand extends AbstractCommand {
+public class StatsToPrometheusCommand extends AbstractCommand {
 
     private List<Path> csvFiles;
     private BufferedReader lineReader;
