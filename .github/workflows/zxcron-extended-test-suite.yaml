@@ -117,10 +117,10 @@ jobs:
               echo "Latest XTS Pass Tag: ${LATEST_XTS_PASS_TAG}"
               LATEST_XTS_PASS_COMMIT="$(git rev-list -n 1 "${LATEST_XTS_PASS_TAG}")"
               COMMIT_LIST="$(git log --pretty=format:"- [%h: %s](https://github.com/${{ github.repository }}/commit/%H)" "${LATEST_XTS_PASS_COMMIT}..${XTS_COMMIT}")"
-            else [[ -n "${LATEST_PROMOTED_BUILD_TAG}" ]]; then
+            elif [[ -n "${LATEST_PROMOTED_BUILD_TAG}" ]]; then
               echo "Latest Promoted Tag: ${LATEST_PROMOTED_BUILD_TAG}"
               LATEST_PROMOTED_BUILD_COMMIT="$(git rev-list -n 1 "${LATEST_PROMOTED_BUILD_TAG}")"
-              COMMIT_LIST="$(git log --pretty=format:"- [%h: %s](https://github.com/${{ github.repository }}/commit/%H)" "${LATEST_PROMOTED_BUILD_TAG}..${XTS_COMMIT}")"
+              COMMIT_LIST="$(git log --pretty=format:"- [%h: %s](https://github.com/${{ github.repository }}/commit/%H)" "${LATEST_PROMOTED_BUILD_COMMIT}..${XTS_COMMIT}")"
             fi
           fi
 
