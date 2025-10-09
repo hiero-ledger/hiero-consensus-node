@@ -6,8 +6,8 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 import com.hedera.node.app.blocks.impl.streaming.BlockBufferService;
-import com.hedera.node.app.services.StartupNetworks;
 import com.hedera.node.app.spi.ids.EntityIdFactory;
+import com.hedera.node.app.spi.migrate.StartupNetworks;
 import com.hedera.node.config.ConfigProvider;
 import com.swirlds.common.utility.AutoCloseableWrapper;
 import com.swirlds.platform.listeners.StateWriteToDiskCompleteNotification;

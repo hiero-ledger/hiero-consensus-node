@@ -1,11 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.app;
 
-import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.system.InitTrigger;
-import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.function.Consumer;
@@ -13,6 +11,7 @@ import org.hiero.consensus.model.event.Event;
 import org.hiero.consensus.model.hashgraph.Round;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
+import org.hiero.otter.fixtures.app.state.OtterServiceStateSpecification;
 
 /**
  * This interface defines a service of the Otter application.
@@ -28,13 +27,12 @@ public interface OtterService {
     String name();
 
     /**
-     * Get the schema for the genesis state of this service.
+     * Get the specification of the state for this service.
      *
-     * @param version the current software version
-     * @return the schema for the genesis state of this service
+     * @return the state specification for this service
      */
     @NonNull
-    Schema<SemanticVersion> genesisSchema(@NonNull SemanticVersion version);
+    OtterServiceStateSpecification stateSpecification();
 
     /**
      * Called when the service is initialized. This is called once when the application starts up.
