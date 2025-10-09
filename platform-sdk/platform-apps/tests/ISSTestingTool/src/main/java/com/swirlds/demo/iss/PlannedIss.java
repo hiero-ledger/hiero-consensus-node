@@ -42,12 +42,12 @@ public class PlannedIss implements PlannedIncident {
      * @param hashPartitions   a list of ISS partitions, each partition list should be a list of node IDs that will
      *                         agree with each other on the hash of the post-ISS state
      */
-    public PlannedIss(final Duration timeAfterGenesis, final List<List<NodeId>> hashPartitions) {
+    public PlannedIss(@NonNull final Duration timeAfterGenesis, @NonNull final List<List<NodeId>> hashPartitions) {
         this.timeAfterGenesis = timeAfterGenesis;
         this.hashPartitions = hashPartitions;
     }
 
-    public PlannedIss(ReadableSequentialData in) {
+    public PlannedIss(@NonNull final ReadableSequentialData in) {
         this.timeAfterGenesis = Duration.ofNanos(in.readLong());
 
         final int partitionCount = in.readInt();

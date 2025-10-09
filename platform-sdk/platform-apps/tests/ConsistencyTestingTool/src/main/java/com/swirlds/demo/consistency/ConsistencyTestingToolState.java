@@ -80,7 +80,7 @@ public class ConsistencyTestingToolState extends VirtualMapState<ConsistencyTest
      */
     private final Set<Long> transactionsAwaitingPostHandle;
 
-    public ConsistencyTestingToolState(@NonNull Configuration configuration, @NonNull Metrics metrics) {
+    public ConsistencyTestingToolState(@NonNull final Configuration configuration, @NonNull final Metrics metrics) {
         super(configuration, metrics);
         transactionHandlingHistory = new TransactionHandlingHistory();
         transactionsAwaitingPostHandle = ConcurrentHashMap.newKeySet();
@@ -116,7 +116,7 @@ public class ConsistencyTestingToolState extends VirtualMapState<ConsistencyTest
     }
 
     @Override
-    protected ConsistencyTestingToolState newInstance(@NonNull VirtualMap virtualMap) {
+    protected ConsistencyTestingToolState newInstance(@NonNull final VirtualMap virtualMap) {
         return new ConsistencyTestingToolState(virtualMap);
     }
 

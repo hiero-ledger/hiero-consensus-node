@@ -9,6 +9,9 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.util.ArrayList;
 
+/**
+ * Codec for serializing and deserializing {@link PlannedLogError} objects.
+ */
 public class PlannedLogErrorCodec implements Codec<PlannedLogError> {
 
     public static final PlannedLogErrorCodec INSTANCE = new PlannedLogErrorCodec();
@@ -18,7 +21,7 @@ public class PlannedLogErrorCodec implements Codec<PlannedLogError> {
     @NonNull
     @Override
     public PlannedLogError parse(
-            @NonNull ReadableSequentialData in,
+            @NonNull final ReadableSequentialData in,
             boolean strictMode,
             boolean parseUnknownFields,
             int maxDepth,
@@ -27,12 +30,12 @@ public class PlannedLogErrorCodec implements Codec<PlannedLogError> {
     }
 
     @Override
-    public void write(@NonNull PlannedLogError plannedLogError, @NonNull WritableSequentialData out) {
+    public void write(@NonNull final PlannedLogError plannedLogError, @NonNull final WritableSequentialData out) {
         plannedLogError.writeTo(out);
     }
 
     @Override
-    public int measure(@NonNull ReadableSequentialData in) throws ParseException {
+    public int measure(@NonNull final ReadableSequentialData in) throws ParseException {
         final var start = in.position();
         parse(in);
         final var end = in.position();
@@ -40,12 +43,13 @@ public class PlannedLogErrorCodec implements Codec<PlannedLogError> {
     }
 
     @Override
-    public int measureRecord(PlannedLogError plannedLogError) {
+    public int measureRecord(@NonNull final PlannedLogError plannedLogError) {
         return plannedLogError.getSizeInBytes();
     }
 
     @Override
-    public boolean fastEquals(@NonNull PlannedLogError plannedLogError, @NonNull ReadableSequentialData input)
+    public boolean fastEquals(
+            @NonNull final PlannedLogError plannedLogError, @NonNull final ReadableSequentialData input)
             throws ParseException {
         final PlannedLogError other = parse(input);
         return plannedLogError.equals(other);

@@ -9,6 +9,9 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.util.ArrayList;
 
+/**
+ * Codec for serializing and deserializing {@link PlannedIss} objects.
+ */
 public class PlannedIssCodec implements Codec<PlannedIss> {
 
     public static final PlannedIssCodec INSTANCE = new PlannedIssCodec();
@@ -18,7 +21,7 @@ public class PlannedIssCodec implements Codec<PlannedIss> {
     @NonNull
     @Override
     public PlannedIss parse(
-            @NonNull ReadableSequentialData in,
+            @NonNull final ReadableSequentialData in,
             boolean strictMode,
             boolean parseUnknownFields,
             int maxDepth,
@@ -27,12 +30,12 @@ public class PlannedIssCodec implements Codec<PlannedIss> {
     }
 
     @Override
-    public void write(@NonNull PlannedIss item, @NonNull WritableSequentialData out) {
+    public void write(@NonNull final PlannedIss item, @NonNull final WritableSequentialData out) {
         item.writeTo(out);
     }
 
     @Override
-    public int measure(@NonNull ReadableSequentialData in) throws ParseException {
+    public int measure(@NonNull final ReadableSequentialData in) throws ParseException {
         final var start = in.position();
         parse(in);
         final var end = in.position();
@@ -40,12 +43,12 @@ public class PlannedIssCodec implements Codec<PlannedIss> {
     }
 
     @Override
-    public int measureRecord(PlannedIss plannedIss) {
+    public int measureRecord(@NonNull final PlannedIss plannedIss) {
         return plannedIss.getSizeInBytes();
     }
 
     @Override
-    public boolean fastEquals(@NonNull PlannedIss plannedIss, @NonNull ReadableSequentialData input)
+    public boolean fastEquals(@NonNull final PlannedIss plannedIss, @NonNull final ReadableSequentialData input)
             throws ParseException {
         final PlannedIss other = parse(input);
         return plannedIss.equals(other);

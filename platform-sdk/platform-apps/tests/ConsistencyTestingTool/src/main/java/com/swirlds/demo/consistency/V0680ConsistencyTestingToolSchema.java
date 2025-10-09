@@ -10,6 +10,11 @@ import com.swirlds.state.lifecycle.StateDefinition;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Set;
 
+/**
+ * Schema definition of the Consistency Testing Tool.
+ * <p>
+ * Defines the state structure including a state long value and rounds handled counter.
+ */
 public class V0680ConsistencyTestingToolSchema extends Schema<SemanticVersion> {
 
     public static final String CONSISTENCY_SERVICE_NAME = "ConsistencyTestingToolService";

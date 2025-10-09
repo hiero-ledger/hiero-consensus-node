@@ -41,7 +41,7 @@ public class PlannedLogError implements PlannedIncident {
         this.nodeIds = Objects.requireNonNull(nodeIds);
     }
 
-    public PlannedLogError(ReadableSequentialData in) {
+    public PlannedLogError(@NonNull final ReadableSequentialData in) {
         this.timeAfterGenesis = Duration.ofNanos(in.readLong());
 
         final int nodeCount = in.readInt();
@@ -51,7 +51,7 @@ public class PlannedLogError implements PlannedIncident {
         }
     }
 
-    public void writeTo(WritableSequentialData output) {
+    public void writeTo(@NonNull final WritableSequentialData output) {
         output.writeLong(timeAfterGenesis.toNanos());
         output.writeInt(nodeIds.size());
         for (NodeId nodeId : nodeIds) {

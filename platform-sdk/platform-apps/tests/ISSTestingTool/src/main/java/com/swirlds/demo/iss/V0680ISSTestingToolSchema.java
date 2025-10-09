@@ -11,6 +11,12 @@ import com.swirlds.state.lifecycle.StateDefinition;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Set;
 
+/**
+ * Schema definition of the ISS Testing Tool.
+ * <p>
+ * Defines the state structure including running sum, genesis timestamp,
+ * and queues for planned ISS incidents and log errors.
+ */
 public class V0680ISSTestingToolSchema extends Schema<SemanticVersion> {
 
     public static final String ISS_SERVICE_NAME = "ISSTestingToolService";

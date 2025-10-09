@@ -105,10 +105,6 @@ issTestingTool.plannedLogErrors,          30:0
 
 Check `swirlds.log` and ensure there are no unexpected exceptions or errors.
 
-Validate that the ISSTestingTool has been started by checking the following message:
-
-        -INFO  STARTUP <main> ISSTestingToolMain: MerkleStateRoot Class Ids are registered with the ConstructableRegistry!
-
 Check that the planned ISSs has been provoked by checking for a log message like this:
 
         -INFO  STARTUP <<scheduler TransactionHandler>> ISSTestingToolState: ISS intentionally provoked. This ISS was planned to occur at time after genesis PT20S, and actually occurred at time after genesis PT20.050205S in round 24. This node (6) is in partition -1 and will agree with the hashes of all other nodes in partition -1. Nodes in other partitions are expected to have divergent hashes.
