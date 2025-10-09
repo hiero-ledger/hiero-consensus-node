@@ -16,6 +16,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_ID_REPEATED_IN_TO
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_TRANSFER_LIST_SIZE_LIMIT_EXCEEDED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TRANSFERS_NOT_ZERO_SUM_FOR_TOKEN;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TRANSFER_LIST_SIZE_LIMIT_EXCEEDED;
+import static com.hedera.node.app.hapi.utils.contracts.HookUtils.hasHooks;
 import static com.hedera.node.app.spi.validation.Validations.validateAccountID;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateFalsePreCheck;
@@ -218,30 +219,6 @@ public class CryptoTransferValidator {
             net = net.add(BigInteger.valueOf(adjust.amount()));
         }
         return net.equals(ZERO);
-    }
-
-    public static boolean hasHooks(final @NonNull CryptoTransferTransactionBody op) {
-        for (final AccountAmount aa : op.transfersOrElse(TransferList.DEFAULT).accountAmounts()) {
-            if (aa.hasPreTxAllowanceHook() || aa.hasPrePostTxAllowanceHook()) {
-                return true;
-            }
-        }
-        for (final TokenTransferList ttl : op.tokenTransfers()) {
-            for (final AccountAmount aa : ttl.transfers()) {
-                if (aa.hasPreTxAllowanceHook() || aa.hasPrePostTxAllowanceHook()) {
-                    return true;
-                }
-            }
-            for (final NftTransfer nft : ttl.nftTransfers()) {
-                if (nft.hasPreTxSenderAllowanceHook()
-                        || nft.hasPrePostTxSenderAllowanceHook()
-                        || nft.hasPreTxReceiverAllowanceHook()
-                        || nft.hasPrePostTxReceiverAllowanceHook()) {
-                    return true;
-                }
-            }
-        }
-        return false;
     }
 
     /**

@@ -283,7 +283,7 @@ public class HevmTransactionFactory {
         AccountID sender = null;
         AccountID relayer = null;
 
-        final var gasPrice =
+        final var gasLimit =
                 switch (body.data().kind()) {
                     case CONTRACT_CREATE_INSTANCE ->
                         body.contractCreateInstanceOrThrow().gas();
@@ -294,6 +294,12 @@ public class HevmTransactionFactory {
                         relayer = body.transactionID().accountID();
                         yield ethTxData.gasLimit();
                     }
+                    case HOOK_DISPATCH ->
+                        body.hookDispatchOrThrow()
+                                .executionOrThrow()
+                                .callOrThrow()
+                                .evmHookCallOrThrow()
+                                .gasLimit();
                     default -> throw new IllegalArgumentException("Not a contract operation");
                 };
         return new HederaEvmTransaction(
@@ -304,7 +310,7 @@ public class HevmTransactionFactory {
                 Bytes.EMPTY,
                 null,
                 0,
-                gasPrice,
+                gasLimit,
                 NOT_APPLICABLE,
                 NOT_APPLICABLE,
                 null,
@@ -349,6 +355,7 @@ public class HevmTransactionFactory {
         final var execution = body.executionOrThrow();
 
         final var gasLimit = execution.callOrThrow().evmHookCallOrThrow().gasLimit();
+        validateTrue(gasLimit > 0, INSUFFICIENT_GAS);
         validateTrue(gasLimit >= hooksConfig.lambdaIntrinsicGasCost(), INSUFFICIENT_GAS);
         validateTrue(gasLimit <= getMaxGasLimit(contractsConfig), MAX_GAS_LIMIT_EXCEEDED);
 

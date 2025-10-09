@@ -5,6 +5,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOK_ID_REPEATED_IN_CRE
 import static com.hedera.hapi.node.base.ResponseCodeEnum.REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.spi.workflows.DispatchOptions.hookDispatch;
+import static com.hedera.node.app.spi.workflows.DispatchOptions.hookDispatchForExecution;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.signedTxWith;
@@ -167,12 +168,12 @@ public class HookDispatchUtils {
             final @NonNull HandleContext context, final HookExecution execution, final Function function) {
         final var hookDispatch =
                 HookDispatchTransactionBody.newBuilder().execution(execution).build();
-        final var streamBuilder = context.dispatch(hookDispatch(
+        final var streamBuilder = context.dispatch(hookDispatchForExecution(
                 context.payer(),
                 TransactionBody.newBuilder().hookDispatch(hookDispatch).build(),
                 HookDispatchStreamBuilder.class,
                 EXECUTION_CUSTOMIZER));
-        validateTrue(streamBuilder.status() == SUCCESS, streamBuilder.status());
+        validateTrue(streamBuilder.status() == SUCCESS, REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK);
         final var result = streamBuilder.getEvmCallResult();
         try {
             final var decoded = function.getOutputs().decode(result.toByteArray());

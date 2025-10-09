@@ -5,8 +5,10 @@ import static com.hedera.hapi.streams.ContractActionType.PRECOMPILE;
 import static com.hedera.hapi.streams.ContractActionType.SYSTEM;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.PrngSystemContract.PRNG_CONTRACT_ID;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.CONFIG_CONTEXT_VARIABLE;
+import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.IS_HOOK_VARIABLE;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.OPS_DURATION_COUNTER;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.DEFAULT_CONFIG;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.HTS_HOOKS_CONTRACT_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.REMAINING_GAS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.isSameResult;
 import static org.hyperledger.besu.evm.frame.ExceptionalHaltReason.INSUFFICIENT_GAS;
@@ -168,6 +170,23 @@ class CustomMessageCallProcessorTest {
         verify(frame).setOutputData(NOOP_OUTPUT_DATA);
         verify(frame).setState(MessageFrame.State.COMPLETED_SUCCESS);
         verify(frame).setExceptionalHaltReason(Optional.empty());
+    }
+
+    @Test
+    void callsWithHookDispatch() {
+        givenCallWithCode(HTS_HOOKS_CONTRACT_ADDRESS);
+
+        given(addressChecks.isSystemAccount(HTS_HOOKS_CONTRACT_ADDRESS)).willReturn(true);
+        when(frame.getValue()).thenReturn(Wei.ZERO);
+        given(frame.getMessageFrameStack()).willReturn(stack);
+        given(stack.isEmpty()).willReturn(true);
+        given(frame.getContextVariable(IS_HOOK_VARIABLE)).willReturn(true);
+
+        subject.start(frame, operationTracer);
+        verify(frame, never()).setOutputData(NOOP_OUTPUT_DATA);
+        verify(frame, never()).setState(MessageFrame.State.COMPLETED_SUCCESS);
+        verify(frame, never()).setExceptionalHaltReason(Optional.empty());
+        verify(frame).setState(MessageFrame.State.CODE_EXECUTING);
     }
 
     @Test
