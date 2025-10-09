@@ -16,8 +16,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 /**
  * A writeable store for entity ids.
  */
-public class WritableEntityIdStoreImpl extends ReadableEntityIdStoreImpl implements
-		WritableEntityIdStore {
+public class WritableEntityIdStoreImpl extends ReadableEntityIdStoreImpl implements WritableEntityIdStore {
 
     /**
      * The underlying data storage class that holds the entity id data.

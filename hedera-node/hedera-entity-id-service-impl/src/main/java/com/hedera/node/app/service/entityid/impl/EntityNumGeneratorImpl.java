@@ -5,7 +5,6 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.node.app.service.entityid.EntityNumGenerator;
 import com.hedera.node.app.service.entityid.WritableEntityIdStore;
-
 import edu.umd.cs.findbugs.annotations.NonNull;
 import javax.inject.Inject;
 
