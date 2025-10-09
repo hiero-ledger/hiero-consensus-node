@@ -806,8 +806,6 @@ public class PlatformComponentBuilder {
                     blocks.appVersion(),
                     blocks.swirldStateManager(),
                     () -> blocks.getLatestCompleteStateReference().get().get(),
-                    state -> blocks.loadReconnectStateReference().get().accept(state),
-                    () -> blocks.clearAllPipelinesForReconnectReference().get().run(),
                     blocks.intakeEventCounter(),
                     blocks.platformStateFacade(),
                     blocks.createStateFromVirtualMap(),
