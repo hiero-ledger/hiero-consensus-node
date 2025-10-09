@@ -78,6 +78,7 @@ import com.hedera.node.app.workflows.dispatcher.TransactionHandlers;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.util.List;
 import org.hiero.interledger.clpr.impl.handlers.ClprGetLedgerConfigurationHandler;
+import org.hiero.interledger.clpr.impl.handlers.ClprHandlers;
 import org.hiero.interledger.clpr.impl.handlers.ClprLedgerConfigurationHandlers;
 import org.hiero.interledger.clpr.impl.handlers.ClprSetLedgerConfigurationHandler;
 import org.junit.jupiter.api.Test;
@@ -289,6 +290,10 @@ class HandleWorkflowModuleTest {
     @Mock
     private HintsKeyPublicationHandler keyPublicationHandler;
 
+    @Mock
+    private ClprHandlers clprHandlers;
+
+    @Mock
     @TempDir
     java.nio.file.Path tempDir;
 

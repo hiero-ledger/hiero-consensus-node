@@ -2,7 +2,7 @@
 package org.hiero.interledger.clpr;
 
 import com.hedera.node.app.spi.RpcService;
-import com.hedera.node.app.spi.RpcServiceFactory;
+import com.hedera.node.app.spi.ServiceFactory;
 import com.hedera.pbj.runtime.RpcServiceDefinition;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ServiceLoader;
@@ -38,6 +38,6 @@ public interface ClprService extends RpcService {
      */
     @NonNull
     static ClprService getInstance() {
-        return RpcServiceFactory.loadService(ClprService.class, ServiceLoader.load(ClprService.class));
+        return ServiceFactory.loadService(ClprService.class, ServiceLoader.load(ClprService.class));
     }
 }

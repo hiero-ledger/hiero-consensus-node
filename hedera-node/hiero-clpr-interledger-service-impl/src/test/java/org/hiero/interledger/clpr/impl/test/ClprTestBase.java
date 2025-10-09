@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.interledger.clpr.impl.test;
 
-import static org.hiero.interledger.clpr.impl.schemas.V0650ClprSchema.CLPR_LEDGER_CONFIGURATION_KEY;
+import static org.hiero.interledger.clpr.impl.schemas.V0650ClprSchema.CLPR_LEDGER_CONFIGURATIONS_STATE_ID;
+import static org.hiero.interledger.clpr.impl.schemas.V0650ClprSchema.CLPR_LEDGER_CONFIGURATIONS_STATE_KEY;
 
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.node.app.history.ReadableHistoryStore;
@@ -23,7 +24,6 @@ import java.util.TreeMap;
 import org.hiero.hapi.interledger.state.clpr.ClprEndpoint;
 import org.hiero.hapi.interledger.state.clpr.ClprLedgerConfiguration;
 import org.hiero.hapi.interledger.state.clpr.ClprLedgerId;
-import org.hiero.interledger.clpr.ClprService;
 import org.hiero.interledger.clpr.ReadableClprLedgerConfigurationStore;
 import org.hiero.interledger.clpr.WritableClprLedgerConfigurationStore;
 import org.hiero.interledger.clpr.impl.ReadableClprLedgerConfigurationStoreImpl;
@@ -45,7 +45,7 @@ public class ClprTestBase {
     protected Map<ClprLedgerId, ClprLedgerConfiguration> configurationMap;
     protected MapWritableKVState<ClprLedgerId, ClprLedgerConfiguration> writableLedgerConfiguration;
     protected MapReadableKVState<ClprLedgerId, ClprLedgerConfiguration> readableLedgerConfiguration;
-    protected Map<String, WritableKVState<?, ?>> writableStatesMap;
+    protected Map<Integer, WritableKVState<?, ?>> writableStatesMap;
     protected ReadableStates states;
     protected WritableStates clprStates;
 
@@ -61,12 +61,12 @@ public class ClprTestBase {
 
     protected void setupStates() {
         configurationMap = new HashMap<>(0);
-        writableLedgerConfiguration =
-                new MapWritableKVState<>(ClprService.NAME, CLPR_LEDGER_CONFIGURATION_KEY, configurationMap);
-        readableLedgerConfiguration =
-                new MapReadableKVState<>(ClprService.NAME, CLPR_LEDGER_CONFIGURATION_KEY, configurationMap);
+        writableLedgerConfiguration = new MapWritableKVState<>(
+                CLPR_LEDGER_CONFIGURATIONS_STATE_ID, CLPR_LEDGER_CONFIGURATIONS_STATE_KEY, configurationMap);
+        readableLedgerConfiguration = new MapReadableKVState<>(
+                CLPR_LEDGER_CONFIGURATIONS_STATE_ID, CLPR_LEDGER_CONFIGURATIONS_STATE_KEY, configurationMap);
         writableStatesMap = new TreeMap<>();
-        writableStatesMap.put(CLPR_LEDGER_CONFIGURATION_KEY, writableLedgerConfiguration);
+        writableStatesMap.put(CLPR_LEDGER_CONFIGURATIONS_STATE_ID, writableLedgerConfiguration);
         clprStates = new MapWritableStates(writableStatesMap);
         states = new MapReadableStates(writableStatesMap);
         readableLedgerConfigStore =

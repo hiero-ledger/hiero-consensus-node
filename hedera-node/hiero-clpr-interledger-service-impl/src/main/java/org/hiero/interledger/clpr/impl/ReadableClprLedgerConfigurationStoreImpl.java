@@ -2,7 +2,7 @@
 package org.hiero.interledger.clpr.impl;
 
 import static java.util.Objects.requireNonNull;
-import static org.hiero.interledger.clpr.impl.schemas.V0650ClprSchema.CLPR_LEDGER_CONFIGURATION_KEY;
+import static org.hiero.interledger.clpr.impl.schemas.V0650ClprSchema.CLPR_LEDGER_CONFIGURATIONS_STATE_ID;
 
 import com.hedera.node.app.spi.ids.ReadableEntityCounters;
 import com.swirlds.state.spi.ReadableKVState;
@@ -30,7 +30,7 @@ public class ReadableClprLedgerConfigurationStoreImpl implements ReadableClprLed
     public ReadableClprLedgerConfigurationStoreImpl(
             @NonNull final ReadableStates states, @NonNull final ReadableEntityCounters entityCounters) {
         requireNonNull(states);
-        ledgerConfigurations = states.get(CLPR_LEDGER_CONFIGURATION_KEY);
+        ledgerConfigurations = states.get(CLPR_LEDGER_CONFIGURATIONS_STATE_ID);
         this.entityCounters = requireNonNull(entityCounters);
     }
 
