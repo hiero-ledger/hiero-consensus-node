@@ -113,7 +113,8 @@ public record StateValue<V>(int stateId, @NonNull V value) {
                 @NonNull final ReadableSequentialData in,
                 final boolean strictMode,
                 final boolean parseUnknownFields,
-                final int maxDepth)
+                final int maxDepth,
+                final int maxSize)
                 throws ParseException {
             final int tag = in.readVarInt(false);
             final int fieldNum = tag >> ProtoParserTools.TAG_FIELD_OFFSET;

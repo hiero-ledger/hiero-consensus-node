@@ -116,7 +116,8 @@ public record QueueState(long head, long tail) {
                 @NonNull final ReadableSequentialData in,
                 final boolean strictMode,
                 final boolean parseUnknownFields,
-                final int maxDepth)
+                final int maxDepth,
+                final int maxSize)
                 throws ParseException {
             long head = 0;
             long tail = 0;

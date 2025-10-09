@@ -190,7 +190,8 @@ public final class BlockRecordFormatV7 implements BlockRecordFormat {
                 @NonNull ReadableSequentialData readableSequentialData,
                 boolean strictMode,
                 boolean parseUnknownFields,
-                int maxDepth)
+                int maxDepth,
+                int maxSize)
                 throws ParseException {
             return new RecordStreamItemV7(null, null, null, null, 0, 0);
         }

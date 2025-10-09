@@ -3,7 +3,7 @@ plugins {
     id("org.hiero.gradle.module.library")
     id("org.hiero.gradle.feature.protobuf")
     id("org.hiero.gradle.feature.test-fixtures")
-    id("com.hedera.pbj.pbj-compiler") version "0.11.15"
+    id("com.hedera.pbj.pbj-compiler") version "0.12.0"
     // ATTENTION: keep in sync with pbj version in 'hiero-dependency-versions/build.gradle.kts'
 }
 
@@ -23,24 +23,21 @@ dependencies {
 tasks.generatePbjSource { dependsOn(tasks.extractProto) }
 
 sourceSets {
-    val protoApiSrc = "../hedera-protobuf-java-api/src/main/proto"
-    val blockNodeApiSrc = layout.buildDirectory.dir("./extracted-protos/main/block-node/api")
+    val protoApiSrc = layout.projectDirectory.dir("../hedera-protobuf-java-api/src/main/proto")
     main {
         pbj {
-            srcDir(layout.projectDirectory.dir(protoApiSrc))
-            srcDir(blockNodeApiSrc)
-            exclude("mirror", "sdk")
+            srcDir(protoApiSrc)
+            srcDir(tasks.extractProto) // see comment on the 'dependencies' block
+            exclude("mirror", "sdk", "internal")
         }
         // The below should be replaced with a 'requires com.hedera.protobuf.java.api'
         // in testFixtures scope - #14026
         proto {
-            srcDir(layout.projectDirectory.dir(protoApiSrc))
-            srcDir(blockNodeApiSrc)
-            exclude("mirror", "sdk")
+            srcDir(protoApiSrc)
+            exclude("mirror", "sdk", "internal")
         }
     }
 }
-
 testModuleInfo {
     requires("com.hedera.node.hapi")
     // we depend on the protoc compiled hapi during test as we test our pbj generated code

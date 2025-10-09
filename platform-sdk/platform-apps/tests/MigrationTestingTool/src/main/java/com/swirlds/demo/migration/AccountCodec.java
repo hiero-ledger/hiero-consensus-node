@@ -22,7 +22,7 @@ public class AccountCodec implements Codec<Account> {
     @NonNull
     @Override
     public Account parse(
-            @NonNull ReadableSequentialData in, boolean strictMode, boolean parseUnknownFields, int maxDepth) {
+            @NonNull ReadableSequentialData in, boolean strictMode, boolean parseUnknownFields, int maxDepth, int maxSize) {
         return new Account(in);
     }
 
