@@ -70,16 +70,16 @@ open module com.hedera.node.test.clients {
     exports com.hedera.services.bdd.junit.hedera.remote;
     exports com.hedera.services.bdd.spec.remote;
     exports com.hedera.services.bdd.suites.utils.sysfiles;
-
     provides LauncherSessionListener with
             SharedNetworkLauncherSessionListener;
-
     requires com.hedera.node.app.hapi.fees;
     requires com.hedera.node.app.hapi.utils;
     requires com.hedera.node.app.service.addressbook.impl;
     requires com.hedera.node.app.service.addressbook;
     requires com.hedera.node.app.service.contract.impl;
     requires com.hedera.node.app.service.contract;
+    requires com.hedera.node.app.service.entityid.impl;
+    requires com.hedera.node.app.service.entityid;
     requires com.hedera.node.app.service.roster.impl;
     requires com.hedera.node.app.service.roster;
     requires com.hedera.node.app.service.schedule.impl;

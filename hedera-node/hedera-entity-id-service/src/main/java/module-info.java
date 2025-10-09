@@ -11,6 +11,7 @@ module com.hedera.node.app.service.entityid {
 
     requires transitive com.hedera.node.app.hapi.utils;
     requires transitive com.hedera.node.hapi;
+    requires transitive com.hedera.pbj.runtime;
     requires transitive com.swirlds.state.api;
     requires static transitive com.github.spotbugs.annotations;
 }
