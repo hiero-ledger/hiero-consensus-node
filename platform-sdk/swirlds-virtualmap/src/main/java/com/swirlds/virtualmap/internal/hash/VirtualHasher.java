@@ -258,14 +258,7 @@ public final class VirtualHasher {
     // null hash
     class LeafHashTask extends HashProducingTask {
 
-        // Future work: modify hashing pool thread factory to use custom threads with all
-        // resources available. It should be faster than using thread locals
-        private static final ThreadLocal<byte[]> BYTE_ARRAY_THREAD_LOCAL = ThreadLocal.withInitial(() -> new byte[256]);
-
-        // Future work: modify hashing pool thread factory to use custom threads with all
-        // resources available. It should be faster than using thread locals
-        private static final ThreadLocal<BufferedData> BUFFERED_DATA_THREAD_LOCAL =
-                ThreadLocal.withInitial(() -> BufferedData.wrap(BYTE_ARRAY_THREAD_LOCAL.get()));
+        private static final ThreadLocal<WritableMessageDigest> WRITABLE_MD_THREAD_LOCAL = new ThreadLocal<>();
 
         // Leaf path
         private final long path;
@@ -295,18 +288,14 @@ public final class VirtualHasher {
         protected boolean onExecute() {
             Hash hash = null;
             if (leaf != null) {
-                final int leafSizeInBytes = leaf.getSizeInBytesForHashing();
-                byte[] arr = BYTE_ARRAY_THREAD_LOCAL.get();
-                BufferedData out = BUFFERED_DATA_THREAD_LOCAL.get();
-                if (out.length() < leafSizeInBytes) {
-                    arr = new byte[leafSizeInBytes];
-                    BYTE_ARRAY_THREAD_LOCAL.set(arr);
-                    out = BufferedData.wrap(arr);
-                    BUFFERED_DATA_THREAD_LOCAL.set(out);
-                }
-                leaf.writeToForHashing(out);
                 final MessageDigest md = MESSAGE_DIGEST_THREAD_LOCAL.get();
-                md.update(arr, 0, Math.toIntExact(out.position()));
+                WritableMessageDigest out = WRITABLE_MD_THREAD_LOCAL.get();
+                if (out == null) {
+                    out = new WritableMessageDigest(md);
+                    WRITABLE_MD_THREAD_LOCAL.set(out);
+                }
+                out.reset();
+                leaf.writeToForHashing(out);
                 hash = new Hash(md.digest(), Cryptography.DEFAULT_DIGEST_TYPE);
                 listener.onLeafHashed(leaf);
                 listener.onNodeHashed(path, hash);

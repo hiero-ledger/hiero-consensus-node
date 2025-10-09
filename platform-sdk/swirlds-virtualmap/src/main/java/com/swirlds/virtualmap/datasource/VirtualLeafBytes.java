@@ -254,8 +254,7 @@ public class VirtualLeafBytes<V> {
     }
 
     // Output size must be at least getSizeInBytesForHashing()
-    public void writeToForHashing(final BufferedData out) {
-        out.reset();
+    public void writeToForHashing(final WritableSequentialData out) {
         assert out.remaining() >= getSizeInBytesForHashing();
 
         // The 0x00 prefix byte is added to all leaf hashes in the Hiero Merkle tree,
