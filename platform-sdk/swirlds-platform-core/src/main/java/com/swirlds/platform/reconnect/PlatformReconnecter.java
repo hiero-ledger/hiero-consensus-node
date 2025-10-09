@@ -18,7 +18,6 @@ import com.swirlds.common.threading.framework.config.ThreadConfiguration;
 import com.swirlds.common.threading.manager.ThreadManager;
 import com.swirlds.logging.legacy.LogMarker;
 import com.swirlds.logging.legacy.payload.ReconnectFailurePayload;
-import com.swirlds.logging.legacy.payload.ReconnectLoadFailurePayload;
 import com.swirlds.logging.legacy.payload.UnableToReconnectPayload;
 import com.swirlds.platform.components.SavedStateController;
 import com.swirlds.platform.consensus.EventWindowUtils;
@@ -80,7 +79,7 @@ public class PlatformReconnecter implements Startable {
     private final SavedStateController savedStateController;
     private final ConsensusStateEventHandler<MerkleNodeState> consensusStateEventHandler;
 
-    private final ReservedSignedStatePromise promise;
+    private final ReservedSignedStatePromise reservedSignedStatePromise;
     // throttle deps
     private final NodeId selfId;
     private final ReconnectConfig reconnectConfig;
@@ -96,21 +95,20 @@ public class PlatformReconnecter implements Startable {
             @NonNull final ThreadManager threadManager,
             @NonNull final Roster roster,
             @NonNull final MerkleCryptography merkleCryptography,
-            // loader deps
             @NonNull final Platform platform,
             @NonNull final PlatformContext platformContext,
-            final PlatformCoordinator platformCoordinator,
+            @NonNull final PlatformCoordinator platformCoordinator,
             @NonNull final SwirldStateManager swirldStateManager,
             @NonNull final SignedStateNexus latestImmutableStateNexus,
             @NonNull final SavedStateController savedStateController,
             @NonNull final ConsensusStateEventHandler<MerkleNodeState> consensusStateEventHandler,
-            final ReservedSignedStatePromise promise,
-            final NodeId selfId) {
+            @NonNull final ReservedSignedStatePromise reservedSignedStatePromise,
+            @NonNull final NodeId selfId) {
         this.platformStateFacade = Objects.requireNonNull(platformStateFacade);
         this.threadManager = Objects.requireNonNull(threadManager);
         this.roster = Objects.requireNonNull(roster);
-        this.platformCoordinator = platformCoordinator;
-        this.promise = promise;
+        this.platformCoordinator = Objects.requireNonNull(platformCoordinator);
+        this.reservedSignedStatePromise = Objects.requireNonNull(reservedSignedStatePromise);
         this.validator = new DefaultSignedStateValidator(platformContext, platformStateFacade);
         this.merkleCryptography = Objects.requireNonNull(merkleCryptography);
         this.reconnectConfig = platformContext.getConfiguration().getConfigData(ReconnectConfig.class);
@@ -189,7 +187,7 @@ public class PlatformReconnecter implements Startable {
         logger.info(RECONNECT.getMarker(), "waiting for reconnect connection");
         try {
             logger.info(RECONNECT.getMarker(), "acquired reconnect connection");
-            try (final ReservedSignedState reservedState = promise.get()) {
+            try (final ReservedSignedState reservedState = reservedSignedStatePromise.get()) {
                 validator.validate(
                         reservedState.get(),
                         roster,
@@ -198,7 +196,7 @@ public class PlatformReconnecter implements Startable {
                 SignedStateFileReader.registerServiceStates(reservedState.get());
                 successfulReconnect();
 
-                if (!loadSignedState(reservedState.get())) {
+                if (!loadReconnectState(reservedState.get())) {
                     handleFailedReconnect();
                     return false;
                 }
@@ -225,15 +223,15 @@ public class PlatformReconnecter implements Startable {
     /**
      * Load the received signed state into the platform (inline former ReconnectStateLoader#loadReconnectState).
      */
-    public boolean loadSignedState(@NonNull final SignedState signedState) {
+    public boolean loadReconnectState(@NonNull final SignedState signedState) {
+        // the state was received, so now we load its data into different objects
+        logger.info(LogMarker.STATE_HASH.getMarker(), "RECONNECT: loadReconnectState: reloading state");
+        logger.debug(RECONNECT.getMarker(), "`loadReconnectState` : reloading state");
         try {
-            logger.info(LogMarker.STATE_HASH.getMarker(), "RECONNECT: loadReconnectState: reloading state");
-            logger.debug(RECONNECT.getMarker(), "`loadReconnectState` : reloading state");
-
-            // keep an ISS-detector view of the state
             platformCoordinator.overrideIssDetectorState(signedState.reserve("reconnect state to issDetector"));
 
-            // Ensure initial state in the copy chain is initialized *before* further processing
+            // It's important to call init() before loading the signed state. The loading process makes copies
+            // of the state, and we want to be sure that the first state in the chain of copies has been initialized.
             final Hash reconnectHash = signedState.getState().getHash();
             final MerkleNodeState state = signedState.getState();
             final SemanticVersion creationSoftwareVersion = platformStateFacade.creationSoftwareVersionOf(state);
@@ -248,7 +246,7 @@ public class PlatformReconnecter implements Startable {
                                 + signedState.getState().getHash());
             }
 
-            // Verify platform roster matches state roster for the specific round
+            // Before attempting to load the state, verify that the platform roster matches the state roster.
             final long round = platformStateFacade.roundOf(state);
             final Roster stateRoster = RosterRetriever.retrieveActive(state, round);
             if (!roster.equals(stateRoster)) {
@@ -257,52 +255,44 @@ public class PlatformReconnecter implements Startable {
                         + Roster.JSON.toJSON(stateRoster) + ")");
             }
 
-            // Load state into runtime holders
             swirldStateManager.loadFromSignedState(signedState);
-
-            // Transition to RECONNECT_COMPLETE before persistence kicks in
-            platformCoordinator.submitStatusAction(new ReconnectCompleteAction(signedState.getRound()));
-
+            // kick off transition to RECONNECT_COMPLETE before beginning to save the reconnect state to disk
+            // this guarantees that the platform status will be RECONNECT_COMPLETE before the state is saved
+            platformCoordinator
+                    .getStatusActionSubmitter()
+                    .submitStatusAction(new ReconnectCompleteAction(signedState.getRound()));
             latestImmutableStateNexus.setState(signedState.reserve("set latest immutable to reconnect state"));
             savedStateController.reconnectStateReceived(
                     signedState.reserve("savedStateController.reconnectStateReceived"));
 
-            // Hash logging & signature collection / persistence pipeline
             platformCoordinator.sendStateToHashLogger(signedState);
+            // this will send the state to the signature collector which will send it to be written to disk.
+            // in the future, we might not send it to the collector because it already has all the signatures
+            // if this is the case, we must make sure to send it to the writer directly
             platformCoordinator.putSignatureCollectorState(
                     signedState.reserve("loading reconnect state into sig collector"));
-
-            // Consensus snapshot + roster history + event window updates
             final ConsensusSnapshot consensusSnapshot =
                     Objects.requireNonNull(platformStateFacade.consensusSnapshotOf(state));
             platformCoordinator.consensusSnapshotOverride(consensusSnapshot);
 
             final RosterHistory rosterHistory = RosterUtils.createRosterHistory(state);
-
             platformCoordinator.injectRosterHistory(rosterHistory);
 
             platformCoordinator.updateEventWindow(
                     EventWindowUtils.createEventWindow(consensusSnapshot, platformContext.getConfiguration()));
 
-            // Running hash / PCES writer updates
             final RunningEventHashOverride runningEventHashOverride =
                     new RunningEventHashOverride(platformStateFacade.legacyRunningEventHashOf(state), true);
             platformCoordinator.updateRunningHash(runningEventHashOverride);
             platformCoordinator.registerPcesDiscontinuity(signedState.getRound());
 
-            // Notify app-level listeners
+            // Notify any listeners that the reconnect has been completed
             platformCoordinator.sendReconnectCompleteNotification(signedState);
             return true;
         } catch (final RuntimeException e) {
             logger.debug(RECONNECT.getMarker(), "`loadReconnectState` : FAILED, reason: {}", e.getMessage());
+            // if the loading fails for whatever reason, we clear all data again in case some of it has been loaded
             platformCoordinator.clear();
-            logger.error(
-                    EXCEPTION.getMarker(),
-                    () -> new ReconnectLoadFailurePayload("Error while loading a received SignedState!").toString(),
-                    e);
-            logger.debug(
-                    RECONNECT.getMarker(),
-                    "`reloadState` : reloading state, finished, failed, returning `false`: Restart the reconnection process");
             return false;
         }
     }

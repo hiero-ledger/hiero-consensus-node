@@ -20,7 +20,6 @@ import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.SigSet;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.state.signed.SignedStateInvalidException;
-import com.swirlds.platform.state.signed.SignedStateValidator;
 import com.swirlds.platform.state.snapshot.SignedStateFileReader;
 import com.swirlds.state.MerkleNodeState;
 import com.swirlds.virtualmap.VirtualMap;
@@ -163,7 +162,7 @@ public class StateSyncLearner {
      * @return the state received from the other node
      */
     @NonNull
-    public ReservedSignedState execute(@NonNull final SignedStateValidator validator) throws StateSyncException {
+    public ReservedSignedState execute() throws StateSyncException {
         increaseSocketTimeout();
         ReservedSignedState reservedSignedState = null;
         try {

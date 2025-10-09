@@ -145,7 +145,7 @@ final class ReconnectTest {
             });
 
             thread.start();
-            final ReservedSignedState receivedState = receiver.execute(mock(SignedStateValidator.class));
+            final ReservedSignedState receivedState = receiver.execute();
             receivedState.get().getState().release();
             thread.join();
         } finally {

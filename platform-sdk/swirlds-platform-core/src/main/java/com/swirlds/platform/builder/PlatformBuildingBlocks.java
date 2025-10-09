@@ -19,7 +19,6 @@ import com.swirlds.platform.state.SwirldStateManager;
 import com.swirlds.platform.state.iss.IssScratchpad;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.ReservedSignedState;
-import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.system.status.StatusActionSubmitter;
 import com.swirlds.platform.wiring.PlatformComponents;
 import com.swirlds.state.MerkleNodeState;
@@ -79,8 +78,6 @@ import org.hiero.consensus.roster.RosterHistory;
  * @param getLatestCompleteStateReference        a reference to a supplier that supplies the latest immutable state,
  *                                               this is exposed here due to reconnect, can be removed once reconnect is
  *                                               made compatible with the wiring framework
- * @param loadReconnectStateReference            a reference to a consumer that loads the state for reconnect, can be
- *                                               removed once reconnect is made compatible with the wiring framework
  * @param clearAllPipelinesForReconnectReference a reference to a runnable that clears all pipelines for reconnect, can
  *                                               be removed once reconnect is made compatible with the wiring framework
  * @param firstPlatform                          if this is the first platform being built (there is static setup that
@@ -117,7 +114,6 @@ public record PlatformBuildingBlocks(
         @NonNull AtomicReference<StatusActionSubmitter> statusActionSubmitterReference,
         @NonNull SwirldStateManager swirldStateManager,
         @NonNull AtomicReference<Supplier<ReservedSignedState>> getLatestCompleteStateReference,
-        @NonNull AtomicReference<Consumer<SignedState>> loadReconnectStateReference,
         @NonNull AtomicReference<Runnable> clearAllPipelinesForReconnectReference,
         boolean firstPlatform,
         @NonNull ConsensusStateEventHandler consensusStateEventHandler,
@@ -149,7 +145,6 @@ public record PlatformBuildingBlocks(
         requireNonNull(statusActionSubmitterReference);
         requireNonNull(swirldStateManager);
         requireNonNull(getLatestCompleteStateReference);
-        requireNonNull(loadReconnectStateReference);
         requireNonNull(clearAllPipelinesForReconnectReference);
         requireNonNull(consensusStateEventHandler);
         requireNonNull(platformStateFacade);
