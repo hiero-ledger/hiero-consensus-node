@@ -281,7 +281,6 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         // then
         assertThat(blockState).isNull();
 
-        verify(blockStreamMetrics).recordBlockMissing();
         verifyNoMoreInteractions(blockStreamMetrics);
     }
 
@@ -390,7 +389,6 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("Block state not found for block " + TEST_BLOCK_NUMBER);
 
-        verify(blockStreamMetrics).recordBlockMissing();
         verifyNoMoreInteractions(blockStreamMetrics);
     }
 
@@ -402,7 +400,6 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         // when and then
         assertThat(blockBufferService.getBlockState(TEST_BLOCK_NUMBER)).isNull();
 
-        verify(blockStreamMetrics).recordBlockMissing();
         verifyNoMoreInteractions(blockStreamMetrics);
     }
 

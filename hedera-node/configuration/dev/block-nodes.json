@@ -1,8 +1,0 @@
-{
-  "nodes": [
-    { "address": "localhost", "port": 8080, "priority": 1 },
-    { "address": "node2.example.com", "port": 8080, "priority": 2 },
-    { "address": "node3.example.com", "port": 8081, "priority": 2 },
-    { "address": "node4.example.com", "port": 8081, "priority": 2 }
-  ]
-}
