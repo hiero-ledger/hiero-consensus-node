@@ -12,19 +12,28 @@ import com.swirlds.common.merkle.synchronization.config.ReconnectConfig;
 import com.swirlds.common.metrics.extensions.CountPerSecond;
 import com.swirlds.common.threading.manager.ThreadManager;
 import com.swirlds.common.utility.throttle.RateLimitedLogger;
-import com.swirlds.config.api.Configuration;
+import com.swirlds.logging.legacy.payload.ReconnectFailurePayload;
+import com.swirlds.logging.legacy.payload.ReconnectFinishPayload;
+import com.swirlds.logging.legacy.payload.ReconnectStartPayload;
+import com.swirlds.platform.Utilities;
+import com.swirlds.platform.config.StateConfig;
 import com.swirlds.platform.gossip.FallenBehindMonitor;
 import com.swirlds.platform.metrics.ReconnectMetrics;
 import com.swirlds.platform.network.Connection;
 import com.swirlds.platform.network.NetworkProtocolException;
+import com.swirlds.platform.network.NetworkUtils;
 import com.swirlds.platform.network.protocol.PeerProtocol;
 import com.swirlds.platform.network.protocol.ReservedSignedStatePromise;
+import com.swirlds.platform.state.MerkleNodeState;
+import com.swirlds.platform.state.SwirldStateManager;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.ReservedSignedState;
+import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.Objects;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -43,7 +52,6 @@ public class StateSyncPeerProtocol implements PeerProtocol {
     private final Supplier<ReservedSignedState> lastCompleteSignedState;
     private final Duration reconnectSocketTimeout;
     private final ReconnectMetrics reconnectMetrics;
-    private final ReconnectSyncHelper reconnectHelperNetwork;
     private final PlatformStateFacade platformStateFacade;
     private final CountPerSecond reconnectRejectionMetrics;
     private InitiatedBy initiatedBy = InitiatedBy.NO_ONE;
@@ -55,7 +63,6 @@ public class StateSyncPeerProtocol implements PeerProtocol {
      */
     private final Supplier<PlatformStatus> platformStatusSupplier;
 
-    private final Configuration configuration;
     private ReservedSignedState teacherState;
     /**
      * A rate limited logger for when rejecting teacher role due to state being null.
@@ -77,20 +84,22 @@ public class StateSyncPeerProtocol implements PeerProtocol {
     private final Time time;
     private final PlatformContext platformContext;
     private final ReservedSignedStatePromise reservedSignedStatePromise;
+    private final SwirldStateManager swirldStateManager;
+    private final Function<VirtualMap, MerkleNodeState> createStateFromVirtualMap;
 
     /**
-     * @param threadManager           responsible for creating and managing threads
-     * @param peerId                  the ID of the peer we are communicating with
-     * @param teacherThrottle         restricts reconnects as a teacher
-     * @param lastCompleteSignedState provides the latest completely signed state
-     * @param reconnectSocketTimeout  the socket timeout to use when executing a reconnect
-     * @param reconnectMetrics        tracks reconnect metrics
-     * @param reconnectHelperNetwork     controls reconnecting as a learner
-     * @param fallenBehindMonitor     maintains this node's behind status
-     * @param platformStatusSupplier  provides the platform status
-     * @param time                    the time object to use
-     * @param platformStateFacade     provides access to the platform state
+     * @param threadManager              responsible for creating and managing threads
+     * @param peerId                     the ID of the peer we are communicating with
+     * @param teacherThrottle            restricts reconnects as a teacher
+     * @param lastCompleteSignedState    provides the latest completely signed state
+     * @param reconnectSocketTimeout     the socket timeout to use when executing a reconnect
+     * @param reconnectMetrics           tracks reconnect metrics
+     * @param fallenBehindMonitor        maintains this node's behind status
+     * @param platformStatusSupplier     provides the platform status
+     * @param time                       the time object to use
+     * @param platformStateFacade        provides access to the platform state
      * @param reservedSignedStatePromise a mechanism to get a SignedState or block while it is not available
+     * @param createStateFromVirtualMap  a function to instantiate the state object from a Virtual Map
      */
     public StateSyncPeerProtocol(
             @NonNull final PlatformContext platformContext,
@@ -100,12 +109,13 @@ public class StateSyncPeerProtocol implements PeerProtocol {
             @NonNull final Supplier<ReservedSignedState> lastCompleteSignedState,
             @NonNull final Duration reconnectSocketTimeout,
             @NonNull final ReconnectMetrics reconnectMetrics,
-            @NonNull final ReconnectSyncHelper reconnectHelperNetwork,
             @NonNull final FallenBehindMonitor fallenBehindMonitor,
             @NonNull final Supplier<PlatformStatus> platformStatusSupplier,
             @NonNull final Time time,
             @NonNull final PlatformStateFacade platformStateFacade,
-            @NonNull final ReservedSignedStatePromise reservedSignedStatePromise) {
+            @NonNull final ReservedSignedStatePromise reservedSignedStatePromise,
+            @NonNull final SwirldStateManager swirldStateManager,
+            @NonNull final Function<VirtualMap, MerkleNodeState> createStateFromVirtualMap) {
 
         this.platformContext = Objects.requireNonNull(platformContext);
         this.threadManager = Objects.requireNonNull(threadManager);
@@ -114,16 +124,18 @@ public class StateSyncPeerProtocol implements PeerProtocol {
         this.lastCompleteSignedState = Objects.requireNonNull(lastCompleteSignedState);
         this.reconnectSocketTimeout = Objects.requireNonNull(reconnectSocketTimeout);
         this.reconnectMetrics = Objects.requireNonNull(reconnectMetrics);
-        this.reconnectHelperNetwork = Objects.requireNonNull(reconnectHelperNetwork);
         this.fallenBehindMonitor = Objects.requireNonNull(fallenBehindMonitor);
         this.platformStatusSupplier = Objects.requireNonNull(platformStatusSupplier);
-        this.configuration = Objects.requireNonNull(platformContext.getConfiguration());
         this.platformStateFacade = Objects.requireNonNull(platformStateFacade);
         this.reservedSignedStatePromise = Objects.requireNonNull(reservedSignedStatePromise);
+        this.swirldStateManager = Objects.requireNonNull(swirldStateManager);
+        this.createStateFromVirtualMap = Objects.requireNonNull(createStateFromVirtualMap);
         Objects.requireNonNull(time);
 
-        final Duration minimumTimeBetweenReconnects =
-                configuration.getConfigData(ReconnectConfig.class).minimumTimeBetweenReconnects();
+        final Duration minimumTimeBetweenReconnects = platformContext
+                .getConfiguration()
+                .getConfigData(ReconnectConfig.class)
+                .minimumTimeBetweenReconnects();
 
         stateNullLogger = new RateLimitedLogger(logger, time, minimumTimeBetweenReconnects);
         stateIncompleteLogger = new RateLimitedLogger(logger, time, minimumTimeBetweenReconnects);
@@ -295,8 +307,64 @@ public class StateSyncPeerProtocol implements PeerProtocol {
      *
      * @param connection the connection to use for the reconnect
      */
-    private void learner(final Connection connection) throws InterruptedException {
-        reconnectHelperNetwork.provideLearnerConnection(connection);
+    private void learner(final Connection connection) {
+        try {
+
+            final MerkleNodeState consensusState = swirldStateManager.getConsensusState();
+            final StateSyncLearner reconnect = new StateSyncLearner(
+                    platformContext,
+                    threadManager,
+                    connection,
+                    consensusState,
+                    reconnectSocketTimeout,
+                    reconnectMetrics,
+                    platformStateFacade,
+                    createStateFromVirtualMap);
+
+            logger.info(RECONNECT.getMarker(), () -> new ReconnectStartPayload(
+                            "Starting reconnect in role of the receiver.",
+                            true,
+                            connection.getSelfId().id(),
+                            connection.getOtherId().id(),
+                            //      TODO is this correct?
+                            platformStateFacade.roundOf(consensusState))
+                    .toString());
+
+            final ReservedSignedState reservedSignedState = reconnect.execute();
+
+            logger.info(RECONNECT.getMarker(), () -> new ReconnectFinishPayload(
+                            "Finished reconnect in the role of the receiver.",
+                            true,
+                            connection.getSelfId().id(),
+                            connection.getOtherId().id(),
+                            reservedSignedState.get().getRound())
+                    .toString());
+            final var debugHashDepth = platformContext
+                    .getConfiguration()
+                    .getConfigData(StateConfig.class)
+                    .debugHashDepth();
+            logger.info(
+                    RECONNECT.getMarker(),
+                    """
+                            Information for state received during reconnect:
+                            {}""",
+                    () -> platformStateFacade.getInfoString(
+                            reservedSignedState.get().getState(), debugHashDepth));
+
+            reservedSignedStatePromise.provide(reservedSignedState);
+
+        } catch (final RuntimeException | InterruptedException e) {
+            if (Utilities.isOrCausedBySocketException(e)) {
+                logger.error(EXCEPTION.getMarker(), () -> new ReconnectFailurePayload(
+                                "Got socket exception while receiving a signed state! "
+                                        + NetworkUtils.formatException(e),
+                                ReconnectFailurePayload.CauseOfFailure.SOCKET)
+                        .toString());
+            } else if (connection != null) {
+                connection.disconnect();
+            }
+            throw new RuntimeException(e);
+        }
     }
 
     /**
