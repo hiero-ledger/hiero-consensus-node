@@ -37,6 +37,7 @@ import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.base.TransferList;
 import com.hedera.hapi.node.contract.ContractCallLocalQuery;
+import com.hedera.hapi.node.hooks.HookExecution;
 import com.hedera.hapi.node.state.schedule.Schedule;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.hapi.node.token.TokenMintTransactionBody;
@@ -600,7 +601,7 @@ public class ThrottleAccumulator {
                                 .orElse(0L);
                     case HOOK_DISPATCH ->
                         txnBody.hookDispatchOrThrow()
-                                .executionOrThrow()
+                                .executionOrElse(HookExecution.DEFAULT)
                                 .callOrElse(HookCall.DEFAULT)
                                 .evmHookCallOrElse(EvmHookCall.DEFAULT)
                                 .gasLimit();

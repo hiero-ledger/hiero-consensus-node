@@ -30,11 +30,13 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+
 import java.util.List;
 import java.util.OptionalLong;
 import java.util.concurrent.Callable;
 import java.util.function.Supplier;
 import javax.inject.Inject;
+
 import org.hyperledger.besu.evm.tracing.OperationTracer;
 
 /**
@@ -117,11 +119,25 @@ public class ContextTransactionProcessor implements Callable<CallOutcome> {
         final var hevmTransaction = requireNonNull(creation.hevmTransaction());
         final var isHookDispatch = creation.isHookDispatch();
         if (hevmTransaction.isException()) {
-            final var outcome = maybeChargeFeesAndReturnOutcome(
-                    hevmTransaction,
-                    hevmTransaction.senderId(),
-                    rootProxyWorldUpdater.getHederaAccount(hevmTransaction.senderId()),
-                    contractsConfig.chargeGasOnEvmHandleException() && !isHookDispatch);
+            CallOutcome outcome;
+            if (isHookDispatch) {
+                var result = HederaEvmTransactionResult.fromAborted(hevmTransaction.senderId(),
+                        hevmTransaction.contractId(),
+                        requireNonNull(hevmTransaction.exception()).getStatus());
+                outcome = CallOutcome.fromResultsWithoutSidecars(
+                        result.asProtoResultOf(null, rootProxyWorldUpdater, null),
+                        result.asEvmTxResultOf(null, null),
+                        null,
+                        null,
+                        null,
+                        result);
+            } else {
+                outcome = maybeChargeFeesAndReturnOutcome(
+                        hevmTransaction,
+                        context.body().transactionIDOrThrow().accountIDOrThrow(),
+                        rootProxyWorldUpdater.getHederaAccount(hevmTransaction.senderId()),
+                        contractsConfig.chargeGasOnEvmHandleException());
+            }
 
             final var elapsedNanos = System.nanoTime() - startTimeNanos;
             recordProcessedTransactionToMetrics(hevmTransaction, outcome, elapsedNanos, 0L);
@@ -252,7 +268,8 @@ public class ContextTransactionProcessor implements Callable<CallOutcome> {
     }
 
     private record HevmTransactionCreationResult(
-            @Nullable HederaEvmTransaction hevmTransaction, boolean isHookDispatch) {}
+            @Nullable HederaEvmTransaction hevmTransaction, boolean isHookDispatch) {
+    }
 
     private void validatePayloadLength(HederaEvmTransaction hevmTransaction) {
         final var maxJumboEthereumCallDataSize =
