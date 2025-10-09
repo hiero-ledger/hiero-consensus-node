@@ -37,6 +37,9 @@ public class MultipleNodeEventStreamResultsImpl implements MultipleNodeEventStre
         if (results.isEmpty()) {
             throw new IllegalArgumentException("At least one result must be provided");
         }
+        if (results.stream().noneMatch(SingleNodeEventStreamResult::hasNotReconnected)) {
+            throw new IllegalArgumentException("At least one result must be from a node that has not reconnected");
+        }
         this.results = results;
     }
 
