@@ -429,8 +429,8 @@ public class BlockNodeUpgradeTest implements LifecycleTest {
     @HapiBlockNode(
             networkSize = 4,
             blockNodeConfigs = {
-                @BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.SIMULATOR),
-                @BlockNodeConfig(nodeId = 1, mode = BlockNodeMode.SIMULATOR)
+                @BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.REAL),
+                @BlockNodeConfig(nodeId = 1, mode = BlockNodeMode.REAL)
             },
             subProcessNodeConfigs = {
                 // CN0 with BN0 (priority 0) and BN1 (priority 1) for failover testing
