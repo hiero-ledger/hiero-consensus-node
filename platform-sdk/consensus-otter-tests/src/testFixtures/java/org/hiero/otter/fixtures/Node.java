@@ -84,6 +84,13 @@ public interface Node {
     void stopSyntheticBottleneck();
 
     /**
+     * Triggers a self-ISS on this node. The node will be able to recover from the ISS by restarting. This type of ISS
+     * simulates a bug where a transaction updates the state based on data in memory that is different on other nodes
+     * (due to the bug).
+     */
+    void triggerSelfIss();
+
+    /**
      * Sets the quiescence command of the node.
      *
      * <p>The default command is {@link QuiescenceCommand#DONT_QUIESCE}.
