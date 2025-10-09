@@ -5,6 +5,7 @@ import static com.swirlds.metrics.api.Metrics.INTERNAL_CATEGORY;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.hedera.hapi.node.state.roster.Roster;
+import com.swirlds.base.state.Startable;
 import com.swirlds.common.merkle.synchronization.config.ReconnectConfig;
 import com.swirlds.common.metrics.FunctionGauge;
 import com.swirlds.config.api.Configuration;
@@ -39,6 +40,7 @@ public class FallenBehindMonitor {
 
     private final ReconnectConfig config;
     private boolean previouslyFallenBehind;
+    private Startable reconnectStarter;
 
     public FallenBehindMonitor(
             @NonNull final Roster roster, @NonNull final Configuration config, @NonNull final Metrics metrics) {
@@ -68,6 +70,8 @@ public class FallenBehindMonitor {
     public synchronized void report(@NonNull final NodeId id) {
         if (reportFallenBehind.add(id)) {
             checkAndNotifyFallingBehind();
+            previouslyFallenBehind = true;
+            reconnectStarter.start();
         }
     }
 
@@ -153,7 +157,17 @@ public class FallenBehindMonitor {
         return reportFallenBehind.size();
     }
 
-    public void bind(StatusActionSubmitter statusActionSubmitter) {
+    /**
+     * Binds an statusActionSubmitter
+     */
+    public void bind(@NonNull final StatusActionSubmitter statusActionSubmitter) {
         this.statusActionSubmitter = Objects.requireNonNull(statusActionSubmitter);
+    }
+
+    /**
+     * Binds the thread that will execute once the monitor detects the platform has fallen behind
+     */
+    public void bind(@NonNull final Startable reconnectStarter) {
+        this.reconnectStarter = Objects.requireNonNull(reconnectStarter);
     }
 }
