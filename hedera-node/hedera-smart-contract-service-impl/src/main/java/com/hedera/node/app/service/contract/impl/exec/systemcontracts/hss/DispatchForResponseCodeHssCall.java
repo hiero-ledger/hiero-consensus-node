@@ -20,6 +20,7 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.Abs
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.ReturnTypes;
 import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
 import com.hedera.node.app.service.contract.impl.records.ContractCallStreamBuilder;
+import com.hedera.node.app.service.contract.impl.utils.ConstantUtils;
 import com.hedera.node.app.spi.workflows.DispatchOptions;
 import com.hedera.node.app.spi.workflows.DispatchOptions.UsePresetTxnId;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -139,6 +140,6 @@ public class DispatchForResponseCodeHssCall extends AbstractCall {
                 (long) recordBuilder.status().protoOrdinal(),
                 recordBuilder.scheduleID() != null
                         ? headlongAddressOf(recordBuilder.scheduleID())
-                        : ReturnTypes.ZERO_ADDRESS));
+                        : ConstantUtils.ZERO_ADDRESS));
     }
 }

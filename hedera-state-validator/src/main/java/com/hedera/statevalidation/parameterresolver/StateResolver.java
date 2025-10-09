@@ -8,7 +8,7 @@ import static com.hedera.statevalidation.parameterresolver.InitUtils.initService
 import static com.swirlds.platform.state.snapshot.SignedStateFileReader.readStateFile;
 
 import com.hedera.node.app.HederaVirtualMapState;
-import com.hedera.node.app.roster.RosterService;
+import com.hedera.node.app.service.roster.impl.RosterServiceImpl;
 import com.hedera.node.app.services.ServicesRegistryImpl;
 import com.hedera.statevalidation.validators.Constants;
 import com.swirlds.base.time.Time;
@@ -72,7 +72,7 @@ public class StateResolver implements ParameterResolver {
         final ServicesRegistryImpl serviceRegistry = initServiceRegistry();
         PlatformStateFacade platformStateFacade = PlatformStateFacade.DEFAULT_PLATFORM_STATE_FACADE;
         serviceRegistry.register(
-                new RosterService(roster -> true, (r, b) -> {}, StateResolver::getState, platformStateFacade));
+                new RosterServiceImpl(roster -> true, (r, b) -> {}, StateResolver::getState, platformStateFacade));
         deserializedSignedState = readStateFile(
                 Path.of(Constants.STATE_DIR, "SignedState.swh").toAbsolutePath(),
                 HederaVirtualMapState::new,

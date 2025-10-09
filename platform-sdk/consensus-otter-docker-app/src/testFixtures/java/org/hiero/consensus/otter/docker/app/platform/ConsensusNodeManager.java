@@ -24,7 +24,6 @@ import com.swirlds.platform.builder.PlatformBuildingBlocks;
 import com.swirlds.platform.builder.PlatformComponentBuilder;
 import com.swirlds.platform.config.PathsConfig;
 import com.swirlds.platform.listeners.PlatformStatusChangeListener;
-import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.HashedReservedSignedState;
 import com.swirlds.platform.state.signed.ReservedSignedState;
@@ -32,6 +31,7 @@ import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer;
 import com.swirlds.platform.util.BootstrapUtils;
 import com.swirlds.platform.wiring.PlatformComponents;
+import com.swirlds.state.MerkleNodeState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.file.Path;
@@ -101,7 +101,7 @@ public class ConsensusNodeManager {
 
         initLogging();
         BootstrapUtils.setupConstructableRegistry();
-        TestingAppStateInitializer.registerMerkleStateRootClassIds();
+        TestingAppStateInitializer.registerConstructablesForStorage(platformConfig);
 
         final var legacySelfId = org.hiero.consensus.model.node.NodeId.of(selfId.id());
 
@@ -140,7 +140,7 @@ public class ConsensusNodeManager {
         final MerkleNodeState state = initialState.get().getState();
 
         final RosterHistory rosterHistory = RosterUtils.createRosterHistory(state);
-        executionCallback = new OtterExecutionLayer(new Random(), metrics);
+        executionCallback = new OtterExecutionLayer(new Random(), metrics, time);
         final PlatformBuilder builder = PlatformBuilder.create(
                         OtterApp.APP_NAME,
                         OtterApp.SWIRLD_NAME,

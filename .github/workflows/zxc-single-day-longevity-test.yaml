@@ -39,6 +39,11 @@ on:
         default: ""
         type: string
         description: 'Add props to settings.txt, e.g. "state.saveStatePeriod, 300". Newline is "\n"'
+      delete-namespace:
+        required: false
+        default: true
+        type: boolean
+        description: "If true, automatically delete namespace when done"
     secrets:
       slack-report-webhook:
         required: true
@@ -54,6 +59,7 @@ on:
 permissions:
   contents: write
   id-token: write
+  actions: write
 
 env:
   NAMESPACE_PREFIX: solo-sdlt-n
@@ -185,6 +191,30 @@ jobs:
           echo "namespace=${NAMESPACE_PREFIX}${n}" >> "${GITHUB_OUTPUT}"
           echo "namespace=${NAMESPACE_PREFIX}${n}" >> "${GITHUB_STEP_SUMMARY}"
 
+      - name: Check for namespace collision
+        run: |
+          set +e
+          set +x
+          NETWORK_ID="$(echo "${{ steps.set-namespace.outputs.namespace }}" | perl -pne '~s/^.*[^\d](\d+)$/$1/g')"
+
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt get namespaces | grep -E "solo-.*t-n${NETWORK_ID}"
+          if [ ${?} -eq 0 ]
+          then
+            echo "::error The namespace[s] with NETWORK_ID=${NETWORK_ID} already exist[s]. Please check previous run; remove with 'kubectl delete namespaces <namespace namespace ...>'"
+            exit 13
+          fi
+
+      - name: Cancelling in case of namespace collision
+        if: failure()
+        uses: actions/github-script@d7906e4ad0b1822421a7e6a35d5ca353c962f410 #v6
+        with:
+          script: |
+            github.rest.actions.cancelWorkflowRun({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              run_id: context.runId
+            });
+
       - name: Print parameters
         run: |
           echo "inputs.test-asset=${{ inputs.test-asset }}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
@@ -237,11 +267,6 @@ jobs:
           set +x
           set +e
           curdir="$(pwd)"
-          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt get namespaces | grep "${{ steps.set-namespace.outputs.namespace }}"
-          if [ ${?} -eq 0 ]
-          then
-            sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt delete namespace "${{ steps.set-namespace.outputs.namespace }}"
-          fi
 
           # Create the solo directory
           mkdir -p "${{ github.workspace }}"/solo && cd "${{ github.workspace}}"/solo
@@ -415,6 +440,7 @@ jobs:
   longevity-tests-wait:
     name: Wait for Longevity test
     runs-on: hiero-citr-linux-large
+    if: ${{ !cancelled() }}
     needs:
       - longevity-tests-start
     strategy:
@@ -561,7 +587,7 @@ jobs:
   longevity-tests-finish:
     name: Read results of Longevity test
     runs-on: hiero-citr-linux-large
-    if: always()
+    if: ${{ !cancelled() }}
     needs:
       - longevity-tests-start
       - longevity-tests-wait
@@ -638,6 +664,11 @@ jobs:
           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.longevity-tests-start.outputs.namespace }}" cp ${nlgpod}:/app/version_run.txt "${{ github.workspace }}"/report/version_run.txt
           cp -r podlog_"${{ needs.longevity-tests-start.outputs.namespace }}" "${{ github.workspace }}"/report/
 
+      - name: Delete namespace
+        if: ${{ inputs.delete-namespace == true }}
+        run: |
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt delete namespace "${{ needs.longevity-tests-start.outputs.namespace }}"
+
       - name: Extract benchmark score of NftTransferLoadTest test
         id: NftTransferLoadTestLogs
         run: |
@@ -702,7 +733,7 @@ jobs:
   single-day-longevity-test-result:
     name: Calculate Result
     runs-on: hiero-citr-linux-large
-    if: ${{ always() }}
+    if: ${{ !cancelled() }}
     needs:
       - longevity-tests-finish
     outputs:

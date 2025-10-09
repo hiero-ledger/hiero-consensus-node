@@ -26,6 +26,7 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hss.delete
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.ReturnTypes;
 import com.hedera.node.app.service.contract.impl.records.ContractCallStreamBuilder;
 import com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.common.CallAttemptTestBase;
+import com.hedera.node.app.service.contract.impl.utils.ConstantUtils;
 import com.hedera.node.app.spi.workflows.DispatchOptions;
 import com.swirlds.config.api.Configuration;
 import java.util.ArrayDeque;
@@ -129,7 +130,7 @@ class DispatchForResponseCodeHssCallTest extends CallAttemptTestBase {
         given(recordBuilder.scheduleID()).willReturn(ScheduleID.newBuilder().build());
         assertArrayEquals(
                 ReturnTypes.RC_AND_ADDRESS_ENCODER
-                        .encode(Tuple.of((long) SUCCESS.protoOrdinal(), ReturnTypes.ZERO_ADDRESS))
+                        .encode(Tuple.of((long) SUCCESS.protoOrdinal(), ConstantUtils.ZERO_ADDRESS))
                         .array(),
                 successResult(subjectScheduleCreateResultEncoder));
     }
@@ -192,7 +193,7 @@ class DispatchForResponseCodeHssCallTest extends CallAttemptTestBase {
         given(recordBuilder.scheduleID()).willReturn(ScheduleID.newBuilder().build());
         assertArrayEquals(
                 ReturnTypes.RC_AND_ADDRESS_ENCODER
-                        .encode(Tuple.of((long) INVALID_SCHEDULE_ID.protoOrdinal(), ReturnTypes.ZERO_ADDRESS))
+                        .encode(Tuple.of((long) INVALID_SCHEDULE_ID.protoOrdinal(), ConstantUtils.ZERO_ADDRESS))
                         .array(),
                 failureResult(subjectScheduleCreateResultEncoder));
     }
