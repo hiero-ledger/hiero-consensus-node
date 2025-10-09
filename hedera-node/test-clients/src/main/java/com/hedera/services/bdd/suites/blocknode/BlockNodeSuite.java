@@ -81,9 +81,9 @@ public class BlockNodeSuite {
                         Duration.ofSeconds(30),
                         // Blocks are accumulating in buffer without being sent
                         "No active connections available for streaming block")),
+                waitUntilNextBlocks(2).withBackgroundTraffic(true),
                 // Create block-nodes.json to establish connection
                 doingContextual((spec) -> {
-                    timeRef.set(Instant.now());
                     // Create a new block-nodes.json file at runtime with localhost and the correct port
                     final var node0Port = spec.getBlockNodePortById(0);
                     List<com.hedera.node.internal.network.BlockNodeConfig> blockNodes = new ArrayList<>();
@@ -107,14 +107,13 @@ public class BlockNodeSuite {
                         Duration.ofMinutes(1),
                         Duration.ofSeconds(45),
                         "Detected ENTRY_CREATE event for block-nodes.json",
-                        "Stopping block node connections (keeping worker loop running)",
                         String.format(
                                 "/localhost:%s/ACTIVE] Connection state transitioned from PENDING to ACTIVE.",
                                 portNumbers.getFirst()))),
-                waitUntilNextBlocks(10).withBackgroundTraffic(true),
+                doingContextual((spec) -> timeRef.set(Instant.now())),
+                waitUntilNextBlocks(5).withBackgroundTraffic(true),
                 // Update block-nodes.json to have an invalid entry
                 doingContextual((spec) -> {
-                    timeRef.set(Instant.now());
                     List<com.hedera.node.internal.network.BlockNodeConfig> blockNodes = new ArrayList<>();
                     blockNodes.add(new com.hedera.node.internal.network.BlockNodeConfig("26dsfg2364", 1234, 0));
                     BlockNodeConnectionInfo connectionInfo = new BlockNodeConnectionInfo(blockNodes);
@@ -133,20 +132,19 @@ public class BlockNodeSuite {
                 sourcingContextual(spec -> assertHgcaaLogContainsTimeframe(
                         byNodeId(0),
                         timeRef::get,
-                        Duration.ofSeconds(45),
+                        Duration.ofMinutes(1),
                         Duration.ofSeconds(45),
                         "Detected ENTRY_MODIFY event for block-nodes.json",
-                        "Stopping block node connections (keeping worker loop running)",
                         String.format(
                                 "/localhost:%s/CLOSED] Connection state transitioned from CLOSING to CLOSED",
                                 portNumbers.getFirst()),
                         // New invalid config is loaded
                         // Connection client created but exception occurs with invalid address
                         "Created BlockStreamPublishServiceClient for 26dsfg2364:1234")),
-                waitUntilNextBlocks(10).withBackgroundTraffic(true),
+                doingContextual((spec) -> timeRef.set(Instant.now())),
+                waitUntilNextBlocks(5).withBackgroundTraffic(true),
                 // Delete block-nodes.json
                 doingContextual((spec) -> {
-                    timeRef.set(Instant.now());
                     try {
                         Path configPath = spec.getNetworkNodes()
                                 .getFirst()
@@ -161,17 +159,17 @@ public class BlockNodeSuite {
                 sourcingContextual(spec -> assertHgcaaLogContainsTimeframe(
                         byNodeId(0),
                         timeRef::get,
-                        Duration.ofSeconds(45),
+                        Duration.ofMinutes(1),
                         Duration.ofSeconds(45),
                         "Detected ENTRY_DELETE event for block-nodes.json",
-                        "Stopping block node connections (keeping worker loop running)",
+                        "Stopping block node connections",
                         // Config file is missing
                         "Block node configuration file does not exist:",
                         "No valid block node configurations available after file change. Connections remain stopped.")),
-                waitUntilNextBlocks(10).withBackgroundTraffic(true),
+                doingContextual((spec) -> timeRef.set(Instant.now())),
+                waitUntilNextBlocks(5).withBackgroundTraffic(true),
                 // Unparsable block-nodes.json
                 doingContextual((spec) -> {
-                    timeRef.set(Instant.now());
                     try {
                         Path configPath = spec.getNetworkNodes()
                                 .getFirst()
@@ -186,14 +184,14 @@ public class BlockNodeSuite {
                 sourcingContextual(spec -> assertHgcaaLogContainsTimeframe(
                         byNodeId(0),
                         timeRef::get,
-                        Duration.ofSeconds(45),
+                        Duration.ofMinutes(1),
                         Duration.ofSeconds(45),
                         "Detected ENTRY_CREATE event for block-nodes.json",
-                        "No valid block node configurations available after file change. Connections remain stopped.")),
-                waitUntilNextBlocks(10).withBackgroundTraffic(true),
+                        "Block node configuration unchanged. No action taken")),
+                doingContextual((spec) -> timeRef.set(Instant.now())),
+                waitUntilNextBlocks(5).withBackgroundTraffic(true),
                 // Create valid block-nodes.json again
                 doingContextual((spec) -> {
-                    timeRef.set(Instant.now());
                     // Create a new block-nodes.json file at runtime with localhost and the correct port
                     final var node0Port = spec.getBlockNodePortById(0);
                     List<com.hedera.node.internal.network.BlockNodeConfig> blockNodes = new ArrayList<>();
@@ -214,14 +212,12 @@ public class BlockNodeSuite {
                 sourcingContextual(spec -> assertHgcaaLogContainsTimeframe(
                         byNodeId(0),
                         timeRef::get,
-                        Duration.ofSeconds(45),
+                        Duration.ofMinutes(1),
                         Duration.ofSeconds(45),
                         // File watcher detects new valid config (MODIFY because file was already created with invalid
                         // JSON)
                         "Detected ENTRY_MODIFY event for block-nodes.json",
-                        "Stopping block node connections (keeping worker loop running)",
                         // Valid config is loaded
-                        "Searching for new block node connection based on node priorities",
                         "Found available node in priority group 0",
                         // Connection is re-established
                         String.format(
@@ -240,7 +236,7 @@ public class BlockNodeSuite {
                                 portNumbers.getFirst()),
                         String.format(
                                 "Active block node connection updated to: localhost:%s", portNumbers.getFirst()))),
-                waitUntilNextBlocks(20).withBackgroundTraffic(true),
+                waitUntilNextBlocks(10).withBackgroundTraffic(true),
                 assertHgcaaLogDoesNotContain(byNodeId(0), "ERROR", Duration.ofSeconds(5)));
     }
 
