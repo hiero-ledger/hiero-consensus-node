@@ -1,18 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.test;
 
-import static org.hiero.consensus.model.status.PlatformStatus.ACTIVE;
-import static org.hiero.consensus.model.status.PlatformStatus.CATASTROPHIC_FAILURE;
-import static org.hiero.consensus.model.status.PlatformStatus.CHECKING;
-import static org.hiero.consensus.model.status.PlatformStatus.OBSERVING;
-import static org.hiero.consensus.model.status.PlatformStatus.REPLAYING_EVENTS;
-import static org.hiero.otter.fixtures.OtterAssertions.assertThat;
-import static org.hiero.otter.fixtures.assertions.StatusProgressionStep.target;
-import static org.hiero.otter.fixtures.assertions.StatusProgressionStep.targets;
-
 import com.swirlds.platform.config.StateConfig_;
 import com.swirlds.platform.state.iss.DefaultIssDetector;
-import com.swirlds.platform.system.Shutdown;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import org.hiero.otter.fixtures.Capability;
@@ -21,9 +11,17 @@ import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.OtterTest;
 import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.TimeManager;
-import org.hiero.otter.fixtures.container.ContainerNetwork;
 import org.hiero.otter.fixtures.result.SingleNodeLogResult;
 import org.hiero.otter.fixtures.result.SingleNodePlatformStatusResult;
+
+import static org.hiero.consensus.model.status.PlatformStatus.ACTIVE;
+import static org.hiero.consensus.model.status.PlatformStatus.CATASTROPHIC_FAILURE;
+import static org.hiero.consensus.model.status.PlatformStatus.CHECKING;
+import static org.hiero.consensus.model.status.PlatformStatus.OBSERVING;
+import static org.hiero.consensus.model.status.PlatformStatus.REPLAYING_EVENTS;
+import static org.hiero.otter.fixtures.OtterAssertions.assertThat;
+import static org.hiero.otter.fixtures.assertions.StatusProgressionStep.target;
+import static org.hiero.otter.fixtures.assertions.StatusProgressionStep.targets;
 
 /**
  * Tests for the detection and response to ISSes (Inconsistent State Signatures).
@@ -87,12 +85,14 @@ public class IssTest {
         network.addNodes(4);
 
         network.withConfigValue(StateConfig_.AUTOMATED_SELF_ISS_RECOVERY, true);
-        ((ContainerNetwork) network).restartNodesOnSelfShutdown(true);
 
         network.start();
 
         final Node issNode = network.nodes().getFirst();
         issNode.triggerSelfIss();
+
+        // TODO assert the node shutdown on its own, then restart it
+        // Send a liveliness ping to the DockerManager to see if the process is still alive
 
         timeManager
                 .waitForCondition(

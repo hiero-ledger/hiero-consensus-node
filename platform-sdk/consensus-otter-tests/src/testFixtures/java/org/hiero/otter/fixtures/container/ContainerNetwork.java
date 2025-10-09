@@ -167,12 +167,4 @@ public class ContainerNetwork extends AbstractNetwork {
             toxiproxyContainer.stop();
         }
     }
-
-    public void restartNodesOnSelfShutdown(final boolean restartOnSelfShutdown) {
-        this.restartNodesOnSelfShutdown = restartOnSelfShutdown;
-        newLogResults().subscribe(log -> {
-            
-        });
-
-    }
 }
