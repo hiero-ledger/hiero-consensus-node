@@ -11,7 +11,7 @@ import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.utility.Mnemonics;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
-import com.swirlds.platform.state.MerkleNodeState;
+import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.State;
 import com.swirlds.state.lifecycle.StateDefinition;
 import com.swirlds.state.merkle.StateKeyUtils;

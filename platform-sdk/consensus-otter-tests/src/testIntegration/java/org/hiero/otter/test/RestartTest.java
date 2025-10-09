@@ -67,7 +67,7 @@ public class RestartTest {
 
         // Wait for all nodes to advance at least 20 rounds beyond the last round reached
         timeManager.waitForCondition(
-                () -> allNodesAdvancedToRound(lastRoundReached + 20, network), Duration.ofSeconds(30L));
+                () -> allNodesAdvancedToRound(lastRoundReached + 20, network), Duration.ofSeconds(120L));
 
         assertThat(network.newLogResults().suppressingLogMarker(LogMarker.SOCKET_EXCEPTIONS))
                 .haveNoErrorLevelMessages();

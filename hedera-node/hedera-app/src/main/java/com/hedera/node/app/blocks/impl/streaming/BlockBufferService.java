@@ -19,6 +19,8 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -316,10 +318,9 @@ public class BlockBufferService {
         }
 
         final BlockState existingBlock = blockBuffer.get(blockNumber);
-        if (existingBlock != null && existingBlock.isBlockProofSent()) {
-            logger.error("Attempted to open block {}, but this block already has the block proof sent", blockNumber);
-            throw new IllegalStateException("Attempted to open block " + blockNumber + ", but this block already has "
-                    + "the block proof sent");
+        if (existingBlock != null && existingBlock.isClosed()) {
+            logger.debug("Block {} is already open and its closed; ignoring open request", blockNumber);
+            return;
         }
 
         // Create a new block state
@@ -347,8 +348,8 @@ public class BlockBufferService {
         }
         requireNonNull(blockItem, "blockItem must not be null");
         final BlockState blockState = getBlockState(blockNumber);
-        if (blockState == null) {
-            throw new IllegalStateException("Block state not found for block " + blockNumber);
+        if (blockState == null || blockState.isClosed()) {
+            return;
         }
         blockState.addItem(blockItem);
     }
@@ -368,6 +369,9 @@ public class BlockBufferService {
             throw new IllegalStateException("Block state not found for block " + blockNumber);
         }
 
+        if (blockState.isClosed()) {
+            return;
+        }
         blockStreamMetrics.recordBlockClosed();
         blockState.closeBlock();
     }
@@ -509,6 +513,8 @@ public class BlockBufferService {
 
             final Timestamp closedTimestamp = bufferedBlock.closedTimestamp();
             final Instant closedInstant = Instant.ofEpochSecond(closedTimestamp.seconds(), closedTimestamp.nanos());
+            logger.debug(
+                    "Reconstructed block {} from disk and closed at {}", bufferedBlock.blockNumber(), closedInstant);
             block.closeBlock(closedInstant);
 
             if (bufferedBlock.isAcknowledged()) {
@@ -534,9 +540,11 @@ public class BlockBufferService {
             return;
         }
 
-        // collect all closed blocks
-        final List<BlockState> blocksToPersist =
-                blockBuffer.values().stream().filter(BlockState::isClosed).toList();
+        // collect all closed blocks which are not acked yet
+        final List<BlockState> blocksToPersist = blockBuffer.values().stream()
+                .filter(BlockState::isClosed)
+                .filter(blockState -> blockState.blockNumber() > highestAckedBlockNumber.get())
+                .toList();
 
         // ensure all closed blocks have their items packed in requests before writing them out
         final int batchSize = blockItemBatchSize();
@@ -699,15 +707,17 @@ public class BlockBufferService {
         final PruneResult previousPruneResult = lastPruningResult;
         lastPruningResult = pruningResult;
 
-        logger.debug(
-                "Block buffer status: idealMaxBufferSize={}, blocksChecked={}, blocksPruned={}, blocksPendingAck={}, blockRange=[{}, {}], saturation={}%",
-                pruningResult.idealMaxBufferSize,
-                pruningResult.numBlocksChecked,
-                pruningResult.numBlocksPruned,
-                pruningResult.numBlocksPendingAck,
-                pruningResult.oldestBlockNumber == -1 ? "-" : pruningResult.oldestBlockNumber,
-                pruningResult.newestBlockNumber == -1 ? "-" : pruningResult.newestBlockNumber,
-                pruningResult.saturationPercent);
+        // create a list of ranges of continguous blocks in the buffer
+        if (logger.isDebugEnabled()) {
+            logger.debug(
+                    "Block buffer status: idealMaxBufferSize={}, blocksChecked={}, blocksPruned={}, blocksPendingAck={}, blockRange={}, saturation={}%",
+                    pruningResult.idealMaxBufferSize,
+                    pruningResult.numBlocksChecked,
+                    pruningResult.numBlocksPruned,
+                    pruningResult.numBlocksPendingAck,
+                    getContiguousRangesAsString(),
+                    pruningResult.saturationPercent);
+        }
 
         blockStreamMetrics.recordBufferSaturation(pruningResult.saturationPercent);
 
@@ -720,7 +730,6 @@ public class BlockBufferService {
                 The buffer has transitioned from zero/low saturation levels to fully saturated. We need to ensure back
                 pressure is engaged and potentially change which Block Node we are connected to.
                  */
-                blockStreamMetrics.recordBackPressureActive();
                 enableBackPressure(pruningResult);
                 switchBlockNodeIfPermitted(pruningResult);
             } else if (pruningResult.saturationPercent >= actionStageThreshold) {
@@ -747,7 +756,6 @@ public class BlockBufferService {
                 The buffer has transitioned from the action stage saturation level to being completely full/saturated.
                 Back pressure needs to be applied and possibly switch to a different Block Node.
                  */
-                blockStreamMetrics.recordBackPressureActive();
                 enableBackPressure(pruningResult);
                 switchBlockNodeIfPermitted(pruningResult);
             } else if (pruningResult.saturationPercent >= actionStageThreshold) {
@@ -774,7 +782,6 @@ public class BlockBufferService {
                 Before and after pruning, the buffer remained fully saturated. Back pressure should be enabled - if not
                 already - and we should maybe swap to a different Block Node.
                  */
-                blockStreamMetrics.recordBackPressureActive();
                 switchBlockNodeIfPermitted(pruningResult);
                 enableBackPressure(pruningResult);
             } else if (pruningResult.saturationPercent >= actionStageThreshold) {
@@ -812,6 +819,41 @@ public class BlockBufferService {
         }
     }
 
+    public String getContiguousRangesAsString() {
+        // Collect and sort keys
+        List<Long> keys = new ArrayList<>(blockBuffer.keySet());
+        Collections.sort(keys);
+
+        if (keys.isEmpty()) {
+            return "[]";
+        }
+
+        List<String> ranges = new ArrayList<>();
+        long start = keys.get(0);
+        long prev = start;
+
+        for (int i = 1; i < keys.size(); i++) {
+            long current = keys.get(i);
+            if (current == prev + 1) {
+                // Still contiguous
+                prev = current;
+            } else {
+                // Close previous range
+                ranges.add(formatRange(start, prev));
+                start = current;
+                prev = current;
+            }
+        }
+        // Add last range
+        ranges.add(formatRange(start, prev));
+
+        return "[" + String.join(",", ranges) + "]";
+    }
+
+    private String formatRange(long start, long end) {
+        return start == end ? "(" + start + ")" : "(" + start + "-" + end + ")";
+    }
+
     /**
      * Attempts to force a switch to a different block node. Switching to a different block node is only permitted if
      * the time since the last switch is greater than the grace period (configured by
@@ -828,7 +870,7 @@ public class BlockBufferService {
             return;
         }
 
-        logger.info(
+        logger.debug(
                 "Attempting to forcefully switch block node connections due to increasing block buffer saturation (saturation={}%)",
                 pruneResult.saturationPercent);
         lastRecoveryActionTimestamp = now;
@@ -897,6 +939,8 @@ public class BlockBufferService {
             if (oldCf == null || oldCf.isDone()) {
                 // If the existing future is null or is completed, we need to create a new one
                 newCf = new CompletableFuture<>();
+                blockStreamMetrics.recordBackPressureActive();
+
                 logger.warn(
                         "Block buffer is saturated; backpressure is being enabled "
                                 + "(idealMaxBufferSize={}, blocksChecked={}, blocksPruned={}, blocksPendingAck={}, saturation={}%)",

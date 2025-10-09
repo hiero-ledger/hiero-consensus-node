@@ -15,7 +15,7 @@ import com.swirlds.platform.gui.GuiEventStorage;
 import com.swirlds.platform.gui.hashgraph.HashgraphGuiSource;
 import com.swirlds.platform.gui.hashgraph.internal.StandardGuiSource;
 import com.swirlds.platform.internal.EventImpl;
-import com.swirlds.platform.test.fixtures.event.source.ForkingEventSource;
+import com.swirlds.platform.test.fixtures.event.source.BranchingEventSource;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.awt.FlowLayout;
 import java.util.ArrayList;
@@ -191,7 +191,7 @@ public class TestGuiSource {
     }
 
     /**
-     * Get a map between events and their branch index in case there are {@link ForkingEventSource instances}
+     * Get a map between events and their branch index in case there are {@link BranchingEventSource instances}
      * that produce branched events.
      *
      * @return the constructed map
@@ -200,16 +200,16 @@ public class TestGuiSource {
         final Map<PlatformEvent, Integer> eventToBranchIndex = new HashMap<>();
 
         if (eventProvider instanceof GeneratorEventProvider) {
-            final List<ForkingEventSource> forkingEventSources = new ArrayList<>();
+            final List<BranchingEventSource> branchingEventSources = new ArrayList<>();
             for (final NodeId nodeId : guiSource.getRoster().rosterEntries().stream()
                     .map(RosterEntry::nodeId)
                     .map(NodeId::of)
                     .toList()) {
                 if (((GeneratorEventProvider) eventProvider).getNodeSource(nodeId)
-                        instanceof ForkingEventSource forkingEventSource) {
-                    forkingEventSources.add(forkingEventSource);
+                        instanceof BranchingEventSource branchingEventSource) {
+                    branchingEventSources.add(branchingEventSource);
 
-                    final List<LinkedList<EventImpl>> branches = forkingEventSource.getBranches();
+                    final List<LinkedList<EventImpl>> branches = branchingEventSource.getBranches();
 
                     for (int i = 0; i < branches.size(); i++) {
                         final List<EventImpl> branch = branches.get(i);

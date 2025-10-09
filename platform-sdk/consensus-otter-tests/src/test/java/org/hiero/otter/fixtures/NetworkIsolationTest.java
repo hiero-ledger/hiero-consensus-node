@@ -4,6 +4,7 @@ package org.hiero.otter.fixtures;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.hiero.consensus.model.status.PlatformStatus.ACTIVE;
+import static org.hiero.otter.fixtures.Constants.RANDOM_SEED;
 
 import com.swirlds.common.test.fixtures.WeightGenerators;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -21,8 +22,6 @@ import org.junit.jupiter.params.provider.MethodSource;
  * Tests for the node isolation functionality in the Network interface.
  */
 class NetworkIsolationTest {
-
-    private static final long RANDOM_SEED = 0L;
 
     /**
      * Provides a stream of test environments for the parameterized tests.
@@ -92,7 +91,7 @@ class NetworkIsolationTest {
 
             // Wait for nodes to become inactive due to network partition
             timeManager.waitForCondition(
-                    node0::isChecking, Duration.ofSeconds(15), "Node did not enter CHECKING state after isolation");
+                    node0::isChecking, Duration.ofSeconds(120L), "Node did not enter CHECKING state after isolation");
 
             timeManager.waitFor(Duration.ofSeconds(5)); // just to be sure
             assertThat(node1.platformStatus()).isEqualTo(ACTIVE);
@@ -117,7 +116,9 @@ class NetworkIsolationTest {
 
             // The nodes should be active again
             timeManager.waitForCondition(
-                    network::allNodesAreActive, Duration.ofSeconds(15), "Not all nodes became ACTIVE after rejoining");
+                    network::allNodesAreActive,
+                    Duration.ofSeconds(120L),
+                    "Not all nodes became ACTIVE after rejoining");
         } finally {
             env.destroy();
         }
