@@ -256,11 +256,11 @@ jobs:
 
       - name: Trigger ZXF Deploy Integration
         if: >-
-          ${{ 
+          ${{
             inputs.dry-run-enabled == false &&
             needs.release-branch.result == 'success' &&
             steps.check-integration-job.outputs.enabled == 'true' &&
-            !cancelled() 
+            !cancelled()
           }}
         uses: step-security/workflow-dispatch@b4c1dc0afa074d0b4f0e653d3b80d4b2798599aa # v1.2.7
         with:
