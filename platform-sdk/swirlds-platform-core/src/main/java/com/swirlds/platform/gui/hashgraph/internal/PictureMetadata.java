@@ -41,7 +41,7 @@ public class PictureMetadata {
      * @param events the events to be displayed
      * @param hashgraphSource the needed information for visualisation from the hashgraph to use as a source
      * @param nodeIdToGenerationToCoordinates map collecting coordinates info for branched events with the
-     * same generation for each forking node
+     * same generation for each branching node
      *
      */
     public PictureMetadata(

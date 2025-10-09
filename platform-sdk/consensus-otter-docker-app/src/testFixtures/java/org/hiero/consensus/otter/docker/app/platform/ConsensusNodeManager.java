@@ -33,6 +33,7 @@ import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer;
 import com.swirlds.platform.util.BootstrapUtils;
 import com.swirlds.platform.wiring.PlatformComponents;
+import com.swirlds.state.MerkleNodeState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.file.Path;
@@ -103,7 +104,7 @@ public class ConsensusNodeManager {
 
         initLogging();
         BootstrapUtils.setupConstructableRegistry();
-        TestingAppStateInitializer.registerMerkleStateRootClassIds();
+        TestingAppStateInitializer.registerConstructablesForStorage(platformConfig);
 
         final var legacySelfId = org.hiero.consensus.model.node.NodeId.of(selfId.id());
 

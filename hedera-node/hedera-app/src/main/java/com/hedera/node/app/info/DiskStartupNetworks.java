@@ -12,7 +12,7 @@ import com.hedera.node.app.ids.EntityIdService;
 import com.hedera.node.app.ids.ReadableEntityIdStoreImpl;
 import com.hedera.node.app.service.addressbook.AddressBookService;
 import com.hedera.node.app.service.addressbook.impl.ReadableNodeStoreImpl;
-import com.hedera.node.app.services.StartupNetworks;
+import com.hedera.node.app.spi.migrate.StartupNetworks;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfiguration;
 import com.hedera.node.config.data.HederaConfig;

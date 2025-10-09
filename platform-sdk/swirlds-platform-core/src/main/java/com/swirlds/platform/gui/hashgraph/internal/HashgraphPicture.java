@@ -58,7 +58,7 @@ public class HashgraphPicture extends JPanel {
     private RosterMetadata nonExpandedMetadata;
     private RosterMetadata expandedMetadata;
 
-    /** used to store coordinates for branched events with a given generation for each forking node */
+    /** used to store coordinates for branched events with a given generation for each branching node */
     private final Map<Long, Map<Long, GenerationCoordinates>> nodeIdToBranchIndexToCoordinates = new HashMap<>();
 
     public HashgraphPicture(final HashgraphGuiSource hashgraphSource, final HashgraphPictureOptions options) {

@@ -9,6 +9,7 @@ module com.hedera.node.app.service.addressbook {
     requires transitive com.hedera.pbj.runtime;
     requires com.hedera.node.config;
     requires com.swirlds.config.api;
+    requires com.swirlds.state.api;
     requires org.bouncycastle.pkix;
     requires org.bouncycastle.provider;
     requires static transitive com.github.spotbugs.annotations;

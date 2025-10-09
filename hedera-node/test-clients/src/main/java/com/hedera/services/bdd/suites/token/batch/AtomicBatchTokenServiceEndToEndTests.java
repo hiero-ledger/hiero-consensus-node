@@ -67,27 +67,21 @@ import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
 
 import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.junit.HapiTest;
-import com.hedera.services.bdd.junit.HapiTestLifecycle;
-import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.SpecOperation;
 import com.hedera.services.bdd.spec.transactions.token.HapiTokenCreate;
 import com.hedera.services.bdd.spec.transactions.token.HapiTokenMint;
 import com.hederahashgraph.api.proto.java.TokenPauseStatus;
-import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
-import java.util.Map;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 
-@HapiTestLifecycle
 @Tag(TOKEN)
 @Tag(MATS)
-public class AtomicBatchTokenServiceEndToEndTests {
+class AtomicBatchTokenServiceEndToEndTests {
 
     private static final double BASE_FEE_BATCH_TRANSACTION = 0.001;
     private static final String FT_FOR_END_TO_END = "ftForEndToEnd";
@@ -120,18 +114,13 @@ public class AtomicBatchTokenServiceEndToEndTests {
     private static final String kycKey = "kycKey";
     private static final String newKycKey = "newKycKey";
 
-    @BeforeAll
-    static void beforeAll(@NonNull final TestLifecycle lifecycle) {
-        lifecycle.overrideInClass(Map.of("atomicBatch.isEnabled", "true", "atomicBatch.maxNumberOfTransactions", "50"));
-    }
-
     // Token Lifecycle tests
     @Nested
     @DisplayName("Token Associate and Transfer Tests - including auto-associations and airdrops")
     class TokenAssociateAndTransferTests {
         @HapiTest
         @DisplayName("Associate and multiple transfers of FT token without custom fees success in batch")
-        public Stream<DynamicTest> associateAndMultipleTransfersFTWithoutCustomFeesSuccessInBatch() {
+        Stream<DynamicTest> associateAndMultipleTransfersFTWithoutCustomFeesSuccessInBatch() {
 
             // create associate receiver inner transactions
             final var associateFirstReceiver = tokenAssociate(RECEIVER_ASSOCIATED_FIRST, FT_FOR_END_TO_END)
@@ -209,7 +198,7 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
         @HapiTest
         @DisplayName("Associate and multiple transfers of NFT token without custom fees success in batch")
-        public Stream<DynamicTest> associateAndMultipleTransfersNFTWithoutCustomFeesSuccessInBatch() {
+        Stream<DynamicTest> associateAndMultipleTransfersNFTWithoutCustomFeesSuccessInBatch() {
 
             // create associate receiver inner transactions
             final var associateFirstReceiver = tokenAssociate(RECEIVER_ASSOCIATED_FIRST, NFT_FOR_END_TO_END)
@@ -290,7 +279,7 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
         @HapiTest
         @DisplayName("Mint, Associate and Transfer NFT token without custom fees success in batch")
-        public Stream<DynamicTest> mintAssociateAndTransferNFTWithoutCustomFeesSuccessInBatch() {
+        Stream<DynamicTest> mintAssociateAndTransferNFTWithoutCustomFeesSuccessInBatch() {
 
             // create token mint transaction
             final var mintNFT = mintNFT(NFT_FOR_END_TO_END, 0, 10)
@@ -377,7 +366,7 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
         @HapiTest
         @DisplayName("Mint, Associate and Transfer Non-Existent NFT token without custom fees fails in batch")
-        public Stream<DynamicTest> mintAssociateAndTransferNonExistentNFTWithoutCustomFeesFailsInBatch() {
+        Stream<DynamicTest> mintAssociateAndTransferNonExistentNFTWithoutCustomFeesFailsInBatch() {
 
             // create token mint transaction
             final var mintNFT = mintNFT(NFT_FOR_END_TO_END, 0, 10)
@@ -420,7 +409,7 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
         @HapiTest
         @DisplayName("Mint, Associate, Transfer and Delete NFT token without custom fees success in batch")
-        public Stream<DynamicTest> mintAssociateTransferAndDeleteNFTWithoutCustomFeesSuccessInBatch() {
+        Stream<DynamicTest> mintAssociateTransferAndDeleteNFTWithoutCustomFeesSuccessInBatch() {
 
             // create token mint transaction
             final var mintNFT = mintNFT(NFT_FOR_END_TO_END, 0, 10)
@@ -491,7 +480,7 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
         @HapiTest
         @DisplayName("Mint, Burn and Delete NFT token without custom fees success in batch")
-        public Stream<DynamicTest> mintBurnAndDeleteNFTWithoutCustomFeesSuccessInBatch() {
+        Stream<DynamicTest> mintBurnAndDeleteNFTWithoutCustomFeesSuccessInBatch() {
 
             // create token mint transaction
             final var mintNFT = mintNFT(NFT_FOR_END_TO_END, 0, 10)
@@ -537,7 +526,7 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
         @HapiTest
         @DisplayName("Associate, Grant KYC and Transfer FT success in batch")
-        public Stream<DynamicTest> associateGrantKYCAndTransferFTSuccessInBatch() {
+        Stream<DynamicTest> associateGrantKYCAndTransferFTSuccessInBatch() {
 
             // create associate receiver inner transactions
             final var associateFirstReceiver = tokenAssociate(RECEIVER_ASSOCIATED_FIRST, FT_FOR_TOKEN_KYC)
@@ -582,7 +571,7 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
         @HapiTest
         @DisplayName("Associate, Freeze Token and Transfer FT fails in batch")
-        public Stream<DynamicTest> associateFreezeAndTransferFTFailsInBatch() {
+        Stream<DynamicTest> associateFreezeAndTransferFTFailsInBatch() {
 
             // create associate receiver inner transactions
             final var associateFirstReceiver = tokenAssociate(RECEIVER_ASSOCIATED_FIRST, NFT_FOR_TOKEN_FREEZE)
@@ -627,7 +616,7 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
         @HapiTest
         @DisplayName("Associate, Unfreeze Token and Transfer FT success in batch")
-        public Stream<DynamicTest> associateUnfreezeAndTransferFTSuccessInBatch() {
+        Stream<DynamicTest> associateUnfreezeAndTransferFTSuccessInBatch() {
 
             // create associate receiver inner transactions
             final var associateFirstReceiver = tokenAssociate(RECEIVER_ASSOCIATED_FIRST, NFT_FOR_TOKEN_FREEZE)
@@ -671,7 +660,7 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
         @HapiTest
         @DisplayName("Associate and multiple transfers of FT and NFT tokens without custom fees success in batch")
-        public Stream<DynamicTest> associateAndMultipleTransfersFTAndNFTWithoutCustomFeesSuccessInBatch() {
+        Stream<DynamicTest> associateAndMultipleTransfersFTAndNFTWithoutCustomFeesSuccessInBatch() {
 
             // create associate receiver inner transactions
             final var associateFirstReceiver = tokenAssociate(
@@ -728,7 +717,7 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
         @HapiTest
         @DisplayName("Multiple airdrops of FT and NFT tokens without custom fees success in batch")
-        public Stream<DynamicTest> multipleAirdropsFTAndNFTWithoutCustomFeesSuccessInBatch() {
+        Stream<DynamicTest> multipleAirdropsFTAndNFTWithoutCustomFeesSuccessInBatch() {
 
             final var tokenAirdrops = tokenAirdrop(
                             moving(10L, FT_FOR_END_TO_END).between(OWNER, RECEIVER_WITH_FREE_AUTO_ASSOCIATIONS),
@@ -794,7 +783,7 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
         @HapiTest
         @DisplayName("Dissociate and transfer of FT token without custom fees fails in batch")
-        public Stream<DynamicTest> dissociateAndTransferFTWithoutCustomFeesFailsInBatch() {
+        Stream<DynamicTest> dissociateAndTransferFTWithoutCustomFeesFailsInBatch() {
 
             // create dissociate receiver inner transactions
             final var dissociateFirstReceiver = tokenDissociate(RECEIVER_ASSOCIATED_FIRST, FT_FOR_END_TO_END)
@@ -839,7 +828,7 @@ public class AtomicBatchTokenServiceEndToEndTests {
         class PauseAndUnpauseTests {
             @HapiTest
             @DisplayName("Unpause and Transfer fungible token success in batch")
-            public Stream<DynamicTest> unpauseAndTransferFTSuccessInBatch() {
+            Stream<DynamicTest> unpauseAndTransferFTSuccessInBatch() {
 
                 // unpause the fungible token
                 final var unpauseFungibleToken = tokenUnpause(FT_FOR_TOKEN_PAUSE)
@@ -887,7 +876,7 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
             @HapiTest
             @DisplayName("Transfer and Pause fungible token success in batch")
-            public Stream<DynamicTest> transferAndPauseFTSuccessInBatch() {
+            Stream<DynamicTest> transferAndPauseFTSuccessInBatch() {
 
                 // transfer tokens to associated accounts
                 final var tokenTransferFirstReceiver = cryptoTransfer(
@@ -934,7 +923,7 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
             @HapiTest
             @DisplayName("Unpause, Transfer and Pause fungible token success in batch")
-            public Stream<DynamicTest> unpauseTransferAndPauseFTSuccessInBatch() {
+            Stream<DynamicTest> unpauseTransferAndPauseFTSuccessInBatch() {
 
                 // unpause the fungible token
                 final var unpauseFungibleToken = tokenUnpause(FT_FOR_TOKEN_PAUSE)
@@ -993,7 +982,7 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
             @HapiTest
             @DisplayName("Pause fungible token not signed by pause key fails in batch")
-            public Stream<DynamicTest> pauseFTNotSignedByPauseKeyFailsInBatch() {
+            Stream<DynamicTest> pauseFTNotSignedByPauseKeyFailsInBatch() {
 
                 // transfer tokens to associated accounts
                 final var tokenTransferFirstReceiver = cryptoTransfer(
@@ -1041,7 +1030,7 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
             @HapiTest
             @DisplayName("Unpause fungible token not signed by pause key fails in batch")
-            public Stream<DynamicTest> unpauseFTNotSignedByPauseKeyFailsInBatch() {
+            Stream<DynamicTest> unpauseFTNotSignedByPauseKeyFailsInBatch() {
 
                 // unpause the fungible token
                 final var unpauseFungibleToken = tokenUnpause(FT_FOR_TOKEN_PAUSE)
@@ -1090,7 +1079,7 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
             @HapiTest
             @DisplayName("Transfer of Paused token fails in batch")
-            public Stream<DynamicTest> tokenTransferOfPausedFTFailsInBatch() {
+            Stream<DynamicTest> tokenTransferOfPausedFTFailsInBatch() {
 
                 // transfer tokens to associated accounts
                 final var tokenTransferFirstReceiver = cryptoTransfer(
@@ -1130,7 +1119,7 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
             @HapiTest
             @DisplayName("Transfer and Pause of token without pause key fails in batch")
-            public Stream<DynamicTest> tokenTransferAndPauseOfFTWithoutPauseKeyFailsInBatch() {
+            Stream<DynamicTest> tokenTransferAndPauseOfFTWithoutPauseKeyFailsInBatch() {
 
                 // transfer tokens to associated accounts
                 final var tokenTransferFirstReceiver = cryptoTransfer(
@@ -1170,7 +1159,7 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
             @HapiTest
             @DisplayName("Unpause and Transfer of token without pause key fails in batch")
-            public Stream<DynamicTest> unpauseAndTransferOfFTWithoutPauseKeyFailsInBatch() {
+            Stream<DynamicTest> unpauseAndTransferOfFTWithoutPauseKeyFailsInBatch() {
 
                 // transfer tokens to associated accounts
                 final var tokenTransferFirstReceiver = cryptoTransfer(
@@ -1210,7 +1199,7 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
             @HapiTest
             @DisplayName("Update Pause key, Transfer and Pause token successfully in batch")
-            public Stream<DynamicTest> updatePauseKeyTransferAndPauseOfFTSuccessInBatchTest() {
+            Stream<DynamicTest> updatePauseKeyTransferAndPauseOfFTSuccessInBatchTest() {
 
                 // update the pause key
                 final var updatePauseKey = tokenUpdate(FT_FOR_TOKEN_PAUSE)
@@ -1261,7 +1250,7 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
             @HapiTest
             @DisplayName("Update Pause key of token created without pause key fails in batch")
-            public Stream<DynamicTest> updatePauseKeyOfFTCreatedWithoutPauseKeyFailsInBatch() {
+            Stream<DynamicTest> updatePauseKeyOfFTCreatedWithoutPauseKeyFailsInBatch() {
 
                 // update the pause key
                 final var updatePauseKey = tokenUpdate(FT_FOR_TOKEN_PAUSE)
@@ -1301,7 +1290,7 @@ public class AtomicBatchTokenServiceEndToEndTests {
         class FreezeAndUnfreezeTests {
             @HapiTest
             @DisplayName("Unfreeze and Transfer non-fungible token success in batch")
-            public Stream<DynamicTest> unfreezeAndTransferNFTSuccessInBatch() {
+            Stream<DynamicTest> unfreezeAndTransferNFTSuccessInBatch() {
 
                 // unfreeze the non-fungible token
                 final var unfreezeNonFungibleToken = tokenUnfreeze(NFT_FOR_TOKEN_FREEZE, RECEIVER_ASSOCIATED_FIRST)
@@ -1342,7 +1331,7 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
             @HapiTest
             @DisplayName("Transfer and Freeze non-fungible token success in batch")
-            public Stream<DynamicTest> transferAndFreezeNFTSuccessInBatch() {
+            Stream<DynamicTest> transferAndFreezeNFTSuccessInBatch() {
 
                 // freeze the non-fungible token
                 final var freezeNonFungibleToken = tokenFreeze(NFT_FOR_TOKEN_FREEZE, RECEIVER_ASSOCIATED_FIRST)
@@ -1382,7 +1371,7 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
             @HapiTest
             @DisplayName("Unfreeze, Transfer and Freeze non-fungible token success in batch")
-            public Stream<DynamicTest> unfreezeTransferAndFreezeNFTSuccessInBatch() {
+            Stream<DynamicTest> unfreezeTransferAndFreezeNFTSuccessInBatch() {
 
                 // unfreeze the non-fungible token
                 final var unfreezeNonFungibleToken = tokenUnfreeze(NFT_FOR_TOKEN_FREEZE, RECEIVER_ASSOCIATED_FIRST)
@@ -1430,7 +1419,7 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
             @HapiTest
             @DisplayName("Freeze non-fungible token not signed by freeze key fails in batch")
-            public Stream<DynamicTest> freezeNFTNotSignedByFreezeKeyFailsInBatch() {
+            Stream<DynamicTest> freezeNFTNotSignedByFreezeKeyFailsInBatch() {
 
                 // transfer tokens to associated accounts
                 final var tokenTransferFirstReceiver = cryptoTransfer(
@@ -1471,7 +1460,7 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
             @HapiTest
             @DisplayName("Unfreeze non-fungible token not signed by freeze key fails in batch")
-            public Stream<DynamicTest> unfreezeNFTNotSignedByFreezeKeyFailsInBatch() {
+            Stream<DynamicTest> unfreezeNFTNotSignedByFreezeKeyFailsInBatch() {
 
                 // unfreeze the non-fungible token
                 final var unfreezeNonFungibleToken = tokenUnfreeze(NFT_FOR_TOKEN_FREEZE, RECEIVER_ASSOCIATED_FIRST)
@@ -1513,7 +1502,7 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
             @HapiTest
             @DisplayName("Transfer of Freezed NFT token fails in batch")
-            public Stream<DynamicTest> tokenTransferOfFreezedNFTFailsInBatch() {
+            Stream<DynamicTest> tokenTransferOfFreezedNFTFailsInBatch() {
 
                 // transfer tokens to associated accounts
                 final var tokenTransferFirstReceiver = cryptoTransfer(
@@ -1554,7 +1543,7 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
             @HapiTest
             @DisplayName("Unfreeze and Transfer non-fungible token without freeze key fails in batch")
-            public Stream<DynamicTest> tokenUnfreezeAndTransferOfNFTWithoutFreezeKeyFailsInBatch() {
+            Stream<DynamicTest> tokenUnfreezeAndTransferOfNFTWithoutFreezeKeyFailsInBatch() {
 
                 // transfer tokens to associated accounts
                 final var tokenTransferFirstReceiver = cryptoTransfer(
@@ -1595,7 +1584,7 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
             @HapiTest
             @DisplayName("Transfer and Freeze non-fungible token without freeze key fails in batch")
-            public Stream<DynamicTest> tokenTransferAndFreezeOfNFTWithoutFreezeKeyFailsInBatch() {
+            Stream<DynamicTest> tokenTransferAndFreezeOfNFTWithoutFreezeKeyFailsInBatch() {
 
                 // transfer tokens to associated accounts
                 final var tokenTransferFirstReceiver = cryptoTransfer(
@@ -1636,7 +1625,7 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
             @HapiTest
             @DisplayName("Multiple transfers of non-fungible token Unfreezed for one account only fails in batch")
-            public Stream<DynamicTest> multipleTransferOfNFTUnfreezedForOneAccountOnlyFailInBatch() {
+            Stream<DynamicTest> multipleTransferOfNFTUnfreezedForOneAccountOnlyFailInBatch() {
 
                 // unfreeze the non-fungible token
                 final var unfreezeNonFungibleTokenForOneAccount = tokenUnfreeze(
@@ -1698,7 +1687,7 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
             @HapiTest
             @DisplayName("Update Freeze key, Transfer and Freeze non-fungible token successfully in batch")
-            public Stream<DynamicTest> updateFreezeKeyTransferAndFreezeNFTSuccessInBatch() {
+            Stream<DynamicTest> updateFreezeKeyTransferAndFreezeNFTSuccessInBatch() {
 
                 // update the non-fungible token
                 final var updateFreezeKey = tokenUpdate(NFT_FOR_TOKEN_FREEZE)
@@ -1746,7 +1735,7 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
             @HapiTest
             @DisplayName("Update Freeze key of non-fungible token created without freeze key fails in batch")
-            public Stream<DynamicTest> updateFreezeKeyOfNFTCreatedWithoutFreezeKeyFailsInBatch() {
+            Stream<DynamicTest> updateFreezeKeyOfNFTCreatedWithoutFreezeKeyFailsInBatch() {
 
                 // update the non-fungible token
                 final var updateFreezeKey = tokenUpdate(NFT_FOR_TOKEN_FREEZE)
@@ -1792,7 +1781,7 @@ public class AtomicBatchTokenServiceEndToEndTests {
         class BurnWipeAndDeleteTests {
             @HapiTest
             @DisplayName("Burn and Wipe fungible token success in batch")
-            public Stream<DynamicTest> burnAndWipeFTSuccessInBatch() {
+            Stream<DynamicTest> burnAndWipeFTSuccessInBatch() {
 
                 // burn the fungible token
                 final var burnFungibleToken = burnToken(FT_FOR_TOKEN_BURN, 10L)
@@ -1836,7 +1825,7 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
             @HapiTest
             @DisplayName("Delete after Burn and Wipe fungible token success in batch")
-            public Stream<DynamicTest> deleteAfterBurnAndWipeFTSuccessInBatch() {
+            Stream<DynamicTest> deleteAfterBurnAndWipeFTSuccessInBatch() {
 
                 // burn the fungible token
                 final var burnFungibleToken = burnToken(FT_FOR_TOKEN_BURN, 10L)
@@ -1897,7 +1886,7 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
             @HapiTest
             @DisplayName("Token Transfer after Burn fungible token when there is insufficient balance fails in batch")
-            public Stream<DynamicTest> transferAfterBurnFTWhenInsufficientBalanceFailsInBatch() {
+            Stream<DynamicTest> transferAfterBurnFTWhenInsufficientBalanceFailsInBatch() {
 
                 // burn the fungible token
                 final var burnFungibleToken = burnToken(FT_FOR_TOKEN_BURN, 100L)
@@ -1943,7 +1932,7 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
             @HapiTest
             @DisplayName("Token Transfer after Wipe fungible token when there is insufficient balance fails in batch")
-            public Stream<DynamicTest> transferAfterWipeFTWhenInsufficientBalanceFailsInBatch() {
+            Stream<DynamicTest> transferAfterWipeFTWhenInsufficientBalanceFailsInBatch() {
 
                 // wipe the fungible token
                 final var wipeFungibleToken = wipeTokenAccount(FT_FOR_TOKEN_BURN, RECEIVER_ASSOCIATED_FIRST, 10L)
@@ -1990,7 +1979,7 @@ public class AtomicBatchTokenServiceEndToEndTests {
             @HapiTest
             @DisplayName(
                     "Token Transfer after Burn and Wipe fungible token when there is insufficient balance fails in batch")
-            public Stream<DynamicTest> transferAfterBurnAndWipeFTWhenInsufficientBalanceFailsInBatch() {
+            Stream<DynamicTest> transferAfterBurnAndWipeFTWhenInsufficientBalanceFailsInBatch() {
 
                 // burn the fungible token
                 final var burnFungibleToken = burnToken(FT_FOR_TOKEN_BURN, 90L)
@@ -2047,7 +2036,7 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
             @HapiTest
             @DisplayName("Token Transfer after Burn, Wipe and Delete fungible token fails in batch")
-            public Stream<DynamicTest> transferAfterBurnWipeAndDeleteFTFailsInBatch() {
+            Stream<DynamicTest> transferAfterBurnWipeAndDeleteFTFailsInBatch() {
 
                 // burn the fungible token
                 final var burnFungibleToken = burnToken(FT_FOR_TOKEN_BURN, 10L)
@@ -2112,7 +2101,7 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
             @HapiTest
             @DisplayName("Token Burn after Delete fungible token fails in batch")
-            public Stream<DynamicTest> burnAfterDeleteFTFailsInBatch() {
+            Stream<DynamicTest> burnAfterDeleteFTFailsInBatch() {
 
                 // burn the fungible token
                 final var burnFungibleToken = burnToken(FT_FOR_TOKEN_BURN, 10L)
@@ -2152,7 +2141,7 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
             @HapiTest
             @DisplayName("Token Wipe after Delete fungible token fails in batch")
-            public Stream<DynamicTest> WipeAfterDeleteFTFailsInBatch() {
+            Stream<DynamicTest> WipeAfterDeleteFTFailsInBatch() {
 
                 // wipe the fungible token
                 final var wipeFungibleToken = wipeTokenAccount(FT_FOR_TOKEN_BURN, RECEIVER_ASSOCIATED_FIRST, 5L)
@@ -2192,7 +2181,7 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
             @HapiTest
             @DisplayName("Burn and Wipe fungible token not signed by supply key fails in batch")
-            public Stream<DynamicTest> burnAndWipeFTNotSignedBySupplyKeyInBatch() {
+            Stream<DynamicTest> burnAndWipeFTNotSignedBySupplyKeyInBatch() {
 
                 // burn the fungible token
                 final var burnFungibleToken = burnToken(FT_FOR_TOKEN_BURN, 10L)
@@ -2237,7 +2226,7 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
             @HapiTest
             @DisplayName("Burn and Wipe fungible token not signed by wipe key fails in batch")
-            public Stream<DynamicTest> burnAndWipeFTNotSignedByWipeKeyInBatch() {
+            Stream<DynamicTest> burnAndWipeFTNotSignedByWipeKeyInBatch() {
 
                 // burn the fungible token
                 final var burnFungibleToken = burnToken(FT_FOR_TOKEN_BURN, 10L)
@@ -2282,7 +2271,7 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
             @HapiTest
             @DisplayName("Burn and Wipe of fungible token without supply key fails in batch")
-            public Stream<DynamicTest> burnAndWipeFTWithoutSupplyKeyFailsInBatch() {
+            Stream<DynamicTest> burnAndWipeFTWithoutSupplyKeyFailsInBatch() {
 
                 // burn the fungible token
                 final var burnFungibleToken = burnToken(FT_FOR_TOKEN_BURN, 10L)
@@ -2327,7 +2316,7 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
             @HapiTest
             @DisplayName("Burn and Wipe of fungible token without wipe key fails in batch")
-            public Stream<DynamicTest> burnAndWipeFTWithoutWipeKeyFailsInBatch() {
+            Stream<DynamicTest> burnAndWipeFTWithoutWipeKeyFailsInBatch() {
 
                 // burn the fungible token
                 final var burnFungibleToken = burnToken(FT_FOR_TOKEN_BURN, 10L)
@@ -2372,7 +2361,7 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
             @HapiTest
             @DisplayName("Burn and Wipe fungible token after Update Burn and Wipe keys success in batch")
-            public Stream<DynamicTest> burnAndWipeFTAfterUpdateOfKeysSuccessInBatch() {
+            Stream<DynamicTest> burnAndWipeFTAfterUpdateOfKeysSuccessInBatch() {
 
                 // update the fungible token
                 final var updateBurnAndWipeKeys = tokenUpdate(FT_FOR_TOKEN_BURN)
@@ -2429,7 +2418,7 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
             @HapiTest
             @DisplayName("Delete token after Update Admin key success in batch")
-            public Stream<DynamicTest> DeleteFTAfterUpdateOfAdminKeySuccessInBatch() {
+            Stream<DynamicTest> DeleteFTAfterUpdateOfAdminKeySuccessInBatch() {
 
                 // update the fungible token
                 final var updateAdminKey = tokenUpdate(FT_FOR_TOKEN_BURN)
@@ -2472,7 +2461,7 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
             @HapiTest
             @DisplayName("Update Burn and Wipe keys of fungible token not signed by the admin key fails in batch")
-            public Stream<DynamicTest> updateBurnAndWipeKeysNotSignedByAdminKeyFailsInBatch() {
+            Stream<DynamicTest> updateBurnAndWipeKeysNotSignedByAdminKeyFailsInBatch() {
 
                 // update the fungible token
                 final var updateBurnAndWipeKeys = tokenUpdate(FT_FOR_TOKEN_BURN)
@@ -2531,7 +2520,7 @@ public class AtomicBatchTokenServiceEndToEndTests {
             @HapiTest
             @DisplayName(
                     "Update Burn and Wipe keys of fungible token created without burn and wipe keys fails in batch")
-            public Stream<DynamicTest> updateBurnAndWipeKeysOfFTWithoutKeysFailsInBatch() {
+            Stream<DynamicTest> updateBurnAndWipeKeysOfFTWithoutKeysFailsInBatch() {
 
                 // update the fungible token
                 final var updateBurnAndWipeKeys = tokenUpdate(FT_FOR_TOKEN_BURN)
@@ -2589,7 +2578,7 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
             @HapiTest
             @DisplayName("Delete token after Update Admin key of FT created without admin key fails in batch")
-            public Stream<DynamicTest> DeleteAfterUpdateOfAdminKeyOfFTCreatedWithoutAdminKeyFailsInBatch() {
+            Stream<DynamicTest> DeleteAfterUpdateOfAdminKeyOfFTCreatedWithoutAdminKeyFailsInBatch() {
 
                 // update the fungible token
                 final var updateAdminKey = tokenUpdate(FT_FOR_TOKEN_BURN)
@@ -2633,7 +2622,7 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
         @HapiTest
         @DisplayName("Grant KYC, Transfer FT and Revoke kYC success in batch")
-        public Stream<DynamicTest> grantKYCTransferAndRevokeKycForFTSuccessInBatch() {
+        Stream<DynamicTest> grantKYCTransferAndRevokeKycForFTSuccessInBatch() {
 
             // grant KYC to the fungible token
             final var grantTokenKYC = grantTokenKyc(FT_FOR_TOKEN_KYC, RECEIVER_ASSOCIATED_FIRST)
@@ -2678,7 +2667,7 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
         @HapiTest
         @DisplayName("Grant KYC, Transfer FT and Second Transfer from Account With kYC success in batch")
-        public Stream<DynamicTest> grantKYCTransferAndSecondTransferFromAccountWithKYCForFTSuccessInBatch() {
+        Stream<DynamicTest> grantKYCTransferAndSecondTransferFromAccountWithKYCForFTSuccessInBatch() {
 
             // grant KYC to the fungible token
             final var grantTokenKYCFirstReceiver = grantTokenKyc(FT_FOR_TOKEN_KYC, RECEIVER_ASSOCIATED_FIRST)
@@ -2734,7 +2723,7 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
         @HapiTest
         @DisplayName("Grant KYC And Transfer FT not signed by kYC key fails in batch")
-        public Stream<DynamicTest> grantKYCAndTransferNotSignedByKycKeyForFTFailsInBatch() {
+        Stream<DynamicTest> grantKYCAndTransferNotSignedByKycKeyForFTFailsInBatch() {
 
             // grant KYC to the fungible token
             final var grantTokenKYC = grantTokenKyc(FT_FOR_TOKEN_KYC, RECEIVER_ASSOCIATED_FIRST)
@@ -2773,7 +2762,7 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
         @HapiTest
         @DisplayName("Transfer FT and Revoke KYC not signed by kYC key fails in batch")
-        public Stream<DynamicTest> transferAndRevokeKYCNotSignedByKycKeyForFTFailsInBatch() {
+        Stream<DynamicTest> transferAndRevokeKYCNotSignedByKycKeyForFTFailsInBatch() {
 
             // revoke KYC to the fungible token
             final var revokeTokenKYC = revokeTokenKyc(FT_FOR_TOKEN_KYC, RECEIVER_ASSOCIATED_FIRST)
@@ -2813,7 +2802,7 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
         @HapiTest
         @DisplayName("Transfer FT after Revoke kYC fails in batch")
-        public Stream<DynamicTest> transferFTAfterRevokeKYCFailsInBatch() {
+        Stream<DynamicTest> transferFTAfterRevokeKYCFailsInBatch() {
 
             // grant KYC to the fungible token
             final var grantTokenKYCFirstReceiver = grantTokenKyc(FT_FOR_TOKEN_KYC, RECEIVER_ASSOCIATED_FIRST)
@@ -2880,7 +2869,7 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
         @HapiTest
         @DisplayName("Grant kYC and Transfer to not Associated Account fails in batch")
-        public Stream<DynamicTest> GrantKYCAndTransferToNotAssociatedAccountFailsInBatch() {
+        Stream<DynamicTest> GrantKYCAndTransferToNotAssociatedAccountFailsInBatch() {
 
             // grant KYC to the fungible token
             final var grantTokenKYC = grantTokenKyc(FT_FOR_TOKEN_KYC, RECEIVER_NOT_ASSOCIATED)
@@ -2917,7 +2906,7 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
         @HapiTest
         @DisplayName("Grant KYC and Transfer to Receiver for FT without KYC key fails in batch")
-        public Stream<DynamicTest> grantKycForFTWithoutKYCKeyFailsInBatch() {
+        Stream<DynamicTest> grantKycForFTWithoutKYCKeyFailsInBatch() {
 
             // grant KYC to the fungible token for one account only
             final var grantTokenKYCFirstReceiver = grantTokenKyc(FT_FOR_TOKEN_KYC, RECEIVER_ASSOCIATED_FIRST)
@@ -2956,7 +2945,7 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
         @HapiTest
         @DisplayName("Transfer FT with KYC to Receiver without KYC granted fails in batch")
-        public Stream<DynamicTest> transferFTWithKYCToReceiverWithoutKYCFailsInBatch() {
+        Stream<DynamicTest> transferFTWithKYCToReceiverWithoutKYCFailsInBatch() {
 
             // grant KYC to the fungible token for one account only
             final var grantTokenKYCFirstReceiver = grantTokenKyc(FT_FOR_TOKEN_KYC, RECEIVER_ASSOCIATED_FIRST)
@@ -3008,7 +2997,7 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
         @HapiTest
         @DisplayName("Grant KYC, Update KYC key for FT and Transfer success in batch")
-        public Stream<DynamicTest> grantUpdateKYCAndTransferFTSuccessInBatch() {
+        Stream<DynamicTest> grantUpdateKYCAndTransferFTSuccessInBatch() {
 
             // grant KYC to the fungible token
             final var grantTokenKYCFirstReceiver = grantTokenKyc(FT_FOR_TOKEN_KYC, RECEIVER_ASSOCIATED_FIRST)
@@ -3061,7 +3050,7 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
         @HapiTest
         @DisplayName("Update KYC key for FT, Grant and Transfer success in batch")
-        public Stream<DynamicTest> updateKYCGrantAndTransferFTSuccessInBatch() {
+        Stream<DynamicTest> updateKYCGrantAndTransferFTSuccessInBatch() {
 
             // update the KYC key for the fungible token
             final var updateTokenKYCKey = tokenUpdate(FT_FOR_TOKEN_KYC)
@@ -3114,7 +3103,7 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
         @HapiTest
         @DisplayName("Update KYC key for FT not signed by admin key fails in batch")
-        public Stream<DynamicTest> updateKYCNotSignedByAdminKeyFailsInBatch() {
+        Stream<DynamicTest> updateKYCNotSignedByAdminKeyFailsInBatch() {
 
             // grant KYC to the fungible token
             final var grantTokenKYCFirstReceiver = grantTokenKyc(FT_FOR_TOKEN_KYC, RECEIVER_ASSOCIATED_FIRST)

@@ -55,7 +55,7 @@ public class CheckingRecoveryTest {
         network.start();
 
         // Run the nodes for some time
-        timeManager.waitFor(Duration.ofSeconds(30L));
+        timeManager.waitFor(Duration.ofSeconds(5L));
 
         final Node nodeToThrottle = network.nodes().getLast();
         assertThat(nodeToThrottle.newPlatformStatusResult())

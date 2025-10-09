@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-name: "ZXF: [CITR] Extended Test Suite - Dry Run"
+name: "ZXF: [CITR] XTS Dry Run"
 on:
   workflow_dispatch:
     inputs:
