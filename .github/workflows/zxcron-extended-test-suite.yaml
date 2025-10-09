@@ -153,7 +153,7 @@ jobs:
             echo "### XTS-Candidate commit found" >>  "${GITHUB_STEP_SUMMARY}"
             echo "xts-tag-commit=${XTS_COMMIT}" >> "${GITHUB_STEP_SUMMARY}"
             echo "### Commit List" >> "${GITHUB_STEP_SUMMARY}"
-            echo "${COMMIT_LIST}" >> "${GITHUB_STEP_SUMMARY}"
+            echo -e "${COMMIT_LIST}" >> "${GITHUB_STEP_SUMMARY}"
             echo "### XTS Information" >> "${GITHUB_STEP_SUMMARY}"
             echo "xts-info=${XTS_COMMIT_BRANCH} - ${XTS_SHORT_COMMIT}" >> "${GITHUB_STEP_SUMMARY}"
 
