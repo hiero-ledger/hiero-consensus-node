@@ -81,6 +81,7 @@ public class BlockNodeSuite {
                         Duration.ofSeconds(30),
                         // Blocks are accumulating in buffer without being sent
                         "No active connections available for streaming block")),
+                waitUntilNextBlocks(2).withBackgroundTraffic(true),
                 // Create block-nodes.json to establish connection
                 doingContextual((spec) -> {
                     timeRef.set(Instant.now());
@@ -107,7 +108,6 @@ public class BlockNodeSuite {
                         Duration.ofMinutes(1),
                         Duration.ofSeconds(45),
                         "Detected ENTRY_CREATE event for block-nodes.json",
-                        "Stopping block node connections (keeping worker loop running)",
                         String.format(
                                 "/localhost:%s/ACTIVE] Connection state transitioned from PENDING to ACTIVE.",
                                 portNumbers.getFirst()))),
@@ -136,7 +136,6 @@ public class BlockNodeSuite {
                         Duration.ofSeconds(45),
                         Duration.ofSeconds(45),
                         "Detected ENTRY_MODIFY event for block-nodes.json",
-                        "Stopping block node connections (keeping worker loop running)",
                         String.format(
                                 "/localhost:%s/CLOSED] Connection state transitioned from CLOSING to CLOSED",
                                 portNumbers.getFirst()),
@@ -164,7 +163,7 @@ public class BlockNodeSuite {
                         Duration.ofSeconds(45),
                         Duration.ofSeconds(45),
                         "Detected ENTRY_DELETE event for block-nodes.json",
-                        "Stopping block node connections (keeping worker loop running)",
+                        "Stopping block node connections",
                         // Config file is missing
                         "Block node configuration file does not exist:",
                         "No valid block node configurations available after file change. Connections remain stopped.")),
@@ -189,7 +188,7 @@ public class BlockNodeSuite {
                         Duration.ofSeconds(45),
                         Duration.ofSeconds(45),
                         "Detected ENTRY_CREATE event for block-nodes.json",
-                        "No valid block node configurations available after file change. Connections remain stopped.")),
+                        "Block node configuration unchanged. No action taken")),
                 waitUntilNextBlocks(10).withBackgroundTraffic(true),
                 // Create valid block-nodes.json again
                 doingContextual((spec) -> {
@@ -219,9 +218,7 @@ public class BlockNodeSuite {
                         // File watcher detects new valid config (MODIFY because file was already created with invalid
                         // JSON)
                         "Detected ENTRY_MODIFY event for block-nodes.json",
-                        "Stopping block node connections (keeping worker loop running)",
                         // Valid config is loaded
-                        "Searching for new block node connection based on node priorities",
                         "Found available node in priority group 0",
                         // Connection is re-established
                         String.format(

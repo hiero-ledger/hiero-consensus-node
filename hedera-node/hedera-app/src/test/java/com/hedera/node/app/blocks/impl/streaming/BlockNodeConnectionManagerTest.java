@@ -194,7 +194,9 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     void beforeEach() {
         // Use a non-existent directory to prevent loading any existing block-nodes.json during tests
         final ConfigProvider configProvider = createConfigProvider(createDefaultConfigProvider()
-                .withValue("blockNode.blockNodeConnectionFileDir", "/tmp/non-existent-test-dir-" + System.nanoTime()));
+                .withValue(
+                        "blockNode.blockNodeConnectionFileDir",
+                        tempDir.toAbsolutePath().toString()));
 
         bufferService = mock(BlockBufferService.class);
         metrics = mock(BlockStreamMetrics.class);
@@ -447,7 +449,6 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         verifyNoMoreInteractions(node1Conn);
         verifyNoMoreInteractions(node2Conn);
         verifyNoMoreInteractions(node3Conn);
-        verifyNoInteractions(executorService);
         verifyNoMoreInteractions(bufferService);
         verifyNoInteractions(metrics);
     }
@@ -479,7 +480,6 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         verify(dummyWorkerThread).interrupt();
         verify(dummyWorkerThread).join();
         verify(bufferService).shutdown();
-        verifyNoInteractions(executorService);
         verifyNoMoreInteractions(bufferService);
         verifyNoInteractions(metrics);
     }
@@ -1775,7 +1775,6 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         // Verify buffer service shutdown is called even with no worker thread
         verify(bufferService).shutdown();
         // Verify no interactions with executor and metrics since no worker thread to manage
-        verifyNoInteractions(executorService);
         verifyNoInteractions(metrics);
     }
 
@@ -2244,6 +2243,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         final BlockNodeConnection conn = mock(BlockNodeConnection.class);
         final BlockNodeConfig oldNode = newBlockNodeConfig(9999, 1);
         connections().put(oldNode, conn);
+        availableNodes().add(oldNode);
 
         invoke_handleConfigFileChange();
 
@@ -2304,8 +2304,6 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
     @Test
     void testPerformInitialConfigLoad_withValidFile_startsAndLoads() throws Exception {
-        final Path tmpDir = tempDir.resolve("perfinit-valid");
-        Files.createDirectories(tmpDir);
         List<BlockNodeConfig> configs = new ArrayList<>();
         BlockNodeConfig config = BlockNodeConfig.newBuilder()
                 .address("localhost")
@@ -2315,71 +2313,40 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         configs.add(config);
         BlockNodeConnectionInfo connectionInfo = new BlockNodeConnectionInfo(configs);
         final String json = BlockNodeConnectionInfo.JSON.toJSON(connectionInfo);
-        try {
-            Files.writeString(
-                    tmpDir.resolve("block-nodes.json"),
-                    json,
-                    StandardCharsets.UTF_8,
-                    StandardOpenOption.CREATE,
-                    StandardOpenOption.TRUNCATE_EXISTING);
-            blockNodeConfigDirectoryHandle.set(connectionManager, tmpDir);
-            isActiveFlag().set(false);
-            workerThread().set(null);
-            invoke_performInitialConfigLoad();
-            assertThat(availableNodes()).hasSize(1);
-            assertThat(workerThread().get()).isNotNull();
-        } finally {
-            try {
-                Files.deleteIfExists(tmpDir.resolve("block-nodes.json"));
-            } catch (final Exception ignore) {
-            }
-            try {
-                Files.deleteIfExists(tmpDir);
-            } catch (final Exception ignore) {
-            }
-        }
+        Files.writeString(
+                tempDir.resolve("block-nodes.json"),
+                json,
+                StandardCharsets.UTF_8,
+                StandardOpenOption.CREATE,
+                StandardOpenOption.TRUNCATE_EXISTING);
+        isActiveFlag().set(false);
+        workerThread().set(null);
+        invoke_performInitialConfigLoad();
+        assertThat(availableNodes()).hasSize(1);
+        assertThat(workerThread().get()).isNotNull();
     }
 
     @Test
     void testStartConfigWatcher_reactsToCreateModifyDelete() throws Exception {
-        final Path tmpDir = tempDir.resolve("bncm-watcher");
-        Files.createDirectories(tmpDir);
-        try {
-            blockNodeConfigDirectoryHandle.set(connectionManager, tmpDir);
-            invoke_startConfigWatcher();
-            final Path file = tmpDir.resolve("block-nodes.json");
-            List<BlockNodeConfig> configs = new ArrayList<>();
-            BlockNodeConfig config = BlockNodeConfig.newBuilder()
-                    .address("localhost")
-                    .port(8080)
-                    .priority(0)
-                    .build();
-            configs.add(config);
-            BlockNodeConnectionInfo connectionInfo = new BlockNodeConnectionInfo(configs);
-            final String valid = BlockNodeConnectionInfo.JSON.toJSON(connectionInfo);
-            Files.writeString(
-                    file,
-                    valid,
-                    StandardCharsets.UTF_8,
-                    StandardOpenOption.CREATE,
-                    StandardOpenOption.TRUNCATE_EXISTING);
-            awaitCondition(() -> !availableNodes().isEmpty(), 5_000);
-            Files.writeString(file, "not json", StandardOpenOption.TRUNCATE_EXISTING);
-            awaitCondition(() -> availableNodes().isEmpty(), 5_000);
-            Files.writeString(file, valid, StandardOpenOption.TRUNCATE_EXISTING);
-            awaitCondition(() -> !availableNodes().isEmpty(), 5_000);
-            Files.deleteIfExists(file);
-            awaitCondition(() -> availableNodes().isEmpty(), 2_000);
-        } finally {
-            try {
-                invoke_stopConfigWatcher();
-            } catch (final Exception ignore) {
-            }
-            try {
-                Files.deleteIfExists(tmpDir);
-            } catch (final Exception ignore) {
-            }
-        }
+        final Path file = tempDir.resolve("block-nodes.json");
+        List<BlockNodeConfig> configs = new ArrayList<>();
+        BlockNodeConfig config = BlockNodeConfig.newBuilder()
+                .address("localhost")
+                .port(8080)
+                .priority(0)
+                .build();
+        configs.add(config);
+        BlockNodeConnectionInfo connectionInfo = new BlockNodeConnectionInfo(configs);
+        final String valid = BlockNodeConnectionInfo.JSON.toJSON(connectionInfo);
+        Files.writeString(
+                file, valid, StandardCharsets.UTF_8, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
+        awaitCondition(() -> !availableNodes().isEmpty(), 5_000);
+        Files.writeString(file, "not json", StandardOpenOption.TRUNCATE_EXISTING);
+        awaitCondition(() -> availableNodes().isEmpty(), 5_000);
+        Files.writeString(file, valid, StandardOpenOption.TRUNCATE_EXISTING);
+        awaitCondition(() -> !availableNodes().isEmpty(), 5_000);
+        Files.deleteIfExists(file);
+        awaitCondition(() -> availableNodes().isEmpty(), 2_000);
     }
 
     @Test
