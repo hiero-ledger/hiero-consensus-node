@@ -165,8 +165,6 @@ jobs:
             gh run cancel "${{ github.run_id }}"
           fi
 
-          exit 1 # set failure.
-
   xts-timing-sensitive-tests:
     name: XTS Timing Sensitive Tests
     uses: ./.github/workflows/node-zxc-compile-application-code.yaml
@@ -727,7 +725,7 @@ jobs:
       - name: Build Rootly Summary
         id: rootly-summary
         run: |
-          title="!!!TEST!!! The eXtended Test Suite job failed (${{ needs.fetch-xts-candidate.outputs.xts-info }})."
+          title="The eXtended Test Suite job failed (${{ needs.fetch-xts-candidate.outputs.xts-info }})."
           echo "title=${title}" >> "${GITHUB_OUTPUT}"
           {
             echo 'summary<<EOF'
@@ -790,7 +788,7 @@ jobs:
                     "type": "header",
                     "text": {
                       "type": "plain_text",
-                      "text": "!!!TEST!!! :grey_exclamation: XTS - eXtended Test Suite Failure Report (${{ needs.fetch-xts-candidate.outputs.xts-info }}) Failed",
+                      "text": ":grey_exclamation: XTS - eXtended Test Suite Failure Report (${{ needs.fetch-xts-candidate.outputs.xts-info }}) Failed",
                       "emoji": true
                     }
                   },
