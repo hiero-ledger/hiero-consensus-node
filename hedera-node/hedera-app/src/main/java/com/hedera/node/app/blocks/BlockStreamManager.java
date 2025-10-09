@@ -187,7 +187,7 @@ public interface BlockStreamManager extends BlockRecordInfo, StateHashedListener
     void trackEventHash(@NonNull Hash eventHash);
 
     /**
-     * Returns the index of the given event hash in awaitFatalShutdownthe current block, if it has appeared.
+     * Returns the index of the given event hash in the current block, if it has appeared.
      * The index is the position of the event in the block, starting from 0.
      * @param eventHash the event hash to look up
      * @return the index of the event hash in the current block, if it has appeared

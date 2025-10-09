@@ -437,7 +437,8 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         final Map<BlockNodeConfig, BlockNodeStats> nodeStats = nodeStats();
         assertThat(nodeStats).isEmpty();
 
-        // calling shutdown again should not fail
+        // calling shutdown again would only potentially shutdown the config watcher
+        // and not shutdown the buffer service again
         connectionManager.shutdown();
 
         verify(node1Conn).close(true);
@@ -445,7 +446,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         verify(node3Conn).close(true);
         verify(dummyWorkerThread).interrupt();
         verify(dummyWorkerThread).join();
-        verify(bufferService, times(2)).shutdown();
+        verify(bufferService).shutdown();
         verifyNoMoreInteractions(node1Conn);
         verifyNoMoreInteractions(node2Conn);
         verifyNoMoreInteractions(node3Conn);
@@ -1766,6 +1767,11 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         final AtomicBoolean isActive = isActiveFlag();
         final AtomicReference<Thread> workerThreadRef = workerThread();
 
+        BlockNodeConfig config = newBlockNodeConfig(8080, 1);
+        availableNodes().add(config);
+
+        connectionManager.start();
+
         // Ensure there's no worker thread
         workerThreadRef.set(null);
 
@@ -1774,8 +1780,6 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         assertThat(isActive).isFalse();
         // Verify buffer service shutdown is called even with no worker thread
         verify(bufferService).shutdown();
-        // Verify no interactions with executor and metrics since no worker thread to manage
-        verifyNoInteractions(metrics);
     }
 
     @Test
