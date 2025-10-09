@@ -3,7 +3,6 @@ package com.hedera.services.bdd.suites.blocknode;
 
 import static com.hedera.services.bdd.junit.TestTags.BLOCK_NODE;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.DATA_CONFIG_DIR;
-import static com.hedera.services.bdd.junit.hedera.NodeSelector.allNodes;
 import static com.hedera.services.bdd.junit.hedera.NodeSelector.byNodeId;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.utilops.BlockNodeVerbs.blockNode;
