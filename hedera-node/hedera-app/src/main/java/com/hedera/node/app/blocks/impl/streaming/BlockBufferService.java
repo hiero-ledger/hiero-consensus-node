@@ -870,7 +870,7 @@ public class BlockBufferService {
             return;
         }
 
-        logger.info(
+        logger.debug(
                 "Attempting to forcefully switch block node connections due to increasing block buffer saturation (saturation={}%)",
                 pruneResult.saturationPercent);
         lastRecoveryActionTimestamp = now;

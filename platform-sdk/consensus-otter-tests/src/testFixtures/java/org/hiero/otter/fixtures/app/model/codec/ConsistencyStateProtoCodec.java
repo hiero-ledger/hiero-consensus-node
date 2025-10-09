@@ -62,8 +62,7 @@ public final class ConsistencyStateProtoCodec implements Codec<ConsistencyState>
             @NonNull final ReadableSequentialData input,
             final boolean strictMode,
             final boolean parseUnknownFields,
-            final int maxDepth,
-            final int maxSize)
+            final int maxDepth)
             throws ParseException {
         if (maxDepth < 0) {
             throw new ParseException("Reached maximum allowed depth of nested messages");
@@ -135,11 +134,11 @@ public final class ConsistencyStateProtoCodec implements Codec<ConsistencyState>
                                 $unknownFields.add(new UnknownField(
                                         field,
                                         ProtoConstants.get(wireType),
-                                        extractField(input, ProtoConstants.get(wireType), maxSize)));
+                                        extractField(input, ProtoConstants.get(wireType), 2097152)));
                             } else {
                                 // We just need to read off the bytes for this field to skip it
                                 // and move on to the next one.
-                                skipField(input, ProtoConstants.get(wireType), maxSize);
+                                skipField(input, ProtoConstants.get(wireType), 2097152);
                             }
                         } else {
                             throw new IOException(
