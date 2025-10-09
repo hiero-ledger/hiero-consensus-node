@@ -10,11 +10,13 @@ import java.io.BufferedWriter;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.stream.IntStream;
 import picocli.CommandLine;
 
 @CommandLine.Command(
@@ -49,27 +51,30 @@ public class StatsToOpenMetricCommand extends AbstractCommand {
     @Override
     public Integer call() throws Exception {
 
-        this.outputFile = new BufferedWriter(new FileWriter(this.output.toFile()));
-        for (final Path csvFile : this.csvFiles) {
-            System.out.println("Processing stat file: " + csvFile);
-            openFile(csvFile);
-            try {
-                skipUselessHeaders();
-                readRealHeaders();
-                processDataLines();
-            } finally {
-                this.lineReader.close();
+        this.outputFile = new BufferedWriter(new FileWriter(this.output.toFile(), StandardCharsets.UTF_8));
+        try {
+            for (final Path csvFile : this.csvFiles) {
+                System.out.println("Processing stat file: " + csvFile);
+                openFile(csvFile);
+                try {
+                    skipUselessHeaders();
+                    readRealHeaders();
+                    processDataLines();
+                } finally {
+                    this.lineReader.close();
+                }
             }
-        }
 
-        this.outputFile.write("# EOF\n");
-        this.outputFile.close();
+            this.outputFile.write("# EOF\n");
+        } finally {
+            this.outputFile.close();
+        }
 
         return 0;
     }
 
     private void openFile(final Path csvFile) throws IOException {
-        this.lineReader = new BufferedReader(new FileReader(csvFile.toFile()));
+        this.lineReader = new BufferedReader(new FileReader(csvFile.toFile(), StandardCharsets.UTF_8));
         this.sampleName = csvFile.getFileName().toString();
         this.sampleName = this.sampleName.substring(0, this.sampleName.lastIndexOf("."));
     }
@@ -90,12 +95,25 @@ public class StatsToOpenMetricCommand extends AbstractCommand {
                 }
                 values[i] = replaceValue(values[i]);
 
-                outputFile.write(
-                        (firstHeaders[i].replace(":", "_") + "_" + secondHeaders[i].replace(":", "_")).replace('.', '_')
-                                + "{node=\"" + sampleName + "\"} " + values[i] + " "
-                                + epochSeconds + "\n");
+                outputFile.write(escapeMetricName(firstHeaders[i] + "_" + secondHeaders[i])
+                        + "{node=\"" + escapeMetricName(sampleName) + "\"} " + values[i] + " "
+                        + epochSeconds + "\n");
             }
         }
+    }
+
+    private String escapeMetricName(final String metricName) {
+        final StringBuilder escapedMetricName = new StringBuilder(metricName.length());
+        for (int i = 0; i < metricName.length(); i++) {
+            final char c = metricName.charAt(i);
+            // for simplicity, allow only a-zA-Z0-9
+            if (c > 127 || !(Character.isAlphabetic(c) || Character.isDigit(c))) {
+                escapedMetricName.append("_");
+            } else {
+                escapedMetricName.append(c);
+            }
+        }
+        return escapedMetricName.toString();
     }
 
     private String replaceValue(final String value) {
@@ -104,21 +122,28 @@ public class StatsToOpenMetricCommand extends AbstractCommand {
         } else if ("false".equalsIgnoreCase(value)) {
             return "0";
         }
-        return value;
+        if (value == null) {
+            return "0";
+        }
+        return value.trim();
     }
 
     private void readRealHeaders() throws IOException {
         firstHeaders = currentLine.split(",");
         secondHeaders = readLine().split(",");
-timeIndex = IntStream.range(0, secondHeaders.length)
-    .filter(i -> "time".equalsIgnoreCase(secondHeaders[i].trim()))
-    .findFirst()
-    .orElseThrow(() -> new IllegalArgumentException("No 'time' column found in second header line"));
+        timeIndex = IntStream.range(0, secondHeaders.length)
+                .filter(i -> "time".equalsIgnoreCase(secondHeaders[i].trim()))
+                .findFirst()
+                .orElseThrow(() -> new IllegalArgumentException("No 'time' column found in second header line"));
     }
 
     private void skipUselessHeaders() throws IOException {
         while (true) {
             readLine();
+            if (currentLine == null) {
+                throw new RuntimeException(
+                        "File does not seem to be a stats file, missing a line starting with double comma (,,)");
+            }
             if (!currentLine.startsWith(",,")) {
                 continue;
             }
