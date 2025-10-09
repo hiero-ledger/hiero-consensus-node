@@ -8,8 +8,8 @@ import com.hedera.node.app.blocks.BlockHashSigner;
 import com.hedera.node.app.hints.handlers.HintsHandlers;
 import com.hedera.node.app.hints.impl.HintsController;
 import com.hedera.node.app.hints.impl.OnHintsFinished;
-import com.hedera.node.app.roster.ActiveRosters;
-import com.hedera.node.app.roster.RosterService;
+import com.hedera.node.app.service.roster.impl.ActiveRosters;
+import com.hedera.node.app.service.roster.impl.RosterServiceImpl;
 import com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory;
 import com.hedera.node.config.data.TssConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -58,7 +58,7 @@ public interface HintsService extends Service, BlockHashSigner {
      * dependency in the <i>runtime</i> phase; then the hinTS service depends
      * on the roster service to know how to set up preprocessing work.)
      */
-    int MIGRATION_ORDER = RosterService.MIGRATION_ORDER - 1;
+    int MIGRATION_ORDER = RosterServiceImpl.MIGRATION_ORDER - 1;
 
     /**
      * Placeholder for the history service to use when hinTS is disabled.

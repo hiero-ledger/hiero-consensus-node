@@ -14,14 +14,12 @@ import com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema;
 import com.hedera.node.app.spi.ids.ReadableEntityIdStore;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.hedera.statevalidation.parameterresolver.ReportResolver;
 import com.hedera.statevalidation.parameterresolver.StateResolver;
-import com.hedera.statevalidation.reporting.Report;
 import com.hedera.statevalidation.reporting.SlackReportGenerator;
 import com.swirlds.base.utility.Pair;
 import com.swirlds.common.threading.manager.AdHocThreadManager;
-import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.snapshot.DeserializedSignedState;
+import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.merkle.StateKeyUtils;
 import com.swirlds.state.merkle.StateValue;
 import com.swirlds.state.spi.ReadableKVState;
@@ -35,7 +33,7 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
-@ExtendWith({StateResolver.class, ReportResolver.class, SlackReportGenerator.class})
+@ExtendWith({StateResolver.class, SlackReportGenerator.class})
 @Tag("account")
 public class AccountValidator {
 
@@ -47,7 +45,7 @@ public class AccountValidator {
     final long TOTAL_tHBAR_SUPPLY = 5_000_000_000_000_000_000L;
 
     @Test
-    void validate(DeserializedSignedState deserializedState, Report report) throws InterruptedException {
+    void validate(DeserializedSignedState deserializedState) throws InterruptedException {
         final MerkleNodeState merkleNodeState =
                 deserializedState.reservedSignedState().get().getState();
 

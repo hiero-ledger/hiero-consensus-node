@@ -9,15 +9,12 @@ import java.util.Objects;
  * throughout the execution of a single EVM transaction.
  */
 public final class OpsDurationCounter {
-
-    private static final OpsDurationCounter DISABLED = new OpsDurationCounter(OpsDurationSchedule.empty());
-
     private final OpsDurationSchedule schedule;
 
     private long opsDurationUnitsConsumed;
 
     public static OpsDurationCounter disabled() {
-        return DISABLED;
+        return new OpsDurationCounter(OpsDurationSchedule.empty());
     }
 
     public static OpsDurationCounter withSchedule(final OpsDurationSchedule schedule) {

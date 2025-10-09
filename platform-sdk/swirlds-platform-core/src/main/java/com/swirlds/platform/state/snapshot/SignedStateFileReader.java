@@ -14,13 +14,13 @@ import com.swirlds.common.io.streams.MerkleDataInputStream;
 import com.swirlds.common.merkle.utility.MerkleTreeSnapshotReader;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.crypto.CryptoStatic;
-import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.service.PlatformStateService;
 import com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema;
 import com.swirlds.platform.state.service.schemas.V0540RosterBaseSchema;
 import com.swirlds.platform.state.signed.SigSet;
 import com.swirlds.platform.state.signed.SignedState;
+import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.lifecycle.StateDefinition;
 import com.swirlds.state.lifecycle.StateMetadata;
@@ -65,7 +65,7 @@ public final class SignedStateFileReader {
         checkSignedStatePath(stateFile);
 
         final DeserializedSignedState returnState;
-        final MerkleTreeSnapshotReader.StateFileData data = MerkleTreeSnapshotReader.readStateFileData(conf, stateFile);
+        final MerkleTreeSnapshotReader.StateFileData data = MerkleTreeSnapshotReader.readStateFileData(stateFile);
         final File sigSetFile =
                 stateFile.getParent().resolve(SIGNATURE_SET_FILE_NAME).toFile();
         final SigSet sigSet = deserializeAndDebugOnFailure(
@@ -167,7 +167,7 @@ public final class SignedStateFileReader {
         schema.statesToCreate().stream()
                 .sorted(Comparator.comparing(StateDefinition::stateKey))
                 .forEach(def -> {
-                    final var md = new StateMetadata<>(name, schema, def);
+                    final var md = new StateMetadata<>(name, def);
                     if (def.singleton() || def.onDisk()) {
                         state.initializeState(md);
                     } else {

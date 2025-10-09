@@ -96,4 +96,9 @@ module com.hedera.node.app.service.contract.impl {
     exports com.hedera.node.app.service.contract.impl.annotations;
     exports com.hedera.node.app.service.contract.impl.nativelibverification to
             com.hedera.node.app;
+    exports com.hedera.node.app.service.contract.impl.state.hooks to
+            com.hedera.node.app,
+            com.hedera.node.app.service.contract.impl.test,
+            com.hedera.node.services.cli,
+            com.hedera.node.test.clients;
 }

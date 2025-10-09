@@ -4,8 +4,8 @@ package com.hedera.statevalidation;
 import static com.hedera.statevalidation.compaction.Compaction.runCompaction;
 
 import com.hedera.statevalidation.parameterresolver.StateResolver;
-import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.snapshot.DeserializedSignedState;
+import com.swirlds.state.MerkleNodeState;
 import picocli.CommandLine;
 
 @CommandLine.Command(name = "compact", description = "Performs compaction of state files.")

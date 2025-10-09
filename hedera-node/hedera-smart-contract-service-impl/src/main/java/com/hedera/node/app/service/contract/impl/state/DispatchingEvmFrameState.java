@@ -101,7 +101,7 @@ public class DispatchingEvmFrameState implements EvmFrameState {
      */
     @Override
     public void setStorageValue(
-            @Nullable final ContractID contractID, @NonNull final UInt256 key, @NonNull final UInt256 value) {
+            @NonNull final ContractID contractID, @NonNull final UInt256 key, @NonNull final UInt256 value) {
         final var slotKey = new SlotKey(contractID, tuweniToPbjBytes(requireNonNull(key)));
         final var oldSlotValue = contractStateStore.getSlotValue(slotKey);
         if (oldSlotValue == null && value.isZero()) {
@@ -604,7 +604,7 @@ public class DispatchingEvmFrameState implements EvmFrameState {
         return account;
     }
 
-    private UInt256 valueOrZero(@Nullable final SlotValue slotValue) {
+    protected UInt256 valueOrZero(@Nullable final SlotValue slotValue) {
         return (slotValue == null) ? UInt256.ZERO : pbjToTuweniUInt256(slotValue.value());
     }
 }
