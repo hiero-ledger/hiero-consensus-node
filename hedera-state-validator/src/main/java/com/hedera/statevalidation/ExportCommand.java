@@ -5,8 +5,8 @@ import static picocli.CommandLine.*;
 
 import com.hedera.statevalidation.exporters.JsonExporter;
 import com.hedera.statevalidation.parameterresolver.StateResolver;
-import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.snapshot.DeserializedSignedState;
+import com.swirlds.state.MerkleNodeState;
 import com.swirlds.virtualmap.VirtualMap;
 import java.io.File;
 

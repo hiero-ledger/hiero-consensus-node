@@ -42,7 +42,7 @@ import com.swirlds.platform.state.snapshot.SignedStateFileUtils;
 import com.swirlds.platform.state.snapshot.StateDumpRequest;
 import com.swirlds.platform.state.snapshot.StateSnapshotManager;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
-import com.swirlds.platform.test.fixtures.state.TestVirtualMapState;
+import com.swirlds.state.test.fixtures.merkle.TestVirtualMapState;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;

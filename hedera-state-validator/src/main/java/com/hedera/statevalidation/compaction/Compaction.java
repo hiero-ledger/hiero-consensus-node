@@ -4,7 +4,7 @@ package com.hedera.statevalidation.compaction;
 import static java.util.Objects.requireNonNull;
 
 import com.swirlds.merkledb.MerkleDbDataSource;
-import com.swirlds.platform.state.MerkleNodeState;
+import com.swirlds.state.MerkleNodeState;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 

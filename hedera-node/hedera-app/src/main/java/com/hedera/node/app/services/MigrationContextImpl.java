@@ -5,6 +5,8 @@ import static com.hedera.hapi.util.HapiUtils.SEMANTIC_VERSION_COMPARATOR;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.SemanticVersion;
+import com.hedera.node.app.spi.migrate.HederaMigrationContext;
+import com.hedera.node.app.spi.migrate.StartupNetworks;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.merkle.VirtualMapState.MerkleWritableStates;

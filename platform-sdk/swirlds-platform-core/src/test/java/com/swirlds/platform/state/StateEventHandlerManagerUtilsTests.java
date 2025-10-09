@@ -9,9 +9,10 @@ import static org.mockito.Mockito.mock;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
 import com.swirlds.platform.metrics.StateMetrics;
-import com.swirlds.platform.test.fixtures.state.TestVirtualMapState;
 import com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer;
+import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.State;
+import com.swirlds.state.test.fixtures.merkle.TestVirtualMapState;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
