@@ -166,24 +166,20 @@ public class ActiveStatusLogic implements PlatformStatusLogic {
      * <ul>
      *   <li><b>Quiescing state check:</b> If the platform is currently quiescing, it remains in
      *       {@link PlatformStatus#ACTIVE} regardless of elapsed time.</li>
-     *   <li><b>Time since quiescence command:</b> If insufficient time has elapsed since the last quiescence
-     *       command (as tracked by {@link TimeElapsedAction.QuiescingStatus#since()}), the status remains
-     *       {@link PlatformStatus#ACTIVE}. This ensures a prudent delay after quiescence changes.</li>
-     *   <li><b>Time since last consensus:</b> If both above conditions pass, the method checks whether too much
-     *       time has elapsed since the last self event reached consensus. If this duration exceeds
-     *       {@link PlatformStatusConfig#activeStatusDelay()}, the status transitions to
-     *       {@link PlatformStatus#CHECKING}.</li>
+     *   <li><b>Time since (not/break) quiescence command:</b> If a grace period has not elapsed since the instruction to stop quiescence,
+     *   the status remains {@link PlatformStatus#ACTIVE}. This gives a recently created new event after quiescing enough time to reach consensus.</li>
+     *   <li><b>Time since last consensus:</b> If both above conditions pass, the method checks whether enough time
+     *     has elapsed since the last self event reached consensus and transitions to {@link PlatformStatus#CHECKING} if so.</li>
      * </ul>
-     * The status remains {@link PlatformStatus#ACTIVE} if any timing threshold has not been exceeded.
      */
     @NonNull
     @Override
     public PlatformStatusLogic processTimeElapsedAction(@NonNull final TimeElapsedAction action) {
         final var isQuiescing = action.quiescingStatus().isQuiescing();
-        final boolean hasPrudentTimeSinceCommandElapsed = DurationUtils.isLonger(
+        final boolean stopQuieseGracePeriodElapsed = DurationUtils.isLonger(
                 Duration.between(action.quiescingStatus().since(), action.instant()), config.activeStatusDelay());
 
-        if (isQuiescing || !hasPrudentTimeSinceCommandElapsed) {
+        if (isQuiescing || !stopQuieseGracePeriodElapsed) {
             return this;
         }
 

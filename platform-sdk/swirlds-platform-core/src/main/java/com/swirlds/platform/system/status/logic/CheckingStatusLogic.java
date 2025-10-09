@@ -146,8 +146,7 @@ public class CheckingStatusLogic implements PlatformStatusLogic {
      * When a {@link TimeElapsedAction} is received while in {@link PlatformStatus#CHECKING}, this method evaluates
      * whether to transition based on quiescing state:
      * <ul>
-     *   <li><b>Quiescing state check:</b> If the platform is currently quiescing (as indicated by
-     *       {@link TimeElapsedAction.QuiescingStatus#isQuiescing()}), it transitions to
+     *   <li><b>Quiescing state check:</b> If the platform is currently quiescing (as indicated by, it transitions to
      *       {@link PlatformStatus#ACTIVE}.</li>
      *   <li><b>Normal operation:</b> If not quiescing, the status remains {@link PlatformStatus#CHECKING}.</li>
      * </ul>

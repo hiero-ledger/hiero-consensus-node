@@ -33,9 +33,6 @@ In such a situation, it is important for the node to rediscover these old events
 a node were to immediately begin creating new events before learning of previous self events, this would cause a
 branch. Branching is not catastrophic, but should be avoided if possible.
 
-The platform will immediately transition to `ACTIVE` from `OBSERVING` in case of being instructed to quiesce.
-While quiescing the platform will not create events.
-
 ### CHECKING
 
 After transitioning to `CHECKING`, the platform will begin to create events, but will not yet accept app transactions.
@@ -53,8 +50,8 @@ The platform will immediately transition to `ACTIVE` from `CHECKING` in case of 
 While in the `ACTIVE` status, the platform is creating events and accepting app transactions (unless some conditions
 prevents the creation of events like pairs reporting being behind, an unhealthy state or quiesce).
 The platform will remain in `ACTIVE` status while being instructed to quiesce.
-Once instructed to stop quiescing, it will transition back to `CHECKING` a prudence since the stop quiescing instruction happened
-and enough time has passed since a self event last reaching consensus.
+Once instructed to stop quiescing, it will transition back to `CHECKING` if a grace period since the stop quiescing
+instruction elapsed and enough time has passed since a self event last reaching consensus.
 
 ### BEHIND
 

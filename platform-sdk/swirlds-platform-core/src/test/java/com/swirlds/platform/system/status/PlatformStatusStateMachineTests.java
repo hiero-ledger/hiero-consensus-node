@@ -336,18 +336,6 @@ class PlatformStatusStateMachineTests {
     }
 
     @Test
-    @DisplayName("OBSERVING -> ACTIVE (quiescing)")
-    void observingToActiveWhenQuiescing() {
-        assertEquals(REPLAYING_EVENTS, stateMachine.submitStatusAction(new StartedReplayingEventsAction()));
-        assertEquals(OBSERVING, stateMachine.submitStatusAction(new DoneReplayingEventsAction(time.now())));
-        // When quiescing, should transition to ACTIVE immediately
-        assertEquals(
-                ACTIVE,
-                stateMachine.submitStatusAction(
-                        new TimeElapsedAction(time.now(), new TimeElapsedAction.QuiescingStatus(true, time.now()))));
-    }
-
-    @Test
     @DisplayName("CHECKING -> ACTIVE (quiescing)")
     void checkingToActiveWhenQuiescing() {
         assertEquals(REPLAYING_EVENTS, stateMachine.submitStatusAction(new StartedReplayingEventsAction()));

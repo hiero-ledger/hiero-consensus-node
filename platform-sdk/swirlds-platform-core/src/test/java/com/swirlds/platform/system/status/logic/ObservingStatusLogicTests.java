@@ -136,15 +136,4 @@ class ObservingStatusLogicTests {
         triggerActionAndAssertException(
                 logic::processReconnectCompleteAction, new ReconnectCompleteAction(0), logic.getStatus());
     }
-
-    @Test
-    @DisplayName("Go to ACTIVE when quiescing")
-    void toActiveWhenQuiescing() {
-        time.tick(Duration.ofSeconds(2));
-        // Should transition to ACTIVE immediately when quiescing, even before observation period completes
-        triggerActionAndAssertTransition(
-                logic::processTimeElapsedAction,
-                new TimeElapsedAction(time.now(), new TimeElapsedAction.QuiescingStatus(true, time.now())),
-                PlatformStatus.ACTIVE);
-    }
 }
