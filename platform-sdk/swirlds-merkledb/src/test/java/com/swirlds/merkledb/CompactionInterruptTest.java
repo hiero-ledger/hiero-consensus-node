@@ -206,7 +206,8 @@ class CompactionInterruptTest {
                     createHashChunkStream(start, end - 1, i -> i, dataSource.getHashChunkHeight()),
                     IntStream.range(COUNT + start, COUNT + end)
                             .mapToObj(i -> TestType.variable_variable.dataType().createVirtualLeafRecord(i)),
-                    Stream.empty());
+                    Stream.empty(),
+                    false);
         }
     }
 }

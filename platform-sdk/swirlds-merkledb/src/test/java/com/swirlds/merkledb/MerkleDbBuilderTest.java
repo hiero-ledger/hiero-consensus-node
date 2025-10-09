@@ -104,7 +104,7 @@ class MerkleDbBuilderTest {
                 new MerkleDbDataSourceBuilder(CONFIGURATION, initialCapacity, hashesRamToDiskThreshold);
         VirtualDataSource dataSource = null;
         try {
-            dataSource = builder.build("test1", false);
+            dataSource = builder.build("test1", null, false, false);
             assertTrue(dataSource instanceof MerkleDbDataSource);
             MerkleDbDataSource merkleDbDataSource = (MerkleDbDataSource) dataSource;
             assertEquals(initialCapacity, merkleDbDataSource.getInitialCapacity());
@@ -122,7 +122,7 @@ class MerkleDbBuilderTest {
         final MerkleDbDataSourceBuilder builder = new MerkleDbDataSourceBuilder(CONFIGURATION, 1024, 0);
         VirtualDataSource dataSource = null;
         try {
-            dataSource = builder.build("test2", compactionEnabled);
+            dataSource = builder.build("test2", null, compactionEnabled, false);
             assertTrue(dataSource instanceof MerkleDbDataSource);
             MerkleDbDataSource merkleDbDataSource = (MerkleDbDataSource) dataSource;
             assertEquals(compactionEnabled, merkleDbDataSource.isCompactionEnabled());
@@ -137,7 +137,7 @@ class MerkleDbBuilderTest {
         VirtualDataSource dataSource = null;
         try {
             final String label = "testSnapshot";
-            dataSource = builder.build(label, false);
+            dataSource = builder.build(label, null, false, false);
             final Path tmpDir = LegacyTemporaryFileBuilder.buildTemporaryDirectory("snapshot", CONFIGURATION);
             builder.snapshot(tmpDir, dataSource);
             assertTrue(Files.isDirectory(tmpDir.resolve("data").resolve(label)));
@@ -154,13 +154,13 @@ class MerkleDbBuilderTest {
         VirtualDataSource dataSource = null;
         try {
             final String label = "testSnapshotRestore";
-            dataSource = builder.build(label, false);
+            dataSource = builder.build(label, null, false, false);
             final Path tmpDir = LegacyTemporaryFileBuilder.buildTemporaryDirectory("snapshot", CONFIGURATION);
             builder.snapshot(tmpDir, dataSource);
             assertTrue(Files.isDirectory(tmpDir.resolve("data").resolve(label)));
             VirtualDataSource restored = null;
             try {
-                restored = builder.restore(label, tmpDir, false);
+                restored = builder.build(label, tmpDir, false, false);
                 assertNotNull(restored);
                 assertTrue(restored instanceof MerkleDbDataSource);
                 final MerkleDbDataSource merkleDbRestored = (MerkleDbDataSource) restored;
@@ -212,7 +212,7 @@ class MerkleDbBuilderTest {
 
         final MerkleDataInputStream in =
                 new MerkleDataInputStream(Files.newInputStream(snapshotFile, StandardOpenOption.READ));
-        final MerkleInternal restoredStateRoot = in.readMerkleTree(CONFIGURATION, snapshotDir, Integer.MAX_VALUE);
+        final MerkleInternal restoredStateRoot = in.readMerkleTree(snapshotDir, Integer.MAX_VALUE);
 
         verify(restoredStateRoot);
 
@@ -275,7 +275,7 @@ class MerkleDbBuilderTest {
 
         final MerkleDataInputStream in =
                 new MerkleDataInputStream(Files.newInputStream(snapshotFile, StandardOpenOption.READ));
-        final MerkleInternal restoredStateRoot = in.readMerkleTree(CONFIGURATION, snapshotDir, Integer.MAX_VALUE);
+        final MerkleInternal restoredStateRoot = in.readMerkleTree(snapshotDir, Integer.MAX_VALUE);
 
         verify(restoredStateRoot);
 
@@ -303,9 +303,10 @@ class MerkleDbBuilderTest {
     @Test
     void testSnapshotAfterReconnect() throws Exception {
         final MerkleDbDataSourceBuilder dsBuilder = createDefaultBuilder();
-        final VirtualDataSource original = dsBuilder.build("vm", false);
+        final VirtualDataSource original = dsBuilder.build("vm", null, false, false);
         // Simulate reconnect as a learner
-        final VirtualDataSource copy = dsBuilder.copy(original, true, false);
+        final Path snapshotPath = dsBuilder.snapshot(null, original);
+        final VirtualDataSource copy = dsBuilder.build("vm", snapshotPath, true, false);
 
         try {
             final Path snapshotDir = LegacyTemporaryFileBuilder.buildTemporaryDirectory("snapshot", CONFIGURATION);

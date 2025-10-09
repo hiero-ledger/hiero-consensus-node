@@ -2,6 +2,7 @@
 package org.hiero.consensus.otter.docker.app.platform;
 
 import static com.swirlds.common.threading.manager.AdHocThreadManager.getStaticThreadManager;
+import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.getMetricsProvider;
 import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.initLogging;
 import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.setupGlobalMetrics;
@@ -35,12 +36,14 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Random;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Executor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.node.KeysAndCerts;
+import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.roster.RosterUtils;
 import org.hiero.otter.fixtures.app.OtterApp;
@@ -56,6 +59,9 @@ public class ConsensusNodeManager {
 
     private static final Logger log = LogManager.getLogger(ConsensusNodeManager.class);
 
+    /** The instance of the Otter application used by this consensus node manager. */
+    private final OtterApp otterApp;
+
     /** The instance of the platform this consensus node manager runs. */
     private final Platform platform;
 
@@ -70,6 +76,9 @@ public class ConsensusNodeManager {
     /** An optional observer of marker files. {@code null} if writing marker files is not enabled in the platform. */
     @Nullable
     private final ContainerMarkerFileObserver markerFileObserver;
+
+    /** The current quiescence command. Volatile because it is read and set by different gRPC messages */
+    private volatile QuiescenceCommand quiescenceCommand = QuiescenceCommand.DONT_QUIESCE;
 
     /**
      * Creates a new instance of {@code ConsensusNodeManager} with the specified parameters. This constructor
@@ -104,7 +113,7 @@ public class ConsensusNodeManager {
         final Metrics metrics = getMetricsProvider().createPlatformMetrics(legacySelfId);
         final PlatformStateFacade platformStateFacade = new PlatformStateFacade();
 
-        log.info("Creating node {} with version {}", selfId, version);
+        log.info(STARTUP.getMarker(), "Creating node {} with version {}", selfId, version);
 
         final Time time = Time.getCurrent();
         final FileSystemManager fileSystemManager = FileSystemManager.create(platformConfig);
@@ -114,10 +123,13 @@ public class ConsensusNodeManager {
         final PlatformContext platformContext = PlatformContext.create(
                 platformConfig, Time.getCurrent(), metrics, fileSystemManager, recycleBin, merkleCryptography);
 
+        otterApp = new OtterApp(version);
+
         final HashedReservedSignedState reservedState = loadInitialState(
                 recycleBin,
                 version,
-                () -> OtterAppState.createGenesisState(platformConfig, genesisRoster, metrics, version),
+                () -> OtterAppState.createGenesisState(
+                        platformConfig, genesisRoster, metrics, version, otterApp.allServices()),
                 OtterApp.APP_NAME,
                 OtterApp.SWIRLD_NAME,
                 legacySelfId,
@@ -125,16 +137,16 @@ public class ConsensusNodeManager {
                 platformContext,
                 OtterAppState::new);
         final ReservedSignedState initialState = reservedState.state();
-
         final MerkleNodeState state = initialState.get().getState();
+
         final RosterHistory rosterHistory = RosterUtils.createRosterHistory(state);
-        executionCallback = new OtterExecutionLayer(metrics);
+        executionCallback = new OtterExecutionLayer(new Random(), metrics, time);
         final PlatformBuilder builder = PlatformBuilder.create(
                         OtterApp.APP_NAME,
                         OtterApp.SWIRLD_NAME,
                         version,
                         initialState,
-                        OtterApp.INSTANCE,
+                        otterApp,
                         legacySelfId,
                         selfId.toString(),
                         rosterHistory,
@@ -169,7 +181,7 @@ public class ConsensusNodeManager {
      * Starts the consensus node. Once complete, transactions can be submitted.
      */
     public void start() {
-        log.info("Starting node");
+        log.info(STARTUP.getMarker(), "Starting node");
         platform.start();
     }
 
@@ -198,6 +210,9 @@ public class ConsensusNodeManager {
      * @return {@code true} if the transaction was successfully submitted, {@code false} otherwise
      */
     public boolean submitTransaction(@NonNull final byte[] transaction) {
+        if (quiescenceCommand == QuiescenceCommand.QUIESCE) {
+            return false;
+        }
         return executionCallback.submitApplicationTransaction(transaction);
     }
 
@@ -231,6 +246,16 @@ public class ConsensusNodeManager {
         if (millisToSleepPerRound < 0) {
             throw new IllegalArgumentException("millisToSleepPerRound must be non-negative");
         }
-        OtterApp.INSTANCE.updateSyntheticBottleneck(millisToSleepPerRound);
+        otterApp.updateSyntheticBottleneck(millisToSleepPerRound);
+    }
+
+    /**
+     * Sends a quiescence command to the platform.
+     *
+     * @param command the quiescence command to send, must not be {@code null}
+     */
+    public void sendQuiescenceCommand(@NonNull final QuiescenceCommand command) {
+        this.quiescenceCommand = command;
+        platform.quiescenceCommand(command);
     }
 }

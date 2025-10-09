@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.spec.transactions.contract;
 
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.pbjToProto;
+import static com.hedera.services.bdd.spec.transactions.TxnUtils.asContractId;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.asId;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.LambdaSStore;
@@ -118,6 +119,10 @@ public class HapiLambdaSStore extends HapiTxnOp<HapiLambdaSStore> {
                                         idBuilder.setEntityId(
                                                 com.hederahashgraph.api.proto.java.HookEntityId.newBuilder()
                                                         .setAccountId(asId(ownerName, spec)));
+                                    case CONTRACT_ID ->
+                                        idBuilder.setEntityId(
+                                                com.hederahashgraph.api.proto.java.HookEntityId.newBuilder()
+                                                        .setContractId(asContractId(ownerName, spec)));
                                     default ->
                                         throw new IllegalArgumentException("Unsupported owner type: " + ownerType);
                                 }

@@ -42,10 +42,10 @@ public final class DockerManager extends ContainerControlServiceGrpc.ContainerCo
     private static final Logger log = LogManager.getLogger(DockerManager.class);
 
     /** The string location of the docker application jar */
-    private static final String DOCKER_APP_JAR = CONTAINER_APP_WORKING_DIR + "/apps/DockerApp.jar";
+    private static final String DOCKER_APP_JAR = CONTAINER_APP_WORKING_DIR + "apps/DockerApp.jar";
 
     /** The string location of the docker application libraries */
-    private static final String DOCKER_APP_LIBS = CONTAINER_APP_WORKING_DIR + "/lib/*";
+    private static final String DOCKER_APP_LIBS = CONTAINER_APP_WORKING_DIR + "lib/*";
 
     /**
      * The main class in the docker application jar that starts the

@@ -123,7 +123,8 @@ class MerkleDbDataSourceTest {
                     count * 2 - 2,
                     createHashChunkStream(count * 2 - 1, dataSource.getHashChunkHeight()),
                     Stream.empty(),
-                    Stream.empty());
+                    Stream.empty(),
+                    false);
 
             // check all the node hashes
             for (int i = 1; i < count; i++) {
@@ -162,21 +163,24 @@ class MerkleDbDataSourceTest {
                     testSize * 2,
                     createHashChunkStream(testSize, chunkHeight),
                     Stream.empty(),
-                    Stream.empty());
+                    Stream.empty(),
+                    false);
             // Now update hashes to *10, one chunk first, then all remaining chunks
             dataSource.saveRecords(
                     testSize,
                     testSize * 2,
                     createHashChunkStream(1, VirtualHashChunk.getChunkSize(chunkHeight), i -> i * 10, chunkHeight),
                     Stream.empty(),
-                    Stream.empty());
+                    Stream.empty(),
+                    false);
             dataSource.saveRecords(
                     testSize,
                     testSize * 2,
                     createHashChunkStream(
                             VirtualHashChunk.getChunkSize(chunkHeight) + 1, testSize, i -> i * 10, chunkHeight),
                     Stream.empty(),
-                    Stream.empty());
+                    Stream.empty(),
+                    false);
             // check all the node hashes
             IntStream.range(1, testSize).forEach(i -> {
                 try {
@@ -203,7 +207,8 @@ class MerkleDbDataSourceTest {
                     createHashChunkStream(count - 1, count * 2 - 1, i -> i, dataSource.getHashChunkHeight()),
                     IntStream.range(count - 1, count * 2 - 1)
                             .mapToObj(i -> testType.dataType().createVirtualLeafRecord(i)),
-                    Stream.empty());
+                    Stream.empty(),
+                    false);
             // check all the leaf data
             IntStream.range(count - 1, count * 2 - 1).forEach(i -> assertLeaf(testType, dataSource, i, i));
 
@@ -237,7 +242,8 @@ class MerkleDbDataSourceTest {
                             incFirstLeafPath, exclLastLeafPath - 1, i -> i, dataSource.getHashChunkHeight()),
                     IntStream.range(incFirstLeafPath, exclLastLeafPath)
                             .mapToObj(i -> testType.dataType().createVirtualLeafRecord(i)),
-                    Stream.empty());
+                    Stream.empty(),
+                    false);
             // check all the leaf data
             IntStream.range(incFirstLeafPath, exclLastLeafPath).forEach(i -> assertLeaf(testType, dataSource, i, i));
             // update all to i+10,000 in a random order
@@ -250,7 +256,8 @@ class MerkleDbDataSourceTest {
                     Arrays.stream(randomInts)
                             .mapToObj(i -> testType.dataType().createVirtualLeafRecord(i, i, i + 10_000))
                             .sorted(Comparator.comparingLong(VirtualLeafBytes::path)),
-                    Stream.empty());
+                    Stream.empty(),
+                    false);
             assertEquals(
                     testType.dataType().createVirtualLeafRecord(100, 100, 100 + 10_000),
                     testType.dataType().createVirtualLeafRecord(100, 100, 100 + 10_000),
@@ -265,7 +272,8 @@ class MerkleDbDataSourceTest {
                     Stream.empty(),
                     Stream.empty(),
                     IntStream.range(incFirstLeafPath + 10, incFirstLeafPath + 20)
-                            .mapToObj(i -> testType.dataType().createVirtualLeafRecord(i)));
+                            .mapToObj(i -> testType.dataType().createVirtualLeafRecord(i)),
+                    false);
             // check deleted items are no longer there
             for (int i = (incFirstLeafPath + 10); i < (incFirstLeafPath + 20); i++) {
                 final Bytes key = testType.dataType().createVirtualLongKey(i);
@@ -294,21 +302,26 @@ class MerkleDbDataSourceTest {
                             incFirstLeafPath, exclLastLeafPath - 1, i -> i, dataSource.getHashChunkHeight()),
                     IntStream.range(incFirstLeafPath, exclLastLeafPath)
                             .mapToObj(i -> testType.dataType().createVirtualLeafRecord(i)),
-                    Stream.empty());
+                    Stream.empty(),
+                    false);
             // check 250 and 500
             assertLeaf(testType, dataSource, 250, 250);
             assertLeaf(testType, dataSource, 500, 500);
             // move a leaf from 500 to 250, under new API there is no move as such, so we just write 500 leaf at 250
             // path
 
-            VirtualLeafBytes vlr500 = testType.dataType().createVirtualLeafRecord(500);
-            vlr500 = vlr500.withPath(250);
+            final VirtualHashRecord vir500 = new VirtualHashRecord(
+                    testType.dataType().createVirtualInternalRecord(250).path(), hash(500));
+            final VirtualLeafBytes vlr500 =
+                    testType.dataType().createVirtualLeafRecord(500).withPath(250);
             dataSource.saveRecords(
                     incFirstLeafPath,
                     exclLastLeafPath,
                     createHashChunkStream(250, 250, i -> 500, dataSource.getHashChunkHeight()),
                     Stream.of(vlr500),
-                    Stream.empty());
+                    Stream.empty(),
+                    false);
+
             // check 250 now has 500's data
             assertLeaf(testType, dataSource, 700, 700);
             assertEquals(
@@ -331,7 +344,8 @@ class MerkleDbDataSourceTest {
                     createHashChunkStream(count - 1, count * 2 - 2, i -> i, dataSource.getHashChunkHeight()),
                     IntStream.range(count - 1, count * 2 - 1)
                             .mapToObj(i -> testType.dataType().createVirtualLeafRecord(i)),
-                    Stream.empty());
+                    Stream.empty(),
+                    false);
             // check all the leaf data
             IntStream.range(count - 1, count * 2 - 1).forEach(i -> assertLeaf(testType, dataSource, i, i));
 
@@ -342,7 +356,8 @@ class MerkleDbDataSourceTest {
                     Stream.empty(),
                     Stream.empty(),
                     IntStream.range(count - 1, count * 2 - 1)
-                            .mapToObj(i -> testType.dataType().createVirtualLeafRecord(i)));
+                            .mapToObj(i -> testType.dataType().createVirtualLeafRecord(i)),
+                    false);
             // check the data source is empty
             for (int i = 0; i < count * 2 - 1; i++) {
                 assertNull(VirtualMapTestUtils.loadHash(dataSource, i, dataSource.getHashChunkHeight()));
@@ -393,7 +408,8 @@ class MerkleDbDataSourceTest {
                     createHashChunkStream(count - 1, count * 2 - 2, i -> i, dataSource.getHashChunkHeight()),
                     IntStream.range(count - 1, count * 2 - 1)
                             .mapToObj(i -> testType.dataType().createVirtualLeafRecord(i)),
-                    Stream.empty());
+                    Stream.empty(),
+                    false);
             // check all the leaf data
             IntStream.range(count - 1, count * 2 - 1).forEach(i -> assertLeaf(testType, dataSource, i, i));
             // create a snapshot
@@ -449,7 +465,8 @@ class MerkleDbDataSourceTest {
                         createHashChunkStream(0, count * 2 - 2, i -> i + 1, dataSource.getHashChunkHeight()),
                         IntStream.range(count - 1, count * 2 - 1)
                                 .mapToObj(i -> testType.dataType().createVirtualLeafRecord(i)),
-                        Stream.empty());
+                        Stream.empty(),
+                        false);
                 if (delta != 0) {
                     // create some more, current leaf path range shifted by delta
                     dataSource.saveRecords(
@@ -459,7 +476,8 @@ class MerkleDbDataSourceTest {
                                     1, count * 2 - 2 + 2 * delta, i -> i + 1, dataSource.getHashChunkHeight()),
                             IntStream.range(count - 1 + delta, count * 2 - 1 + 2 * delta)
                                     .mapToObj(i -> testType.dataType().createVirtualLeafRecord(i)),
-                            Stream.empty());
+                            Stream.empty(),
+                            false);
                 }
                 // create a snapshot
                 final Path snapshotDbPath =
@@ -677,7 +695,7 @@ class MerkleDbDataSourceTest {
             // Let's hack the snapshot so it looks like the old format, so hash migration can
             // be tested
             // Update first/last leaf paths
-            dataSource.saveRecords(firstLeafPath, lastLeafPath, Stream.empty(), Stream.empty(), Stream.empty());
+            dataSource.saveRecords(firstLeafPath, lastLeafPath, Stream.empty(), Stream.empty(), Stream.empty(), false);
             // Update hashes RAM/disk threshold. It isn't used now, but it was used previously. snapshot()
             // will write the threshold to DB metadata regardless
             dataSource.hashesRamToDiskThreshold = hashesRamToDiskThreshold;
@@ -751,7 +769,8 @@ class MerkleDbDataSourceTest {
                     16,
                     createHashChunkStream(0, 16, i -> 2 * i, dataSource.getHashChunkHeight()),
                     IntStream.range(8, 17).mapToObj(i -> testType.dataType().createVirtualLeafRecord(i, i, 3 * i)),
-                    Stream.empty());
+                    Stream.empty(),
+                    false);
             // Flush 2: leaf path range is [9,18]. Note that the list of deleted leaves is empty, so one of the leaves
             // becomes stale in the database. This is not what we have in production, but it will let test rebuilding
             // HDHM bucket index
@@ -760,7 +779,8 @@ class MerkleDbDataSourceTest {
                     18,
                     createHashChunkStream(0, 18, i -> 2 * i, dataSource.getHashChunkHeight()),
                     IntStream.range(9, 19).mapToObj(i -> testType.dataType().createVirtualLeafRecord(i, i, 3 * i)),
-                    Stream.empty());
+                    Stream.empty(),
+                    false);
             // Create snapshots
             dataSource.snapshot(snapshotDbPath1);
             dataSource.snapshot(snapshotDbPath2);
@@ -1013,7 +1033,8 @@ class MerkleDbDataSourceTest {
                                     sleepUnchecked(50L);
                                 }),
                         Stream.empty(),
-                        Stream.empty());
+                        Stream.empty(),
+                        false);
             } catch (final IOException impossible) {
                 /* We don't throw this */
             }

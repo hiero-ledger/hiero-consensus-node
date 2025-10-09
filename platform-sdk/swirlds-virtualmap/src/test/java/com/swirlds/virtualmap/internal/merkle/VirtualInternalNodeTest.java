@@ -159,7 +159,8 @@ class VirtualInternalNodeTest extends VirtualTestBase {
                         12,
                         createHashChunkStream(VIRTUAL_MAP_CONFIG.virtualHasherChunkHeight(), leaves),
                         leaves.stream(),
-                        Stream.empty());
+                        Stream.empty(),
+                        false);
 
         VirtualHashRecord virtualHashRecord = new VirtualHashRecord(2, null);
         VirtualInternalNode internalNode = new VirtualInternalNode(map, virtualHashRecord);

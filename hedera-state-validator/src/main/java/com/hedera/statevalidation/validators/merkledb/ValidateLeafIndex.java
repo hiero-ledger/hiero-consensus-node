@@ -53,7 +53,7 @@ public class ValidateLeafIndex {
 
         var leafNodeIndex = vds.getPathToDiskLocationLeafNodes();
         var objectKeyToPath = vds.getKeyToPath();
-        var leafStore = new MemoryIndexDiskKeyValueStoreW<>(vds.getPathToKeyValue());
+        var leafStore = new MemoryIndexDiskKeyValueStoreW<>(vds.getKeyValueStore());
         var leafDfc = leafStore.getFileCollection();
 
         assertEquals(lastLeafPath, leafNodeIndex.size() - 1);

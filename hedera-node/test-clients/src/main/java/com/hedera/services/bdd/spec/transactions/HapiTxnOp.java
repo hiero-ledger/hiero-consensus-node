@@ -80,9 +80,7 @@ import org.apache.tuweni.bytes.Bytes;
 public abstract class HapiTxnOp<T extends HapiTxnOp<T>> extends HapiSpecOperation {
     private static final Logger log = LogManager.getLogger(HapiTxnOp.class);
 
-    private static final SubmissionStrategy DEFAULT_SUBMISSION_STRATEGY =
-            (network, transaction, functionality, target, nodeAccountId) ->
-                    network.submit(transaction, functionality, target, nodeAccountId);
+    private static final SubmissionStrategy DEFAULT_SUBMISSION_STRATEGY = HederaNetwork::submit;
 
     private static final Response UNKNOWN_RESPONSE = Response.newBuilder()
             .setTransactionGetReceipt(TransactionGetReceiptResponse.newBuilder()

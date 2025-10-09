@@ -1868,4 +1868,28 @@ enum ResponseCodeEnum {
      * A hook admin key was invalid.
      */
     INVALID_HOOK_ADMIN_KEY = 518;
+
+    /**
+     * The hook deletion requires the hook to have zero storage slots.
+    */
+    HOOK_DELETION_REQUIRES_ZERO_STORAGE_SLOTS = 519;
+
+    /**
+     * Cannot set both a hook call and an approval on the same AccountAmount or NftTransfer message.
+     */
+    CANNOT_SET_HOOKS_AND_APPROVAL = 520;
+
+    /**
+     * The attempted operation is invalid until all the target entity's hooks have been deleted.
+     */
+    TRANSACTION_REQUIRES_ZERO_HOOKS = 521;
+
+    /**
+     * The HookCall set in the transaction is invalid
+     */
+    INVALID_HOOK_CALL = 522;
+    /**
+     *  Hooks are not supported to be used in TokenAirdrop transactions
+     */
+    HOOKS_ARE_NOT_SUPPORTED_IN_AIRDROPS = 523;
 }

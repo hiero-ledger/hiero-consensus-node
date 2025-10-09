@@ -135,7 +135,8 @@ class MerkleDbDataSourceSnapshotMergeTest {
                             createHashChunkStream(lastLeafPathInclusive, dataSource.getHashChunkHeight()),
                             IntStream.range(firstLeafPath, lastLeafPathInclusive + 1 /* exclusive */)
                                     .mapToObj(i -> testType.dataType().createVirtualLeafRecord(i)),
-                            Stream.empty());
+                            Stream.empty(),
+                            false);
                 } finally {
                     countDownLatch.countDown();
                 }
@@ -297,7 +298,8 @@ class MerkleDbDataSourceSnapshotMergeTest {
                     createHashChunkStream(start, COUNT + end - 1, t -> t, dataSource.getHashChunkHeight()),
                     IntStream.range(COUNT + start, COUNT + end)
                             .mapToObj(i -> testType.dataType().createVirtualLeafRecord(i)),
-                    Stream.empty());
+                    Stream.empty(),
+                    false);
         }
     }
 

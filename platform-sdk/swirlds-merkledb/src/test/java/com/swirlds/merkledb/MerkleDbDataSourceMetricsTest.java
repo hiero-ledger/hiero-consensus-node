@@ -71,7 +71,8 @@ class MerkleDbDataSourceMetricsTest {
                 COUNT * 2,
                 createHashChunkStream(COUNT * 2, dataSource.getHashChunkHeight()),
                 Stream.empty(),
-                Stream.empty());
+                Stream.empty(),
+                false);
 
         // one 8 MB memory chunk
         assertMetricValue("ds_offheap_hashesIndexMb_" + TABLE_NAME, 8);
@@ -83,7 +84,8 @@ class MerkleDbDataSourceMetricsTest {
                 COUNT * 4,
                 createHashChunkStream(COUNT * 2, dataSource.getHashChunkHeight()),
                 Stream.empty(),
-                Stream.empty());
+                Stream.empty(),
+                false);
 
         // one 8 MB memory chunk
         final int expectedHashesIndexSize = 8;
@@ -106,7 +108,8 @@ class MerkleDbDataSourceMetricsTest {
                 Stream.empty(),
                 IntStream.range(firstLeafIndex, lastLeafIndex)
                         .mapToObj(i -> long_fixed.dataType().createVirtualLeafRecord(i)),
-                Stream.empty());
+                Stream.empty(),
+                false);
 
         // only one 8 MB memory is reserved despite the fact that leaves reside in [COUNT, COUNT * 2] interval
         assertMetricValue("ds_offheap_leavesIndexMb_" + TABLE_NAME, 8);
@@ -122,7 +125,8 @@ class MerkleDbDataSourceMetricsTest {
                 Stream.empty(),
                 IntStream.range(firstLeafIndex, lastLeafIndex + merkleDbConfig.longListReservedBufferSize() + 1)
                         .mapToObj(i -> long_fixed.dataType().createVirtualLeafRecord(i)),
-                Stream.empty());
+                Stream.empty(),
+                false);
 
         // reserved additional memory chunk for a value that didn't fit into the previous chunk
         assertMetricValue("ds_offheap_leavesIndexMb_" + TABLE_NAME, 16);
@@ -137,7 +141,8 @@ class MerkleDbDataSourceMetricsTest {
                 // valid leaf index
                 IntStream.of(lastLeafIndex + merkleDbConfig.longListReservedBufferSize())
                         .mapToObj(i -> long_fixed.dataType().createVirtualLeafRecord(i)),
-                Stream.empty());
+                Stream.empty(),
+                false);
 
         // shrink the list by one chunk
         assertMetricValue("ds_offheap_leavesIndexMb_" + TABLE_NAME, 8);

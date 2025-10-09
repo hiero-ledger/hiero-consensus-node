@@ -85,7 +85,8 @@ public class RecordAccessorTest {
                 12,
                 createHashChunkStream(hashChunkHeight, left, right, leftLeft, leftRight, rightLeft),
                 Stream.of(firstLeaf, secondLeaf, thirdLeaf, fourthLeaf, fifthLeaf, sixthLeaf, seventhLeaf),
-                Stream.empty());
+                Stream.empty(),
+                false);
 
         // Prepopulate the cache with some of those records. Some will be deleted, some will be modified, some will
         // not be in the cache.
@@ -287,7 +288,7 @@ public class RecordAccessorTest {
 
     private static final class BreakableDataSource implements VirtualDataSource {
 
-        private final InMemoryDataSource delegate = new InMemoryBuilder().build("delegate", true);
+        private final InMemoryDataSource delegate = new InMemoryBuilder().build("delegate", null, true, false);
         boolean throwExceptionOnLoadLeafRecordByKey = false;
         boolean throwExceptionOnLoadLeafRecordByPath = false;
         boolean throwExceptionOnLoadHashChunk = false;

@@ -84,7 +84,7 @@ public class MerkleDbStatisticsUpdater {
      */
     private int updateLeavesStoreFileStats(final MerkleDbDataSource dataSource) {
         final LongSummaryStatistics leafDataFileSizeStats =
-                dataSource.getPathToKeyValue().getFilesSizeStatistics();
+                dataSource.getKeyValueStore().getFilesSizeStatistics();
         statistics.setLeavesStoreFileCount((int) leafDataFileSizeStats.getCount());
         final int fileSizeInMb = (int) (leafDataFileSizeStats.getSum() * BYTES_TO_MEBIBYTES);
         statistics.setLeavesStoreFileSizeMb(fileSizeInMb);

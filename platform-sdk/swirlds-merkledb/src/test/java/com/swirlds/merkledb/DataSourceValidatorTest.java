@@ -49,7 +49,8 @@ class DataSourceValidatorTest {
                             IntStream.range(count - 1, count * 2 - 1)
                                     .mapToObj(
                                             i -> TestType.long_fixed.dataType().createVirtualLeafRecord(i)),
-                            Stream.empty());
+                            Stream.empty(),
+                            false);
 
                     assertTrue(validator.validate());
                 });
@@ -69,7 +70,8 @@ class DataSourceValidatorTest {
                             createHashChunkStream(count - 2, dataSource.getHashChunkHeight()),
                             // leaves are missing
                             Stream.empty(),
-                            Stream.empty());
+                            Stream.empty(),
+                            false);
                     assertFalse(validator.validate());
                 });
     }
