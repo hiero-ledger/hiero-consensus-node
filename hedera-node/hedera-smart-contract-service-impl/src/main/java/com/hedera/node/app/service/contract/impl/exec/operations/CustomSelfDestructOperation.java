@@ -12,6 +12,7 @@ import static org.hyperledger.besu.evm.frame.ExceptionalHaltReason.INSUFFICIENT_
 
 import com.hedera.node.app.service.contract.impl.exec.AddressChecks;
 import com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils;
+import com.hedera.node.app.service.contract.impl.exec.utils.InvalidAddressContext;
 import com.hedera.node.app.service.contract.impl.state.AbstractProxyEvmAccount;
 import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
 import com.hedera.node.app.service.contract.impl.state.ScheduleEvmAccount;
@@ -190,7 +191,8 @@ public class CustomSelfDestructOperation extends AbstractOperation {
                 .filter(Boolean.TRUE::equals)
                 .findFirst()
                 .flatMap(op -> {
-                    FrameUtils.invalidAddressContext(frame).set(beneficiary, false);
+                    FrameUtils.invalidAddressContext(frame)
+                            .set(beneficiary, InvalidAddressContext.InvalidAddressType.NonCallTarget);
                     return Optional.of(INVALID_SOLIDITY_ADDRESS);
                 });
     }

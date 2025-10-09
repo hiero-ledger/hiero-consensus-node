@@ -216,7 +216,8 @@ public class ActionStack {
                     if (CALL.equals(action.callType()) && haltReason == INVALID_SOLIDITY_ADDRESS) {
                         final var invalidAddressContext = FrameUtils.invalidAddressContext(frame);
                         // Only create the synth action if the invalid address was actually a call target
-                        if (invalidAddressContext.raisedDueToInvalidCallTarget()) {
+                        if (InvalidAddressContext.InvalidAddressType.InvalidCallTarget.equals(
+                                invalidAddressContext.type())) {
                             allActions.add(new ActionWrapper(helper.createSynthActionForMissingAddressIn(
                                     frame, invalidAddressContext.culpritAddress())));
                         }

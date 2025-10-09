@@ -315,7 +315,7 @@ class ActionStackTest {
         given(parentFrame.getType()).willReturn(MessageFrame.Type.MESSAGE_CALL);
         given(parentFrame.getExceptionalHaltReason()).willReturn(Optional.of(INVALID_SOLIDITY_ADDRESS));
         final var invalidAddressContext = new InvalidAddressContext();
-        invalidAddressContext.set(Address.ZERO, true);
+        invalidAddressContext.set(Address.ZERO, InvalidAddressContext.InvalidAddressType.InvalidCallTarget);
         given(parentFrame.getMessageFrameStack()).willReturn(new ArrayDeque<>());
         given(parentFrame.getContextVariable(INVALID_ADDRESS_CONTEXT_VARIABLE)).willReturn(invalidAddressContext);
         given(helper.createSynthActionForMissingAddressIn(parentFrame, Address.ZERO))
