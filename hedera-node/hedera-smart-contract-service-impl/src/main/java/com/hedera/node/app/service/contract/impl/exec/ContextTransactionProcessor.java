@@ -30,13 +30,11 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-
 import java.util.List;
 import java.util.OptionalLong;
 import java.util.concurrent.Callable;
 import java.util.function.Supplier;
 import javax.inject.Inject;
-
 import org.hyperledger.besu.evm.tracing.OperationTracer;
 
 /**
@@ -121,7 +119,8 @@ public class ContextTransactionProcessor implements Callable<CallOutcome> {
         if (hevmTransaction.isException()) {
             CallOutcome outcome;
             if (isHookDispatch) {
-                var result = HederaEvmTransactionResult.fromAborted(hevmTransaction.senderId(),
+                var result = HederaEvmTransactionResult.fromAborted(
+                        hevmTransaction.senderId(),
                         hevmTransaction.contractId(),
                         requireNonNull(hevmTransaction.exception()).getStatus());
                 outcome = CallOutcome.fromResultsWithoutSidecars(
@@ -268,8 +267,7 @@ public class ContextTransactionProcessor implements Callable<CallOutcome> {
     }
 
     private record HevmTransactionCreationResult(
-            @Nullable HederaEvmTransaction hevmTransaction, boolean isHookDispatch) {
-    }
+            @Nullable HederaEvmTransaction hevmTransaction, boolean isHookDispatch) {}
 
     private void validatePayloadLength(HederaEvmTransaction hevmTransaction) {
         final var maxJumboEthereumCallDataSize =
