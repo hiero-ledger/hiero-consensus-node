@@ -20,7 +20,8 @@ import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.model.transaction.Transaction;
 
 /**
- * Tracks all the information needed to determine if the system is quiescent or not.
+ * Tracks all the information needed to determine if the system is quiescent or not. This class is thread-safe, it is
+ * expected that all methods may be called concurrently from different threads.
  */
 public class QuiescenceController {
     private static final Logger logger = LogManager.getLogger(QuiescenceController.class);
@@ -42,7 +43,9 @@ public class QuiescenceController {
      *                                yet included put into an event
      */
     public QuiescenceController(
-            final QuiescenceConfig config, final InstantSource time, final LongSupplier pendingTransactionCount) {
+            @NonNull final QuiescenceConfig config,
+            @NonNull final InstantSource time,
+            @NonNull final LongSupplier pendingTransactionCount) {
         this.config = Objects.requireNonNull(config);
         this.time = Objects.requireNonNull(time);
         this.pendingTransactionCount = Objects.requireNonNull(pendingTransactionCount);
@@ -59,7 +62,7 @@ public class QuiescenceController {
      */
     public void onPreHandle(@NonNull final List<Transaction> transactions) {
         // Should be called at the end of Hedera.onPreHandle() when all transactions have been parsed
-        if (!config.enabled()) {
+        if (isDisabled()) {
             return;
         }
         try {
@@ -69,15 +72,28 @@ public class QuiescenceController {
         }
     }
 
-    public QuiescenceBlockTracker startingBlock(final long blockNumber) {
-        // TODO in HandleWorkflow:540 we should get the cons time & txn & block number
-        // then we need another method for when a block is fully signed
+    /**
+     * This method should be called when starting to handle a new block. It returns a block tracker that should be
+     * updated with transactions and consensus time and then notified when the block is finalized. Although this class
+     * is thread-safe, the returned block tracker is not thread-safe and should only be used from a single thread.
+     *
+     * @param blockNumber the block number being started
+     * @return the block tracker for the new block
+     */
+    public @NonNull QuiescenceBlockTracker startingBlock(final long blockNumber) {
+        // This should be called from HandleWorkflow when starting to handle a new block
+        // This should return an object even if quiescence is disabled, so that the caller does not need to check
+        // if quiescence is enabled or not. We will later ignore the object if quiescence is disabled.
         return new QuiescenceBlockTracker(blockNumber, this);
     }
 
+    /**
+     * Called by a block tracker when the block has been finalized.
+     *
+     * @param blockTracker the block tracker that has been finalized
+     */
     void blockFinalized(@NonNull final QuiescenceBlockTracker blockTracker) {
-        if (!config.enabled()) {
-            // If quiescence is not enabled, ignore these calls
+        if (isDisabled()) {
             return;
         }
         final QuiescenceBlockTracker prevValue = blockTrackers.put(blockTracker.getBlockNumber(), blockTracker);
@@ -107,13 +123,13 @@ public class QuiescenceController {
      * @param event the event that has become stale
      */
     public void staleEvent(@NonNull final Event event) {
-        if (!config.enabled()) {
+        if (isDisabled()) {
             return;
         }
         try {
             pipelineTransactionCount.addAndGet(-QuiescenceUtils.countRelevantTransactions(event.transactionIterator()));
         } catch (final BadMetadataException e) {
-            disableQuiescence("Failed to count relevant transactions in staleEvent()");
+            disableQuiescence(e);
         }
     }
 
@@ -123,7 +139,7 @@ public class QuiescenceController {
      * @param targetConsensusTime the next target consensus time
      */
     public void setNextTargetConsensusTime(@Nullable final Instant targetConsensusTime) {
-        if (!config.enabled()) {
+        if (isDisabled()) {
             return;
         }
         nextTct.set(targetConsensusTime);
@@ -135,8 +151,12 @@ public class QuiescenceController {
      * @param platformStatus the new platform status
      */
     public void platformStatusUpdate(@NonNull final PlatformStatus platformStatus) {
+        if (isDisabled()) {
+            return;
+        }
         if (platformStatus == PlatformStatus.RECONNECT_COMPLETE) {
             pipelineTransactionCount.set(0);
+            blockTrackers.clear();
         }
     }
 
@@ -145,8 +165,8 @@ public class QuiescenceController {
      *
      * @return the current quiescence command
      */
-    public QuiescenceCommand getQuiescenceStatus() {
-        if (!config.enabled()) {
+    public @NonNull QuiescenceCommand getQuiescenceStatus() {
+        if (isDisabled()) {
             return QuiescenceCommand.DONT_QUIESCE;
         }
         if (pipelineTransactionCount.get() > 0) {
@@ -162,6 +182,41 @@ public class QuiescenceController {
         return QuiescenceCommand.QUIESCE;
     }
 
+    /**
+     * Disables quiescence, logging the reason.
+     *
+     * @param reason the reason quiescence is being disabled
+     */
+    void disableQuiescence(@NonNull final String reason) {
+        disableQuiescence();
+        logger.error("Disabling quiescence, reason: {}", reason);
+    }
+
+    /**
+     * Disables quiescence, logging the exception.
+     *
+     * @param exception the exception that caused quiescence to be disabled
+     */
+    void disableQuiescence(@NonNull final Exception exception) {
+        disableQuiescence();
+        logger.error("Disabling quiescence due to exception:", exception);
+    }
+
+    /**
+     * Indicates if quiescence is disabled.
+     *
+     * @return true if quiescence is disabled, false otherwise
+     */
+    boolean isDisabled() {
+        return !config.enabled() || pipelineTransactionCount.get() < 0;
+    }
+
+    private void disableQuiescence() {
+        // During normal operation the count should never be negative, so we use that to indicate disabled.
+        // We use Long.MIN_VALUE/2 to avoid any concurrent updates from overflowing and wrapping around to positive.
+        pipelineTransactionCount.set(Long.MIN_VALUE / 2);
+    }
+
     private static Instant tctUpdate(@Nullable final Instant currentTct, @NonNull final Instant currentConsensusTime) {
         if (currentTct == null) {
             return null;
@@ -175,26 +230,5 @@ public class QuiescenceController {
         if (updatedValue < 0) {
             disableQuiescence("Quiescence transaction count is negative, this indicates a bug");
         }
-    }
-
-    void disableQuiescence(@NonNull final String reason) {
-        disableQuiescence();
-        logger.error("Disabling quiescence, reason: {}", reason);
-    }
-
-    void disableQuiescence(@NonNull final Exception exception) {
-        disableQuiescence();
-        logger.error("Disabling quiescence due to exception:", exception);
-    }
-
-    private void disableQuiescence() {
-        // setting to a very high value to effectively disable quiescence
-        // if set to Long.MAX_VALUE, it may overflow and become negative
-        pipelineTransactionCount.set(Long.MAX_VALUE / 2);
-    }
-
-    boolean isDisabled() {
-        // TODO expand isEnabled with message and pipeline check
-        return !config.enabled();
     }
 }
