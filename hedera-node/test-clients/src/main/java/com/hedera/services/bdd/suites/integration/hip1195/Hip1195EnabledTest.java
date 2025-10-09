@@ -45,6 +45,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.HOOK_ID_IN_USE
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.HOOK_ID_REPEATED_IN_CREATION_DETAILS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.HOOK_NOT_FOUND;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_GAS;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_HOOK_CALL;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.MAX_GAS_LIMIT_EXCEEDED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK;
@@ -378,11 +379,11 @@ public class Hip1195EnabledTest {
                 cryptoTransfer(TokenMovement.movingHbar(10).between(OWNER, GENESIS))
                         .withPreHookFor(OWNER, 123L, 0L, "")
                         .signedBy(DEFAULT_PAYER)
-                        .hasPrecheck(INSUFFICIENT_GAS),
+                        .hasKnownStatus(INSUFFICIENT_GAS),
                 cryptoTransfer(TokenMovement.movingHbar(10).between(OWNER, GENESIS))
                         .withPreHookFor(OWNER, 123L, -1L, "")
                         .signedBy(DEFAULT_PAYER)
-                        .hasPrecheck(INSUFFICIENT_GAS),
+                        .hasKnownStatus(INVALID_HOOK_CALL),
                 // less than minimum intrinsic gas of 1000
                 cryptoTransfer(TokenMovement.movingHbar(10).between(OWNER, GENESIS))
                         .withPreHookFor(OWNER, 123L, 999L, "")
@@ -421,11 +422,11 @@ public class Hip1195EnabledTest {
                 cryptoTransfer(TokenMovement.moving(10, "token").between(OWNER, GENESIS))
                         .withPreHookFor(OWNER, 123L, 0L, "")
                         .signedBy(DEFAULT_PAYER)
-                        .hasPrecheck(INSUFFICIENT_GAS),
+                        .hasKnownStatus(INSUFFICIENT_GAS),
                 cryptoTransfer(TokenMovement.moving(10, "token").between(OWNER, GENESIS))
                         .withPreHookFor(OWNER, 123L, -1L, "")
                         .signedBy(DEFAULT_PAYER)
-                        .hasPrecheck(INSUFFICIENT_GAS),
+                        .hasKnownStatus(INVALID_HOOK_CALL),
                 // less than minimum intrinsic gas of 1000
                 cryptoTransfer(TokenMovement.moving(10, "token").between(OWNER, GENESIS))
                         .withPreHookFor(OWNER, 123L, 999L, "")
@@ -470,11 +471,11 @@ public class Hip1195EnabledTest {
                 cryptoTransfer(TokenMovement.movingUnique("token", 1L).between(OWNER, GENESIS))
                         .withNftSenderPrePostHookFor(OWNER, 123L, 0L, "")
                         .signedBy(DEFAULT_PAYER)
-                        .hasPrecheck(INSUFFICIENT_GAS),
+                        .hasKnownStatus(INSUFFICIENT_GAS),
                 cryptoTransfer(TokenMovement.movingUnique("token", 1L).between(OWNER, GENESIS))
                         .withNftSenderPreHookFor(OWNER, 123L, -1L, "")
                         .signedBy(DEFAULT_PAYER)
-                        .hasPrecheck(INSUFFICIENT_GAS),
+                        .hasKnownStatus(INVALID_HOOK_CALL),
                 // less than minimum intrinsic gas of 1000
                 cryptoTransfer(TokenMovement.movingUnique("token", 1L).between(OWNER, GENESIS))
                         .withNftSenderPreHookFor(OWNER, 123L, 999L, "")

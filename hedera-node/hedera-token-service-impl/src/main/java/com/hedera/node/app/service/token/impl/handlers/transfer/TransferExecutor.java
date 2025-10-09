@@ -2,6 +2,7 @@
 package com.hedera.node.app.service.token.impl.handlers.transfer;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_HOOK_CALL;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TOKEN_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSFER_ACCOUNT_ID;
 import static com.hedera.hapi.util.HapiUtils.isHollow;
@@ -326,6 +327,13 @@ public class TransferExecutor extends BaseTokenHandler {
             final HandleContext handleContext,
             com.esaulpaugh.headlong.abi.Function function) {
         for (final var hookInvocation : hookInvocations) {
+            byte[] calldata;
+            try {
+                calldata = HooksABI.encode(hookInvocation, hookContext, function);
+            } catch (Exception e) {
+                throw new HandleException(INVALID_HOOK_CALL);
+            }
+
             final HookExecution execution = HookExecution.newBuilder()
                     .hookEntityId(HookEntityId.newBuilder()
                             .accountId(hookInvocation.ownerId())
@@ -333,7 +341,7 @@ public class TransferExecutor extends BaseTokenHandler {
                     .call(HookCall.newBuilder()
                             .evmHookCall(EvmHookCall.newBuilder()
                                     .gasLimit(hookInvocation.gasLimit())
-                                    .data(Bytes.wrap(HooksABI.encode(hookInvocation, hookContext, function)))
+                                    .data(Bytes.wrap(calldata))
                                     .build())
                             .hookId(hookInvocation.hookId())
                             .build())

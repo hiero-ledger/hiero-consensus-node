@@ -12,7 +12,6 @@ import static com.hedera.hapi.node.base.HederaFunctionality.HOOK_DISPATCH;
 import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_ASSOCIATE_TO_ACCOUNT;
 import static com.hedera.hapi.util.HapiUtils.functionOf;
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
-import static com.hedera.node.app.hapi.utils.contracts.HookUtils.totalGasLimitOf;
 import static com.hedera.node.app.hapi.utils.ethereum.EthTxData.populateEthTxData;
 import static com.hedera.node.app.hapi.utils.sysfiles.domain.throttling.ScaleFactor.ONE_TO_ONE;
 import static com.hedera.node.app.hapi.utils.throttles.LeakyBucketThrottle.DEFAULT_BURST_SECONDS;
@@ -29,7 +28,9 @@ import static java.util.Objects.requireNonNull;
 import com.google.common.annotations.VisibleForTesting;
 import com.hedera.hapi.node.base.AccountAmount;
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.EvmHookCall;
 import com.hedera.hapi.node.base.HederaFunctionality;
+import com.hedera.hapi.node.base.HookCall;
 import com.hedera.hapi.node.base.NftTransfer;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.base.TokenID;
@@ -597,7 +598,12 @@ public class ThrottleAccumulator {
                                 .map(EthTxData::populateEthTxData)
                                 .map(EthTxData::gasLimit)
                                 .orElse(0L);
-                    case CRYPTO_TRANSFER -> totalGasLimitOf(txnBody.cryptoTransferOrThrow());
+                    case HOOK_DISPATCH ->
+                        txnBody.hookDispatchOrThrow()
+                                .executionOrThrow()
+                                .callOrElse(HookCall.DEFAULT)
+                                .evmHookCallOrElse(EvmHookCall.DEFAULT)
+                                .gasLimit();
                     default -> 0L;
                 };
         // Interpret negative gas as overflow
