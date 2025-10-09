@@ -1,23 +1,23 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.app.services.platform;
 
-import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.node.app.hapi.utils.CommonPbjConverters;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.platform.state.service.WritablePlatformStateStore;
-import com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema;
-import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.time.Instant;
 import java.util.function.Consumer;
 import org.hiero.base.utility.CommonUtils;
+import org.hiero.consensus.model.event.ConsensusEvent;
 import org.hiero.consensus.model.event.Event;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 import org.hiero.otter.fixtures.app.OtterFreezeTransaction;
 import org.hiero.otter.fixtures.app.OtterService;
 import org.hiero.otter.fixtures.app.OtterTransaction;
+import org.hiero.otter.fixtures.app.state.OtterServiceStateSpecification;
 
 /**
  * The main entry point for the PlatformState service in the Otter application.
@@ -25,6 +25,8 @@ import org.hiero.otter.fixtures.app.OtterTransaction;
 public class PlatformStateService implements OtterService {
 
     private static final String NAME = "PlatformStateService";
+
+    private static final PlatformStateSpecification STATE_SPECIFICATION = new PlatformStateSpecification();
 
     /**
      * {@inheritDoc}
@@ -40,8 +42,8 @@ public class PlatformStateService implements OtterService {
      */
     @Override
     @NonNull
-    public Schema genesisSchema(@NonNull final SemanticVersion version) {
-        return new V0540PlatformStateSchema(config -> version);
+    public OtterServiceStateSpecification stateSpecification() {
+        return STATE_SPECIFICATION;
     }
 
     /**
@@ -50,8 +52,9 @@ public class PlatformStateService implements OtterService {
     @Override
     public void handleTransaction(
             @NonNull final WritableStates writableStates,
-            @NonNull final Event event,
+            @NonNull final ConsensusEvent event,
             @NonNull final OtterTransaction transaction,
+            @NonNull final Instant transactionTimestamp,
             @NonNull final Consumer<ScopedSystemTransaction<StateSignatureTransaction>> callback) {
         switch (transaction.getDataCase()) {
             case FREEZETRANSACTION -> handleFreeze(writableStates, transaction.getFreezeTransaction());

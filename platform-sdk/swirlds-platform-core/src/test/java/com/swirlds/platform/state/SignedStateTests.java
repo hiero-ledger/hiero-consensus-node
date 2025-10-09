@@ -22,9 +22,10 @@ import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
 import com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade;
-import com.swirlds.platform.test.fixtures.state.TestVirtualMapState;
 import com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer;
-import com.swirlds.platform.test.fixtures.virtualmap.VirtualMapUtils;
+import com.swirlds.state.MerkleNodeState;
+import com.swirlds.state.test.fixtures.merkle.TestVirtualMapState;
+import com.swirlds.state.test.fixtures.merkle.VirtualMapUtils;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
@@ -65,7 +66,7 @@ class SignedStateTests {
         final var virtualMapLabel = "vm-" + SignedStateTests.class.getSimpleName() + "-" + java.util.UUID.randomUUID();
         final var real = TestVirtualMapState.createInstanceWithVirtualMapLabel(
                 virtualMapLabel, new NoOpMetrics(), Time.getCurrent());
-        TestingAppStateInitializer.DEFAULT.initConsensusModuleStates(real);
+        TestingAppStateInitializer.initConsensusModuleStates(real, CONFIGURATION);
         RosterUtils.setActiveRoster(real, RandomRosterBuilder.create(random).build(), 0L);
         final MerkleNodeState state = spy(real);
         final MerkleNode realRoot = state.getRoot();
@@ -220,7 +221,7 @@ class SignedStateTests {
         final MerkleNodeState state = spy(new TestVirtualMapState(virtualMap, new NoOpMetrics(), Time.getCurrent()));
         final PlatformStateModifier platformState = mock(PlatformStateModifier.class);
         final TestPlatformStateFacade platformStateFacade = mock(TestPlatformStateFacade.class);
-        TestingAppStateInitializer.DEFAULT.initPlatformState(state);
+        TestingAppStateInitializer.initPlatformState(state);
         when(platformState.getRound()).thenReturn(0L);
         final SignedState signedState = new SignedState(
                 CONFIGURATION, mock(SignatureVerifier.class), state, "test", false, false, false, platformStateFacade);

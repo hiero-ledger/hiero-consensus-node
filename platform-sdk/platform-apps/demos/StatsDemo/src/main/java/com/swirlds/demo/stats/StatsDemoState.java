@@ -17,7 +17,7 @@ import static com.swirlds.platform.test.fixtures.state.TestingAppStateInitialize
 import com.swirlds.base.time.Time;
 import com.swirlds.common.merkle.crypto.MerkleCryptographyFactory;
 import com.swirlds.common.metrics.noop.NoOpMetrics;
-import com.swirlds.platform.state.MerkleNodeState;
+import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.test.fixtures.merkle.MerkleStateRoot;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.hiero.base.constructable.ConstructableIgnored;

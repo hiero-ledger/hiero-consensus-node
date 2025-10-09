@@ -23,8 +23,9 @@ import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.system.status.StatusActionSubmitter;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
-import com.swirlds.platform.test.fixtures.state.TestVirtualMapState;
 import com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer;
+import com.swirlds.state.MerkleNodeState;
+import com.swirlds.state.test.fixtures.merkle.TestVirtualMapState;
 import org.hiero.consensus.model.hashgraph.Round;
 import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.api.AfterEach;
@@ -138,7 +139,7 @@ class SwirldsStateManagerTests {
                 SwirldsStateManagerTests.class.getSimpleName() + "-" + java.util.UUID.randomUUID();
         final MerkleNodeState state = TestVirtualMapState.createInstanceWithVirtualMapLabel(
                 virtualMapLabel, new NoOpMetrics(), Time.getCurrent());
-        TestingAppStateInitializer.DEFAULT.initPlatformState(state);
+        TestingAppStateInitializer.initPlatformState(state);
 
         platformStateFacade.setCreationSoftwareVersionTo(
                 state, SemanticVersion.newBuilder().major(nextInt(1, 100)).build());

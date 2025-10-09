@@ -11,8 +11,6 @@ import com.hedera.pbj.runtime.UnknownField;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Collections;
 import java.util.List;
-import org.hiero.otter.fixtures.app.model.codec.ConsistencyStateJsonCodec;
-import org.hiero.otter.fixtures.app.model.codec.ConsistencyStateProtoCodec;
 import org.hiero.otter.fixtures.app.model.schema.ConsistencyStateSchema;
 
 /**
@@ -20,9 +18,11 @@ import org.hiero.otter.fixtures.app.model.schema.ConsistencyStateSchema;
  */
 public final class ConsistencyState {
     /** Protobuf codec for reading and writing in protobuf format */
-    public static final Codec<ConsistencyState> PROTOBUF = new ConsistencyStateProtoCodec();
+    public static final Codec<ConsistencyState> PROTOBUF =
+            new org.hiero.otter.fixtures.app.model.codec.ConsistencyStateProtoCodec();
     /** JSON codec for reading and writing in JSON format */
-    public static final JsonCodec<ConsistencyState> JSON = new ConsistencyStateJsonCodec();
+    public static final JsonCodec<ConsistencyState> JSON =
+            new org.hiero.otter.fixtures.app.model.codec.ConsistencyStateJsonCodec();
     /** Default instance with all fields set to default values */
     public static final ConsistencyState DEFAULT = newBuilder().build();
 

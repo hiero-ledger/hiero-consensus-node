@@ -58,7 +58,6 @@ import com.hedera.node.app.blocks.StreamingTreeHasher;
 import com.hedera.node.app.blocks.impl.BlockStreamManagerImpl;
 import com.hedera.node.app.blocks.impl.BoundaryStateChangeListener;
 import com.hedera.node.app.blocks.impl.ImmediateStateChangeListener;
-import com.hedera.node.app.blocks.impl.streaming.NoBlockNodesAvailableException;
 import com.hedera.node.app.config.BootstrapConfigProviderImpl;
 import com.hedera.node.app.config.ConfigProviderImpl;
 import com.hedera.node.app.fees.FeeService;
@@ -76,24 +75,24 @@ import com.hedera.node.app.info.CurrentPlatformStatusImpl;
 import com.hedera.node.app.info.StateNetworkInfo;
 import com.hedera.node.app.metrics.StoreMetricsServiceImpl;
 import com.hedera.node.app.records.BlockRecordService;
-import com.hedera.node.app.roster.RosterService;
 import com.hedera.node.app.service.addressbook.impl.AddressBookServiceImpl;
 import com.hedera.node.app.service.consensus.impl.ConsensusServiceImpl;
 import com.hedera.node.app.service.contract.impl.ContractServiceImpl;
 import com.hedera.node.app.service.file.impl.FileServiceImpl;
 import com.hedera.node.app.service.networkadmin.impl.FreezeServiceImpl;
 import com.hedera.node.app.service.networkadmin.impl.NetworkServiceImpl;
+import com.hedera.node.app.service.roster.impl.RosterServiceImpl;
 import com.hedera.node.app.service.schedule.impl.ScheduleServiceImpl;
 import com.hedera.node.app.service.token.impl.TokenServiceImpl;
 import com.hedera.node.app.service.util.impl.UtilServiceImpl;
 import com.hedera.node.app.services.AppContextImpl;
 import com.hedera.node.app.services.ServiceMigrator;
 import com.hedera.node.app.services.ServicesRegistry;
-import com.hedera.node.app.services.StartupNetworks;
 import com.hedera.node.app.signature.AppSignatureVerifier;
 import com.hedera.node.app.signature.impl.SignatureExpanderImpl;
 import com.hedera.node.app.signature.impl.SignatureVerifierImpl;
 import com.hedera.node.app.spi.AppContext;
+import com.hedera.node.app.spi.migrate.StartupNetworks;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.state.ConsensusStateEventHandlerImpl;
 import com.hedera.node.app.state.recordcache.RecordCacheService;
@@ -107,13 +106,11 @@ import com.hedera.node.app.workflows.ingest.IngestWorkflow;
 import com.hedera.node.app.workflows.query.QueryWorkflow;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.Utils;
-import com.hedera.node.config.data.BlockNodeConnectionConfig;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.NetworkAdminConfig;
 import com.hedera.node.config.data.TssConfig;
 import com.hedera.node.config.data.VersionConfig;
-import com.hedera.node.config.types.BlockStreamWriterMode;
 import com.hedera.node.config.types.StreamMode;
 import com.hedera.node.internal.network.Network;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -125,7 +122,6 @@ import com.swirlds.platform.listeners.ReconnectCompleteListener;
 import com.swirlds.platform.listeners.ReconnectCompleteNotification;
 import com.swirlds.platform.listeners.StateWriteToDiskCompleteListener;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
-import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.service.PlatformStateService;
 import com.swirlds.platform.state.service.ReadablePlatformStateStore;
@@ -134,6 +130,7 @@ import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.SwirldMain;
 import com.swirlds.platform.system.state.notifications.AsyncFatalIssListener;
 import com.swirlds.platform.system.state.notifications.StateHashedListener;
+import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.State;
 import com.swirlds.state.StateChangeListener;
 import com.swirlds.state.merkle.VirtualMapState;
@@ -168,6 +165,7 @@ import org.hiero.consensus.model.hashgraph.Round;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
+import org.hiero.consensus.model.transaction.TimestampedTransaction;
 import org.hiero.consensus.model.transaction.Transaction;
 import org.hiero.consensus.roster.ReadableRosterStore;
 import org.hiero.consensus.roster.RosterUtils;
@@ -527,7 +525,8 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
         transactionPool = new TransactionPoolNexus(
                 transactionLimits,
                 bootstrapConfig.getConfigData(HederaConfig.class).throttleTransactionQueueSize(),
-                metrics);
+                metrics,
+                instantSource);
 
         // Register all service schema RuntimeConstructable factories before platform init
         Set.of(
@@ -549,7 +548,7 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
                         new CongestionThrottleService(),
                         new NetworkServiceImpl(),
                         new AddressBookServiceImpl(),
-                        new RosterService(
+                        new RosterServiceImpl(
                                 this::canAdoptRoster,
                                 this::onAdoptRoster,
                                 () -> requireNonNull(initState),
@@ -1151,9 +1150,8 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
         transactionPool.submitPriorityTransaction(encodeSystemTransaction(stateSignatureTransaction));
     }
 
-    @NonNull
     @Override
-    public List<Bytes> getTransactionsForEvent() {
+    public @NonNull List<TimestampedTransaction> getTransactionsForEvent() {
         return transactionPool.getTransactionsForEvent();
     }
 
@@ -1262,7 +1260,6 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
                                             .orElseGet(() -> startBlockHashFrom(state));
                             });
             migrationStateChanges = null;
-            initializeBlockNodeConnections();
         }
     }
 
@@ -1447,38 +1444,6 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
             hintsService.manageRosterAdoption(
                     store, previousRoster, adoptedRoster, adoptedRosterHash, tssConfig.forceHandoffs());
             ((CommittableWritableStates) writableHintsStates).commit();
-        }
-    }
-
-    /**
-     * Initializes block node connections and waits for at least one connection to be established.
-     * This should be called before platform.start() to ensure we don't miss any blocks.
-     */
-    public void initializeBlockNodeConnections() {
-        final BlockStreamConfig blockStreamConfig =
-                configProvider.getConfiguration().getConfigData(BlockStreamConfig.class);
-
-        if (!blockStreamConfig.streamToBlockNodes()) {
-            logger.info("Block stream to Block Nodes is disabled, skipping block node connection initialization");
-            return;
-        }
-
-        final BlockNodeConnectionConfig blockNodeConnectionConfig =
-                configProvider.getConfiguration().getConfigData(BlockNodeConnectionConfig.class);
-
-        try {
-            daggerApp.blockNodeConnectionManager().start();
-        } catch (final NoBlockNodesAvailableException e) {
-            if (blockNodeConnectionConfig.shutdownNodeOnNoBlockNodes()
-                    && blockStreamConfig.writerMode().equals(BlockStreamWriterMode.GRPC)
-                    && blockStreamConfig.streamMode().equals(BLOCKS)) {
-
-                logger.fatal("No block nodes available to connect to; shutting down");
-                shutdown();
-                System.exit(1);
-            } else {
-                logger.warn("No block nodes available to connect to");
-            }
         }
     }
 }

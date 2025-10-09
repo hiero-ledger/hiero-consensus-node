@@ -11,8 +11,8 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.util.HapiUtils;
-import com.hedera.node.app.services.HederaMigrationContext;
-import com.hedera.node.app.services.StartupNetworks;
+import com.hedera.node.app.spi.migrate.HederaMigrationContext;
+import com.hedera.node.app.spi.migrate.StartupNetworks;
 import com.hedera.node.app.state.merkle.SchemaApplications;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.state.lifecycle.MigrationContext;

@@ -7,8 +7,7 @@ import static com.swirlds.state.StateChangeListener.StateType.SINGLETON;
 import static java.util.Objects.requireNonNull;
 
 import com.swirlds.common.merkle.MerkleNode;
-import com.swirlds.platform.state.MerkleNodeState;
-import com.swirlds.platform.test.fixtures.state.TestVirtualMapState;
+import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.State;
 import com.swirlds.state.StateChangeListener;
 import com.swirlds.state.spi.EmptyReadableStates;
@@ -29,6 +28,7 @@ import com.swirlds.state.test.fixtures.MapReadableKVState;
 import com.swirlds.state.test.fixtures.MapReadableStates;
 import com.swirlds.state.test.fixtures.MapWritableKVState;
 import com.swirlds.state.test.fixtures.MapWritableStates;
+import com.swirlds.state.test.fixtures.merkle.TestVirtualMapState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.List;

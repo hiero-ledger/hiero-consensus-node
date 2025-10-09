@@ -516,7 +516,7 @@ public class Shadowgraph implements Clearable {
                 tips.remove(s.getSelfParent());
 
                 if (numberOfNodes > 0 && tips.size() > numberOfNodes && tips.size() > tipsBefore) {
-                    // It is possible that we have more tips than nodes even if there is no fork.
+                    // It is possible that we have more tips than nodes even if there is no branch.
                     // Explained in: sync-protocol.md
                     logger.info(
                             SYNC_INFO.getMarker(),

@@ -9,7 +9,7 @@ import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.base.time.Time;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
-import com.swirlds.platform.state.MerkleNodeState;
+import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.virtualmap.VirtualMap;
@@ -62,7 +62,7 @@ public class OtterAppState extends VirtualMapState<OtterAppState> implements Mer
 
         final OtterAppState state = new OtterAppState(configuration, metrics, time);
 
-        initOtterAppState(configuration, state, version, services);
+        initOtterAppState(state, version, services);
         RosterUtils.setActiveRoster(state, roster, 0L);
 
         return state;

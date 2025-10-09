@@ -20,7 +20,7 @@ import com.hedera.hapi.platform.state.NodeId;
 import com.hedera.hapi.services.auxiliary.hints.CrsPublicationTransactionBody;
 import com.hedera.node.app.hapi.utils.EntityType;
 import com.hedera.node.app.hints.ReadableHintsStore;
-import com.hedera.node.app.roster.ActiveRosters;
+import com.hedera.node.app.service.roster.impl.ActiveRosters;
 import com.hedera.node.app.spi.ids.ReadableEntityCounters;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.spi.ReadableKVState;
