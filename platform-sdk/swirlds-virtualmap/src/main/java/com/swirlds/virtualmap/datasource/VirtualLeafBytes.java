@@ -5,6 +5,7 @@ import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.FieldDefinition;
 import com.hedera.pbj.runtime.FieldType;
 import com.hedera.pbj.runtime.ParseException;
+import com.hedera.pbj.runtime.ProtoArrayWriterTools;
 import com.hedera.pbj.runtime.ProtoConstants;
 import com.hedera.pbj.runtime.ProtoParserTools;
 import com.hedera.pbj.runtime.ProtoWriterTools;
@@ -281,6 +282,37 @@ public class VirtualLeafBytes<V> {
         });
 
         assert out.position() == getSizeInBytesForHashing();
+    }
+
+    // Output size must be at least getSizeInBytesForHashing()
+    public void writeToForHashing(final byte[] arr) {
+        int offset = 0;
+
+        // The 0x00 prefix byte is added to all leaf hashes in the Hiero Merkle tree,
+        // so that there is a clear guaranteed domain separation of hash space between leaves and internal nodes.
+        arr[offset++] = ((byte) 0x00);
+
+        final Bytes kb = keyBytes();
+        final int keyLen = Math.toIntExact(kb.length());
+        int innerLen = ProtoWriterTools.sizeOfDelimited(FIELD_LEAFRECORD_KEY, keyLen);
+
+        final Bytes vb = valueBytes();
+        if (vb != null) {
+            final int valueLen = Math.toIntExact(vb.length());
+            innerLen += ProtoWriterTools.sizeOfDelimited(FIELD_LEAFRECORD_VALUE, valueLen);
+        }
+
+        final int tag = (FIELD_MERKLELEAF_STATEITEM.number() << 3) | ProtoConstants.WIRE_TYPE_DELIMITED.ordinal();
+        offset += ProtoArrayWriterTools.writeUnsignedVarInt(arr, offset, tag);
+        offset += ProtoArrayWriterTools.writeUnsignedVarInt(arr, offset, innerLen);
+
+        offset += ProtoArrayWriterTools.writeBytes(arr, offset, FIELD_LEAFRECORD_KEY, kb, false);
+
+        if (vb != null) {
+            offset += ProtoArrayWriterTools.writeBytes(arr, offset, FIELD_LEAFRECORD_VALUE, vb, false);
+        }
+
+        assert offset == getSizeInBytesForHashing();
     }
 
     @Override

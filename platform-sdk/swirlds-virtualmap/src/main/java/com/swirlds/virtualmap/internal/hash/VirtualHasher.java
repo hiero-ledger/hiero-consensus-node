@@ -262,11 +262,6 @@ public final class VirtualHasher {
         // resources available. It should be faster than using thread locals
         private static final ThreadLocal<byte[]> BYTE_ARRAY_THREAD_LOCAL = ThreadLocal.withInitial(() -> new byte[256]);
 
-        // Future work: modify hashing pool thread factory to use custom threads with all
-        // resources available. It should be faster than using thread locals
-        private static final ThreadLocal<BufferedData> BUFFERED_DATA_THREAD_LOCAL =
-                ThreadLocal.withInitial(() -> BufferedData.wrap(BYTE_ARRAY_THREAD_LOCAL.get()));
-
         // Leaf path
         private final long path;
 
@@ -297,16 +292,13 @@ public final class VirtualHasher {
             if (leaf != null) {
                 final int leafSizeInBytes = leaf.getSizeInBytesForHashing();
                 byte[] arr = BYTE_ARRAY_THREAD_LOCAL.get();
-                BufferedData out = BUFFERED_DATA_THREAD_LOCAL.get();
-                if (out.length() < leafSizeInBytes) {
+                if (arr.length < leafSizeInBytes) {
                     arr = new byte[leafSizeInBytes];
                     BYTE_ARRAY_THREAD_LOCAL.set(arr);
-                    out = BufferedData.wrap(arr);
-                    BUFFERED_DATA_THREAD_LOCAL.set(out);
                 }
-                leaf.writeToForHashing(out);
+                leaf.writeToForHashing(arr);
                 final MessageDigest md = MESSAGE_DIGEST_THREAD_LOCAL.get();
-                md.update(arr, 0, Math.toIntExact(out.position()));
+                md.update(arr, 0, Math.toIntExact(leafSizeInBytes));
                 hash = new Hash(md.digest(), Cryptography.DEFAULT_DIGEST_TYPE);
                 listener.onLeafHashed(leaf);
                 listener.onNodeHashed(path, hash);
