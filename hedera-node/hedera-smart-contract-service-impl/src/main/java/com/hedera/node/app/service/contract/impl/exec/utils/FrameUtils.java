@@ -38,6 +38,7 @@ public class FrameUtils {
     public static final String PENDING_CREATION_BUILDER_CONTEXT_VARIABLE = "pendingCreationBuilder";
     public static final String OPS_DURATION_COUNTER = "opsDurationCounter";
     public static final String IS_HOOK_VARIABLE = "hook";
+    public static final String INVALID_ADDRESS_CONTEXT_VARIABLE = "invalidAddressContext";
 
     public enum EntityType {
         TOKEN,
@@ -378,6 +379,15 @@ public class FrameUtils {
      */
     public static boolean isHookExecution(@NonNull final MessageFrame frame) {
         return Boolean.TRUE.equals(initialFrameOf(frame).getContextVariable(IS_HOOK_VARIABLE));
+    }
+
+    /**
+     * Returns the {@link InvalidAddressContext} associated with the initial parent frame of the given frame.
+     * @param frame the frame of interest
+     * @return InvalidAddressContext
+     */
+    public static InvalidAddressContext invalidAddressContext(@NonNull final MessageFrame frame) {
+        return initialFrameOf(frame).getContextVariable(INVALID_ADDRESS_CONTEXT_VARIABLE);
     }
 
     /**
