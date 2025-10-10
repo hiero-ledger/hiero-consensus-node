@@ -65,7 +65,7 @@ on:
         description: 'solo-sd*t-n9 (SDPT/SDLT)'
 
 jobs:
-  performance-tests-start:
+  delete-selected-namespaces:
     runs-on: hiero-citr-linux-small
     env:
       Dallas_n1:     ${{ github.event_name == 'schedule' && 'true' || github.event.inputs.Dallas_n1 }}
@@ -116,6 +116,7 @@ jobs:
           set +e
           set +x
           clusterZone="Dallas"
+          env | grep ${clusterZone}
           for namespace in `sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt get namespaces | awk '{print $1}' | grep -E 'solo[\-].*[\-]n[1-9]'`
           do
             n="$(echo "${namespace}" | perl -ne 'print "$1\n" if /^solo\-.*d.*t\-n(\d+)$/')"
@@ -145,6 +146,7 @@ jobs:
           set +e
           set +x
           clusterZone="Chicago"
+          env | grep ${clusterZone}
           for namespace in `sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt get namespaces | awk '{print $1}' | grep -E 'solo[\-].*[\-]n[1-9]'`
           do
             n="$(echo "${namespace}" | perl -ne 'print "$1\n" if /^solo\-.*d.*t\-n(\d+)$/')"
