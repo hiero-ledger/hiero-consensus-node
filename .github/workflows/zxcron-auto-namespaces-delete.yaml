@@ -3,7 +3,7 @@ name: "Delete automation Latitude Namespaces"
 permissions:
   contents: read
   id-token: write
-
+syntax error on purpose to refresh GHA
 on:
   schedule:
     - cron: "0 23 * * *"
