@@ -74,9 +74,15 @@ public class HapiSpecWaitUntilNextBlock extends UtilOp {
 
     @Override
     protected boolean submitOp(@NonNull final HapiSpec spec) throws Throwable {
+
+        // Check if we are in subprocess network or embedded
+        final var networkMode = spec.startupProperties().get("network.mode");
+        final boolean isSubprocess = "SUBPROCESS".equals(networkMode);
+        log.info("Auto-detected network mode: {} -> isSubprocess = {}", networkMode, isSubprocess);
+
         // Auto-detect writer mode from spec configuration
         final var writerMode = spec.startupProperties().get("blockStream.writerMode");
-        boolean onBlockNodeSide = "GRPC".equals(writerMode) || "FILE_AND_GRPC".equals(writerMode);
+        boolean onBlockNodeSide = ("GRPC".equals(writerMode) || "FILE_AND_GRPC".equals(writerMode)) && isSubprocess;
         log.info("Auto-detected writer mode: {} -> onBlockNodeSide = {}", writerMode, onBlockNodeSide);
 
         // Auto-detect block period from spec configuration
