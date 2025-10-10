@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures;
 
+import static org.hiero.otter.fixtures.Constants.RANDOM_NODE_IDS;
 import static org.hiero.otter.fixtures.Constants.RANDOM_SEED;
 import static org.hiero.otter.fixtures.OtterAssertions.assertThat;
 
@@ -22,7 +23,8 @@ class QuiescenceTest {
      * @return a stream of {@link TestEnvironment} instances
      */
     public static Stream<TestEnvironment> environments() {
-        return Stream.of(new TurtleTestEnvironment(RANDOM_SEED), new ContainerTestEnvironment());
+        return Stream.of(
+                new TurtleTestEnvironment(RANDOM_SEED, RANDOM_NODE_IDS), new ContainerTestEnvironment(RANDOM_NODE_IDS));
     }
 
     /**

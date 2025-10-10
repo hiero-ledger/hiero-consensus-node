@@ -11,5 +11,10 @@ public class Constants {
      */
     public static final long RANDOM_SEED = 0L;
 
+    /**
+     * Enables random node IDs
+     */
+    public static final boolean RANDOM_NODE_IDS = true;
+
     private Constants() {}
 }

@@ -1,0 +1,8 @@
+recovery:
+  state:
+    round: 33
+    hash: "ecaa31f67d7f58ac5a13d860153ee33f576f339fb7dd13824a8381bd25b5e5df9c967e01892f37e5a13de9fa1a23f775"
+    timestamp: "2007-08-04T06:49:25.207004Z"
+  bootstrap: null
+  package: null
+  stream: null

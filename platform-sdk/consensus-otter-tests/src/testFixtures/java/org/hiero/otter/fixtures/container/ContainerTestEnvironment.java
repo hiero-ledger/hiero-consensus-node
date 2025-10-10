@@ -35,8 +35,10 @@ public class ContainerTestEnvironment implements TestEnvironment {
 
     /**
      * Constructor for the {@link ContainerTestEnvironment} class.
+     *
+     * @param randomNodeIds {@code true} if the node IDs should be selected randomly; {@code false} otherwise
      */
-    public ContainerTestEnvironment() {
+    public ContainerTestEnvironment(final boolean randomNodeIds) {
 
         ContainerLogConfigBuilder.configure();
 
@@ -50,7 +52,7 @@ public class ContainerTestEnvironment implements TestEnvironment {
             fail("Failed to prepare directory: " + rootOutputDirectory, ex);
         }
 
-        network = new ContainerNetwork(timeManager, transactionGenerator, rootOutputDirectory);
+        network = new ContainerNetwork(timeManager, transactionGenerator, rootOutputDirectory, randomNodeIds);
     }
 
     /**
