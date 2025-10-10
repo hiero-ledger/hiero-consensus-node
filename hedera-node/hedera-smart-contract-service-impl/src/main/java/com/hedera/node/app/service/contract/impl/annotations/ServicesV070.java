@@ -12,8 +12,9 @@ import java.lang.annotation.Target;
 import javax.inject.Qualifier;
 
 /**
- * Qualifies a binding for use with the {@code v0.70} (Cancun) Services EVM.  Adds support for the
- * Hedera EVM class for calculating and alternate ops duration and throttling system.
+ * Qualifies a binding for use with the {@code v0.70} (Pectra) Services EVM. Updates to the
+ * Hedera EVM class, adding support for Account Abstraction (EIP-7702), BLS12-381 precompiles (EIP-2537)
+ * and EIP-7632 to increase the call data cost.
  */
 @Target({METHOD, PARAMETER, TYPE})
 @Retention(RUNTIME)

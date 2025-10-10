@@ -8,6 +8,7 @@ import static com.hedera.node.app.service.contract.impl.hevm.HederaEvmVersion.VE
 import static com.hedera.node.app.service.contract.impl.hevm.HederaEvmVersion.VERSION_050;
 import static com.hedera.node.app.service.contract.impl.hevm.HederaEvmVersion.VERSION_051;
 import static com.hedera.node.app.service.contract.impl.hevm.HederaEvmVersion.VERSION_065;
+import static com.hedera.node.app.service.contract.impl.hevm.HederaEvmVersion.VERSION_066;
 import static com.hedera.node.app.service.contract.impl.hevm.HederaEvmVersion.VERSION_067;
 import static com.hedera.node.app.service.contract.impl.hevm.HederaEvmVersion.VERSION_070;
 import static org.hyperledger.besu.evm.internal.EvmConfiguration.WorldUpdaterMode.JOURNALED;
@@ -19,6 +20,7 @@ import com.hedera.node.app.service.contract.impl.annotations.ServicesV046;
 import com.hedera.node.app.service.contract.impl.annotations.ServicesV050;
 import com.hedera.node.app.service.contract.impl.annotations.ServicesV051;
 import com.hedera.node.app.service.contract.impl.annotations.ServicesV065;
+import com.hedera.node.app.service.contract.impl.annotations.ServicesV066;
 import com.hedera.node.app.service.contract.impl.annotations.ServicesV067;
 import com.hedera.node.app.service.contract.impl.annotations.ServicesV070;
 import com.hedera.node.app.service.contract.impl.annotations.ServicesVersionKey;
