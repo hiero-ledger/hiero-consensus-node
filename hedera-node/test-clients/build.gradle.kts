@@ -124,19 +124,21 @@ val prCheckPropOverrides =
     buildMap<String, String> {
         put(
             "hapiTestAdhoc",
-            "tss.hintsEnabled=false,tss.forceHandoffs=false,tss.initialCrsParties=16,blockStream.blockPeriod=2s",
+            "tss.hintsEnabled=false,tss.forceHandoffs=false,tss.initialCrsParties=16,blockStream.blockPeriod=2s,blockStream.writerMode=FILE_AND_GRPC",
         )
-        put(
-            "hapiTestCrypto",
-            "tss.hintsEnabled=true,tss.historyEnabled=true,blockStream.blockPeriod=1s",
-        )
-        put("hapiTestSmartContract", "tss.historyEnabled=false")
+        put("hapiTestCrypto",
+            "tss.hintsEnabled=true,tss.historyEnabled=true,blockStream.blockPeriod=1s,blockStream.writerMode=FILE_AND_GRPC")
+        put("hapiTestSmartContract",
+            "tss.historyEnabled=false,blockStream.writerMode=FILE_AND_GRPC")
         put(
             "hapiTestRestart",
             "tss.hintsEnabled=true,tss.forceHandoffs=true,tss.initialCrsParties=16,blockStream.blockPeriod=1s",
         )
-        put("hapiTestMisc", "nodes.nodeRewardsEnabled=false")
-        put("hapiTestTimeConsuming", "nodes.nodeRewardsEnabled=false")
+        put("hapiTestMisc", "nodes.nodeRewardsEnabled=false,blockStream.writerMode=FILE_AND_GRPC")
+        put(
+            "hapiTestTimeConsuming",
+            "nodes.nodeRewardsEnabled=false,blockStream.writerMode=FILE_AND_GRPC",
+        )
         put("hapiTestMiscRecords", "blockStream.streamMode=RECORDS,nodes.nodeRewardsEnabled=false")
 
         // Copy vals to the MATS variants
@@ -220,6 +222,10 @@ tasks.register<Test>("testSubprocess") {
     // to maintain confidence that we haven't fallen back into the habit of assuming 0.0
     systemProperty("hapi.spec.default.shard", 11)
     systemProperty("hapi.spec.default.realm", 12)
+
+    if (ciTagExpression.contains("BLOCK_NODE_SIMULATOR")) {
+        systemProperty("hapi.spec.logging.blocknode", "true")
+    }
 
     // Gather overrides into a single comma‐separated list
     val testOverrides =
