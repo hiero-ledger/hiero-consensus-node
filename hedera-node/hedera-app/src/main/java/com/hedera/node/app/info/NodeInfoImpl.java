@@ -13,7 +13,7 @@ import java.util.List;
 
 public record NodeInfoImpl(
         long nodeId,
-        @NonNull AccountID accountId,
+        @Nullable AccountID accountId,
         long weight,
         List<ServiceEndpoint> gossipEndpoints,
         @Nullable Bytes sigCertBytes,
@@ -26,7 +26,7 @@ public record NodeInfoImpl(
             @NonNull final RosterEntry rosterEntry, @NonNull final Node node) {
         return new NodeInfoImpl(
                 rosterEntry.nodeId(),
-                node.accountIdOrThrow(),
+                node.accountId(),
                 rosterEntry.weight(),
                 rosterEntry.gossipEndpoint(),
                 rosterEntry.gossipCaCertificate(),
@@ -37,7 +37,7 @@ public record NodeInfoImpl(
 
     @NonNull
     public static NodeInfo fromRosterEntry(
-            @NonNull final RosterEntry rosterEntry, @NonNull final AccountID nodeAccountID) {
+            @NonNull final RosterEntry rosterEntry, @Nullable final AccountID nodeAccountID) {
         return new NodeInfoImpl(
                 rosterEntry.nodeId(),
                 nodeAccountID,

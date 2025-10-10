@@ -296,7 +296,7 @@ class NodeDeleteHandlerTest extends AddressBookTestBase {
                 .withValue("accounts.systemAdmin", 50)
                 .withValue("accounts.addressBookAdmin", 55)
                 .getOrCreateConfig();
-        mockPayerLookup(key, contextPayerId, accountStore);
+        mockAccountLookup(key, contextPayerId, accountStore);
         final var context = new FakePreHandleContext(accountStore, txn, config);
         context.registerStore(ReadableNodeStore.class, readableStore);
         return context;

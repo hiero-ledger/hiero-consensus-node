@@ -341,8 +341,12 @@ public class ReadableFreezeUpgradeActions {
                     .append(", ")
                     .append(gossipEndpoints.get(EXT).port())
                     .append(", ")
-                    .append(node.accountId().shardNum() + "." + node.accountId().realmNum() + "."
-                            + node.accountId().accountNum())
+                    .append(
+                            node.hasAccountId()
+                                    ? node.accountId().shardNum() + "."
+                                            + node.accountId().realmNum() + "."
+                                            + node.accountId().accountNum()
+                                    : "null")
                     .append("\n");
             try {
                 bw.write(line.toString());

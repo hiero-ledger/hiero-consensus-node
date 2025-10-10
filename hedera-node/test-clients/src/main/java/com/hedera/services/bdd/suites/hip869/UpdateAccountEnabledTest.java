@@ -113,7 +113,6 @@ public class UpdateAccountEnabledTest {
                         .payingWith("payer")
                         .signedBy("payer", "payer", "randomAccount", "testKey")
                         .sigMapPrefixes(uniqueWithFullPrefixesFor("payer", "randomAccount", "testKey"))
-                        .accountId("1000")
                         .fee(ONE_HBAR)
                         .via("failedUpdateMultipleSigs"),
                 validateChargedUsdWithin("failedUpdateMultipleSigs", 0.0011276316, 3.0));
