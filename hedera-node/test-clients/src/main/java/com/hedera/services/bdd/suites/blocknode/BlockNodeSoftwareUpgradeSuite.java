@@ -130,10 +130,10 @@ public class BlockNodeSoftwareUpgradeSuite implements LifecycleTest {
                                 portNumbers.getFirst()),
                         String.format(
                                 "Active block node connection updated to: localhost:%s", portNumbers.getFirst()))),
+                doingContextual((spec) -> timeRef.set(Instant.now())),
                 // Cleanup - delete the block-nodes.json file to stop streaming to block nodes
                 // Delete block-nodes.json
                 doingContextual((spec) -> {
-                    timeRef.set(Instant.now());
                     try {
                         Path configPath = spec.getNetworkNodes()
                                 .getFirst()
