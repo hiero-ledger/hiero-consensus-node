@@ -29,11 +29,11 @@ import com.hedera.node.app.config.ConfigProviderImpl;
 import com.hedera.node.app.fixtures.state.FakeServiceMigrator;
 import com.hedera.node.app.fixtures.state.FakeServicesRegistry;
 import com.hedera.node.app.fixtures.state.FakeState;
-import com.hedera.node.app.ids.EntityIdService;
 import com.hedera.node.app.info.DiskStartupNetworks.InfoType;
 import com.hedera.node.app.metrics.StoreMetricsServiceImpl;
 import com.hedera.node.app.service.addressbook.AddressBookService;
 import com.hedera.node.app.service.addressbook.impl.AddressBookServiceImpl;
+import com.hedera.node.app.service.entityid.impl.EntityIdServiceImpl;
 import com.hedera.node.app.service.roster.RosterService;
 import com.hedera.node.app.service.roster.impl.RosterServiceImpl;
 import com.hedera.node.app.spi.migrate.StartupNetworks;
@@ -297,7 +297,7 @@ class DiskStartupNetworksTest {
         Set.of(
                         tssBaseService,
                         PLATFORM_STATE_SERVICE,
-                        new EntityIdService(),
+                        new EntityIdServiceImpl(),
                         new RosterServiceImpl(roster -> true, (r, b) -> {}, () -> state, TEST_PLATFORM_STATE_FACADE),
                         new AddressBookServiceImpl())
                 .forEach(servicesRegistry::register);

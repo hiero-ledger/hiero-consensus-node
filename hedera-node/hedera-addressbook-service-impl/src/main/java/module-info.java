@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 module com.hedera.node.app.service.addressbook.impl {
     requires transitive com.hedera.node.app.service.addressbook;
+    requires transitive com.hedera.node.app.service.entityid;
     requires transitive com.hedera.node.app.spi;
     requires transitive com.hedera.node.config;
     requires transitive com.hedera.node.hapi;

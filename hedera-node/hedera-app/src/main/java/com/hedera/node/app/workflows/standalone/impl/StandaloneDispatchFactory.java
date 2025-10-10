@@ -19,11 +19,11 @@ import com.hedera.node.app.fees.ExchangeRateManager;
 import com.hedera.node.app.fees.FeeAccumulator;
 import com.hedera.node.app.fees.FeeManager;
 import com.hedera.node.app.fees.ResourcePriceCalculatorImpl;
-import com.hedera.node.app.ids.EntityIdService;
-import com.hedera.node.app.ids.EntityNumGeneratorImpl;
-import com.hedera.node.app.ids.WritableEntityIdStore;
 import com.hedera.node.app.info.NodeInfoImpl;
 import com.hedera.node.app.records.impl.BlockRecordInfoImpl;
+import com.hedera.node.app.service.entityid.EntityIdService;
+import com.hedera.node.app.service.entityid.impl.EntityNumGeneratorImpl;
+import com.hedera.node.app.service.entityid.impl.WritableEntityIdStoreImpl;
 import com.hedera.node.app.service.schedule.ScheduleServiceApi;
 import com.hedera.node.app.service.schedule.impl.ScheduleServiceImpl;
 import com.hedera.node.app.service.token.api.FeeStreamBuilder;
@@ -151,7 +151,7 @@ public class StandaloneDispatchFactory {
                 new ImmediateStateChangeListener(),
                 blockStreamConfig.streamMode());
         final var readableStoreFactory = new ReadableStoreFactory(stack);
-        final var entityIdStore = new WritableEntityIdStore(stack.getWritableStates(EntityIdService.NAME));
+        final var entityIdStore = new WritableEntityIdStoreImpl(stack.getWritableStates(EntityIdService.NAME));
         final var consensusTransaction = consensusTransactionFor(transactionBody);
         final var creatorInfo = creatorInfoFor(transactionBody);
         final var preHandleResult = preHandleWorkflow.getCurrentPreHandleResult(
