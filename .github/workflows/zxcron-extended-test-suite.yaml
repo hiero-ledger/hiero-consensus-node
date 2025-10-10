@@ -77,12 +77,14 @@ jobs:
         run: |
           # Check if the tag exists and if so grab its commit id
           if [[ -n "${RC_TAG}" ]]; then
+            echo "::debug::Using RC Tag: ${RC_TAG}"
             XTS_COMMIT=$(git rev-list -n 1 "${RC_TAG}") >/dev/null 2>&1
             XTS_COMMIT_FOUND="${?}"
             set -e
 
             # Cancel out if the tag does not exist
             if [[ "${XTS_COMMIT_FOUND}" -ne 0 ]]; then
+              echo "::debug::Tag ${RC_TAG} not found. Cancelling out."
               gh run cancel ${{ github.run_id }}
             fi
 
@@ -95,6 +97,7 @@ jobs:
 
             # Cancel out if the tag does not exist
             if [[ "${XTS_COMMIT_FOUND}" -ne 0 ]]; then
+              echo "::debug::Tag ${XTS_CANDIDATE_TAG} not found. Cancelling out."
               gh run cancel ${{ github.run_id }}
             fi
 
@@ -106,6 +109,7 @@ jobs:
 
             # Use -n; if the BUILD_PROMOTED_TAGGED/XTS_PASS_TAGGED flags are not empty than the commit has been tagged.
             if [[ -n "${XTS_PASS_TAGGED}" || -n "${BUILD_PROMOTED_TAGGED}" ]]; then
+              echo "::debug::Commit ${XTS_COMMIT} has already been tagged as xts-pass or build. Cancelling out."
               gh run cancel ${{ github.run_id }}
             fi
 
@@ -114,10 +118,12 @@ jobs:
             LATEST_XTS_PASS_TAG="$(git tag --list --sort=-version:refname "${XTS_PASS_PATTERN}" | head --lines 1)"
             LATEST_PROMOTED_BUILD_TAG="$(git tag --list --sort=-version:refname "${BUILD_PATTERN}" | head --lines 1)"
             if [[ -n "${LATEST_XTS_PASS_TAG}" ]]; then
+              echo "::debug::Using latest xts-pass tag"
               echo "Latest XTS Pass Tag: ${LATEST_XTS_PASS_TAG}"
               LATEST_XTS_PASS_COMMIT="$(git rev-list -n 1 "${LATEST_XTS_PASS_TAG}")"
               COMMIT_LIST="$(git log --pretty=format:"- [%h: %s](https://github.com/${{ github.repository }}/commit/%H)" "${LATEST_XTS_PASS_COMMIT}..${XTS_COMMIT}")"
             elif [[ -n "${LATEST_PROMOTED_BUILD_TAG}" ]]; then
+              echo "::debug::Using latest promoted build tag as no xts-pass tag found"
               echo "Latest Promoted Tag: ${LATEST_PROMOTED_BUILD_TAG}"
               LATEST_PROMOTED_BUILD_COMMIT="$(git rev-list -n 1 "${LATEST_PROMOTED_BUILD_TAG}")"
               COMMIT_LIST="$(git log --pretty=format:"- [%h: %s](https://github.com/${{ github.repository }}/commit/%H)" "${LATEST_PROMOTED_BUILD_COMMIT}..${XTS_COMMIT}")"
@@ -126,15 +132,18 @@ jobs:
 
           # Get the short commit id
           XTS_SHORT_COMMIT="$(git rev-parse --short "${XTS_COMMIT}")"
+          echo "::debug::XTS_SHORT_COMMIT=${XTS_SHORT_COMMIT}"
 
           # Get the branch name for the commit
           XTS_COMMIT_BRANCH="$(git name-rev --name-only --refs="refs/remotes/*" "${XTS_COMMIT}" | sed 's~^.*origin/~~' | sed 's/~.*//')"
+          echo "::debug::XTS_COMMIT_BRANCH=${XTS_COMMIT_BRANCH}"
 
           # Check if the tag exists on the main branch
-          COMMIT_ON_DEFAULT_BRANCH=1
+          COMMIT_ON_DEFAULT_BRANCH=0
           if [[ "${XTS_COMMIT_BRANCH}" != "main" ]]; then
-            COMMIT_ON_DEFAULT_BRANCH=0
+            COMMIT_ON_DEFAULT_BRANCH=1
           fi
+          echo "::debug::COMMIT_ON_DEFAULT_BRANCH=${COMMIT_ON_DEFAULT_BRANCH}"
 
           # Get commit author
           AUTHOR_NAME="$(git log -1 --format='%an' "${XTS_COMMIT}")"
@@ -166,10 +175,12 @@ jobs:
             echo "xts-info=${XTS_COMMIT_BRANCH} - ${XTS_SHORT_COMMIT}" >> "${GITHUB_STEP_SUMMARY}"
 
             if [[ -z "${RC_TAG}" ]]; then
+              echo "::debug::Deleting the XTS candidate tag so we can recreate it later."
               git push --delete origin "${XTS_CANDIDATE_TAG}"
               git tag -d "${XTS_CANDIDATE_TAG}"
             fi
           else
+            echo "::debug::Commit ${XTS_COMMIT} not found on main branch. Cancelling out."
             gh run cancel "${{ github.run_id }}"
           fi
 
@@ -405,6 +416,7 @@ jobs:
           TAG_WITH_EPOCH: ${{ inputs.enable-promotion || 'false' }}
         run: |
           if [[ -n "${RC_TAG}" ]] && [[ "${TAG_WITH_EPOCH}" == "false" ]]; then
+            echo "::debug::Tagging adhoc commit as XTS passing"
             TAG="adhoc-xts-pass-${RC_TAG}"
 
             set +e
@@ -413,16 +425,19 @@ jobs:
             set -e
 
             if [[ "${TAG_EXISTS}" -eq 0 ]]; then
+              echo "::debug::Tag exists, recreate it"
               echo "Tag ${TAG} already exists. Deleting."
               git push --delete origin "${TAG}"
               git tag -d "${TAG}"
             fi
 
+            echo "::debug::Push the new tag ${TAG}"
             git tag --annotate "${TAG}" --message "chore: tagging release candidate as XTS passing"
             git push --set-upstream origin "${TAG}"
             echo "### Commit Tagged as XTS-Passing" >>  "${GITHUB_STEP_SUMMARY}"
             echo "xts-pass-tag=${TAG}" >> "${GITHUB_STEP_SUMMARY}"
           else
+            echo "::debug::Tagging commit with epoch timestamp as XTS passing"
             EPOCH_TIME="$(date +%s)"
             TAG="xts-pass-${EPOCH_TIME}"
             git tag --annotate "${TAG}" --message "chore: tagging commit for build candidate promotion"
