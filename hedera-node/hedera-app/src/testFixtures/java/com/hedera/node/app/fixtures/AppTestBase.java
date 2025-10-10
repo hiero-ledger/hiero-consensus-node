@@ -42,10 +42,8 @@ import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.node.internal.network.Network;
 import com.hedera.node.internal.network.NodeMetadata;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.base.time.Time;
 import com.swirlds.common.metrics.SpeedometerMetric;
 import com.swirlds.common.metrics.config.MetricsConfig;
-import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.common.metrics.platform.DefaultPlatformMetrics;
 import com.swirlds.common.metrics.platform.MetricKeyRegistry;
 import com.swirlds.common.metrics.platform.PlatformMetricsFactoryImpl;
@@ -149,7 +147,7 @@ public class AppTestBase extends TestBase implements TransactionFactory, Scenari
         final var virtualMapLabel = "vm-" + AppTestBase.class.getSimpleName() + "-" + java.util.UUID.randomUUID();
         final var virtualMap = VirtualMapUtils.createVirtualMap(virtualMapLabel);
 
-        state = new TestVirtualMapState(virtualMap, new NoOpMetrics(), Time.getCurrent()) {
+        state = new TestVirtualMapState(virtualMap) {
             @NonNull
             @Override
             public ReadableStates getReadableStates(@NonNull String serviceName) {

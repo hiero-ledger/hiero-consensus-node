@@ -24,7 +24,6 @@ import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
 import com.swirlds.common.merkle.utility.MerkleTreeSnapshotReader;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
-import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.platform.components.DefaultSavedStateController;
 import com.swirlds.platform.components.SavedStateController;
@@ -133,14 +132,11 @@ class StateFileManagerTests {
 
         assertEquals(-1, originalState.getReservationCount(), "invalid reservation count");
 
-        final PlatformContext platformContext =
-                TestPlatformContextBuilder.create().build();
         final DeserializedSignedState deserializedSignedState = readStateFile(
                 stateFile,
-                virtualMap ->
-                        new TestVirtualMapState(virtualMap, platformContext.getMetrics(), platformContext.getTime()),
+                TestVirtualMapState::new,
                 TEST_PLATFORM_STATE_FACADE,
-                platformContext);
+                TestPlatformContextBuilder.create().build());
         SignedState signedState = deserializedSignedState.reservedSignedState().get();
         hashState(signedState);
 
@@ -304,18 +300,12 @@ class StateFileManagerTests {
 
                     final SavedStateInfo savedStateInfo = currentStatesOnDisk.get(index);
 
-                    PlatformContext platformContext =
-                            TestPlatformContextBuilder.create().build();
-                    Configuration configuration = platformContext.getConfiguration();
                     final SignedState stateFromDisk = assertDoesNotThrow(
                             () -> SignedStateFileReader.readStateFile(
                                             savedStateInfo.stateFile(),
-                                            virtualMap -> new TestVirtualMapState(
-                                                    virtualMap,
-                                                    platformContext.getMetrics(),
-                                                    platformContext.getTime()),
+                                            TestVirtualMapState::new,
                                             TEST_PLATFORM_STATE_FACADE,
-                                            platformContext)
+                                            context)
                                     .reservedSignedState()
                                     .get(),
                             "should be able to read state on disk");

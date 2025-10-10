@@ -13,9 +13,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
-import com.swirlds.base.time.Time;
 import com.swirlds.common.merkle.MerkleNode;
-import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.platform.crypto.SignatureVerifier;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.SignedState;
@@ -64,8 +62,7 @@ class SignedStateTests {
     private MerkleNodeState buildMockState(
             final Random random, final Runnable reserveCallback, final Runnable releaseCallback) {
         final var virtualMapLabel = "vm-" + SignedStateTests.class.getSimpleName() + "-" + java.util.UUID.randomUUID();
-        final var real = TestVirtualMapState.createInstanceWithVirtualMapLabel(
-                virtualMapLabel, new NoOpMetrics(), Time.getCurrent());
+        final var real = TestVirtualMapState.createInstanceWithVirtualMapLabel(virtualMapLabel);
         TestingAppStateInitializer.initConsensusModuleStates(real, CONFIGURATION);
         RosterUtils.setActiveRoster(real, RandomRosterBuilder.create(random).build(), 0L);
         final MerkleNodeState state = spy(real);
@@ -218,7 +215,7 @@ class SignedStateTests {
         final var virtualMapLabel = "vm-" + SignedStateTests.class.getSimpleName() + "-" + java.util.UUID.randomUUID();
         final var virtualMap = VirtualMapUtils.createVirtualMap(virtualMapLabel);
 
-        final MerkleNodeState state = spy(new TestVirtualMapState(virtualMap, new NoOpMetrics(), Time.getCurrent()));
+        final MerkleNodeState state = spy(new TestVirtualMapState(virtualMap));
         final PlatformStateModifier platformState = mock(PlatformStateModifier.class);
         final TestPlatformStateFacade platformStateFacade = mock(TestPlatformStateFacade.class);
         TestingAppStateInitializer.initPlatformState(state);

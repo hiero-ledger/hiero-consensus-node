@@ -176,7 +176,8 @@ public abstract class VirtualMapState<T extends VirtualMapState<T>> implements S
      * @param metrics    the platform metric instance to use when creating the new instance of state
      * @param time       the time instance to use when creating the new instance of state
      */
-    protected abstract T newInstance(@NonNull final VirtualMap virtualMap, Metrics metrics, Time time);
+    protected abstract T newInstance(
+            @NonNull final VirtualMap virtualMap, @NonNull final Metrics metrics, @NonNull final Time time);
 
     // State interface implementation
 

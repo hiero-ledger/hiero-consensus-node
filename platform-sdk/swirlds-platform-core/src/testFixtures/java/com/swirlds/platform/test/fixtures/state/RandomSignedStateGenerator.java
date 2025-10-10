@@ -15,10 +15,8 @@ import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.hedera.hapi.platform.state.JudgeId;
 import com.hedera.hapi.platform.state.MinimumJudgeInfo;
-import com.swirlds.base.time.Time;
 import com.swirlds.base.utility.Pair;
 import com.swirlds.common.Reservable;
-import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.common.test.fixtures.WeightGenerators;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
@@ -153,8 +151,7 @@ public class RandomSignedStateGenerator {
         if (state == null) {
             final String virtualMapLabel =
                     "vm-" + RandomSignedStateGenerator.class.getSimpleName() + "-" + java.util.UUID.randomUUID();
-            stateInstance = TestVirtualMapState.createInstanceWithVirtualMapLabel(
-                    virtualMapLabel, new NoOpMetrics(), Time.getCurrent());
+            stateInstance = TestVirtualMapState.createInstanceWithVirtualMapLabel(virtualMapLabel);
         } else {
             stateInstance = state;
         }

@@ -5,7 +5,6 @@ import static com.swirlds.state.test.fixtures.merkle.VirtualMapUtils.CONFIGURATI
 
 import com.swirlds.base.time.Time;
 import com.swirlds.common.metrics.noop.NoOpMetrics;
-import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.State;
@@ -22,14 +21,8 @@ public class TestVirtualMapState extends VirtualMapState<TestVirtualMapState> im
         super(CONFIGURATION, new NoOpMetrics(), Time.getCurrent());
     }
 
-    public TestVirtualMapState(
-            @NonNull final Configuration configuration, @NonNull final Metrics metrics, @NonNull final Time time) {
-        super(configuration, metrics, time);
-    }
-
-    public TestVirtualMapState(
-            @NonNull final VirtualMap virtualMap, @NonNull final Metrics metrics, @NonNull final Time time) {
-        super(virtualMap, metrics, time);
+    public TestVirtualMapState(@NonNull final VirtualMap virtualMap) {
+        super(virtualMap, new NoOpMetrics(), Time.getCurrent());
     }
 
     protected TestVirtualMapState(@NonNull final TestVirtualMapState from) {
@@ -47,13 +40,12 @@ public class TestVirtualMapState extends VirtualMapState<TestVirtualMapState> im
     @Override
     protected TestVirtualMapState newInstance(
             @NonNull final VirtualMap virtualMap, @NonNull final Metrics metrics, @NonNull final Time time) {
-        return new TestVirtualMapState(virtualMap, metrics, time);
+        return new TestVirtualMapState(virtualMap);
     }
 
-    public static TestVirtualMapState createInstanceWithVirtualMapLabel(
-            @NonNull final String virtualMapLabel, @NonNull final Metrics metrics, @NonNull final Time time) {
+    public static TestVirtualMapState createInstanceWithVirtualMapLabel(@NonNull final String virtualMapLabel) {
         final var virtualMap = VirtualMapUtils.createVirtualMap(CONFIGURATION, virtualMapLabel);
-        return new TestVirtualMapState(virtualMap, metrics, time);
+        return new TestVirtualMapState(virtualMap);
     }
 
     /**
@@ -61,6 +53,6 @@ public class TestVirtualMapState extends VirtualMapState<TestVirtualMapState> im
      */
     @Override
     protected long getRound() {
-        return 0;
+        return 0; // genesis round
     }
 }

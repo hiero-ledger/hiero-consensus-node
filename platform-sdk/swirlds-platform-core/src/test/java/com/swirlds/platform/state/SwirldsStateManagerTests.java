@@ -10,10 +10,8 @@ import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
-import com.swirlds.base.time.Time;
 import com.swirlds.common.Reservable;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.common.test.fixtures.Randotron;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
@@ -137,8 +135,7 @@ class SwirldsStateManagerTests {
     private static MerkleNodeState newState(PlatformStateFacade platformStateFacade) {
         final String virtualMapLabel =
                 SwirldsStateManagerTests.class.getSimpleName() + "-" + java.util.UUID.randomUUID();
-        final MerkleNodeState state = TestVirtualMapState.createInstanceWithVirtualMapLabel(
-                virtualMapLabel, new NoOpMetrics(), Time.getCurrent());
+        final MerkleNodeState state = TestVirtualMapState.createInstanceWithVirtualMapLabel(virtualMapLabel);
         TestingAppStateInitializer.initPlatformState(state);
 
         platformStateFacade.setCreationSoftwareVersionTo(

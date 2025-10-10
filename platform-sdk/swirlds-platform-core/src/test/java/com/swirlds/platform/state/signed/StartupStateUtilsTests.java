@@ -167,7 +167,7 @@ public class StartupStateUtilsTests {
                         selfId,
                         mainClassName,
                         swirldName,
-                        virtualMap -> new TestVirtualMapState(virtualMap, new NoOpMetrics(), Time.getCurrent()),
+                        TestVirtualMapState::new,
                         currentSoftwareVersion,
                         platformStateFacade,
                         platformContext)
@@ -197,7 +197,7 @@ public class StartupStateUtilsTests {
                         selfId,
                         mainClassName,
                         swirldName,
-                        virtualMap -> new TestVirtualMapState(virtualMap, new NoOpMetrics(), Time.getCurrent()),
+                        TestVirtualMapState::new,
                         currentSoftwareVersion,
                         platformStateFacade,
                         platformContext)
@@ -232,7 +232,7 @@ public class StartupStateUtilsTests {
                         selfId,
                         mainClassName,
                         swirldName,
-                        virtualMap -> new TestVirtualMapState(virtualMap, new NoOpMetrics(), Time.getCurrent()),
+                        TestVirtualMapState::new,
                         currentSoftwareVersion,
                         platformStateFacade,
                         platformContext)
@@ -278,7 +278,7 @@ public class StartupStateUtilsTests {
                         selfId,
                         mainClassName,
                         swirldName,
-                        virtualMap -> new TestVirtualMapState(virtualMap, new NoOpMetrics(), Time.getCurrent()),
+                        TestVirtualMapState::new,
                         currentSoftwareVersion,
                         platformStateFacade,
                         platformContext)
