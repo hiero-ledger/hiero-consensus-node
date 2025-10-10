@@ -6,6 +6,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
 import org.hiero.otter.fixtures.result.SingleNodeLogResult;
@@ -83,19 +84,28 @@ public interface Node {
     void stopSyntheticBottleneck();
 
     /**
+     * Triggers a self-ISS on this node. The node will be able to recover from the ISS by restarting. This type of ISS
+     * simulates a bug where a transaction updates the state based on data in memory that is different on other nodes
+     * (due to the bug).
+     */
+    void triggerSelfIss();
+
+    /**
+     * Sets the quiescence command of the node.
+     *
+     * <p>The default command is {@link QuiescenceCommand#DONT_QUIESCE}.
+     *
+     * @param command the new quiescence command
+     */
+    void sendQuiescenceCommand(@NonNull QuiescenceCommand command);
+
+    /**
      * Allows to override the default timeout for node operations.
      *
      * @param timeout the duration to wait before considering the operation as failed
      * @return an instance of {@link AsyncNodeActions} that can be used to perform node actions
      */
     AsyncNodeActions withTimeout(@NonNull Duration timeout);
-
-    /**
-     * Submit a transaction to the node.
-     *
-     * @param transaction the transaction to submit
-     */
-    void submitTransaction(@NonNull byte[] transaction);
 
     /**
      * Gets the configuration of the node. The returned object can be used to evaluate the current configuration, but
@@ -120,6 +130,13 @@ public interface Node {
      * @return the weight
      */
     long weight();
+
+    /**
+     * Sets the weight of the node. This method can only be called while the node is not running.
+     *
+     * @param weight the new weight. Must be non-negative.
+     */
+    void weight(long weight);
 
     /**
      * Returns the status of the platform while the node is running or {@code null} if not.

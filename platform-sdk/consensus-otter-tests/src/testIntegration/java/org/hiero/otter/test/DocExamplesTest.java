@@ -19,6 +19,7 @@ import org.hiero.otter.fixtures.TimeManager;
 import org.hiero.otter.fixtures.assertions.MultipleNodeLogResultsContinuousAssert;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
 import org.hiero.otter.fixtures.turtle.TurtleSpecs;
+import org.junit.jupiter.api.RepeatedTest;
 
 /**
  * This class contains examples that are used in the documentation. If you change the examples, please make sure to
@@ -48,6 +49,7 @@ class DocExamplesTest {
 
     // This test is used in the turtle-environment.md file.
     @OtterTest
+    @RepeatedTest(10)
     @TurtleSpecs(randomSeed = 42)
     void testDeterministicBehavior(@NonNull final TestEnvironment env) {
         // This test will produce identical results every time
@@ -62,7 +64,7 @@ class DocExamplesTest {
                 network.newConsensusResults().results().getFirst().lastRoundNum();
 
         // This assertion will always pass with seed=42
-        assertThat(lastRound).isEqualTo(37);
+        assertThat(lastRound).isEqualTo(47L);
     }
 
     // This test is used in the writing-tests.md file.

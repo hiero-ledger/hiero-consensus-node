@@ -8,6 +8,7 @@ import static com.hedera.node.app.service.contract.impl.hevm.HederaEvmVersion.VE
 import static com.hedera.node.app.service.contract.impl.hevm.HederaEvmVersion.VERSION_050;
 import static com.hedera.node.app.service.contract.impl.hevm.HederaEvmVersion.VERSION_051;
 import static com.hedera.node.app.service.contract.impl.hevm.HederaEvmVersion.VERSION_065;
+import static com.hedera.node.app.service.contract.impl.hevm.HederaEvmVersion.VERSION_067;
 import static com.hedera.node.app.service.contract.impl.hevm.HederaEvmVersion.VERSION_070;
 import static org.hyperledger.besu.evm.internal.EvmConfiguration.WorldUpdaterMode.JOURNALED;
 
@@ -18,6 +19,7 @@ import com.hedera.node.app.service.contract.impl.annotations.ServicesV046;
 import com.hedera.node.app.service.contract.impl.annotations.ServicesV050;
 import com.hedera.node.app.service.contract.impl.annotations.ServicesV051;
 import com.hedera.node.app.service.contract.impl.annotations.ServicesV065;
+import com.hedera.node.app.service.contract.impl.annotations.ServicesV067;
 import com.hedera.node.app.service.contract.impl.annotations.ServicesV070;
 import com.hedera.node.app.service.contract.impl.annotations.ServicesVersionKey;
 import com.hedera.node.app.service.contract.impl.exec.QueryComponent;
@@ -32,6 +34,8 @@ import com.hedera.node.app.service.contract.impl.exec.v046.V046Module;
 import com.hedera.node.app.service.contract.impl.exec.v050.V050Module;
 import com.hedera.node.app.service.contract.impl.exec.v051.V051Module;
 import com.hedera.node.app.service.contract.impl.exec.v065.V065Module;
+import com.hedera.node.app.service.contract.impl.exec.v066.V066Module;
+import com.hedera.node.app.service.contract.impl.exec.v067.V067Module;
 import com.hedera.node.app.service.contract.impl.exec.v070.V070Module;
 import com.hedera.node.app.service.contract.impl.handlers.ContractCallHandler;
 import com.hedera.node.app.service.contract.impl.handlers.ContractCallLocalHandler;
@@ -73,6 +77,8 @@ import org.hyperledger.besu.evm.precompile.PrecompiledContract;
             V050Module.class,
             V051Module.class,
             V065Module.class,
+            V066Module.class,
+            V067Module.class,
             V070Module.class,
             ProcessorModule.class
         },
@@ -200,6 +206,26 @@ public interface ContractServiceModule {
     @Singleton
     @ServicesVersionKey(VERSION_065)
     TransactionProcessor bindV065Processor(@ServicesV065 @NonNull final TransactionProcessor processor);
+
+    /**
+     * @param processor the transaction processor
+     * @return the bound transaction processor for version 0.66
+     */
+    @Binds
+    @IntoMap
+    @Singleton
+    @ServicesVersionKey(VERSION_066)
+    TransactionProcessor bindV066Processor(@ServicesV066 @NonNull final TransactionProcessor processor);
+
+    /**
+     * @param processor the transaction processor
+     * @return the bound transaction processor for version 0.67
+     */
+    @Binds
+    @IntoMap
+    @Singleton
+    @ServicesVersionKey(VERSION_067)
+    TransactionProcessor bindV067Processor(@ServicesV067 @NonNull final TransactionProcessor processor);
 
     /**
      * @param processor the transaction processor

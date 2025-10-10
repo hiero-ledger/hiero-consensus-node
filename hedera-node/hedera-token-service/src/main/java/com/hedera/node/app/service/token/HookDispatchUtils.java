@@ -2,26 +2,61 @@
 package com.hedera.node.app.service.token;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOK_ID_REPEATED_IN_CREATION_DETAILS;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.spi.workflows.DispatchOptions.hookDispatch;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
+import static com.hedera.node.app.spi.workflows.record.StreamBuilder.signedTxWith;
 
+import com.esaulpaugh.headlong.abi.Function;
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.HookEntityId;
 import com.hedera.hapi.node.base.HookId;
+import com.hedera.hapi.node.contract.ContractCallTransactionBody;
 import com.hedera.hapi.node.hooks.HookCreation;
 import com.hedera.hapi.node.hooks.HookCreationDetails;
 import com.hedera.hapi.node.hooks.HookDispatchTransactionBody;
+import com.hedera.hapi.node.hooks.HookExecution;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.token.records.HookDispatchStreamBuilder;
 import com.hedera.node.app.spi.workflows.HandleContext;
+import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
+import com.hedera.node.app.spi.workflows.record.StreamBuilder;
+import com.hedera.pbj.runtime.ParseException;
+import com.hedera.pbj.runtime.UncheckedParseException;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import java.util.stream.Collectors;
 
 public class HookDispatchUtils {
+    public static final ContractID HTS_HOOKS_CONTRACT_ID =
+            ContractID.newBuilder().contractNum(365L).build();
+    public static final String HTS_HOOKS_EVM_ADDRESS =
+            "0x" + Long.toHexString(HTS_HOOKS_CONTRACT_ID.contractNumOrThrow());
+
+    private static final StreamBuilder.SignedTxCustomizer EXECUTION_CUSTOMIZER = signedTx -> {
+        try {
+            final var dispatchedBody =
+                    TransactionBody.PROTOBUF.parseStrict(signedTx.bodyBytes().toReadableSequentialData());
+            final var hookCall = dispatchedBody
+                    .hookDispatchOrThrow()
+                    .executionOrThrow()
+                    .callOrThrow()
+                    .evmHookCallOrThrow();
+            return signedTxWith(dispatchedBody
+                    .copyBuilder()
+                    .contractCall(new ContractCallTransactionBody(
+                            HTS_HOOKS_CONTRACT_ID, hookCall.gasLimit(), 0L, hookCall.data()))
+                    .build());
+        } catch (ParseException e) {
+            // Should be impossible
+            throw new UncheckedParseException(e);
+        }
+    };
+
     public static long dispatchHookDeletions(
             final @NonNull HandleContext context,
             final List<Long> hooksToDelete,
@@ -39,7 +74,7 @@ public class HookDispatchUtils {
                     HookDispatchStreamBuilder.class));
             validateTrue(streamBuilder.status() == SUCCESS, streamBuilder.status());
             if (hookId == currentHead) {
-                currentHead = streamBuilder.getNextHookId();
+                currentHead = streamBuilder.getNextHookId() == null ? 0L : streamBuilder.getNextHookId();
             }
         }
         return currentHead;
@@ -87,8 +122,10 @@ public class HookDispatchUtils {
                 HookDispatchStreamBuilder.class));
         validateTrue(streamBuilder.status() == SUCCESS, streamBuilder.status());
     }
+
     /**
      * Validates the hook creation details list, if there are any duplicate hook IDs.
+     *
      * @param details the list of hook creation details
      * @throws PreCheckException if there are duplicate hook IDs
      */
@@ -101,8 +138,10 @@ public class HookDispatchUtils {
             }
         }
     }
+
     /**
      * Validates the hook creation details and deletions list, if there are any duplicate hook IDs.
+     *
      * @param details the list of hook creation details
      * @param hookIdsToDelete the list of hook IDs to delete
      * @throws PreCheckException if there are duplicate hook IDs
@@ -114,6 +153,32 @@ public class HookDispatchUtils {
             validateTruePreCheck(
                     hookIdsToDelete.stream().distinct().count() == hookIdsToDelete.size(),
                     HOOK_ID_REPEATED_IN_CREATION_DETAILS);
+        }
+    }
+
+    /**
+     * Dispatches the hook execution to the given context.
+     *
+     * @param context the handle context
+     * @param execution the hook execution to dispatch
+     * @param function the function to decode the result
+     */
+    public static void dispatchExecution(
+            final @NonNull HandleContext context, final HookExecution execution, final Function function) {
+        final var hookDispatch =
+                HookDispatchTransactionBody.newBuilder().execution(execution).build();
+        final var streamBuilder = context.dispatch(hookDispatch(
+                context.payer(),
+                TransactionBody.newBuilder().hookDispatch(hookDispatch).build(),
+                HookDispatchStreamBuilder.class,
+                EXECUTION_CUSTOMIZER));
+        validateTrue(streamBuilder.status() == SUCCESS, streamBuilder.status());
+        final var result = streamBuilder.getEvmCallResult();
+        try {
+            final var decoded = function.getOutputs().decode(result.toByteArray());
+            validateTrue(decoded.get(0), REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK);
+        } catch (final Exception ignore) {
+            throw new HandleException(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK);
         }
     }
 }

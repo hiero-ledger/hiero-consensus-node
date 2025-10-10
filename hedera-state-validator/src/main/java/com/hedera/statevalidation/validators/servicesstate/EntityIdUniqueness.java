@@ -33,13 +33,11 @@ import com.hedera.node.app.service.file.FileService;
 import com.hedera.node.app.service.schedule.ScheduleService;
 import com.hedera.node.app.service.token.TokenService;
 import com.hedera.pbj.runtime.ParseException;
-import com.hedera.statevalidation.parameterresolver.ReportResolver;
 import com.hedera.statevalidation.parameterresolver.StateResolver;
-import com.hedera.statevalidation.reporting.Report;
 import com.hedera.statevalidation.reporting.SlackReportGenerator;
 import com.hedera.statevalidation.validators.ParallelProcessingUtil;
-import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.snapshot.DeserializedSignedState;
+import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.spi.ReadableKVState;
 import com.swirlds.state.spi.ReadableSingletonState;
 import com.swirlds.virtualmap.VirtualMap;
@@ -56,7 +54,7 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
-@ExtendWith({StateResolver.class, ReportResolver.class, SlackReportGenerator.class})
+@ExtendWith({StateResolver.class, SlackReportGenerator.class})
 @Tag("entityIds")
 public class EntityIdUniqueness {
 
@@ -66,8 +64,7 @@ public class EntityIdUniqueness {
     private final AtomicInteger counter = new AtomicInteger();
 
     @Test
-    void validateEntityIds(DeserializedSignedState deserializedState, Report report)
-            throws InterruptedException, ExecutionException {
+    void validateEntityIds(DeserializedSignedState deserializedState) throws InterruptedException, ExecutionException {
         final MerkleNodeState servicesState =
                 deserializedState.reservedSignedState().get().getState();
         final ReadableSingletonState<EntityNumber> entityIdSingleton =
@@ -156,8 +153,7 @@ public class EntityIdUniqueness {
     }
 
     @Test
-    void validateIdCounts(DeserializedSignedState deserializedState, Report report)
-            throws InterruptedException, ExecutionException {
+    void validateIdCounts(DeserializedSignedState deserializedState) throws InterruptedException, ExecutionException {
 
         final MerkleNodeState servicesState =
                 deserializedState.reservedSignedState().get().getState();

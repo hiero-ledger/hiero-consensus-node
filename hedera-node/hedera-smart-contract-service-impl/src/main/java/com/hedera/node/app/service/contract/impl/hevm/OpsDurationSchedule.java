@@ -3,12 +3,13 @@ package com.hedera.node.app.service.contract.impl.hevm;
 
 import com.hedera.node.config.data.OpsDurationConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
 import java.util.Objects;
 
 public record OpsDurationSchedule(
         /* The main pricing schedule: the index on the list serves as an op code number */
-        long[] opsDurationByOpCode,
+        List<Long> opsDurationByOpCode,
         /* Fallback gas multiplier for op codes that are missing in opsDurationByOpCode */
         long opsGasBasedDurationMultiplier,
         /* Gas multiplier for precompiles */
@@ -20,37 +21,32 @@ public record OpsDurationSchedule(
         /* Denominator for all above multipliers (to be able to configure fractional multipliers) */
         long multipliersDenominator) {
 
+    private static final OpsDurationSchedule EMPTY =
+            new OpsDurationSchedule(Collections.nCopies(256, 0L), 0, 0, 0, 0, 1);
+
     private static final long DEFAULT_MULTIPLIERS_DENOMINATOR = 100;
 
     public static OpsDurationSchedule empty() {
-        return new OpsDurationSchedule(new long[256], 0, 0, 0, 0, 1);
+        return EMPTY;
     }
 
     public static OpsDurationSchedule fromConfig(@NonNull final OpsDurationConfig opsDurationConfig) {
-        final var opsDurationByOpCodeArray = new long[256];
-        opsDurationConfig
-                .opsDurations1_to_64()
-                .forEach(opsDurationPair ->
-                        opsDurationByOpCodeArray[opsDurationPair.left().intValue()] = opsDurationPair.right());
-        opsDurationConfig
-                .opsDurations65_to_128()
-                .forEach(opsDurationPair ->
-                        opsDurationByOpCodeArray[opsDurationPair.left().intValue()] = opsDurationPair.right());
-        opsDurationConfig
-                .opsDurations129_to_192()
-                .forEach(opsDurationPair ->
-                        opsDurationByOpCodeArray[opsDurationPair.left().intValue()] = opsDurationPair.right());
-        opsDurationConfig
-                .opsDurations193_to_256()
-                .forEach(opsDurationPair ->
-                        opsDurationByOpCodeArray[opsDurationPair.left().intValue()] = opsDurationPair.right());
+        if (opsDurationConfig.opsDurationByOpCode().size() != 256) {
+            throw new IllegalArgumentException("Invalid ops duration config: opsDurationByOpCode must contain "
+                    + "exactly 256 elements, but it has "
+                    + opsDurationConfig.opsDurationByOpCode().size());
+        }
         return new OpsDurationSchedule(
-                opsDurationByOpCodeArray,
+                opsDurationConfig.opsDurationByOpCode(),
                 opsDurationConfig.opsGasBasedDurationMultiplier(),
                 opsDurationConfig.precompileGasBasedDurationMultiplier(),
                 opsDurationConfig.systemContractGasBasedDurationMultiplier(),
                 opsDurationConfig.accountLazyCreationOpsDurationMultiplier(),
                 DEFAULT_MULTIPLIERS_DENOMINATOR);
+    }
+
+    public long opCodeCost(int opCode) {
+        return opsDurationByOpCode.get(opCode);
     }
 
     @Override
@@ -61,13 +57,13 @@ public record OpsDurationSchedule(
                 && precompileGasBasedDurationMultiplier == that.precompileGasBasedDurationMultiplier
                 && systemContractGasBasedDurationMultiplier == that.systemContractGasBasedDurationMultiplier
                 && accountLazyCreationOpsDurationMultiplier == that.accountLazyCreationOpsDurationMultiplier
-                && Arrays.equals(opsDurationByOpCode, that.opsDurationByOpCode);
+                && opsDurationByOpCode.equals(that.opsDurationByOpCode);
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(
-                Arrays.hashCode(opsDurationByOpCode),
+                opsDurationByOpCode,
                 opsGasBasedDurationMultiplier,
                 precompileGasBasedDurationMultiplier,
                 systemContractGasBasedDurationMultiplier,

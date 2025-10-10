@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.fixtures.gui;
 
+import com.hedera.hapi.node.state.roster.Roster;
+import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.platform.event.GossipEvent;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.common.context.PlatformContext;
@@ -13,7 +15,7 @@ import com.swirlds.platform.gui.GuiEventStorage;
 import com.swirlds.platform.gui.hashgraph.HashgraphGuiSource;
 import com.swirlds.platform.gui.hashgraph.internal.StandardGuiSource;
 import com.swirlds.platform.internal.EventImpl;
-import com.swirlds.platform.test.fixtures.event.source.ForkingEventSource;
+import com.swirlds.platform.test.fixtures.event.source.BranchingEventSource;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.awt.FlowLayout;
 import java.util.ArrayList;
@@ -30,7 +32,6 @@ import javax.swing.SpinnerNumberModel;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.model.roster.AddressBook;
 
 public class TestGuiSource {
     private final GuiEventProvider eventProvider;
@@ -44,15 +45,15 @@ public class TestGuiSource {
      * Construct a {@link TestGuiSource} with the given platform context, address book, and event provider.
      *
      * @param platformContext the platform context
-     * @param addressBook     the address book
+     * @param roster     the roster
      * @param eventProvider   the event provider
      */
     public TestGuiSource(
             @NonNull final PlatformContext platformContext,
-            @NonNull final AddressBook addressBook,
+            @NonNull final Roster roster,
             @NonNull final GuiEventProvider eventProvider) {
-        this.eventStorage = new GuiEventStorage(platformContext.getConfiguration(), addressBook);
-        this.guiSource = new StandardGuiSource(addressBook, eventStorage);
+        this.eventStorage = new GuiEventStorage(platformContext.getConfiguration(), roster);
+        this.guiSource = new StandardGuiSource(roster, eventStorage);
         this.eventProvider = eventProvider;
         this.orphanBuffer = new DefaultOrphanBuffer(
                 platformContext.getConfiguration(), platformContext.getMetrics(), new NoOpIntakeEventCounter());
@@ -190,7 +191,7 @@ public class TestGuiSource {
     }
 
     /**
-     * Get a map between events and their branch index in case there are {@link ForkingEventSource instances}
+     * Get a map between events and their branch index in case there are {@link BranchingEventSource instances}
      * that produce branched events.
      *
      * @return the constructed map
@@ -199,13 +200,16 @@ public class TestGuiSource {
         final Map<PlatformEvent, Integer> eventToBranchIndex = new HashMap<>();
 
         if (eventProvider instanceof GeneratorEventProvider) {
-            final List<ForkingEventSource> forkingEventSources = new ArrayList<>();
-            for (final NodeId nodeId : guiSource.getAddressBook().getNodeIdSet()) {
+            final List<BranchingEventSource> branchingEventSources = new ArrayList<>();
+            for (final NodeId nodeId : guiSource.getRoster().rosterEntries().stream()
+                    .map(RosterEntry::nodeId)
+                    .map(NodeId::of)
+                    .toList()) {
                 if (((GeneratorEventProvider) eventProvider).getNodeSource(nodeId)
-                        instanceof ForkingEventSource forkingEventSource) {
-                    forkingEventSources.add(forkingEventSource);
+                        instanceof BranchingEventSource branchingEventSource) {
+                    branchingEventSources.add(branchingEventSource);
 
-                    final List<LinkedList<EventImpl>> branches = forkingEventSource.getBranches();
+                    final List<LinkedList<EventImpl>> branches = branchingEventSource.getBranches();
 
                     for (int i = 0; i < branches.size(); i++) {
                         final List<EventImpl> branch = branches.get(i);

@@ -1,14 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.state.test.fixtures.merkle;
 
-import static com.swirlds.state.lifecycle.StateMetadata.computeClassId;
 import static com.swirlds.state.lifecycle.StateMetadata.computeLabel;
 import static com.swirlds.state.merkle.StateUtils.getStateKeyForKv;
 import static com.swirlds.state.merkle.StateUtils.getStateKeyForSingleton;
 import static com.swirlds.state.merkle.StateUtils.getStateValueForKv;
 import static com.swirlds.state.merkle.StateUtils.getStateValueForSingleton;
+import static com.swirlds.state.test.fixtures.merkle.StateClassIdUtils.computeClassId;
 import static com.swirlds.virtualmap.constructable.ConstructableUtils.registerVirtualMapConstructables;
 
+import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -28,10 +29,10 @@ import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
 import com.swirlds.state.merkle.StateUtils;
 import com.swirlds.state.merkle.StateValue;
 import com.swirlds.state.merkle.StateValue.StateValueCodec;
-import com.swirlds.state.merkle.queue.QueueNode;
-import com.swirlds.state.merkle.singleton.SingletonNode;
 import com.swirlds.state.test.fixtures.StateTestBase;
 import com.swirlds.state.test.fixtures.TestArgumentUtils;
+import com.swirlds.state.test.fixtures.merkle.queue.QueueNode;
+import com.swirlds.state.test.fixtures.merkle.singleton.SingletonNode;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -68,6 +69,9 @@ import org.junit.jupiter.params.provider.Arguments;
  * create a {@link VirtualMap} automatically, but does provide APIs to make it easy to create them.
  */
 public class MerkleTestBase extends StateTestBase {
+
+    public static final SemanticVersion TEST_VERSION =
+            SemanticVersion.newBuilder().major(1).build();
 
     protected final Configuration CONFIGURATION = ConfigurationBuilder.create()
             .withConfigDataType(VirtualMapConfig.class)
@@ -211,8 +215,13 @@ public class MerkleTestBase extends StateTestBase {
             throws IOException {
         final var byteInputStream = new ByteArrayInputStream(state);
         try (final var in = new MerkleDataInputStream(byteInputStream)) {
-            return in.readMerkleTree(CONFIGURATION, tempDir, 100);
+            return in.readMerkleTree(tempDir, 100);
         }
+    }
+
+    /** A convenience method for creating {@link SemanticVersion}. */
+    protected SemanticVersion version(int major, int minor, int patch) {
+        return new SemanticVersion(major, minor, patch, null, null);
     }
 
     public static Stream<Arguments> illegalServiceNames() {

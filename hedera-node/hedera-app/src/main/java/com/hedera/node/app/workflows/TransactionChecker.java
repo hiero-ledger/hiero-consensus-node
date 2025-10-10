@@ -23,7 +23,6 @@ import static com.hedera.node.app.spi.workflows.PreCheckException.validateFalseP
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
 import static java.util.Objects.requireNonNull;
 
-import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.SignaturePair;
@@ -34,7 +33,6 @@ import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.util.HapiUtils;
 import com.hedera.hapi.util.UnknownHederaFunctionality;
-import com.hedera.node.app.annotations.NodeSelfId;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.workflows.prehandle.DueDiligenceException;
 import com.hedera.node.config.ConfigProvider;
@@ -87,8 +85,6 @@ public class TransactionChecker {
     private final Counter deprecatedCounter;
     /** The {@link Counter} used to track the number of super deprecated transactions (body, sigs) received. */
     private final Counter superDeprecatedCounter;
-    /** The account ID of the node running this software */
-    private final AccountID nodeAccount;
 
     private final HederaConfig hederaConfig;
     private final JumboTransactionsConfig jumboTransactionsConfig;
@@ -105,11 +101,7 @@ public class TransactionChecker {
      * @throws NullPointerException if one of the arguments is {@code null}
      */
     @Inject
-    public TransactionChecker(
-            @NodeSelfId @NonNull final AccountID nodeAccount,
-            @NonNull final ConfigProvider configProvider,
-            @NonNull final Metrics metrics) {
-        this.nodeAccount = requireNonNull(nodeAccount);
+    public TransactionChecker(@NonNull final ConfigProvider configProvider, @NonNull final Metrics metrics) {
         this.deprecatedCounter = metrics.getOrCreate(new Counter.Config("app", COUNTER_DEPRECATED_TXNS_NAME)
                 .withDescription(COUNTER_RECEIVED_DEPRECATED_DESC));
         this.superDeprecatedCounter = metrics.getOrCreate(new Counter.Config("app", COUNTER_SUPER_DEPRECATED_TXNS_NAME)
@@ -446,8 +438,8 @@ public class TransactionChecker {
         // alias payer account is not allowed to submit transactions.
         final var accountID = txnId.accountID();
         final var isPlausibleAccount = accountID != null
-                && accountID.shardNum() == nodeAccount.shardNum()
-                && accountID.realmNum() == nodeAccount.realmNum()
+                && accountID.shardNum() == hederaConfig.shard()
+                && accountID.realmNum() == hederaConfig.realm()
                 && accountID.hasAccountNum()
                 && accountID.accountNumOrElse(0L) > 0;
 

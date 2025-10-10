@@ -5,17 +5,20 @@ import static com.hedera.node.app.ids.schemas.V0490EntityIdSchema.ENTITY_ID_STAT
 import static com.hedera.node.app.ids.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_LABEL;
 import static com.hedera.node.app.ids.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
 import static com.hedera.node.app.ids.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_LABEL;
+import static com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema.NODES_STATE_ID;
+import static com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema.NODES_STATE_LABEL;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_STATE_ID;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_STATE_LABEL;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ALIASES_STATE_ID;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ALIASES_STATE_LABEL;
+import static com.hedera.node.app.spi.fixtures.TestSchema.CURRENT_VERSION;
 import static com.swirlds.platform.system.address.AddressBookUtils.endpointFor;
-import static com.swirlds.state.test.fixtures.merkle.TestSchema.CURRENT_VERSION;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.consensus.roster.RosterRetriever.buildRoster;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.SemanticVersion;
+import com.hedera.hapi.node.state.addressbook.Node;
 import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.entity.EntityCounts;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
@@ -26,6 +29,7 @@ import com.hedera.node.app.fixtures.state.FakeStartupNetworks;
 import com.hedera.node.app.fixtures.state.FakeState;
 import com.hedera.node.app.ids.EntityIdService;
 import com.hedera.node.app.info.NodeInfoImpl;
+import com.hedera.node.app.service.addressbook.AddressBookService;
 import com.hedera.node.app.service.token.TokenService;
 import com.hedera.node.app.spi.fixtures.Scenarios;
 import com.hedera.node.app.spi.fixtures.TransactionFactory;
@@ -50,8 +54,6 @@ import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
 import com.swirlds.metrics.api.Counter;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.system.Platform;
-import com.swirlds.platform.test.fixtures.state.TestHederaVirtualMapState;
-import com.swirlds.platform.test.fixtures.virtualmap.VirtualMapUtils;
 import com.swirlds.state.State;
 import com.swirlds.state.lifecycle.Service;
 import com.swirlds.state.spi.ReadableStates;
@@ -61,6 +63,8 @@ import com.swirlds.state.test.fixtures.FunctionWritableSingletonState;
 import com.swirlds.state.test.fixtures.MapWritableKVState;
 import com.swirlds.state.test.fixtures.MapWritableStates;
 import com.swirlds.state.test.fixtures.TestBase;
+import com.swirlds.state.test.fixtures.merkle.TestVirtualMapState;
+import com.swirlds.state.test.fixtures.merkle.VirtualMapUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.LinkedHashMap;
@@ -106,6 +110,7 @@ public class AppTestBase extends TestBase implements TransactionFactory, Scenari
 
     protected MapWritableKVState<AccountID, Account> accountsState;
     protected MapWritableKVState<ProtoBytes, AccountID> aliasesState;
+    protected MapWritableKVState<EntityNumber, Node> nodesState;
     protected WritableSingletonState<EntityCounts> entityCountsState;
     protected WritableSingletonState<EntityNumber> entityIdState;
     protected State state;
@@ -124,21 +129,31 @@ public class AppTestBase extends TestBase implements TransactionFactory, Scenari
                 new FunctionWritableSingletonState<>(ENTITY_ID_STATE_ID, ENTITY_ID_STATE_LABEL, () -> null, (a) -> {});
         entityCountsState = new FunctionWritableSingletonState<>(
                 ENTITY_COUNTS_STATE_ID, ENTITY_COUNTS_STATE_LABEL, () -> EntityCounts.DEFAULT, (a) -> {});
+        nodesState = new MapWritableKVState<>(NODES_STATE_ID, NODES_STATE_LABEL);
+        nodesState.put(
+                EntityNumber.newBuilder().number(nodeSelfId.id()).build(),
+                Node.newBuilder()
+                        .nodeId(nodeSelfId.id())
+                        .accountId(nodeSelfAccountId)
+                        .build());
         final var writableStates = MapWritableStates.builder()
                 .state(accountsState)
                 .state(aliasesState)
                 .state(entityIdState)
                 .state(entityCountsState)
+                .state(nodesState)
                 .build();
 
         final var virtualMapLabel = "vm-" + AppTestBase.class.getSimpleName() + "-" + java.util.UUID.randomUUID();
         final var virtualMap = VirtualMapUtils.createVirtualMap(virtualMapLabel);
 
-        state = new TestHederaVirtualMapState(virtualMap) {
+        state = new TestVirtualMapState(virtualMap) {
             @NonNull
             @Override
             public ReadableStates getReadableStates(@NonNull String serviceName) {
-                return TokenService.NAME.equals(serviceName) || EntityIdService.NAME.equals(serviceName)
+                return TokenService.NAME.equals(serviceName)
+                                || EntityIdService.NAME.equals(serviceName)
+                                || AddressBookService.NAME.equals(serviceName)
                         ? writableStates
                         : null;
             }
@@ -146,15 +161,14 @@ public class AppTestBase extends TestBase implements TransactionFactory, Scenari
             @NonNull
             @Override
             public WritableStates getWritableStates(@NonNull String serviceName) {
-                return TokenService.NAME.equals(serviceName) || EntityIdService.NAME.equals(serviceName)
+                return TokenService.NAME.equals(serviceName)
+                                || EntityIdService.NAME.equals(serviceName)
+                                || AddressBookService.NAME.equals(serviceName)
                         ? writableStates
                         : null;
             }
         };
     }
-
-    private final SemanticVersion hapiVersion =
-            SemanticVersion.newBuilder().major(1).minor(2).patch(3).build();
     /** Represents "this node" in our tests. */
     protected final NodeId nodeSelfId = NodeId.of(7);
     /** The AccountID of "this node" in our tests. */
@@ -381,7 +395,7 @@ public class AppTestBase extends TestBase implements TransactionFactory, Scenari
                                     NodeMetadata.newBuilder().rosterEntry(entry).build())
                             .toList())
                     .build();
-            final var networkInfo = new GenesisNetworkInfo(genesisNetwork, Bytes.fromHex("03"));
+            final var networkInfo = new GenesisNetworkInfo(genesisNetwork, Bytes.fromHex("03"), realSelfNodeInfo);
             final var startupNetworks = new FakeStartupNetworks(genesisNetwork);
             services.forEach(svc -> {
                 final var reg = new FakeSchemaRegistry();
@@ -438,6 +452,7 @@ public class AppTestBase extends TestBase implements TransactionFactory, Scenari
     public static class GenesisNetworkInfo implements NetworkInfo {
         private final Bytes ledgerId;
         private final Map<Long, NodeInfo> nodeInfos;
+        private final NodeInfo selfNodeInfo;
 
         /**
          * Constructs a new {@link GenesisNetworkInfo} instance.
@@ -445,9 +460,11 @@ public class AppTestBase extends TestBase implements TransactionFactory, Scenari
          * @param genesisNetwork The genesis network
          * @param ledgerId      The ledger ID
          */
-        public GenesisNetworkInfo(@NonNull final Network genesisNetwork, @NonNull final Bytes ledgerId) {
+        public GenesisNetworkInfo(
+                @NonNull final Network genesisNetwork, @NonNull final Bytes ledgerId, @NonNull NodeInfo selfNodeInfo) {
             this.ledgerId = requireNonNull(ledgerId);
             this.nodeInfos = nodeInfosFrom(genesisNetwork);
+            this.selfNodeInfo = requireNonNull(selfNodeInfo);
         }
 
         /**
@@ -465,7 +482,7 @@ public class AppTestBase extends TestBase implements TransactionFactory, Scenari
         @NonNull
         @Override
         public NodeInfo selfNodeInfo() {
-            throw new UnsupportedOperationException("Not implemented");
+            return selfNodeInfo;
         }
 
         /**

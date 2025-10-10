@@ -58,7 +58,7 @@ import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.state.token.StakingNodeInfo;
 import com.hedera.hapi.node.state.token.Token;
 import com.hedera.node.app.fixtures.state.FakeState;
-import com.hedera.node.app.roster.RosterService;
+import com.hedera.node.app.service.roster.RosterService;
 import com.hedera.node.app.service.schedule.ScheduleService;
 import com.hedera.node.app.service.token.TokenService;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
@@ -183,7 +183,7 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
      * stake weights change each stake period boundary.
      * @param stakerIds the set of staker IDs to use
      */
-    public static void setStakerIds(@NonNull final Set<AccountID> stakerIds) {
+    public static void setStakerIds(@Nullable final Set<AccountID> stakerIds) {
         HapiSpec.stakerIds = stakerIds;
     }
 

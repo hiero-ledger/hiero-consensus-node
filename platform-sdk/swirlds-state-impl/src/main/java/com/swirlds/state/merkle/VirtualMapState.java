@@ -7,25 +7,19 @@ import static com.swirlds.state.StateChangeListener.StateType.SINGLETON;
 import static com.swirlds.state.lifecycle.StateMetadata.computeLabel;
 import static java.util.Objects.requireNonNull;
 
-import com.hedera.hapi.platform.state.QueueState;
-import com.hedera.hapi.platform.state.StateValue;
 import com.hedera.pbj.runtime.Codec;
-import com.hedera.pbj.runtime.ParseException;
-import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.Reservable;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.crypto.MerkleCryptography;
 import com.swirlds.common.merkle.utility.MerkleTreeSnapshotReader;
 import com.swirlds.common.merkle.utility.MerkleTreeSnapshotWriter;
-import com.swirlds.common.utility.Mnemonics;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.merkledb.MerkleDbDataSourceBuilder;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.state.State;
 import com.swirlds.state.StateChangeListener;
-import com.swirlds.state.lifecycle.StateDefinition;
 import com.swirlds.state.lifecycle.StateMetadata;
 import com.swirlds.state.merkle.disk.OnDiskReadableKVState;
 import com.swirlds.state.merkle.disk.OnDiskReadableQueueState;
@@ -49,9 +43,6 @@ import com.swirlds.state.spi.WritableSingletonState;
 import com.swirlds.state.spi.WritableSingletonStateBase;
 import com.swirlds.state.spi.WritableStates;
 import com.swirlds.virtualmap.VirtualMap;
-import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
-import com.swirlds.virtualmap.internal.RecordAccessor;
-import com.swirlds.virtualmap.internal.merkle.VirtualMapMetadata;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
@@ -70,14 +61,13 @@ import java.util.function.Supplier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Hash;
-import org.json.JSONObject;
 
 /**
  * An implementation of {@link State} backed by a single Virtual Map.
  */
 public abstract class VirtualMapState<T extends VirtualMapState<T>> implements State {
 
-    static final String VM_LABEL = "state";
+    public static final String VM_LABEL = "state";
 
     private static final Logger logger = LogManager.getLogger(VirtualMapState.class);
 
@@ -94,7 +84,7 @@ public abstract class VirtualMapState<T extends VirtualMapState<T>> implements S
      * Maintains information about all services known by this instance. Map keys are
      * service names, values are service states by service ID.
      */
-    private final Map<String, Map<Integer, StateMetadata<?, ?>>> services = new HashMap<>();
+    protected final Map<String, Map<Integer, StateMetadata<?, ?>>> services = new HashMap<>();
 
     /**
      * Cache of used {@link ReadableStates}.
@@ -111,11 +101,9 @@ public abstract class VirtualMapState<T extends VirtualMapState<T>> implements S
      */
     private final List<StateChangeListener> listeners = new ArrayList<>();
 
-    private Configuration configuration;
-
     private LongSupplier roundSupplier;
 
-    private VirtualMap virtualMap;
+    protected VirtualMap virtualMap;
 
     /**
      * Used to track the status of the Platform.
@@ -149,7 +137,6 @@ public abstract class VirtualMapState<T extends VirtualMapState<T>> implements S
      */
     protected VirtualMapState(@NonNull final VirtualMapState<T> from) {
         this.virtualMap = from.virtualMap.copy();
-        this.configuration = from.configuration;
         this.roundSupplier = from.roundSupplier;
         this.startupMode = from.startupMode;
         this.listeners.addAll(from.listeners);
@@ -160,14 +147,8 @@ public abstract class VirtualMapState<T extends VirtualMapState<T>> implements S
         }
     }
 
-    public void init(
-            Time time,
-            Configuration configuration,
-            Metrics metrics,
-            MerkleCryptography merkleCryptography,
-            LongSupplier roundSupplier) {
+    public void init(Time time, Metrics metrics, MerkleCryptography merkleCryptography, LongSupplier roundSupplier) {
         this.time = time;
-        this.configuration = configuration;
         this.metrics = metrics;
         this.snapshotMetrics = new MerkleRootSnapshotMetrics(metrics);
         this.roundSupplier = roundSupplier;
@@ -264,8 +245,8 @@ public abstract class VirtualMapState<T extends VirtualMapState<T>> implements S
      */
     @Override
     public T loadSnapshot(@NonNull Path targetPath) throws IOException {
-        final MerkleNode root = MerkleTreeSnapshotReader.readStateFileData(configuration, targetPath)
-                .stateRoot();
+        final MerkleNode root =
+                MerkleTreeSnapshotReader.readStateFileData(targetPath).stateRoot();
         if (!(root instanceof VirtualMap readVirtualMap)) {
             throw new IllegalStateException(
                     "Root should be a VirtualMap, but it is " + root.getClass().getSimpleName() + " instead");
@@ -832,66 +813,5 @@ public abstract class VirtualMapState<T extends VirtualMapState<T>> implements S
     @Override
     public boolean isHashed() {
         return virtualMap.isHashed();
-    }
-
-    @Override
-    public String getInfoJson() {
-        final JSONObject rootJson = new JSONObject();
-
-        final RecordAccessor recordAccessor = virtualMap.getRecords();
-        final VirtualMapMetadata virtualMapMetadata = virtualMap.getMetadata();
-
-        final JSONObject virtualMapMetadataJson = new JSONObject();
-        virtualMapMetadataJson.put("firstLeafPath", virtualMapMetadata.getFirstLeafPath());
-        virtualMapMetadataJson.put("lastLeafPath", virtualMapMetadata.getLastLeafPath());
-
-        rootJson.put("VirtualMapMetadata", virtualMapMetadataJson);
-
-        final JSONObject singletons = new JSONObject();
-        final JSONObject queues = new JSONObject();
-
-        services.forEach((key, value) -> {
-            value.forEach((s, stateMetadata) -> {
-                final String serviceName = stateMetadata.serviceName();
-                final StateDefinition<?, ?> stateDefinition = stateMetadata.stateDefinition();
-                final int stateId = stateDefinition.stateId();
-                final String stateKey = stateDefinition.stateKey();
-
-                if (stateDefinition.singleton()) {
-                    final Bytes singletonKey = StateKeyUtils.singletonKey(stateId);
-                    final VirtualLeafBytes<?> leafBytes = recordAccessor.findLeafRecord(singletonKey);
-                    if (leafBytes != null) {
-                        final var hash = recordAccessor.findHash(leafBytes.path());
-                        final JSONObject singletonJson = new JSONObject();
-                        if (hash != null) {
-                            singletonJson.put("mnemonic", Mnemonics.generateMnemonic(hash));
-                        }
-                        singletonJson.put("path", leafBytes.path());
-                        singletons.put(computeLabel(serviceName, stateKey), singletonJson);
-                    }
-                } else if (stateDefinition.queue()) {
-                    final Bytes queueStateKey = StateKeyUtils.queueStateKey(stateId);
-                    final VirtualLeafBytes<?> leafBytes = recordAccessor.findLeafRecord(queueStateKey);
-                    if (leafBytes != null) {
-                        try {
-                            final StateValue stateValue = StateValue.PROTOBUF.parse(leafBytes.valueBytes());
-                            final QueueState queueState = stateValue.queueState();
-                            final JSONObject queueJson = new JSONObject();
-                            queueJson.put("head", queueState.head());
-                            queueJson.put("tail", queueState.tail());
-                            queueJson.put("path", leafBytes.path());
-                            queues.put(computeLabel(serviceName, stateKey), queueJson);
-                        } catch (ParseException e) {
-                            throw new RuntimeException(e);
-                        }
-                    }
-                }
-            });
-        });
-
-        rootJson.put("Singletons", singletons);
-        rootJson.put("Queues (Queue States)", queues);
-
-        return rootJson.toString();
     }
 }

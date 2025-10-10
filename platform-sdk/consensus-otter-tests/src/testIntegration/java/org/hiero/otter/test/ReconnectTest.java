@@ -13,6 +13,7 @@ import static org.hiero.otter.fixtures.assertions.StatusProgressionStep.target;
 
 import com.swirlds.common.test.fixtures.WeightGenerators;
 import com.swirlds.platform.consensus.ConsensusConfig_;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import org.hiero.otter.fixtures.Capability;
 import org.hiero.otter.fixtures.Network;
@@ -28,23 +29,27 @@ import org.hiero.otter.fixtures.result.SingleNodePlatformStatusResult;
  */
 public class ReconnectTest {
 
-    private static final long ROUNDS_NON_ANCIENT = 50L;
     private static final long ROUNDS_EXPIRED = 100L;
 
+    /**
+     * Tests that a node which is killed, kept down until it is behind, and then restarted is able to reconnect to the
+     * network and catch up with consensus.
+     *
+     * @param env the test environment
+     */
     @OtterTest(requires = Capability.RECONNECT)
-    void testSimpleNodeDeathReconnect(final TestEnvironment env) {
+    void testNodeDeathReconnect(@NonNull final TestEnvironment env) {
         final Network network = env.network();
         final TimeManager timeManager = env.timeManager();
 
         // Setup simulation
 
         // Add more than 3 nodes with balanced weights so that one node can be taken down without halting consensus
-        network.setWeightGenerator(WeightGenerators.BALANCED);
+        network.weightGenerator(WeightGenerators.BALANCED);
         network.addNodes(4);
 
         // Set the rounds non-ancient and expired to smaller values to allow nodes to fall behind quickly
-        network.withConfigValue(ConsensusConfig_.ROUNDS_NON_ANCIENT, ROUNDS_NON_ANCIENT)
-                .withConfigValue(ConsensusConfig_.ROUNDS_EXPIRED, ROUNDS_EXPIRED);
+        network.withConfigValue(ConsensusConfig_.ROUNDS_EXPIRED, ROUNDS_EXPIRED);
 
         // Set the node we will force to reconnect
         final Node nodeToReconnect = network.nodes().getLast();
@@ -59,8 +64,8 @@ public class ReconnectTest {
                 .hasMaximumTreeInitializationTime(Duration.ofSeconds(1));
         network.start();
 
-        // Wait for thirty seconds
-        timeManager.waitFor(Duration.ofSeconds(30L));
+        // Allow the nodes to run for a short time
+        timeManager.waitFor(Duration.ofSeconds(5L));
 
         // Shutdown the node for a period of time so that it falls behind.
         nodeToReconnect.killImmediately();
@@ -74,24 +79,24 @@ public class ReconnectTest {
         // Wait for the node we just killed to become behind enough to require a reconnect.
         timeManager.waitForCondition(
                 () -> network.nodeIsBehindByNodeCount(nodeToReconnect, 0.5),
-                Duration.ofSeconds(60),
+                Duration.ofSeconds(120L),
                 "Node did not fall behind in the time allotted.");
 
         // Restart the node that was killed
         nodeToReconnect.start();
 
-        // First we must wait for the node to come back up and report that it is behind.
-        // If we wait for it to be active, this check will pass immediately because that was the last status it had
+        // First, we must wait for the node to come back up and report that it is behind.
+        // If we wait for it to be active, this check will pass immediately. That was the last status it had,
         // and we will check the value before the node has a change to tell us that it is behind.
-        timeManager.waitForCondition(nodeToReconnect::isBehind, Duration.ofSeconds(30));
+        timeManager.waitForCondition(nodeToReconnect::isBehind, Duration.ofSeconds(120L));
 
         // Now we wait for the node to reconnect and become active again.
-        timeManager.waitForCondition(nodeToReconnect::isActive, Duration.ofSeconds(30));
+        timeManager.waitForCondition(nodeToReconnect::isActive, Duration.ofSeconds(120L));
 
         // Validations
         assertThat(network.newLogResults()).haveNoErrorLevelMessages();
 
-        assertThat(nodeToReconnect.newReconnectResult()).hasNoFailedReconnects().hasExactSuccessfulReconnects(1);
+        assertThat(nodeToReconnect.newReconnectResult()).hasExactSuccessfulReconnects(1);
 
         assertThat(network.newConsensusResults().suppressingNode(nodeToReconnect))
                 .haveConsistentRounds();

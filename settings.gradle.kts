@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-plugins { id("org.hiero.gradle.build") version "0.4.9" }
+plugins { id("org.hiero.gradle.build") version "0.5.1" }
 
 javaModules {
     // This "intermediate parent project" should be removed
@@ -41,6 +41,8 @@ javaModules {
         module("hedera-token-service-impl") { artifact = "app-service-token-impl" }
         module("hedera-util-service") { artifact = "app-service-util" }
         module("hedera-util-service-impl") { artifact = "app-service-util-impl" }
+        module("hedera-roster-service") { artifact = "app-service-roster" }
+        module("hedera-roster-service-impl") { artifact = "app-service-roster-impl" }
     }
 
     // Platform-base demo applications

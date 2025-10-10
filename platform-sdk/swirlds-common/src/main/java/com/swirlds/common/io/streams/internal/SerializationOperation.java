@@ -2,7 +2,6 @@
 package com.swirlds.common.io.streams.internal;
 
 import com.swirlds.common.io.streams.MerkleDataInputStream;
-import com.swirlds.config.api.Configuration;
 import java.io.DataInputStream;
 import java.io.InputStream;
 import java.nio.file.Path;
@@ -190,12 +189,12 @@ public enum SerializationOperation {
     READ_SERIALIZABLE_LIST,
 
     /**
-     * {@link MerkleDataInputStream#readMerkleTree(Configuration, Path, int)}
+     * {@link MerkleDataInputStream#readMerkleTree(Path, int)}
      */
     READ_MERKLE_TREE,
 
     /**
-     * Called every time {@link MerkleDataInputStream#readMerkleTree(Configuration, Path, int)} deserializes
+     * Called every time {@link MerkleDataInputStream#readMerkleTree(Path, int)} deserializes
      * a merkle node.
      */
     READ_MERKLE_NODE

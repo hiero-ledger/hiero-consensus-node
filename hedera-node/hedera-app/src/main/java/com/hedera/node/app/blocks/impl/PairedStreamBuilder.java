@@ -684,13 +684,18 @@ public class PairedStreamBuilder
     }
 
     @Override
-    public void nextHookId(final long nextHookId) {
+    public void nextHookId(final Long nextHookId) {
         recordStreamBuilder.nextHookId(nextHookId);
         blockStreamBuilder.nextHookId(nextHookId);
     }
 
     @Override
-    public long getNextHookId() {
+    public Long getNextHookId() {
         return blockStreamBuilder.getNextHookId();
+    }
+
+    @Override
+    public Bytes getEvmCallResult() {
+        return blockStreamBuilder.getEvmCallResult();
     }
 }

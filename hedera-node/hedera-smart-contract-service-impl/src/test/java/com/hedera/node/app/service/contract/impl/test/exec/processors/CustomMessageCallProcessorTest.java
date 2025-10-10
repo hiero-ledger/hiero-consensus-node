@@ -157,11 +157,12 @@ class CustomMessageCallProcessorTest {
 
     @Test
     void callsToNonStandardSystemContractsAreNotSupported() {
-        final Deque<MessageFrame> stack = new ArrayDeque<>();
         givenCallWithCode(NON_EVM_PRECOMPILE_SYSTEM_ADDRESS);
 
         given(addressChecks.isSystemAccount(NON_EVM_PRECOMPILE_SYSTEM_ADDRESS)).willReturn(true);
         when(frame.getValue()).thenReturn(Wei.ZERO);
+        given(frame.getMessageFrameStack()).willReturn(stack);
+        given(stack.isEmpty()).willReturn(true);
 
         subject.start(frame, operationTracer);
         verify(frame).setOutputData(NOOP_OUTPUT_DATA);
@@ -171,12 +172,13 @@ class CustomMessageCallProcessorTest {
 
     @Test
     void valueCannotBeTransferredToSystemContracts() {
-        final Deque<MessageFrame> stack = new ArrayDeque<>();
         final var isHalted = new AtomicBoolean();
         givenHaltableFrame(isHalted);
         givenCallWithCode(ADDRESS_6);
         given(addressChecks.isSystemAccount(ADDRESS_6)).willReturn(true);
         given(frame.getValue()).willReturn(Wei.ONE);
+        given(frame.getMessageFrameStack()).willReturn(stack);
+        given(stack.isEmpty()).willReturn(true);
 
         subject.start(frame, operationTracer);
 

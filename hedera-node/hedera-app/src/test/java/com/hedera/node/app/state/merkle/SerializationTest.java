@@ -1,13 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.state.merkle;
 
-import static com.hedera.node.app.fixtures.AppTestBase.DEFAULT_CONFIG;
 import static com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade.TEST_PLATFORM_STATE_FACADE;
-import static com.swirlds.state.merkle.MerkleStateRoot.MINIMUM_SUPPORTED_VERSION;
+import static com.swirlds.state.test.fixtures.merkle.MerkleStateRoot.MINIMUM_SUPPORTED_VERSION;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.node.app.services.MigrationStateChanges;
+import com.hedera.node.app.spi.fixtures.TestSchema;
+import com.hedera.node.app.spi.migrate.StartupNetworks;
 import com.hedera.node.config.data.HederaConfig;
 import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.common.config.StateCommonConfig_;
@@ -19,15 +21,13 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.sources.SimpleConfigSource;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.platform.config.StateConfig_;
-import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.test.fixtures.state.MerkleTestBase;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
-import com.swirlds.platform.test.fixtures.state.TestHederaVirtualMapState;
+import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.State;
 import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.lifecycle.Schema;
-import com.swirlds.state.lifecycle.StartupNetworks;
 import com.swirlds.state.lifecycle.StateDefinition;
 import com.swirlds.state.merkle.disk.OnDiskReadableKVState;
 import com.swirlds.state.merkle.disk.OnDiskWritableKVState;
@@ -37,7 +37,7 @@ import com.swirlds.state.spi.ReadableSingletonState;
 import com.swirlds.state.spi.WritableKVState;
 import com.swirlds.state.spi.WritableQueueState;
 import com.swirlds.state.spi.WritableSingletonState;
-import com.swirlds.state.test.fixtures.merkle.TestSchema;
+import com.swirlds.state.test.fixtures.merkle.TestVirtualMapState;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
 import com.swirlds.virtualmap.config.VirtualMapConfig_;
@@ -89,7 +89,7 @@ class SerializationTest extends MerkleTestBase {
     }
 
     Schema createV1Schema() {
-        return new TestSchema(v1) {
+        return new TestSchema(1) {
             @NonNull
             @Override
             @SuppressWarnings("rawtypes")
@@ -170,14 +170,14 @@ class SerializationTest extends MerkleTestBase {
             // Force flush the VMs to disk to test serialization and deserialization
             forceFlush(originalTree.getReadableStates(FIRST_SERVICE).get(FRUIT_STATE_ID));
             copy.copy().release(); // make a fast copy because we can only write to disk an immutable copy
-            CRYPTO.digestTreeSync(copy.getRoot());
+            copy.getRoot().getHash();
             serializedBytes = writeTree(copy.getRoot(), dir);
         } else {
-            CRYPTO.digestTreeSync(copy.getRoot());
+            copy.getRoot().getHash();
             serializedBytes = writeTree(originalTree.getRoot(), dir);
         }
 
-        final TestHederaVirtualMapState loadedTree = loadedMerkleTree(schemaV1, serializedBytes);
+        final TestVirtualMapState loadedTree = loadedMerkleTree(schemaV1, serializedBytes);
 
         assertTree(loadedTree);
         try {
@@ -206,7 +206,6 @@ class SerializationTest extends MerkleTestBase {
 
         originalTree.init(
                 context.getTime(),
-                context.getConfiguration(),
                 context.getMetrics(),
                 context.getMerkleCryptography(),
                 () -> TEST_PLATFORM_STATE_FACADE
@@ -241,22 +240,22 @@ class SerializationTest extends MerkleTestBase {
 
         forceFlush(originalTree.getReadableStates(FIRST_SERVICE).get(FRUIT_STATE_ID));
         copy.copy().release(); // make a fast copy because we can only write to disk an immutable copy
-        CRYPTO.digestTreeSync(copy.getRoot());
+        copy.getRoot().getHash();
         final byte[] serializedBytes = writeTree(copy.getRoot(), dir);
 
-        TestHederaVirtualMapState loadedTree = loadedMerkleTree(schemaV1, serializedBytes);
+        TestVirtualMapState loadedTree = loadedMerkleTree(schemaV1, serializedBytes);
         ((OnDiskReadableKVState) originalTree.getReadableStates(FIRST_SERVICE).get(FRUIT_STATE_ID)).reset();
         populateVmCache(loadedTree);
 
         loadedTree.copy().release(); // make a copy to store it to disk
 
-        CRYPTO.digestTreeSync(loadedTree.getRoot());
+        loadedTree.getRoot().getHash();
         // refreshing the dir
         dir = LegacyTemporaryFileBuilder.buildTemporaryDirectory(config);
         final byte[] serializedBytesWithCache = writeTree(loadedTree.getRoot(), dir);
 
         // let's load it again and see if it works
-        TestHederaVirtualMapState loadedTreeWithCache = loadedMerkleTree(schemaV1, serializedBytesWithCache);
+        TestVirtualMapState loadedTreeWithCache = loadedMerkleTree(schemaV1, serializedBytesWithCache);
         ((OnDiskReadableKVState)
                         loadedTreeWithCache.getReadableStates(FIRST_SERVICE).get(FRUIT_STATE_ID))
                 .reset();
@@ -272,17 +271,16 @@ class SerializationTest extends MerkleTestBase {
         copy.release();
     }
 
-    private TestHederaVirtualMapState loadedMerkleTree(Schema schemaV1, byte[] serializedBytes) throws IOException {
+    private TestVirtualMapState loadedMerkleTree(Schema schemaV1, byte[] serializedBytes) throws IOException {
         final VirtualMap virtualMap = parseTree(serializedBytes, dir);
-        final TestHederaVirtualMapState loadedTree = new TestHederaVirtualMapState(virtualMap);
+        final TestVirtualMapState loadedTree = new TestVirtualMapState(virtualMap);
         initServices(schemaV1, loadedTree);
 
         return loadedTree;
     }
 
-    private void initServices(Schema schemaV1, MerkleNodeState loadedTree) {
-        final var newRegistry =
-                new MerkleSchemaRegistry(registry, FIRST_SERVICE, DEFAULT_CONFIG, new SchemaApplications());
+    private void initServices(Schema<SemanticVersion> schemaV1, MerkleNodeState loadedTree) {
+        final var newRegistry = new MerkleSchemaRegistry(FIRST_SERVICE, new SchemaApplications());
         newRegistry.register(schemaV1);
         newRegistry.migrate(
                 loadedTree,
@@ -294,7 +292,7 @@ class SerializationTest extends MerkleTestBase {
                 migrationStateChanges,
                 startupNetworks,
                 TEST_PLATFORM_STATE_FACADE);
-        loadedTree.getRoot().migrate(CONFIGURATION, MINIMUM_SUPPORTED_VERSION);
+        loadedTree.getRoot().migrate(MINIMUM_SUPPORTED_VERSION);
     }
 
     private MerkleNodeState createMerkleHederaState(Schema schemaV1) {
@@ -302,11 +300,13 @@ class SerializationTest extends MerkleTestBase {
                 new RandomSignedStateGenerator().setRound(1).build();
 
         final var originalTree = randomState.getState();
-        final var originalRegistry =
-                new MerkleSchemaRegistry(registry, FIRST_SERVICE, DEFAULT_CONFIG, new SchemaApplications());
+        // the state is not hashed yet
+        final var originalTreeCopy = originalTree.copy();
+        originalTree.release();
+        final var originalRegistry = new MerkleSchemaRegistry(FIRST_SERVICE, new SchemaApplications());
         originalRegistry.register(schemaV1);
         originalRegistry.migrate(
-                originalTree,
+                originalTreeCopy,
                 null,
                 v1,
                 config,
@@ -315,7 +315,7 @@ class SerializationTest extends MerkleTestBase {
                 migrationStateChanges,
                 startupNetworks,
                 TEST_PLATFORM_STATE_FACADE);
-        return originalTree;
+        return originalTreeCopy;
     }
 
     private static void populateVmCache(State loadedTree) {
