@@ -6,6 +6,7 @@ import static com.hedera.node.app.service.roster.impl.ActiveRosters.Phase.BOOTST
 import static com.hedera.node.app.service.roster.impl.ActiveRosters.Phase.HANDOFF;
 import static com.hedera.node.app.service.roster.impl.ActiveRosters.Phase.TRANSITION;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -14,6 +15,8 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 
+import com.hedera.hapi.block.stream.ChainOfTrustProof;
+import com.hedera.hapi.node.state.hints.HintsConstruction;
 import com.hedera.hapi.node.state.history.History;
 import com.hedera.hapi.node.state.history.HistoryProof;
 import com.hedera.hapi.node.state.history.HistoryProofConstruction;
@@ -77,8 +80,14 @@ class HistoryServiceImplTest {
     }
 
     @Test
-    void alwaysReady() {
+    void notReadyUntilHistoryProofSetWithChainOfTrust() {
         withLiveSubject();
+        assertFalse(subject.isReady());
+        subject.setLatestHistoryProof(HistoryProof.DEFAULT);
+        assertFalse(subject.isReady());
+        subject.setLatestHistoryProof(HistoryProof.newBuilder()
+                .chainOfTrustProof(ChainOfTrustProof.DEFAULT)
+                .build());
         assertTrue(subject.isReady());
     }
 
@@ -86,13 +95,16 @@ class HistoryServiceImplTest {
     void refusesToProveMismatchedMetadata() {
         withLiveSubject();
         final var oldVk = Bytes.wrap("X");
+        final var cotProof =
+                ChainOfTrustProof.newBuilder().wrapsProof(Bytes.wrap("RAIN")).build();
         final var currentProof = HistoryProof.newBuilder()
                 .targetHistory(History.newBuilder().metadata(CURRENT_VK))
+                .chainOfTrustProof(cotProof)
                 .build();
 
-        subject.accept(currentProof);
-        assertThrows(IllegalArgumentException.class, () -> subject.getCurrentProof(oldVk));
-        assertEquals(currentProof.proof(), subject.getCurrentProof(CURRENT_VK));
+        subject.setLatestHistoryProof(currentProof);
+        assertThrows(IllegalArgumentException.class, () -> subject.getCurrentChainOfTrustProof(oldVk));
+        assertEquals(cotProof, subject.getCurrentChainOfTrustProof(CURRENT_VK));
     }
 
     @Test
@@ -106,7 +118,7 @@ class HistoryServiceImplTest {
     void handoffIsNoop() {
         withMockSubject();
         given(activeRosters.phase()).willReturn(HANDOFF);
-        subject.reconcile(activeRosters, Bytes.EMPTY, store, CONSENSUS_NOW, tssConfig, true);
+        subject.reconcile(activeRosters, Bytes.EMPTY, store, CONSENSUS_NOW, tssConfig, true, null);
     }
 
     @Test
@@ -118,7 +130,7 @@ class HistoryServiceImplTest {
                         .targetProof(HistoryProof.DEFAULT)
                         .build());
 
-        subject.reconcile(activeRosters, null, store, CONSENSUS_NOW, tssConfig, true);
+        subject.reconcile(activeRosters, null, store, CONSENSUS_NOW, tssConfig, true, null);
 
         verifyNoMoreInteractions(component);
     }
@@ -130,10 +142,11 @@ class HistoryServiceImplTest {
         given(store.getOrCreateConstruction(activeRosters, CONSENSUS_NOW, tssConfig))
                 .willReturn(HistoryProofConstruction.DEFAULT);
         given(component.controllers()).willReturn(controllers);
-        given(controllers.getOrCreateFor(activeRosters, HistoryProofConstruction.DEFAULT, store))
+        given(controllers.getOrCreateFor(
+                        activeRosters, HistoryProofConstruction.DEFAULT, store, HintsConstruction.DEFAULT, false))
                 .willReturn(controller);
 
-        subject.reconcile(activeRosters, CURRENT_VK, store, CONSENSUS_NOW, tssConfig, true);
+        subject.reconcile(activeRosters, CURRENT_VK, store, CONSENSUS_NOW, tssConfig, true, HintsConstruction.DEFAULT);
 
         verify(controller).advanceConstruction(CONSENSUS_NOW, CURRENT_VK, store, true);
     }
@@ -143,7 +156,7 @@ class HistoryServiceImplTest {
         withMockSubject();
         given(activeRosters.phase()).willReturn(HANDOFF);
 
-        subject.reconcile(activeRosters, null, store, CONSENSUS_NOW, tssConfig, true);
+        subject.reconcile(activeRosters, null, store, CONSENSUS_NOW, tssConfig, true, HintsConstruction.DEFAULT);
 
         verify(store, never()).getConstructionFor(activeRosters);
     }

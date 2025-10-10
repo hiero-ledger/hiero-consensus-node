@@ -7,7 +7,6 @@ import com.swirlds.config.api.ConfigData;
 import com.swirlds.config.api.ConfigProperty;
 import com.swirlds.config.api.validation.annotation.Max;
 import com.swirlds.config.api.validation.annotation.Min;
-import java.time.Duration;
 
 /**
  * Instance-wide config for {@code VirtualMap}.
@@ -38,21 +37,19 @@ import java.time.Duration;
  * 		value must be positive and will typically be a fairly small number, such as 20. The first copy is not flushed,
  * 		but every Nth copy thereafter is.
  * @param copyFlushCandidateThreshold
- *      Virtual root copy flush threshold. A copy can be flushed to disk only if it's size exceeds this
+ *      Virtual map copy flush threshold. A copy can be flushed to disk only if it's size exceeds this
  *      threshold. If set to zero, size-based flushes aren't used, and copies are flushed based on {@link
  *      #flushInterval} instead.
  * @param familyThrottleThreshold
- *      Virtual root family throttle threshold. When estimated size of all unreleased copies of the same virtual
+ *      Virtual map family throttle threshold. When estimated size of all unreleased copies of the same virtual
  *      root exceeds this threshold, virtual pipeline starts applying backpressure on creating new root copies.
- *      If the threshold is set to zero, this backpressure mechanism is not used.
- * @param preferredFlushQueueSize
- * 		The preferred maximum number of virtual maps waiting to be flushed. If more maps than this number are awaiting
- * 		flushing then slow down fast copies of the virtual map so that flushing can catch up.
- * @param flushThrottleStepSize
- * 		For every map copy that is awaiting flushing in excess of {@link #preferredFlushQueueSize()}, artificially
- * 		increase the amount of time required to make a fast copy by this amount of time.
- * @param maximumFlushThrottlePeriod
- * 		The maximum amount of time that any virtual map fast copy will be delayed due to a flush backlog.
+ *      If the threshold is set to zero, this backpressure mechanism is not used. If the threshold is set to
+ *      a negative value, {@link #familyThrottlePercent} is used instead.
+ * @param familyThrottlePercent
+ *      Virtual map family throttle threshold, percent of total Java heap. For example, if max heap size is
+ *      -Xmx80g, and familyThrottlePercent is 5.0, the threshold will be set to 4Gb. If both familyThrottlePercent
+ *      and familyThrottleThreshold are set, familyThrottleThreshold is used, and familyThrottlePercent is
+ *      ignored
  * @param validateMigrationEnabled
  *      Feature flag to enable validation during migration to the single Virtual Map (see {@code MerkleStateRoot}).
  */
@@ -66,11 +63,9 @@ public record VirtualMapConfig(
         @Min(0) @Max(100) @ConfigProperty(defaultValue = "25.0") double percentCleanerThreads,
         @Min(-1) @ConfigProperty(defaultValue = "-1") int numCleanerThreads,
         @Min(1) @ConfigProperty(defaultValue = "20") int flushInterval,
-        @ConfigProperty(defaultValue = "1000000000") long copyFlushCandidateThreshold,
-        @ConfigProperty(defaultValue = "5000000000") long familyThrottleThreshold,
-        @ConfigProperty(defaultValue = "10000") int preferredFlushQueueSize,
-        @ConfigProperty(defaultValue = "200ms") Duration flushThrottleStepSize,
-        @ConfigProperty(defaultValue = "5s") Duration maximumFlushThrottlePeriod,
+        @Min(-1) @ConfigProperty(defaultValue = "1000000000") long copyFlushCandidateThreshold,
+        @Min(-1) @Max(100) @ConfigProperty(defaultValue = "10.0") double familyThrottlePercent,
+        @Min(-1) @ConfigProperty(defaultValue = "-1") long familyThrottleThreshold,
         @ConfigProperty(defaultValue = "false") boolean validateMigrationEnabled) {
 
     private static final double UNIT_FRACTION_PERCENT = 100.0;
@@ -90,5 +85,22 @@ public record VirtualMapConfig(
                 : numCleanerThreads();
 
         return Math.max(1, threads);
+    }
+
+    public long getFamilyThrottleThreshold() {
+        final long threshold = familyThrottleThreshold();
+        if (threshold >= 0) {
+            return threshold;
+        }
+        final double percent = familyThrottlePercent();
+        if (percent > 0) {
+            final long maxHeapSize = Runtime.getRuntime().maxMemory();
+            final long copyFlushThreshold = copyFlushCandidateThreshold();
+            return Math.max(copyFlushThreshold, (long) (maxHeapSize * percent / UNIT_FRACTION_PERCENT));
+        } else if (Math.abs(percent) < 1e-6) {
+            // No threshold
+            return 0;
+        }
+        throw new IllegalArgumentException("Wrong family throttle threshold/percent config");
     }
 }
