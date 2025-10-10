@@ -63,7 +63,7 @@ tasks.test {
 }
 
 val miscTags =
-    "!(INTEGRATION|CRYPTO|TOKEN|RESTART|UPGRADE|SMART_CONTRACT|ND_RECONNECT|LONG_RUNNING|ISS|BLOCK_NODE_SIMULATOR)"
+    "!(INTEGRATION|CRYPTO|TOKEN|RESTART|UPGRADE|SMART_CONTRACT|ND_RECONNECT|LONG_RUNNING|ISS|BLOCK_NODE)"
 val matsSuffix = "MATS"
 
 val prCheckTags =
@@ -76,7 +76,7 @@ val prCheckTags =
         put("hapiTestNDReconnect", "ND_RECONNECT")
         put("hapiTestTimeConsuming", "LONG_RUNNING")
         put("hapiTestIss", "ISS")
-        put("hapiTestBlockNodeCommunication", "BLOCK_NODE_SIMULATOR")
+        put("hapiTestBlockNodeCommunication", "BLOCK_NODE")
         put("hapiTestMisc", miscTags)
         put("hapiTestMiscRecords", miscTags)
 
@@ -126,14 +126,10 @@ val prCheckPropOverrides =
             "hapiTestAdhoc",
             "tss.hintsEnabled=false,tss.forceHandoffs=false,tss.initialCrsParties=16,blockStream.blockPeriod=2s,blockStream.writerMode=FILE_AND_GRPC",
         )
-        put(
-            "hapiTestCrypto",
-            "tss.hintsEnabled=true,blockStream.blockPeriod=1s,blockStream.writerMode=FILE_AND_GRPC",
-        )
-        put(
-            "hapiTestSmartContract",
-            "tss.historyEnabled=false,blockStream.writerMode=FILE_AND_GRPC",
-        )
+        put("hapiTestCrypto",
+            "tss.hintsEnabled=true,tss.historyEnabled=true,blockStream.blockPeriod=1s,blockStream.writerMode=FILE_AND_GRPC")
+        put("hapiTestSmartContract",
+            "tss.historyEnabled=false,blockStream.writerMode=FILE_AND_GRPC")
         put(
             "hapiTestRestart",
             "tss.hintsEnabled=true,tss.forceHandoffs=true,tss.initialCrsParties=16,blockStream.blockPeriod=1s",
@@ -203,11 +199,9 @@ tasks.register<Test>("testSubprocess") {
     useJUnitPlatform {
         includeTags(
             if (ciTagExpression.isBlank()) "none()|!(EMBEDDED|REPEATABLE|ISS)"
-            // We don't want to run typical stream or log validation for ISS or BLOCK_NODE_SIMULATOR
+            // We don't want to run typical stream or log validation for ISS or BLOCK_NODE
             // cases
-            else if (
-                ciTagExpression.contains("ISS") || ciTagExpression.contains("BLOCK_NODE_SIMULATOR")
-            )
+            else if (ciTagExpression.contains("ISS") || ciTagExpression.contains("BLOCK_NODE"))
                 "(${ciTagExpression})&!(EMBEDDED|REPEATABLE)"
             else "(${ciTagExpression}|STREAM_VALIDATION|LOG_VALIDATION)&!(EMBEDDED|REPEATABLE|ISS)"
         )

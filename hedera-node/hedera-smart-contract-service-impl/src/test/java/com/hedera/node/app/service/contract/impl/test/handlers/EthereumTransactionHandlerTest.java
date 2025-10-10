@@ -51,6 +51,7 @@ import com.hedera.node.app.service.contract.impl.infra.HevmTransactionFactory;
 import com.hedera.node.app.service.contract.impl.records.ContractCallStreamBuilder;
 import com.hedera.node.app.service.contract.impl.records.ContractCreateStreamBuilder;
 import com.hedera.node.app.service.contract.impl.records.EthereumTransactionStreamBuilder;
+import com.hedera.node.app.service.contract.impl.state.EvmFrameStates;
 import com.hedera.node.app.service.contract.impl.state.HederaEvmAccount;
 import com.hedera.node.app.service.contract.impl.state.RootProxyWorldUpdater;
 import com.hedera.node.app.service.contract.impl.test.TestHelpers;
@@ -159,6 +160,9 @@ class EthereumTransactionHandlerTest {
     @Mock
     private ContractsConfig contractsConfig;
 
+    @Mock
+    private EvmFrameStates evmFrameStates;
+
     private final SystemContractMethodRegistry systemContractMethodRegistry = new SystemContractMethodRegistry();
 
     private final Metrics metrics = new NoOpMetrics();
@@ -215,7 +219,8 @@ class EthereumTransactionHandlerTest {
 
     @Test
     void delegatesToCreatedComponentAndExposesEthTxDataCallWithToAddress() {
-        given(factory.create(context, ETHEREUM_TRANSACTION)).willReturn(component);
+        given(factory.create(context, ETHEREUM_TRANSACTION, EvmFrameStates.DEFAULT))
+                .willReturn(component);
         given(component.hydratedEthTxData()).willReturn(HydratedEthTxData.successFrom(ETH_DATA_WITH_TO_ADDRESS, false));
         given(component.hederaOperations()).willReturn(hederaOperations);
         setUpTransactionProcessing();
@@ -254,7 +259,8 @@ class EthereumTransactionHandlerTest {
 
     @Test
     void setsEthHashOnThrottledContext() {
-        given(factory.create(context, ETHEREUM_TRANSACTION)).willReturn(component);
+        given(factory.create(context, ETHEREUM_TRANSACTION, EvmFrameStates.DEFAULT))
+                .willReturn(component);
         given(component.hydratedEthTxData()).willReturn(HydratedEthTxData.successFrom(ETH_DATA_WITH_TO_ADDRESS, false));
         given(context.savepointStack()).willReturn(stack);
         given(stack.getBaseBuilder(EthereumTransactionStreamBuilder.class)).willReturn(recordBuilder);
@@ -266,7 +272,8 @@ class EthereumTransactionHandlerTest {
 
     @Test
     void delegatesToCreatedComponentAndExposesEthTxDataCreateWithoutToAddress() {
-        given(factory.create(context, ETHEREUM_TRANSACTION)).willReturn(component);
+        given(factory.create(context, ETHEREUM_TRANSACTION, EvmFrameStates.DEFAULT))
+                .willReturn(component);
         given(component.hydratedEthTxData())
                 .willReturn(HydratedEthTxData.successFrom(ETH_DATA_WITHOUT_TO_ADDRESS, false));
         given(component.hederaOperations()).willReturn(hederaOperations);
@@ -402,7 +409,7 @@ class EthereumTransactionHandlerTest {
             given(ethTxDataReturned.gasLimit()).willReturn(INTRINSIC_GAS_FOR_0_ARG_METHOD + 1);
             given(ethTxDataReturned.value()).willReturn(BigInteger.ZERO);
             given(ethTxDataReturned.hasToAddress()).willReturn(true);
-            given(gasCalculator.transactionIntrinsicGasCost(org.apache.tuweni.bytes.Bytes.wrap(new byte[0]), false))
+            given(gasCalculator.transactionIntrinsicGasCost(org.apache.tuweni.bytes.Bytes.wrap(new byte[0]), false, 0L))
                     .willReturn(INTRINSIC_GAS_FOR_0_ARG_METHOD);
             given(ethTxDataReturned.to()).willReturn(toAddress);
             given(pureChecksContext.body()).willReturn(ethTxWithTx());
@@ -412,7 +419,7 @@ class EthereumTransactionHandlerTest {
         // check at least intrinsic gas
         try (MockedStatic<EthTxData> ethTxData = Mockito.mockStatic(EthTxData.class)) {
             ethTxData.when(() -> EthTxData.populateEthTxData(any())).thenReturn(ethTxDataReturned);
-            given(gasCalculator.transactionIntrinsicGasCost(org.apache.tuweni.bytes.Bytes.wrap(new byte[0]), false))
+            given(gasCalculator.transactionIntrinsicGasCost(org.apache.tuweni.bytes.Bytes.wrap(new byte[0]), false, 0L))
                     .willReturn(INTRINSIC_GAS_FOR_0_ARG_METHOD);
             given(pureChecksContext.body()).willReturn(ethTxWithTx());
             assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
@@ -422,7 +429,8 @@ class EthereumTransactionHandlerTest {
     @Test
     @SuppressWarnings("unchecked")
     void handleSetsNewSenderNonceWhenPresent() {
-        given(factory.create(context, ETHEREUM_TRANSACTION)).willReturn(component);
+        given(factory.create(context, ETHEREUM_TRANSACTION, EvmFrameStates.DEFAULT))
+                .willReturn(component);
         given(component.hydratedEthTxData())
                 .willReturn(HydratedEthTxData.successFrom(ETH_DATA_WITHOUT_TO_ADDRESS, false));
         given(component.hederaOperations()).willReturn(hederaOperations);

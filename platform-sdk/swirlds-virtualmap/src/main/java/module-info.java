@@ -18,7 +18,8 @@ open module com.swirlds.virtualmap {
             com.swirlds.virtualmap.test.fixtures,
             com.swirlds.platform.core,
             com.swirlds.state.impl,
-            com.hedera.state.validator;
+            com.hedera.state.validator,
+            com.hedera.node.app;
     exports com.swirlds.virtualmap.internal.pipeline to
             com.swirlds.merkle,
             com.swirlds.merkledb;
@@ -40,7 +41,6 @@ open module com.swirlds.virtualmap {
     requires transitive org.hiero.base.concurrent;
     requires transitive org.hiero.base.crypto;
     requires transitive org.hiero.base.utility;
-    requires com.swirlds.config.extensions;
     requires com.swirlds.logging;
     requires java.management; // Test dependency
     requires org.apache.logging.log4j;

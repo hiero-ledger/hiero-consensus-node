@@ -94,7 +94,6 @@ import com.hederahashgraph.api.proto.java.TokenSupplyType;
 import com.hederahashgraph.api.proto.java.TokenType;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
-import java.util.Map;
 import java.util.OptionalLong;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -115,7 +114,7 @@ import org.junit.jupiter.api.Tag;
  * </ul>
  */
 @Tag(TOKEN)
-public class AtomicTokenCreateSpecs {
+class AtomicTokenCreateSpecs {
 
     private static final String NON_FUNGIBLE_UNIQUE_FINITE = "non-fungible-unique-finite";
     private static final String PRIMARY = "primary";
@@ -139,8 +138,6 @@ public class AtomicTokenCreateSpecs {
 
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
-        testLifecycle.overrideInClass(
-                Map.of("atomicBatch.isEnabled", "true", "atomicBatch.maxNumberOfTransactions", "50"));
         testLifecycle.doAdhoc(cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS));
     }
 

@@ -3,6 +3,7 @@ package com.hedera.services.bdd.suites.crypto.batch;
 
 import static com.hedera.node.app.hapi.utils.EthSigsUtils.recoverAddressFromPubKey;
 import static com.hedera.services.bdd.junit.TestTags.CRYPTO;
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.customizedHapiTest;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.accountWith;
@@ -74,7 +75,7 @@ import org.junit.jupiter.api.Tag;
 // we are wrapping the operations in an atomic batch to confirm that everything works as expected.
 @Tag(CRYPTO)
 @HapiTestLifecycle
-public class AtomicAutoAccountCreationUnlimitedAssociationsSuite {
+class AtomicAutoAccountCreationUnlimitedAssociationsSuite {
 
     public static final String TRUE = "true";
     public static final String FALSE = "false";
@@ -98,8 +99,6 @@ public class AtomicAutoAccountCreationUnlimitedAssociationsSuite {
 
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
-        testLifecycle.overrideInClass(
-                Map.of("atomicBatch.isEnabled", "true", "atomicBatch.maxNumberOfTransactions", "50"));
         testLifecycle.doAdhoc(cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS));
     }
 
@@ -435,6 +434,7 @@ public class AtomicAutoAccountCreationUnlimitedAssociationsSuite {
     }
 
     @HapiTest
+    @Tag(MATS)
     final Stream<DynamicTest> transferNftToEVMAddressAliasUnlimitedAssociations() {
         final AtomicReference<AccountID> partyId = new AtomicReference<>();
         final AtomicReference<byte[]> partyAlias = new AtomicReference<>();

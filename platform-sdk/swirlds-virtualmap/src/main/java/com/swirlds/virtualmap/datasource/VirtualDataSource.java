@@ -52,8 +52,8 @@ public interface VirtualDataSource {
 
     /**
      * Save a batch of data to data store.
-     * <p>
-     * If you call this method where not all data is provided to cover the change in
+     *
+     * <p>If you call this method where not all data is provided to cover the change in
      * firstLeafPath and lastLeafPath, then any reads after this call may return rubbish or throw
      * obscure exceptions for any internals or leaves that have not been written. For example, if
      * you were to grow the tree by more than 2x, and then called this method in batches, be aware
@@ -71,41 +71,8 @@ public interface VirtualDataSource {
      * @param leafRecordsToDelete
      * 		stream of new leaf node bytes to delete, The leaf record's key and path have to be
      * 		populated, all other data can be null
-     * @throws IOException If there was a problem saving changes to data source
-     */
-    default void saveRecords(
-            final long firstLeafPath,
-            final long lastLeafPath,
-            @NonNull final Stream<VirtualHashRecord> pathHashRecordsToUpdate,
-            @NonNull final Stream<VirtualLeafBytes> leafRecordsToAddOrUpdate,
-            @NonNull final Stream<VirtualLeafBytes> leafRecordsToDelete)
-            throws IOException {
-        saveRecords(
-                firstLeafPath,
-                lastLeafPath,
-                pathHashRecordsToUpdate,
-                leafRecordsToAddOrUpdate,
-                leafRecordsToDelete,
-                false);
-    }
-
-    /**
-     * Save a bulk set of changes to internal nodes and leaves.
-     *
-     * @param firstLeafPath
-     * 		the new path of first leaf node
-     * @param lastLeafPath
-     * 		the new path of last leaf node
-     * @param pathHashRecordsToUpdate
-     * 		stream of dirty hash records to update
-     * @param leafRecordsToAddOrUpdate
-     * 		stream of new and updated leaf node bytes
-     * @param leafRecordsToDelete
-     * 		stream of new leaf node bytes to delete, The leaf record's key and path have to be
-     * 		populated, all other data can be null
      * @param isReconnectContext if the save is in the context of a reconnect
-     * @throws IOException
-     * 		If there was a problem saving changes to data source
+     * @throws IOException If there was a problem saving changes to data source
      */
     void saveRecords(
             final long firstLeafPath,

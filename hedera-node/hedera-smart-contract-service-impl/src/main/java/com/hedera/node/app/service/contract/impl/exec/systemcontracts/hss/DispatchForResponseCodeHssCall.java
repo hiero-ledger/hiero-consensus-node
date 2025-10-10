@@ -2,12 +2,9 @@
 package com.hedera.node.app.service.contract.impl.exec.systemcontracts.hss;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalHaltReason.ERROR_DECODING_PRECOMPILE_INPUT;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult.haltResult;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.Call.PricedResult.gasOnly;
-import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.ReturnTypes.RC_AND_ADDRESS_ENCODER;
-import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.ReturnTypes.encodedRc;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.contractsConfigOf;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.headlongAddressOf;
 
@@ -20,8 +17,10 @@ import com.hedera.node.app.service.contract.impl.exec.gas.DispatchGasCalculator;
 import com.hedera.node.app.service.contract.impl.exec.gas.SystemContractGasCalculator;
 import com.hedera.node.app.service.contract.impl.exec.scope.VerificationStrategy;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.AbstractCall;
+import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.ReturnTypes;
 import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
 import com.hedera.node.app.service.contract.impl.records.ContractCallStreamBuilder;
+import com.hedera.node.app.service.contract.impl.utils.ConstantUtils;
 import com.hedera.node.app.spi.workflows.DispatchOptions;
 import com.hedera.node.app.spi.workflows.DispatchOptions.UsePresetTxnId;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -69,7 +68,7 @@ public class DispatchForResponseCodeHssCall extends AbstractCall {
                 attempt.defaultVerificationStrategy(),
                 dispatchGasCalculator,
                 authorizingKeys,
-                e -> encodedRc(e.status()));
+                e -> ReturnTypes.encodedRc(e.status()));
     }
 
     /**
@@ -126,13 +125,7 @@ public class DispatchForResponseCodeHssCall extends AbstractCall {
                         usePresetTxnId);
         final var gasRequirement =
                 dispatchGasCalculator.gasRequirement(syntheticBody, gasCalculator, enhancement, senderId);
-        var status = recordBuilder.status();
-        if (status != SUCCESS) {
-            recordBuilder.status(status);
-            return completionWith(gasRequirement, recordBuilder, encodedRc(status));
-        } else {
-            return completionWith(gasRequirement, recordBuilder, resultEncoder.apply(recordBuilder));
-        }
+        return completionWith(gasRequirement, recordBuilder, resultEncoder.apply(recordBuilder));
     }
 
     /**
@@ -143,7 +136,10 @@ public class DispatchForResponseCodeHssCall extends AbstractCall {
      * @return the encoded status
      */
     public static ByteBuffer scheduleCreateResultEncode(@NonNull final ContractCallStreamBuilder recordBuilder) {
-        return RC_AND_ADDRESS_ENCODER.encode(
-                Tuple.of((long) recordBuilder.status().protoOrdinal(), headlongAddressOf(recordBuilder.scheduleID())));
+        return ReturnTypes.RC_AND_ADDRESS_ENCODER.encode(Tuple.of(
+                (long) recordBuilder.status().protoOrdinal(),
+                recordBuilder.scheduleID() != null
+                        ? headlongAddressOf(recordBuilder.scheduleID())
+                        : ConstantUtils.ZERO_ADDRESS));
     }
 }

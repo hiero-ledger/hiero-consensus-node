@@ -33,16 +33,6 @@ public class TurtleTimeManager extends AbstractTimeManager {
     }
 
     /**
-     * Returns the time source for this simulation.
-     *
-     * @return the time source
-     */
-    @NonNull
-    public Time time() {
-        return time;
-    }
-
-    /**
      * {@inheritDoc}
      */
     @Override
@@ -57,5 +47,15 @@ public class TurtleTimeManager extends AbstractTimeManager {
     @Override
     protected void advanceTime(@NonNull final Duration duration) {
         time.tick(duration);
+    }
+
+    /**
+     * Returns the underlying {@link Time} instance.
+     *
+     * @return the underlying {@link Time} instance
+     */
+    @NonNull
+    public Time time() {
+        return time;
     }
 }

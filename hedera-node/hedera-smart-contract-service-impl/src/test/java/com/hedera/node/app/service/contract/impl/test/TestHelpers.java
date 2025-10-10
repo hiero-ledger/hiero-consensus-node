@@ -3,8 +3,8 @@ package com.hedera.node.app.service.contract.impl.test;
 
 import static com.hedera.node.app.hapi.utils.keys.KeyUtils.IMMUTABILITY_SENTINEL_KEY;
 import static com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalHaltReason.INVALID_SIGNATURE;
-import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.ReturnTypes.ZERO_TOKEN_ID;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.TokenTupleUtils.typedKeyTupleFor;
+import static com.hedera.node.app.service.contract.impl.utils.ConstantUtils.ZERO_TOKEN_ID;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asEvmAddress;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asLongZeroAddress;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.headlongAddressOf;
@@ -85,6 +85,7 @@ import com.hedera.node.config.data.AccountsConfig;
 import com.hedera.node.config.data.ContractsConfig;
 import com.hedera.node.config.data.EntitiesConfig;
 import com.hedera.node.config.data.HederaConfig;
+import com.hedera.node.config.data.HooksConfig;
 import com.hedera.node.config.data.LedgerConfig;
 import com.hedera.node.config.data.OpsDurationConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
@@ -137,6 +138,7 @@ public class TestHelpers {
     public static final ContractsConfig DEFAULT_CONTRACTS_CONFIG = DEFAULT_CONFIG.getConfigData(ContractsConfig.class);
     public static final EntitiesConfig DEFAULT_ENTITIES_CONFIG = DEFAULT_CONFIG.getConfigData(EntitiesConfig.class);
     public static final AccountsConfig DEFAULT_ACCOUNTS_CONFIG = DEFAULT_CONFIG.getConfigData(AccountsConfig.class);
+    public static final HooksConfig DEFAULT_HOOKS_CONFIG = DEFAULT_CONFIG.getConfigData(HooksConfig.class);
     public static final OpsDurationConfig DEFAULT_OPS_DURATION_CONFIG =
             DEFAULT_CONFIG.getConfigData(OpsDurationConfig.class);
 
@@ -524,7 +526,8 @@ public class TestHelpers {
     public static final List<ContractNonceInfo> NONCES =
             List.of(new ContractNonceInfo(CALLED_CONTRACT_ID, NONCE), new ContractNonceInfo(CHILD_CONTRACT_ID, 1L));
     public static final EntityNumber CALLED_CONTRACT_ENTITY_NUMBER = new EntityNumber(666);
-    public static final Code CONTRACT_CODE = CodeFactory.createCode(pbjToTuweniBytes(CALL_DATA), 0, false);
+    public static final CodeFactory CODE_FACTORY = new CodeFactory(0, 0);
+    public static final Code CONTRACT_CODE = CODE_FACTORY.createCode(pbjToTuweniBytes(CALL_DATA), false);
     public static final Log BESU_LOG = new Log(
             NON_SYSTEM_LONG_ZERO_ADDRESS,
             pbjToTuweniBytes(TestHelpers.CALL_DATA),
@@ -566,6 +569,7 @@ public class TestHelpers {
             0L,
             0L,
             ContractCreateTransactionBody.DEFAULT,
+            null,
             null);
     public static final HederaEvmTransaction HEVM_Exception = new HederaEvmTransaction(
             SENDER_ID,
@@ -579,7 +583,8 @@ public class TestHelpers {
             0L,
             0L,
             null,
-            new HandleException(ResponseCodeEnum.INVALID_CONTRACT_ID));
+            new HandleException(ResponseCodeEnum.INVALID_CONTRACT_ID),
+            null);
 
     public static final HederaEvmTransaction HEVM_OversizeException = new HederaEvmTransaction(
             SENDER_ID,
@@ -593,7 +598,8 @@ public class TestHelpers {
             0L,
             0L,
             null,
-            new HandleException(ResponseCodeEnum.TRANSACTION_OVERSIZE));
+            new HandleException(ResponseCodeEnum.TRANSACTION_OVERSIZE),
+            null);
 
     public static final HederaEvmTransactionResult SUCCESS_RESULT = explicitSuccessFrom(
             GAS_LIMIT / 2,
@@ -821,6 +827,7 @@ public class TestHelpers {
                 userGasPrice,
                 maxGasAllowance,
                 null,
+                null,
                 null);
     }
 
@@ -850,6 +857,7 @@ public class TestHelpers {
                 userGasPrice,
                 maxGasAllowance,
                 ContractCreateTransactionBody.DEFAULT,
+                null,
                 null);
     }
 
@@ -874,7 +882,7 @@ public class TestHelpers {
             @NonNull final HederaEvmBlocks blocks,
             @NonNull final TinybarValues tinybarValues,
             @NonNull final SystemContractGasCalculator systemContractGasCalculator,
-            @NonNull ContractOperationStreamBuilder recordBuilder) {
+            @NonNull final ContractOperationStreamBuilder recordBuilder) {
         return new HederaEvmContext(
                 NETWORK_GAS_PRICE,
                 false,
@@ -997,7 +1005,7 @@ public class TestHelpers {
         private Tuple transferList;
 
         public TransferListBuilder withAccountAmounts(final Tuple... accountAmounts) {
-            this.transferList = Tuple.singleton(accountAmounts);
+            transferList = Tuple.singleton(accountAmounts);
             return this;
         }
 
@@ -1037,12 +1045,12 @@ public class TestHelpers {
         }
 
         public TokenTransferListBuilder withAccountAmounts(final Tuple... accountAmounts) {
-            this.tokenTransferList = Tuple.of(token, accountAmounts, new Tuple[] {});
+            tokenTransferList = Tuple.of(token, accountAmounts, new Tuple[] {});
             return this;
         }
 
         public TokenTransferListBuilder withNftTransfers(final Tuple... nftTransfers) {
-            this.tokenTransferList = Tuple.of(token, new Tuple[] {}, nftTransfers);
+            tokenTransferList = Tuple.of(token, new Tuple[] {}, nftTransfers);
             return this;
         }
 

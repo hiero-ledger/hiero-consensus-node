@@ -101,7 +101,9 @@ public class HgcaaLogValidator {
                 List.of("Block node", "reported it is behind. Will restart stream at block"),
                 List.of("BlockNodeConnectionManager", "Block stream worker interrupted"),
                 List.of("BlockNodeConnectionManager", "No active connections available for streaming"),
-                List.of("No block nodes available to connect to"));
+                List.of("No block nodes available to connect to"),
+                // Not present on OS X
+                List.of("Native library besu blake2bf is not present"));
 
         private int numProblems = 0;
         private int linesSinceInitialProblem = -1;

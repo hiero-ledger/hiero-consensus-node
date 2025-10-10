@@ -32,20 +32,14 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_NOT_ASSO
 import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
 
 import com.hedera.services.bdd.junit.HapiTest;
-import com.hedera.services.bdd.junit.HapiTestLifecycle;
-import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.SpecOperation;
-import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
-import java.util.Map;
 import java.util.stream.Stream;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
-@HapiTestLifecycle
-public class AtomicBatchCustomFeesTest {
+class AtomicBatchCustomFeesTest {
     private static final String FT_WITH_FIXED_HBAR_FEE = "FT_WithFixedHbarFee";
     private static final String SENDER = "alice";
     private static final String RECEIVER = "bob";
@@ -54,16 +48,10 @@ public class AtomicBatchCustomFeesTest {
     private static final String FEE_COLLECTOR = "customFeeCollector";
     private static final String BATCH_OPERATOR = "batchOperator";
 
-    @BeforeAll
-    static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
-        testLifecycle.overrideInClass(
-                Map.of("atomicBatch.isEnabled", "true", "atomicBatch.maxNumberOfTransactions", "50"));
-    }
-
     @HapiTest
     @DisplayName("FT transfer with custom fee rollback")
     @Tag(MATS)
-    public Stream<DynamicTest> fungibleTokenTransferCustomFeeRollback() {
+    Stream<DynamicTest> fungibleTokenTransferCustomFeeRollback() {
         final var successfulTransfer = cryptoTransfer(
                         moving(1, FT_WITH_FIXED_HBAR_FEE).between(SENDER, RECEIVER))
                 .fee(ONE_HBAR)
@@ -95,7 +83,7 @@ public class AtomicBatchCustomFeesTest {
 
     @HapiTest
     @DisplayName("NFT transfer with custom fee rollback")
-    public Stream<DynamicTest> nftTransferCustomFeeRollback() {
+    Stream<DynamicTest> nftTransferCustomFeeRollback() {
         final var successfulTransfer = cryptoTransfer(
                         movingUnique("NFT", 1L).between(SENDER, RECEIVER),
                         moving(100, "feeDenom").between(TREASURY, SENDER))
@@ -137,7 +125,7 @@ public class AtomicBatchCustomFeesTest {
 
     @HapiTest
     @DisplayName("Submit message to topic with custom fee rollback")
-    public Stream<DynamicTest> submitMessageToTopicWithCustomFeesGetsReverted() {
+    Stream<DynamicTest> submitMessageToTopicWithCustomFeesGetsReverted() {
         final var successfulSubmit = submitMessageTo("topic")
                 .maxCustomFee(maxCustomFee(SENDER, hbarLimit(2)))
                 .payingWith(SENDER)
@@ -163,7 +151,7 @@ public class AtomicBatchCustomFeesTest {
 
     @HapiTest
     @DisplayName("Airdrop with custom fees rollback")
-    public Stream<DynamicTest> airdropWithCustomFeesGetsReverted() {
+    Stream<DynamicTest> airdropWithCustomFeesGetsReverted() {
         final var successfulAirdrop = tokenAirdrop(
                         moving(1, FT_WITH_FIXED_HBAR_FEE).between(SENDER, RECEIVER))
                 .payingWith(SENDER)

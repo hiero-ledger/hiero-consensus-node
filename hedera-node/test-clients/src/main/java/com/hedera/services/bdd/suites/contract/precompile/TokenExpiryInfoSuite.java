@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.precompile;
 
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.resultWith;
@@ -173,6 +174,7 @@ public class TokenExpiryInfoSuite {
 
         @HapiTest
         @DisplayName("can update expiry metadata")
+        @Tag(MATS)
         final Stream<DynamicTest> canUpdateExpiryMetadata() {
             return hapiTest(mutableToken
                     .getInfo()
@@ -199,6 +201,7 @@ public class TokenExpiryInfoSuite {
 
     @HapiTest
     @SuppressWarnings("java:S1192") // "use already defined const instead of copying its value here" - not this time
+    @Tag(MATS)
     final Stream<DynamicTest> updateExpiryInfoForTokenAndReadLatestInfo() {
         final AtomicReference<TokenID> vanillaTokenID = new AtomicReference<>();
         final AtomicReference<AccountID> updatedAutoRenewAccountID = new AtomicReference<>();
