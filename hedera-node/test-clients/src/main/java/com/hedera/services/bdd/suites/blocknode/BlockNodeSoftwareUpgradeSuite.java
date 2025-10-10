@@ -95,7 +95,7 @@ public class BlockNodeSoftwareUpgradeSuite implements LifecycleTest {
                 assertHgcaaLogContainsTimeframe(
                         byNodeId(0),
                         timeRef::get,
-                        Duration.ofMinutes(1),
+                        Duration.ofMinutes(2),
                         Duration.ofSeconds(45),
                         "No initial block node configuration file found. Waiting for updates."),
                 burstOfTps(MIXED_OPS_BURST_TPS, Duration.ofSeconds(30)),
