@@ -1,10 +1,29 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl;
 
-import static com.hedera.node.app.service.contract.impl.hevm.HederaEvmVersion.*;
+import static com.hedera.node.app.service.contract.impl.hevm.HederaEvmVersion.VERSION_030;
+import static com.hedera.node.app.service.contract.impl.hevm.HederaEvmVersion.VERSION_034;
+import static com.hedera.node.app.service.contract.impl.hevm.HederaEvmVersion.VERSION_038;
+import static com.hedera.node.app.service.contract.impl.hevm.HederaEvmVersion.VERSION_046;
+import static com.hedera.node.app.service.contract.impl.hevm.HederaEvmVersion.VERSION_050;
+import static com.hedera.node.app.service.contract.impl.hevm.HederaEvmVersion.VERSION_051;
+import static com.hedera.node.app.service.contract.impl.hevm.HederaEvmVersion.VERSION_065;
+import static com.hedera.node.app.service.contract.impl.hevm.HederaEvmVersion.VERSION_066;
+import static com.hedera.node.app.service.contract.impl.hevm.HederaEvmVersion.VERSION_067;
+import static com.hedera.node.app.service.contract.impl.hevm.HederaEvmVersion.VERSION_070;
 import static org.hyperledger.besu.evm.internal.EvmConfiguration.WorldUpdaterMode.JOURNALED;
 
-import com.hedera.node.app.service.contract.impl.annotations.*;
+import com.hedera.node.app.service.contract.impl.annotations.ServicesV030;
+import com.hedera.node.app.service.contract.impl.annotations.ServicesV034;
+import com.hedera.node.app.service.contract.impl.annotations.ServicesV038;
+import com.hedera.node.app.service.contract.impl.annotations.ServicesV046;
+import com.hedera.node.app.service.contract.impl.annotations.ServicesV050;
+import com.hedera.node.app.service.contract.impl.annotations.ServicesV051;
+import com.hedera.node.app.service.contract.impl.annotations.ServicesV065;
+import com.hedera.node.app.service.contract.impl.annotations.ServicesV066;
+import com.hedera.node.app.service.contract.impl.annotations.ServicesV067;
+import com.hedera.node.app.service.contract.impl.annotations.ServicesV070;
+import com.hedera.node.app.service.contract.impl.annotations.ServicesVersionKey;
 import com.hedera.node.app.service.contract.impl.exec.QueryComponent;
 import com.hedera.node.app.service.contract.impl.exec.TransactionComponent;
 import com.hedera.node.app.service.contract.impl.exec.TransactionProcessor;
@@ -19,6 +38,7 @@ import com.hedera.node.app.service.contract.impl.exec.v051.V051Module;
 import com.hedera.node.app.service.contract.impl.exec.v065.V065Module;
 import com.hedera.node.app.service.contract.impl.exec.v066.V066Module;
 import com.hedera.node.app.service.contract.impl.exec.v067.V067Module;
+import com.hedera.node.app.service.contract.impl.exec.v070.V070Module;
 import com.hedera.node.app.service.contract.impl.handlers.ContractCallHandler;
 import com.hedera.node.app.service.contract.impl.handlers.ContractCallLocalHandler;
 import com.hedera.node.app.service.contract.impl.handlers.ContractCreateHandler;
@@ -61,6 +81,7 @@ import org.hyperledger.besu.evm.precompile.PrecompiledContract;
             V065Module.class,
             V066Module.class,
             V067Module.class,
+            V070Module.class,
             ProcessorModule.class
         },
         subcomponents = {TransactionComponent.class, QueryComponent.class})
@@ -207,4 +228,14 @@ public interface ContractServiceModule {
     @Singleton
     @ServicesVersionKey(VERSION_067)
     TransactionProcessor bindV067Processor(@ServicesV067 @NonNull final TransactionProcessor processor);
+
+    /**
+     * @param processor the transaction processor
+     * @return the bound transaction processor for version 0.70
+     */
+    @Binds
+    @IntoMap
+    @Singleton
+    @ServicesVersionKey(VERSION_070)
+    TransactionProcessor bindV070Processor(@ServicesV070 @NonNull final TransactionProcessor processor);
 }
