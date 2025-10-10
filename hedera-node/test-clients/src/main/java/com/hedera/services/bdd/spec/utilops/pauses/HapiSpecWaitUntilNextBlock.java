@@ -111,41 +111,10 @@ public class HapiSpecWaitUntilNextBlock extends UtilOp {
             }
         }
 
-        // Start background traffic if configured
-        final var stopTraffic = new AtomicBoolean(false);
-        CompletableFuture<?> trafficFuture = null;
-        if (backgroundTraffic) {
-            trafficFuture = CompletableFuture.runAsync(() -> {
-                while (!stopTraffic.get()) {
-                    try {
-                        // Execute the background traffic operation
-                        allRunFor(
-                                spec,
-                                cryptoTransfer(tinyBarsFromTo(GENESIS, FUNDING, 1))
-                                        .deferStatusResolution()
-                                        .noLogging()
-                                        .hasAnyStatusAtAll());
-                        // Advance consensus time after successful execution
-                        spec.sleepConsensusTime(BACKGROUND_TRAFFIC_INTERVAL);
-                    } catch (Exception e) {
-                        // Log but continue trying
-                        log.info("Background traffic iteration failed", e);
-                    }
-                }
-            });
-        }
-
-        try {
-            if (onBlockNodeSide) {
-                return submitOpGrpc(spec, blockNodeId);
-            } else {
-                return submitOpFile(spec);
-            }
-        } finally {
-            if (trafficFuture != null) {
-                stopTraffic.set(true);
-                trafficFuture.join();
-            }
+        if (onBlockNodeSide) {
+            return submitOpGrpc(spec, blockNodeId);
+        } else {
+            return submitOpFile(spec);
         }
     }
 
@@ -170,17 +139,45 @@ public class HapiSpecWaitUntilNextBlock extends UtilOp {
                 currentBlock,
                 blocksToWaitFor);
 
-        final var startTime = System.currentTimeMillis();
-        while (true) {
-            if (isBlockComplete(blockDir, targetBlock)) {
-                log.info("Block {} has been created and completed", targetBlock);
-                return false;
+        // Start background traffic AFTER capturing current block to avoid race condition
+        final var stopTraffic = new AtomicBoolean(false);
+        CompletableFuture<?> trafficFuture = null;
+        if (backgroundTraffic) {
+            trafficFuture = CompletableFuture.runAsync(() -> {
+                while (!stopTraffic.get()) {
+                    try {
+                        allRunFor(
+                                spec,
+                                cryptoTransfer(tinyBarsFromTo(GENESIS, FUNDING, 1))
+                                        .deferStatusResolution()
+                                        .noLogging()
+                                        .hasAnyStatusAtAll());
+                        spec.sleepConsensusTime(BACKGROUND_TRAFFIC_INTERVAL);
+                    } catch (Exception e) {
+                        log.info("Background traffic iteration failed", e);
+                    }
+                }
+            });
+        }
+
+        try {
+            final var startTime = System.currentTimeMillis();
+            while (true) {
+                if (isBlockComplete(blockDir, targetBlock)) {
+                    log.info("Block {} has been created and completed", targetBlock);
+                    return false;
+                }
+                if (System.currentTimeMillis() - startTime > timeout.toMillis()) {
+                    throw new RuntimeException(String.format(
+                            "Timeout waiting for block %d after %d seconds", targetBlock, timeout.toSeconds()));
+                }
+                spec.sleepConsensusTime(POLL_INTERVAL);
             }
-            if (System.currentTimeMillis() - startTime > timeout.toMillis()) {
-                throw new RuntimeException(String.format(
-                        "Timeout waiting for block %d after %d seconds", targetBlock, timeout.toSeconds()));
+        } finally {
+            if (trafficFuture != null) {
+                stopTraffic.set(true);
+                trafficFuture.join();
             }
-            spec.sleepConsensusTime(POLL_INTERVAL);
         }
     }
 
@@ -212,20 +209,54 @@ public class HapiSpecWaitUntilNextBlock extends UtilOp {
 
     private boolean submitOpGrpc(@NotNull HapiSpec spec, long blockNodeId) {
         int blocksReceivedBefore = getSimulatorTotalBlocksReceived(blockNodeId);
-        final var startTime = System.currentTimeMillis();
-        // sleep here to avoid multiple simulator check-ups
-        spec.sleepConsensusTime(blockPeriod.multipliedBy(blocksToWaitFor));
-        while (true) {
-            int blocksReceived = getSimulatorTotalBlocksReceived(blockNodeId);
-            if (blocksReceived - blocksReceivedBefore >= blocksToWaitFor) {
-                return false;
+        log.info("Simulator has received {} blocks before waiting", blocksReceivedBefore);
+
+        // Start background traffic AFTER capturing baseline to avoid race condition
+        final var stopTraffic = new AtomicBoolean(false);
+        CompletableFuture<?> trafficFuture = null;
+        if (backgroundTraffic) {
+            trafficFuture = CompletableFuture.runAsync(() -> {
+                while (!stopTraffic.get()) {
+                    try {
+                        allRunFor(
+                                spec,
+                                cryptoTransfer(tinyBarsFromTo(GENESIS, FUNDING, 1))
+                                        .deferStatusResolution()
+                                        .noLogging()
+                                        .hasAnyStatusAtAll());
+                        spec.sleepConsensusTime(BACKGROUND_TRAFFIC_INTERVAL);
+                    } catch (Exception e) {
+                        log.info("Background traffic iteration failed", e);
+                    }
+                }
+            });
+        }
+
+        try {
+            final var startTime = System.currentTimeMillis();
+            // sleep here to avoid multiple simulator check-ups
+            spec.sleepConsensusTime(blockPeriod.multipliedBy(blocksToWaitFor));
+            while (true) {
+                int blocksReceived = getSimulatorTotalBlocksReceived(blockNodeId);
+                if (blocksReceived - blocksReceivedBefore >= blocksToWaitFor) {
+                    log.info(
+                            "Simulator has received {} blocks total ({} new blocks)",
+                            blocksReceived,
+                            blocksReceived - blocksReceivedBefore);
+                    return false;
+                }
+                if (System.currentTimeMillis() - startTime > timeout.toMillis()) {
+                    throw new RuntimeException(String.format(
+                            "Timeout waiting for blocks. Received %d out of %d after %d seconds",
+                            blocksReceived - blocksReceivedBefore, blocksToWaitFor, timeout.toSeconds()));
+                }
+                spec.sleepConsensusTime(blockPeriod);
             }
-            if (System.currentTimeMillis() - startTime > timeout.toMillis()) {
-                throw new RuntimeException(String.format(
-                        "Timeout waiting for blocks. Received %d out of %d after %d seconds",
-                        blocksReceived - blocksReceivedBefore, blocksToWaitFor, timeout.toSeconds()));
+        } finally {
+            if (trafficFuture != null) {
+                stopTraffic.set(true);
+                trafficFuture.join();
             }
-            spec.sleepConsensusTime(blockPeriod);
         }
     }
 

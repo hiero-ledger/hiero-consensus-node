@@ -1909,8 +1909,14 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         // Mock connection state to be ACTIVE so processStreamingToBlockNode proceeds
         doReturn(ConnectionState.ACTIVE).when(connection).getConnectionState();
 
-        // Make bufferService throw RuntimeException on first call
-        when(bufferService.getBlockState(10L)).thenThrow(new RuntimeException("General error"));
+        // Add synchronization latch to ensure getBlockState is actually called before clearing connection
+        final CountDownLatch getBlockStateLatch = new CountDownLatch(1);
+
+        // Make bufferService signal AFTER getBlockState is called, THEN throw exception
+        when(bufferService.getBlockState(10L)).thenAnswer(invocation -> {
+            getBlockStateLatch.countDown(); // Signal that we're in the loop
+            throw new RuntimeException("General error");
+        });
 
         final CountDownLatch doneLatch = new CountDownLatch(1);
         final AtomicReference<Throwable> errorRef = new AtomicReference<>();
@@ -1925,9 +1931,11 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
             }
         });
 
-        // Give the loop time to execute and handle the exception, then clear active connection
-        Thread.sleep(50);
-        activeConnectionRef.set(null); // Clear active connection before exception handling
+        // Wait for the loop to actually call getBlockState before clearing the connection
+        assertThat(getBlockStateLatch.await(2, TimeUnit.SECONDS)).isTrue();
+
+        // Now it's safe to clear the connection
+        activeConnectionRef.set(null);
         Thread.sleep(50);
         isActiveFlag().set(false); // stop the loop
 
