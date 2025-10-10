@@ -14,69 +14,69 @@ on:
         type: boolean
         required: false
         default: false
-        description: 'solo-sd*t-n1 (Daily SDPT/SDLT)'
+        description: "solo-sd*t-n1 (Daily SDPT/SDLT)"
 
       Dallas_n2:
         type: boolean
         required: false
         default: false
-        description: 'solo-sd*t-n2 (Daily SDPT/SDLT)'
+        description: "solo-sd*t-n2 (Daily SDPT/SDLT)"
 
       Dallas_n3:
         type: boolean
         required: false
         default: false
-        description: 'solo-sd*t-n3 (weekly runs)'
+        description: "solo-sd*t-n3 (weekly runs)"
 
       Dallas_n4:
         type: boolean
         required: false
         default: false
-        description: 'solo-sd*t-n4 (weekly runs)'
+        description: "solo-sd*t-n4 (weekly runs)"
 
       Chicago_n5:
         type: boolean
         required: false
         default: false
-        description: 'solo-sd*t-n5 (branch testing)'
+        description: "solo-sd*t-n5 (branch testing)"
 
       Chicago_n6:
         type: boolean
         required: false
         default: false
-        description: 'solo-sd*t-n6 (branch testing)'
+        description: "solo-sd*t-n6 (branch testing)"
 
       Chicago_n7:
         type: boolean
         required: false
         default: false
-        description: 'solo-sd*t-n7 (branch testing)'
+        description: "solo-sd*t-n7 (branch testing)"
 
       Chicago_n8:
         type: boolean
         required: false
         default: false
-        description: 'solo-sd*t-n8 (SDPT/SDLT)'
+        description: "solo-sd*t-n8 (SDPT/SDLT)"
 
       Chicago_n9:
         type: boolean
         required: false
         default: false
-        description: 'solo-sd*t-n9 (SDPT/SDLT)'
+        description: "solo-sd*t-n9 (SDPT/SDLT)"
 
 jobs:
   delete-selected-namespaces:
     runs-on: hiero-citr-linux-small
     env:
-      Dallas_n1:     ${{ github.event_name == 'schedule' && 'true' || github.event.inputs.Dallas_n1 }}
-      Dallas_n2:     ${{ github.event_name == 'schedule' && 'true' || github.event.inputs.Dallas_n2 }}
-      Dallas_n3:     ${{ github.event.inputs.Dallas_n3 }}
-      Dallas_n4:     ${{ github.event.inputs.Dallas_n4 }}
-      Chicago_n5:    ${{ github.event.inputs.Chicago_n5 }}
-      Chicago_n6:    ${{ github.event.inputs.Chicago_n6 }}
-      Chicago_n7:    ${{ github.event.inputs.Chicago_n7 }}
-      Chicago_n8:    ${{ github.event.inputs.Chicago_n8 }}
-      Chicago_n9:    ${{ github.event.inputs.Chicago_n9 }}
+      Dallas_n1: ${{ github.event_name == 'schedule' && 'true' || github.event.inputs.Dallas_n1 }}
+      Dallas_n2: ${{ github.event_name == 'schedule' && 'true' || github.event.inputs.Dallas_n2 }}
+      Dallas_n3: ${{ github.event.inputs.Dallas_n3 }}
+      Dallas_n4: ${{ github.event.inputs.Dallas_n4 }}
+      Chicago_n5: ${{ github.event.inputs.Chicago_n5 }}
+      Chicago_n6: ${{ github.event.inputs.Chicago_n6 }}
+      Chicago_n7: ${{ github.event.inputs.Chicago_n7 }}
+      Chicago_n8: ${{ github.event.inputs.Chicago_n8 }}
+      Chicago_n9: ${{ github.event.inputs.Chicago_n9 }}
 
     steps:
       - name: Harden the runner (Audit all outbound calls)
