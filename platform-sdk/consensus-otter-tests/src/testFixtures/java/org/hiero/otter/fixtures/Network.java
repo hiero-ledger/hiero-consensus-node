@@ -17,6 +17,7 @@ import org.hiero.otter.fixtures.internal.helpers.Utils;
 import org.hiero.otter.fixtures.network.Partition;
 import org.hiero.otter.fixtures.network.Topology;
 import org.hiero.otter.fixtures.result.MultipleNodeConsensusResults;
+import org.hiero.otter.fixtures.result.MultipleNodeEventStreamResults;
 import org.hiero.otter.fixtures.result.MultipleNodeLogResults;
 import org.hiero.otter.fixtures.result.MultipleNodeMarkerFileResults;
 import org.hiero.otter.fixtures.result.MultipleNodePcesResults;
@@ -390,6 +391,13 @@ public interface Network {
      */
     @NonNull
     MultipleNodeMarkerFileResults newMarkerFileResults();
+
+    /**
+     * Creates a new result with event streams from all nodes that are currently in the network.
+     *
+     * @return the event streams results of the nodes
+     */
+    MultipleNodeEventStreamResults newEventStreamResults();
 
     /**
      * Checks if a node is behind compared to a strong minority of the network. A node is considered behind a peer when

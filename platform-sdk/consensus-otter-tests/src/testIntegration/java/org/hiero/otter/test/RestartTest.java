@@ -78,5 +78,7 @@ public class RestartTest {
                 .haveSteps(target(ACTIVE).requiringInterim(REPLAYING_EVENTS, OBSERVING, CHECKING));
 
         assertThat(network.newConsensusResults()).haveEqualCommonRounds();
+
+        assertThat(network.newEventStreamResults()).haveEqualFiles();
     }
 }

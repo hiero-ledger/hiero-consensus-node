@@ -12,6 +12,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import org.hiero.consensus.config.EventConfig_;
 import org.hiero.otter.fixtures.NodeConfiguration;
 import org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle;
 import org.hiero.otter.fixtures.internal.AbstractNodeConfiguration;
@@ -32,7 +33,7 @@ public class ContainerNodeConfiguration extends AbstractNodeConfiguration {
      */
     public ContainerNodeConfiguration(@NonNull final Supplier<LifeCycle> lifecycleSupplier) {
         super(lifecycleSupplier);
-        overriddenProperties.put("event.eventsLogDir", "/opt/DockerApp/hgcapp");
+        overriddenProperties.put(EventConfig_.EVENTS_LOG_DIR, "/opt/DockerApp/hgcapp/");
     }
 
     /**

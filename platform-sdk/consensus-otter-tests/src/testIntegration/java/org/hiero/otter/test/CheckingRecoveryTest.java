@@ -74,5 +74,7 @@ public class CheckingRecoveryTest {
                 nodeToThrottle::isActive,
                 Duration.ofSeconds(120L),
                 "Node did not recover from CHECKING status within the expected time frame after synthetic bottleneck was disabled.");
+
+        assertThat(network.newEventStreamResults()).haveEqualFiles();
     }
 }
