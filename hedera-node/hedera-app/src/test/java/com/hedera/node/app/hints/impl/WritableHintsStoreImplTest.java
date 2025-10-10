@@ -68,7 +68,6 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
-import java.util.OptionalLong;
 import java.util.Set;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.atomic.AtomicReference;
@@ -359,7 +358,7 @@ class WritableHintsStoreImplTest {
     void movesToNextNode() {
         setInitialCrsState();
 
-        subject.moveToNextNode(OptionalLong.of(1L), Instant.ofEpochSecond(1_234_567L));
+        subject.moveToNextNode(1L, Instant.ofEpochSecond(1_234_567L));
         assertEquals(1L, subject.getCrsState().nextContributingNodeId());
         assertEquals(
                 asTimestamp(Instant.ofEpochSecond(1_234_567L)),

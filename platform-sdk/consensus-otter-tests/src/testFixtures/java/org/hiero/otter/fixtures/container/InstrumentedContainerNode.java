@@ -8,6 +8,7 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.otter.fixtures.InstrumentedNode;
+import org.hiero.otter.fixtures.TimeManager;
 import org.testcontainers.containers.Network;
 import org.testcontainers.images.builder.ImageFromDockerfile;
 
@@ -29,11 +30,12 @@ public class InstrumentedContainerNode extends ContainerNode implements Instrume
      */
     public InstrumentedContainerNode(
             @NonNull final NodeId selfId,
+            @NonNull final TimeManager timeManager,
             @NonNull final KeysAndCerts keysAndCerts,
             @NonNull final Network network,
             @NonNull final ImageFromDockerfile dockerImage,
             @NonNull final Path outputDirectory) {
-        super(selfId, keysAndCerts, network, dockerImage, outputDirectory);
+        super(selfId, timeManager, keysAndCerts, network, dockerImage, outputDirectory);
     }
 
     /**
