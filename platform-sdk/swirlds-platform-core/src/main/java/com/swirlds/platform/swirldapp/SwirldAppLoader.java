@@ -2,6 +2,7 @@
 package com.swirlds.platform.swirldapp;
 
 import com.swirlds.platform.system.SwirldMain;
+import com.swirlds.state.MerkleNodeState;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.net.URL;
@@ -36,9 +37,9 @@ public class SwirldAppLoader {
      * @throws AppLoaderException
      * 		if any issue occurs while instantiating the object
      */
-    public SwirldMain instantiateSwirldMain() throws AppLoaderException {
+    public SwirldMain<? extends MerkleNodeState> instantiateSwirldMain() throws AppLoaderException {
         try {
-            return (SwirldMain) appMainConstructor.newInstance();
+            return (SwirldMain<? extends MerkleNodeState>) appMainConstructor.newInstance();
         } catch (InstantiationException | InvocationTargetException e) {
             throw new AppLoaderException("ERROR: Couldn't instantiate the class " + mainClassName, e);
         } catch (IllegalAccessException e) {

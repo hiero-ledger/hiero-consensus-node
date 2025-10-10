@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.ethereum;
 
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asAccountString;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
@@ -120,6 +121,7 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
 
     @HapiTest
     @DisplayName("Jumbo transaction should pass")
+    @Tag(MATS)
     public Stream<DynamicTest> jumboTransactionShouldPass() {
         final var jumboPayload = new byte[10 * 1024];
         final var halfJumboPayload = new byte[5 * 1024];
@@ -150,13 +152,13 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
                 // send jumbo payload to jumbo endpoint and assert the used gas
                 jumboEthCall(CONTRACT_CALLDATA_SIZE, FUNCTION, jumboPayload)
                         .gasLimit(800000)
-                        .exposingGasTo((s, gasUsed) -> assertEquals(640000, gasUsed)),
+                        .exposingGasTo((s, gasUsed) -> assertEquals(63_742, gasUsed)),
                 jumboEthCall(CONTRACT_CALLDATA_SIZE, FUNCTION, halfJumboPayload)
                         .gasLimit(500000)
-                        .exposingGasTo((s, gasUsed) -> assertEquals(400000, gasUsed)),
+                        .exposingGasTo((s, gasUsed) -> assertEquals(43_262, gasUsed)),
                 jumboEthCall(CONTRACT_CALLDATA_SIZE, FUNCTION, thirdJumboPayload)
                         .gasLimit(300000)
-                        .exposingGasTo((s, gasUsed) -> assertEquals(240000, gasUsed)));
+                        .exposingGasTo((s, gasUsed) -> assertEquals(35_070, gasUsed)));
     }
 
     @Nested
@@ -164,15 +166,13 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
     class JumboEthereumTransactionsPositiveTests {
 
         private final Stream<TestCombinationWithGas> positiveBoundariesTestCases = Stream.of(
-                new TestCombinationWithGas(SIX_KB_SIZE, EthTxData.EthTransactionType.LEGACY_ETHEREUM, 400_000, 320_000),
-                new TestCombinationWithGas(SIX_KB_SIZE, EthTxData.EthTransactionType.EIP2930, 400_000, 320_000),
-                new TestCombinationWithGas(SIX_KB_SIZE, EthTxData.EthTransactionType.EIP1559, 400_000, 320_000),
+                new TestCombinationWithGas(SIX_KB_SIZE, EthTxData.EthTransactionType.LEGACY_ETHEREUM, 400_000, 47_358),
+                new TestCombinationWithGas(SIX_KB_SIZE, EthTxData.EthTransactionType.EIP2930, 400_000, 47_358),
+                new TestCombinationWithGas(SIX_KB_SIZE, EthTxData.EthTransactionType.EIP1559, 400_000, 47_358),
                 new TestCombinationWithGas(
-                        MAX_ALLOWED_SIZE, EthTxData.EthTransactionType.LEGACY_ETHEREUM, 9_000_000, 7_200_000),
-                new TestCombinationWithGas(
-                        MAX_ALLOWED_SIZE, EthTxData.EthTransactionType.EIP2930, 9_000_000, 7_200_000),
-                new TestCombinationWithGas(
-                        MAX_ALLOWED_SIZE, EthTxData.EthTransactionType.EIP1559, 9_000_000, 7_200_000));
+                        MAX_ALLOWED_SIZE, EthTxData.EthTransactionType.LEGACY_ETHEREUM, 9_000_000, 542_986),
+                new TestCombinationWithGas(MAX_ALLOWED_SIZE, EthTxData.EthTransactionType.EIP2930, 9_000_000, 542_986),
+                new TestCombinationWithGas(MAX_ALLOWED_SIZE, EthTxData.EthTransactionType.EIP1559, 9_000_000, 542_986));
 
         @RepeatableHapiTest(RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
         @DisplayName("Jumbo Ethereum transactions should pass for valid sizes and expected gas used")
@@ -197,6 +197,7 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
         @HapiTest
         @DisplayName("Jumbo Ethereum txn works when alias account is updated to threshold key")
         // JUMBO_P_13
+        @Tag(MATS)
         public Stream<DynamicTest> jumboTxnAliasWithThresholdKeyPattern() {
             final var cryptoKey = "cryptoKey";
             final var thresholdKey = "thresholdKey";
@@ -512,6 +513,7 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
 
         @DisplayName("Jumbo transaction gets bytes throttled at ingest")
         @LeakyHapiTest(overrides = {"jumboTransactions.maxBytesPerSec"})
+        @Tag(MATS)
         public Stream<DynamicTest> jumboTransactionGetsThrottledAtIngest() {
             final var payloadSize = 127 * 1024;
             final var bytesPerSec = 130 * 1024;

@@ -6,6 +6,7 @@ import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.pb
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.contract.ContractCreateTransactionBody;
+import com.hedera.hapi.node.hooks.HookDispatchTransactionBody;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -25,7 +26,8 @@ public record HederaEvmTransaction(
         long offeredGasPrice,
         long maxGasAllowance,
         @Nullable ContractCreateTransactionBody hapiCreation,
-        @Nullable HandleException exception) {
+        @Nullable HandleException exception,
+        @Nullable HookDispatchTransactionBody hookDispatch) {
     public static final long NOT_APPLICABLE = -1L;
 
     public boolean hasExpectedNonce() {
@@ -129,6 +131,16 @@ public record HederaEvmTransaction(
                 this.offeredGasPrice,
                 this.maxGasAllowance,
                 this.hapiCreation,
-                exception);
+                exception,
+                this.hookDispatch);
+    }
+
+    /**
+     * Check if this transaction is a hook dispatch transaction
+     *
+     * @return true if this transaction is a hook dispatch transaction, false otherwise
+     */
+    public boolean isHookDispatch() {
+        return hookDispatch != null;
     }
 }

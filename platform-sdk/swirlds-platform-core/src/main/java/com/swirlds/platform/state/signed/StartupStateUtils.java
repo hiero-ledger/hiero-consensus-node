@@ -9,6 +9,7 @@ import static com.swirlds.platform.state.snapshot.SignedStateFileReader.readStat
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.SemanticVersion;
+import com.hedera.hapi.util.HapiUtils;
 import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.utility.RecycleBin;
@@ -18,13 +19,12 @@ import com.swirlds.platform.config.BasicConfig;
 import com.swirlds.platform.config.StateConfig;
 import com.swirlds.platform.crypto.CryptoStatic;
 import com.swirlds.platform.internal.SignedStateLoadingException;
-import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.snapshot.DeserializedSignedState;
 import com.swirlds.platform.state.snapshot.SavedStateInfo;
 import com.swirlds.platform.state.snapshot.SignedStateFilePath;
+import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.State;
-import com.swirlds.state.lifecycle.HapiUtils;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -191,6 +191,11 @@ public final class StartupStateUtils {
         signedStateCopy.init(platformContext);
         signedStateCopy.setSigSet(initialSignedState.getSigSet());
 
+        // FUTURE WORK: To support MerkleStateRoot in the testing apps we still need to use `digestTreeAsync` instead of
+        // just calling `initialSignedState.getState().getRoot().getHash()`. The latter option doesn't work for
+        // `MerkleStateRoot` as it doesn't cause hash recalculation. Once we get rid of `MerkleStateRoot` entirely,
+        // the following statement can be replaced. (see
+        // https://github.com/hiero-ledger/hiero-consensus-node/issues/19307)
         final Hash hash = platformContext
                 .getMerkleCryptography()
                 .digestTreeSync(initialSignedState.getState().getRoot());
@@ -224,7 +229,7 @@ public final class StartupStateUtils {
      * @param createStateFromVirtualMap a function to instantiate the state object from a Virtual Map
      * @return the loaded state
      */
-    private static ReservedSignedState loadLatestState(
+    public static ReservedSignedState loadLatestState(
             @NonNull final RecycleBin recycleBin,
             @NonNull final SemanticVersion currentSoftwareVersion,
             @NonNull final List<SavedStateInfo> savedStateFiles,

@@ -3,6 +3,8 @@ package com.swirlds.platform.state.signed;
 
 import static com.swirlds.common.threading.manager.AdHocThreadManager.getStaticThreadManager;
 import static com.swirlds.platform.state.snapshot.SignedStateFileWriter.writeSignedStateToDisk;
+import static com.swirlds.platform.test.fixtures.config.ConfigUtils.CONFIGURATION;
+import static com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer.registerConstructablesForStorage;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -16,7 +18,6 @@ import com.swirlds.base.time.Time;
 import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.common.config.StateCommonConfig_;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.io.config.FileSystemManagerConfig;
 import com.swirlds.common.io.filesystem.FileSystemManager;
 import com.swirlds.common.io.utility.FileUtils;
 import com.swirlds.common.io.utility.RecycleBin;
@@ -33,9 +34,8 @@ import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.snapshot.SignedStateFilePath;
 import com.swirlds.platform.state.snapshot.StateToDiskReason;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
-import com.swirlds.platform.test.fixtures.state.TestHederaVirtualMapState;
+import com.swirlds.state.test.fixtures.merkle.TestVirtualMapState;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.BufferedWriter;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -45,7 +45,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
-import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
@@ -58,10 +57,6 @@ import org.junit.jupiter.params.provider.ValueSource;
 
 @DisplayName("StartupStateUtilities Tests")
 public class StartupStateUtilsTests {
-
-    private static final Configuration CONFIG = new TestConfigBuilder()
-            .withConfigDataType(FileSystemManagerConfig.class)
-            .getOrCreateConfig();
 
     /**
      * Temporary directory provided by JUnit
@@ -99,6 +94,7 @@ public class StartupStateUtilsTests {
         final ConstructableRegistry registry = ConstructableRegistry.getInstance();
         registry.registerConstructables("com.swirlds");
         registry.registerConstructables("org.hiero");
+        registerConstructablesForStorage(CONFIGURATION);
     }
 
     @NonNull
@@ -124,14 +120,11 @@ public class StartupStateUtilsTests {
             @NonNull final Random random,
             @NonNull final PlatformContext platformContext,
             final long round,
-            @Nullable final Hash epoch,
             final boolean corrupted)
             throws IOException {
 
-        final SignedState signedState = new RandomSignedStateGenerator(random)
-                .setRound(round)
-                .setEpoch(epoch)
-                .build();
+        final SignedState signedState =
+                new RandomSignedStateGenerator(random).setRound(round).build();
 
         // make the state immutable
         signedState.getState().copy().release();
@@ -174,7 +167,7 @@ public class StartupStateUtilsTests {
                         selfId,
                         mainClassName,
                         swirldName,
-                        TestHederaVirtualMapState::new,
+                        TestVirtualMapState::new,
                         currentSoftwareVersion,
                         platformStateFacade,
                         platformContext)
@@ -195,7 +188,7 @@ public class StartupStateUtilsTests {
         SignedState latestState = null;
         for (int i = 0; i < stateCount; i++) {
             latestRound += random.nextInt(100, 200);
-            latestState = writeState(random, platformContext, latestRound, null, false);
+            latestState = writeState(random, platformContext, latestRound, false);
         }
 
         final RecycleBin recycleBin = initializeRecycleBin(platformContext, selfId);
@@ -204,7 +197,7 @@ public class StartupStateUtilsTests {
                         selfId,
                         mainClassName,
                         swirldName,
-                        TestHederaVirtualMapState::new,
+                        TestVirtualMapState::new,
                         currentSoftwareVersion,
                         platformStateFacade,
                         platformContext)
@@ -230,7 +223,7 @@ public class StartupStateUtilsTests {
         for (int i = 0; i < stateCount; i++) {
             latestRound += random.nextInt(100, 200);
             final boolean corrupted = i == stateCount - 1;
-            writeState(random, platformContext, latestRound, null, corrupted);
+            writeState(random, platformContext, latestRound, corrupted);
         }
         final RecycleBin recycleBin = initializeRecycleBin(platformContext, selfId);
 
@@ -239,7 +232,7 @@ public class StartupStateUtilsTests {
                         selfId,
                         mainClassName,
                         swirldName,
-                        TestHederaVirtualMapState::new,
+                        TestVirtualMapState::new,
                         currentSoftwareVersion,
                         platformStateFacade,
                         platformContext)
@@ -273,7 +266,7 @@ public class StartupStateUtilsTests {
         for (int i = 0; i < stateCount; i++) {
             latestRound += random.nextInt(100, 200);
             final boolean corrupted = (stateCount - i) <= invalidStateCount;
-            final SignedState state = writeState(random, platformContext, latestRound, null, corrupted);
+            final SignedState state = writeState(random, platformContext, latestRound, corrupted);
             if (!corrupted) {
                 latestUncorruptedState = state;
             }
@@ -285,7 +278,7 @@ public class StartupStateUtilsTests {
                         selfId,
                         mainClassName,
                         swirldName,
-                        TestHederaVirtualMapState::new,
+                        TestVirtualMapState::new,
                         currentSoftwareVersion,
                         platformStateFacade,
                         platformContext)

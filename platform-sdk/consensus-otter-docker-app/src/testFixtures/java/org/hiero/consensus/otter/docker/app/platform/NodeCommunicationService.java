@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.otter.docker.app.platform;
 
+import static com.swirlds.logging.legacy.LogMarker.DEMO_INFO;
+import static com.swirlds.logging.legacy.LogMarker.ERROR;
+import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.otter.fixtures.internal.helpers.Utils.createConfiguration;
 
@@ -20,12 +23,14 @@ import java.util.concurrent.ThreadFactory;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.node.KeysAndCerts;
+import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.consensus.otter.docker.app.EventMessageFactory;
 import org.hiero.consensus.otter.docker.app.OutboundDispatcher;
 import org.hiero.otter.fixtures.KeysAndCertsConverter;
 import org.hiero.otter.fixtures.ProtobufConverter;
 import org.hiero.otter.fixtures.container.proto.EventMessage;
-import org.hiero.otter.fixtures.container.proto.NodeCommunicationServiceGrpc;
+import org.hiero.otter.fixtures.container.proto.NodeCommunicationServiceGrpc.NodeCommunicationServiceImplBase;
+import org.hiero.otter.fixtures.container.proto.QuiescenceRequest;
 import org.hiero.otter.fixtures.container.proto.StartRequest;
 import org.hiero.otter.fixtures.container.proto.SyntheticBottleneckRequest;
 import org.hiero.otter.fixtures.container.proto.TransactionRequest;
@@ -37,7 +42,7 @@ import org.hiero.otter.fixtures.result.SubscriberAction;
  * Responsible for all gRPC communication between the test framework and the consensus node. This class acts as an
  * intermediary between the test framework and the consensus node.
  */
-public class NodeCommunicationService extends NodeCommunicationServiceGrpc.NodeCommunicationServiceImplBase {
+public class NodeCommunicationService extends NodeCommunicationServiceImplBase {
 
     /** Default thread name for the consensus node manager gRCP service */
     private static final String NODE_COMMUNICATION_THREAD_NAME = "grpc-outbound-dispatcher";
@@ -103,7 +108,7 @@ public class NodeCommunicationService extends NodeCommunicationServiceGrpc.NodeC
     @Override
     public synchronized void start(
             @NonNull final StartRequest request, @NonNull final StreamObserver<EventMessage> responseObserver) {
-        log.info("Received start request: {}", request);
+        log.info(STARTUP.getMarker(), "Received start request: {}", request);
 
         if (isInvalidRequest(request, responseObserver)) {
             return;
@@ -111,7 +116,7 @@ public class NodeCommunicationService extends NodeCommunicationServiceGrpc.NodeC
 
         if (consensusNodeManager != null) {
             responseObserver.onError(Status.ALREADY_EXISTS.asRuntimeException());
-            log.info("Invalid request, platform already started: {}", request);
+            log.info(ERROR.getMarker(), "Invalid request, platform already started: {}", request);
             return;
         }
 
@@ -167,14 +172,14 @@ public class NodeCommunicationService extends NodeCommunicationServiceGrpc.NodeC
     private static boolean isInvalidRequest(
             final StartRequest request, final StreamObserver<EventMessage> responseObserver) {
         if (!request.hasVersion()) {
-            log.info("Invalid request - version must be specified: {}", request);
+            log.info(ERROR.getMarker(), "Invalid request - version must be specified: {}", request);
             responseObserver.onError(Status.INVALID_ARGUMENT
                     .withDescription("version has to be specified")
                     .asRuntimeException());
             return true;
         }
         if (!request.hasRoster()) {
-            log.info("Invalid request - roster must be specified: {}", request);
+            log.info(ERROR.getMarker(), "Invalid request - roster must be specified: {}", request);
             responseObserver.onError(Status.INVALID_ARGUMENT
                     .withDescription("roster has to be specified")
                     .asRuntimeException());
@@ -196,21 +201,19 @@ public class NodeCommunicationService extends NodeCommunicationServiceGrpc.NodeC
     public synchronized void submitTransaction(
             @NonNull final TransactionRequest request,
             @NonNull final StreamObserver<TransactionRequestAnswer> responseObserver) {
-        log.debug("Received submit transaction request: {}", request);
+        log.debug(DEMO_INFO.getMarker(), "Received submit transaction request: {}", request);
         if (consensusNodeManager == null) {
             setPlatformNotStartedResponse(responseObserver);
             return;
         }
 
-        try {
+        wrapWithErrorHandling(responseObserver, () -> {
             final boolean result =
                     consensusNodeManager.submitTransaction(request.getPayload().toByteArray());
             responseObserver.onNext(
                     TransactionRequestAnswer.newBuilder().setResult(result).build());
             responseObserver.onCompleted();
-        } catch (final Exception e) {
-            responseObserver.onError(Status.INTERNAL.withCause(e).asRuntimeException());
-        }
+        });
     }
 
     /**
@@ -224,19 +227,57 @@ public class NodeCommunicationService extends NodeCommunicationServiceGrpc.NodeC
     @Override
     public synchronized void syntheticBottleneckUpdate(
             @NonNull final SyntheticBottleneckRequest request, @NonNull final StreamObserver<Empty> responseObserver) {
-        log.info("Received synthetic bottleneck request: {}", request);
+        log.info(DEMO_INFO.getMarker(), "Received synthetic bottleneck request: {}", request);
         if (consensusNodeManager == null) {
             setPlatformNotStartedResponse(responseObserver);
             return;
         }
-        consensusNodeManager.updateSyntheticBottleneck(request.getSleepMillisPerRound());
-        responseObserver.onNext(Empty.getDefaultInstance());
-        responseObserver.onCompleted();
+        wrapWithErrorHandling(responseObserver, () -> {
+            consensusNodeManager.updateSyntheticBottleneck(request.getSleepMillisPerRound());
+            responseObserver.onNext(Empty.getDefaultInstance());
+            responseObserver.onCompleted();
+        });
+    }
+
+    @Override
+    public void quiescenceCommandUpdate(
+            @NonNull final QuiescenceRequest request, @NonNull final StreamObserver<Empty> responseObserver) {
+        log.info(DEMO_INFO.getMarker(), "Received quiescence request: {}", request.getCommand());
+        if (consensusNodeManager == null) {
+            setPlatformNotStartedResponse(responseObserver);
+            return;
+        }
+
+        wrapWithErrorHandling(responseObserver, () -> {
+            final QuiescenceCommand command =
+                    switch (request.getCommand()) {
+                        case QUIESCE -> QuiescenceCommand.QUIESCE;
+                        case BREAK_QUIESCENCE -> QuiescenceCommand.BREAK_QUIESCENCE;
+                        default -> QuiescenceCommand.DONT_QUIESCE;
+                    };
+
+            consensusNodeManager.sendQuiescenceCommand(command);
+            responseObserver.onNext(Empty.getDefaultInstance());
+            responseObserver.onCompleted();
+        });
     }
 
     private void setPlatformNotStartedResponse(@NonNull final StreamObserver<?> responseObserver) {
         responseObserver.onError(Status.FAILED_PRECONDITION
                 .withDescription("Platform not started yet")
                 .asRuntimeException());
+    }
+
+    private static void wrapWithErrorHandling(
+            @NonNull final StreamObserver<?> responseObserver, @NonNull final Runnable action) {
+        try {
+            action.run();
+        } catch (final IllegalArgumentException e) {
+            responseObserver.onError(Status.INVALID_ARGUMENT.withCause(e).asRuntimeException());
+        } catch (final UnsupportedOperationException e) {
+            responseObserver.onError(Status.UNIMPLEMENTED.withCause(e).asRuntimeException());
+        } catch (final Exception e) {
+            responseObserver.onError(Status.INTERNAL.withCause(e).asRuntimeException());
+        }
     }
 }

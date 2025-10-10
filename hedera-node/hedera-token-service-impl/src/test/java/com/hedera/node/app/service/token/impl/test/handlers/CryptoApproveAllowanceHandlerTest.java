@@ -10,8 +10,8 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.MAX_ALLOWANCES_EXCEEDED
 import static com.hedera.hapi.node.base.ResponseCodeEnum.NEGATIVE_ALLOWANCE_AMOUNT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.OK;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SENDER_DOES_NOT_OWN_NFT_SERIAL_NO;
-import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_KEY;
-import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.NFTS_KEY;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_STATE_ID;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.NFTS_STATE_ID;
 import static com.hedera.node.app.spi.fixtures.Assertions.assertThrowsPreCheck;
 import static com.hedera.node.app.spi.fixtures.workflows.ExceptionConditions.responseCode;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -68,6 +68,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class CryptoApproveAllowanceHandlerTest extends CryptoTokenHandlerTestBase {
+
     @Mock(strictness = Strictness.LENIENT)
     private HandleContext handleContext;
 
@@ -108,7 +109,7 @@ class CryptoApproveAllowanceHandlerTest extends CryptoTokenHandlerTestBase {
     void cryptoApproveAllowanceFailsWithInvalidOwner() throws PreCheckException {
         readableAccounts =
                 emptyReadableAccountStateBuilder().value(payerId, account).build();
-        given(readableStates.<AccountID, Account>get(ACCOUNTS_KEY)).willReturn(readableAccounts);
+        given(readableStates.<AccountID, Account>get(ACCOUNTS_STATE_ID)).willReturn(readableAccounts);
         readableAccountStore = new ReadableAccountStoreImpl(readableStates, readableEntityCounters);
 
         final var txn = cryptoApproveAllowanceTransaction(
@@ -121,7 +122,7 @@ class CryptoApproveAllowanceHandlerTest extends CryptoTokenHandlerTestBase {
     void cryptoApproveAllowanceFailsWithInvalidSpenderCrypto() throws PreCheckException {
         readableAccounts =
                 emptyReadableAccountStateBuilder().value(payerId, account).build();
-        given(readableStates.<AccountID, Account>get(ACCOUNTS_KEY)).willReturn(readableAccounts);
+        given(readableStates.<AccountID, Account>get(ACCOUNTS_STATE_ID)).willReturn(readableAccounts);
         readableAccountStore = new ReadableAccountStoreImpl(readableStates, readableEntityCounters);
         final var allowance =
                 cryptoAllowance.copyBuilder().spender((AccountID) null).build();
@@ -137,7 +138,7 @@ class CryptoApproveAllowanceHandlerTest extends CryptoTokenHandlerTestBase {
     void cryptoApproveAllowanceFailsWithInvalidSpenderToken() throws PreCheckException {
         readableAccounts =
                 emptyReadableAccountStateBuilder().value(payerId, account).build();
-        given(readableStates.<AccountID, Account>get(ACCOUNTS_KEY)).willReturn(readableAccounts);
+        given(readableStates.<AccountID, Account>get(ACCOUNTS_STATE_ID)).willReturn(readableAccounts);
         readableAccountStore = new ReadableAccountStoreImpl(readableStates, readableEntityCounters);
         final var allowance =
                 tokenAllowance.copyBuilder().spender((AccountID) null).build();
@@ -153,7 +154,7 @@ class CryptoApproveAllowanceHandlerTest extends CryptoTokenHandlerTestBase {
     void cryptoApproveAllowanceFailsWithInvalidSpenderNFT() throws PreCheckException {
         readableAccounts =
                 emptyReadableAccountStateBuilder().value(payerId, account).build();
-        given(readableStates.<AccountID, Account>get(ACCOUNTS_KEY)).willReturn(readableAccounts);
+        given(readableStates.<AccountID, Account>get(ACCOUNTS_STATE_ID)).willReturn(readableAccounts);
         readableAccountStore = new ReadableAccountStoreImpl(readableStates, readableEntityCounters);
         final var allowance =
                 nftAllowance.copyBuilder().spender((AccountID) null).build();
@@ -193,7 +194,7 @@ class CryptoApproveAllowanceHandlerTest extends CryptoTokenHandlerTestBase {
                 .value(payerId, account)
                 .value(ownerId, ownerAccount)
                 .build();
-        given(readableStates.<AccountID, Account>get(ACCOUNTS_KEY)).willReturn(readableAccounts);
+        given(readableStates.<AccountID, Account>get(ACCOUNTS_STATE_ID)).willReturn(readableAccounts);
         readableAccountStore = new ReadableAccountStoreImpl(readableStates, readableEntityCounters);
 
         final var txn = cryptoApproveAllowanceTransaction(
@@ -380,7 +381,7 @@ class CryptoApproveAllowanceHandlerTest extends CryptoTokenHandlerTestBase {
                 .value(nftIdSl1, nftSl1.copyBuilder().ownerId(payerId).build())
                 .value(nftIdSl2, nftSl2.copyBuilder().ownerId(payerId).build())
                 .build();
-        given(writableStates.<NftID, Nft>get(NFTS_KEY)).willReturn(writableNftState);
+        given(writableStates.<NftID, Nft>get(NFTS_STATE_ID)).willReturn(writableNftState);
         writableNftStore = new WritableNftStore(writableStates, writableEntityCounters);
 
         final var txn = cryptoApproveAllowanceTransaction(

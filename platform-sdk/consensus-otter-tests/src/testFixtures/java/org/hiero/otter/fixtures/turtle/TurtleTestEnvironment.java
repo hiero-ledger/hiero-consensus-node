@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.turtle;
 
-import static com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer.registerMerkleStateRootClassIds;
+import static com.swirlds.platform.test.fixtures.config.ConfigUtils.CONFIGURATION;
+import static com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer.registerConstructablesForStorage;
 
 import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.common.io.utility.FileUtils;
@@ -81,7 +82,7 @@ public class TurtleTestEnvironment implements TestEnvironment {
             final ConstructableRegistry registry = ConstructableRegistry.getInstance();
             registry.reset();
             registry.registerConstructables("");
-            registerMerkleStateRootClassIds();
+            registerConstructablesForStorage(CONFIGURATION);
         } catch (final ConstructableRegistryException e) {
             throw new RuntimeException(e);
         }

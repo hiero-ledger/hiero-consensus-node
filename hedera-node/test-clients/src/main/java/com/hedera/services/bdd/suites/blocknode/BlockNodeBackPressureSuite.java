@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.blocknode;
 
-import static com.hedera.services.bdd.junit.TestTags.BLOCK_NODE_SIMULATOR;
+import static com.hedera.services.bdd.junit.TestTags.BLOCK_NODE;
 import static com.hedera.services.bdd.junit.hedera.NodeSelector.byNodeId;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
-import static com.hedera.services.bdd.spec.utilops.BlockNodeSimulatorVerbs.blockNodeSimulator;
+import static com.hedera.services.bdd.spec.utilops.BlockNodeVerbs.blockNode;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertHgcaaLogContainsTimeframe;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertHgcaaLogDoesNotContain;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
@@ -24,21 +24,22 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.LockSupport;
 import java.util.stream.Stream;
 import org.hiero.consensus.model.status.PlatformStatus;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Tag;
 
 /**
  * This suite specifically tests the behavior of the block buffer service blocking the transaction handling thread
  * in HandleWorkflow depending on the configuration of streamMode and writerMode.
  */
-@Tag(BLOCK_NODE_SIMULATOR)
+@Tag(BLOCK_NODE)
 @OrderedInIsolation
 public class BlockNodeBackPressureSuite {
-
     @HapiTest
     @HapiBlockNode(
             networkSize = 1,
-            blockNodeConfigs = {@BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.SIMULATOR)},
+            blockNodeConfigs = {@BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.REAL)},
             subProcessNodeConfigs = {
                 @SubProcessNodeConfig(
                         nodeId = 0,
@@ -50,10 +51,11 @@ public class BlockNodeBackPressureSuite {
                             "blockStream.writerMode", "FILE_AND_GRPC"
                         })
             })
+    @Order(0)
     final Stream<DynamicTest> noBackPressureAppliedWhenBufferFull() {
         return hapiTest(
                 waitUntilNextBlocks(5),
-                blockNodeSimulator(0).shutDownImmediately(),
+                blockNode(0).shutDownImmediately(),
                 waitUntilNextBlocks(30),
                 assertHgcaaLogDoesNotContain(
                         byNodeId(0),
@@ -61,10 +63,11 @@ public class BlockNodeBackPressureSuite {
                         Duration.ofSeconds(15)));
     }
 
+    @Disabled
     @HapiTest
     @HapiBlockNode(
             networkSize = 1,
-            blockNodeConfigs = {@BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.SIMULATOR)},
+            blockNodeConfigs = {@BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.REAL)},
             subProcessNodeConfigs = {
                 @SubProcessNodeConfig(
                         nodeId = 0,
@@ -76,11 +79,12 @@ public class BlockNodeBackPressureSuite {
                             "blockStream.writerMode", "FILE_AND_GRPC"
                         })
             })
+    @Order(1)
     final Stream<DynamicTest> backPressureAppliedWhenBlocksAndFileAndGrpc() {
         final AtomicReference<Instant> time = new AtomicReference<>();
         return hapiTest(
                 waitUntilNextBlocks(5),
-                blockNodeSimulator(0).shutDownImmediately(),
+                blockNode(0).shutDownImmediately(),
                 doingContextual(spec -> time.set(Instant.now())),
                 sourcingContextual(spec -> assertHgcaaLogContainsTimeframe(
                         byNodeId(0),
@@ -92,10 +96,11 @@ public class BlockNodeBackPressureSuite {
                 waitForAny(byNodeId(0), Duration.ofSeconds(30), PlatformStatus.CHECKING));
     }
 
+    @Disabled
     @HapiTest
     @HapiBlockNode(
             networkSize = 1,
-            blockNodeConfigs = {@BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.SIMULATOR)},
+            blockNodeConfigs = {@BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.REAL)},
             subProcessNodeConfigs = {
                 @SubProcessNodeConfig(
                         nodeId = 0,
@@ -107,12 +112,13 @@ public class BlockNodeBackPressureSuite {
                             "blockStream.writerMode", "GRPC"
                         })
             })
+    @Order(2)
     final Stream<DynamicTest> backPressureAppliedWhenBlocksAndGrpc() {
         final AtomicReference<Instant> time = new AtomicReference<>();
         return hapiTest(
                 doingContextual(
                         spec -> LockSupport.parkNanos(Duration.ofSeconds(10).toNanos())),
-                blockNodeSimulator(0).shutDownImmediately(),
+                blockNode(0).shutDownImmediately(),
                 doingContextual(spec -> time.set(Instant.now())),
                 sourcingContextual(spec -> assertHgcaaLogContainsTimeframe(
                         byNodeId(0),

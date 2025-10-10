@@ -3,7 +3,6 @@ package org.hiero.otter.fixtures.internal.result;
 
 import static java.util.Objects.requireNonNull;
 
-import com.hedera.hapi.platform.state.NodeId;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.List;
@@ -13,6 +12,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CopyOnWriteArrayList;
 import org.apache.logging.log4j.Marker;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
+import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.otter.fixtures.logging.StructuredLog;
 import org.hiero.otter.fixtures.result.ConsensusRoundSubscriber;
@@ -114,7 +114,8 @@ public class NodeResultsCollector {
     }
 
     /**
-     * Returns all the consensus rounds created at the moment of invocation, starting with and including the provided index.
+     * Returns all the consensus rounds created at the moment of invocation, starting with and including the provided
+     * index.
      *
      * @param startIndex the index to start from
      * @return the list of consensus rounds
@@ -155,7 +156,8 @@ public class NodeResultsCollector {
     }
 
     /**
-     * Returns all the platform statuses the node went through until the moment of invocation, starting with and including the provided index.
+     * Returns all the platform statuses the node went through until the moment of invocation, starting with and
+     * including the provided index.
      *
      * @param startIndex the index to start from
      * @return the list of platform statuses
@@ -192,7 +194,7 @@ public class NodeResultsCollector {
      */
     @NonNull
     public SingleNodeLogResult newLogResult() {
-        return new SingleNodeLogResultImpl(this, Set.of());
+        return new SingleNodeLogResultImpl(this, Set.of(), Set.of());
     }
 
     /**
@@ -204,10 +206,13 @@ public class NodeResultsCollector {
      */
     @NonNull
     public List<StructuredLog> currentLogEntries(
-            final long startIndex, @NonNull final Set<Marker> suppressedLogMarkers) {
+            final long startIndex,
+            @NonNull final Set<Marker> suppressedLogMarkers,
+            @NonNull final Set<String> suppressedLoggerNames) {
         return logEntries.stream()
                 .skip(startIndex)
                 .filter(logEntry -> logEntry.marker() == null || !suppressedLogMarkers.contains(logEntry.marker()))
+                .filter(logEntry -> !suppressedLoggerNames.contains(logEntry.loggerName()))
                 .toList();
     }
 

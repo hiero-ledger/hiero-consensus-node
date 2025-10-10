@@ -5,16 +5,16 @@ import static com.hedera.hapi.util.HapiUtils.asInstant;
 import static com.swirlds.platform.state.MerkleStateUtils.createInfoString;
 import static com.swirlds.platform.state.PlatformStateAccessor.GENESIS_ROUND;
 import static com.swirlds.platform.state.service.PlatformStateService.NAME;
-import static com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema.PLATFORM_STATE_KEY;
+import static com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID;
 import static com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema.UNINITIALIZED_PLATFORM_STATE;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.hedera.hapi.platform.state.PlatformState;
-import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.PlatformStateAccessor;
 import com.swirlds.platform.state.PlatformStateModifier;
+import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.ReadableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -136,7 +136,7 @@ public class PlatformStateFacade {
             return UNINITIALIZED_PLATFORM_STATE;
         } else {
             return (PlatformState)
-                    readableStates.getSingleton(PLATFORM_STATE_KEY).get();
+                    readableStates.getSingleton(PLATFORM_STATE_STATE_ID).get();
         }
     }
 

@@ -12,7 +12,7 @@ import static com.hedera.node.app.blocks.impl.BlockImplUtils.combine;
 import static com.hedera.node.app.blocks.impl.streaming.FileBlockItemWriter.blockDirFor;
 import static com.hedera.node.app.blocks.impl.streaming.FileBlockItemWriter.cleanUpPendingBlock;
 import static com.hedera.node.app.blocks.impl.streaming.FileBlockItemWriter.loadContiguousPendingBlocks;
-import static com.hedera.node.app.blocks.schemas.V0560BlockStreamSchema.BLOCK_STREAM_INFO_KEY;
+import static com.hedera.node.app.blocks.schemas.V0560BlockStreamSchema.BLOCK_STREAM_INFO_STATE_ID;
 import static com.hedera.node.app.hapi.utils.CommonUtils.sha384DigestOrThrow;
 import static com.hedera.node.app.records.BlockRecordService.EPOCH;
 import static com.hedera.node.app.records.impl.BlockRecordInfoUtils.HASH_SIZE;
@@ -22,6 +22,7 @@ import static java.util.Objects.requireNonNull;
 import com.google.common.annotations.VisibleForTesting;
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.BlockProof;
+import com.hedera.hapi.block.stream.ChainOfTrustProof;
 import com.hedera.hapi.block.stream.MerkleSiblingHash;
 import com.hedera.hapi.block.stream.output.BlockHeader;
 import com.hedera.hapi.block.stream.output.StateChanges;
@@ -29,8 +30,6 @@ import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.blockstream.BlockStreamInfo;
 import com.hedera.hapi.platform.state.PlatformState;
-import com.hedera.node.app.HederaStateRoot;
-import com.hedera.node.app.HederaVirtualMapState;
 import com.hedera.node.app.blocks.BlockHashSigner;
 import com.hedera.node.app.blocks.BlockItemWriter;
 import com.hedera.node.app.blocks.BlockStreamManager;
@@ -61,6 +60,7 @@ import com.swirlds.platform.state.service.ReadablePlatformStateStore;
 import com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema;
 import com.swirlds.platform.system.state.notifications.StateHashedNotification;
 import com.swirlds.state.State;
+import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.spi.CommittableWritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -72,7 +72,6 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.EnumSet;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -96,6 +95,7 @@ import org.hiero.consensus.model.hashgraph.Round;
 
 @Singleton
 public class BlockStreamManagerImpl implements BlockStreamManager {
+
     private static final Logger log = LogManager.getLogger(BlockStreamManagerImpl.class);
     public static final Bytes NULL_HASH = Bytes.wrap(new byte[HASH_SIZE]);
 
@@ -130,7 +130,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     // All this state is scoped to producing the current block
     private long blockNumber;
     private int eventIndex = 0;
-    private final Map<Hash, Integer> eventIndexInBlock = new HashMap<>();
+    private final Map<Hash, Integer> eventIndexInBlock = new ConcurrentHashMap<>();
     // The last non-empty (i.e., not skipped) round number that will eventually get a start-of-state hash
     private long lastRoundOfPrevBlock;
     private Bytes lastBlockHash;
@@ -302,7 +302,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             blockNumber = blockStreamInfo.blockNumber() + 1;
             if (hintsEnabled && !hasCheckedForPendingBlocks) {
                 final var hasBeenFrozen = requireNonNull(state.getReadableStates(PlatformStateService.NAME)
-                                .<PlatformState>getSingleton(V0540PlatformStateSchema.PLATFORM_STATE_KEY)
+                                .<PlatformState>getSingleton(V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID)
                                 .get())
                         .hasLastFrozenTime();
                 if (hasBeenFrozen) {
@@ -419,13 +419,10 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         final boolean closesBlock = shouldCloseBlock(roundNum, freezeRoundNumber);
         if (closesBlock) {
             lifecycle.onCloseBlock(state);
-            if (state instanceof HederaVirtualMapState hederaNewStateRoot) {
+            // FUTURE WORK: the state should always be an instance of VirtualMapState
+            // https://github.com/hiero-ledger/hiero-consensus-node/issues/21284
+            if (state instanceof VirtualMapState hederaNewStateRoot) {
                 hederaNewStateRoot.commitSingletons();
-            } else if (state instanceof HederaStateRoot hederaStateRoot) {
-                // Non production case (testing tools)
-                // Otherwise assume it is a MerkleStateRoot
-                // This branch should be removed once the MerkleStateRoot is removed
-                hederaStateRoot.commitSingletons();
             }
             // Flush all boundary state changes besides the BlockStreamInfo
 
@@ -450,7 +447,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
 
             // Put this block hash context in state via the block stream info
             final var writableState = state.getWritableStates(BlockStreamService.NAME);
-            final var blockStreamInfoState = writableState.<BlockStreamInfo>getSingleton(BLOCK_STREAM_INFO_KEY);
+            final var blockStreamInfoState = writableState.<BlockStreamInfo>getSingleton(BLOCK_STREAM_INFO_STATE_ID);
             blockStreamInfoState.put(new BlockStreamInfo(
                     blockNumber,
                     blockTimestamp(),
@@ -510,13 +507,13 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             // until after restart to gossip partial signatures and sign any pending blocks
             if (hintsEnabled && roundNum == freezeRoundNumber) {
                 final var hasPrecedingUnproven = new AtomicBoolean(false);
-                // In case the id of the next hinTS construction changed since a block endede
+                // In case the id of the next hinTS construction changed since a block ended
                 pendingBlocks.forEach(block -> block.flushPending(hasPrecedingUnproven.getAndSet(true)));
             } else {
-                final var schemeId = blockHashSigner.schemeId();
-                blockHashSigner
-                        .signFuture(blockHash)
-                        .thenAcceptAsync(signature -> finishProofWithSignature(blockHash, signature, schemeId));
+                final var attempt = blockHashSigner.sign(blockHash);
+                attempt.signatureFuture()
+                        .thenAcceptAsync(signature -> finishProofWithSignature(
+                                blockHash, signature, attempt.verificationKey(), attempt.chainOfTrustProof()));
             }
 
             final var exportNetworkToDisk =
@@ -599,10 +596,14 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
      *
      * @param blockHash the block hash to finish the block proof for
      * @param blockSignature the signature to use in the block proof
-     * @param schemeId the id of the signing scheme used
+     * @param verificationKey if hinTS is enabled, the verification key to use in the block proof
+     * @param chainOfTrustProof if history proofs are enabled, the chain of trust proof to use in the block proof
      */
     private synchronized void finishProofWithSignature(
-            @NonNull final Bytes blockHash, @NonNull final Bytes blockSignature, final long schemeId) {
+            @NonNull final Bytes blockHash,
+            @NonNull final Bytes blockSignature,
+            @Nullable final Bytes verificationKey,
+            @Nullable final ChainOfTrustProof chainOfTrustProof) {
         // Find the block whose hash is the signed message, tracking any sibling hashes
         // needed for indirect proofs of earlier blocks along the way
         long blockNumber = Long.MIN_VALUE;
@@ -632,7 +633,12 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             final var proof = block.proofBuilder()
                     .blockSignature(blockSignature)
                     .siblingHashes(siblingHashes.stream().flatMap(List::stream).toList());
-            proof.schemeId(schemeId);
+            if (verificationKey != null) {
+                proof.verificationKey(verificationKey);
+                if (chainOfTrustProof != null) {
+                    proof.verificationKeyProof(chainOfTrustProof);
+                }
+            }
             final var proofItem = BlockItem.newBuilder().blockProof(proof).build();
             block.writer().writePbjItemAndBytes(proofItem, BlockItem.PROTOBUF.toBytes(proofItem));
             block.writer().closeCompleteBlock();
@@ -673,8 +679,8 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     }
 
     private @NonNull BlockStreamInfo blockStreamInfoFrom(@NonNull final State state) {
-        final var blockStreamInfoState =
-                state.getReadableStates(BlockStreamService.NAME).<BlockStreamInfo>getSingleton(BLOCK_STREAM_INFO_KEY);
+        final var blockStreamInfoState = state.getReadableStates(BlockStreamService.NAME)
+                .<BlockStreamInfo>getSingleton(BLOCK_STREAM_INFO_STATE_ID);
         return requireNonNull(blockStreamInfoState.get());
     }
 

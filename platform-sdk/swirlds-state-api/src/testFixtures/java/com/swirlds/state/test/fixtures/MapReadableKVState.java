@@ -18,12 +18,13 @@ import java.util.Objects;
  * some strange case, or in some other way work with the backing map directly.
  *
  * <p>A convenient {@link Builder} is provided to create the map (since there are no map literals in
- * Java). The {@link #builder(String, String)} method can be used to create the builder.
+ * Java). The {@link #builder(String, int)} method can be used to create the builder.
  *
  * @param <K> The key type
  * @param <V> The value type
  */
 public class MapReadableKVState<K, V> extends ReadableKVStateBase<K, V> {
+
     /** Represents the backing storage for this state */
     private final Map<K, V> backingStore;
 
@@ -32,13 +33,12 @@ public class MapReadableKVState<K, V> extends ReadableKVStateBase<K, V> {
      * pre-populate the map, or if you want to use Mockito to mock it or cause it to throw
      * exceptions when certain keys are accessed, etc.
      *
-     * @param serviceName The service name
-     * @param stateKey     The state key for this state
+     * @param stateId      The state ID for this state
+     * @param label        The service label
      * @param backingStore The backing store to use
      */
-    public MapReadableKVState(
-            @NonNull final String serviceName, @NonNull final String stateKey, @NonNull final Map<K, V> backingStore) {
-        super(serviceName, stateKey);
+    public MapReadableKVState(final int stateId, final String label, @NonNull final Map<K, V> backingStore) {
+        super(stateId, label);
         this.backingStore = Objects.requireNonNull(backingStore);
     }
 
@@ -65,13 +65,13 @@ public class MapReadableKVState<K, V> extends ReadableKVStateBase<K, V> {
      *
      * @param <K>         The key type
      * @param <V>         The value type
-     * @param serviceName The service name
-     * @param stateKey    The state key
+     * @param stateId     The state ID
+     * @param label       The state label
      * @return A {@link Builder} to be used for creating a {@link MapReadableKVState}.
      */
     @NonNull
-    public static <K, V> Builder<K, V> builder(@NonNull final String serviceName, @NonNull final String stateKey) {
-        return new Builder<>(serviceName, stateKey);
+    public static <K, V> Builder<K, V> builder(final int stateId, @NonNull final String label) {
+        return new Builder<>(stateId, label);
     }
 
     /**
@@ -79,13 +79,14 @@ public class MapReadableKVState<K, V> extends ReadableKVStateBase<K, V> {
      * MapReadableKVState}.
      */
     public static final class Builder<K, V> {
-        private final Map<K, V> backingStore = new HashMap<>();
-        private final String serviceName;
-        private final String stateKey;
 
-        Builder(@NonNull final String serviceName, @NonNull final String stateKey) {
-            this.serviceName = serviceName;
-            this.stateKey = stateKey;
+        private final int stateId;
+        private final String label;
+        private final Map<K, V> backingStore = new HashMap<>();
+
+        Builder(final int stateId, final String label) {
+            this.stateId = stateId;
+            this.label = label;
         }
 
         /**
@@ -109,7 +110,7 @@ public class MapReadableKVState<K, V> extends ReadableKVStateBase<K, V> {
          */
         @NonNull
         public MapReadableKVState<K, V> build() {
-            return new MapReadableKVState<>(serviceName, stateKey, new HashMap<>(backingStore));
+            return new MapReadableKVState<>(stateId, label, new HashMap<>(backingStore));
         }
     }
 }
