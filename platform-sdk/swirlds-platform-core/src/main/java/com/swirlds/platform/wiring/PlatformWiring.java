@@ -501,6 +501,7 @@ public class PlatformWiring {
         components.branchDetectorWiring().getInputWire(BranchDetector::clear);
         components.branchReporterWiring().getInputWire(BranchReporter::clear);
         components.platformMonitorWiring().getInputWire(PlatformMonitor::submitStatusAction);
+        components.platformMonitorWiring().getInputWire(PlatformMonitor::quiescenceCommand);
         components.eventCreationManagerWiring().getInputWire(EventCreatorModule::quiescenceCommand);
     }
 }

@@ -62,7 +62,9 @@ class FreezingStatusLogicTests {
         triggerActionAndAssertNoTransition(
                 logic::processFallenBehindAction, new FallenBehindAction(), logic.getStatus());
         triggerActionAndAssertNoTransition(
-                logic::processTimeElapsedAction, new TimeElapsedAction(time.now()), logic.getStatus());
+                logic::processTimeElapsedAction,
+                new TimeElapsedAction(time.now(), new TimeElapsedAction.QuiescingStatus(false, time.now())),
+                logic.getStatus());
         triggerActionAndAssertNoTransition(
                 logic::processStateWrittenToDiskAction, new StateWrittenToDiskAction(0, false), logic.getStatus());
     }

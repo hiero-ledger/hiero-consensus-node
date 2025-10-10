@@ -10,8 +10,11 @@ import java.time.Duration;
  *
  * @param observingStatusDelay              the amount of wall clock time to wait before transitioning out of the
  *                                          OBSERVING status
- * @param activeStatusDelay                 the amount of wall clock time that the status will remain ACTIVE without
- *                                          seeing any self events reach consensus
+ * @param activeStatusDelay                 the amount of wall clock time that must be exceeded for transitioning
+ *                                          out of the ACTIVE status when
+ *                                             (1) not observing a self event reached during this period
+ *  *                                          or (2) the quiescence command changed from QUIESCE to any of (BREAK_QUIESCENCE or DONT_QUIESCE).
+ *  *
  * @param statusStateMachineHeartbeatPeriod the amount of wall clock time between heartbeats sent to the status state
  *                                          machine
  */
