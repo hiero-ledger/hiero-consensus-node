@@ -16,7 +16,7 @@ dependencies {
 }
 
 val autoService = "1.1.1"
-val besu = "25.2.2"
+val besu = "25.4.1"
 val bouncycastle = "1.81"
 val dagger = "2.56.2"
 val eclipseCollections = "13.0.0"
@@ -31,7 +31,8 @@ val pbj = "0.11.15" // ATTENTION: keep in sync with plugin version in 'hapi/hapi
 val protobuf = "4.31.1"
 val blockNodeProtobufSources = "0.17.1"
 val testContainers = "1.21.3"
-val tuweni = "2.4.2"
+val tuweniBytes = "2.7.1"
+val tuweni = "2.7.1"
 val webcompare = "2.1.8"
 
 dependencies.constraints {
@@ -130,8 +131,8 @@ dependencies.constraints {
         because("org.testcontainers.junit.jupiter")
     }
     api("org.yaml:snakeyaml:2.4") { because("org.yaml.snakeyaml") }
-    api("io.tmio:tuweni-bytes:$tuweni") { because("tuweni.bytes") }
-    api("io.tmio:tuweni-units:$tuweni") { because("tuweni.units") }
+    api("io.consensys.tuweni:tuweni-bytes:$tuweni") { because("tuweni.bytes") }
+    api("io.consensys.tuweni:tuweni-units:$tuweni") { because("tuweni.units") }
     api("uk.org.webcompere:system-stubs-core:$webcompare") {
         because("uk.org.webcompere.systemstubs.core")
     }

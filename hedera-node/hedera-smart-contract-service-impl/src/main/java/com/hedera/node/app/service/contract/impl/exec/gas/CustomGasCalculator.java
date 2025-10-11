@@ -26,7 +26,7 @@ import org.hyperledger.besu.evm.gascalculator.CancunGasCalculator;
  */
 @SuppressWarnings("java:S110")
 @Singleton
-public class CustomGasCalculator extends CancunGasCalculator {
+public class CustomGasCalculator extends CancunGasCalculator implements HederaGasCalculator {
     private static final long TX_DATA_ZERO_COST = 4L;
     private static final long ISTANBUL_TX_DATA_NON_ZERO_COST = 16L;
     private static final long TX_BASE_COST = 21_000L;

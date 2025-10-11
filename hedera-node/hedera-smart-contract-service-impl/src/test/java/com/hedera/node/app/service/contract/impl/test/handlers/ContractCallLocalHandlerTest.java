@@ -27,6 +27,7 @@ import com.hedera.node.app.hapi.utils.fee.SigValueObj;
 import com.hedera.node.app.service.contract.impl.exec.CallOutcome;
 import com.hedera.node.app.service.contract.impl.exec.ContextQueryProcessor;
 import com.hedera.node.app.service.contract.impl.exec.QueryComponent;
+import com.hedera.node.app.service.contract.impl.exec.gas.HederaGasCalculator;
 import com.hedera.node.app.service.contract.impl.handlers.ContractCallLocalHandler;
 import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
 import com.hedera.node.app.service.token.ReadableAccountStore;
@@ -42,7 +43,6 @@ import com.hederahashgraph.api.proto.java.FeeComponents;
 import com.swirlds.config.api.Configuration;
 import java.time.InstantSource;
 import java.util.function.Function;
-import org.hyperledger.besu.evm.gascalculator.GasCalculator;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -97,7 +97,7 @@ class ContractCallLocalHandlerTest {
     private FeeCalculator feeCalculator;
 
     @Mock
-    private GasCalculator gasCalculator;
+    private HederaGasCalculator gasCalculator;
 
     @Mock
     private EntityIdFactory entityIdFactory;

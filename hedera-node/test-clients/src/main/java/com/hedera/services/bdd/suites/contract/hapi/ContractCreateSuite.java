@@ -946,6 +946,7 @@ public class ContractCreateSuite {
                 new byte[] {},
                 new byte[] {},
                 null,
+                null,
                 0,
                 null,
                 null,
