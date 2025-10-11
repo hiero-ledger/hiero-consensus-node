@@ -229,9 +229,11 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
         if (network instanceof SubProcessNetwork) {
             Map<String, String> prCheckOverrides = ProcessUtils.prCheckOverrides();
             if (prCheckOverrides.containsKey("blockStream.writerMode")
-                    && prCheckOverrides.get("blockStream.writerMode").equals("FILE_AND_GRPC")) {
+                    && (prCheckOverrides.get("blockStream.writerMode").equals("FILE_AND_GRPC")
+                            || prCheckOverrides.get("blockStream.writerMode").equals("GRPC"))) {
                 log.info(
-                        "PR Check Override: blockStream.writerMode=FILE_AND_GRPC is set, configuring a Block Node network");
+                        "PR Check Override: blockStream.writerMode={} is set, configuring a Block Node network",
+                        prCheckOverrides.get("blockStream.writerMode"));
                 BlockNodeNetwork blockNodeNetwork = new BlockNodeNetwork();
                 network.nodes().forEach(node -> {
                     blockNodeNetwork.getBlockNodeModeById().put(node.getNodeId(), BlockNodeMode.SIMULATOR);

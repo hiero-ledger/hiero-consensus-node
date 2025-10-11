@@ -280,14 +280,16 @@ public class SimulatedBlockNodeServer {
     }
 
     /**
-     * Returns the captured and sealed blocks as a list of {@link com.hedera.hapi.block.stream.Block} objects
-     * in ascending block number order. Only blocks that have both header and proof (sealed) are returned.
+     * Returns the captured blocks as a list of {@link com.hedera.hapi.block.stream.Block} objects
+     * in ascending block number order. Returns all blocks that have been captured, including
+     * unsealed blocks (those without proofs yet).
      */
     @NonNull
     public List<com.hedera.hapi.block.stream.Block> getCapturedBlocks() {
         blockTrackingLock.readLock().lock();
         try {
-            return sealedBlocks.stream()
+            // Return all blocks (sealed and unsealed) to match disk blocks and record stream
+            return blockItemsByNumber.keySet().stream()
                     .sorted()
                     .map(blockNum -> com.hedera.hapi.block.stream.Block.newBuilder()
                             .items(blockItemsByNumber.getOrDefault(blockNum, List.of()))
