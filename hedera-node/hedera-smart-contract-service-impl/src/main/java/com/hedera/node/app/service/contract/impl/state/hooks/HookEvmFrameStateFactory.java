@@ -36,7 +36,7 @@ public class HookEvmFrameStateFactory implements EvmFrameStateFactory {
         return new HookEvmFrameState(
                 hederaNativeOperations,
                 hederaOperations.getStore(),
-                hederaNativeOperations.readableHookStore(),
+                hederaNativeOperations.writableEvmHookStore(),
                 codeFactory,
                 hook);
     }
