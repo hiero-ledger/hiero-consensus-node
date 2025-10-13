@@ -8,8 +8,10 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.platform.state.service.WritablePlatformStateStore;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.time.Instant;
 import java.util.function.Consumer;
 import org.hiero.base.utility.CommonUtils;
+import org.hiero.consensus.model.event.ConsensusEvent;
 import org.hiero.consensus.model.event.Event;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 import org.hiero.otter.fixtures.app.OtterFreezeTransaction;
@@ -50,8 +52,9 @@ public class PlatformStateService implements OtterService {
     @Override
     public void handleTransaction(
             @NonNull final WritableStates writableStates,
-            @NonNull final Event event,
+            @NonNull final ConsensusEvent event,
             @NonNull final OtterTransaction transaction,
+            @NonNull final Instant transactionTimestamp,
             @NonNull final Consumer<ScopedSystemTransaction<StateSignatureTransaction>> callback) {
         switch (transaction.getDataCase()) {
             case FREEZETRANSACTION -> handleFreeze(writableStates, transaction.getFreezeTransaction());

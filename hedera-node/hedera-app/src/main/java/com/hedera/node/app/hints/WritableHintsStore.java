@@ -11,9 +11,9 @@ import com.hedera.node.app.service.roster.impl.ActiveRosters;
 import com.hedera.node.config.data.TssConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.Map;
-import java.util.OptionalLong;
 
 /**
  * Provides write access to the {@link HintsConstruction} instances in state.
@@ -94,7 +94,7 @@ public interface WritableHintsStore extends ReadableHintsStore {
      * @param nextNodeIdFromRoster    the ID of the next node in the roster
      * @param nextContributionTimeEnd the end of the time window for the next contribution
      */
-    void moveToNextNode(@NonNull OptionalLong nextNodeIdFromRoster, @NonNull Instant nextContributionTimeEnd);
+    void moveToNextNode(@Nullable Long nextNodeIdFromRoster, @NonNull Instant nextContributionTimeEnd);
 
     /**
      * Adds a CRS publication to the store.

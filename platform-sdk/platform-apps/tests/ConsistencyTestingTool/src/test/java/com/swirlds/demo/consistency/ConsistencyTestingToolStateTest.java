@@ -15,9 +15,13 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.config.api.Configuration;
+import com.swirlds.merkledb.MerkleDbDataSourceBuilder;
+import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer;
+import com.swirlds.virtualmap.VirtualMap;
+import com.swirlds.virtualmap.datasource.VirtualDataSourceBuilder;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -31,6 +35,7 @@ import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 import org.hiero.consensus.model.transaction.Transaction;
 import org.hiero.consensus.model.transaction.TransactionWrapper;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -56,9 +61,18 @@ public class ConsistencyTestingToolStateTest {
 
     @BeforeAll
     static void initState() {
-        state = new ConsistencyTestingToolState();
+        final MerkleDbConfig merkleDbConfig = CONFIGURATION.getConfigData(MerkleDbConfig.class);
+        final VirtualDataSourceBuilder dsBuilder = new MerkleDbDataSourceBuilder(
+                CONFIGURATION, merkleDbConfig.initialCapacity(), merkleDbConfig.hashesRamToDiskThreshold());
+        final VirtualMap virtualMap = new VirtualMap("ConsistencyTestingToolStateTest", dsBuilder, CONFIGURATION);
+        state = new ConsistencyTestingToolState(virtualMap);
         stateLifecycle = new ConsistencyTestingToolConsensusStateEventHandler(DEFAULT_PLATFORM_STATE_FACADE);
         TestingAppStateInitializer.initConsensusModuleStates(state, CONFIGURATION);
+    }
+
+    @AfterAll
+    static void tearDown() {
+        state.release();
     }
 
     @BeforeEach
