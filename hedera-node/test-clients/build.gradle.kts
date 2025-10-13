@@ -124,25 +124,19 @@ val prCheckPropOverrides =
     buildMap<String, String> {
         put(
             "hapiTestAdhoc",
-            "tss.hintsEnabled=false,tss.forceHandoffs=false,tss.initialCrsParties=16,blockStream.blockPeriod=2s,blockStream.writerMode=FILE_AND_GRPC",
+            "tss.hintsEnabled=false,tss.forceHandoffs=false,tss.initialCrsParties=16,blockStream.blockPeriod=2s,blockStream.writerMode=GRPC",
         )
         put(
             "hapiTestCrypto",
-            "tss.hintsEnabled=true,tss.historyEnabled=true,blockStream.blockPeriod=1s,blockStream.writerMode=FILE_AND_GRPC",
+            "tss.hintsEnabled=true,tss.historyEnabled=true,blockStream.blockPeriod=1s,blockStream.writerMode=GRPC",
         )
-        put(
-            "hapiTestSmartContract",
-            "tss.historyEnabled=false,blockStream.writerMode=FILE_AND_GRPC",
-        )
+        put("hapiTestSmartContract", "tss.historyEnabled=false,blockStream.writerMode=GRPC")
         put(
             "hapiTestRestart",
             "tss.hintsEnabled=true,tss.forceHandoffs=true,tss.initialCrsParties=16,blockStream.blockPeriod=1s",
         )
-        put("hapiTestMisc", "nodes.nodeRewardsEnabled=false,blockStream.writerMode=FILE_AND_GRPC")
-        put(
-            "hapiTestTimeConsuming",
-            "nodes.nodeRewardsEnabled=false,blockStream.writerMode=FILE_AND_GRPC",
-        )
+        put("hapiTestMisc", "nodes.nodeRewardsEnabled=false,blockStream.writerMode=GRPC")
+        put("hapiTestTimeConsuming", "nodes.nodeRewardsEnabled=false,blockStream.writerMode=GRPC")
         put("hapiTestMiscRecords", "blockStream.streamMode=RECORDS,nodes.nodeRewardsEnabled=false")
 
         // Copy vals to the MATS variants
