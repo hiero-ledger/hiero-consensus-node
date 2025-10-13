@@ -114,7 +114,8 @@ public class NodeResultsCollector {
     }
 
     /**
-     * Returns all the consensus rounds created at the moment of invocation, starting with and including the provided index.
+     * Returns all the consensus rounds created at the moment of invocation, starting with and including the provided
+     * index.
      *
      * @param startIndex the index to start from
      * @return the list of consensus rounds
@@ -155,7 +156,8 @@ public class NodeResultsCollector {
     }
 
     /**
-     * Returns all the platform statuses the node went through until the moment of invocation, starting with and including the provided index.
+     * Returns all the platform statuses the node went through until the moment of invocation, starting with and
+     * including the provided index.
      *
      * @param startIndex the index to start from
      * @return the list of platform statuses
@@ -192,7 +194,7 @@ public class NodeResultsCollector {
      */
     @NonNull
     public SingleNodeLogResult newLogResult() {
-        return new SingleNodeLogResultImpl(this, Set.of());
+        return new SingleNodeLogResultImpl(this, Set.of(), Set.of());
     }
 
     /**
@@ -204,10 +206,13 @@ public class NodeResultsCollector {
      */
     @NonNull
     public List<StructuredLog> currentLogEntries(
-            final long startIndex, @NonNull final Set<Marker> suppressedLogMarkers) {
+            final long startIndex,
+            @NonNull final Set<Marker> suppressedLogMarkers,
+            @NonNull final Set<String> suppressedLoggerNames) {
         return logEntries.stream()
                 .skip(startIndex)
                 .filter(logEntry -> logEntry.marker() == null || !suppressedLogMarkers.contains(logEntry.marker()))
+                .filter(logEntry -> !suppressedLoggerNames.contains(logEntry.loggerName()))
                 .toList();
     }
 

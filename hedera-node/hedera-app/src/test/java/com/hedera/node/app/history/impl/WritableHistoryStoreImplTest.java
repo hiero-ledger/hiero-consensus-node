@@ -20,6 +20,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.BDDMockito.given;
 
+import com.hedera.hapi.block.stream.ChainOfTrustProof;
 import com.hedera.hapi.node.state.history.ConstructionNodeId;
 import com.hedera.hapi.node.state.history.History;
 import com.hedera.hapi.node.state.history.HistoryProof;
@@ -282,12 +283,12 @@ class WritableHistoryStoreImplTest {
                 HistoryProofConstruction.newBuilder().constructionId(123L).build(),
                 HistoryProofConstruction.newBuilder().constructionId(456L).build());
 
-        final var bookHash = Bytes.wrap("DOODLE");
-        final var proof = new HistoryProof(bookHash, List.of(ProofKey.DEFAULT), History.DEFAULT, Bytes.EMPTY);
+        final var proofKey = new ProofKey(123L, Bytes.wrap("DOODLE"));
+        final var proof = new HistoryProof(List.of(proofKey), History.DEFAULT, ChainOfTrustProof.DEFAULT);
         subject.completeProof(456L, proof);
 
         final var construction = this.<HistoryProofConstruction>getSingleton(NEXT_PROOF_CONSTRUCTION_STATE_ID);
-        assertEquals(bookHash, construction.targetProofOrThrow().sourceAddressBookHash());
+        assertEquals(List.of(proofKey), construction.targetProofOrThrow().targetProofKeys());
     }
 
     @Test
