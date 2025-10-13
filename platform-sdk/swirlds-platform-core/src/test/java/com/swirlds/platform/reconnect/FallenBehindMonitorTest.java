@@ -9,6 +9,7 @@ import static org.mockito.Mockito.mock;
 
 import com.google.common.collect.ImmutableSet;
 import com.hedera.hapi.node.state.roster.Roster;
+import com.swirlds.base.state.Startable;
 import com.swirlds.common.merkle.synchronization.config.ReconnectConfig_;
 import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.common.test.fixtures.Randotron;
@@ -32,18 +33,19 @@ class FallenBehindMonitorTest {
     private final Configuration config = new TestConfigBuilder()
             .withValue(ReconnectConfig_.FALLEN_BEHIND_THRESHOLD, 0.5)
             .getOrCreateConfig();
-    private FallenBehindMonitor manager;
+    private FallenBehindMonitor monitor;
 
     @BeforeEach
     void setUp() {
 
-        manager = new FallenBehindMonitor(
+        monitor = new FallenBehindMonitor(
                 RandomRosterBuilder.create(Randotron.create())
                         .withSize(numNodes)
                         .build(),
                 config,
                 new NoOpMetrics());
-        manager.bind(mock(StatusActionSubmitter.class));
+        monitor.bind(mock(StatusActionSubmitter.class));
+        monitor.bind(mock(Startable.class));
     }
 
     @Test
@@ -51,35 +53,35 @@ class FallenBehindMonitorTest {
         assertFallenBehind(false, 0, "default should be none report fallen behind");
 
         // node 1 reports fallen behind
-        manager.report(NodeId.of(1));
+        monitor.report(NodeId.of(1));
         assertFallenBehind(false, 1, "one node only reported fallen behind");
 
         // if the same node reports again, nothing should change
-        manager.report(NodeId.of(1));
+        monitor.report(NodeId.of(1));
         assertFallenBehind(false, 1, "if the same node reports again, nothing should change");
 
-        manager.report(NodeId.of(2));
-        manager.report(NodeId.of(3));
-        manager.report(NodeId.of(4));
-        manager.report(NodeId.of(5));
+        monitor.report(NodeId.of(2));
+        monitor.report(NodeId.of(3));
+        monitor.report(NodeId.of(4));
+        monitor.report(NodeId.of(5));
         assertFallenBehind(false, 5, "we should still be missing one for fallen behind");
 
-        manager.report(NodeId.of(6));
+        monitor.report(NodeId.of(6));
         assertFallenBehind(true, 6, "we should be fallen behind");
 
-        manager.report(NodeId.of(1));
-        manager.report(NodeId.of(2));
-        manager.report(NodeId.of(3));
-        manager.report(NodeId.of(4));
-        manager.report(NodeId.of(5));
-        manager.report(NodeId.of(6));
+        monitor.report(NodeId.of(1));
+        monitor.report(NodeId.of(2));
+        monitor.report(NodeId.of(3));
+        monitor.report(NodeId.of(4));
+        monitor.report(NodeId.of(5));
+        monitor.report(NodeId.of(6));
         assertFallenBehind(true, 6, "if the same nodes report again, nothing should change");
 
-        manager.report(NodeId.of(7));
-        manager.report(NodeId.of(8));
+        monitor.report(NodeId.of(7));
+        monitor.report(NodeId.of(8));
         assertFallenBehind(true, 8, "more nodes reported, but the status should be the same");
 
-        manager.reset();
+        monitor.reset();
         assertFallenBehind(false, 0, "resetting should return to default");
     }
 
@@ -88,33 +90,33 @@ class FallenBehindMonitorTest {
         assertFallenBehind(false, 0, "default should be none report fallen behind");
 
         // node 1 reports fallen behind
-        manager.report(NodeId.of(1));
+        monitor.report(NodeId.of(1));
         assertFallenBehind(false, 1, "one node only reported fallen behind");
 
         // if the same node reports again, nothing should change
-        manager.report(NodeId.of(1));
+        monitor.report(NodeId.of(1));
         assertFallenBehind(false, 1, "if the same node reports again, nothing should change");
 
-        manager.report(NodeId.of(2));
-        manager.report(NodeId.of(3));
-        manager.report(NodeId.of(4));
-        manager.report(NodeId.of(5));
+        monitor.report(NodeId.of(2));
+        monitor.report(NodeId.of(3));
+        monitor.report(NodeId.of(4));
+        monitor.report(NodeId.of(5));
         assertFallenBehind(false, 5, "we should still be missing one for fallen behind");
 
-        manager.report(NodeId.of(6));
-        manager.clear(NodeId.of(4));
+        monitor.report(NodeId.of(6));
+        monitor.clear(NodeId.of(4));
         assertFallenBehind(false, 5, "we should still be missing one for fallen behind");
 
-        manager.report(NodeId.of(7));
+        monitor.report(NodeId.of(7));
         assertFallenBehind(true, 6, "we should be fallen behind");
-        assertTrue(manager.wasReportedByPeer(NodeId.of(6)));
-        assertFalse(manager.wasReportedByPeer(NodeId.of(4)));
+        assertTrue(monitor.wasReportedByPeer(NodeId.of(6)));
+        assertFalse(monitor.wasReportedByPeer(NodeId.of(4)));
 
-        manager.report(NodeId.of(4));
-        manager.report(NodeId.of(8));
+        monitor.report(NodeId.of(4));
+        monitor.report(NodeId.of(8));
         assertFallenBehind(true, 8, "more nodes reported, but the status should be the same");
 
-        manager.reset();
+        monitor.reset();
         assertFallenBehind(false, 0, "resetting should return to default");
     }
 
@@ -123,47 +125,47 @@ class FallenBehindMonitorTest {
         assertFallenBehind(false, 0, "default should be none report fallen behind");
 
         // node 1 reports fallen behind
-        manager.report(NodeId.of(1));
+        monitor.report(NodeId.of(1));
         assertFallenBehind(false, 1, "one node only reported fallen behind");
 
         // if the same node reports again, nothing should change
-        manager.report(NodeId.of(1));
+        monitor.report(NodeId.of(1));
         assertFallenBehind(false, 1, "if the same node reports again, nothing should change");
 
-        manager.report(NodeId.of(2));
-        manager.report(NodeId.of(3));
-        manager.report(NodeId.of(4));
-        manager.report(NodeId.of(5));
+        monitor.report(NodeId.of(2));
+        monitor.report(NodeId.of(3));
+        monitor.report(NodeId.of(4));
+        monitor.report(NodeId.of(5));
         assertFallenBehind(false, 5, "we should still be missing one for fallen behind");
 
-        manager.update(ImmutableSet.of(NodeId.of(22), NodeId.of(23)), Collections.emptySet());
+        monitor.update(ImmutableSet.of(NodeId.of(22), NodeId.of(23)), Collections.emptySet());
 
-        manager.report(NodeId.of(6));
+        monitor.report(NodeId.of(6));
         assertFallenBehind(false, 6, "we miss one due to changed size");
 
-        manager.update(Collections.emptySet(), Collections.singleton(NodeId.of(9)));
+        monitor.update(Collections.emptySet(), Collections.singleton(NodeId.of(9)));
 
         assertFallenBehind(true, 6, "we should fall behind due to reduced number of peers");
 
-        manager.report(NodeId.of(1));
-        manager.report(NodeId.of(2));
-        manager.report(NodeId.of(3));
-        manager.report(NodeId.of(4));
-        manager.report(NodeId.of(6));
+        monitor.report(NodeId.of(1));
+        monitor.report(NodeId.of(2));
+        monitor.report(NodeId.of(3));
+        monitor.report(NodeId.of(4));
+        monitor.report(NodeId.of(6));
         assertFallenBehind(true, 6, "if the same nodes report again, nothing should change");
 
-        manager.report(NodeId.of(7));
-        manager.report(NodeId.of(8));
+        monitor.report(NodeId.of(7));
+        monitor.report(NodeId.of(8));
         assertFallenBehind(true, 8, "more nodes reported, but the status should be the same");
 
-        manager.reset();
+        monitor.reset();
         assertFallenBehind(false, 0, "resetting should return to default");
     }
 
     private void assertFallenBehind(
             final boolean expectedFallenBehind, final int expectedNumFallenBehind, final String message) {
-        assertEquals(expectedFallenBehind, manager.hasFallenBehind(), message);
-        assertEquals(expectedNumFallenBehind, manager.reportedSize(), message);
+        assertEquals(expectedFallenBehind, monitor.hasFallenBehind(), message);
+        assertEquals(expectedNumFallenBehind, monitor.reportedSize(), message);
     }
 
     /**
@@ -186,6 +188,7 @@ class FallenBehindMonitorTest {
 
             this.fallenBehindMonitor = new FallenBehindMonitor(roster, configuration, new NoOpMetrics());
             fallenBehindMonitor.bind(mock(StatusActionSubmitter.class));
+            fallenBehindMonitor.bind(mock(Startable.class));
         }
     }
 
