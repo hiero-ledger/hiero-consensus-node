@@ -22,6 +22,7 @@ import static java.util.Objects.requireNonNull;
 import com.google.common.annotations.VisibleForTesting;
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.BlockProof;
+import com.hedera.hapi.block.stream.ChainOfTrustProof;
 import com.hedera.hapi.block.stream.MerkleSiblingHash;
 import com.hedera.hapi.block.stream.output.BlockHeader;
 import com.hedera.hapi.block.stream.output.StateChanges;
@@ -418,7 +419,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         final boolean closesBlock = shouldCloseBlock(roundNum, freezeRoundNumber);
         if (closesBlock) {
             lifecycle.onCloseBlock(state);
-            // FUTURE WORK: the state should always be an instance of  VirtualMapState
+            // FUTURE WORK: the state should always be an instance of VirtualMapState
             // https://github.com/hiero-ledger/hiero-consensus-node/issues/21284
             if (state instanceof VirtualMapState hederaNewStateRoot) {
                 hederaNewStateRoot.commitSingletons();
@@ -506,13 +507,13 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             // until after restart to gossip partial signatures and sign any pending blocks
             if (hintsEnabled && roundNum == freezeRoundNumber) {
                 final var hasPrecedingUnproven = new AtomicBoolean(false);
-                // In case the id of the next hinTS construction changed since a block endede
+                // In case the id of the next hinTS construction changed since a block ended
                 pendingBlocks.forEach(block -> block.flushPending(hasPrecedingUnproven.getAndSet(true)));
             } else {
-                final var schemeId = blockHashSigner.schemeId();
-                blockHashSigner
-                        .signFuture(blockHash)
-                        .thenAcceptAsync(signature -> finishProofWithSignature(blockHash, signature, schemeId));
+                final var attempt = blockHashSigner.sign(blockHash);
+                attempt.signatureFuture()
+                        .thenAcceptAsync(signature -> finishProofWithSignature(
+                                blockHash, signature, attempt.verificationKey(), attempt.chainOfTrustProof()));
             }
 
             final var exportNetworkToDisk =
@@ -595,10 +596,14 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
      *
      * @param blockHash the block hash to finish the block proof for
      * @param blockSignature the signature to use in the block proof
-     * @param schemeId the id of the signing scheme used
+     * @param verificationKey if hinTS is enabled, the verification key to use in the block proof
+     * @param chainOfTrustProof if history proofs are enabled, the chain of trust proof to use in the block proof
      */
     private synchronized void finishProofWithSignature(
-            @NonNull final Bytes blockHash, @NonNull final Bytes blockSignature, final long schemeId) {
+            @NonNull final Bytes blockHash,
+            @NonNull final Bytes blockSignature,
+            @Nullable final Bytes verificationKey,
+            @Nullable final ChainOfTrustProof chainOfTrustProof) {
         // Find the block whose hash is the signed message, tracking any sibling hashes
         // needed for indirect proofs of earlier blocks along the way
         long blockNumber = Long.MIN_VALUE;
@@ -628,7 +633,12 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             final var proof = block.proofBuilder()
                     .blockSignature(blockSignature)
                     .siblingHashes(siblingHashes.stream().flatMap(List::stream).toList());
-            proof.schemeId(schemeId);
+            if (verificationKey != null) {
+                proof.verificationKey(verificationKey);
+                if (chainOfTrustProof != null) {
+                    proof.verificationKeyProof(chainOfTrustProof);
+                }
+            }
             final var proofItem = BlockItem.newBuilder().blockProof(proof).build();
             block.writer().writePbjItemAndBytes(proofItem, BlockItem.PROTOBUF.toBytes(proofItem));
             block.writer().closeCompleteBlock();
