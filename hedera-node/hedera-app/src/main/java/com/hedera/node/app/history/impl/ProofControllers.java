@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.history.impl;
 
+import static com.hedera.node.app.hints.HintsService.maybeWeightsFrom;
 import static java.util.Objects.requireNonNull;
 
-import com.hedera.hapi.node.state.history.HistoryProof;
+import com.hedera.hapi.node.state.hints.HintsConstruction;
 import com.hedera.hapi.node.state.history.HistoryProofConstruction;
 import com.hedera.node.app.history.HistoryLibrary;
+import com.hedera.node.app.history.HistoryService;
 import com.hedera.node.app.history.ReadableHistoryStore;
 import com.hedera.node.app.service.roster.impl.ActiveRosters;
 import com.hedera.node.app.spi.info.NodeInfo;
@@ -13,7 +15,6 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Optional;
 import java.util.concurrent.Executor;
-import java.util.function.Consumer;
 import java.util.function.Supplier;
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -25,9 +26,9 @@ public class ProofControllers {
     private final Executor executor;
     private final ProofKeysAccessor keyAccessor;
     private final HistoryLibrary library;
+    private final HistoryService historyService;
     private final HistorySubmissions submissions;
     private final Supplier<NodeInfo> selfNodeInfoSupplier;
-    private final Consumer<HistoryProof> proofConsumer;
 
     /**
      * May be null if the node has just started, or if the network has completed the most up-to-date
@@ -43,13 +44,13 @@ public class ProofControllers {
             @NonNull final HistoryLibrary library,
             @NonNull final HistorySubmissions submissions,
             @NonNull final Supplier<NodeInfo> selfNodeInfoSupplier,
-            @NonNull final Consumer<HistoryProof> proofConsumer) {
+            @NonNull final HistoryService historyService) {
         this.executor = requireNonNull(executor);
         this.keyAccessor = requireNonNull(keyAccessor);
         this.library = requireNonNull(library);
         this.submissions = requireNonNull(submissions);
         this.selfNodeInfoSupplier = requireNonNull(selfNodeInfoSupplier);
-        this.proofConsumer = requireNonNull(proofConsumer);
+        this.historyService = requireNonNull(historyService);
     }
 
     /**
@@ -58,12 +59,16 @@ public class ProofControllers {
      * @param activeRosters the active rosters
      * @param construction the construction
      * @param historyStore the history store
+     * @param activeHintsConstruction the active hinTS construction, if any
+     * @param wrapsEnabled whether recursive chain-of-trust proofs are enabled
      * @return the result of the operation
      */
     public @NonNull ProofController getOrCreateFor(
             @NonNull final ActiveRosters activeRosters,
             @NonNull final HistoryProofConstruction construction,
-            @NonNull final ReadableHistoryStore historyStore) {
+            @NonNull final ReadableHistoryStore historyStore,
+            @Nullable final HintsConstruction activeHintsConstruction,
+            final boolean wrapsEnabled) {
         requireNonNull(activeRosters);
         requireNonNull(construction);
         requireNonNull(historyStore);
@@ -71,7 +76,8 @@ public class ProofControllers {
             if (controller != null) {
                 controller.cancelPendingWork();
             }
-            controller = newControllerFor(activeRosters, construction, historyStore);
+            controller =
+                    newControllerFor(activeRosters, construction, historyStore, activeHintsConstruction, wrapsEnabled);
         }
         return requireNonNull(controller);
     }
@@ -99,16 +105,21 @@ public class ProofControllers {
 
     /**
      * Returns a new controller for the given active rosters and history proof construction.
+     *
      * @param activeRosters the active rosters
      * @param construction the proof construction
      * @param historyStore the history store
+     * @param activeHintsConstruction the active hinTS construction, if any
+     * @param wrapsEnabled whether recursive chain-of-trust proofs are enabled
      * @return the controller
      */
     private ProofController newControllerFor(
             @NonNull final ActiveRosters activeRosters,
             @NonNull final HistoryProofConstruction construction,
-            @NonNull final ReadableHistoryStore historyStore) {
-        final var weights = activeRosters.transitionWeights();
+            @NonNull final ReadableHistoryStore historyStore,
+            @Nullable final HintsConstruction activeHintsConstruction,
+            final boolean wrapsEnabled) {
+        final var weights = activeRosters.transitionWeights(maybeWeightsFrom(activeHintsConstruction));
         if (!weights.sourceNodesHaveTargetThreshold()) {
             return new InertProofController(construction.constructionId());
         } else {
@@ -120,6 +131,7 @@ public class ProofControllers {
             final var schnorrKeyPair = keyAccessor.getOrCreateSchnorrKeyPair(construction.constructionId());
             return new ProofControllerImpl(
                     selfId,
+                    wrapsEnabled,
                     schnorrKeyPair,
                     historyStore.getLedgerId(),
                     construction,
@@ -130,7 +142,7 @@ public class ProofControllers {
                     keyPublications,
                     signaturePublications,
                     votes,
-                    proofConsumer);
+                    historyService);
         }
     }
 

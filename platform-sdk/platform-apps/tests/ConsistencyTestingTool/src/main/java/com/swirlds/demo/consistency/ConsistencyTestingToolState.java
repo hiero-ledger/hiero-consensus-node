@@ -1,26 +1,37 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.demo.consistency;
 
+import static com.swirlds.demo.consistency.V0680ConsistencyTestingToolSchema.CONSISTENCY_SERVICE_NAME;
+import static com.swirlds.demo.consistency.V0680ConsistencyTestingToolSchema.ROUND_HANDLED_STATE_ID;
+import static com.swirlds.demo.consistency.V0680ConsistencyTestingToolSchema.STATE_LONG_STATE_ID;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static org.hiero.base.utility.ByteUtils.byteArrayToLong;
 import static org.hiero.base.utility.NonCryptographicHashing.hash64;
 
+import com.hedera.hapi.node.state.primitives.ProtoLong;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.pbj.runtime.ParseException;
-import com.swirlds.common.merkle.MerkleNode;
+import com.swirlds.config.api.Configuration;
+import com.swirlds.metrics.api.Metrics;
 import com.swirlds.state.MerkleNodeState;
-import com.swirlds.state.test.fixtures.merkle.MerkleStateRoot;
-import com.swirlds.state.test.fixtures.merkle.singleton.StringLeaf;
+import com.swirlds.state.lifecycle.StateDefinition;
+import com.swirlds.state.lifecycle.StateMetadata;
+import com.swirlds.state.merkle.VirtualMapState;
+import com.swirlds.state.merkle.disk.OnDiskWritableSingletonState;
+import com.swirlds.state.spi.ReadableSingletonState;
+import com.swirlds.state.spi.ReadableStates;
+import com.swirlds.state.spi.WritableSingletonState;
+import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.Path;
+import java.util.Comparator;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.base.constructable.ConstructableIgnored;
 import org.hiero.consensus.model.event.Event;
 import org.hiero.consensus.model.hashgraph.Round;
 import org.hiero.consensus.model.transaction.ConsensusTransaction;
@@ -30,19 +41,10 @@ import org.hiero.consensus.model.transaction.Transaction;
 /**
  * State for the Consistency Testing Tool
  */
-@ConstructableIgnored
-public class ConsistencyTestingToolState extends MerkleStateRoot<ConsistencyTestingToolState>
+public class ConsistencyTestingToolState extends VirtualMapState<ConsistencyTestingToolState>
         implements MerkleNodeState {
+
     private static final Logger logger = LogManager.getLogger(ConsistencyTestingToolState.class);
-    private static final long CLASS_ID = 0xda03bb07eb897d82L;
-
-    private static class ClassVersion {
-        public static final int ORIGINAL = 1;
-    }
-
-    // Nodes at indices 0, 1, and 2 are used by the PlatformState, RosterMap, and RosterState.
-    private static final int STATE_LONG_INDEX = 3;
-    private static final int ROUND_HANDLED_INDEX = 4;
 
     /**
      * The true "state" of this app. This long value is updated with every transaction, and with every round.
@@ -78,61 +80,21 @@ public class ConsistencyTestingToolState extends MerkleStateRoot<ConsistencyTest
      */
     private final Set<Long> transactionsAwaitingPostHandle;
 
-    /**
-     * Constructor
-     */
-    public ConsistencyTestingToolState() {
+    public ConsistencyTestingToolState(@NonNull final Configuration configuration, @NonNull final Metrics metrics) {
+        super(configuration, metrics);
         transactionHandlingHistory = new TransactionHandlingHistory();
         transactionsAwaitingPostHandle = ConcurrentHashMap.newKeySet();
         logger.info(STARTUP.getMarker(), "New State Constructed.");
     }
 
     /**
-     * Initialize the state
+     * Constructor
      */
-    void initState(Path logFilePath) {
-        final StringLeaf stateLongLeaf = getChild(STATE_LONG_INDEX);
-        if (stateLongLeaf != null && stateLongLeaf.getLabel() != null) {
-            this.stateLong = Long.parseLong(stateLongLeaf.getLabel());
-            logger.info(STARTUP.getMarker(), "State initialized with state long {}.", stateLong);
-        }
-        final StringLeaf roundsHandledLeaf = getChild(ROUND_HANDLED_INDEX);
-        if (roundsHandledLeaf != null && roundsHandledLeaf.getLabel() != null) {
-            this.roundsHandled = Long.parseLong(roundsHandledLeaf.getLabel());
-            logger.info(STARTUP.getMarker(), "State initialized with {} rounds handled.", roundsHandled);
-        }
-        transactionHandlingHistory.init(logFilePath);
-    }
-
-    /**
-     * @return the number of rounds handled
-     */
-    long getRoundsHandled() {
-        return roundsHandled;
-    }
-
-    /**
-     * Increment the number of rounds handled
-     */
-    void incrementRoundsHandled() {
-        roundsHandled++;
-        setChild(ROUND_HANDLED_INDEX, new StringLeaf(Long.toString(roundsHandled)));
-    }
-
-    /**
-     * @return the state represented by a long
-     */
-    long getStateLong() {
-        return stateLong;
-    }
-
-    /**
-     * Sets the state
-     * @param stateLong state represented by a long
-     */
-    void setStateLong(final long stateLong) {
-        this.stateLong = stateLong;
-        setChild(STATE_LONG_INDEX, new StringLeaf(Long.toString(stateLong)));
+    public ConsistencyTestingToolState(@NonNull final VirtualMap virtualMap) {
+        super(virtualMap);
+        transactionHandlingHistory = new TransactionHandlingHistory();
+        transactionsAwaitingPostHandle = ConcurrentHashMap.newKeySet();
+        logger.info(STARTUP.getMarker(), "New State Constructed.");
     }
 
     /**
@@ -148,34 +110,91 @@ public class ConsistencyTestingToolState extends MerkleStateRoot<ConsistencyTest
         this.transactionsAwaitingPostHandle = that.transactionsAwaitingPostHandle;
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
-    public long getClassId() {
-        return CLASS_ID;
+    protected ConsistencyTestingToolState copyingConstructor() {
+        return new ConsistencyTestingToolState(this);
+    }
+
+    @Override
+    protected ConsistencyTestingToolState newInstance(@NonNull final VirtualMap virtualMap) {
+        return new ConsistencyTestingToolState(virtualMap);
     }
 
     /**
-     * {@inheritDoc}
+     * Initialize the state
      */
-    @Override
-    public int getVersion() {
-        return ClassVersion.ORIGINAL;
+    void initState(Path logFilePath) {
+        final var schema = new V0680ConsistencyTestingToolSchema();
+        schema.statesToCreate().stream()
+                .sorted(Comparator.comparing(StateDefinition::stateId))
+                .forEach(def -> {
+                    super.initializeState(new StateMetadata<>(CONSISTENCY_SERVICE_NAME, def));
+                });
+
+        final ReadableStates readableStates = getReadableStates(CONSISTENCY_SERVICE_NAME);
+
+        final ReadableSingletonState<ProtoLong> stateLongState = readableStates.getSingleton(STATE_LONG_STATE_ID);
+        final ProtoLong stateLongProto = stateLongState.get();
+        if (stateLongProto != null) {
+            this.stateLong = stateLongProto.value();
+            logger.info(STARTUP.getMarker(), "State initialized with state long {}.", stateLong);
+        }
+
+        final ReadableSingletonState<ProtoLong> roundsHandledState =
+                readableStates.getSingleton(ROUND_HANDLED_STATE_ID);
+        final ProtoLong roundsHandledProto = roundsHandledState.get();
+        if (roundsHandledProto != null) {
+            this.roundsHandled = roundsHandledProto.value();
+            logger.info(STARTUP.getMarker(), "State initialized with {} rounds handled.", roundsHandled);
+        }
+
+        transactionHandlingHistory.init(logFilePath);
     }
 
     /**
-     * {@inheritDoc}
+     * @return the number of rounds handled
      */
-    @Override
-    public int getMinimumSupportedVersion() {
-        return ClassVersion.ORIGINAL;
+    long getRoundsHandled() {
+        return roundsHandled;
+    }
+
+    /**
+     * Increment the number of rounds handled
+     */
+    void incrementRoundsHandled() {
+        roundsHandled++;
+
+        final WritableSingletonState<ProtoLong> roundsHandledState =
+                getWritableStates(CONSISTENCY_SERVICE_NAME).getSingleton(ROUND_HANDLED_STATE_ID);
+        roundsHandledState.put(new ProtoLong(roundsHandled));
+        ((OnDiskWritableSingletonState<ProtoLong>) roundsHandledState).commit();
+    }
+
+    /**
+     * @return the state represented by a long
+     */
+    long getStateLong() {
+        return stateLong;
+    }
+
+    /**
+     * Sets the state
+     * @param stateLong state represented by a long
+     */
+    void setStateLong(final long stateLong) {
+        this.stateLong = stateLong;
+
+        final WritableSingletonState<ProtoLong> stateLongState =
+                getWritableStates(CONSISTENCY_SERVICE_NAME).getSingleton(STATE_LONG_STATE_ID);
+        stateLongState.put(new ProtoLong(stateLong));
+        ((OnDiskWritableSingletonState<ProtoLong>) stateLongState).commit();
     }
 
     private void processRound(Round round) {
         stateLong = hash64(stateLong, round.getRoundNum());
         transactionHandlingHistory.processRound(ConsistencyTestingToolRound.fromRound(round, stateLong));
-        setChild(STATE_LONG_INDEX, new StringLeaf(Long.toString(stateLong)));
+
+        setStateLong(stateLong);
     }
 
     void processTransactions(
@@ -216,7 +235,7 @@ public class ConsistencyTestingToolState extends MerkleStateRoot<ConsistencyTest
         }
 
         stateLong = hash64(stateLong, transactionContents);
-        setChild(STATE_LONG_INDEX, new StringLeaf(Long.toString(stateLong)));
+        setStateLong(stateLong);
     }
 
     private static long getTransactionContents(Transaction transaction) {
@@ -246,26 +265,5 @@ public class ConsistencyTestingToolState extends MerkleStateRoot<ConsistencyTest
         } catch (final ParseException e) {
             logger.error("Failed to parse StateSignatureTransaction", e);
         }
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    @NonNull
-    public synchronized ConsistencyTestingToolState copy() {
-        throwIfImmutable();
-        setImmutable(true);
-        return new ConsistencyTestingToolState(this);
-    }
-
-    @Override
-    protected ConsistencyTestingToolState copyingConstructor() {
-        return new ConsistencyTestingToolState(this);
-    }
-
-    @Override
-    public MerkleNode migrate(int version) {
-        return this;
     }
 }

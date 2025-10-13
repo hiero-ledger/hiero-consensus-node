@@ -76,30 +76,33 @@ class HintsControllersTest {
 
     @Test
     void getsAndCreatesInertControllersAsExpected() {
-        given(activeRosters.transitionWeights()).willReturn(weights);
+        given(activeRosters.transitionWeights(null)).willReturn(weights);
 
         final var twoConstruction =
                 HintsConstruction.newBuilder().constructionId(2L).build();
 
         assertTrue(subject.getInProgressById(2L).isEmpty());
-        final var firstController = subject.getOrCreateFor(activeRosters, ONE_CONSTRUCTION, hintsStore);
+        final var firstController =
+                subject.getOrCreateFor(activeRosters, ONE_CONSTRUCTION, hintsStore, HintsConstruction.DEFAULT);
         assertTrue(subject.getInProgressById(1L).isEmpty());
         assertTrue(subject.getInProgressById(2L).isEmpty());
         assertInstanceOf(InertHintsController.class, firstController);
-        final var secondController = subject.getOrCreateFor(activeRosters, twoConstruction, hintsStore);
+        final var secondController =
+                subject.getOrCreateFor(activeRosters, twoConstruction, hintsStore, HintsConstruction.DEFAULT);
         assertNotSame(firstController, secondController);
         assertInstanceOf(InertHintsController.class, secondController);
     }
 
     @Test
     void returnsActiveControllerWhenSourceNodesHaveTargetThresholdWeight() {
-        given(activeRosters.transitionWeights()).willReturn(weights);
+        given(activeRosters.transitionWeights(null)).willReturn(weights);
         given(weights.sourceNodesHaveTargetThreshold()).willReturn(true);
         given(keyAccessor.getOrCreateBlsPrivateKey(1L)).willReturn(Bytes.EMPTY);
         given(selfNodeInfoSupplier.get()).willReturn(selfNodeInfo);
         given(hintsStore.getCrsState()).willReturn(CRSState.DEFAULT);
 
-        final var controller = subject.getOrCreateFor(activeRosters, ONE_CONSTRUCTION, hintsStore);
+        final var controller =
+                subject.getOrCreateFor(activeRosters, ONE_CONSTRUCTION, hintsStore, HintsConstruction.DEFAULT);
 
         assertInstanceOf(HintsControllerImpl.class, controller);
 
