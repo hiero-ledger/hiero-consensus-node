@@ -45,7 +45,7 @@ public final class QuiescenceUtils {
         if (txInfo == null) {
             // This is most likely an unparsable transaction.
             // An unparsable transaction is considered relevant because it needs to reach consensus so that the node
-            // that submitted it can be changed for it.
+            // that submitted it can be charged for it.
             return true;
         }
         return isRelevantTransaction(txInfo.txBody());
