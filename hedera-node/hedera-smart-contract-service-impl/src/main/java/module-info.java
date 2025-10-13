@@ -5,6 +5,7 @@
 module com.hedera.node.app.service.contract.impl {
     requires transitive com.hedera.node.app.hapi.fees;
     requires transitive com.hedera.node.app.hapi.utils;
+    requires transitive com.hedera.node.app.service.addressbook;
     requires transitive com.hedera.node.app.service.contract;
     requires transitive com.hedera.node.app.service.file;
     requires transitive com.hedera.node.app.service.schedule;
@@ -25,7 +26,6 @@ module com.hedera.node.app.service.contract.impl {
     requires transitive org.hyperledger.besu.evm;
     requires transitive tuweni.bytes;
     requires transitive tuweni.units;
-    requires com.hedera.node.app.service.addressbook;
     requires com.swirlds.base;
     requires org.hiero.base.utility;
     requires com.github.benmanes.caffeine;
