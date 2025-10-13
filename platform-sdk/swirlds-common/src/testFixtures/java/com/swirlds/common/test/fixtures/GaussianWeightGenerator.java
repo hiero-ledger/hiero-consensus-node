@@ -9,7 +9,7 @@ import java.util.random.RandomGenerator;
  * Generates weights for nodes using a Gaussian distribution.
  */
 public class GaussianWeightGenerator implements WeightGenerator {
-    private final long averageWeight;
+    private final long networkWeight;
     private final long weightStandardDeviation;
 
     /**
@@ -18,13 +18,14 @@ public class GaussianWeightGenerator implements WeightGenerator {
      * @param averageWeight          the average weight
      * @param weightStandardDeviation the standard deviation of the weight
      */
-    public GaussianWeightGenerator(final long averageWeight, final long weightStandardDeviation) {
-        this.averageWeight = averageWeight;
+    public GaussianWeightGenerator(final long networkWeight, final long weightStandardDeviation) {
+        this.networkWeight = networkWeight;
         this.weightStandardDeviation = weightStandardDeviation;
     }
 
     @Override
     public List<Long> getWeights(final long seed, final int numberOfNodes) {
+        final long averageWeight = this.networkWeight / numberOfNodes;
         final RandomGenerator r = Randotron.create(seed);
         final List<Long> nodeWeights = new ArrayList<>(numberOfNodes);
         for (int i = 0; i < numberOfNodes; i++) {
