@@ -225,8 +225,8 @@ public class PlatformReconnecter implements Startable {
      */
     public boolean loadReconnectState(@NonNull final SignedState signedState) {
         // the state was received, so now we load its data into different objects
-        logger.info(LogMarker.STATE_HASH.getMarker(), "RECONNECT: loadReconnectState: reloading state");
-        logger.debug(RECONNECT.getMarker(), "`loadReconnectState` : reloading state");
+        // logger.info(LogMarker.STATE_HASH.getMarker(), "RECONNECT: loadReconnectState: reloading state");
+        // logger.debug(RECONNECT.getMarker(), "`loadReconnectState` : reloading state");
         try {
             platformCoordinator.overrideIssDetectorState(signedState.reserve("reconnect state to issDetector"));
 
@@ -290,7 +290,7 @@ public class PlatformReconnecter implements Startable {
             platformCoordinator.sendReconnectCompleteNotification(signedState);
             return true;
         } catch (final RuntimeException e) {
-            logger.debug(RECONNECT.getMarker(), "`loadReconnectState` : FAILED, reason: {}", e.getMessage());
+            // logger.debug(RECONNECT.getMarker(), "`loadReconnectState` : FAILED, reason: {}", e.getMessage());
             // if the loading fails for whatever reason, we clear all data again in case some of it has been loaded
             platformCoordinator.clear();
             return false;
