@@ -43,7 +43,6 @@ import com.hedera.node.app.tss.TssBlockHashSigner;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.internal.network.Network;
 import com.hedera.node.internal.network.NodeMetadata;
-import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.filesystem.FileSystemManager;
@@ -63,7 +62,6 @@ import com.swirlds.platform.config.legacy.ConfigurationException;
 import com.swirlds.platform.config.legacy.LegacyConfigProperties;
 import com.swirlds.platform.config.legacy.LegacyConfigPropertiesLoader;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
-import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.HashedReservedSignedState;
 import com.swirlds.platform.state.signed.ReservedSignedState;
@@ -71,6 +69,7 @@ import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.SwirldMain;
 import com.swirlds.platform.util.BootstrapUtils;
+import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.State;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -92,6 +91,7 @@ import org.hiero.base.crypto.CryptographyProvider;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.roster.AddressBook;
 import org.hiero.consensus.model.status.PlatformStatus;
+import org.hiero.consensus.model.transaction.TimestampedTransaction;
 import org.hiero.consensus.roster.RosterUtils;
 import org.hiero.consensus.transaction.TransactionLimits;
 
@@ -191,7 +191,7 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
     }
 
     @Override
-    public @NonNull List<Bytes> getTransactionsForEvent() {
+    public @NonNull List<TimestampedTransaction> getTransactionsForEvent() {
         return hederaOrThrow().getTransactionsForEvent();
     }
 

@@ -126,7 +126,10 @@ val prCheckPropOverrides =
             "hapiTestAdhoc",
             "tss.hintsEnabled=false,tss.forceHandoffs=false,tss.initialCrsParties=16,blockStream.blockPeriod=2s",
         )
-        put("hapiTestCrypto", "tss.hintsEnabled=true,blockStream.blockPeriod=1s")
+        put(
+            "hapiTestCrypto",
+            "tss.hintsEnabled=true,tss.historyEnabled=true,blockStream.blockPeriod=1s",
+        )
         put("hapiTestSmartContract", "tss.historyEnabled=false")
         put(
             "hapiTestRestart",

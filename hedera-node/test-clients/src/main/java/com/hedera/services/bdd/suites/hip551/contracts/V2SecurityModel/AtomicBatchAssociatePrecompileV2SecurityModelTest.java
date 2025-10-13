@@ -67,7 +67,7 @@ import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
 @HapiTestLifecycle
-public class AtomicBatchAssociatePrecompileV2SecurityModelTest {
+class AtomicBatchAssociatePrecompileV2SecurityModelTest {
     private static final String DEFAULT_BATCH_OPERATOR = "defaultBatchOperator";
 
     private static final long GAS_TO_OFFER = 6_000_000L;
@@ -90,10 +90,7 @@ public class AtomicBatchAssociatePrecompileV2SecurityModelTest {
 
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
-        testLifecycle.overrideInClass(Map.of(
-                "atomicBatch.isEnabled", "true",
-                "atomicBatch.maxNumberOfTransactions", "50",
-                "contracts.throttle.throttleByGas", "false"));
+        testLifecycle.overrideInClass(Map.of("contracts.throttle.throttleByGas", "false"));
         testLifecycle.doAdhoc(
                 cryptoCreate(DEFAULT_BATCH_OPERATOR).balance(ONE_MILLION_HBARS),
                 // create contracts

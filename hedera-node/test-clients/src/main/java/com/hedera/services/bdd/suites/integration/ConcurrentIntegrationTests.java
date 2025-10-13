@@ -67,7 +67,7 @@ import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterState;
 import com.hedera.node.app.hapi.utils.CommonPbjConverters;
-import com.hedera.node.app.roster.RosterService;
+import com.hedera.node.app.service.roster.RosterService;
 import com.hedera.services.bdd.junit.EmbeddedHapiTest;
 import com.hedera.services.bdd.junit.GenesisHapiTest;
 import com.hedera.services.bdd.junit.HapiTest;

@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts;
 
-import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.ReturnTypes.ZERO_ACCOUNT_ID;
-import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.ReturnTypes.ZERO_ADDRESS;
-import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.ReturnTypes.ZERO_CONTRACT_ID;
-import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.ReturnTypes.ZERO_FIXED_FEE;
-import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.ReturnTypes.ZERO_FRACTION;
-import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.ReturnTypes.ZERO_TOKEN_ID;
+import static com.hedera.node.app.service.contract.impl.utils.ConstantUtils.ZERO_ACCOUNT_ID;
+import static com.hedera.node.app.service.contract.impl.utils.ConstantUtils.ZERO_ADDRESS;
+import static com.hedera.node.app.service.contract.impl.utils.ConstantUtils.ZERO_CONTRACT_ID;
+import static com.hedera.node.app.service.contract.impl.utils.ConstantUtils.ZERO_FIXED_FEE;
+import static com.hedera.node.app.service.contract.impl.utils.ConstantUtils.ZERO_FRACTION;
+import static com.hedera.node.app.service.contract.impl.utils.ConstantUtils.ZERO_TOKEN_ID;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.headlongAddressOf;
 import static java.util.Objects.requireNonNull;
 
