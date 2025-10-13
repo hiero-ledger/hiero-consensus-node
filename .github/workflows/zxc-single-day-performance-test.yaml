@@ -518,8 +518,13 @@ jobs:
           for ip in `cat block_ips.txt`
           do
             echo "{\"nodes\": [" > block-nodes_$counter.json
-            echo "{ \"address\": \"1.2.3.4\", \"port\": 40840, \"priority\": 1 }" >> block-nodes_$counter.json
-            # echo "{ \"address\": \"$ip\", \"port\": 40840, \"priority\": 1 }" >> block-nodes_$counter.json
+            if [ \( $counter -eq 0 \) -o \( $counter -eq 1 \) ]
+            then
+              echo "{ \"address\": \"1.2.3.4\", \"port\": 40840, \"priority\": 1 }" >> block-nodes_$counter.json
+              # echo "{ \"address\": \"$ip\", \"port\": 40840, \"priority\": 1 }" >> block-nodes_$counter.json
+            else
+              echo "{ \"address\": \"$ip\", \"port\": 40840, \"priority\": 1 }" >> block-nodes_$counter.json
+            fi
             echo "]}" >> block-nodes_$counter.json
             counter=`expr $counter + 1`
           done
