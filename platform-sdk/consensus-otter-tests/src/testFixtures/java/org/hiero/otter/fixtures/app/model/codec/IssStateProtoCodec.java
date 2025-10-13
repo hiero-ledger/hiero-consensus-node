@@ -62,7 +62,8 @@ public final class IssStateProtoCodec implements Codec<IssState> {
             @NonNull final ReadableSequentialData input,
             final boolean strictMode,
             final boolean parseUnknownFields,
-            final int maxDepth)
+            final int maxDepth,
+            final int maxSize)
             throws ParseException {
         if (maxDepth < 0) {
             throw new ParseException("Reached maximum allowed depth of nested messages");
