@@ -197,15 +197,13 @@ jobs:
 
       # Create Mirror Values Override File (uses BN service)
       # This is a temporary workaround until we have a proper release of the mirror node chart that supports block nodes
-      # and the latest version of blockstream in `0.65.0`
+      # and the latest version of blockstream in `0.68.0`
       - name: Create Mirror Values Override File
         run: |
           cat <<EOF > mirror-bn-values.yaml
           importer:
             image:
-              registry: docker.io
-              repository: xinatswirlds/importer
-              tag: e741ea2b2
+              tag: 0.140.0
             config:
               hiero:
                 mirror:
