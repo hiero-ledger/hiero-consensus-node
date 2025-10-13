@@ -3,6 +3,7 @@ package org.hiero.otter.fixtures.turtle.gossip;
 
 import static java.util.Objects.requireNonNull;
 
+import com.swirlds.component.framework.model.DeterministicWiringModel;
 import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.component.framework.wires.input.BindableInputWire;
 import com.swirlds.component.framework.wires.output.StandardOutputWire;
@@ -11,6 +12,8 @@ import com.swirlds.platform.wiring.NoInput;
 import com.swirlds.platform.wiring.components.Gossip;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
@@ -27,11 +30,20 @@ public class SimulatedGossip implements Gossip {
 
     private StandardOutputWire<PlatformEvent> eventOutput;
 
+    private DeterministicWiringModel deterministicWiringModel;
+
+    /**
+     * Buffer for events received before the node is ready to process them
+     */
+    private final List<PlatformEvent> eventBuffer = new ArrayList<>();
+
+    private boolean wasPreviouslyHalted = false;
+
     /**
      * Constructor.
      *
      * @param network the network on which this gossip system will run
-     * @param selfId  the ID of the node running this gossip system
+     * @param selfId the ID of the node running this gossip system
      */
     public SimulatedGossip(@NonNull final SimulatedNetwork network, @NonNull final NodeId selfId) {
         this.network = requireNonNull(network);
@@ -64,6 +76,7 @@ public class SimulatedGossip implements Gossip {
             @NonNull final StandardOutputWire<Double> syncLagOutput) {
 
         this.eventOutput = requireNonNull(eventOutput);
+        this.deterministicWiringModel = (DeterministicWiringModel) requireNonNull(model);
         eventInput.bindConsumer(event -> network.submitEvent(selfId, event));
 
         eventWindowInput.bindConsumer(ignored -> {});
@@ -80,6 +93,21 @@ public class SimulatedGossip implements Gossip {
      * @param event the event that was received
      */
     void receiveEvent(@NonNull final PlatformEvent event) {
+        if (deterministicWiringModel.isRunning()) {
+            if (wasPreviouslyHalted) {
+                for (final PlatformEvent e : eventBuffer) {
+                    forwardEvent(e);
+                }
+                wasPreviouslyHalted = false;
+            }
+            forwardEvent(event);
+        } else {
+            wasPreviouslyHalted = true;
+        }
+        eventBuffer.add(event);
+    }
+
+    private void forwardEvent(@NonNull final PlatformEvent event) {
         if (intakeEventCounter != null) {
             intakeEventCounter.eventEnteredIntakePipeline(event.getSenderId());
         }

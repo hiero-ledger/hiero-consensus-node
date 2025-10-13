@@ -20,6 +20,7 @@ import org.hiero.otter.fixtures.OtterTest;
 import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.result.SingleNodeLogResult;
 import org.hiero.otter.fixtures.result.SingleNodePlatformStatusResult;
+import org.hiero.otter.fixtures.turtle.TurtleSpecs;
 import org.junit.jupiter.api.Disabled;
 
 /**
@@ -32,8 +33,9 @@ public class IssTest {
      *
      * @param env the environment to test in
      */
-    @Disabled
+//    @Disabled
     @OtterTest
+    @TurtleSpecs(randomSeed = -8123470364175563948L)
     void testRecoverableSelfIss(@NonNull final TestEnvironment env) {
         final Network network = env.network();
 
@@ -58,6 +60,7 @@ public class IssTest {
                 .haveSteps(target(ACTIVE).requiringInterim(REPLAYING_EVENTS, OBSERVING, CHECKING));
 
         issNode.killImmediately();
+        env.timeManager().waitFor(Duration.ofSeconds(5));
         issNode.start();
 
         env.timeManager()
