@@ -92,7 +92,7 @@ public class BlockNodeSoftwareUpgradeSuite implements LifecycleTest {
                 upgradeToNextConfigVersion(Map.of("blockStream.writerMode", "FILE_AND_GRPC")),
                 waitForActive(NodeSelector.allNodes(), Duration.ofSeconds(60)),
                 // Assert that there is no block-nodes.json file present
-                assertHgcaaLogContainsTimeframe(
+                assertBlockNodeCommsLogContainsTimeframe(
                         byNodeId(0),
                         timeRef::get,
                         Duration.ofMinutes(2),
@@ -120,7 +120,7 @@ public class BlockNodeSoftwareUpgradeSuite implements LifecycleTest {
                     }
                 }),
                 // Verify config was reloaded and connection established
-                sourcingContextual(spec -> assertHgcaaLogContainsTimeframe(
+                sourcingContextual(spec -> assertBlockNodeCommsLogContainsTimeframe(
                         byNodeId(0),
                         timeRef::get,
                         Duration.ofMinutes(1),
@@ -144,7 +144,7 @@ public class BlockNodeSoftwareUpgradeSuite implements LifecycleTest {
                     }
                 }),
                 // Verify file deletion is detected and handled gracefully
-                sourcingContextual(spec -> assertHgcaaLogContainsTimeframe(
+                sourcingContextual(spec -> assertBlockNodeCommsLogContainsTimeframe(
                         byNodeId(0),
                         timeRef::get,
                         Duration.ofSeconds(45),

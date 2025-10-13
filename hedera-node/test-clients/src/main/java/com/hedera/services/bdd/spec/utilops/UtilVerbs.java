@@ -2795,7 +2795,7 @@ public class UtilVerbs {
     }
 
     /**
-     * Asserts that a sequence of log messages appears in the specified node's log within a timeframe.
+     * Asserts that a sequence of log messages appears in the specified node's block node comms log within a timeframe.
      *
      * @param selector the node selector
      * @param startTimeSupplier supplier for the start time of the timeframe
@@ -2804,7 +2804,7 @@ public class UtilVerbs {
      * @param patterns the sequence of patterns to look for
      * @return a new LogContainmentTimeframeOp
      */
-    public static LogContainmentTimeframeOp assertHgcaaLogContainsTimeframe(
+    public static LogContainmentTimeframeOp assertBlockNodeCommsLogContainsTimeframe(
             @NonNull final NodeSelector selector,
             @NonNull final Supplier<Instant> startTimeSupplier,
             @NonNull final Duration timeframe,
@@ -2812,7 +2812,7 @@ public class UtilVerbs {
             @NonNull final String... patterns) {
         return new LogContainmentTimeframeOp(
                 selector,
-                ExternalPath.APPLICATION_LOG,
+                ExternalPath.BLOCK_NODE_COMMS_LOG,
                 Arrays.asList(patterns),
                 startTimeSupplier,
                 timeframe,

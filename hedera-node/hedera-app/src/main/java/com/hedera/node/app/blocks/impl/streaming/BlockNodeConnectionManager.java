@@ -10,7 +10,6 @@ import static java.util.stream.Collectors.toList;
 import static org.apache.logging.log4j.Level.DEBUG;
 import static org.apache.logging.log4j.Level.INFO;
 import static org.apache.logging.log4j.Level.TRACE;
-import static org.apache.logging.log4j.Level.WARN;
 
 import com.hedera.node.app.blocks.impl.streaming.BlockNodeConnection.ConnectionState;
 import com.hedera.node.app.metrics.BlockStreamMetrics;
@@ -252,9 +251,13 @@ public class BlockNodeConnectionManager {
      */
     private void logWithContext(Level level, String message, BlockNodeConnection connection, Object... args) {
         if (logger.isEnabled(level)) {
-            message = String.format("%s %s %s", LoggingUtilities.threadInfo(), connection.toString(), message);
+            message = formatLogMessage(message, connection);
             logger.atLevel(level).log(message, args);
         }
+    }
+
+    private String formatLogMessage(String message, BlockNodeConnection connection) {
+        return String.format("%s %s %s", LoggingUtilities.threadInfo(), connection, message);
     }
 
     /**
@@ -487,7 +490,7 @@ public class BlockNodeConnectionManager {
         }
 
         logWithContext(
-                DEBUG,
+                INFO,
                 "Apply exponential backoff and reschedule in {} ms (attempt={}).",
                 connection,
                 delayMs,
@@ -579,7 +582,7 @@ public class BlockNodeConnectionManager {
                     TimeUnit.MILLISECONDS);
             logWithContext(DEBUG, "Successfully scheduled reconnection task.", newConnection);
         } catch (final Exception e) {
-            logWithContext(WARN, "Failed to schedule connection task for block node.", newConnection, e);
+            logger.error(formatLogMessage("Failed to schedule connection task for block node.", newConnection), e);
             connections.remove(newConnection.getNodeConfig());
             newConnection.close(true);
         }
@@ -916,15 +919,14 @@ public class BlockNodeConnectionManager {
                     sleep(workerLoopSleepDuration());
                 }
             } catch (final UncheckedIOException e) {
-                logWithContext(DEBUG, "UncheckedIOException caught in block stream worker loop ({}).", e.getMessage());
+                logger.warn("UncheckedIOException caught in block stream worker loop.", e);
                 connection.handleStreamFailureWithoutOnComplete();
             } catch (final Exception e) {
                 if (Thread.currentThread().isInterrupted()) {
-                    logWithContext(DEBUG, "Block stream worker loop interrupted, exiting.");
+                    logger.info("Block stream worker loop interrupted, exiting.");
                     return;
                 }
-                logWithContext(
-                        DEBUG, "Exception caught in block stream worker loop ({}) {}", e.getMessage(), e.toString());
+                logger.warn("Exception caught in block stream worker loop", e);
                 connection.handleStreamFailure();
             }
         }
@@ -1258,7 +1260,7 @@ public class BlockNodeConnectionManager {
             }
 
             try {
-                logWithContext(DEBUG, "Running connection task.");
+                logWithContext(INFO, "Running connection task.");
                 final BlockNodeConnection activeConnection = activeConnectionRef.get();
 
                 if (activeConnection != null) {
@@ -1318,15 +1320,15 @@ public class BlockNodeConnectionManager {
                         logWithContext(DEBUG, "Closing current active connection {}.", activeConnection);
                         activeConnection.close(true);
                     } catch (final RuntimeException e) {
-                        logWithContext(
-                                DEBUG,
-                                "Failed to shutdown current active connection {} (shutdown reason: another connection was elevated to active).",
-                                activeConnection,
+                        logger.info(
+                                formatLogMessage(
+                                        "Failed to shutdown current active connection {} (shutdown reason: another connection was elevated to active).",
+                                        activeConnection),
                                 e);
                     }
                 }
             } catch (final Exception e) {
-                logWithContext(DEBUG, "Failed to establish connection to block node. Will schedule a retry.");
+                logWithContext(INFO, "Failed to establish connection to block node. Will schedule a retry.");
                 blockStreamMetrics.recordConnectionCreateFailure();
                 reschedule();
             }
@@ -1374,12 +1376,12 @@ public class BlockNodeConnectionManager {
                 }
                 sharedExecutorService.schedule(this, jitteredDelayMs, TimeUnit.MILLISECONDS);
                 logWithContext(
-                        DEBUG,
+                        INFO,
                         "Rescheduled connection attempt (delayMillis={}, backoff={}).",
                         jitteredDelayMs,
                         currentBackoffDelayMs);
             } catch (final Exception e) {
-                logWithContext(DEBUG, "Failed to reschedule connection attempt. Removing from retry map.", e);
+                logger.error("Failed to reschedule connection attempt. Removing from retry map.", e);
                 // If rescheduling fails, close the connection and remove it from the connection map. A periodic task
                 // will handle checking if there are no longer any connections
                 connections.remove(connection.getNodeConfig());
