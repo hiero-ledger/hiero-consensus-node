@@ -20,9 +20,6 @@ import org.hiero.otter.fixtures.OtterTest;
 import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.result.SingleNodeLogResult;
 import org.hiero.otter.fixtures.result.SingleNodePlatformStatusResult;
-import org.hiero.otter.fixtures.turtle.TurtleSpecs;
-import org.junit.jupiter.api.Disabled;
-import org.junit.jupiter.api.RepeatedTest;
 
 /**
  * Tests for the detection and response to ISSes (Inconsistent State Signatures).
@@ -34,7 +31,6 @@ public class IssTest {
      *
      * @param env the environment to test in
      */
-    @RepeatedTest(10)
     @OtterTest
     void testRecoverableSelfIss(@NonNull final TestEnvironment env) {
         final Network network = env.network();

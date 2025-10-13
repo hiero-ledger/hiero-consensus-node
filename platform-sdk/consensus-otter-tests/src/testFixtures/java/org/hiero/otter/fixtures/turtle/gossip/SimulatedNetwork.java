@@ -144,8 +144,8 @@ public class SimulatedNetwork {
                     break;
                 }
 
-                gossipInstances.get(nodeId).receiveEvent(event.event());
                 iterator.remove();
+                gossipInstances.get(nodeId).receiveEvent(event.event());
             }
         }
     }

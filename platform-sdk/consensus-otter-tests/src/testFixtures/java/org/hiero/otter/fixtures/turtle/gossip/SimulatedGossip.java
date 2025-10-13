@@ -30,13 +30,16 @@ public class SimulatedGossip implements Gossip {
 
     private StandardOutputWire<PlatformEvent> eventOutput;
 
+    /** The wiring model used for this node. Used to determine if the node is running or halted. */
     private DeterministicWiringModel deterministicWiringModel;
 
     /**
-     * Buffer for events received before the node is ready to process them
+     * A buffer of all events this gossip instance has received. This is used to re-deliver events that were received
+     * while the node was halted.
      */
     private final List<PlatformEvent> eventBuffer = new ArrayList<>();
 
+    /** Keeps track of the status of the node the last time we checked if it was running */
     private boolean wasPreviouslyHalted = false;
 
     /**
@@ -95,9 +98,7 @@ public class SimulatedGossip implements Gossip {
     void receiveEvent(@NonNull final PlatformEvent event) {
         if (deterministicWiringModel.isRunning()) {
             if (wasPreviouslyHalted) {
-                for (final PlatformEvent e : eventBuffer) {
-                    forwardEvent(e);
-                }
+                eventBuffer.forEach(this::forwardEvent);
                 wasPreviouslyHalted = false;
             }
             forwardEvent(event);
