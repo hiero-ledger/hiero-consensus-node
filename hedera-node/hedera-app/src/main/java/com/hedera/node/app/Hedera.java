@@ -1259,6 +1259,8 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
                             });
             migrationStateChanges = null;
         }
+        // Eager-initialize the RecordCache since its constructor iterates over a queue state
+        requireNonNull(daggerApp.recordCache());
     }
 
     /**
