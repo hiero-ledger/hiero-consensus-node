@@ -527,6 +527,11 @@ enum StateIdentifier {
      * A state for the `159` upgrade file data. Queue state.
      */
     STATE_ID_UPGRADE_DATA_159 = 10010;
+
+    /**
+     * A state identifier fro account to node relation.
+     */
+    STATE_ID_ACCOUNT_NODE_REL = 10011;
 }
 
 /**
