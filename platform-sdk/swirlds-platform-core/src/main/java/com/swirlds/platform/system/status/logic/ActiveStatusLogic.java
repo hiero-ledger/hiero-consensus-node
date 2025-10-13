@@ -176,10 +176,10 @@ public class ActiveStatusLogic implements PlatformStatusLogic {
     @Override
     public PlatformStatusLogic processTimeElapsedAction(@NonNull final TimeElapsedAction action) {
         final var isQuiescing = action.quiescingStatus().isQuiescing();
-        final boolean stopQuieseGracePeriodElapsed = DurationUtils.isLonger(
+        final boolean stopQuiesceGracePeriodElapsed = DurationUtils.isLonger(
                 Duration.between(action.quiescingStatus().since(), action.instant()), config.activeStatusDelay());
 
-        if (isQuiescing || !stopQuieseGracePeriodElapsed) {
+        if (isQuiescing || !stopQuiesceGracePeriodElapsed) {
             return this;
         }
 
