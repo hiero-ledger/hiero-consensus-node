@@ -4,7 +4,7 @@ pragma experimental ABIEncoderV2;
 
 import './IHieroAccountAllowanceHook.sol';
 
-contract OneTimeCodeTransferAllowance is IHieroAccountAllowanceHook {
+contract OneTimeCodeHook is IHieroAccountAllowanceHook {
     /// The hash of a one-time use passcode string, at storage slot 0x00
     bytes32 passcodeHash;
 

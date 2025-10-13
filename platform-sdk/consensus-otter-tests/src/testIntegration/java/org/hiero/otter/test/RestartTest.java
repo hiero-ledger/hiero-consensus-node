@@ -67,7 +67,8 @@ public class RestartTest {
 
         // Wait for all nodes to advance at least 20 rounds beyond the last round reached
         timeManager.waitForCondition(
-                () -> allNodesAdvancedToRound(lastRoundReached + 20, network), Duration.ofSeconds(120L));
+                () -> network.newConsensusResults().allNodesAdvancedToRound(lastRoundReached + 20),
+                Duration.ofSeconds(120L));
 
         assertThat(network.newLogResults().suppressingLogMarker(LogMarker.SOCKET_EXCEPTIONS))
                 .haveNoErrorLevelMessages();
@@ -79,9 +80,5 @@ public class RestartTest {
         assertThat(network.newConsensusResults()).haveEqualCommonRounds();
 
         assertThat(network.newEventStreamResults()).haveEqualFiles();
-    }
-
-    private boolean allNodesAdvancedToRound(final long targetRound, @NonNull final Network network) {
-        return network.newConsensusResults().results().stream().allMatch(r -> r.lastRoundNum() > targetRound);
     }
 }

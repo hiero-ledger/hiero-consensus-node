@@ -85,6 +85,13 @@ public interface Node {
     void stopSyntheticBottleneck();
 
     /**
+     * Triggers a self-ISS on this node. The node will be able to recover from the ISS by restarting. This type of ISS
+     * simulates a bug where a transaction updates the state based on data in memory that is different on other nodes
+     * (due to the bug).
+     */
+    void triggerSelfIss();
+
+    /**
      * Sets the quiescence command of the node.
      *
      * <p>The default command is {@link QuiescenceCommand#DONT_QUIESCE}.
@@ -124,6 +131,13 @@ public interface Node {
      * @return the weight
      */
     long weight();
+
+    /**
+     * Sets the weight of the node. This method can only be called while the node is not running.
+     *
+     * @param weight the new weight. Must be non-negative.
+     */
+    void weight(long weight);
 
     /**
      * Returns the status of the platform while the node is running or {@code null} if not.

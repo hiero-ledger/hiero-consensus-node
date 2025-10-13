@@ -5,9 +5,7 @@ pragma experimental ABIEncoderV2;
 import './IHieroAccountAllowanceHook.sol';
 
 /// A degenerate hook useful for basic HIP-1195 testing
-contract StorageAccessAccountAllowanceHook is IHieroAccountAllowanceHook {
-    /// flag at storage slot 0x00
-    bool isAllowed;
+contract TransferAllowanceHook is IHieroAccountAllowanceHook {
     // HIP-1195 special hook address (0x...016d padded to 20 bytes)
     address constant HOOK_ADDR = address(uint160(0x16d));
     function allow(
@@ -15,6 +13,12 @@ contract StorageAccessAccountAllowanceHook is IHieroAccountAllowanceHook {
         ProposedTransfers memory proposedTransfers
     ) override external payable returns (bool) {
         require(address(this) == HOOK_ADDR, "Contract can only be called as a hook");
-        return isAllowed;
+        _transferToCaller(1);
+        return true;
+    }
+
+    function _transferToCaller(uint256 _amount) internal {
+        (bool ok, ) = payable(msg.sender).transfer{value: _amount}("");
+        require(ok, "value transfer failed");
     }
 } 
