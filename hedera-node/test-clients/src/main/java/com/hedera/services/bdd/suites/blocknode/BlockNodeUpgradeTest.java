@@ -14,6 +14,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitUntilNextBlocks;
 import static com.hedera.services.bdd.suites.regression.system.LifecycleTest.restartAtNextConfigVersion;
 
+import com.hedera.node.internal.network.BlockNodeConnectionInfo;
 import com.hedera.services.bdd.HapiBlockNode;
 import com.hedera.services.bdd.HapiBlockNode.BlockNodeConfig;
 import com.hedera.services.bdd.HapiBlockNode.SubProcessNodeConfig;
@@ -21,7 +22,6 @@ import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.junit.OrderedInIsolation;
 import com.hedera.services.bdd.junit.hedera.BlockNodeMode;
 import com.hedera.services.bdd.suites.regression.system.LifecycleTest;
-import com.hedera.node.internal.network.BlockNodeConnectionInfo;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -54,7 +54,7 @@ public class BlockNodeUpgradeTest implements LifecycleTest {
     private static final Duration LOG_CHECK_WINDOW = Duration.ofMinutes(2);
 
     /**
-     * Test: 4 CN <-> 1 BN (1 Node Streams after Upgrade)
+     * Test: 4 CN - 1 BN (1 Node Streams after Upgrade)
      *
      * <p>Network configuration:
      * - 4 Consensus Nodes
@@ -114,7 +114,7 @@ public class BlockNodeUpgradeTest implements LifecycleTest {
     }
 
     /**
-     * Test: 4 CN <-> 4 BN (Each Node Streams after Upgrade)
+     * Test: 4 CN - 4 BN (Each Node Streams after Upgrade)
      *
      * <p>Network configuration:
      * - 4 Consensus Nodes
@@ -198,7 +198,7 @@ public class BlockNodeUpgradeTest implements LifecycleTest {
     }
 
     /**
-     * Test: 4 CN <-> 2 BN (2,2 Pair of CN's stream to separate BN's)
+     * Test: 4 CN - 2 BN (2,2 Pair of CN's stream to separate BN's)
      *
      * <p>Network configuration:
      * - 4 Consensus Nodes
@@ -302,7 +302,7 @@ public class BlockNodeUpgradeTest implements LifecycleTest {
     }
 
     /**
-     * Test: 4 CN <-> 3 BN (Asymmetric streaming distribution)
+     * Test: 4 CN - 3 BN (Asymmetric streaming distribution)
      *
      * <p>Network configuration:
      * - 4 Consensus Nodes
@@ -407,7 +407,7 @@ public class BlockNodeUpgradeTest implements LifecycleTest {
     }
 
     /**
-     * Test: 4 CN <-> 2 BN with Priority Failover after Upgrade
+     * Test: 4 CN - 2 BN with Priority Failover after Upgrade
      *
      * <p>Network configuration:
      * - 4 Consensus Nodes
