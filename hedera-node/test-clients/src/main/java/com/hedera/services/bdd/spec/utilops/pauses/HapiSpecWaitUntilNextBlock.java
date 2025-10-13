@@ -82,8 +82,20 @@ public class HapiSpecWaitUntilNextBlock extends UtilOp {
 
         // Auto-detect writer mode from spec configuration
         final var writerMode = spec.startupProperties().get("blockStream.writerMode");
-        boolean onBlockNodeSide = ("GRPC".equals(writerMode) || "FILE_AND_GRPC".equals(writerMode)) && isSubprocess;
-        log.info("Auto-detected writer mode: {} -> onBlockNodeSide = {}", writerMode, onBlockNodeSide);
+
+        // Check if simulator is available regardless of network mode
+        final BlockNodeNetwork blockNodeNetwork = NetworkTargetingExtension.SHARED_BLOCK_NODE_NETWORK.get();
+        final boolean hasSimulator = blockNodeNetwork != null
+                && !blockNodeNetwork.getSimulatedBlockNodeById().isEmpty();
+
+        // In GRPC mode, use simulator if available; in FILE_AND_GRPC mode, use simulator if in subprocess
+        boolean onBlockNodeSide =
+                ("GRPC".equals(writerMode) && hasSimulator) || ("FILE_AND_GRPC".equals(writerMode) && isSubprocess);
+        log.info(
+                "Auto-detected writer mode: {}, hasSimulator: {} -> onBlockNodeSide = {}",
+                writerMode,
+                hasSimulator,
+                onBlockNodeSide);
 
         // Auto-detect block period from spec configuration
         try {
@@ -95,20 +107,14 @@ public class HapiSpecWaitUntilNextBlock extends UtilOp {
 
         // Auto-detect block node ID from available simulators
         long blockNodeId = 0; // Default fallback
-        if (onBlockNodeSide) {
-            final BlockNodeNetwork blockNodeNetwork = NetworkTargetingExtension.SHARED_BLOCK_NODE_NETWORK.get();
-            if (blockNodeNetwork != null
-                    && !blockNodeNetwork.getSimulatedBlockNodeById().isEmpty()) {
-                // Use the first available block node ID
-                blockNodeId = blockNodeNetwork
-                        .getSimulatedBlockNodeById()
-                        .keySet()
-                        .iterator()
-                        .next();
-                log.info("Auto-detected block node ID: {}", blockNodeId);
-            } else {
-                log.warn("No block node network found, using default block node ID: {}", blockNodeId);
-            }
+        if (onBlockNodeSide && hasSimulator) {
+            // Use the first available block node ID
+            blockNodeId = blockNodeNetwork
+                    .getSimulatedBlockNodeById()
+                    .keySet()
+                    .iterator()
+                    .next();
+            log.info("Auto-detected block node ID: {}", blockNodeId);
         }
 
         if (onBlockNodeSide) {

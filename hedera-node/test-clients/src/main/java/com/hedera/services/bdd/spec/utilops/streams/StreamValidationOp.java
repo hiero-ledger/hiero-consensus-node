@@ -335,6 +335,9 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
      * received a proof for every block produced by the consensus node (as evidenced by
      * the presence of a corresponding on-disk marker file). If no simulator is active,
      * this validation is skipped.
+     *
+     * In GRPC-only mode, no marker files are written to disk, so we only verify that
+     * the simulator received blocks.
      */
     private static void validateSimulatorProofReceipts(@NonNull final HapiSpec spec) {
         final var blockNodeNetwork = NetworkTargetingExtension.SHARED_BLOCK_NODE_NETWORK.get();
@@ -343,8 +346,27 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
             log.info("Skipping block proof validation: no block node simulator active");
             return;
         }
-        log.info("Beginning block proof validation for each node in the network");
+
+        // Check writer mode to determine validation strategy
+        final var writerMode = spec.startupProperties().get("blockStream.writerMode");
+        final boolean isGrpcOnly = "GRPC".equals(writerMode);
+
+        log.info("Beginning block proof validation for each node in the network (writerMode: {})", writerMode);
         final var verifiedBlockNumbersAll = getAllVerifiedBlockNumbers(spec);
+
+        if (verifiedBlockNumbersAll.isEmpty()) {
+            Assertions.fail("No verified blocks by block node simulator");
+        }
+
+        if (isGrpcOnly) {
+            // In GRPC-only mode, no marker files are written to disk, so we just verify
+            // that the simulator received blocks
+            log.info("GRPC-only mode: Verified {} blocks received by simulator", verifiedBlockNumbersAll.size());
+            log.info("Block proofs validation completed successfully (GRPC-only mode)");
+            return;
+        }
+
+        // In FILE or FILE_AND_GRPC mode, validate that marker files match simulator receipts
         spec.getNetworkNodes().forEach(node -> {
             try {
                 // Get all marker file numbers
@@ -354,10 +376,6 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
                 final var nodeId = node.getNodeId();
                 if (markerFileNumbers.isEmpty()) {
                     Assertions.fail(String.format("No marker files found for node %d", nodeId));
-                }
-
-                if (verifiedBlockNumbersAll.isEmpty()) {
-                    Assertions.fail(String.format("No verified blocks by block node simulator for node %d", nodeId));
                 }
 
                 for (final var markerFile : markerFileNumbers) {
