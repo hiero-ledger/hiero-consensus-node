@@ -189,7 +189,7 @@ public class VirtualPipeline {
 
     /**
      * Slow down the fast copy operation if total size of all (unreleased) virtual root copies
-     * in this pipeline exceeds {@link VirtualMapConfig#familyThrottleThreshold()}.
+     * in this pipeline exceeds {@link VirtualMapConfig#getFamilyThrottleThreshold()}.
      */
     private void applyFamilySizeBackpressure() {
         final long sleepTimeMillis = calculateFamilySizeBackpressurePause();
@@ -222,7 +222,7 @@ public class VirtualPipeline {
     }
 
     long calculateFamilySizeBackpressurePause() {
-        final long sizeThreshold = config.familyThrottleThreshold();
+        final long sizeThreshold = config.getFamilyThrottleThreshold();
         if (sizeThreshold <= 0) {
             return 0;
         }
@@ -391,7 +391,7 @@ public class VirtualPipeline {
      */
     private boolean shouldBeFlushed(final VirtualRoot copy) {
         return copy.shouldBeFlushed() // either explicitly marked to flush or based on its size
-                && (copy.isDestroyed() || copy.isDetached()); // destroyed or detached
+                && copy.isDestroyed();
     }
 
     /**
@@ -435,7 +435,7 @@ public class VirtualPipeline {
         final PipelineListNode<VirtualRoot> mergeTarget = mergeCandidate.getNext();
 
         return !copy.shouldBeFlushed() // shouldn't be flushed
-                && (copy.isDestroyed() || copy.isDetached()) // copy must be destroyed or detached
+                && copy.isDestroyed() // copy must be destroyed
                 && mergeTarget != null // target must exist
                 && mergeTarget.getValue().isImmutable(); // target must be immutable
     }
@@ -618,7 +618,6 @@ public class VirtualPipeline {
             sb.append(", flushed = ").append(uppercaseBoolean(copy.isMerged()));
             sb.append(", destroyed = ").append(uppercaseBoolean(copy.isDestroyed()));
             sb.append(", hashed = ").append(uppercaseBoolean(copy.isHashed()));
-            sb.append(", detached = ").append(uppercaseBoolean(copy.isDetached()));
             sb.append("\n");
 
             index++;

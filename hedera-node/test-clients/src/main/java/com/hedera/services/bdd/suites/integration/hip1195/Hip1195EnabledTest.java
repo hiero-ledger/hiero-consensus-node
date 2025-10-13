@@ -84,28 +84,28 @@ import org.junit.jupiter.api.Tag;
 @HapiTestLifecycle
 @TargetEmbeddedMode(CONCURRENT)
 public class Hip1195EnabledTest {
-    @Contract(contract = "FalseAccountAllowanceHook", creationGas = 5_000_000)
+    @Contract(contract = "FalsePreHook", creationGas = 5_000_000)
     static SpecContract FALSE_ALLOWANCE_HOOK;
 
-    @Contract(contract = "TrueAccountAllowanceHook", creationGas = 5_000_000)
+    @Contract(contract = "TruePreHook", creationGas = 5_000_000)
     static SpecContract TRUE_ALLOWANCE_HOOK;
 
-    @Contract(contract = "TrueAccountAllowancePrePostHook", creationGas = 5_000_000)
+    @Contract(contract = "TruePrePostHook", creationGas = 5_000_000)
     static SpecContract TRUE_PRE_POST_ALLOWANCE_HOOK;
 
-    @Contract(contract = "FalseAccountAllowancePrePostHook", creationGas = 5_000_000)
+    @Contract(contract = "FalsePrePostHook", creationGas = 5_000_000)
     static SpecContract FALSE_PRE_POST_ALLOWANCE_HOOK;
 
-    @Contract(contract = "StorageAccessAccountAllowanceHook", creationGas = 5_000_000)
+    @Contract(contract = "StorageAccessHook", creationGas = 5_000_000)
     static SpecContract STORAGE_GET_SLOT_HOOK;
 
-    @Contract(contract = "TransferAccountAllowanceHook", creationGas = 5_000_000)
+    @Contract(contract = "TransferAllowanceHook", creationGas = 5_000_000)
     static SpecContract TRANSFER_HOOK;
 
-    @Contract(contract = "StorageMappingAllowanceHook", creationGas = 5_000_000)
+    @Contract(contract = "StorageMappingHook", creationGas = 5_000_000)
     static SpecContract STORAGE_GET_MAPPING_HOOK;
 
-    @Contract(contract = "OneTimeCodeTransferAllowance", creationGas = 5_000_000)
+    @Contract(contract = "OneTimeCodeHook", creationGas = 5_000_000)
     static SpecContract STORAGE_SET_SLOT_HOOK;
 
     private static final String STRING_ABI =

@@ -213,20 +213,17 @@ message BlockProof {
      */
     repeated MerkleSiblingHash sibling_hashes = 5;
 
-    oneof verification_reference {
-        /**
-         * The id of the hinTS scheme this signature verifies under.
-         */
-        uint64 scheme_id = 6;
+    /**
+     * The hinTS key that this signature verifies under; a stream consumer should
+     * only use this key after first checking the chain of trust proof.
+     */
+    bytes verification_key = 6;
 
-        /**
-         * The explicit hinTS key this signature verifies under; useful when
-         * the verifier can easily check whether a chain-of-trust proof
-         * exists for a key, but does does not have any context of the
-         * latest hinTS schemes published in the block stream.
-         */
-        bytes verification_key = 7;
-    }
+    /**
+     * Proof the hinTS verification key is in the chain of trust extending
+     * from the network's ledger id.
+     */
+    ChainOfTrustProof verification_key_proof = 7;
 }
 
 /**
@@ -259,4 +256,53 @@ message MerkleSiblingHash {
      * This SHALL contain the raw (e.g.) 384 bits (48 bytes) of the hash value.
      */
     bytes sibling_hash = 2;
+}
+
+/**
+ * Proof that some data belongs to the network's chain of trust, starting from
+ * the genesis network whose address book hash formed the ledger id. (In the
+ * current system, this data is always a hinTS verification key.)
+ */
+message ChainOfTrustProof {
+  oneof proof {
+    /**
+     * If there is not yet a SNARK proving the chain of trust from ledger id to
+     * the hinTS verification key, the explicit list of Schnorr signatures on
+     * the concatenation of the ledger id and genesis hinTS verification key
+     * that serve as witnesses for the SNARK prover algorithm.
+     */
+    NodeSignatures node_signatures = 1;
+    /**
+     * If known, a ZK-compressed SNARK proof proving the chain of trust from
+     * the ledger id to this hinTS verification key.
+     */
+    bytes wraps_proof = 2;
+  }
+}
+
+/**
+ * A list of valid node signatures on some data assumed known from the context
+ * of the message, ordered by node id.
+ * <p>
+ * Can be used to prove the genesis hinTS verification key in a block proof; but
+ * not succinct and not recursive; hence in normal operations with TSS, used only
+ * until the first recursive proof is available.
+ */
+message NodeSignatures {
+  repeated NodeSignature node_signatures = 1;
+}
+
+/**
+ * A signature from a node on some data assumed known from the context of the
+ * message.
+ */
+message NodeSignature {
+  /**
+   * The node id of the signer.
+   */
+  uint64 node_id = 1;
+  /**
+   * The signature.
+   */
+  bytes signature = 2;
 }
