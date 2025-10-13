@@ -13,6 +13,7 @@ import com.swirlds.platform.metrics.StateMetrics;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.system.status.StatusActionSubmitter;
+import com.swirlds.platform.uptime.UptimeTracker;
 import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -49,6 +50,11 @@ public class SwirldStateManager implements FreezePeriodChecker {
      * Handle transactions by applying them to a state
      */
     private final TransactionHandler transactionHandler;
+
+    /**
+     * Tracks and reports node uptime.
+     */
+    private final UptimeTracker uptimeTracker;
 
     /**
      * The current software version.
@@ -89,6 +95,8 @@ public class SwirldStateManager implements FreezePeriodChecker {
         requireNonNull(statusActionSubmitter);
         this.softwareVersion = requireNonNull(softwareVersion);
         this.transactionHandler = new TransactionHandler(selfId, stats);
+        this.uptimeTracker =
+                new UptimeTracker(platformContext, roster, statusActionSubmitter, selfId, platformContext.getTime());
     }
 
     /**
@@ -119,6 +127,8 @@ public class SwirldStateManager implements FreezePeriodChecker {
      */
     public Queue<ScopedSystemTransaction<StateSignatureTransaction>> handleConsensusRound(final ConsensusRound round) {
         final MerkleNodeState state = stateRef.get();
+
+        uptimeTracker.handleRound(round);
         return transactionHandler.handleRound(round, consensusStateEventHandler, state);
     }
 

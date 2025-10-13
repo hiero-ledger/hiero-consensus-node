@@ -43,7 +43,7 @@ import com.swirlds.platform.state.signed.StateGarbageCollector;
 import com.swirlds.platform.state.signed.StateSignatureCollector;
 import com.swirlds.platform.state.signer.StateSigner;
 import com.swirlds.platform.state.snapshot.StateSnapshotManager;
-import com.swirlds.platform.system.PlatformMonitor;
+import com.swirlds.platform.system.status.StatusStateMachine;
 import com.swirlds.platform.wiring.components.ConsensusWiring;
 import com.swirlds.platform.wiring.components.GossipWiring;
 import com.swirlds.platform.wiring.components.PcesReplayerWiring;
@@ -100,7 +100,7 @@ public record PlatformComponents(
         ComponentWiring<StateHasher, ReservedSignedState> stateHasherWiring,
         ComponentWiring<AppNotifier, Void> notifierWiring,
         ComponentWiring<PlatformPublisher, Void> platformPublisherWiring,
-        ComponentWiring<PlatformMonitor, PlatformStatus> platformMonitorWiring,
+        ComponentWiring<StatusStateMachine, PlatformStatus> statusStateMachineWiring,
         ComponentWiring<BranchDetector, PlatformEvent> branchDetectorWiring,
         ComponentWiring<BranchReporter, Void> branchReporterWiring) {
 
@@ -160,7 +160,7 @@ public record PlatformComponents(
         notifierWiring.bind(notifier);
         platformPublisherWiring.bind(platformPublisher);
         stateGarbageCollectorWiring.bind(builder::buildStateGarbageCollector);
-        platformMonitorWiring.bind(builder::buildPlatformMonitor);
+        statusStateMachineWiring.bind(builder::buildStatusStateMachine);
         signedStateSentinelWiring.bind(builder::buildSignedStateSentinel);
         gossipWiring.bind(builder.buildGossip());
         branchDetectorWiring.bind(builder::buildBranchDetector);
@@ -277,8 +277,8 @@ public record PlatformComponents(
                 new ComponentWiring<>(model, StateGarbageCollector.class, config.stateGarbageCollector());
         final ComponentWiring<SignedStateSentinel, Void> signedStateSentinelWiring =
                 new ComponentWiring<>(model, SignedStateSentinel.class, config.signedStateSentinel());
-        final ComponentWiring<PlatformMonitor, PlatformStatus> platformMonitorWiring =
-                new ComponentWiring<>(model, PlatformMonitor.class, config.platformMonitor());
+        final ComponentWiring<StatusStateMachine, PlatformStatus> statusStateMachineWiring =
+                new ComponentWiring<>(model, StatusStateMachine.class, config.statusStateMachine());
 
         final ComponentWiring<BranchDetector, PlatformEvent> branchDetectorWiring =
                 new ComponentWiring<>(model, BranchDetector.class, config.branchDetector());
@@ -317,7 +317,7 @@ public record PlatformComponents(
                 stateHasherWiring,
                 notifierWiring,
                 platformPublisherWiring,
-                platformMonitorWiring,
+                statusStateMachineWiring,
                 branchDetectorWiring,
                 branchReporterWiring);
     }

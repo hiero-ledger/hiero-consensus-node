@@ -17,6 +17,7 @@ import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
+import com.swirlds.platform.system.status.StatusActionSubmitter;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
@@ -94,14 +95,15 @@ class UptimeTests {
     void roundScanTest() {
         final Random random = getRandomPrintSeed();
 
-        final FakeTime time = new FakeTime();
         final PlatformContext platformContext =
-                TestPlatformContextBuilder.create().withTime(time).build();
+                TestPlatformContextBuilder.create().build();
+        final FakeTime time = new FakeTime();
 
         final Roster roster = RandomRosterBuilder.create(random).withSize(10).build();
         final NodeId selfId = NodeId.of(roster.rosterEntries().getFirst().nodeId());
 
-        final UptimeTracker uptimeTracker = new UptimeTracker(platformContext, selfId);
+        final UptimeTracker uptimeTracker =
+                new UptimeTracker(platformContext, roster, mock(StatusActionSubmitter.class), selfId, time);
         final UptimeData uptimeData = uptimeTracker.uptimeData;
 
         // First, simulate a round starting at genesis
@@ -116,7 +118,7 @@ class UptimeTests {
                 random, time, Duration.ofSeconds(1), roster, eventCount, noFirstRoundEvents, noFirstRoundJudges);
 
         final ConsensusRound roundOne = mockRound(firstRoundEvents, roster, 1);
-        uptimeTracker.trackRound(roundOne);
+        uptimeTracker.handleRound(roundOne);
 
         roster.rosterEntries().forEach(entry -> {
             final NodeId nodeId = NodeId.of(entry.nodeId());
@@ -163,7 +165,7 @@ class UptimeTests {
                 random, time, Duration.ofSeconds(1), roster, eventCount, noSecondRoundEvents, noSecondRoundJudges);
 
         final ConsensusRound roundTwo = mockRound(secondRoundEvents, roster, 2);
-        uptimeTracker.trackRound(roundTwo);
+        uptimeTracker.handleRound(roundTwo);
 
         roster.rosterEntries().forEach(entry -> {
             final NodeId nodeId = NodeId.of(entry.nodeId());
@@ -208,14 +210,15 @@ class UptimeTests {
     void roundScanChangingRosterTest() {
         final Random random = getRandomPrintSeed();
 
-        final FakeTime time = new FakeTime();
         final PlatformContext platformContext =
-                TestPlatformContextBuilder.create().withTime(time).build();
+                TestPlatformContextBuilder.create().build();
+        final FakeTime time = new FakeTime();
 
         final Roster roster = RandomRosterBuilder.create(random).withSize(10).build();
         final NodeId selfId = NodeId.of(roster.rosterEntries().getFirst().nodeId());
 
-        final UptimeTracker uptimeTracker = new UptimeTracker(platformContext, selfId);
+        final UptimeTracker uptimeTracker =
+                new UptimeTracker(platformContext, roster, mock(StatusActionSubmitter.class), selfId, time);
         final UptimeData uptimeData = uptimeTracker.uptimeData;
         // First, simulate a round starting at genesis
         final int eventCount = 100;
@@ -237,7 +240,7 @@ class UptimeTests {
         });
 
         final ConsensusRound roundOne = mockRound(firstRoundEvents, roster, 1);
-        uptimeTracker.trackRound(roundOne);
+        uptimeTracker.handleRound(roundOne);
 
         roster.rosterEntries().forEach(entry -> {
             final NodeId nodeId = NodeId.of(entry.nodeId());
@@ -284,7 +287,7 @@ class UptimeTests {
 
         final ConsensusRound roundTwo = mockRound(secondRoundEvents, newRoster, 2);
 
-        uptimeTracker.trackRound(roundTwo);
+        uptimeTracker.handleRound(roundTwo);
 
         newRoster.rosterEntries().forEach(entry -> {
             final NodeId nodeId = NodeId.of(entry.nodeId());
@@ -328,14 +331,15 @@ class UptimeTests {
     void degradedTest() {
         final Random random = getRandomPrintSeed();
 
-        final FakeTime time = new FakeTime();
         final PlatformContext platformContext =
-                TestPlatformContextBuilder.create().withTime(time).build();
+                TestPlatformContextBuilder.create().build();
+        final FakeTime time = new FakeTime();
 
         final Roster roster = RandomRosterBuilder.create(random).withSize(3).build();
         final NodeId selfId = NodeId.of(roster.rosterEntries().getFirst().nodeId());
 
-        final UptimeTracker uptimeTracker = new UptimeTracker(platformContext, selfId);
+        final UptimeTracker uptimeTracker =
+                new UptimeTracker(platformContext, roster, mock(StatusActionSubmitter.class), selfId, time);
         final UptimeData uptimeData = uptimeTracker.uptimeData;
 
         // First, simulate a round starting at genesis
@@ -352,7 +356,7 @@ class UptimeTests {
         });
 
         final ConsensusRound roundOne = mockRound(firstRoundEvents, roster, 1);
-        uptimeTracker.trackRound(roundOne);
+        uptimeTracker.handleRound(roundOne);
 
         // Simulate a following round, but allow a long time to pass
         time.tick(Duration.ofSeconds(30));
@@ -363,7 +367,7 @@ class UptimeTests {
                 generateEvents(random, time, Duration.ofSeconds(1), roster, eventCount, noSecondRoundEvents, Set.of());
 
         final ConsensusRound roundTwo = mockRound(secondRoundEvents, roster, 2);
-        uptimeTracker.trackRound(roundTwo);
+        uptimeTracker.handleRound(roundTwo);
 
         assertTrue(uptimeTracker.isSelfDegraded());
 
@@ -373,7 +377,7 @@ class UptimeTests {
                 generateEvents(random, time, Duration.ofSeconds(1), roster, eventCount, Set.of(), Set.of());
 
         final ConsensusRound roundThree = mockRound(thirdRoundEvents, roster, 3);
-        uptimeTracker.trackRound(roundThree);
+        uptimeTracker.handleRound(roundThree);
 
         assertFalse(uptimeTracker.isSelfDegraded());
     }
