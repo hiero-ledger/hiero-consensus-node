@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 
+import com.swirlds.base.state.Startable;
 import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.filesystem.FileSystemManager;
@@ -85,6 +86,7 @@ class RpcShadowgraphSynchronizerTest {
         this.fallenBehindManager = new FallenBehindMonitor(
                 RandomRosterBuilder.create(new Random()).withSize(NUM_NODES).build(), configuration, new NoOpMetrics());
         fallenBehindManager.bind(statusSubmitter);
+        fallenBehindManager.bind(mock(Startable.class));
         this.eventHandler = mock(Consumer.class);
         this.gossipSender = mock(GossipRpcSender.class);
         this.lagReporter = mock(Consumer.class);
