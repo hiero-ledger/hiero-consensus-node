@@ -191,7 +191,7 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 
 @HapiTestLifecycle
-public class AtomicBatchPrecompileTest {
+class AtomicBatchPrecompileTest {
     private static final String DEFAULT_BATCH_OPERATOR = "batchOperator";
     private static final String APPROVE_SIGNATURE = "Approval(address,address,uint256)";
     private static final Tuple[] EMPTY_TUPLE_ARRAY = new Tuple[] {};
@@ -294,10 +294,7 @@ public class AtomicBatchPrecompileTest {
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
         // enable atomic batch
-        testLifecycle.overrideInClass(Map.of(
-                "atomicBatch.isEnabled", "true",
-                "atomicBatch.maxNumberOfTransactions", "50",
-                "contracts.throttle.throttleByGas", "false"));
+        testLifecycle.overrideInClass(Map.of("contracts.throttle.throttleByGas", "false"));
         // create default batch operator
         testLifecycle.doAdhoc(cryptoCreate(DEFAULT_BATCH_OPERATOR).balance(ONE_MILLION_HBARS));
         // upload contracts init code
@@ -2030,7 +2027,7 @@ public class AtomicBatchPrecompileTest {
 
         @HapiTest
         @DisplayName("returns true for EOA msg.sender exactly when associated")
-        public Stream<DynamicTest> atomicReturnsTrueIffEoaMsgSenderIsAssociated() {
+        Stream<DynamicTest> atomicReturnsTrueIffEoaMsgSenderIsAssociated() {
             return hapiTest(
                     assertAtomicEoaGetsResultForBothTokens(false),
                     senderAccount.associateTokens(fungibleToken2, nonFungibleToken2),
@@ -2633,7 +2630,7 @@ public class AtomicBatchPrecompileTest {
 
         @HapiTest
         @DisplayName("fungible token with fixed ℏ fee")
-        public Stream<DynamicTest> atomicUpdateFungibleTokenWithHbarFixedFee() {
+        Stream<DynamicTest> atomicUpdateFungibleTokenWithHbarFixedFee() {
 
             return hapiTest(
                     fungibleToken

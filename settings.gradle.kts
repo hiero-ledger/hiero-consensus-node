@@ -41,6 +41,8 @@ javaModules {
         module("hedera-token-service-impl") { artifact = "app-service-token-impl" }
         module("hedera-util-service") { artifact = "app-service-util" }
         module("hedera-util-service-impl") { artifact = "app-service-util-impl" }
+        module("hedera-roster-service") { artifact = "app-service-roster" }
+        module("hedera-roster-service-impl") { artifact = "app-service-roster-impl" }
     }
 
     // Platform-base demo applications

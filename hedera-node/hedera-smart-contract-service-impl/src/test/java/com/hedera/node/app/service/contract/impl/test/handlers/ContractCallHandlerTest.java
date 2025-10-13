@@ -14,6 +14,7 @@ import static org.mockito.ArgumentMatchers.notNull;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 
+import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.contract.ContractCallTransactionBody;
@@ -31,6 +32,7 @@ import com.hedera.node.app.service.contract.impl.records.ContractCallStreamBuild
 import com.hedera.node.app.service.contract.impl.state.EvmFrameStateFactory;
 import com.hedera.node.app.service.contract.impl.state.EvmFrameStates;
 import com.hedera.node.app.service.contract.impl.state.RootProxyWorldUpdater;
+import com.hedera.node.app.service.contract.impl.utils.ConstantUtils;
 import com.hedera.node.app.spi.fees.FeeCalculator;
 import com.hedera.node.app.spi.fees.FeeCalculatorFactory;
 import com.hedera.node.app.spi.fees.FeeContext;
@@ -197,15 +199,25 @@ class ContractCallHandlerTest extends ContractHandlerTestBase {
         assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
 
         // check at least intrinsic gas
-        final var txn2 = contractCallTransactionWithInsufficientGas();
+        final var txn2 = contractCallTransactionWithContractId(targetContract, INTRINSIC_GAS_FOR_0_ARG_METHOD - 1);
         given(gasCalculator.transactionIntrinsicGasCost(org.apache.tuweni.bytes.Bytes.wrap(new byte[0]), false, 0L))
                 .willReturn(INTRINSIC_GAS_FOR_0_ARG_METHOD);
         given(pureChecksContext.body()).willReturn(txn2);
         assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
 
         // check that invalid contract id is rejected
-        final var txn3 = contractCallTransactionWithInvalidContractId();
+        final var txn3 = contractCallTransactionWithContractId(invalidContract);
         given(pureChecksContext.body()).willReturn(txn3);
+        assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
+
+        // check that zero contract id is rejected
+        final var txn4 = contractCallTransactionWithContractId(ConstantUtils.ZERO_CONTRACT_ID);
+        given(pureChecksContext.body()).willReturn(txn4);
+        assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
+
+        // check that emv zero address contract id is rejected
+        final var txn5 = contractCallTransactionWithContractId(ConstantUtils.EVM_ZERO_CONTRACT_ID);
+        given(pureChecksContext.body()).willReturn(txn5);
         assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
     }
 
@@ -242,23 +254,15 @@ class ContractCallHandlerTest extends ContractHandlerTestBase {
                 .build();
     }
 
-    private TransactionBody contractCallTransactionWithInvalidContractId() {
-        final var transactionID = TransactionID.newBuilder().accountID(payer).transactionValidStart(consensusTimestamp);
-        return TransactionBody.newBuilder()
-                .transactionID(transactionID)
-                .contractCall(ContractCallTransactionBody.newBuilder()
-                        .gas(INTRINSIC_GAS_FOR_0_ARG_METHOD - 1)
-                        .contractID(invalidContract))
-                .build();
+    private TransactionBody contractCallTransactionWithContractId(final ContractID contractId) {
+        return contractCallTransactionWithContractId(contractId, INTRINSIC_GAS_FOR_0_ARG_METHOD);
     }
 
-    private TransactionBody contractCallTransactionWithInsufficientGas() {
+    private TransactionBody contractCallTransactionWithContractId(final ContractID contractId, final long gas) {
         final var transactionID = TransactionID.newBuilder().accountID(payer).transactionValidStart(consensusTimestamp);
         return TransactionBody.newBuilder()
                 .transactionID(transactionID)
-                .contractCall(ContractCallTransactionBody.newBuilder()
-                        .gas(INTRINSIC_GAS_FOR_0_ARG_METHOD - 1)
-                        .contractID(targetContract))
+                .contractCall(ContractCallTransactionBody.newBuilder().gas(gas).contractID(contractId))
                 .build();
     }
 }

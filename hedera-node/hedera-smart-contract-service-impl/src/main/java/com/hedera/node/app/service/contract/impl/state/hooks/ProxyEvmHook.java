@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.state.hooks;
 
-import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.HtsSystemContract.HTS_HOOKS_16D_CONTRACT_ADDRESS;
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.HtsSystemContract.HTS_HOOKS_CONTRACT_ADDRESS;
+import static com.hedera.node.app.service.token.HookDispatchUtils.HTS_HOOKS_CONTRACT_ID;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
@@ -12,6 +13,7 @@ import com.hedera.node.app.service.contract.impl.state.AbstractProxyEvmAccount;
 import com.hedera.node.app.service.contract.impl.state.EvmFrameState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.apache.tuweni.bytes.Bytes;
+import org.apache.tuweni.units.bigints.UInt256;
 import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.datatypes.Hash;
 import org.hyperledger.besu.evm.Code;
@@ -36,7 +38,7 @@ public class ProxyEvmHook extends AbstractProxyEvmAccount {
 
     public ProxyEvmHook(
             @NonNull final EvmFrameState state, @NonNull final EvmHookState hookState, final CodeFactory codeFactory) {
-        super(getOwnerId(hookState.hookId()), state);
+        super(getOwnerId(hookState.hookIdOrThrow()), state);
         this.hookState = requireNonNull(hookState);
         this.codeFactory = codeFactory;
     }
@@ -48,7 +50,13 @@ public class ProxyEvmHook extends AbstractProxyEvmAccount {
 
     @Override
     public Address getAddress() {
-        return HTS_HOOKS_16D_CONTRACT_ADDRESS;
+        return HTS_HOOKS_CONTRACT_ADDRESS;
+    }
+
+    @Override
+    @NonNull
+    public ContractID hederaContractId() {
+        return HTS_HOOKS_CONTRACT_ID;
     }
 
     @Override
@@ -59,6 +67,11 @@ public class ProxyEvmHook extends AbstractProxyEvmAccount {
     @Override
     public @NonNull Hash getCodeHash() {
         return state.getCodeHash(hookState.hookContractIdOrThrow(), codeFactory);
+    }
+
+    @Override
+    public @NonNull UInt256 getStorageValue(@NonNull final UInt256 key) {
+        return state.getStorageValue(HTS_HOOKS_CONTRACT_ID, key);
     }
 
     @NonNull

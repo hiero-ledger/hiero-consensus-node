@@ -48,7 +48,8 @@ class DataSourceValidatorTest {
                             IntStream.range(count - 1, count * 2 - 1)
                                     .mapToObj(
                                             i -> TestType.long_fixed.dataType().createVirtualLeafRecord(i)),
-                            Stream.empty());
+                            Stream.empty(),
+                            false);
 
                     assertTrue(validator.validate());
                 });
@@ -68,7 +69,8 @@ class DataSourceValidatorTest {
                             IntStream.range(0, count - 1).mapToObj(MerkleDbDataSourceTest::createVirtualInternalRecord),
                             // leaves are missing
                             Stream.empty(),
-                            Stream.empty());
+                            Stream.empty(),
+                            false);
                     assertFalse(validator.validate());
                 });
     }

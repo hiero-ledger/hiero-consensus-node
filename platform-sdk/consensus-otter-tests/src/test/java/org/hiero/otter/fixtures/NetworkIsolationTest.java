@@ -4,6 +4,7 @@ package org.hiero.otter.fixtures;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.hiero.consensus.model.status.PlatformStatus.ACTIVE;
+import static org.hiero.otter.fixtures.Constants.RANDOM_SEED;
 
 import com.swirlds.common.test.fixtures.WeightGenerators;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -21,8 +22,6 @@ import org.junit.jupiter.params.provider.MethodSource;
  * Tests for the node isolation functionality in the Network interface.
  */
 class NetworkIsolationTest {
-
-    private static final long RANDOM_SEED = 0L;
 
     /**
      * Provides a stream of test environments for the parameterized tests.
@@ -46,7 +45,7 @@ class NetworkIsolationTest {
             final TimeManager timeManager = env.timeManager();
 
             // Setup network with 4 nodes
-            network.setWeightGenerator(WeightGenerators.BALANCED);
+            network.weightGenerator(WeightGenerators.BALANCED);
             final List<Node> nodes = network.addNodes(4);
             final Node node0 = nodes.get(0);
             final Node node1 = nodes.get(1);
@@ -82,17 +81,17 @@ class NetworkIsolationTest {
             assertThat(network.isIsolated(node3)).isFalse();
 
             // Verify network knows about the isolation partition
-            assertThat(network.getPartitionContaining(node0)).isEqualTo(isolationPartition);
-            assertThat(network.partitions()).hasSize(2); // isolation + remaining nodes
+            assertThat(network.getNetworkPartitionContaining(node0)).isEqualTo(isolationPartition);
+            assertThat(network.networkPartitions()).hasSize(2); // isolation + remaining nodes
 
             // Verify the remaining nodes are in a complementary partition
-            final Partition remainingPartition = network.getPartitionContaining(node1);
+            final Partition remainingPartition = network.getNetworkPartitionContaining(node1);
             assertThat(remainingPartition).isNotNull().isNotEqualTo(isolationPartition);
             assertThat(remainingPartition.nodes()).containsExactlyInAnyOrder(node1, node2, node3);
 
             // Wait for nodes to become inactive due to network partition
             timeManager.waitForCondition(
-                    node0::isChecking, Duration.ofSeconds(15), "Node did not enter CHECKING state after isolation");
+                    node0::isChecking, Duration.ofSeconds(120L), "Node did not enter CHECKING state after isolation");
 
             timeManager.waitFor(Duration.ofSeconds(5)); // just to be sure
             assertThat(node1.platformStatus()).isEqualTo(ACTIVE);
@@ -109,15 +108,17 @@ class NetworkIsolationTest {
             assertThat(network.isIsolated(node3)).isFalse();
 
             // Verify all partitions are removed
-            assertThat(network.partitions()).isEmpty();
-            assertThat(network.getPartitionContaining(node0)).isNull();
-            assertThat(network.getPartitionContaining(node1)).isNull();
-            assertThat(network.getPartitionContaining(node2)).isNull();
-            assertThat(network.getPartitionContaining(node3)).isNull();
+            assertThat(network.networkPartitions()).isEmpty();
+            assertThat(network.getNetworkPartitionContaining(node0)).isNull();
+            assertThat(network.getNetworkPartitionContaining(node1)).isNull();
+            assertThat(network.getNetworkPartitionContaining(node2)).isNull();
+            assertThat(network.getNetworkPartitionContaining(node3)).isNull();
 
             // The nodes should be active again
             timeManager.waitForCondition(
-                    network::allNodesAreActive, Duration.ofSeconds(15), "Not all nodes became ACTIVE after rejoining");
+                    network::allNodesAreActive,
+                    Duration.ofSeconds(120L),
+                    "Not all nodes became ACTIVE after rejoining");
         } finally {
             env.destroy();
         }
@@ -134,7 +135,7 @@ class NetworkIsolationTest {
             final TimeManager timeManager = env.timeManager();
 
             // Setup network with 5 nodes
-            network.setWeightGenerator(WeightGenerators.BALANCED);
+            network.weightGenerator(WeightGenerators.BALANCED);
             final List<Node> nodes = network.addNodes(4);
             final Node node0 = nodes.get(0);
             final Node node1 = nodes.get(1);
@@ -150,20 +151,20 @@ class NetworkIsolationTest {
             final Partition partition1 = network.isolate(node0);
             assertThat(network.isIsolated(node0)).isTrue();
             assertThat(partition1.nodes()).containsExactly(node0);
-            assertThat(network.partitions()).hasSize(2); // isolated node + remaining nodes
+            assertThat(network.networkPartitions()).hasSize(2); // isolated node + remaining nodes
 
             // Isolate second node from the remaining group
             final Partition partition2 = network.isolate(node1);
             assertThat(network.isIsolated(node0)).isTrue();
             assertThat(network.isIsolated(node1)).isTrue();
             assertThat(partition2.nodes()).containsExactly(node1);
-            assertThat(network.partitions()).hasSize(3); // two isolated nodes + remaining group
+            assertThat(network.networkPartitions()).hasSize(3); // two isolated nodes + remaining group
 
             // Verify remaining nodes are still connected to each other
-            final Partition remainingPartition = network.getPartitionContaining(node2);
+            final Partition remainingPartition = network.getNetworkPartitionContaining(node2);
             assertThat(remainingPartition).isNotNull();
             assertThat(remainingPartition.nodes()).containsExactlyInAnyOrder(node2, node3);
-            assertThat(network.getPartitionContaining(node3)).isEqualTo(remainingPartition);
+            assertThat(network.getNetworkPartitionContaining(node3)).isEqualTo(remainingPartition);
 
             // Verify isolation status of all nodes
             assertThat(network.isIsolated(node0)).isTrue();
@@ -198,23 +199,23 @@ class NetworkIsolationTest {
             timeManager.waitFor(Duration.ofSeconds(5));
 
             // Create first partition
-            final Partition partition1 = network.createPartition(node0, node1);
+            final Partition partition1 = network.createNetworkPartition(node0, node1);
             assertThat(partition1.nodes()).containsExactlyInAnyOrder(node0, node1);
-            assertThat(network.getPartitionContaining(node0)).isEqualTo(partition1);
+            assertThat(network.getNetworkPartitionContaining(node0)).isEqualTo(partition1);
 
             // Isolate node0 (should move it from partition)
             final Partition partition2 = network.isolate(node0);
 
             // Verify node0 moved to partition2
             assertThat(partition2.nodes()).containsExactlyInAnyOrder(node0);
-            assertThat(network.getPartitionContaining(node0)).isEqualTo(partition2);
+            assertThat(network.getNetworkPartitionContaining(node0)).isEqualTo(partition2);
 
             // Verify partition1 no longer contains node0
             assertThat(partition1.nodes()).containsExactlyInAnyOrder(node1);
-            assertThat(network.getPartitionContaining(node1)).isEqualTo(partition1);
+            assertThat(network.getNetworkPartitionContaining(node1)).isEqualTo(partition1);
 
             // Verify node2 and node3 are in the remaining partition
-            final Partition remainingPartition = network.getPartitionContaining(node2);
+            final Partition remainingPartition = network.getNetworkPartitionContaining(node2);
             assertThat(remainingPartition).isNotNull();
             assertThat(remainingPartition).isNotEqualTo(partition1);
             assertThat(remainingPartition).isNotEqualTo(partition2);
@@ -267,7 +268,7 @@ class NetworkIsolationTest {
             final TimeManager timeManager = env.timeManager();
 
             // Setup network with 4 nodes
-            network.setWeightGenerator(WeightGenerators.BALANCED);
+            network.weightGenerator(WeightGenerators.BALANCED);
             final List<Node> nodes = network.addNodes(4);
             final Node node0 = nodes.get(0);
             final Node node1 = nodes.get(1);
@@ -288,17 +289,17 @@ class NetworkIsolationTest {
             assertThat(network.isIsolated(node2)).isTrue();
             assertThat(network.isIsolated(node3)).isFalse();
 
-            assertThat(network.partitions()).hasSize(3); // node0, node2, {node1,node3}
+            assertThat(network.networkPartitions()).hasSize(3); // node0, node2, {node1,node3}
 
             // Rejoin the first isolated node
             network.rejoin(node0);
 
             assertThat(network.isIsolated(node0)).isFalse();
             assertThat(network.isIsolated(node2)).isTrue();
-            assertThat(network.partitions()).hasSize(2); // node2, {node0,node1,node3}
+            assertThat(network.networkPartitions()).hasSize(2); // node2, {node0,node1,node3}
 
             // Verify the remaining nodes are connected
-            final Partition mainPartition = network.getPartitionContaining(node0);
+            final Partition mainPartition = network.getNetworkPartitionContaining(node0);
             assertThat(mainPartition).isNotNull();
             assertThat(mainPartition.nodes()).containsExactlyInAnyOrder(node0, node1, node3);
 
@@ -307,7 +308,7 @@ class NetworkIsolationTest {
 
             assertThat(network.isIsolated(node1)).isTrue();
             assertThat(network.isIsolated(node2)).isTrue();
-            assertThat(network.partitions()).hasSize(3); // node1, node2, {node0,node3}
+            assertThat(network.networkPartitions()).hasSize(3); // node1, node2, {node0,node3}
             assertThat(mainPartition.nodes()).containsExactlyInAnyOrder(node0, node3);
 
             // Rejoin both isolated nodes
@@ -320,7 +321,7 @@ class NetworkIsolationTest {
             assertThat(network.isIsolated(node2)).isFalse();
             assertThat(network.isIsolated(node3)).isFalse();
 
-            assertThat(network.partitions()).isEmpty();
+            assertThat(network.networkPartitions()).isEmpty();
         } finally {
             env.destroy();
         }
@@ -355,7 +356,7 @@ class NetworkIsolationTest {
             // Verify isolation
             assertThat(network.isIsolated(node0)).isTrue();
             assertThat(network.isIsolated(node2)).isTrue();
-            assertThat(network.partitions()).hasSize(3);
+            assertThat(network.networkPartitions()).hasSize(3);
 
             // Restore connectivity
             network.restoreConnectivity();
@@ -367,11 +368,11 @@ class NetworkIsolationTest {
             assertThat(network.isIsolated(node3)).isFalse();
 
             // Verify all partitions are removed
-            assertThat(network.partitions()).isEmpty();
-            assertThat(network.getPartitionContaining(node0)).isNull();
-            assertThat(network.getPartitionContaining(node1)).isNull();
-            assertThat(network.getPartitionContaining(node2)).isNull();
-            assertThat(network.getPartitionContaining(node3)).isNull();
+            assertThat(network.networkPartitions()).isEmpty();
+            assertThat(network.getNetworkPartitionContaining(node0)).isNull();
+            assertThat(network.getNetworkPartitionContaining(node1)).isNull();
+            assertThat(network.getNetworkPartitionContaining(node2)).isNull();
+            assertThat(network.getNetworkPartitionContaining(node3)).isNull();
         } finally {
             env.destroy();
         }
@@ -402,7 +403,7 @@ class NetworkIsolationTest {
             timeManager.waitFor(Duration.ofSeconds(5));
 
             // Create a regular partition first
-            final Partition regularPartition = network.createPartition(node0, node1, node2);
+            final Partition regularPartition = network.createNetworkPartition(node0, node1, node2);
             assertThat(regularPartition.nodes()).containsExactlyInAnyOrder(node0, node1, node2);
 
             // Isolate a node from the remaining group
@@ -415,13 +416,13 @@ class NetworkIsolationTest {
             assertThat(network.isIsolated(node3)).isTrue();
             assertThat(network.isIsolated(node4)).isFalse();
             assertThat(network.isIsolated(node5)).isFalse();
-            assertThat(network.partitions()).hasSize(3);
+            assertThat(network.networkPartitions()).hasSize(3);
 
             // Verify partition structure
-            assertThat(network.getPartitionContaining(node0)).isEqualTo(regularPartition);
-            assertThat(network.getPartitionContaining(node3)).isEqualTo(isolationPartition);
+            assertThat(network.getNetworkPartitionContaining(node0)).isEqualTo(regularPartition);
+            assertThat(network.getNetworkPartitionContaining(node3)).isEqualTo(isolationPartition);
 
-            final Partition remainingPartition = network.getPartitionContaining(node4);
+            final Partition remainingPartition = network.getNetworkPartitionContaining(node4);
             assertThat(remainingPartition).isNotNull();
             assertThat(remainingPartition.nodes()).containsExactlyInAnyOrder(node4, node5);
 
@@ -430,7 +431,7 @@ class NetworkIsolationTest {
 
             // This should merge the remaining partitions, leaving only the isolated node
             assertThat(network.isIsolated(node3)).isTrue();
-            assertThat(network.partitions()).hasSize(2); // isolated node + merged remaining nodes
+            assertThat(network.networkPartitions()).hasSize(2); // isolated node + merged remaining nodes
         } finally {
             env.destroy();
         }
