@@ -5,7 +5,7 @@
 module com.hedera.node.app.service.contract.impl {
     requires transitive com.hedera.node.app.hapi.fees;
     requires transitive com.hedera.node.app.hapi.utils;
-    requires transitive com.hedera.node.app.service.addressbook;
+    requires com.hedera.node.app.service.addressbook;
     requires transitive com.hedera.node.app.service.contract;
     requires transitive com.hedera.node.app.service.file;
     requires transitive com.hedera.node.app.service.schedule;
