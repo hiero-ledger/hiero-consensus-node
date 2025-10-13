@@ -71,6 +71,7 @@ jobs:
       add-settings: ""
       crypto-bench-merkle-db-java-args: "-XX:+UseZGC -XX:+ZGenerational -XX:ZAllocationSpikeTolerance=2 -XX:ConcGCThreads=14 -XX:ZMarkStackSpaceLimit=12g -XX:MaxDirectMemorySize=24g -Xmx90g"
       crypto-bench-merkle-db-test-params: "-p maxKey=500000000 -p numRecords=100000 -p keySize=24 -p recordSize=1024 -p numFiles=6000"
+      delete-namespace: true
     secrets:
       slack-report-webhook: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
       rootly-api-token: ${{ secrets.ROOTLY_API_TOKEN }}
@@ -407,22 +408,6 @@ jobs:
           environments: "CITR"
           external_id: ${{ github.run_id }}
           external_url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-
-      - name: Create Rootly Incident
-        uses: pandaswhocode/rootly-incident-action@4327542435bb4c8c48f15fba47efb87a28f8533f # v2.0.1
-        continue-on-error: true # continue on error so we can get the slack reporting
-        with:
-          api_key: ${{ secrets.ROOTLY_API_TOKEN }}
-          title: "${{ steps.rootly-summary.outputs.title }}"
-          kind: "normal"
-          create_public_incident: "false"
-          summary: "${{ steps.rootly-summary.outputs.summary }}"
-          severity: "Triage Event"
-          alert_ids: ${{ steps.create-rootly-alert.outputs.alert_id || '' }}
-          environments: "CITR"
-          incident_types: "Platform CI"
-          services: ${{ steps.set-rootly-service.outputs.service }}
-          teams: "Platform CI,Performance Engineering"
 
       - name: Build Slack Payload Message
         id: payload

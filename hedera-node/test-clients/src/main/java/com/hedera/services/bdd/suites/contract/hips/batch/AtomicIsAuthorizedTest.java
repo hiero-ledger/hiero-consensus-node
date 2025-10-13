@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.suites.contract.hips.batch;
 
 import static com.hedera.node.app.hapi.utils.EthSigsUtils.recoverAddressFromPrivateKey;
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.defaultHapiSpec;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
@@ -85,7 +86,7 @@ import org.junit.jupiter.api.Tag;
 @Tag(SMART_CONTRACT)
 @HapiTestLifecycle
 @SuppressWarnings("java:S1192") // "String literals should not be duplicated" - would impair readability here
-public class AtomicIsAuthorizedTest {
+class AtomicIsAuthorizedTest {
 
     public static final String ACCOUNT = "account";
     public static final String ANOTHER_ACCOUNT = "anotherAccount";
@@ -109,15 +110,8 @@ public class AtomicIsAuthorizedTest {
 
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
-        testLifecycle.overrideInClass(Map.of(
-                "atomicBatch.isEnabled",
-                "true",
-                "atomicBatch.maxNumberOfTransactions",
-                "50",
-                "contracts.throttle.throttleByGas",
-                "false",
-                "cryptoCreateWithAlias.enabled",
-                "false"));
+        testLifecycle.overrideInClass(
+                Map.of("contracts.throttle.throttleByGas", "false", "cryptoCreateWithAlias.enabled", "false"));
         testLifecycle.doAdhoc(cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS));
     }
 
@@ -255,6 +249,7 @@ public class AtomicIsAuthorizedTest {
         }
 
         @HapiTest
+        @Tag(MATS)
         final Stream<DynamicTest> isAuthorizedRawEDHappyPath() {
             final AtomicReference<Address> accountNum = new AtomicReference<>();
 
@@ -684,6 +679,7 @@ public class AtomicIsAuthorizedTest {
         }
 
         @HapiTest
+        @Tag(MATS)
         final Stream<DynamicTest> isAuthorizedRawED25519CheckGasRequirements() {
 
             // Intrinsic gas is 21_000, hard-coded verification charge is 1_500_000, but there's also the contract

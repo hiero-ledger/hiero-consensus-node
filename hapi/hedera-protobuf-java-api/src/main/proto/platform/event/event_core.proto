@@ -60,7 +60,9 @@ message EventCore {
   int64 birth_round = 2;
 
   /**
-   * The wall clock time at which the event was created, according to the node creating the event.<br/>
+   * The wall clock time at which the latest information affecting this event was received by this node.<br/>
+   * The information includes: parents, transactions and birth round<br/>
+   * If the event is a genesis event, and has no transactions, this value will just be the wall clock time when creating this event.<br/>
    * If the event has a self parent, this timestamp MUST be strictly greater than the `time_created` of the self parent.
    */
   proto.Timestamp time_created = 3;

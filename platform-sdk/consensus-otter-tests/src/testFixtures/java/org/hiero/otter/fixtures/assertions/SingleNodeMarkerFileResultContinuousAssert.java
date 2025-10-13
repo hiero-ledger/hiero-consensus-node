@@ -14,6 +14,10 @@ import org.hiero.otter.fixtures.result.SingleNodeMarkerFileResult;
 
 /**
  * Continuous assertions for {@link SingleNodeMarkerFileResult}.
+ *
+ * <p>Please note: If two continuous assertions fail roughly at the same time, it is non-deterministic which one
+ * will report the failure first. This is even true when running a test in the Turtle environment.
+ * If deterministic behavior is required, please use regular assertions instead of continuous assertions.
  */
 @SuppressWarnings({"UnusedReturnValue", "unused"})
 public class SingleNodeMarkerFileResultContinuousAssert

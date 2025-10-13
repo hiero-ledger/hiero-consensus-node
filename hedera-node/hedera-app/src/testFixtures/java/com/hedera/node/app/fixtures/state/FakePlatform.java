@@ -27,6 +27,7 @@ import java.util.List;
 import java.util.Random;
 import org.hiero.base.crypto.Signature;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.consensus.model.roster.AddressBook;
 import org.hiero.consensus.roster.RosterRetriever;
 
@@ -106,6 +107,9 @@ public final class FakePlatform implements Platform {
     public Signature sign(byte[] bytes) {
         return null;
     }
+
+    @Override
+    public void quiescenceCommand(@NonNull final QuiescenceCommand quiescenceCommand) {}
 
     @Override
     public Roster getRoster() {

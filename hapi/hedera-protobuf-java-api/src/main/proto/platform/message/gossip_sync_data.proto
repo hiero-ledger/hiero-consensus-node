@@ -52,4 +52,11 @@ message GossipSyncData {
    */
   repeated bytes tips = 2;
 
+  /**
+   * Sender of this message is NOT interested in receiving any events as part of this sync.
+   * It might be in process of shutting down, unhealthy or any other reason - it might sent its own events outside,
+   * but no events should be sent to it.
+   */
+  bool skipSendingEvents = 3;
+
 }

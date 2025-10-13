@@ -57,6 +57,11 @@ on:
         default: true
         type: boolean
         description: "If true, skip tag and notifications"
+      delete-namespace:
+        required: false
+        default: true
+        type: boolean
+        description: "If true, automatically delete namespace when done"
 
 defaults:
   run:
@@ -124,6 +129,7 @@ jobs:
       nlg-time: "${{ inputs.nlg-time }}"
       add-app-props: "${{ inputs.add-app-props }}"
       add-settings: "${{ inputs.add-settings }}"
+      delete-namespace: ${{ inputs.delete-namespace }}
     secrets:
       slack-report-webhook: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
       rootly-api-token: ${{ secrets.ROOTLY_API_TOKEN }}
@@ -456,6 +462,7 @@ jobs:
       - name: Create Rootly Alert
         if: ${{ steps.set-alert-flag.outputs.create == 'true' }}
         uses: pandaswhocode/rootly-alert-action@fdae1529e5aed62040016accf719a0ceb7dae57f # v1.0.0
+        continue-on-error: true
         with:
           api_key: ${{ secrets.ROOTLY_API_TOKEN }}
           summary: ${{ steps.rootly-summary.outputs.summary }}

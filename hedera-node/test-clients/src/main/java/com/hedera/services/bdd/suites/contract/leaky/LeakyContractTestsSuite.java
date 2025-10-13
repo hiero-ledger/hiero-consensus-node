@@ -1455,8 +1455,8 @@ public class LeakyContractTestsSuite {
                 .payingWith(GENESIS);
     }
 
-    // @Order(39)
-    // @LeakyHapiTest(overrides = "contracts.maxRefundPercentOfGasLimit")
+    @Order(39)
+    @LeakyHapiTest(overrides = "contracts.maxRefundPercentOfGasLimit")
     @DisplayName("Check that gas refund can be changed")
     public Stream<DynamicTest> checkGasRefundChange(
             @Contract(contract = "CallingContract") final SpecContract contract) {

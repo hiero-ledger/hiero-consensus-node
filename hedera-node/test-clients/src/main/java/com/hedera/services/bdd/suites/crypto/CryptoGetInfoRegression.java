@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.suites.crypto;
 
 import static com.hedera.services.bdd.junit.TestTags.CRYPTO;
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.accountWith;
 import static com.hedera.services.bdd.spec.keys.KeyShape.SIMPLE;
@@ -49,6 +50,7 @@ public class CryptoGetInfoRegression {
 
     /** For Demo purpose : The limit on each account info and account balance queries is set to 5 */
     @LeakyHapiTest(overrides = {"tokens.maxRelsPerInfoQuery"})
+    @Tag(MATS)
     final Stream<DynamicTest> fetchesOnlyALimitedTokenAssociations() {
         final var account = "test";
         final var aKey = "tokenKey";

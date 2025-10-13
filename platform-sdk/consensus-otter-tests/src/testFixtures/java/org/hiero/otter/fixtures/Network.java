@@ -11,6 +11,7 @@ import java.time.Duration;
 import java.util.Collection;
 import java.util.List;
 import java.util.Set;
+import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.otter.fixtures.internal.helpers.Utils;
 import org.hiero.otter.fixtures.network.Partition;
@@ -55,7 +56,8 @@ public interface Network {
     /**
      * Adds a single node to the network.
      *
-     * <p>How the node is connected to existing nodes and its latency, jitter, and bandwidth depend on the current topology.
+     * <p>How the node is connected to existing nodes and its latency, jitter, and bandwidth depend on the current
+     * topology.
      *
      * @return the created node
      */
@@ -67,7 +69,8 @@ public interface Network {
     /**
      * Adds multiple nodes to the network.
      *
-     * <p>How the node is connected to existing nodes and its latency, jitter, and bandwidth depend on the current topology.
+     * <p>How the node is connected to existing nodes and its latency, jitter, and bandwidth depend on the current
+     * topology.
      *
      * @param count the number of nodes to add
      * @return list of created nodes
@@ -80,7 +83,8 @@ public interface Network {
     /**
      * Add an instrumented node to the network.
      *
-     * <p>How the node is connected to existing nodes and its latency, jitter, and bandwidth depend on the current topology.
+     * <p>How the node is connected to existing nodes and its latency, jitter, and bandwidth depend on the current
+     * topology.
      *
      * <p>This method is used to add a node that has additional instrumentation for testing purposes.
      * For example, it can exhibit malicious or erroneous behavior.
@@ -93,16 +97,25 @@ public interface Network {
     }
 
     /**
-     * Sets the weight generator for the network. The weight generator is used to assign weights to nodes.
+     * Sets the weight generator for the network. The weight generator is used to assign weights to nodes if no nodes in
+     * the network have their weight set explicitly via {@link Node#weight(long)}.
      *
      * <p>If no weight generator is set, the default {@link WeightGenerators#GAUSSIAN} is used.
      *
-     * <p>Note that the weight generator can only be set before any nodes are added to the network.
+     * <p>Note that the weight generator can only be set before the network is started.
      *
      * @param weightGenerator the weight generator to use
      * @throws IllegalStateException if nodes have already been added to the network
      */
-    void setWeightGenerator(@NonNull WeightGenerator weightGenerator);
+    void weightGenerator(@NonNull WeightGenerator weightGenerator);
+
+    /**
+     * Sets the weight of each node in the network to the specified value. Calling this method results in balanced
+     * weight distribution.
+     *
+     * @param weight the weight to assign to each node. Must be positive.
+     */
+    void nodeWeight(long weight);
 
     /**
      * Gets the total weight of the network. Always positive.
@@ -124,10 +137,20 @@ public interface Network {
     void start();
 
     /**
-     * Creates a network partition containing the specified nodes. Nodes within the partition remain connected to
-     * each other, but are disconnected from all nodes outside the partition.
+     * Sets the quiescence command of the network.
      *
-     * <p>If a node is already in a partition, it will be removed from the old partition before being added to the new one.
+     * <p>The default command is {@link QuiescenceCommand#DONT_QUIESCE}.
+     *
+     * @param command the new quiescence command
+     */
+    void sendQuiescenceCommand(@NonNull QuiescenceCommand command);
+
+    /**
+     * Creates a network partition containing the specified nodes. Nodes within the partition remain connected to each
+     * other, but are disconnected from all nodes outside the partition.
+     *
+     * <p>If a node is already in a partition, it will be removed from the old partition before being added to the new
+     * one.
      *
      * <p>If there was no partition before, a second partition is created implicitly that contains the remaining nodes.
      *
@@ -136,13 +159,14 @@ public interface Network {
      * @throws IllegalArgumentException if {@code nodes} is empty or contains all nodes in the network
      */
     @NonNull
-    Partition createPartition(@NonNull Collection<Node> nodes);
+    Partition createNetworkPartition(@NonNull Collection<Node> nodes);
 
     /**
-     * Creates a network partition containing the specified nodes. Nodes within the partition remain connected to
-     * each other, but are disconnected from all nodes outside the partition.
+     * Creates a network partition containing the specified nodes. Nodes within the partition remain connected to each
+     * other, but are disconnected from all nodes outside the partition.
      *
-     * <p>If a node is already in a partition, it will be removed from the old partition before being added to the new one.
+     * <p>If a node is already in a partition, it will be removed from the old partition before being added to the new
+     * one.
      *
      * @param node0 the first node to include in the partition (mandatory)
      * @param nodes additional nodes to include in the partition (optional)
@@ -150,12 +174,13 @@ public interface Network {
      * @throws IllegalArgumentException if {@code nodes} is empty or contains all nodes in the network
      */
     @NonNull
-    default Partition createPartition(@NonNull final Node node0, @NonNull final Node... nodes) {
-        return createPartition(Utils.collect(node0, nodes));
+    default Partition createNetworkPartition(@NonNull final Node node0, @NonNull final Node... nodes) {
+        return createNetworkPartition(Utils.collect(node0, nodes));
     }
 
     /**
-     * Removes a partition and restores connectivity for its nodes. Only restores changes made by creating the partition.
+     * Removes a partition and restores connectivity for its nodes. Only restores changes made by creating the
+     * partition.
      *
      * @param partition the partition to remove
      */
@@ -167,7 +192,7 @@ public interface Network {
      * @return set of all active partitions
      */
     @NonNull
-    Set<Partition> partitions();
+    Set<Partition> networkPartitions();
 
     /**
      * Gets the partition containing the specified node.
@@ -176,7 +201,7 @@ public interface Network {
      * @return the partition containing the node, or {@code null} if not in any partition
      */
     @Nullable
-    Partition getPartitionContaining(@NonNull Node node);
+    Partition getNetworkPartitionContaining(@NonNull Node node);
 
     /**
      * Isolates a node from the network. Disconnects all connections to and from this node.
@@ -272,6 +297,11 @@ public interface Network {
      * {@code FREEZE_COMPLETE} state. The default can be overridden by calling {@link #withTimeout(Duration)}.
      */
     void freeze();
+
+    /**
+     * Triggers a catastrophic ISS. All nodes in the network will calculate different hashes for an upcoming round.
+     */
+    void triggerCatastrophicIss();
 
     /**
      * Shuts down the network. The nodes are killed immediately. No attempt is made to finish any outstanding tasks or
@@ -390,5 +420,14 @@ public interface Network {
      */
     default boolean allNodesInStatus(@NonNull final PlatformStatus status) {
         return nodes().stream().allMatch(node -> node.platformStatus() == status);
+    }
+
+    /**
+     * Checks if all nodes in the network are {@link PlatformStatus#ACTIVE}.
+     *
+     * @return {@code true} if all nodes are active, {@code false} otherwise
+     */
+    default boolean allNodesAreActive() {
+        return allNodesInStatus(PlatformStatus.ACTIVE);
     }
 }

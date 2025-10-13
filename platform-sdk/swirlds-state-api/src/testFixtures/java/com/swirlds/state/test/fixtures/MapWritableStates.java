@@ -26,7 +26,8 @@ import java.util.Set;
  */
 @SuppressWarnings("rawtypes")
 public class MapWritableStates implements WritableStates, CommittableWritableStates {
-    private final Map<String, ?> states;
+
+    private final Map<Integer, ?> states;
 
     /**
      * Need this callback so a {@code FakeHederaState} owning this writable states can
@@ -36,11 +37,11 @@ public class MapWritableStates implements WritableStates, CommittableWritableSta
     @Nullable
     private final Runnable onCommit;
 
-    public MapWritableStates(@NonNull final Map<String, ?> states) {
+    public MapWritableStates(@NonNull final Map<Integer, ?> states) {
         this(states, null);
     }
 
-    public MapWritableStates(@NonNull final Map<String, ?> states, @Nullable final Runnable onCommit) {
+    public MapWritableStates(@NonNull final Map<Integer, ?> states, @Nullable final Runnable onCommit) {
         this.states = requireNonNull(states);
         this.onCommit = onCommit;
     }
@@ -48,10 +49,10 @@ public class MapWritableStates implements WritableStates, CommittableWritableSta
     @SuppressWarnings("unchecked")
     @NonNull
     @Override
-    public <K, V> WritableKVState<K, V> get(@NonNull final String stateKey) {
-        final var state = states.get(requireNonNull(stateKey));
+    public <K, V> WritableKVState<K, V> get(final int stateId) {
+        final var state = states.get(stateId);
         if (state == null) {
-            throw new IllegalArgumentException("Unknown k/v state key " + stateKey);
+            throw new IllegalArgumentException("Unknown K/V state ID " + stateId);
         }
 
         return (WritableKVState<K, V>) state;
@@ -60,10 +61,10 @@ public class MapWritableStates implements WritableStates, CommittableWritableSta
     @SuppressWarnings("unchecked")
     @NonNull
     @Override
-    public <T> WritableSingletonState<T> getSingleton(@NonNull final String stateKey) {
-        final var state = states.get(requireNonNull(stateKey));
+    public <T> WritableSingletonState<T> getSingleton(final int stateId) {
+        final var state = states.get(stateId);
         if (state == null) {
-            throw new IllegalArgumentException("Unknown singleton state key " + stateKey);
+            throw new IllegalArgumentException("Unknown singleton state ID " + stateId);
         }
 
         return (WritableSingletonState<T>) state;
@@ -72,23 +73,23 @@ public class MapWritableStates implements WritableStates, CommittableWritableSta
     @SuppressWarnings("unchecked")
     @NonNull
     @Override
-    public <E> WritableQueueState<E> getQueue(@NonNull final String stateKey) {
-        final var state = states.get(requireNonNull(stateKey));
+    public <E> WritableQueueState<E> getQueue(final int stateId) {
+        final var state = states.get(stateId);
         if (state == null) {
-            throw new IllegalArgumentException("Unknown queue state key " + stateKey);
+            throw new IllegalArgumentException("Unknown queue state ID " + stateId);
         }
 
         return (WritableQueueState<E>) state;
     }
 
     @Override
-    public boolean contains(@NonNull final String stateKey) {
-        return states.containsKey(stateKey);
+    public boolean contains(final int stateId) {
+        return states.containsKey(stateId);
     }
 
     @NonNull
     @Override
-    public Set<String> stateKeys() {
+    public Set<Integer> stateIds() {
         return Collections.unmodifiableSet(states.keySet());
     }
 
@@ -133,7 +134,8 @@ public class MapWritableStates implements WritableStates, CommittableWritableSta
 
     /** A convenience builder */
     public static final class Builder {
-        private final Map<String, Object> states = new HashMap<>();
+
+        private final Map<Integer, Object> states = new HashMap<>();
 
         /**
          * Defines a new {@link MapWritableKVState} that should be available in the {@link
@@ -144,7 +146,7 @@ public class MapWritableStates implements WritableStates, CommittableWritableSta
          */
         @NonNull
         public Builder state(@NonNull final MapWritableKVState state) {
-            this.states.put(state.getStateKey(), state);
+            this.states.put(state.getStateId(), state);
             return this;
         }
 
@@ -157,7 +159,7 @@ public class MapWritableStates implements WritableStates, CommittableWritableSta
          */
         @NonNull
         public Builder state(@NonNull final WritableSingletonState<?> state) {
-            this.states.put(state.getStateKey(), state);
+            this.states.put(state.getStateId(), state);
             return this;
         }
 
@@ -170,7 +172,7 @@ public class MapWritableStates implements WritableStates, CommittableWritableSta
          */
         @NonNull
         public Builder state(@NonNull final WritableQueueState<?> state) {
-            this.states.put(state.getStateKey(), state);
+            this.states.put(state.getStateId(), state);
             return this;
         }
 

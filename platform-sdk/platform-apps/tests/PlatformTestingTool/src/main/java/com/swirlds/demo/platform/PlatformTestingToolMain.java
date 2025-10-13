@@ -21,6 +21,8 @@ import static com.swirlds.merkle.test.fixtures.map.lifecycle.SaveExpectedMapHand
 import static com.swirlds.merkle.test.fixtures.map.lifecycle.SaveExpectedMapHandler.serialize;
 import static com.swirlds.metrics.api.FloatFormats.FORMAT_6_2;
 import static com.swirlds.metrics.api.FloatFormats.FORMAT_9_6;
+import static com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer.registerConstructablesForSchemas;
+import static com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer.registerConstructablesForStorage;
 import static com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer.registerMerkleStateRootClassIds;
 import static java.lang.System.exit;
 import static org.hiero.base.concurrent.interrupt.Uninterruptable.abortAndThrowIfInterrupted;
@@ -40,6 +42,9 @@ import com.swirlds.common.metrics.SpeedometerMetric;
 import com.swirlds.common.threading.framework.config.ThreadConfiguration;
 import com.swirlds.common.utility.AutoCloseableWrapper;
 import com.swirlds.common.utility.StopWatch;
+import com.swirlds.config.api.Configuration;
+import com.swirlds.config.api.ConfigurationBuilder;
+import com.swirlds.config.extensions.sources.SimpleConfigSource;
 import com.swirlds.demo.merkle.map.FCMConfig;
 import com.swirlds.demo.merkle.map.MapValueData;
 import com.swirlds.demo.merkle.map.MapValueFCQ;
@@ -132,7 +137,13 @@ public class PlatformTestingToolMain extends DefaultSwirldMain<PlatformTestingTo
     private static final String FCM_CATEGORY = "FCM";
     private static final String VM_CATEGORY = "VM";
 
+    public static final Configuration CONFIGURATION;
+
     static {
+        CONFIGURATION = ConfigurationBuilder.create()
+                .autoDiscoverExtensions()
+                .withSource(new SimpleConfigSource().withValue("merkleDb.initialCapacity", 1000000))
+                .build();
         try {
             logger.info(STARTUP.getMarker(), "Registering PlatformTestingToolState with ConstructableRegistry");
             ConstructableRegistry.getInstance()
@@ -149,6 +160,8 @@ public class PlatformTestingToolMain extends DefaultSwirldMain<PlatformTestingTo
                             .get()
                             .getClassId());
             registerMerkleStateRootClassIds();
+            registerConstructablesForStorage(CONFIGURATION);
+            registerConstructablesForSchemas();
         } catch (final ConstructableRegistryException e) {
             logger.error(STARTUP.getMarker(), "Failed to register PlatformTestingToolState", e);
             throw new RuntimeException(e);
@@ -866,7 +879,7 @@ public class PlatformTestingToolMain extends DefaultSwirldMain<PlatformTestingTo
     @NonNull
     public PlatformTestingToolState newStateRoot() {
         final PlatformTestingToolState state = new PlatformTestingToolState();
-        TestingAppStateInitializer.DEFAULT.initStates(state);
+        TestingAppStateInitializer.initConsensusModuleStates(state, CONFIGURATION);
         return state;
     }
 
@@ -878,7 +891,9 @@ public class PlatformTestingToolMain extends DefaultSwirldMain<PlatformTestingTo
      */
     @Override
     public Function<VirtualMap, PlatformTestingToolState> stateRootFromVirtualMap() {
-        throw new UnsupportedOperationException();
+        return (virtualMap) -> {
+            throw new UnsupportedOperationException();
+        };
     }
 
     /**
