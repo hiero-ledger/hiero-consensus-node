@@ -42,7 +42,7 @@ public class DeterministicWiringModel extends TraceableWiringModel {
 
     private final UncaughtExceptionHandler taskSchedulerExceptionHandler;
 
-    private volatile boolean isRunning = false;
+    private boolean isRunning = false;
 
     /**
      * Constructor.
@@ -166,6 +166,11 @@ public class DeterministicWiringModel extends TraceableWiringModel {
         heartbeatScheduler.stop();
     }
 
+    /**
+     * Check if the wiring model is currently running.
+     *
+     * @return true if the wiring model is running, false otherwise
+     */
     public boolean isRunning() {
         return isRunning;
     }
