@@ -15,7 +15,7 @@ public class GaussianWeightGenerator implements WeightGenerator {
     /**
      * Creates a new Gaussian weight generator.
      *
-     * @param averageWeight          the average weight
+     * @param networkWeight          the total network weight
      * @param weightStandardDeviation the standard deviation of the weight
      */
     public GaussianWeightGenerator(final long networkWeight, final long weightStandardDeviation) {
