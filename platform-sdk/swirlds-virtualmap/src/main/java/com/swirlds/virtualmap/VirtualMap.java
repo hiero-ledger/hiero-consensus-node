@@ -1153,8 +1153,6 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
             throw new IllegalStateException("Can't make data source copy: virtual map copy isn't hashed");
         }
 
-        detached.set(true);
-
         return dataSourceBuilder.snapshot(null, dataSource);
     }
 
