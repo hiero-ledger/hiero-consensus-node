@@ -431,6 +431,9 @@ public class SwirldsPlatform implements Platform {
         return new PlatformSigner(keysAndCerts).sign(data);
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void quiescenceCommand(@NonNull final QuiescenceCommand quiescenceCommand) {
         platformCoordinator.quiescenceCommand(quiescenceCommand);

@@ -18,6 +18,7 @@ import com.swirlds.platform.system.status.actions.SelfEventReachedConsensusActio
 import com.swirlds.platform.system.status.actions.StartedReplayingEventsAction;
 import com.swirlds.platform.system.status.actions.StateWrittenToDiskAction;
 import com.swirlds.platform.system.status.actions.TimeElapsedAction;
+import java.time.temporal.ChronoUnit;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -77,7 +78,15 @@ class BehindStatusLogicTests {
     @DisplayName("Irrelevant actions shouldn't cause transitions")
     void irrelevantActions() {
         triggerActionAndAssertNoTransition(
-                logic::processTimeElapsedAction, new TimeElapsedAction(time.now()), logic.getStatus());
+                logic::processTimeElapsedAction,
+                new TimeElapsedAction(time.now(), new TimeElapsedAction.QuiescingStatus(false, time.now())),
+                logic.getStatus());
+        triggerActionAndAssertNoTransition(
+                logic::processTimeElapsedAction,
+                new TimeElapsedAction(
+                        time.now(),
+                        new TimeElapsedAction.QuiescingStatus(true, time.now().minus(5, ChronoUnit.SECONDS))),
+                logic.getStatus());
         triggerActionAndAssertNoTransition(
                 logic::processSelfEventReachedConsensusAction,
                 new SelfEventReachedConsensusAction(time.now()),
