@@ -237,6 +237,7 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
             final KillImmediatelyRequest request = KillImmediatelyRequest.getDefaultInstance();
             // Unary call – will throw if server returns an error.
             containerControlBlockingStub.withDeadlineAfter(timeout).killImmediately(request);
+            platformStatus = null;
 
             log.info("Node {} has been killed", selfId);
         } catch (final Exception e) {
