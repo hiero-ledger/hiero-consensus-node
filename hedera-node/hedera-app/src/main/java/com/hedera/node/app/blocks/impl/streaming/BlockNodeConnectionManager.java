@@ -613,11 +613,12 @@ public class BlockNodeConnectionManager {
      * @return true if a connection attempt will be made to a node, else false (i.e. no available nodes to connect)
      */
     public boolean selectNewBlockNodeForStreaming(final boolean force) {
-        logWithContext(DEBUG, "Selecting highest priority available block node for connection attempt.");
         if (!isStreamingEnabled.get()) {
             logWithContext(DEBUG, "Cannot select block node, streaming is not enabled.");
             return false;
         }
+
+        logWithContext(DEBUG, "Selecting highest priority available block node for connection attempt.");
 
         final BlockNodeConfig selectedNode = getNextPriorityBlockNode();
 
@@ -821,7 +822,7 @@ public class BlockNodeConnectionManager {
             watcherThread.interrupt();
             try {
                 watcherThread.join();
-            } catch (InterruptedException e) {
+            } catch (final InterruptedException e) {
                 Thread.currentThread().interrupt();
             }
         }

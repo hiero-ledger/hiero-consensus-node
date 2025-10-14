@@ -34,8 +34,8 @@ produced by a given consensus node in an ordered manner.
 ## Component Interaction
 
 - New blocks and their items are received from `GrpcBlockItemWriter`.
-- Bi-directional communication with `BlockNodeConnectionManager` to notify new blocks available and receive updates on
-  when new blocks are acknowledged by the block node(s).
+- `BlockNodeConnection` makes calls to retrieve blocks from the buffer for streaming.
+- `BlockNodeConnection` notifies the `BlockBufferService` when a block is acknowledged by the block node.
 - Applies back pressure via `HandleWorkflow`.
 
 ## Backpressure Mechanism
@@ -48,20 +48,20 @@ This ensures system stability and prevents the accumulation of unacknowledged bl
 
 The system maintains a buffer of block states in `BlockBufferService` with the following characteristics:
 
-- Each block state contains the block items and requests for a specific block number.
+- Each block state contains the block items for a specific block number.
 - The buffer tracks acknowledgment status as a single high watermark.
 - Entries remain in the buffer until acknowledged and expired, according to a configurable TTL (Time To Live).
 - A periodic pruning mechanism removes acknowledged and expired entries.
-- The buffer size is monitored to implement backpressure when needed.
+- The buffer size is monitored to apply backpressure when needed.
 
 ### Buffer State
 
 The buffer can be in one of three states at any given time:
 - Zero/Low Saturation: There are no blocks unacked or there are some but not enough to warrant any actions.
 - Action Stage Saturation: Once the buffer reaches a level of saturation called the 'action stage', proactive actions
-are taken to attempt buffery recovery. Currently, this means forcing a connection to a different block node.
+  are taken to attempt buffery recovery. Currently, this means forcing a connection to a different block node.
 - Full Saturation: The buffer is full of unacked blocks and no more blocks can be opened until recovery happens (i.e.
-blocks are acknowledged.)
+  blocks are acknowledged.)
 
 Over the course of the buffer's lifecycle there are several state transitions that can occur, each with its own set of
 actions to take.
@@ -104,40 +104,40 @@ than or equal to 70% before back pressure is disabled.
 The backpressure mechanism operates at two levels:
 
 1. **Block State Buffer Level**
-   - An asynchronous thread is continuously running in the background to prune the buffer.
-   - Pruning occurs on a configurable interval defined in `blockStream.buffer.pruneInterval` (if set to `0`, the pruning is disabled)
-   - Acknowledged states older than `blockStream.buffer.blockTtl` are removed
-   - If buffer size exceeds safe thresholds after pruning, backpressure is applied
+    - An asynchronous thread is continuously running in the background to prune the buffer.
+    - Pruning occurs on a configurable interval defined in `blockStream.buffer.pruneInterval` (if set to `0`, the pruning is disabled)
+    - Acknowledged states older than `blockStream.buffer.blockTtl` are removed
+    - If buffer size exceeds safe thresholds after pruning, backpressure is applied
 2. **HandleWorkflow Level**
-   - `HandleWorkflow` checks for backpressure signals before processing each round of transactions
-   - When backpressure is active, block production and transaction handling are paused
-   - Processing resumes only after back pressure is removed (i.e. once blocks in the buffer are being acknowledged in
-     a timely manner)
+    - `HandleWorkflow` checks for backpressure signals before processing each round of transactions
+    - When backpressure is active, block production and transaction handling are paused
+    - Processing resumes only after back pressure is removed (i.e. once blocks in the buffer are being acknowledged in
+      a timely manner)
 
 ### Backpressure Flow
 
 1. **Monitoring Phase**
-   - `BlockBufferService` tracks buffer size and block age
-   - Periodic pruning task runs based on `blockStream.buffer.pruneInterval`
-   - Buffer metrics are updated for monitoring purposes
+    - `BlockBufferService` tracks buffer size and block age
+    - Periodic pruning task runs based on `blockStream.buffer.pruneInterval`
+    - Buffer metrics are updated for monitoring purposes
 2. **Triggering Phase**
-   - Backpressure triggers when:
-     - Acknowledgments do not arrive within the configured TTL
-     - Buffer size grows beyond safe threshold due to unacknowledged or delayed block responses
-     - Pruning cannot reduce buffer size sufficiently
-     - Block nodes fall significantly behind in processing
+    - Backpressure triggers when:
+        - Acknowledgments do not arrive within the configured TTL
+        - Buffer size grows beyond safe threshold due to unacknowledged or delayed block responses
+        - Pruning cannot reduce buffer size sufficiently
+        - Block nodes fall significantly behind in processing
 3. **Application Phase**
-   - `HandleWorkflow` receives backpressure signal
-   - Block production and transaction processing pauses
-   - Streaming continues for already generated blocks to allow block nodes to catch up
-   - Buffer gradually reduces as blocks are acknowledged
+    - `HandleWorkflow` receives backpressure signal
+    - Block production and transaction processing pauses
+    - Streaming continues for already generated blocks to allow block nodes to catch up
+    - Buffer gradually reduces as blocks are acknowledged
 4. **Recovery Phase**
-   - Buffer saturation recovers as more blocks are acknowledged
-   - Once buffer reaches safe levels, backpressure releases
-     - The 'recovery threshold' is configured by the property `blockStream.buffer.recoveryThreshold`. This value represents
-       the saturation level at which the buffer is considered sufficiently free to accept more blocks. For example, if
-       this value is 60%, then the buffer must be at or below 60% saturation before back pressure is removed.
-   - Transaction processing resumes
+    - Buffer saturation recovers as more blocks are acknowledged
+    - Once buffer reaches safe levels, backpressure releases
+        - The 'recovery threshold' is configured by the property `blockStream.buffer.recoveryThreshold`. This value represents
+          the saturation level at which the buffer is considered sufficiently free to accept more blocks. For example, if
+          this value is 60%, then the buffer must be at or below 60% saturation before back pressure is removed.
+    - Transaction processing resumes
 
 ### Block Buffer Persistence
 
@@ -171,12 +171,10 @@ sequenceDiagram
 
     Writer ->> Buffer: Open block, add items, etc...
     Buffer ->> ConnMan: Notify new block available
-    ConnMan ->> Buffer: Get block, create requests
-    ConnMan ->> Conn: Send block requests
+    Conn ->> Buffer: Get block, create requests
     Conn ->> BN: Send block requests
     BN ->> Conn: Acknowledge blocks
-    Conn ->> ConnMan: Update connection state <br/>(e.g. last acked per connection)
-    ConnMan ->> Buffer: Notify block acknowledged
+    Conn ->> Buffer: Notify block acknowledged
 
     Buffer ->>+ Buffer: Prune old acknowledged blocks
     Buffer ->>- TxThread: Enable/disable back pressure
