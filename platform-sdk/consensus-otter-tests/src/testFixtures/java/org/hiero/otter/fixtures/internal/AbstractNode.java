@@ -303,6 +303,8 @@ public abstract class AbstractNode implements Node {
                         () -> platformStatus == CATASTROPHIC_FAILURE,
                         timeout.minus(elapsed),
                         "Did not receive IssPayload log before timeout");
+
+        log.info("Self ISS triggered");
     }
 
     /**
