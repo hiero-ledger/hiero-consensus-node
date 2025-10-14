@@ -58,6 +58,7 @@ import com.hedera.node.app.spi.workflows.QueryHandler;
 import java.util.function.Function;
 import java.util.stream.Stream;
 import org.assertj.core.api.Assertions;
+import org.hiero.interledger.clpr.impl.handlers.ClprGetLedgerConfigurationHandler;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -142,6 +143,9 @@ class QueryDispatcherTest {
     private TokenGetNftInfoHandler tokenGetNftInfoHandler;
 
     @Mock
+    private ClprGetLedgerConfigurationHandler clprGetLedgerConfigurationHandler;
+
+    @Mock
     private TokenGetNftInfosHandler tokenGetNftInfosHandler;
 
     private QueryHandlers handlers;
@@ -151,6 +155,7 @@ class QueryDispatcherTest {
     @BeforeEach
     void setup() {
         handlers = new QueryHandlers(
+                clprGetLedgerConfigurationHandler,
                 consensusGetTopicInfoHandler,
                 contractGetBySolidityIDHandler,
                 contractCallLocalHandler,
