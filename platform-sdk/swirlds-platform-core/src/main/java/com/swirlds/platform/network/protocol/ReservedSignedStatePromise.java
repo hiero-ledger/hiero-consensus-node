@@ -58,7 +58,7 @@ public class ReservedSignedStatePromise {
      * @throws RuntimeException if the thread is interrupted while waiting
      */
     @Nullable
-    public ReservedSignedState get() {
+    public ReservedSignedState await() {
         try (final var lock = provider.waitForResource()) {
             return lock.getResource();
         } catch (final InterruptedException e) {

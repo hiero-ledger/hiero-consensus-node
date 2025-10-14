@@ -309,7 +309,7 @@ class StateSyncPeerProtocolTests {
                     reservedSignedStatePromise.acquire(),
                     "the while loop should have acquired the permit, so it should not be available");
 
-            t = new Thread(reservedSignedStatePromise::get);
+            t = new Thread(reservedSignedStatePromise::await);
             t.start();
 
             Thread.sleep(500);
