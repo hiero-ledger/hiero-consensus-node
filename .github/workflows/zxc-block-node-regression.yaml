@@ -334,7 +334,7 @@ jobs:
         run: |
           solo ledger account create --dev --ed25519-private-key "${{ env.OPERATOR_ACCOUNT_PRIVATE_KEY }}" --deployment ${{ env.SOLO_DEPLOYMENT }} --hbar-amount 1000000
           cp .env.custom_node .env
-          mocha --require ts-node/register --require tsconfig-paths/register --recursive 'src/tests/file-service/*.ts' 'src/tests/node-service/*.ts' --reporter mochawesome --exit
+          npm run test:file src/tests/crypto-service/test-transfer-transaction.ts
         working-directory: sdk-tck/regression # required
 
       - name: BN Based - SDK TCK Regression Test Report
