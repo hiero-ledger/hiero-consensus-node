@@ -268,6 +268,12 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
         }
     }
 
+    /**
+     * {@inheritDoc}
+     * <p>This method must <emphasize>NEVER</emphasize> be called from inside the
+     * {@link org.hiero.otter.fixtures.internal.AbstractTimeManager.TimeTickReceiver#tick(Instant)} because this method
+     * requires time to pass using that method.
+     */
     @Override
     protected void doKillImmediately(@NonNull final Duration timeout) {
         try (final LoggingContextScope ignored = installNodeContext()) {
@@ -284,6 +290,11 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
             platformComponent = null;
             model = null;
             lifeCycle = SHUTDOWN;
+
+            // Wait a bit to allow a simulated gossip cycle to pass.
+            // This is important to ensure that the node receives all
+            // necessary events when/if it is restarted.
+            timeManager.waitFor(Duration.ofSeconds(1));
         }
     }
 
