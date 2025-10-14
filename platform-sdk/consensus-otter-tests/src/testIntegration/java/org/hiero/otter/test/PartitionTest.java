@@ -2,6 +2,7 @@
 package org.hiero.otter.test;
 
 import static com.swirlds.common.test.fixtures.WeightGenerators.TOTAL_WEIGHTS;
+import static org.assertj.core.api.Assertions.within;
 import static org.hiero.consensus.model.status.PlatformStatus.ACTIVE;
 import static org.hiero.consensus.model.status.PlatformStatus.CHECKING;
 import static org.hiero.consensus.model.status.PlatformStatus.OBSERVING;
@@ -119,7 +120,7 @@ public class PartitionTest {
                 weightFractions.stream().mapToDouble(Double::doubleValue).sum();
         assertThat(totalWeightFraction)
                 .withFailMessage("weight fractions do not sum to 1.0")
-                .isEqualTo(1.0);
+                .isCloseTo(1.0, within(0.0001));
         final double partitionSum =
                 partitionIndices.stream().mapToDouble(weightFractions::get).sum();
         assertThat(Threshold.STRONG_MINORITY.isSatisfiedBy(Math.round(TOTAL_WEIGHTS * partitionSum), TOTAL_WEIGHTS))

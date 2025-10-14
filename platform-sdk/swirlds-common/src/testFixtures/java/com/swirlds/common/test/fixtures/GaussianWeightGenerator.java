@@ -16,26 +16,43 @@ public class GaussianWeightGenerator implements WeightGenerator {
     /**
      * Creates a new Gaussian weight generator.
      *
-     * @param networkWeight          the total network weight
+     * @param networkWeight the total network weight
      * @param weightStandardDeviation the standard deviation of the weight
      */
-    public GaussianWeightGenerator(
+    private GaussianWeightGenerator(
             final long networkWeight, final long averageNodeWeight, final long weightStandardDeviation) {
         this.networkWeight = networkWeight;
         this.averageNodeWeight = averageNodeWeight;
         this.weightStandardDeviation = weightStandardDeviation;
     }
 
+    /**
+     * Creates a new Gaussian weight generator with the given network weight and standard deviation.
+     *
+     * @param networkWeight the total network weight
+     * @param weightStandardDeviation the standard deviation of the weight
+     * @return a new Gaussian weight generator
+     */
     public static GaussianWeightGenerator withNetworkWeight(
             final long networkWeight, final long weightStandardDeviation) {
         return new GaussianWeightGenerator(networkWeight, -1, weightStandardDeviation);
     }
 
+    /**
+     * Creates a new Gaussian weight generator with the given average node weight and standard deviation.
+     *
+     * @param averageNodeWeight the average weight of each node
+     * @param weightStandardDeviation the standard deviation of the weight
+     * @return a new Gaussian weight generator
+     */
     public static GaussianWeightGenerator withAverageNodeWeight(
             final long averageNodeWeight, final long weightStandardDeviation) {
         return new GaussianWeightGenerator(-1, averageNodeWeight, weightStandardDeviation);
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public List<Long> getWeights(final long seed, final int numberOfNodes) {
         final long averageWeight = averageNodeWeight == -1 ? this.networkWeight / numberOfNodes : averageNodeWeight;
