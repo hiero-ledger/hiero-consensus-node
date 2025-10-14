@@ -63,7 +63,6 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import org.apache.commons.lang3.RandomUtils;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.test.fixtures.CryptoRandomUtils;
 import org.hiero.consensus.model.event.ConsensusEvent;
@@ -243,7 +242,7 @@ class HandleWorkflowTest {
     void writeEventHeaderWithNoParentEvents() {
         given(state.getReadableStates(any())).willReturn(readableStates);
         given(readableStates.getSingleton(anyInt())).willReturn(platformStateReadableSingletonState);
-        givenAnyPositiveFreezeRound();
+        givenPositiveFreezeRound();
 
         // Setup event with no parents
         given(event.getHash()).willReturn(CryptoRandomUtils.randomHash());
@@ -288,7 +287,7 @@ class HandleWorkflowTest {
     void writeEventHeaderWithParentEventsInCurrentBlock() {
         given(state.getReadableStates(any())).willReturn(readableStates);
         given(readableStates.getSingleton(anyInt())).willReturn(platformStateReadableSingletonState);
-        givenAnyPositiveFreezeRound();
+        givenPositiveFreezeRound();
 
         // Create event hash and parent hash
         Hash eventHash = CryptoRandomUtils.randomHash();
@@ -346,7 +345,7 @@ class HandleWorkflowTest {
     void writeEventHeaderWithParentEventsNotInCurrentBlock() {
         given(state.getReadableStates(any())).willReturn(readableStates);
         given(readableStates.getSingleton(anyInt())).willReturn(platformStateReadableSingletonState);
-        givenAnyPositiveFreezeRound();
+        givenPositiveFreezeRound();
 
         // Create event hash and parent hash
         Hash eventHash = CryptoRandomUtils.randomHash();
@@ -406,7 +405,7 @@ class HandleWorkflowTest {
     void writeEventHeaderWithMixedParentEvents() {
         given(state.getReadableStates(any())).willReturn(readableStates);
         given(readableStates.getSingleton(anyInt())).willReturn(platformStateReadableSingletonState);
-        givenAnyPositiveFreezeRound();
+        givenPositiveFreezeRound();
 
         // Create event hash and parent hashes
         Hash eventHash = CryptoRandomUtils.randomHash();
@@ -526,7 +525,7 @@ class HandleWorkflowTest {
     void startRoundShouldCallEnsureNewBlocksPermitted() {
         given(state.getReadableStates(any())).willReturn(readableStates);
         given(readableStates.getSingleton(anyInt())).willReturn(platformStateReadableSingletonState);
-        givenAnyPositiveFreezeRound();
+        givenPositiveFreezeRound();
 
         // Mock the round iterator and event
         final NodeId creatorId = NodeId.of(0);
@@ -548,9 +547,8 @@ class HandleWorkflowTest {
         verify(blockBufferService).ensureNewBlocksPermitted();
     }
 
-    private void givenAnyPositiveFreezeRound() {
+    private void givenPositiveFreezeRound() {
         given(platformStateReadableSingletonState.get()).willReturn(platformState);
-        given(platformState.latestFreezeRound())
-                .willReturn(RandomUtils.insecure().randomLong());
+        given(platformState.latestFreezeRound()).willReturn(10L);
     }
 }

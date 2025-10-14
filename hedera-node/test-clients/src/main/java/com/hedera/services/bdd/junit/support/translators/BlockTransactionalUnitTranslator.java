@@ -224,10 +224,9 @@ public class BlockTransactionalUnitTranslator {
                     // Remove the traces that are part of this transaction from the following traces
                     followingTraces.removeAll(blockTransactionParts.tracesOrThrow());
                 }
-                if (blockTransactionParts.functionality() == STATE_SIGNATURE_TRANSACTION
-                        || !blockTransactionParts.hasResult()) {
-                    // do nothing
-                } else if (blockTransactionParts.transactionParts() != null) {
+                if (blockTransactionParts.functionality() != STATE_SIGNATURE_TRANSACTION
+                        && blockTransactionParts.hasResult()
+                        && blockTransactionParts.transactionParts() != null) {
                     final var translation = translator.translate(
                             blockTransactionParts, baseTranslator, remainingStateChanges, tracesSoFar, followingTraces);
                     translatedRecords.add(translation);
