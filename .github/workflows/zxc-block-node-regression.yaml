@@ -249,19 +249,14 @@ jobs:
           solo consensus node start -i node1 --deployment "${{ env.SOLO_DEPLOYMENT }}"
           solo mirror node add --deployment "${{ env.SOLO_DEPLOYMENT }}" --pinger --cluster-ref kind-${{ env.SOLO_CLUSTER_NAME }} --enable-ingress -f mirror-bn-values.yaml
 
-      # service endpoint checks
-      - name: Solo Service Endpoint Checks
-        run: |
-          kubectl get svc --all-namespaces
-
       # port forwards
       - name: Solo Port forwards
         run: |
           kubectl port-forward svc/haproxy-node1-svc -n "${{ env.SOLO_NAMESPACE }}" 50211:non-tls-grpc-client-port &
-          kubectl port-forward svc/mirror-monitor -n "${{ env.SOLO_NAMESPACE }}" 5600:http &
-          kubectl port-forward svc/mirror-rest -n "${{ env.SOLO_NAMESPACE }}" 5551:http &
-          kubectl port-forward svc/mirror-restjava -n "${{ env.SOLO_NAMESPACE }}" 8084:http &
-          kubectl port-forward svc/block-node-server -n "${{ env.SOLO_NAMESPACE }}" 40840:40840 &
+          kubectl port-forward svc/mirror-1-monitor -n "${{ env.SOLO_NAMESPACE }}" 5600:http &
+          kubectl port-forward svc/mirror-1-rest -n "${{ env.SOLO_NAMESPACE }}" 5551:http &
+          kubectl port-forward svc/mirror-1-restjava -n "${{ env.SOLO_NAMESPACE }}" 8084:http &
+          kubectl port-forward svc/block-node-1 -n "${{ env.SOLO_NAMESPACE }}" 40840:40840 &
 
       # ---- BN verification with grpcurl ----
 
