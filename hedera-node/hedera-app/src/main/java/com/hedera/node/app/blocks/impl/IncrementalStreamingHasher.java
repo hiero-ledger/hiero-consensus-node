@@ -83,7 +83,7 @@ public class IncrementalStreamingHasher {
      * @return the intermediate hashing state
      */
     public List<Bytes> intermediateHashingState() {
-		// do we need to copy the arrays here so they don't change?
+        // do we need to copy the arrays here so they don't change?
         return hashList.stream().map(Bytes::wrap).toList();
     }
 

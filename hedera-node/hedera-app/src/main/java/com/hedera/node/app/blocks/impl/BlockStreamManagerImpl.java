@@ -1,12 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.blocks.impl;
 
-import static com.hedera.hapi.block.stream.SubMerkleTree.CONSENSUS_HEADER;
-import static com.hedera.hapi.block.stream.SubMerkleTree.INPUT_ITEM;
-import static com.hedera.hapi.block.stream.SubMerkleTree.OUTPUT_ITEM;
-import static com.hedera.hapi.block.stream.SubMerkleTree.PREVIOUS_ROOT_HASHES;
-import static com.hedera.hapi.block.stream.SubMerkleTree.STATE_CHANGE_ITEM;
-import static com.hedera.hapi.block.stream.SubMerkleTree.TRACE_ITEM;
 import static com.hedera.hapi.node.base.BlockHashAlgorithm.SHA2_384;
 import static com.hedera.hapi.util.HapiUtils.asInstant;
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
@@ -31,8 +25,6 @@ import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.BlockProof;
 import com.hedera.hapi.block.stream.ChainOfTrustProof;
 import com.hedera.hapi.block.stream.MerkleSiblingHash;
-import com.hedera.hapi.block.stream.StreamingTreeSnapshot;
-import com.hedera.hapi.block.stream.SubMerkleTree;
 import com.hedera.hapi.block.stream.output.BlockHeader;
 import com.hedera.hapi.block.stream.output.StateChanges;
 import com.hedera.hapi.node.base.SemanticVersion;
@@ -59,7 +51,6 @@ import com.hedera.node.config.data.VersionConfig;
 import com.hedera.node.config.types.DiskNetworkExport;
 import com.hedera.node.internal.network.PendingProof;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.component.framework.schedulers.internal.SequentialTask;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Counter;
 import com.swirlds.metrics.api.Metrics;
@@ -73,23 +64,13 @@ import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.spi.CommittableWritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-
-import java.io.BufferedOutputStream;
-import java.io.BufferedWriter;
-import java.io.FileWriter;
-import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.nio.file.StandardOpenOption;
-import java.nio.file.attribute.FileAttribute;
 import java.security.MessageDigest;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
@@ -102,7 +83,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import javax.inject.Inject;
@@ -160,9 +140,6 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     private BlockItemWriter writer;
     private Instant firstConsensusTimeOfCurrentBlock;
 
-    // TODO: set from config, e.g. provider.getConfiguration().getValue("blocktree.uncollapsedHashesDir", String.class);
-    private String intermediateHashesDir = "data/intStreams";
-
     // block merkle tree
     private IncrementalStreamingHasher previousBlockHashes; // ALL previous hashes, but streaming-collapsed
     private Bytes stateHashAtStartOfBlock;
@@ -175,38 +152,6 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
 
     private BlockStreamManagerTask worker;
     private final boolean hintsEnabled;
-
-    private void initIntermediateHashTrees() {
-        previousBlockHashes = loadHashTree(PREVIOUS_ROOT_HASHES);
-        consensusHeaderHasher = loadHashTree(SubMerkleTree.CONSENSUS_HEADER);
-        inputTreeHasher = loadHashTree(SubMerkleTree.INPUT_ITEM);
-        outputTreeHasher = loadHashTree(SubMerkleTree.OUTPUT_ITEM);
-        stateChangesHasher = loadHashTree(SubMerkleTree.STATE_CHANGE_ITEM);
-        traceDataHasher = loadHashTree(SubMerkleTree.TRACE_ITEM);
-    }
-
-    private IncrementalStreamingHasher loadHashTree(final SubMerkleTree subtreeType) {
-        final var iHashes = loadUncollapsedChildren(intermediateHashesDir, subtreeType);
-        return new IncrementalStreamingHasher(iHashes);
-    }
-
-    static List<byte[]> loadUncollapsedChildren(@NonNull final String basepath, SubMerkleTree subtreeType) {
-        final var filepath =
-                Path.of(basepath).resolve(subtreeType.protoName() + "<round-num>"); // .smt for subMerkleTree ?
-
-        // TODO load file bytes here
-        return Collections.emptyList();
-    }
-
-	void writeStreamingSnapshots(@NonNull final String basepath, final long roundNum) {
-		final var hashingStates = Map.of(PREVIOUS_ROOT_HASHES, previousBlockHashes.intermediateHashingState(), CONSENSUS_HEADER, consensusHeaderHasher.intermediateHashingState(), INPUT_ITEM, inputTreeHasher.intermediateHashingState(), OUTPUT_ITEM, outputTreeHasher.intermediateHashingState(), STATE_CHANGE_ITEM, stateChangesHasher.intermediateHashingState(), TRACE_ITEM, traceDataHasher.intermediateHashingState());
-		IncrementalHasherStorage.writeStreamingSnapshots(basepath, hashingStates, roundNum);
-	}
-
-	Map<SubMerkleTree, StreamingTreeSnapshot> readStreamingSnapshots(@NonNull final String basepath, final long roundNum) {
-		//todo
-		return Map.of();
-	}
 
     /**
      * Represents a block pending completion by the block hash signature needed for its block proof.
@@ -268,6 +213,14 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
      */
     private final Counter indirectProofCounter;
 
+    public record StateHashes(
+            @NonNull List<byte[]> previousBlockRootHashes,
+            @NonNull List<byte[]> consensusHeaderHashes,
+            @NonNull List<byte[]> inputItemHashes,
+            @NonNull List<byte[]> outputItemHashes,
+            @NonNull List<byte[]> stateChangeHashes,
+            @NonNull List<byte[]> traceDataHashes) {}
+
     @Inject
     public BlockStreamManagerImpl(
             @NonNull final BlockHashSigner blockHashSigner,
@@ -280,7 +233,8 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             @NonNull final SemanticVersion version,
             @NonNull final PlatformStateFacade platformStateFacade,
             @NonNull final Lifecycle lifecycle,
-            @NonNull final Metrics metrics) {
+            @NonNull final Metrics metrics,
+            @NonNull final StateHashes intermediatHashes) {
         this.blockHashSigner = requireNonNull(blockHashSigner);
         this.networkInfo = requireNonNull(networkInfo);
         this.version = requireNonNull(version);
@@ -309,7 +263,14 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         indirectProofCounter = requireNonNull(metrics)
                 .getOrCreate(new Counter.Config("block", "numIndirectProofs")
                         .withDescription("Number of blocks closed with indirect proofs"));
-        initIntermediateHashTrees();
+
+        previousBlockHashes = new IncrementalStreamingHasher(intermediatHashes.previousBlockRootHashes);
+        consensusHeaderHasher = new IncrementalStreamingHasher(intermediatHashes.consensusHeaderHashes);
+        inputTreeHasher = new IncrementalStreamingHasher(intermediatHashes.inputItemHashes);
+        outputTreeHasher = new IncrementalStreamingHasher(intermediatHashes.outputItemHashes);
+        stateChangesHasher = new IncrementalStreamingHasher(intermediatHashes.stateChangeHashes);
+        traceDataHasher = new IncrementalStreamingHasher(intermediatHashes.traceDataHashes);
+
         log.info(
                 "Initialized BlockStreamManager from round {} with end-of-round hash {}",
                 lastRoundOfPrevBlock,
@@ -467,6 +428,72 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         return asInstant(lastUsedTime);
     }
 
+    public static Bytes combine(
+            final Bytes prevBlockHash,
+            final Bytes prevBlockRootsHash,
+            final Bytes startingStateHash,
+            final Bytes consensusHeaderHash,
+            final Bytes inputsHash,
+            final Bytes outputsHash,
+            final Bytes stateChangesHash,
+            final Bytes traceDataHash,
+            final Timestamp firstConsensusTimeOfCurrentBlock) {
+        return combine(
+                prevBlockHash,
+                prevBlockRootsHash,
+                startingStateHash,
+                consensusHeaderHash,
+                inputsHash,
+                outputsHash,
+                stateChangesHash,
+                traceDataHash,
+                asInstant(firstConsensusTimeOfCurrentBlock));
+    }
+
+    public static Bytes combine(
+            final Bytes prevBlockHash,
+            final Bytes prevBlockRootsHash,
+            final Bytes startingStateHash,
+            final Bytes consensusHeaderHash,
+            final Bytes inputsHash,
+            final Bytes outputsHash,
+            final Bytes stateChangesHash,
+            final Bytes traceDataHash,
+            final Instant firstConsensusTimeOfCurrentBlock) {
+        // Compute depth four hashes
+        final var depth4Node1 = BlockImplUtils.combine(prevBlockHash, prevBlockRootsHash);
+        final var depth4Node2 = BlockImplUtils.combine(startingStateHash, consensusHeaderHash);
+        final var depth4Node3 = BlockImplUtils.combine(inputsHash, outputsHash);
+        final var depth4Node4 = BlockImplUtils.combine(stateChangesHash, traceDataHash);
+
+        final var combinedNulls = BlockImplUtils.combine(NULL_HASH, NULL_HASH);
+        final var depth4Node5 = combinedNulls;
+        final var depth4Node6 = combinedNulls;
+        final var depth4Node7 = combinedNulls;
+        final var depth4Node8 = combinedNulls;
+
+        // Compute depth three hashes
+        final var depth3Node1 = BlockImplUtils.combine(depth4Node1, depth4Node2);
+        final var depth3Node2 = BlockImplUtils.combine(depth4Node3, depth4Node4);
+        final var depth3Node3 = BlockImplUtils.combine(depth4Node5, depth4Node6);
+        final var depth3Node4 = BlockImplUtils.combine(depth4Node7, depth4Node8);
+
+        // Compute depth two hashes
+        final var depth2Node1 = BlockImplUtils.combine(depth3Node1, depth3Node2);
+        final var depth2Node2 = BlockImplUtils.combine(depth3Node3, depth3Node4);
+
+        // Compute depth one hashes
+        final var timestamp = Timestamp.PROTOBUF.toBytes(Timestamp.newBuilder()
+                .seconds(firstConsensusTimeOfCurrentBlock.getEpochSecond())
+                .nanos(firstConsensusTimeOfCurrentBlock.getNano())
+                .build());
+        final var depth1Node0 = noThrowSha384HashOf(timestamp);
+        final var depth1Node1 = BlockImplUtils.combine(depth2Node1, depth2Node2);
+
+        // Compute the block's root hash
+        return BlockImplUtils.combine(depth1Node0, depth1Node1);
+    }
+
     @Override
     public boolean endRound(@NonNull final State state, final long roundNum) {
         final var storeFactory = new ReadableStoreFactory(state);
@@ -480,8 +507,8 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             if (state instanceof VirtualMapState hederaNewStateRoot) {
                 hederaNewStateRoot.commitSingletons();
             }
-            // Flush all boundary state changes besides the BlockStreamInfo
 
+            // Flush all boundary state changes besides the BlockStreamInfo
             worker.addItem(flushChangesFromListener(boundaryStateChangeListener));
             worker.sync();
 
@@ -534,38 +561,28 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                     traceDataHasher.intermediateHashingState()));
             ((CommittableWritableStates) writableState).commit();
 
+            // Produce one more state change item (i.e. putting the block stream info just constructed into state)
             worker.addItem(flushChangesFromListener(boundaryStateChangeListener));
             worker.sync();
 
-            // Compute depth four hashes
-            final var depth4Node1 = combine(lastBlockHash, prevBlockRootsHash);
-            final var depth4Node2 = combine(blockStartStateHash, consensusHeaderHash);
-            final var depth4Node3 = combine(inputsHash, outputsHash);
-            final var depth4Node4 = combine(stateChangesHash, traceDataHash);
-
-            final var combinedNulls = combine(NULL_HASH, NULL_HASH);
-            final var depth4Node5 = combinedNulls;
-            final var depth4Node6 = combinedNulls;
-            final var depth4Node7 = combinedNulls;
-            final var depth4Node8 = combinedNulls;
-
-            // Compute depth three hashes
-            final var depth3Node1 = combine(depth4Node1, depth4Node2);
-            final var depth3Node2 = combine(depth4Node3, depth4Node4);
-            final var depth3Node3 = combine(depth4Node5, depth4Node6);
-            final var depth3Node4 = combine(depth4Node7, depth4Node8);
-
-            // TODO(#21210): Implement streaming merkle tree of all block hashes from genesis to N-1
-            // For now, using NULL_HASH as placeholder until the historical block data infrastructure is ready.
-            final var blockHashesTreeRoot = NULL_HASH;
+            final var blockHash = combine(
+                    lastBlockHash,
+                    prevBlockRootsHash,
+                    stateHashAtStartOfBlock,
+                    consensusHeaderHash,
+                    inputsHash,
+                    outputsHash,
+                    stateChangesHash,
+                    traceDataHash,
+                    firstConsensusTimeOfCurrentBlock);
 
             // Create BlockFooter with the three essential hashes:
             // 1. previousBlockRootHash - Root hash of the previous block (N-1)
-            // 2. rootHashOfAllBlockHashesTree - Streaming tree of all block hashes 0..N-1 (TODO: #21210)
+            // 2. rootHashOfAllBlockHashesTree - Streaming tree of all block hashes 0..N-1
             // 3. startOfBlockStateRootHash - State hash at the beginning of current block
             final var blockFooter = com.hedera.hapi.block.stream.output.BlockFooter.newBuilder()
                     .previousBlockRootHash(lastBlockHash)
-                    .rootHashOfAllBlockHashesTree(blockHashesTreeRoot)
+                    .rootHashOfAllBlockHashesTree(blockHash)
                     .startOfBlockStateRootHash(blockStartStateHash)
                     .build();
 
@@ -575,35 +592,17 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             worker.addItem(footerItem);
             worker.sync();
 
-            // Compute depth two hashes
-            final var depth2Node1 = combine(depth3Node1, depth3Node2);
-            final var depth2Node2 = combine(depth3Node3, depth3Node4);
-
-            // Compute depth one hashes
-            final var timestamp = Timestamp.PROTOBUF.toBytes(Timestamp.newBuilder()
-                    .seconds(firstConsensusTimeOfCurrentBlock.getEpochSecond())
-                    .nanos(firstConsensusTimeOfCurrentBlock.getNano())
-                    .build());
-            final var depth1Node0 = noThrowSha384HashOf(timestamp);
-            final var depth1Node1 = combine(depth2Node1, depth2Node2);
-
-            // Compute the block's root hash
-            final var blockHash = combine(depth1Node0, depth1Node1);
-
-            final var pendingProof = BlockProof.newBuilder()
-                    .block(blockNumber)
-                    .previousBlockRootHash(lastBlockHash)
-                    .startOfBlockStateRootHash(blockStartStateHash)
-					.build();
-            pendingBlocks.add(new PendingBlock(
-                    blockNumber,
-                    null,
-                    blockHash,
-                    pendingProof,
-                    writer,
-                    new MerkleSiblingHash(false, blockStartStateHash),
-                    new MerkleSiblingHash(false, depth2Node1),
-                    new MerkleSiblingHash(false, depth1Node1)));
+            // TODO: construct pending block proof
+            final var pendingProof = BlockProof.newBuilder();
+            //            pendingBlocks.add(new PendingBlock(
+            //                    blockNumber,
+            //                    null,
+            //                    blockHash,
+            //                    pendingProof,
+            //                    writer,
+            //                    new MerkleSiblingHash(false, blockStartStateHash),
+            //                    new MerkleSiblingHash(false, depth2Node1),
+            //                    new MerkleSiblingHash(false, depth1Node1)));
 
             // Update in-memory state to prepare for the next block
             lastBlockHash = blockHash;
@@ -651,7 +650,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             }
             requireNonNull(fatalShutdownFuture).complete(null);
 
-            // TODO: write intermediate hashes of sub trees
+            // TODO: write intermediate hashes of sub trees?
         }
         return closesBlock;
     }
@@ -905,8 +904,8 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                     hash.rewind();
                     outputTreeHasher.addLeaf(hash.array());
                 }
-                case TRANSACTION_OUTPUT, BLOCK_HEADER -> outputTreeHasher.addLeaf(hash);
-                case STATE_CHANGES -> stateChangesHasher.addLeaf(hash);
+                case TRANSACTION_OUTPUT, BLOCK_HEADER -> outputTreeHasher.addLeaf(hash.array());
+                case STATE_CHANGES -> stateChangesHasher.addLeaf(hash.array());
                 case BLOCK_FOOTER, BLOCK_PROOF -> {
                     // BlockFooter and BlockProof are not included in any merkle tree
                     // They are metadata about the block, not part of the hashed content
