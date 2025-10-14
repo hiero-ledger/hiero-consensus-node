@@ -3,7 +3,8 @@ package org.hiero.otter.fixtures;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.hiero.otter.fixtures.Constants.RANDOM_SEED;
+import static org.hiero.otter.fixtures.Constants.USE_RANDOM_NODE_IDS;
+import static org.hiero.otter.fixtures.Constants.USE_RANDOM_SEED;
 
 import com.swirlds.common.test.fixtures.WeightGenerators;
 import java.util.List;
@@ -20,7 +21,7 @@ class NodeWeightTest {
      */
     @Test
     void testSetIndividualNodeWeightsBeforeNetworkStarts() {
-        final TurtleTestEnvironment env = new TurtleTestEnvironment(RANDOM_SEED);
+        final TurtleTestEnvironment env = new TurtleTestEnvironment(USE_RANDOM_SEED, USE_RANDOM_NODE_IDS);
         try {
             final Network network = env.network();
 
@@ -63,7 +64,7 @@ class NodeWeightTest {
      */
     @Test
     void testCannotSetNodeWeightWhileRunning() {
-        final TurtleTestEnvironment env = new TurtleTestEnvironment(RANDOM_SEED);
+        final TurtleTestEnvironment env = new TurtleTestEnvironment(USE_RANDOM_SEED, USE_RANDOM_NODE_IDS);
         try {
             final Network network = env.network();
 
@@ -91,7 +92,7 @@ class NodeWeightTest {
      */
     @Test
     void testNetworkNodeWeightSetsAllNodes() {
-        final TurtleTestEnvironment env = new TurtleTestEnvironment(RANDOM_SEED);
+        final TurtleTestEnvironment env = new TurtleTestEnvironment(USE_RANDOM_SEED, USE_RANDOM_NODE_IDS);
         try {
             final Network network = env.network();
 
@@ -125,7 +126,7 @@ class NodeWeightTest {
      */
     @Test
     void testNodeWeightThrowsWhenNoNodes() {
-        final TurtleTestEnvironment env = new TurtleTestEnvironment(RANDOM_SEED);
+        final TurtleTestEnvironment env = new TurtleTestEnvironment(USE_RANDOM_SEED, USE_RANDOM_NODE_IDS);
         try {
             final Network network = env.network();
 
@@ -143,7 +144,7 @@ class NodeWeightTest {
      */
     @Test
     void testNodeWeightThrowsWhenWeightIsZero() {
-        final TurtleTestEnvironment env = new TurtleTestEnvironment(RANDOM_SEED);
+        final TurtleTestEnvironment env = new TurtleTestEnvironment(USE_RANDOM_SEED, USE_RANDOM_NODE_IDS);
         try {
             final Network network = env.network();
             network.addNodes(2);
@@ -162,7 +163,7 @@ class NodeWeightTest {
      */
     @Test
     void testNodeWeightThrowsWhenWeightIsNegative() {
-        final TurtleTestEnvironment env = new TurtleTestEnvironment(RANDOM_SEED);
+        final TurtleTestEnvironment env = new TurtleTestEnvironment(USE_RANDOM_SEED, USE_RANDOM_NODE_IDS);
         try {
             final Network network = env.network();
             network.addNodes(2);
@@ -181,7 +182,7 @@ class NodeWeightTest {
      */
     @Test
     void testNodeWeightCanBeZero() {
-        final TurtleTestEnvironment env = new TurtleTestEnvironment(RANDOM_SEED);
+        final TurtleTestEnvironment env = new TurtleTestEnvironment(USE_RANDOM_SEED, USE_RANDOM_NODE_IDS);
         try {
             final Network network = env.network();
             final List<Node> nodes = network.addNodes(1);
@@ -202,7 +203,7 @@ class NodeWeightTest {
      */
     @Test
     void testNodeWeightThrowsForNegative() {
-        final TurtleTestEnvironment env = new TurtleTestEnvironment(RANDOM_SEED);
+        final TurtleTestEnvironment env = new TurtleTestEnvironment(USE_RANDOM_SEED, USE_RANDOM_NODE_IDS);
         try {
             final Network network = env.network();
             final List<Node> nodes = network.addNodes(1);
@@ -222,7 +223,7 @@ class NodeWeightTest {
      */
     @Test
     void testNodeWeightCanBeUpdatedMultipleTimes() {
-        final TurtleTestEnvironment env = new TurtleTestEnvironment(RANDOM_SEED);
+        final TurtleTestEnvironment env = new TurtleTestEnvironment(USE_RANDOM_SEED, USE_RANDOM_NODE_IDS);
         try {
             final Network network = env.network();
             final List<Node> nodes = network.addNodes(1);
@@ -251,7 +252,7 @@ class NodeWeightTest {
      */
     @Test
     void testExplicitWeightsTakePrecedenceOverGenerator() {
-        final TurtleTestEnvironment env = new TurtleTestEnvironment(RANDOM_SEED);
+        final TurtleTestEnvironment env = new TurtleTestEnvironment(USE_RANDOM_SEED, USE_RANDOM_NODE_IDS);
         try {
             final Network network = env.network();
 
@@ -282,7 +283,7 @@ class NodeWeightTest {
      */
     @Test
     void testWeightGeneratorUsedWhenNoExplicitWeights() {
-        final TurtleTestEnvironment env = new TurtleTestEnvironment(RANDOM_SEED);
+        final TurtleTestEnvironment env = new TurtleTestEnvironment(USE_RANDOM_SEED, USE_RANDOM_NODE_IDS);
         try {
             final Network network = env.network();
 
@@ -315,7 +316,7 @@ class NodeWeightTest {
      */
     @Test
     void testMixedExplicitAndGeneratedWeights() {
-        final TurtleTestEnvironment env = new TurtleTestEnvironment(RANDOM_SEED);
+        final TurtleTestEnvironment env = new TurtleTestEnvironment(USE_RANDOM_SEED, USE_RANDOM_NODE_IDS);
         try {
             final Network network = env.network();
 
