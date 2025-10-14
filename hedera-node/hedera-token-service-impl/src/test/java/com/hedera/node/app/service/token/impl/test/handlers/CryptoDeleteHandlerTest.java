@@ -34,7 +34,10 @@ import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.token.CryptoDeleteTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.hapi.platform.state.StateKey;
 import com.hedera.node.app.hapi.utils.EntityType;
+import com.hedera.node.app.service.addressbook.ReadableAccountNodeRelStore;
+import com.hedera.node.app.service.addressbook.impl.ReadableAccountNodeRelStoreImpl;
 import com.hedera.node.app.service.token.api.TokenServiceApi;
 import com.hedera.node.app.service.token.impl.ReadableAccountStoreImpl;
 import com.hedera.node.app.service.token.impl.WritableAccountStore;
@@ -55,7 +58,9 @@ import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
+import com.hederahashgraph.api.proto.java.NodeIdList;
 import com.swirlds.state.spi.WritableStates;
+import com.swirlds.state.test.fixtures.MapReadableKVState;
 import java.util.List;
 import java.util.Map;
 import org.assertj.core.api.Assertions;
@@ -270,6 +275,7 @@ class CryptoDeleteHandlerTest extends CryptoHandlerTestBase {
         givenTxnWith(deleteAccountId, transferAccountId);
         given(expiryValidator.isDetached(eq(EntityType.ACCOUNT), anyBoolean(), anyLong()))
                 .willReturn(false);
+        mockReadableAccountNodeState();
 
         assertThatThrownBy(() -> subject.handle(handleContext))
                 .isInstanceOf(HandleException.class)
@@ -286,6 +292,7 @@ class CryptoDeleteHandlerTest extends CryptoHandlerTestBase {
         given(expiryValidator.isDetached(eq(EntityType.ACCOUNT), anyBoolean(), anyLong()))
                 .willReturn(false);
         given(stack.getBaseBuilder(CryptoDeleteStreamBuilder.class)).willReturn(recordBuilder);
+        mockReadableAccountNodeState();
 
         subject.handle(handleContext);
 
@@ -408,6 +415,7 @@ class CryptoDeleteHandlerTest extends CryptoHandlerTestBase {
         given(expiryValidator.isDetached(eq(EntityType.ACCOUNT), anyBoolean(), anyLong()))
                 .willReturn(false);
         given(stack.getBaseBuilder(CryptoDeleteStreamBuilder.class)).willReturn(recordBuilder);
+        mockReadableAccountNodeState();
 
         subject.handle(handleContext);
 
@@ -456,5 +464,15 @@ class CryptoDeleteHandlerTest extends CryptoHandlerTestBase {
         given(handleContext.expiryValidator()).willReturn(expiryValidator);
         final var impl = new TokenServiceApiImpl(configuration, writableStates, op -> false, entityCounters);
         given(storeFactory.serviceApi(TokenServiceApi.class)).willReturn(impl);
+    }
+
+    private void mockReadableAccountNodeState() {
+        final var accountNodeRelStateId = StateKey.KeyOneOfType.ADDRESSBOOKSERVICE_I_ACCOUNT_NODE_REL.protoOrdinal();
+        readableAccountNodeRels = MapReadableKVState.<AccountID, NodeIdList>builder(
+                        accountNodeRelStateId, "AddressBookService.ACCOUNT_NODE_REL")
+                .build();
+        given(readableStates.<AccountID, NodeIdList>get(accountNodeRelStateId)).willReturn(readableAccountNodeRels);
+        final var accountNodeRelStore = new ReadableAccountNodeRelStoreImpl(readableStates, readableEntityCounters);
+        given(storeFactory.readableStore(ReadableAccountNodeRelStore.class)).willReturn(accountNodeRelStore);
     }
 }

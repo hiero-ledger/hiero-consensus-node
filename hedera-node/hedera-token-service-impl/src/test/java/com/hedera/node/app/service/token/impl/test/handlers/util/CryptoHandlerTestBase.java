@@ -43,6 +43,7 @@ import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.hederahashgraph.api.proto.java.NodeIdList;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.state.spi.ReadableStates;
 import com.swirlds.state.spi.WritableStates;
@@ -182,6 +183,7 @@ public class CryptoHandlerTestBase {
     protected MapReadableKVState<AccountID, Account> readableAccounts;
     protected MapWritableKVState<ProtoBytes, AccountID> writableAliases;
     protected MapWritableKVState<AccountID, Account> writableAccounts;
+    protected MapReadableKVState<AccountID, NodeIdList> readableAccountNodeRels;
     protected Account account;
     protected ReadableAccountStore readableStore;
     protected WritableAccountStore writableStore;

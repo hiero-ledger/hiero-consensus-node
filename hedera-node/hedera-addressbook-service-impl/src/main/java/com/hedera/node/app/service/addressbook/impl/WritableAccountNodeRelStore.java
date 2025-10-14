@@ -52,9 +52,9 @@ public class WritableAccountNodeRelStore extends ReadableAccountNodeRelStoreImpl
         final var nodeIdList = get(accountId);
         List<Long> newList = new ArrayList<>();
         if (nodeIdList != null) {
-            newList = nodeIdList.nodeId();
+            newList.addAll(nodeIdList.nodeId());
         }
-        newList.add(nodeId);
+        newList.add(nodeId); // Add the new nodeId
         accountNodeRelState()
                 .put(accountId, NodeIdList.newBuilder().nodeId(newList).build());
     }
