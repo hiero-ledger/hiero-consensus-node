@@ -109,7 +109,7 @@ public final class FileUtils {
      * @throws IOException if an I/O error occurs during deletion
      */
     public static void delete(@NonNull final Path pathToDelete) throws IOException {
-        if(Files.isDirectory(pathToDelete)) {
+        if (Files.isDirectory(pathToDelete)) {
             deleteDirectory(pathToDelete);
         } else {
             Files.deleteIfExists(pathToDelete);

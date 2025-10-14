@@ -120,7 +120,7 @@ public class GenerateStateTool {
                     if (path.getFileName().toString().equals(OtterApp.APP_NAME)) {
                         removeAllButLatestState(path);
                     } else {
-                        if(!path.getFileName().toString().equals(PCES_DIRECTORY)) {
+                        if (!path.getFileName().toString().equals(PCES_DIRECTORY)) {
                             FileUtils.deleteDirectory(path);
                         }
                     }
@@ -203,10 +203,10 @@ public class GenerateStateTool {
     private static SemanticVersion readVersionFile() {
         // First, try to read from version.txt file
         try (final BufferedReader reader = Files.newBufferedReader(Path.of("version.txt"))) {
-                final String versionString = reader.readLine();
-                if (versionString != null && !versionString.isEmpty()) {
-                    return parseVersion(versionString);
-                }
+            final String versionString = reader.readLine();
+            if (versionString != null && !versionString.isEmpty()) {
+                return parseVersion(versionString);
+            }
         } catch (final IOException e) {
             System.err.println("Failed to load version.txt: " + e.getMessage());
         }
@@ -238,8 +238,7 @@ public class GenerateStateTool {
             // Split version numbers by dot
             final String[] versionComponents = versionNumbersOnly.split("\\.");
             if (versionComponents.length < 3) {
-                System.err.println(
-                        "Invalid version format: " + versionString + ", expected format: major.minor.patch");
+                System.err.println("Invalid version format: " + versionString + ", expected format: major.minor.patch");
                 return SemanticVersion.DEFAULT;
             }
 
@@ -299,7 +298,8 @@ public class GenerateStateTool {
             }
 
             final SemanticVersion version = readVersionFile();
-            final GenerateStateTool generateStateTool = new GenerateStateTool(new TurtleTestEnvironment(SEED, false), version);
+            final GenerateStateTool generateStateTool =
+                    new GenerateStateTool(new TurtleTestEnvironment(SEED, false), version);
             generateStateTool.generateState();
 
             final Node node = generateStateTool.getNode((int) SELF_ID);
