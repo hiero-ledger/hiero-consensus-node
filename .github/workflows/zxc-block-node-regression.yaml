@@ -256,7 +256,7 @@ jobs:
           kubectl port-forward svc/mirror-monitor -n "${{ env.SOLO_NAMESPACE }}" 5600:http &
           kubectl port-forward svc/mirror-rest -n "${{ env.SOLO_NAMESPACE }}" 5551:http &
           kubectl port-forward svc/mirror-restjava -n "${{ env.SOLO_NAMESPACE }}" 8084:http &
-          kubectl port-forward svc/block-node-0 -n "${{ env.SOLO_NAMESPACE }}" 40840:40840 &
+          kubectl port-forward svc/block-node-server -n "${{ env.SOLO_NAMESPACE }}" 40840:40840 &
 
       # ---- BN verification with grpcurl ----
 
@@ -332,7 +332,7 @@ jobs:
           MIRROR_NODE_REST_URL: "http://127.0.0.1:5551"
           MIRROR_NODE_REST_JAVA_URL: "http://127.0.0.1:8084"
         run: |
-          solo account create --dev --ed25519-private-key "${{ env.OPERATOR_ACCOUNT_PRIVATE_KEY }}" --deployment ${{ env.SOLO_DEPLOYMENT }} --hbar-amount 1000000
+          solo ledger account create --dev --ed25519-private-key "${{ env.OPERATOR_ACCOUNT_PRIVATE_KEY }}" --deployment ${{ env.SOLO_DEPLOYMENT }} --hbar-amount 1000000
           cp .env.custom_node .env
           npm run test
         working-directory: sdk-tck/regression # required
@@ -358,7 +358,7 @@ jobs:
         if: always()
         run: |
           # Get CN Logs
-          solo node logs -d ${{ env.SOLO_DEPLOYMENT }} --dev -q
+          solo consensus diagnostics all -d ${{ env.SOLO_DEPLOYMENT }} --dev -q
           BASE="${HOME}/.solo/logs/${SOLO_NAMESPACE}"
           LOG_FOLDER=$(ls -1d "$BASE"/* | sort -r | head -n1)
           echo "Latest log folder is $LOG_FOLDER"
