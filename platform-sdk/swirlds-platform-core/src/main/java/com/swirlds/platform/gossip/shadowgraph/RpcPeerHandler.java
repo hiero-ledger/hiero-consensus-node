@@ -197,7 +197,8 @@ public class RpcPeerHandler implements GossipRpcReceiver {
     // protocol thread (which is equivalent to read-thread)
     public void cleanup() {
         clearInternalState();
-        sharedShadowgraphSynchronizer.deregisterPeerHandler(this);
+        // mark sync as never happened, it will stop broadcast from happening
+        state.lastSyncFinishedTime = Instant.MIN;
     }
 
     /**
