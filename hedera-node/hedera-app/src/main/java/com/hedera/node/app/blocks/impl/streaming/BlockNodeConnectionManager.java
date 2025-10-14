@@ -2,6 +2,8 @@
 package com.hedera.node.app.blocks.impl.streaming;
 
 import static com.hedera.node.app.blocks.impl.streaming.BlockNodeConnection.THIRTY_SECONDS;
+import static com.hedera.node.app.util.LoggingUtilities.formatLogMessage;
+import static com.hedera.node.app.util.LoggingUtilities.logWithContext;
 import static com.swirlds.common.io.utility.FileUtils.getAbsolutePath;
 import static java.util.Collections.shuffle;
 import static java.util.Objects.requireNonNull;
@@ -237,30 +239,6 @@ public class BlockNodeConnectionManager {
     private final int highLatencyEventsBeforeSwitching;
 
     /**
-     * Helper method to remove current instance information for debug logging.
-     */
-    private void logWithContext(Level level, String message, Object... args) {
-        if (logger.isEnabled(level)) {
-            message = String.format("%s %s", LoggingUtilities.threadInfo(), message);
-            logger.atLevel(level).log(message, args);
-        }
-    }
-
-    /**
-     * Helper method to add current connection information for debug logging.
-     */
-    private void logWithContext(Level level, String message, BlockNodeConnection connection, Object... args) {
-        if (logger.isEnabled(level)) {
-            message = formatLogMessage(message, connection);
-            logger.atLevel(level).log(message, args);
-        }
-    }
-
-    private String formatLogMessage(String message, BlockNodeConnection connection) {
-        return String.format("%s %s %s", LoggingUtilities.threadInfo(), connection, message);
-    }
-
-    /**
      * Creates a new BlockNodeConnectionManager with the given configuration from disk.
      * @param configProvider the configuration to use
      * @param blockBufferService the block stream state manager
@@ -290,6 +268,7 @@ public class BlockNodeConnectionManager {
             blockNodeConfigDirectory = getAbsolutePath(blockNodeConnectionConfigPath);
 
             logWithContext(
+                    logger,
                     INFO,
                     "Initialized empty block node configuration; awaiting file watcher events from {}.",
                     blockNodeConnectionConfigPath);
@@ -297,7 +276,8 @@ public class BlockNodeConnectionManager {
             // Start a watcher to monitor changes to the block-nodes.json file for dynamic updates
             startConfigWatcher();
         } else {
-            logWithContext(INFO, "Block node streaming is disabled. Will not setup connections to block nodes.");
+            logWithContext(
+                    logger, INFO, "Block node streaming is disabled. Will not setup connections to block nodes.");
         }
     }
 
@@ -370,7 +350,7 @@ public class BlockNodeConnectionManager {
         final Path configPath = Paths.get(blockNodeConfigPath, BLOCK_NODES_FILE_NAME);
         try {
             if (!Files.exists(configPath)) {
-                logWithContext(INFO, "Block node configuration file does not exist: {}", configPath);
+                logWithContext(logger, INFO, "Block node configuration file does not exist: {}", configPath);
                 return List.of();
             }
 
@@ -383,6 +363,7 @@ public class BlockNodeConnectionManager {
                     .toList();
         } catch (final IOException | ParseException e) {
             logWithContext(
+                    logger,
                     INFO,
                     "Failed to read or parse block node configuration from {}. Continuing without block node connections.",
                     configPath,
@@ -431,7 +412,11 @@ public class BlockNodeConnectionManager {
                 .connectTimeout(timeoutDuration)
                 .build();
         logWithContext(
-                DEBUG, "Created BlockStreamPublishServiceClient for {}:{}.", nodeConfig.address(), nodeConfig.port());
+                logger,
+                DEBUG,
+                "Created BlockStreamPublishServiceClient for {}:{}.",
+                nodeConfig.address(),
+                nodeConfig.port());
         return new BlockStreamPublishServiceClient(new PbjGrpcClient(webClient, grpcConfig), OPTIONS);
     }
 
@@ -454,7 +439,7 @@ public class BlockNodeConnectionManager {
         }
         requireNonNull(connection, "connection must not be null");
 
-        logWithContext(DEBUG, "Closing and rescheduling connection for reconnect attempt.", connection);
+        logWithContext(logger, DEBUG, "Closing and rescheduling connection for reconnect attempt.", connection);
 
         // Handle cleanup and rescheduling
         handleConnectionCleanupAndReschedule(connection, delay, blockNumber, selectNewBlockNode);
@@ -490,6 +475,7 @@ public class BlockNodeConnectionManager {
         }
 
         logWithContext(
+                logger,
                 INFO,
                 "Apply exponential backoff and reschedule in {} ms (attempt={}).",
                 connection,
@@ -563,9 +549,15 @@ public class BlockNodeConnectionManager {
 
         if (blockNumber == null) {
             logWithContext(
-                    DEBUG, "Scheduling reconnection for node in {} ms (force={}).", newConnection, delayMillis, force);
+                    logger,
+                    DEBUG,
+                    "Scheduling reconnection for node in {} ms (force={}).",
+                    newConnection,
+                    delayMillis,
+                    force);
         } else {
             logWithContext(
+                    logger,
                     DEBUG,
                     "Scheduling reconnection for node at block {} in {} ms (force={}).",
                     newConnection,
@@ -580,7 +572,7 @@ public class BlockNodeConnectionManager {
                     new BlockNodeConnectionTask(newConnection, initialDelay, blockNumber, force),
                     delayMillis,
                     TimeUnit.MILLISECONDS);
-            logWithContext(DEBUG, "Successfully scheduled reconnection task.", newConnection);
+            logWithContext(logger, DEBUG, "Successfully scheduled reconnection task.", newConnection);
         } catch (final Exception e) {
             logger.error(formatLogMessage("Failed to schedule connection task for block node.", newConnection), e);
             connections.remove(newConnection.getNodeConfig());
@@ -595,13 +587,13 @@ public class BlockNodeConnectionManager {
         if (!isStreamingEnabled.get()) {
             return;
         }
-        logWithContext(DEBUG, "Shutting down block node connection manager.");
+        logWithContext(logger, DEBUG, "Shutting down block node connection manager.");
 
         // Stop config watcher
         stopConfigWatcher();
 
         if (!isConnectionManagerActive.compareAndSet(true, false)) {
-            logWithContext(DEBUG, "Connection Manager already shutdown.");
+            logWithContext(logger, DEBUG, "Connection Manager already shutdown.");
             return;
         }
 
@@ -626,6 +618,7 @@ public class BlockNodeConnectionManager {
                 connection.close(true);
             } catch (final RuntimeException e) {
                 logWithContext(
+                        logger,
                         DEBUG,
                         "Error while closing connection during connection manager shutdown. Ignoring.",
                         connection,
@@ -649,7 +642,8 @@ public class BlockNodeConnectionManager {
                 workerThread.join();
             } catch (final InterruptedException e) {
                 Thread.currentThread().interrupt();
-                logWithContext(DEBUG, "Interrupted while waiting for block stream worker thread to terminate.", e);
+                logWithContext(
+                        logger, DEBUG, "Interrupted while waiting for block stream worker thread to terminate.", e);
             }
         }
         blockStreamWorkerThreadRef.set(null);
@@ -664,7 +658,7 @@ public class BlockNodeConnectionManager {
             return;
         }
 
-        logWithContext(INFO, "Stopping block node connections.");
+        logWithContext(logger, INFO, "Stopping block node connections.");
 
         // Close all connections
         final Iterator<Map.Entry<BlockNodeConfig, BlockNodeConnection>> it =
@@ -676,7 +670,11 @@ public class BlockNodeConnectionManager {
                 connection.close(true);
             } catch (final RuntimeException e) {
                 logWithContext(
-                        DEBUG, "Error while closing connection during stopConnections. Ignoring.", connection, e);
+                        logger,
+                        DEBUG,
+                        "Error while closing connection during stopConnections. Ignoring.",
+                        connection,
+                        e);
             }
             it.remove();
         }
@@ -692,9 +690,9 @@ public class BlockNodeConnectionManager {
      * block.
      */
     public void start() {
-        logWithContext(DEBUG, "Starting connection manager.");
+        logWithContext(logger, DEBUG, "Starting connection manager.");
         if (!isStreamingEnabled.get()) {
-            logWithContext(DEBUG, "Cannot start the connection manager, streaming is not enabled.");
+            logWithContext(logger, DEBUG, "Cannot start the connection manager, streaming is not enabled.");
             return;
         }
 
@@ -704,18 +702,18 @@ public class BlockNodeConnectionManager {
         // Determine if we have a node to connect to before starting worker thread
         final BlockNodeConfig selectedNode = getNextPriorityBlockNode();
         if (selectedNode == null) {
-            logWithContext(INFO, "No block nodes available to connect to. Waiting for configuration updates.");
+            logWithContext(logger, INFO, "No block nodes available to connect to. Waiting for configuration updates.");
             return;
         }
 
         // Create a Single-threaded executor for sharedExecutorService
-        logWithContext(DEBUG, "Creating scheduled executor service for the Block Node connection manager.");
+        logWithContext(logger, DEBUG, "Creating scheduled executor service for the Block Node connection manager.");
         sharedExecutorService = Executors.newSingleThreadScheduledExecutor();
 
         isConnectionManagerActive.set(true);
         // Start worker thread if not already running
         if (blockStreamWorkerThreadRef.get() == null) {
-            logWithContext(DEBUG, "Starting block stream worker loop thread.");
+            logWithContext(logger, DEBUG, "Starting block stream worker loop thread.");
             final Thread t = Thread.ofPlatform().name("BlockStreamWorkerLoop").start(this::blockStreamWorkerLoop);
             blockStreamWorkerThreadRef.set(t);
         }
@@ -733,21 +731,25 @@ public class BlockNodeConnectionManager {
      * @return true if a connection attempt will be made to a node, else false (i.e. no available nodes to connect)
      */
     public boolean selectNewBlockNodeForStreaming(final boolean force) {
-        logWithContext(DEBUG, "Selecting highest priority available block node for connection attempt.");
+        logWithContext(logger, DEBUG, "Selecting highest priority available block node for connection attempt.");
         if (!isStreamingEnabled.get()) {
-            logWithContext(DEBUG, "Cannot select block node, streaming is not enabled.");
+            logWithContext(logger, DEBUG, "Cannot select block node, streaming is not enabled.");
             return false;
         }
 
         final BlockNodeConfig selectedNode = getNextPriorityBlockNode();
 
         if (selectedNode == null) {
-            logWithContext(DEBUG, "No available block nodes found for streaming.");
+            logWithContext(logger, DEBUG, "No available block nodes found for streaming.");
             return false;
         }
 
         logWithContext(
-                DEBUG, "Selected block node {}:{} for connection attempt", selectedNode.address(), selectedNode.port());
+                logger,
+                DEBUG,
+                "Selected block node {}:{} for connection attempt",
+                selectedNode.address(),
+                selectedNode.port());
 
         // Immediately schedule the FIRST connection attempt.
         scheduleConnectionAttempt(selectedNode, Duration.ZERO, null, force);
@@ -762,7 +764,7 @@ public class BlockNodeConnectionManager {
      * @return the next available block node configuration
      */
     private @Nullable BlockNodeConfig getNextPriorityBlockNode() {
-        logWithContext(DEBUG, "Searching for new block node connection based on node priorities.");
+        logWithContext(logger, DEBUG, "Searching for new block node connection based on node priorities.");
 
         final List<BlockNodeConfig> snapshot;
         synchronized (availableBlockNodes) {
@@ -780,9 +782,9 @@ public class BlockNodeConnectionManager {
             selectedNode = findAvailableNode(nodesInGroup);
 
             if (selectedNode == null) {
-                logWithContext(DEBUG, "No available node found in priority group {}.", priority);
+                logWithContext(logger, DEBUG, "No available node found in priority group {}.", priority);
             } else {
-                logWithContext(DEBUG, "Found available node in priority group {}.", priority);
+                logWithContext(logger, DEBUG, "Found available node in priority group {}.", priority);
                 return selectedNode;
             }
         }
@@ -844,21 +846,21 @@ public class BlockNodeConnectionManager {
      * @param blockNumber the block number to open
      */
     public void openBlock(final long blockNumber) {
-        logWithContext(DEBUG, "Opening block with number {}.", blockNumber);
+        logWithContext(logger, DEBUG, "Opening block with number {}.", blockNumber);
         if (!isStreamingEnabled.get()) {
-            logWithContext(DEBUG, "Cannot open block, streaming is not enabled.");
+            logWithContext(logger, DEBUG, "Cannot open block, streaming is not enabled.");
             return;
         }
 
         final BlockNodeConnection activeConnection = activeConnectionRef.get();
         if (activeConnection == null) {
             blockStreamMetrics.recordNoActiveConnection();
-            logWithContext(DEBUG, "No active connections available for streaming block {}", blockNumber);
+            logWithContext(logger, DEBUG, "No active connections available for streaming block {}", blockNumber);
             return;
         }
 
         if (streamingBlockNumber.get() == -1) {
-            logWithContext(DEBUG, "Current streaming block number is -1, jumping to {}.", blockNumber);
+            logWithContext(logger, DEBUG, "Current streaming block number is -1, jumping to {}.", blockNumber);
             jumpTargetBlock.set(blockNumber);
         }
     }
@@ -871,13 +873,14 @@ public class BlockNodeConnectionManager {
      */
     public void updateLastVerifiedBlock(@NonNull final BlockNodeConfig blockNodeConfig, final long blockNumber) {
         logWithContext(
+                logger,
                 DEBUG,
                 "Updating last verified block for {}:{} to {}.",
                 blockNodeConfig.address(),
                 blockNodeConfig.port(),
                 blockNumber);
         if (!isStreamingEnabled.get()) {
-            logWithContext(DEBUG, "Cannot update last verified block, streaming is not enabled.");
+            logWithContext(logger, DEBUG, "Cannot update last verified block, streaming is not enabled.");
             return;
         }
 
@@ -938,7 +941,7 @@ public class BlockNodeConnectionManager {
      */
     private void startConfigWatcher() {
         if (configWatchServiceRef.get() != null) {
-            logWithContext(DEBUG, "Configuration watcher already running.");
+            logWithContext(logger, DEBUG, "Configuration watcher already running.");
             return;
         }
         try {
@@ -963,11 +966,12 @@ public class BlockNodeConnectionManager {
                                     final Object ctx = event.context();
                                     if (ctx instanceof Path changed
                                             && BLOCK_NODES_FILE_NAME.equals(changed.toString())) {
-                                        logWithContext(INFO, "Detected {} event for {}.", kind.name(), changed);
+                                        logWithContext(logger, INFO, "Detected {} event for {}.", kind.name(), changed);
                                         try {
                                             handleConfigFileChange();
                                         } catch (Exception e) {
                                             logWithContext(
+                                                    logger,
                                                     INFO,
                                                     "Exception in BlockNodesConfigWatcher config file change handler. {}",
                                                     e);
@@ -977,27 +981,31 @@ public class BlockNodeConnectionManager {
                             } catch (InterruptedException e) {
                                 break;
                             } catch (Exception e) {
-                                logWithContext(INFO, "Exception in config watcher loop.", e);
+                                logWithContext(logger, INFO, "Exception in config watcher loop.", e);
                                 if (Thread.currentThread().isInterrupted()) {
-                                    logWithContext(DEBUG, "Config watcher thread interrupted, exiting.");
+                                    logWithContext(logger, DEBUG, "Config watcher thread interrupted, exiting.");
                                     return;
                                 }
                             } finally {
                                 // Always reset the key to continue watching for events, even if an exception occurred
                                 if (key != null && !key.reset()) {
-                                    logWithContext(INFO, "WatchKey could not be reset. Exiting config watcher loop.");
+                                    logWithContext(
+                                            logger, INFO, "WatchKey could not be reset. Exiting config watcher loop.");
                                     break;
                                 }
                             }
                         }
                     });
             configWatcherThreadRef.set(watcherThread);
-            logWithContext(INFO, "Started block-nodes.json configuration watcher thread.");
+            logWithContext(logger, INFO, "Started block-nodes.json configuration watcher thread.");
             // Perform an initial load if the configuration file already exists
             performInitialConfigLoad();
         } catch (final IOException e) {
             logWithContext(
-                    INFO, "Failed to start block-nodes.json configuration watcher. Dynamic updates disabled.", e);
+                    logger,
+                    INFO,
+                    "Failed to start block-nodes.json configuration watcher. Dynamic updates disabled.",
+                    e);
         }
     }
 
@@ -1016,13 +1024,17 @@ public class BlockNodeConnectionManager {
             }
             if (!newConfigs.isEmpty()) {
                 logWithContext(
-                        INFO, "Initial block node configuration loaded ({}). Starting connection manager.", newConfigs);
+                        logger,
+                        INFO,
+                        "Initial block node configuration loaded ({}). Starting connection manager.",
+                        newConfigs);
                 start();
             } else {
-                logWithContext(INFO, "Initial block node configuration missing or invalid. Waiting for updates.");
+                logWithContext(
+                        logger, INFO, "Initial block node configuration missing or invalid. Waiting for updates.");
             }
         } else {
-            logWithContext(INFO, "No initial block node configuration file found. Waiting for updates.");
+            logWithContext(logger, INFO, "No initial block node configuration file found. Waiting for updates.");
         }
     }
 
@@ -1061,19 +1073,19 @@ public class BlockNodeConnectionManager {
         // Compare new configs with existing ones to determine if a restart is needed
         synchronized (availableBlockNodes) {
             if (newConfigs.equals(availableBlockNodes)) {
-                logWithContext(INFO, "Block node configuration unchanged. No action taken.");
+                logWithContext(logger, INFO, "Block node configuration unchanged. No action taken.");
                 return;
             }
         }
 
-        logWithContext(DEBUG, "Shutting down block stream worker thread for config reload.");
+        logWithContext(logger, DEBUG, "Shutting down block stream worker thread for config reload.");
         // Shutdown the block stream worker thread
         shutdownBlockStreamWorkerThread();
-        logWithContext(DEBUG, "Block stream worker thread is shutdown.");
+        logWithContext(logger, DEBUG, "Block stream worker thread is shutdown.");
 
         // Shutdown the executor service for BlockNodeConnectionTask's
         if (sharedExecutorService != null) {
-            logWithContext(DEBUG, "Shutting down existing scheduled executor service for config reload.");
+            logWithContext(logger, DEBUG, "Shutting down existing scheduled executor service for config reload.");
             sharedExecutorService.shutdownNow();
         }
 
@@ -1086,10 +1098,11 @@ public class BlockNodeConnectionManager {
         }
 
         if (!newConfigs.isEmpty()) {
-            logWithContext(INFO, "Reloaded block node configurations ({})", newConfigs);
+            logWithContext(logger, INFO, "Reloaded block node configurations ({})", newConfigs);
             start();
         } else {
             logWithContext(
+                    logger,
                     INFO,
                     "No valid block node configurations available after file change. Connections remain stopped.");
         }
@@ -1115,6 +1128,7 @@ public class BlockNodeConnectionManager {
                 && latestBlockNumber > currentStreamingBlockNumber
                 && currentStreamingBlockNumber != -1) {
             logWithContext(
+                    logger,
                     DEBUG,
                     "Block {} not found in buffer (latestBlock={}). Closing and rescheduling.",
                     connection,
@@ -1134,12 +1148,13 @@ public class BlockNodeConnectionManager {
 
         if (blockState.numRequestsCreated() == 0) {
             // the block was not found or there are no requests available to send, so return true (safe to sleep)
-            logWithContext(DEBUG, "Idle: no requests for block {}.", connection, currentStreamingBlockNumber);
+            logWithContext(logger, DEBUG, "Idle: no requests for block {}.", connection, currentStreamingBlockNumber);
             return true;
         }
 
         if (requestIndex < blockState.numRequestsCreated()) {
             logWithContext(
+                    logger,
                     DEBUG,
                     "Processing block {} (isBlockProofSent={}, totalBlockRequests={}, currentRequestIndex={}).",
                     connection,
@@ -1151,7 +1166,12 @@ public class BlockNodeConnectionManager {
             if (publishStreamRequest != null) {
                 connection.sendRequest(publishStreamRequest);
                 logWithContext(
-                        TRACE, "Sent request {} for block {}.", connection, requestIndex, currentStreamingBlockNumber);
+                        logger,
+                        TRACE,
+                        "Sent request {} for block {}.",
+                        connection,
+                        requestIndex,
+                        currentStreamingBlockNumber);
                 blockState.markRequestSent(requestIndex);
                 requestIndex++;
             }
@@ -1160,7 +1180,7 @@ public class BlockNodeConnectionManager {
         if (requestIndex == blockState.numRequestsCreated() && blockState.isBlockProofSent()) {
             final long nextBlockNumber = streamingBlockNumber.incrementAndGet();
             requestIndex = 0;
-            logWithContext(DEBUG, "Moving to next block number: {}.", connection, nextBlockNumber);
+            logWithContext(logger, DEBUG, "Moving to next block number: {}.", connection, nextBlockNumber);
             // we've moved to another block, don't sleep and instead immediately check if there is anything to send
             return false;
         }
@@ -1180,7 +1200,7 @@ public class BlockNodeConnectionManager {
             return;
         }
 
-        logWithContext(DEBUG, "Jumping to block {}.", targetBlock);
+        logWithContext(logger, DEBUG, "Jumping to block {}.", targetBlock);
         streamingBlockNumber.set(targetBlock);
         requestIndex = 0; // Reset request index for the new block
     }
@@ -1201,11 +1221,11 @@ public class BlockNodeConnectionManager {
      */
     public void jumpToBlock(final long blockNumberToJumpTo) {
         if (!isStreamingEnabled.get()) {
-            logWithContext(DEBUG, "Cannot jump to block, streaming is not enabled.");
+            logWithContext(logger, DEBUG, "Cannot jump to block, streaming is not enabled.");
             return;
         }
 
-        logWithContext(DEBUG, "Marking request to jump to block {}.", blockNumberToJumpTo);
+        logWithContext(logger, DEBUG, "Marking request to jump to block {}.", blockNumberToJumpTo);
         jumpTargetBlock.set(blockNumberToJumpTo);
     }
 
@@ -1507,6 +1527,7 @@ public class BlockNodeConnectionManager {
             ipAsInteger = calculateIpAsInteger(blockAddress);
 
             logWithContext(
+                    logger,
                     INFO,
                     "Active block node connection updated to: {}:{} (resolvedIp: {}, resolvedIpAsInt={})",
                     nodeConfig.address(),
@@ -1515,7 +1536,12 @@ public class BlockNodeConnectionManager {
                     ipAsInteger);
         } catch (final IOException e) {
             logWithContext(
-                    DEBUG, "Failed to resolve block node host ({}:{})", nodeConfig.address(), nodeConfig.port(), e);
+                    logger,
+                    DEBUG,
+                    "Failed to resolve block node host ({}:{})",
+                    nodeConfig.address(),
+                    nodeConfig.port(),
+                    e);
             ipAsInteger = -1L;
         }
 
@@ -1565,6 +1591,7 @@ public class BlockNodeConnectionManager {
         blockStreamMetrics.recordAcknowledgementLatency(latencyMs);
         if (result.isHighLatency()) {
             logWithContext(
+                    logger,
                     DEBUG,
                     "[{}] A high latency event ({}ms) has occurred. A total of {} consecutive events",
                     blockNodeConfig,
