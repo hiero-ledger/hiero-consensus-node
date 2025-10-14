@@ -14,7 +14,6 @@ open module com.swirlds.platform.core.test.fixtures {
     requires transitive com.swirlds.virtualmap;
     requires transitive org.hiero.base.crypto;
     requires transitive org.hiero.base.utility;
-    requires transitive org.hiero.consensus.gossip;
     requires transitive org.hiero.consensus.model.test.fixtures;
     requires transitive org.hiero.consensus.model;
     requires transitive org.assertj.core;
