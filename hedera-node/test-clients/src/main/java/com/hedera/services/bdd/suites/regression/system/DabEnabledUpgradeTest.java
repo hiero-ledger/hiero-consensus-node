@@ -17,7 +17,6 @@ import static com.hedera.services.bdd.spec.dsl.operations.transactions.TouchBala
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getFileContents;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getVersionInfo;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.sysFileUpdateTo;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeDelete;
@@ -206,7 +205,6 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
     final Stream<DynamicTest> validateCandidateRosterAfterAccountUpdate() {
         return hapiTest(
                 overriding("nodes.updateAccountIdAllowed", "true"),
-                cryptoCreate("poorMe").balance(0L),
                 nodeUpdate("1")
                         .fullAccountId(AccountID.newBuilder()
                                 .setShardNum(0)
@@ -215,7 +213,6 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
                                 .build()),
                 // trigger candidate roster refresh
                 prepareFakeUpgrade(),
-                // validate node2 is excluded from the candidate roster
                 waitUntilStartOfNextStakingPeriod(1).withBackgroundTraffic(),
                 // node should be excluded from the candidate roster, but still in address book
                 validateCandidateRoster(

@@ -13,10 +13,12 @@ import static com.hedera.node.app.workflows.handle.dispatch.ValidationResult.new
 import static com.hedera.node.app.workflows.handle.dispatch.ValidationResult.newGenesisWaiver;
 import static com.hedera.node.app.workflows.handle.dispatch.ValidationResult.newPayerDuplicateError;
 import static com.hedera.node.app.workflows.handle.dispatch.ValidationResult.newPayerUniqueError;
+import static com.hedera.node.app.workflows.handle.dispatch.ValidationResult.newSuccess;
 import static com.hedera.node.app.workflows.prehandle.PreHandleResult.Status.SO_FAR_SO_GOOD;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.node.app.fees.AppFeeCharging;
@@ -82,6 +84,10 @@ public class DispatchValidator {
         if (creatorError != null) {
             return newCreatorError(dispatch.creatorInfo().accountId(), creatorError);
         } else {
+            if (dispatch.txnInfo().functionality() == HederaFunctionality.STATE_SIGNATURE_TRANSACTION) {
+                // Skip all checks for state signature transaction
+                newSuccess(dispatch.creatorInfo().accountId(), null);
+            }
             final var payer =
                     getPayerAccount(dispatch.readableStoreFactory(), dispatch.payerId(), dispatch.txnCategory());
             final var category = dispatch.txnCategory();
