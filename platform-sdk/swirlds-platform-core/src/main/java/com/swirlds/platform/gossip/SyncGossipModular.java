@@ -33,7 +33,6 @@ import com.swirlds.platform.network.protocol.StateSyncProtocol;
 import com.swirlds.platform.network.protocol.SyncProtocol;
 import com.swirlds.platform.network.protocol.rpc.RpcProtocol;
 import com.swirlds.platform.reconnect.StateSyncThrottle;
-import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.SwirldStateManager;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.ReservedSignedState;
