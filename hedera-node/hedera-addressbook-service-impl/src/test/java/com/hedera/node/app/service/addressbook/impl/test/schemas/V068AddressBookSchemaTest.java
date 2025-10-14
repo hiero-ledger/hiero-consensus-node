@@ -10,7 +10,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.addressbook.Node;
-import com.hedera.hapi.node.state.addressbook.NodeIdList;
 import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.node.app.service.addressbook.impl.schemas.V068AddressBookSchema;
 import com.hedera.node.app.services.MigrationContextImpl;
@@ -33,7 +32,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 public class V068AddressBookSchemaTest {
     private MapReadableKVState<EntityNumber, Node> nodeState;
-    private MapWritableKVState<AccountID, NodeIdList> accountNodeRelState;
+    private MapWritableKVState<AccountID, Long> accountNodeRelState;
 
     private WritableStates newStates;
     private AccountID accountId;
@@ -57,7 +56,7 @@ public class V068AddressBookSchemaTest {
                 .build();
         oldStates = MapReadableStates.builder().state(nodeState).build();
         // initialize empty account-node state (new state)
-        accountNodeRelState = MapWritableKVState.<AccountID, NodeIdList>builder(
+        accountNodeRelState = MapWritableKVState.<AccountID, Long>builder(
                         ACCOUNT_NODE_REL_STATE_ID, ACCOUNT_NODE_REL_STATE_LABEL)
                 .build();
         newStates = MapWritableStates.builder().state(accountNodeRelState).build();
@@ -77,10 +76,10 @@ public class V068AddressBookSchemaTest {
         schema.migrate(migrationContext);
 
         // assert that the map is updated
-        final var accountNodeRelations = newStates.<AccountID, NodeIdList>get(ACCOUNT_NODE_REL_STATE_ID);
+        final var accountNodeRelations = newStates.<AccountID, Long>get(ACCOUNT_NODE_REL_STATE_ID);
         assertThat(accountNodeRelations.isModified()).isTrue();
         // assert values are correct
-        final var nodeIdInState = accountNodeRelations.get(accountId).nodeId().getFirst();
+        final var nodeIdInState = accountNodeRelations.get(accountId);
         assertThat(nodeIdInState).isEqualTo(node.nodeId());
     }
 }

@@ -59,7 +59,6 @@ import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
-import com.hederahashgraph.api.proto.java.NodeIdList;
 import com.swirlds.state.spi.WritableStates;
 import com.swirlds.state.test.fixtures.MapReadableKVState;
 import java.util.List;
@@ -468,11 +467,8 @@ class CryptoDeleteHandlerTest extends CryptoHandlerTestBase {
     }
 
     private void mockReadableAccountNodeState() {
-        readableAccountNodeRels = MapReadableKVState.<AccountID, NodeIdList>builder(
-                        ACCOUNT_NODE_REL_STATE_ID, ACCOUNTS_STATE_LABEL)
-                .build();
-        given(readableStates.<AccountID, NodeIdList>get(ACCOUNT_NODE_REL_STATE_ID))
-                .willReturn(readableAccountNodeRels);
+        readableAccountNodeRels = MapReadableKVState.<AccountID, Long>builder(ACCOUNT_NODE_REL_STATE_ID, ACCOUNTS_STATE_LABEL).build();
+        given(readableStates.<AccountID, Long>get(ACCOUNT_NODE_REL_STATE_ID)).willReturn(readableAccountNodeRels);
         final var accountNodeRelStore = new ReadableAccountNodeRelStoreImpl(readableStates, readableEntityCounters);
         given(storeFactory.readableStore(ReadableAccountNodeRelStore.class)).willReturn(accountNodeRelStore);
     }

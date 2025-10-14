@@ -669,7 +669,7 @@ message StateValue {
     /**
      * A state identifier for account to node relationships.
      */
-    com.hedera.hapi.node.state.addressbook.NodeIdList AddressBookService_I_ACCOUNT_NODE_REL = 10011;
+    proto.ProtoLong AddressBookService_I_ACCOUNT_NODE_REL = 10011;
 
   }
 }

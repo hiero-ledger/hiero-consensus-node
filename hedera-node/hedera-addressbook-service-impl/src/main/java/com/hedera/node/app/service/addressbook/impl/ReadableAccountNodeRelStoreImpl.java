@@ -5,7 +5,6 @@ import static com.hedera.node.app.service.addressbook.impl.schemas.V068AddressBo
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
-import com.hedera.hapi.node.state.addressbook.NodeIdList;
 import com.hedera.node.app.hapi.utils.EntityType;
 import com.hedera.node.app.service.addressbook.ReadableAccountNodeRelStore;
 import com.hedera.node.app.spi.ids.ReadableEntityCounters;
@@ -21,7 +20,7 @@ import edu.umd.cs.findbugs.annotations.Nullable;
  */
 public class ReadableAccountNodeRelStoreImpl implements ReadableAccountNodeRelStore {
 
-    private final ReadableKVState<AccountID, NodeIdList> accountNodeRelState;
+    private final ReadableKVState<AccountID, Long> accountNodeRelState;
 
     private final ReadableEntityCounters entityCounters;
 
@@ -37,20 +36,20 @@ public class ReadableAccountNodeRelStoreImpl implements ReadableAccountNodeRelSt
         this.accountNodeRelState = states.get(ACCOUNT_NODE_REL_STATE_ID);
     }
 
-    protected <T extends ReadableKVState<AccountID, NodeIdList>> T accountNodeRelState() {
+    protected <T extends ReadableKVState<AccountID, Long>> T accountNodeRelState() {
         return (T) accountNodeRelState;
     }
 
     /**
-     * Returns the list of node identifiers linked to the provided account.
+     * Returns the node identifier linked to the provided account.
      * Returns null if relations are not found.
      *
      * @param accountId being looked up
-     * @return node's metadata
+     * @return node identifier
      */
     @Override
     @Nullable
-    public NodeIdList get(final AccountID accountId) {
+    public Long get(final AccountID accountId) {
         return accountNodeRelState.get(accountId);
     }
 

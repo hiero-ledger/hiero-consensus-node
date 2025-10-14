@@ -123,7 +123,7 @@ public class BlockStreamUtils {
             case HISTORY_SIGNATURE_VALUE -> mapChangeValue.historySignatureValue();
             case PROOF_KEY_SET_VALUE -> mapChangeValue.proofKeySetValue();
             case EVM_HOOK_STATE_VALUE -> mapChangeValue.evmHookStateValueOrThrow();
-            case NODE_ID_LIST_VALUE -> mapChangeValue.nodeIdListValueOrThrow();
+            case NODE_ID_VALUE -> mapChangeValue.nodeIdValueOrThrow();
         };
     }
 

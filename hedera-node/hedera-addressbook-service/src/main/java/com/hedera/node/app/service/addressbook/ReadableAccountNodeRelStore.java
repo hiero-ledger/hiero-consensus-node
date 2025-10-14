@@ -2,7 +2,6 @@
 package com.hedera.node.app.service.addressbook;
 
 import com.hedera.hapi.node.base.AccountID;
-import com.hedera.hapi.node.state.addressbook.NodeIdList;
 import edu.umd.cs.findbugs.annotations.Nullable;
 
 /**
@@ -11,14 +10,14 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 public interface ReadableAccountNodeRelStore {
 
     /**
-     * Returns the list of node identifiers linked to the provided account.
+     * Returns the node identifier linked to the provided account.
      * Returns null if relations are not found.
      *
      * @param accountId being looked up
-     * @return node's metadata
+     * @return node identifier
      */
     @Nullable
-    NodeIdList get(final AccountID accountId);
+    Long get(final AccountID accountId);
 
     /**
      * Returns the number of relations in the state.

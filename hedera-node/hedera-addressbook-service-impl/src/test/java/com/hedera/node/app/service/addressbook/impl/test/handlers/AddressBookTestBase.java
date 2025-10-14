@@ -21,7 +21,6 @@ import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.hapi.node.base.ThresholdKey;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.addressbook.Node;
-import com.hedera.hapi.node.state.addressbook.NodeIdList;
 import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.entity.EntityCounts;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
@@ -174,8 +173,8 @@ public class AddressBookTestBase {
     protected ReadableNodeStore readableStore;
     protected WritableNodeStore writableStore;
 
-    protected MapReadableKVState<AccountID, NodeIdList> readableAccountNodeRelState;
-    protected MapWritableKVState<AccountID, NodeIdList> writableAccountNodeRelState;
+    protected MapReadableKVState<AccountID, Long> readableAccountNodeRelState;
+    protected MapWritableKVState<AccountID, Long> writableAccountNodeRelState;
     protected ReadableAccountNodeRelStore readableAccountNodeRelStore;
     protected WritableAccountNodeRelStore writableAccountNodeRelStore;
 
@@ -196,9 +195,9 @@ public class AddressBookTestBase {
 
         readableAccountNodeRelState = readableAccountNodeRelState();
         writableAccountNodeRelState = writableAccountNodeRelState();
-        given(readableStates.<AccountID, NodeIdList>get(ACCOUNT_NODE_REL_STATE_ID))
+        given(readableStates.<AccountID, Long>get(ACCOUNT_NODE_REL_STATE_ID))
                 .willReturn(readableAccountNodeRelState);
-        given(writableStates.<AccountID, NodeIdList>get(ACCOUNT_NODE_REL_STATE_ID))
+        given(writableStates.<AccountID, Long>get(ACCOUNT_NODE_REL_STATE_ID))
                 .willReturn(writableAccountNodeRelState);
         readableAccountNodeRelStore = new ReadableAccountNodeRelStoreImpl(readableStates, readableEntityCounters);
         writableAccountNodeRelStore = new WritableAccountNodeRelStore(writableStates, writableEntityCounters);
@@ -281,9 +280,9 @@ public class AddressBookTestBase {
 
         readableAccountNodeRelState = readableAccountNodeRelState();
         writableAccountNodeRelState = writableAccountNodeRelState();
-        given(readableStates.<AccountID, NodeIdList>get(ACCOUNT_NODE_REL_STATE_ID))
+        given(readableStates.<AccountID, Long>get(ACCOUNT_NODE_REL_STATE_ID))
                 .willReturn(readableAccountNodeRelState);
-        given(writableStates.<AccountID, NodeIdList>get(ACCOUNT_NODE_REL_STATE_ID))
+        given(writableStates.<AccountID, Long>get(ACCOUNT_NODE_REL_STATE_ID))
                 .willReturn(writableAccountNodeRelState);
         readableAccountNodeRelStore = new ReadableAccountNodeRelStoreImpl(readableStates, readableEntityCounters);
         writableAccountNodeRelStore = new WritableAccountNodeRelStore(writableStates, writableEntityCounters);
@@ -323,23 +322,13 @@ public class AddressBookTestBase {
     }
 
     @NonNull
-    protected MapReadableKVState<AccountID, NodeIdList> readableAccountNodeRelState() {
-        return MapReadableKVState.<AccountID, NodeIdList>builder(
-                        ACCOUNT_NODE_REL_STATE_ID, ACCOUNT_NODE_REL_STATE_LABEL)
-                .value(
-                        node.accountId(),
-                        NodeIdList.newBuilder().nodeId(node.nodeId()).build())
-                .build();
+    protected MapReadableKVState<AccountID, Long> readableAccountNodeRelState() {
+        return MapReadableKVState.<AccountID, Long>builder(ACCOUNT_NODE_REL_STATE_ID, ACCOUNT_NODE_REL_STATE_LABEL).value(node.accountId(), node.nodeId()).build();
     }
 
     @NonNull
-    protected MapWritableKVState<AccountID, NodeIdList> writableAccountNodeRelState() {
-        return MapWritableKVState.<AccountID, NodeIdList>builder(
-                        ACCOUNT_NODE_REL_STATE_ID, ACCOUNT_NODE_REL_STATE_LABEL)
-                .value(
-                        node.accountId(),
-                        NodeIdList.newBuilder().nodeId(node.nodeId()).build())
-                .build();
+    protected MapWritableKVState<AccountID, Long> writableAccountNodeRelState() {
+        return MapWritableKVState.<AccountID, Long>builder(ACCOUNT_NODE_REL_STATE_ID, ACCOUNT_NODE_REL_STATE_LABEL).value(node.accountId(), node.nodeId()).build();
     }
 
     protected void givenValidNode() {

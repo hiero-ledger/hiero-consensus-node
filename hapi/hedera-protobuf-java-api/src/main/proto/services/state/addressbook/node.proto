@@ -159,16 +159,3 @@ message Node {
      */
     proto.ServiceEndpoint grpc_proxy_endpoint = 12;
 }
-
-/**
- * A message for storing a list of node identifiers in state.<br/>
- * This is used to store node IDs as account to node relation values.
- */
-message NodeIdList {
-  /**
-   * A list of node identifiers, in no particular order.
-   * <p>
-   * While the order is not _specified_, it MUST be deterministic.
-   */
-  repeated uint64 node_id = 1;
-}

@@ -24,7 +24,6 @@ import com.hedera.hapi.node.base.TokenAssociation;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.base.TopicID;
 import com.hedera.hapi.node.state.addressbook.Node;
-import com.hedera.hapi.node.state.addressbook.NodeIdList;
 import com.hedera.hapi.node.state.common.EntityIDPair;
 import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.consensus.Topic;
@@ -246,8 +245,8 @@ public class ImmediateStateChangeListener implements StateChangeListener {
     private static <V> MapChangeValue mapChangeValueFor(@NonNull final V value) {
         return switch (value) {
             case Node node -> new MapChangeValue(new OneOf<>(MapChangeValue.ValueChoiceOneOfType.NODE_VALUE, node));
-            case NodeIdList nodeIdList ->
-                new MapChangeValue(new OneOf<>(MapChangeValue.ValueChoiceOneOfType.NODE_ID_LIST_VALUE, nodeIdList));
+            case ProtoLong nodeId ->
+                new MapChangeValue(new OneOf<>(MapChangeValue.ValueChoiceOneOfType.NODE_ID_VALUE, nodeId));
             case Account account ->
                 new MapChangeValue(new OneOf<>(MapChangeValue.ValueChoiceOneOfType.ACCOUNT_VALUE, account));
             case AccountID accountID ->

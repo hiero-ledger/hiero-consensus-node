@@ -4,15 +4,11 @@ package com.hedera.node.app.service.addressbook.impl;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
-import com.hedera.hapi.node.state.addressbook.NodeIdList;
 import com.hedera.node.app.hapi.utils.EntityType;
 import com.hedera.node.app.spi.ids.WritableEntityCounters;
 import com.swirlds.state.spi.WritableKVState;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.ArrayList;
-import java.util.List;
-
 /**
  * Provides write methods for modifying underlying data storage mechanisms..
  *
@@ -32,16 +28,14 @@ public class WritableAccountNodeRelStore extends ReadableAccountNodeRelStoreImpl
     }
 
     @Override
-    protected WritableKVState<AccountID, NodeIdList> accountNodeRelState() {
+    protected WritableKVState<AccountID, Long> accountNodeRelState() {
         return super.accountNodeRelState();
     }
 
     /**
      * Associates a node with an account by storing the relationship in the state.
      *
-     * <p>This method retrieves any existing node ID list for the specified account,
-     * creates a new list with the existing node IDs (if any), and updates the state with
-     * this node ID list for the given account.
+     * <p>Updates the state with link between the given account and the provided node ID.
      *
      * @param accountId The account identifier to associate with the node
      * @param nodeId The node identifier to associate with the account
@@ -49,14 +43,7 @@ public class WritableAccountNodeRelStore extends ReadableAccountNodeRelStoreImpl
     public void put(@NonNull final AccountID accountId, @NonNull Long nodeId) {
         requireNonNull(accountId);
         requireNonNull(nodeId);
-        final var nodeIdList = get(accountId);
-        List<Long> newList = new ArrayList<>();
-        if (nodeIdList != null) {
-            newList.addAll(nodeIdList.nodeId());
-        }
-        newList.add(nodeId); // Add the new nodeId
-        accountNodeRelState()
-                .put(accountId, NodeIdList.newBuilder().nodeId(newList).build());
+        accountNodeRelState().put(accountId, nodeId);
     }
 
     /**
