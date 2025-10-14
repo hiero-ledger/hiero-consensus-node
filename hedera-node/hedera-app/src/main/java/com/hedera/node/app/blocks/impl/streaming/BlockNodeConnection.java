@@ -640,7 +640,8 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                 logWithContext(TRACE, "[{}] Request took {}ms to send", this, durationMs);
 
                 if (request.hasEndStream()) {
-                    blockStreamMetrics.recordRequestEndStreamSent(request.endStream().endCode());
+                    blockStreamMetrics.recordRequestEndStreamSent(
+                            request.endStream().endCode());
                 } else {
                     blockStreamMetrics.recordRequestSent(request.request().kind());
                     final BlockItemSet itemSet = request.blockItems();

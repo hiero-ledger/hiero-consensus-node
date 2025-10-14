@@ -301,7 +301,6 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
 
         assertThat(streamingBlockNumber).hasValue(12); // should be 1 + acked block number
 
-
         verify(bufferService).getLastBlockNumberProduced();
         verify(bufferService).setLatestAcknowledgedBlock(11L);
         verify(metrics).recordResponseReceived(ResponseOneOfType.ACKNOWLEDGEMENT);

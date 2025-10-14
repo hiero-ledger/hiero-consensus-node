@@ -262,7 +262,8 @@ public class BlockNodeConnectionManager {
     /**
      * Helper method to add current connection information for debug logging.
      */
-    private void logWithContext(final Level level, final String message, final BlockNodeConnection connection, final Object... args) {
+    private void logWithContext(
+            final Level level, final String message, final BlockNodeConnection connection, final Object... args) {
         if (logger.isEnabled(level)) {
             final String msg = String.format("%s %s %s", LoggingUtilities.threadInfo(), connection.toString(), message);
             logger.atLevel(level).log(msg, args);
@@ -700,7 +701,8 @@ public class BlockNodeConnectionManager {
      * @param nodeConfig the configuration of the node to connect to.
      */
     @NonNull
-    private BlockNodeConnection createConnection(@NonNull final BlockNodeConfig nodeConfig, @Nullable final Long initialBlockToStream) {
+    private BlockNodeConnection createConnection(
+            @NonNull final BlockNodeConfig nodeConfig, @Nullable final Long initialBlockToStream) {
         requireNonNull(nodeConfig);
 
         // Create the connection object with a fresh gRPC client
@@ -902,7 +904,8 @@ public class BlockNodeConnectionManager {
          */
         private void logWithContext(final Level level, final String message, final Object... args) {
             if (logger.isEnabled(level)) {
-                final String msg = String.format("%s %s %s", LoggingUtilities.threadInfo(), connection.toString(), message);
+                final String msg =
+                        String.format("%s %s %s", LoggingUtilities.threadInfo(), connection.toString(), message);
                 logger.atLevel(level).log(msg, args);
             }
         }
