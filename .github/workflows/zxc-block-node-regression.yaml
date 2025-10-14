@@ -322,7 +322,7 @@ jobs:
           echo "FIRST_AVAILABLE_BLOCK=$FIRST_AVAILABLE_BLOCK" >> $GITHUB_ENV
           echo "LAST_AVAILABLE_BLOCK=$LAST_AVAILABLE_BLOCK" >> $GITHUB_ENV
 
-      # Start the TCK client
+      # Start the TCK client. Run a subset of the service tests expanding over time.
       - name: Start tck-client
         env:
           OPERATOR_ACCOUNT_ID: "0.0.2"
@@ -334,7 +334,7 @@ jobs:
         run: |
           solo ledger account create --dev --ed25519-private-key "${{ env.OPERATOR_ACCOUNT_PRIVATE_KEY }}" --deployment ${{ env.SOLO_DEPLOYMENT }} --hbar-amount 1000000
           cp .env.custom_node .env
-          npm run test
+          mocha --require ts-node/register --require tsconfig-paths/register --recursive 'src/tests/file-service/*.ts' 'src/tests/node-service/*.ts' --reporter mochawesome --exit
         working-directory: sdk-tck/regression # required
 
       - name: BN Based - SDK TCK Regression Test Report
