@@ -3,7 +3,6 @@ package com.hedera.services.bdd.suites.blocknode;
 
 import static com.hedera.services.bdd.junit.TestTags.BLOCK_NODE;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.DATA_CONFIG_DIR;
-import static com.hedera.services.bdd.junit.hedera.NodeSelector.allNodes;
 import static com.hedera.services.bdd.junit.hedera.NodeSelector.byNodeId;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.utilops.BlockNodeVerbs.blockNode;
@@ -35,6 +34,7 @@ import java.util.concurrent.locks.LockSupport;
 import java.util.stream.Stream;
 import org.hiero.block.api.PublishStreamResponse.EndOfStream.Code;
 import org.hiero.consensus.model.status.PlatformStatus;
+import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Order;
@@ -256,9 +256,7 @@ public class BlockNodeSuite {
             })
     @Order(1)
     final Stream<DynamicTest> node0StreamingHappyPath() {
-        return hapiTest(
-                waitUntilNextBlocks(20).withBackgroundTraffic(true),
-                assertHgcaaLogDoesNotContain(byNodeId(0), "ERROR", Duration.ofSeconds(5)));
+        return validateHappyPath(20);
     }
 
     @HapiTest
@@ -305,9 +303,7 @@ public class BlockNodeSuite {
             })
     @Order(2)
     final Stream<DynamicTest> allNodesStreamingHappyPath() {
-        return hapiTest(
-                waitUntilNextBlocks(10).withBackgroundTraffic(true),
-                assertHgcaaLogDoesNotContain(allNodes(), "ERROR", Duration.ofSeconds(5)));
+        return validateHappyPath(10);
     }
 
     @HapiTest
@@ -471,9 +467,7 @@ public class BlockNodeSuite {
             })
     @Order(5)
     final Stream<DynamicTest> twoNodesStreamingOneBlockNodeHappyPath() {
-        return hapiTest(
-                waitUntilNextBlocks(10).withBackgroundTraffic(true),
-                assertHgcaaLogDoesNotContain(allNodes(), "ERROR", Duration.ofSeconds(5)));
+        return validateHappyPath(10);
     }
 
     @HapiTest
@@ -903,5 +897,115 @@ public class BlockNodeSuite {
                                 "/localhost:%s/ACTIVE] Block node requested a ResendBlock for block 9223372036854775807 but that block does not exist on this consensus node. Closing connection and will retry later",
                                 portNumbers.getFirst()))),
                 assertHgcaaLogDoesNotContain(byNodeId(0), "ERROR", Duration.ofSeconds(5)));
+    }
+
+    @NotNull
+    private Stream<DynamicTest> validateHappyPath(int blocksToWait) {
+        return hapiTest(
+                waitUntilNextBlocks(blocksToWait).withBackgroundTraffic(true),
+
+                // General error assertions
+                assertHgcaaLogDoesNotContain(byNodeId(0), "ERROR", Duration.ofSeconds(5)),
+
+                // Block node connection error assertions
+                assertHgcaaLogDoesNotContain(byNodeId(0), "Error received", Duration.ofSeconds(0)),
+                assertHgcaaLogDoesNotContain(
+                        byNodeId(0), "Exception caught in block stream worker loop", Duration.ofSeconds(0)),
+                assertHgcaaLogDoesNotContain(
+                        byNodeId(0), "UncheckedIOException caught in block stream worker loop", Duration.ofSeconds(0)),
+                assertHgcaaLogDoesNotContain(
+                        byNodeId(0), "Failed to establish connection to block node", Duration.ofSeconds(0)),
+                assertHgcaaLogDoesNotContain(
+                        byNodeId(0), "Failed to schedule connection task for block node", Duration.ofSeconds(0)),
+                assertHgcaaLogDoesNotContain(
+                        byNodeId(0), "Failed to reschedule connection attempt", Duration.ofSeconds(0)),
+                assertHgcaaLogDoesNotContain(
+                        byNodeId(0),
+                        "Closing and rescheduling connection for reconnect attempt",
+                        Duration.ofSeconds(0)),
+                assertHgcaaLogDoesNotContain(
+                        byNodeId(0), "No available block nodes found for streaming", Duration.ofSeconds(0)),
+
+                // EndOfStream error assertions
+                assertHgcaaLogDoesNotContain(
+                        byNodeId(0), "Block node reported an error at block", Duration.ofSeconds(0)),
+                assertHgcaaLogDoesNotContain(
+                        byNodeId(0), "Block node reported an unknown error at block", Duration.ofSeconds(0)),
+                assertHgcaaLogDoesNotContain(
+                        byNodeId(0),
+                        "Block node has exceeded the allowed number of EndOfStream responses",
+                        Duration.ofSeconds(0)),
+                assertHgcaaLogDoesNotContain(
+                        byNodeId(0),
+                        "Block node reported status indicating immediate restart should be attempted",
+                        Duration.ofSeconds(0)),
+                assertHgcaaLogDoesNotContain(byNodeId(0), "Block node reported it is behind", Duration.ofSeconds(0)),
+                assertHgcaaLogDoesNotContain(
+                        byNodeId(0), "Block node is behind and block state is not available", Duration.ofSeconds(0)),
+                assertHgcaaLogDoesNotContain(byNodeId(0), "Received EndOfStream response", Duration.ofSeconds(0)),
+                assertHgcaaLogDoesNotContain(byNodeId(0), "Sending EndStream (code=", Duration.ofSeconds(0)),
+
+                // Connection state transition error assertions
+                assertHgcaaLogDoesNotContain(byNodeId(0), "Handling failed stream", Duration.ofSeconds(0)),
+                assertHgcaaLogDoesNotContain(byNodeId(0), "Failed to transition state from ", Duration.ofSeconds(0)),
+                assertHgcaaLogDoesNotContain(byNodeId(0), "Stream completed unexpectedly", Duration.ofSeconds(0)),
+                assertHgcaaLogDoesNotContain(
+                        byNodeId(0), "Error while completing request pipeline", Duration.ofSeconds(0)),
+                assertHgcaaLogDoesNotContain(
+                        byNodeId(0), "onNext invoked but connection is already closed", Duration.ofSeconds(0)),
+                assertHgcaaLogDoesNotContain(
+                        byNodeId(0),
+                        "Cannot run connection task, connection manager has shutdown.",
+                        Duration.ofSeconds(0)),
+                assertHgcaaLogDoesNotContain(
+                        byNodeId(0), "onComplete invoked but connection is already closed", Duration.ofSeconds(0)),
+                assertHgcaaLogDoesNotContain(
+                        byNodeId(0), "Error occurred while attempting to close connection", Duration.ofSeconds(0)),
+                assertHgcaaLogDoesNotContain(byNodeId(0), "Unexpected response received", Duration.ofSeconds(0)),
+                assertHgcaaLogDoesNotContain(
+                        byNodeId(0), "Failed to shutdown current active connection", Duration.ofSeconds(0)),
+
+                // Block buffer saturation and backpressure assertions
+                assertHgcaaLogDoesNotContain(
+                        byNodeId(0), "Block buffer is saturated; backpressure is being enabled", Duration.ofSeconds(0)),
+                assertHgcaaLogDoesNotContain(
+                        byNodeId(0),
+                        "!!! Block buffer is saturated; blocking thread until buffer is no longer saturated",
+                        Duration.ofSeconds(0)),
+                assertHgcaaLogDoesNotContain(
+                        byNodeId(0), "Block buffer still not available to accept new blocks", Duration.ofSeconds(0)),
+                assertHgcaaLogDoesNotContain(
+                        byNodeId(0),
+                        "Attempting to forcefully switch block node connections due to increasing block buffer saturation",
+                        Duration.ofSeconds(0)),
+                assertHgcaaLogDoesNotContain(
+                        byNodeId(0),
+                        "Buffer saturation is below or equal to the recovery threshold; back pressure will be disabled.",
+                        Duration.ofSeconds(0)),
+                assertHgcaaLogDoesNotContain(
+                        byNodeId(0),
+                        "Attempted to disable back pressure, but buffer saturation is not less than or equal to recovery threshold",
+                        Duration.ofSeconds(0)),
+
+                // Block processing error assertions
+                assertHgcaaLogDoesNotContain(byNodeId(0), " not found in buffer (latestBlock=", Duration.ofSeconds(0)),
+                assertHgcaaLogDoesNotContain(
+                        byNodeId(0), "Received SkipBlock response for block ", Duration.ofSeconds(0)),
+                assertHgcaaLogDoesNotContain(
+                        byNodeId(0), "Received ResendBlock response for block ", Duration.ofSeconds(0)),
+                assertHgcaaLogDoesNotContain(
+                        byNodeId(0),
+                        "that block does not exist on this consensus node. Closing connection and will retry later.",
+                        Duration.ofSeconds(0)),
+
+                // Configuration and setup error assertions
+                assertHgcaaLogDoesNotContain(byNodeId(0), "streaming is not enabled", Duration.ofSeconds(0)),
+                assertHgcaaLogDoesNotContain(
+                        byNodeId(0), "Failed to read block node configuration from", Duration.ofSeconds(0)),
+                assertHgcaaLogDoesNotContain(byNodeId(0), "Failed to resolve block node host", Duration.ofSeconds(0)),
+
+                // High latency assertions
+                assertHgcaaLogDoesNotContain(
+                        byNodeId(0), "Block node has exceeded high latency threshold", Duration.ofSeconds(0)));
     }
 }
