@@ -33,12 +33,12 @@ public class ContractCallTranslator implements BlockTransactionPartsTranslator {
                                 TransactionOutput.TransactionOneOfType.CONTRACT_CALL)
                         .map(TransactionOutput::contractCallOrThrow)
                         .ifPresent(callContractOutput -> {
-                            final var derivedBuilder =
-                                    resultBuilderFrom(callContractOutput.evmTransactionResultOrThrow());
+                            final var evmResult = callContractOutput.evmTransactionResultOrThrow();
+                            final var derivedBuilder = resultBuilderFrom(evmResult);
                             if (parts.status() == SUCCESS && (parts.isTopLevel() || parts.isInnerBatchTxn())) {
                                 mapTracesToVerboseLogs(derivedBuilder, parts.traces());
                                 baseTranslator.addCreatedIdsTo(derivedBuilder, remainingStateChanges);
-                                baseTranslator.addChangedContractNonces(derivedBuilder, remainingStateChanges);
+                                baseTranslator.addChangedContractNonces(derivedBuilder, evmResult.contractNonces());
                             }
                             final var result = derivedBuilder.build();
                             recordBuilder.contractCallResult(result);

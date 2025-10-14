@@ -94,7 +94,7 @@ public class EthereumTransactionTranslator implements BlockTransactionPartsTrans
                                                     baseTranslator.addCreatedIdsTo(
                                                             derivedBuilder, remainingStateChanges);
                                                     baseTranslator.addChangedContractNonces(
-                                                            derivedBuilder, remainingStateChanges);
+                                                            derivedBuilder, txCallResult.contractNonces());
                                                 }
                                                 if (!PRE_NONCE_ERROR_MESSAGE.equals(txCallResult.errorMessage())) {
                                                     if (parts.isBatchScoped() && finalEthTxData != null) {
@@ -146,7 +146,7 @@ public class EthereumTransactionTranslator implements BlockTransactionPartsTrans
                                                         baseTranslator.addCreatedIdsTo(
                                                                 derivedBuilder, remainingStateChanges);
                                                         baseTranslator.addChangedContractNonces(
-                                                                derivedBuilder, remainingStateChanges);
+                                                                derivedBuilder, txCreateResult.contractNonces());
                                                         Bytes initcode = null;
                                                         requireNonNull(finalEthTxData);
                                                         if (!ethTx.hasCallData()

@@ -107,10 +107,14 @@ public record HederaEvmTransactionResult(
      * {@link RootProxyWorldUpdater} and maybe {@link EthTxData}.
      *
      * @param ethTxData the Ethereum transaction data if relevant
+     * @param updater the world updater
      * @param callData the call data if relevant
      * @return the result
      */
-    public EvmTransactionResult asEvmTxResultOf(@Nullable final EthTxData ethTxData, @Nullable final Bytes callData) {
+    public EvmTransactionResult asEvmTxResultOf(
+            @Nullable final EthTxData ethTxData,
+            @NonNull final RootProxyWorldUpdater updater,
+            @Nullable final Bytes callData) {
         if (haltReason != null) {
             return txWithMaybeEthFields(
                     asUncommittedFailureResultBuilder(errorMessageFor(haltReason)), ethTxData, callData);
@@ -119,7 +123,7 @@ public record HederaEvmTransactionResult(
             return txWithMaybeEthFields(
                     asUncommittedFailureResultBuilder(errorMessageForRevert(revertReason)), ethTxData, callData);
         } else {
-            return txWithMaybeEthFields(asSuccessResultForCommittedBuilder(), ethTxData, callData);
+            return txWithMaybeEthFields(asSuccessResultForCommittedBuilder(updater), ethTxData, callData);
         }
     }
 
@@ -412,11 +416,13 @@ public record HederaEvmTransactionResult(
                 .signerNonce(signerNonce);
     }
 
-    private EvmTransactionResult.Builder asSuccessResultForCommittedBuilder() {
+    private EvmTransactionResult.Builder asSuccessResultForCommittedBuilder(
+            @NonNull final RootProxyWorldUpdater updater) {
         return EvmTransactionResult.newBuilder()
                 .gasUsed(gasUsed)
                 .resultData(output)
                 .contractId(recipientId)
+                .contractNonces(updater.getUpdatedContractNonces())
                 .errorMessage("");
     }
 

@@ -40,8 +40,7 @@ public class TokenUpdateTranslator implements BlockTransactionPartsTranslator {
                         if (parts.isInnerBatchTxn()) {
                             final var maybeTraceData = maybeAutoAssociateTraceData(tracesSoFar);
                             if (maybeTraceData != null) {
-                                recordBuilder.automaticTokenAssociations(
-                                        new TokenAssociation(targetId, maybeTraceData.automaticTokenAssociations()));
+                                recordBuilder.automaticTokenAssociations(parts.automaticTokenAssociations());
                             }
                             return;
                         }
