@@ -17,6 +17,7 @@ import com.hedera.hapi.node.file.FileUpdateTransactionBody;
 import com.hedera.hapi.node.state.file.File;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.node.app.blocks.impl.streaming.BlockNodeConnectionManager;
 import com.hedera.node.app.config.ConfigProviderImpl;
 import com.hedera.node.app.fees.ExchangeRateManager;
 import com.hedera.node.app.fees.FeeManager;
@@ -73,6 +74,9 @@ class SystemFileUpdatesTest implements TransactionFactory {
     @Mock
     private ThrottleServiceManager throttleServiceManager;
 
+    @Mock
+    private BlockNodeConnectionManager blockNodeConnectionManager;
+
     @BeforeEach
     void setUp() {
         files = new HashMap<>();
@@ -89,7 +93,8 @@ class SystemFileUpdatesTest implements TransactionFactory {
         SHARD = config.getConfigData(HederaConfig.class).shard();
         REALM = config.getConfigData(HederaConfig.class).realm();
         idFactory = new FakeEntityIdFactoryImpl(SHARD, REALM);
-        subject = new SystemFileUpdates(configProvider, exchangeRateManager, feeManager, throttleServiceManager);
+        subject = new SystemFileUpdates(
+                configProvider, exchangeRateManager, feeManager, throttleServiceManager, blockNodeConnectionManager);
     }
 
     @SuppressWarnings("ConstantConditions")
@@ -99,14 +104,17 @@ class SystemFileUpdatesTest implements TransactionFactory {
         final var txBody = simpleCryptoTransfer().body();
 
         // then
-        assertThatThrownBy(() -> new SystemFileUpdates(null, exchangeRateManager, feeManager, throttleServiceManager))
+        assertThatThrownBy(() -> new SystemFileUpdates(
+                        null, exchangeRateManager, feeManager, throttleServiceManager, blockNodeConnectionManager))
                 .isInstanceOf(NullPointerException.class);
-        assertThatThrownBy(() -> new SystemFileUpdates(configProvider, exchangeRateManager, feeManager, null))
+        assertThatThrownBy(() -> new SystemFileUpdates(
+                        configProvider, exchangeRateManager, feeManager, null, blockNodeConnectionManager))
                 .isInstanceOf(NullPointerException.class);
-        assertThatThrownBy(() -> new SystemFileUpdates(configProvider, null, feeManager, throttleServiceManager))
+        assertThatThrownBy(() -> new SystemFileUpdates(
+                        configProvider, null, feeManager, throttleServiceManager, blockNodeConnectionManager))
                 .isInstanceOf(NullPointerException.class);
-        assertThatThrownBy(
-                        () -> new SystemFileUpdates(configProvider, exchangeRateManager, null, throttleServiceManager))
+        assertThatThrownBy(() -> new SystemFileUpdates(
+                        configProvider, exchangeRateManager, null, throttleServiceManager, blockNodeConnectionManager))
                 .isInstanceOf(NullPointerException.class);
 
         assertThatThrownBy(() -> subject.handleTxBody(null, txBody)).isInstanceOf(NullPointerException.class);
