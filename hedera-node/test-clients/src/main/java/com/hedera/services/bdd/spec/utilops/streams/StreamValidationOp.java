@@ -15,6 +15,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitForFrozenNetwork;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.*;
 import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.joining;
 
@@ -99,7 +100,10 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
                 overriding("nodes.nodeRewardsEnabled", "false"),
                 // Ensure the CryptoTransfer below will be in a new block period
                 sleepFor(MAX_BLOCK_TIME_MS + BUFFER_MS),
-                cryptoTransfer((ignore, b) -> {}).payingWith(GENESIS),
+                cryptoTransfer((ignore, b) -> {})
+                        .payingWith(GENESIS)
+                        .hasRetryPrecheckFrom(PLATFORM_NOT_ACTIVE)
+                        .setRetryLimit(10),
                 // Wait for the final record file to be created
                 sleepFor(2 * BUFFER_MS));
         // Validate the record streams
