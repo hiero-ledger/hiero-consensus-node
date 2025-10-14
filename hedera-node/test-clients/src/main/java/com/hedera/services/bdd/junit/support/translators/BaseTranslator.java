@@ -919,7 +919,7 @@ public class BaseTranslator {
                             schedule.originalCreateTransactionOrThrow().transactionIDOrThrow());
                     scheduleRefs.put(scheduledTxnId, scheduleId);
                     scheduleTxnIds.put(scheduleId, scheduledTxnId);
-                } else if (key.hasAccountIdKey()) {
+                } else if (key.hasAccountIdKey() && mapUpdate.valueOrThrow().hasAccountValue()) {
                     final var num = key.accountIdKeyOrThrow().accountNumOrThrow();
                     if (num > highestKnownEntityNum) {
                         nextCreatedNums
@@ -977,7 +977,8 @@ public class BaseTranslator {
                 .filter(change -> change.stateId() == STATE_ID_ACCOUNTS.protoOrdinal())
                 .filter(StateChange::hasMapUpdate)
                 .map(StateChange::mapUpdateOrThrow)
-                .filter(change -> change.keyOrThrow().hasAccountIdKey())
+                .filter(change -> change.keyOrThrow().hasAccountIdKey()
+                        && change.valueOrThrow().hasAccountValue())
                 .filter(change -> change.valueOrThrow().accountValueOrThrow().smartContract())
                 .map(change -> change.valueOrThrow().accountValueOrThrow())
                 .filter(contract -> {
@@ -996,7 +997,8 @@ public class BaseTranslator {
                 .filter(change -> change.stateId() == STATE_ID_ACCOUNTS.protoOrdinal())
                 .filter(StateChange::hasMapUpdate)
                 .map(StateChange::mapUpdateOrThrow)
-                .filter(change -> change.keyOrThrow().hasAccountIdKey())
+                .filter(change -> change.keyOrThrow().hasAccountIdKey()
+                        && change.valueOrThrow().hasAccountValue())
                 .filter(change -> !change.valueOrThrow().accountValueOrThrow().smartContract())
                 .map(change -> change.valueOrThrow().accountValueOrThrow())
                 .filter(account -> account.accountIdOrThrow().equals(accountId))
