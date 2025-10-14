@@ -1,20 +1,25 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.test;
 
-import static com.swirlds.logging.legacy.LogMarker.METRICS;
-import static com.swirlds.logging.legacy.LogMarker.SOCKET_EXCEPTIONS;
-import static com.swirlds.logging.legacy.LogMarker.STATE_HASH;
+import static org.hiero.consensus.model.status.PlatformStatus.ACTIVE;
+import static org.hiero.consensus.model.status.PlatformStatus.CHECKING;
+import static org.hiero.consensus.model.status.PlatformStatus.OBSERVING;
+import static org.hiero.consensus.model.status.PlatformStatus.REPLAYING_EVENTS;
 import static org.hiero.otter.fixtures.OtterAssertions.assertThat;
+import static org.hiero.otter.fixtures.assertions.StatusProgressionStep.target;
 import static org.hiero.otter.fixtures.tools.GenerateStateTool.SEED;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
-import org.apache.logging.log4j.Level;
+import java.util.Map;
+import java.util.stream.Collectors;
+import org.hiero.consensus.model.node.NodeId;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.OtterSpecs;
 import org.hiero.otter.fixtures.OtterTest;
 import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.TimeManager;
+import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
 import org.hiero.otter.fixtures.turtle.TurtleSpecs;
 
 public class StartFromStateTest {
@@ -31,14 +36,27 @@ public class StartFromStateTest {
         network.savedStateDirectory("previous-version-state");
         network.start();
 
+        final Map<NodeId, Long> lastRoundByNodeAtStart = network.newConsensusResults().results().stream()
+                .collect(Collectors.toMap(SingleNodeConsensusResult::nodeId, SingleNodeConsensusResult::lastRoundNum));
+        final long highesRound = lastRoundByNodeAtStart.values().stream()
+                .mapToLong(Long::longValue)
+                .max()
+                .getAsLong();
+
         // Wait for two minutes
         timeManager.waitFor(Duration.ofMinutes(2L));
 
         // Validations
-        assertThat(network.newLogResults()
-                        .suppressingLogMarker(STATE_HASH)
-                        .suppressingLogMarker(SOCKET_EXCEPTIONS)
-                        .suppressingLogMarker(METRICS))
-                .haveNoMessagesWithLevelHigherThan(Level.INFO);
+        // Verify that all nodes made progress
+        network.newConsensusResults().results().stream().forEach(result -> assertThat(result.lastRoundNum())
+                .isGreaterThan(lastRoundByNodeAtStart.get(result.nodeId())));
+        assertThat(network.newConsensusResults())
+                .haveAdvancedSinceRound(highesRound)
+                .haveEqualCommonRounds();
+        assertThat(network.newLogResults()).haveNoErrorLevelMessages();
+        assertThat(network.newPlatformStatusResults())
+                .haveSteps(target(ACTIVE).requiringInterim(REPLAYING_EVENTS, OBSERVING, CHECKING));
+        assertThat(network.newMarkerFileResults()).haveNoMarkerFiles();
+        assertThat(network.newReconnectResults()).haveNoReconnects();
     }
 }
