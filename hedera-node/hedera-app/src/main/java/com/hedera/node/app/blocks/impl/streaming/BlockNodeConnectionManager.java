@@ -477,8 +477,8 @@ public class BlockNodeConnectionManager {
         logWithContext(
                 logger,
                 INFO,
-                "Apply exponential backoff and reschedule in {} ms (attempt={}).",
                 connection,
+                "Apply exponential backoff and reschedule in {} ms (attempt={}).",
                 delayMs,
                 retryAttempt);
 
@@ -1280,7 +1280,7 @@ public class BlockNodeConnectionManager {
             }
 
             try {
-                logWithContext(INFO, "Running connection task.");
+                logWithContext(DEBUG, "Running connection task.");
                 final BlockNodeConnection activeConnection = activeConnectionRef.get();
 
                 if (activeConnection != null) {
@@ -1348,7 +1348,7 @@ public class BlockNodeConnectionManager {
                     }
                 }
             } catch (final Exception e) {
-                logWithContext(INFO, "Failed to establish connection to block node. Will schedule a retry.");
+                logWithContext(DEBUG, "Failed to establish connection to block node. Will schedule a retry.");
                 blockStreamMetrics.recordConnectionCreateFailure();
                 reschedule();
             }
@@ -1395,11 +1395,7 @@ public class BlockNodeConnectionManager {
                     }
                 }
                 sharedExecutorService.schedule(this, jitteredDelayMs, TimeUnit.MILLISECONDS);
-                logWithContext(
-                        INFO,
-                        "Rescheduled connection attempt (delayMillis={}, backoff={}).",
-                        jitteredDelayMs,
-                        currentBackoffDelayMs);
+                logWithContext(INFO, "Rescheduled connection attempt (delayMillis={}).", jitteredDelayMs);
             } catch (final Exception e) {
                 logger.error("Failed to reschedule connection attempt. Removing from retry map.", e);
                 // If rescheduling fails, close the connection and remove it from the connection map. A periodic task
