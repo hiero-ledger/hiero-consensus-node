@@ -9,7 +9,6 @@ import static org.mockito.Mockito.mock;
 
 import com.google.common.collect.ImmutableSet;
 import com.hedera.hapi.node.state.roster.Roster;
-import com.swirlds.base.state.Startable;
 import com.swirlds.common.merkle.synchronization.config.ReconnectConfig_;
 import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.common.test.fixtures.Randotron;
@@ -45,7 +44,7 @@ class FallenBehindMonitorTest {
                 config,
                 new NoOpMetrics());
         monitor.bind(mock(StatusActionSubmitter.class));
-        monitor.bind(mock(Startable.class));
+        monitor.bind(mock(PlatformReconnecter.class));
     }
 
     @Test
@@ -188,7 +187,7 @@ class FallenBehindMonitorTest {
 
             this.fallenBehindMonitor = new FallenBehindMonitor(roster, configuration, new NoOpMetrics());
             fallenBehindMonitor.bind(mock(StatusActionSubmitter.class));
-            fallenBehindMonitor.bind(mock(Startable.class));
+            fallenBehindMonitor.bind(mock(PlatformReconnecter.class));
         }
     }
 

@@ -7,7 +7,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 
-import com.swirlds.base.state.Startable;
 import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.filesystem.FileSystemManager;
@@ -24,6 +23,7 @@ import com.swirlds.platform.gossip.NoOpIntakeEventCounter;
 import com.swirlds.platform.gossip.rpc.GossipRpcSender;
 import com.swirlds.platform.gossip.rpc.SyncData;
 import com.swirlds.platform.metrics.SyncMetrics;
+import com.swirlds.platform.reconnect.PlatformReconnecter;
 import com.swirlds.platform.system.status.StatusActionSubmitter;
 import com.swirlds.platform.system.status.actions.FallenBehindAction;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
@@ -86,7 +86,7 @@ class RpcShadowgraphSynchronizerTest {
         this.fallenBehindManager = new FallenBehindMonitor(
                 RandomRosterBuilder.create(new Random()).withSize(NUM_NODES).build(), configuration, new NoOpMetrics());
         fallenBehindManager.bind(statusSubmitter);
-        fallenBehindManager.bind(mock(Startable.class));
+        fallenBehindManager.bind(mock(PlatformReconnecter.class));
         this.eventHandler = mock(Consumer.class);
         this.gossipSender = mock(GossipRpcSender.class);
         this.lagReporter = mock(Consumer.class);

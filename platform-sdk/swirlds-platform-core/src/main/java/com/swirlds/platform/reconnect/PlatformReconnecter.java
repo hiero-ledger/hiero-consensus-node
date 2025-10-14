@@ -7,7 +7,6 @@ import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
-import com.swirlds.base.state.Startable;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.merkle.crypto.MerkleCryptography;
@@ -49,7 +48,7 @@ import org.hiero.consensus.roster.RosterRetriever;
  * PlatformReconnecter combined with the former ReconnectStateLoader.
  * This single class handles the reconnect loop and loading the received state.
  */
-public class PlatformReconnecter implements Startable {
+public class PlatformReconnecter {
 
     private static final Logger logger = LogManager.getLogger(PlatformReconnecter.class);
 
@@ -70,7 +69,7 @@ public class PlatformReconnecter implements Startable {
     private final SavedStateController savedStateController;
     private final ConsensusStateEventHandler<MerkleNodeState> consensusStateEventHandler;
 
-    private final ReservedSignedStatePromise reservedSignedStatePromise;
+    private final ReservedSignedStatePromise peerReservedSignedStatePromise;
     // throttle deps
     private final NodeId selfId;
     private final ReconnectConfig reconnectConfig;
@@ -92,13 +91,13 @@ public class PlatformReconnecter implements Startable {
             @NonNull final SwirldStateManager swirldStateManager,
             @NonNull final SavedStateController savedStateController,
             @NonNull final ConsensusStateEventHandler<MerkleNodeState> consensusStateEventHandler,
-            @NonNull final ReservedSignedStatePromise reservedSignedStatePromise,
+            @NonNull final ReservedSignedStatePromise peerReservedSignedStatePromise,
             @NonNull final NodeId selfId) {
         this.platformStateFacade = Objects.requireNonNull(platformStateFacade);
         this.threadManager = Objects.requireNonNull(threadManager);
         this.roster = Objects.requireNonNull(roster);
         this.platformCoordinator = Objects.requireNonNull(platformCoordinator);
-        this.reservedSignedStatePromise = Objects.requireNonNull(reservedSignedStatePromise);
+        this.peerReservedSignedStatePromise = Objects.requireNonNull(peerReservedSignedStatePromise);
         this.validator = new DefaultSignedStateValidator(platformContext, platformStateFacade);
         this.merkleCryptography = Objects.requireNonNull(merkleCryptography);
         this.reconnectConfig = platformContext.getConfiguration().getConfigData(ReconnectConfig.class);
@@ -141,9 +140,11 @@ public class PlatformReconnecter implements Startable {
     }
 
     /** Start the controller thread (idempotent). */
-    public void start() {
+    public void start(@NonNull final Runnable onSuccess, @NonNull final Runnable onEachFailure) {
         if (!threadRunning.tryAcquire()) {
-            logger.error(EXCEPTION.getMarker(), "Attempting to start reconnect controller while it's already running");
+            // logger.error(EXCEPTION.getMarker(), "Attempting to start reconnect controller while it's already
+            // running");
+            logger.info(RECONNECT.getMarker(), "Attempting to start reconnect controller while it's already running");
             return;
         }
         logger.info(LogMarker.RECONNECT.getMarker(), "Starting ReconnectController");
@@ -152,14 +153,16 @@ public class PlatformReconnecter implements Startable {
                 .setThreadName("reconnect-controller")
                 .setRunnable(() -> {
                     try {
-                        while (!executeReconnect()) {
+                        while (!doReconnect()) {
+                            failedReconnectsInARow++;
+                            killNodeIfThresholdMet();
                             logger.error(EXCEPTION.getMarker(), "Reconnect failed, retrying");
-                            Thread.sleep(platformContext
-                                    .getConfiguration()
-                                    .getConfigData(ReconnectConfig.class)
+                            Thread.sleep(reconnectConfig
                                     .minimumTimeBetweenReconnects()
                                     .toMillis());
                         }
+                        failedReconnectsInARow = 0;
+                        onSuccess.run();
                     } catch (final RuntimeException | InterruptedException e) {
                         logger.error(EXCEPTION.getMarker(), "Unexpected error occurred while reconnecting", e);
                         SystemExitUtils.exitSystem(SystemExitCode.RECONNECT_FAILURE);
@@ -171,45 +174,37 @@ public class PlatformReconnecter implements Startable {
     }
 
     /** One reconnect attempt; returns true on success. */
-    public boolean executeReconnect() throws InterruptedException {
+    public boolean doReconnect() throws InterruptedException {
         exitIfReconnectIsDisabled();
         final MerkleNodeState currentState = swirldStateManager.getConsensusState();
-        prepareForReconnect(currentState);
-
-        logger.info(RECONNECT.getMarker(), "waiting for reconnect connection");
-        try {
-            logger.info(RECONNECT.getMarker(), "acquired reconnect connection");
-            try (final ReservedSignedState reservedState = reservedSignedStatePromise.get()) {
-                validator.validate(
-                        reservedState.get(),
-                        roster,
-                        new SignedStateValidationData(currentState, roster, platformStateFacade));
-
-                SignedStateFileReader.registerServiceStates(reservedState.get());
-                successfulReconnect();
-
-                if (!loadReconnectState(reservedState.get())) {
-                    handleFailedReconnect();
-                    return false;
-                }
-            }
-        } catch (final RuntimeException e) {
-            handleFailedReconnect();
-            logger.info(RECONNECT.getMarker(), "receiving signed state failed", e);
-            return false;
-        }
-        platformCoordinator.resumeGossip();
-        return true;
-    }
-
-    /** Pre-reconnect housekeeping. */
-    public void prepareForReconnect(final MerkleNodeState currentState) {
         logger.info(RECONNECT.getMarker(), "Preparing for reconnect, stopping gossip");
         platformCoordinator.pauseGossip();
         logger.info(RECONNECT.getMarker(), "Preparing for reconnect, start clearing queues");
         platformCoordinator.clear();
         logger.info(RECONNECT.getMarker(), "Queues have been cleared");
         hashStateForReconnect(merkleCryptography, currentState);
+
+        logger.info(RECONNECT.getMarker(), "Waiting for a state to be obtained from a peer");
+        try {
+            logger.info(RECONNECT.getMarker(), "A state was obtained from a peer");
+            try (final ReservedSignedState reservedState = peerReservedSignedStatePromise.await()) {
+                validator.validate(
+                        reservedState.get(),
+                        roster,
+                        new SignedStateValidationData(currentState, roster, platformStateFacade));
+
+                SignedStateFileReader.registerServiceStates(reservedState.get());
+
+                if (!loadReconnectState(reservedState.get())) {
+                    return false;
+                }
+            }
+        } catch (final RuntimeException e) {
+            logger.info(RECONNECT.getMarker(), "Reconnect failed with the following exception", e);
+            return false;
+        }
+        platformCoordinator.resumeGossip();
+        return true;
     }
 
     /**
@@ -260,26 +255,6 @@ public class PlatformReconnecter implements Startable {
         }
     }
 
-    @NonNull
-    private Duration getTimeSinceStartup() {
-        return Duration.between(startupTime, time.now());
-    }
-
-    /**
-     * Notifies the throttle that a successful reconnect occurred
-     */
-    public void successfulReconnect() {
-        failedReconnectsInARow = 0;
-    }
-
-    /**
-     * Notifies the throttle that a reconnect failed
-     */
-    public void handleFailedReconnect() {
-        failedReconnectsInARow++;
-        killNodeIfThresholdMet();
-    }
-
     private void killNodeIfThresholdMet() {
         if (failedReconnectsInARow >= reconnectConfig.maximumReconnectFailuresBeforeShutdown()) {
             logger.error(EXCEPTION.getMarker(), "Too many reconnect failures in a row, killing node");
@@ -300,7 +275,7 @@ public class PlatformReconnecter implements Startable {
 
         if (reconnectConfig.reconnectWindowSeconds() >= 0
                 && reconnectConfig.reconnectWindowSeconds()
-                        < getTimeSinceStartup().toSeconds()) {
+                        < Duration.between(startupTime, time.now()).toSeconds()) {
             logger.warn(STARTUP.getMarker(), () -> new UnableToReconnectPayload(
                             "Node has fallen behind, reconnect is disabled outside of time window, will die",
                             selfId.id())
