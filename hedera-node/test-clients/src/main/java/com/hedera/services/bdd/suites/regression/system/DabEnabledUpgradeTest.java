@@ -213,12 +213,14 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
                                 .setRealmNum(0)
                                 .setAccountNum(0)
                                 .build()),
-                nodeUpdate("3").accountId("poorMe").payingWith(DEFAULT_PAYER).signedByPayerAnd("poorMe"),
-                // do fake upgrade to trigger candidate roster refresh
+                // trigger candidate roster refresh
                 prepareFakeUpgrade(),
-                // validate node2 and node4 are excluded from the candidate roster
-                validateCandidateRoster(exceptNodeIds(1L, 3L), addressBook -> assertThat(nodeIdsFrom(addressBook))
-                        .contains(1L, 3L)));
+                // validate node2 is excluded from the candidate roster
+                waitUntilStartOfNextStakingPeriod(1).withBackgroundTraffic(),
+                // node should be excluded from the candidate roster, but still in address book
+                validateCandidateRoster(
+                        NodeSelector.exceptNodeIds(1L),
+                        addressBook -> assertThat(nodeIdsFrom(addressBook)).containsExactlyInAnyOrder(0L, 1L, 2L, 3L)));
     }
 
     @HapiTest

@@ -242,9 +242,7 @@ public class SystemTransactions {
                                     .autoRenewPeriod(systemAutoRenewPeriod)
                                     // Fix for initial node account balances
                                     .initialBalance(
-                                            num == accountsConfig.treasury()
-                                                    ? ledgerConfig.totalTinyBarFloat()
-                                                    : 100_000_000L)
+                                            num == accountsConfig.treasury() ? ledgerConfig.totalTinyBarFloat() : 0L)
                                     .build())
                             .build(),
                     i);

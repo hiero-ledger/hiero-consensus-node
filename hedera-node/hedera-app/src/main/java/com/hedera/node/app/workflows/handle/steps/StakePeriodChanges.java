@@ -9,7 +9,6 @@ import static java.time.ZoneOffset.UTC;
 import static java.util.Objects.requireNonNull;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.node.app.blocks.BlockStreamManager;
@@ -32,7 +31,6 @@ import com.hedera.node.config.types.StreamMode;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.time.LocalDate;
-import java.util.Objects;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
@@ -190,17 +188,18 @@ public class StakePeriodChanges {
         final var entityCounters = new ReadableEntityIdStoreImpl(stack.getReadableStates(EntityIdService.NAME));
         final var nodeStore =
                 new ReadableNodeStoreImpl(stack.getReadableStates(AddressBookService.NAME), entityCounters);
-
         final var node = nodeStore.get(rosterEntry.nodeId());
-        return node != null
-                && node.hasAccountId()
-                && !Objects.equals(
-                        node.accountId(),
-                        AccountID.newBuilder()
-                                .shardNum(0)
-                                .realmNum(0)
-                                .accountNum(0)
-                                .build());
+
+        if (node == null) {
+            return false;
+        }
+        if (!node.hasAccountId()) {
+            return false;
+        }
+        final var accountId = node.accountId();
+        final var isSentinelAccount =
+                accountId.shardNum() == 0 && accountId.realmNum() == 0 && accountId.accountNum() == 0;
+        return !isSentinelAccount;
     }
 
     private boolean isStakingPeriodBoundary(
