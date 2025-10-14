@@ -375,7 +375,8 @@ public class HandleWorkflow {
                     && event.getEventCore().birthRound() <= platformStateStore.getLatestFreezeRound()) {
                 strategy = TransactionStrategy.TRANSACTION_ONLY;
                 if (streamMode != RECORDS) {
-                    // Include all transactions from the event in the block stream, BUT NO TRANSACTION RESULTS. We can't process transactions submitted prior to a freeze round without a potential ISS
+                    // Include all transactions from the event in the block stream, BUT NO TRANSACTION RESULTS. We can't
+                    // process transactions submitted prior to a freeze round without a potential ISS
                     final var iter = event.consensusTransactionIterator();
                     while (iter.hasNext()) {
                         final var currentTxn = iter.next();
@@ -568,7 +569,8 @@ public class HandleWorkflow {
             blockRecordManager.startUserTransaction(consensusNow, state);
         }
 
-		// Before executing the transaction, check if it's a state signature transaction. These don't need to be processed through the entire handle workflow, so write the transaction to the block stream and skip execution
+        // Before executing the transaction, check if it's a state signature transaction. These don't need to be
+        // processed through the entire handle workflow, so write the transaction to the block stream and skip execution
         if (streamMode != BLOCKS
                 && topLevelTxn.txnInfo().functionality() == HederaFunctionality.STATE_SIGNATURE_TRANSACTION) {
             final var blockItem = BlockItem.newBuilder()
