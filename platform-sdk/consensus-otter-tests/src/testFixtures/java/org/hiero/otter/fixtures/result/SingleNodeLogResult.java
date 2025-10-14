@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.result;
 
-import com.hedera.hapi.platform.state.NodeId;
 import com.swirlds.logging.legacy.LogMarker;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.logging.log4j.Marker;
+import org.hiero.consensus.model.node.NodeId;
 import org.hiero.otter.fixtures.logging.StructuredLog;
 
 /**
@@ -43,6 +43,24 @@ public interface SingleNodeLogResult extends OtterResult {
      */
     @NonNull
     SingleNodeLogResult suppressingLogMarker(@NonNull LogMarker marker);
+
+    /**
+     * Excludes the log results from the specified logger class from the current results.
+     *
+     * @param clazz the class whose log results are to be excluded
+     * @return a new {@code SingleNodeLogResult} instance with the specified log marker's results removed
+     */
+    @NonNull
+    SingleNodeLogResult suppressingLoggerName(@NonNull final Class<?> clazz);
+
+    /**
+     * Excludes the log results from the specified logger name from the current results.
+     *
+     * @param loggerName the name of the logger whose log results are to be excluded
+     * @return a new {@code SingleNodeLogResult} instance with the specified logger's results removed
+     */
+    @NonNull
+    SingleNodeLogResult suppressingLoggerName(@NonNull String loggerName);
 
     /**
      * Returns the set of unique markers present in the log entries for this node.

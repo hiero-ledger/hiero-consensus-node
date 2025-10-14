@@ -1,8 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
+import org.hiero.consensus.event.creator.EventCreatorModule;
+
 /**
  * The Swirlds public API module used by platform applications.
  */
 module com.swirlds.platform.core {
+    uses EventCreatorModule;
 
     /* Public Package Exports. This list should remain alphabetized. */
     exports com.swirlds.platform;
@@ -80,12 +83,6 @@ module com.swirlds.platform.core {
             com.swirlds.common,
             com.swirlds.platform.core.test.fixtures,
             com.hedera.node.test.clients;
-    exports com.swirlds.platform.proof to
-            com.swirlds.common,
-            org.hiero.base.utility;
-    exports com.swirlds.platform.proof.tree to
-            com.swirlds.common,
-            org.hiero.base.utility;
 
     opens com.swirlds.platform.cli to
             info.picocli;
@@ -123,7 +120,7 @@ module com.swirlds.platform.core {
     requires transitive org.hiero.base.concurrent;
     requires transitive org.hiero.base.crypto;
     requires transitive org.hiero.base.utility;
-    requires transitive org.hiero.consensus.event.creator.impl;
+    requires transitive org.hiero.consensus.event.creator;
     requires transitive org.hiero.consensus.gossip;
     requires transitive org.hiero.consensus.model;
     requires transitive org.hiero.consensus.utility;
@@ -133,7 +130,6 @@ module com.swirlds.platform.core {
     requires transitive org.apache.logging.log4j;
     requires com.swirlds.config.extensions;
     requires com.swirlds.logging;
-    requires com.swirlds.merkle;
     requires com.swirlds.merkledb;
     requires com.fasterxml.jackson.core;
     requires com.fasterxml.jackson.dataformat.yaml;

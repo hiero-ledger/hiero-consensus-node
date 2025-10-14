@@ -2,7 +2,7 @@
 package com.hedera.statevalidation.exporters;
 
 import static com.hedera.pbj.runtime.ProtoParserTools.TAG_FIELD_OFFSET;
-import static com.hedera.statevalidation.ExportCommand.MAX_OBJ_PER_FILE;
+import static com.hedera.statevalidation.SortedExportCommand.MAX_OBJ_PER_FILE;
 import static com.hedera.statevalidation.exporters.JsonExporter.write;
 
 import com.hedera.hapi.platform.state.SingletonType;
@@ -13,9 +13,9 @@ import com.hedera.pbj.runtime.OneOf;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.hedera.statevalidation.StateIds;
 import com.swirlds.base.utility.Pair;
-import com.swirlds.platform.state.MerkleNodeState;
-import com.swirlds.state.merkle.StateUtils;
+import com.swirlds.state.MerkleNodeState;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.internal.merkle.VirtualMapMetadata;
@@ -69,9 +69,9 @@ public class SortedJsonExporter {
         keysByExpectedStateIds = new HashMap<>();
         nameByStateId = new HashMap<>();
         serviceNameStateKeyList.forEach(p -> {
-            int stateId = StateUtils.stateIdFor(p.left(), p.right());
+            int stateId = StateIds.stateIdFor(p.left(), p.right());
             final Comparator<Pair<Long, Bytes>> comparator;
-            if (stateId < StateKey.KeyOneOfType.RECORDCACHE_I_TRANSACTIONRECEIPTQUEUE.protoOrdinal()) {
+            if (stateId < StateKey.KeyOneOfType.RECORDCACHE_I_TRANSACTION_RECEIPTS.protoOrdinal()) {
                 comparator = (key1, key2) -> {
                     ReadableSequentialData keyData1 = key1.right().toReadableSequentialData();
                     keyData1.readVarInt(false); // read tag

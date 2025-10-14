@@ -1,8 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.ids.schemas;
 
+import static com.hedera.hapi.util.HapiUtils.SEMANTIC_VERSION_COMPARATOR;
+import static com.swirlds.state.lifecycle.StateMetadata.computeLabel;
+
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.common.EntityNumber;
+import com.hedera.hapi.platform.state.SingletonType;
+import com.hedera.node.app.ids.EntityIdService;
 import com.hedera.node.config.data.HederaConfig;
 import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.lifecycle.Schema;
@@ -13,7 +18,8 @@ import java.util.Set;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-public class V0490EntityIdSchema extends Schema {
+public class V0490EntityIdSchema extends Schema<SemanticVersion> {
+
     private static final Logger log = LogManager.getLogger(V0490EntityIdSchema.class);
 
     /**
@@ -22,10 +28,12 @@ public class V0490EntityIdSchema extends Schema {
     private static final SemanticVersion VERSION =
             SemanticVersion.newBuilder().major(0).minor(49).patch(0).build();
 
-    public static final String ENTITY_ID_STATE_KEY = "ENTITY_ID";
+    public static final String ENTITY_ID_KEY = "ENTITY_ID";
+    public static final int ENTITY_ID_STATE_ID = SingletonType.ENTITYIDSERVICE_I_ENTITY_ID.protoOrdinal();
+    public static final String ENTITY_ID_STATE_LABEL = computeLabel(EntityIdService.NAME, ENTITY_ID_KEY);
 
     public V0490EntityIdSchema() {
-        super(VERSION);
+        super(VERSION, SEMANTIC_VERSION_COMPARATOR);
     }
 
     /**
@@ -38,7 +46,7 @@ public class V0490EntityIdSchema extends Schema {
     @NonNull
     @Override
     public Set<StateDefinition> statesToCreate() {
-        return Set.of(StateDefinition.singleton(ENTITY_ID_STATE_KEY, EntityNumber.PROTOBUF));
+        return Set.of(StateDefinition.singleton(ENTITY_ID_STATE_ID, ENTITY_ID_KEY, EntityNumber.PROTOBUF));
     }
 
     /**
@@ -51,7 +59,7 @@ public class V0490EntityIdSchema extends Schema {
      */
     @Override
     public void migrate(@NonNull MigrationContext ctx) {
-        final var entityIdState = ctx.newStates().getSingleton(ENTITY_ID_STATE_KEY);
+        final var entityIdState = ctx.newStates().getSingleton(ENTITY_ID_STATE_ID);
         if (entityIdState.get() == null) {
             final var config = ctx.appConfig().getConfigData(HederaConfig.class);
             final var entityNum = config.firstUserEntity() - 1;

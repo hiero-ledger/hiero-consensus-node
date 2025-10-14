@@ -34,7 +34,7 @@ import java.time.Duration;
  * @param signedStateSentinel                  configuration for the signed state sentinel scheduler
  * @param signedStateSentinelHeartbeatPeriod   the frequency that heartbeats should be sent to the signed state
  *                                             sentinel
- * @param statusStateMachine                   configuration for the status state machine scheduler
+ * @param platformMonitor                      configuration for the platform monitor scheduler
  * @param transactionPool                      configuration for the transaction pool scheduler
  * @param gossip                               configuration for the gossip scheduler
  * @param eventHasher                          configuration for the event hasher scheduler
@@ -97,7 +97,7 @@ public record PlatformSchedulersConfig(
         @ConfigProperty(defaultValue = "SEQUENTIAL CAPACITY(5) FLUSHABLE UNHANDLED_TASK_METRIC")
                 TaskSchedulerConfiguration roundDurabilityBuffer,
         @ConfigProperty(defaultValue = "SEQUENTIAL CAPACITY(500) FLUSHABLE UNHANDLED_TASK_METRIC")
-                TaskSchedulerConfiguration statusStateMachine,
+                TaskSchedulerConfiguration platformMonitor,
         @ConfigProperty(defaultValue = "DIRECT_THREADSAFE") TaskSchedulerConfiguration transactionPool,
         @ConfigProperty(defaultValue = "SEQUENTIAL CAPACITY(500) FLUSHABLE UNHANDLED_TASK_METRIC")
                 TaskSchedulerConfiguration gossip,

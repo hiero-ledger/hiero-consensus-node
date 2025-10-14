@@ -9,7 +9,6 @@ import static org.hiero.otter.fixtures.container.utils.ContainerConstants.getJav
 import static org.hiero.otter.fixtures.container.utils.ContainerConstants.getNodeCommunicationDebugPort;
 
 import com.google.protobuf.Empty;
-import com.hedera.hapi.platform.state.NodeId;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import io.grpc.stub.StreamObserver;
 import java.io.IOException;
@@ -24,8 +23,8 @@ import java.time.Instant;
 import java.util.concurrent.TimeUnit;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.otter.docker.app.platform.NodeCommunicationService;
-import org.hiero.otter.fixtures.ProtobufConverter;
 import org.hiero.otter.fixtures.container.proto.ContainerControlServiceGrpc;
 import org.hiero.otter.fixtures.container.proto.InitRequest;
 import org.hiero.otter.fixtures.container.proto.KillImmediatelyRequest;
@@ -43,10 +42,10 @@ public final class DockerManager extends ContainerControlServiceGrpc.ContainerCo
     private static final Logger log = LogManager.getLogger(DockerManager.class);
 
     /** The string location of the docker application jar */
-    private static final String DOCKER_APP_JAR = CONTAINER_APP_WORKING_DIR + "/apps/DockerApp.jar";
+    private static final String DOCKER_APP_JAR = CONTAINER_APP_WORKING_DIR + "apps/DockerApp.jar";
 
     /** The string location of the docker application libraries */
-    private static final String DOCKER_APP_LIBS = CONTAINER_APP_WORKING_DIR + "/lib/*";
+    private static final String DOCKER_APP_LIBS = CONTAINER_APP_WORKING_DIR + "lib/*";
 
     /**
      * The main class in the docker application jar that starts the
@@ -80,7 +79,7 @@ public final class DockerManager extends ContainerControlServiceGrpc.ContainerCo
     public synchronized void init(
             @NonNull final InitRequest request, @NonNull final StreamObserver<Empty> responseObserver) {
         log.info("Init request received");
-        final NodeId requestSelfId = ProtobufConverter.toPbj(request.getSelfId());
+        final NodeId requestSelfId = NodeId.of(request.getSelfId().getId());
         if (attemptingToChangeSelfId(requestSelfId)) {
             log.error(
                     "Node ID cannot be changed after initialization. Current ID: {}, requested ID: {}",

@@ -3,6 +3,7 @@ package com.swirlds.demo.platform;
 
 import static com.swirlds.base.units.UnitConstants.MICROSECONDS_TO_NANOSECONDS;
 import static com.swirlds.base.units.UnitConstants.NANOSECONDS_TO_MICROSECONDS;
+import static com.swirlds.demo.platform.PlatformTestingToolMain.CONFIGURATION;
 import static com.swirlds.demo.platform.fs.stresstest.proto.TestTransaction.BodyCase.FCMTRANSACTION;
 import static com.swirlds.demo.platform.fs.stresstest.proto.TestTransaction.BodyCase.STATESIGNATURETRANSACTION;
 import static com.swirlds.logging.legacy.LogMarker.DEMO_INFO;
@@ -1153,7 +1154,7 @@ public class PlatformTestingToolConsensusStateEventHandler
             genesisInit(state);
         }
         state.invalidateHash();
-        TestingAppStateInitializer.DEFAULT.initStates(state);
+        TestingAppStateInitializer.initConsensusModuleStates(state, CONFIGURATION);
 
         // compute hash
         try {

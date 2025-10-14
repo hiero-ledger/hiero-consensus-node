@@ -9,6 +9,7 @@ import static com.swirlds.virtualmap.constructable.ConstructableUtils.registerVi
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.SemanticVersion;
+import com.hedera.hapi.util.HapiUtils;
 import com.swirlds.common.utility.CommonUtils;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
@@ -35,16 +36,14 @@ import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.swirldapp.AppLoaderException;
 import com.swirlds.platform.swirldapp.SwirldAppLoader;
 import com.swirlds.platform.system.SwirldMain;
+import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.State;
-import com.swirlds.state.lifecycle.HapiUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.awt.Dimension;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
-import java.lang.reflect.Constructor;
-import java.lang.reflect.InvocationTargetException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -175,37 +174,6 @@ public final class BootstrapUtils {
     }
 
     /**
-     * Load the SwirldMain for the app.
-     *
-     * @param appMainName the name of the app main class
-     */
-    public static @NonNull SwirldMain loadAppMain(@NonNull final String appMainName) {
-        requireNonNull(appMainName);
-        try {
-            final Class<?> mainClass = Class.forName(appMainName);
-            final Constructor<?>[] constructors = mainClass.getDeclaredConstructors();
-            Constructor<?> constructor = null;
-            for (final Constructor<?> c : constructors) {
-                if (c.getGenericParameterTypes().length == 0) {
-                    constructor = c;
-                    break;
-                }
-            }
-
-            if (constructor == null) {
-                throw new RuntimeException("Class " + appMainName + " does not have a zero arg constructor.");
-            }
-
-            return (SwirldMain) constructor.newInstance();
-        } catch (final ClassNotFoundException
-                | InstantiationException
-                | IllegalAccessException
-                | InvocationTargetException e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    /**
      * Detect if there is a software upgrade. This method will throw an IllegalStateException if the loaded signed state
      * software version is greater than the current application software version.
      *
@@ -282,7 +250,7 @@ public final class BootstrapUtils {
      * @param appLoader     an object capable of loading the app
      * @return the new app main
      */
-    public static @NonNull SwirldMain buildAppMain(
+    public static @NonNull SwirldMain<? extends MerkleNodeState> buildAppMain(
             @NonNull final ApplicationDefinition appDefinition, @NonNull final SwirldAppLoader appLoader) {
         requireNonNull(appDefinition);
         requireNonNull(appLoader);
@@ -389,6 +357,7 @@ public final class BootstrapUtils {
      * @return a map from nodeIds to {@link SwirldMain} instances
      */
     @NonNull
+    @SuppressWarnings("rawtypes")
     public static Map<NodeId, SwirldMain> loadSwirldMains(
             @NonNull final ApplicationDefinition appDefinition, @NonNull final Collection<NodeId> nodesToRun) {
         requireNonNull(appDefinition, "appDefinition must not be null");
@@ -421,6 +390,23 @@ public final class BootstrapUtils {
             return appMains;
         } catch (final Exception ex) {
             throw new RuntimeException("Error loading SwirldMains", ex);
+        }
+    }
+
+    /**
+     * Build the app main.
+     *
+     * @param appDefinition the app definition
+     * @return the new app main
+     */
+    public static SwirldMain<? extends MerkleNodeState> getSwirldMain(final ApplicationDefinition appDefinition) {
+        try {
+            final var appLoader =
+                    SwirldAppLoader.loadSwirldApp(appDefinition.getMainClassName(), appDefinition.getAppJarPath());
+            ConstructableRegistry.getInstance().registerConstructables("", appLoader.getClassLoader());
+            return appLoader.instantiateSwirldMain();
+        } catch (final Exception e) {
+            throw new RuntimeException(e);
         }
     }
 }

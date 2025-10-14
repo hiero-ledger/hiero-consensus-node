@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.fees;
 
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.atomicBatch;
@@ -29,7 +30,6 @@ import com.hedera.services.bdd.spec.dsl.annotations.Account;
 import com.hedera.services.bdd.spec.dsl.annotations.Contract;
 import com.hedera.services.bdd.spec.dsl.entities.SpecAccount;
 import com.hedera.services.bdd.spec.dsl.entities.SpecContract;
-import java.util.Map;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -42,7 +42,7 @@ import org.junit.jupiter.api.Tag;
 @HapiTestLifecycle
 @OrderedInIsolation
 @Tag(SMART_CONTRACT)
-public class AtomicSmartContractServiceFeesTest {
+class AtomicSmartContractServiceFeesTest {
 
     private static final String ATOMIC_BATCH = "atomicBatch";
     private static final String BATCH_OPERATOR = "batchOperator";
@@ -59,7 +59,6 @@ public class AtomicSmartContractServiceFeesTest {
     @BeforeAll
     public static void setup(final TestLifecycle lifecycle) {
         lifecycle.doAdhoc(contract.getInfo(), civilian.getInfo(), relayer.getInfo());
-        lifecycle.overrideInClass(Map.of("atomicBatch.isEnabled", "true", "atomicBatch.maxNumberOfTransactions", "50"));
     }
 
     @HapiTest
@@ -77,12 +76,13 @@ public class AtomicSmartContractServiceFeesTest {
                                 .batchKey(BATCH_OPERATOR))
                         .via(ATOMIC_BATCH)
                         .signedByPayerAnd(BATCH_OPERATOR),
-                validateInnerTxnChargedUsd(creation, ATOMIC_BATCH, 0.73, 5));
+                validateInnerTxnChargedUsd(creation, ATOMIC_BATCH, 0.72, 5));
     }
 
     @HapiTest
     @DisplayName("Call a smart contract and assure proper fee charged")
     @Order(1)
+    @Tag(MATS)
     final Stream<DynamicTest> contractCallBaseUSDFee() {
         final var contract = "contractCall";
         return hapiTest(
@@ -94,12 +94,13 @@ public class AtomicSmartContractServiceFeesTest {
                         .via(ATOMIC_BATCH)
                         .signedByPayerAnd(BATCH_OPERATOR)
                         .payingWith(BATCH_OPERATOR),
-                validateInnerTxnChargedUsd(contract, ATOMIC_BATCH, 0.0068, 1));
+                validateInnerTxnChargedUsd(contract, ATOMIC_BATCH, 0.00184, 1));
     }
 
     @LeakyHapiTest(overrides = "contracts.evm.ethTransaction.zeroHapiFees.enabled")
     @DisplayName("Do an ethereum transaction and assure proper fee charged")
     @Order(2)
+    @Tag(MATS)
     final Stream<DynamicTest> ethereumTransactionBaseUSDFee(
             @Account(tinybarBalance = ONE_HUNDRED_HBARS) final SpecAccount receiver) {
         final var ethCall = "ethCall";
@@ -121,6 +122,6 @@ public class AtomicSmartContractServiceFeesTest {
                         .signedByPayerAnd(BATCH_OPERATOR)
                         .payingWith(BATCH_OPERATOR),
                 // Estimated base fee for EthereumCall is 0.0001 USD and is paid by the relayer account
-                validateInnerTxnChargedUsd(ethCall, ATOMIC_BATCH, 0.0069, 1));
+                validateInnerTxnChargedUsd(ethCall, ATOMIC_BATCH, 0.00194, 1));
     }
 }

@@ -11,6 +11,7 @@ import java.time.Duration;
 import java.util.Collection;
 import java.util.List;
 import java.util.Set;
+import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.otter.fixtures.internal.helpers.Utils;
 import org.hiero.otter.fixtures.network.Partition;
@@ -96,16 +97,25 @@ public interface Network {
     }
 
     /**
-     * Sets the weight generator for the network. The weight generator is used to assign weights to nodes.
+     * Sets the weight generator for the network. The weight generator is used to assign weights to nodes if no nodes in
+     * the network have their weight set explicitly via {@link Node#weight(long)}.
      *
      * <p>If no weight generator is set, the default {@link WeightGenerators#GAUSSIAN} is used.
      *
-     * <p>Note that the weight generator can only be set before any nodes are added to the network.
+     * <p>Note that the weight generator can only be set before the network is started.
      *
      * @param weightGenerator the weight generator to use
      * @throws IllegalStateException if nodes have already been added to the network
      */
-    void setWeightGenerator(@NonNull WeightGenerator weightGenerator);
+    void weightGenerator(@NonNull WeightGenerator weightGenerator);
+
+    /**
+     * Sets the weight of each node in the network to the specified value. Calling this method results in balanced
+     * weight distribution.
+     *
+     * @param weight the weight to assign to each node. Must be positive.
+     */
+    void nodeWeight(long weight);
 
     /**
      * Gets the total weight of the network. Always positive.
@@ -127,6 +137,15 @@ public interface Network {
     void start();
 
     /**
+     * Sets the quiescence command of the network.
+     *
+     * <p>The default command is {@link QuiescenceCommand#DONT_QUIESCE}.
+     *
+     * @param command the new quiescence command
+     */
+    void sendQuiescenceCommand(@NonNull QuiescenceCommand command);
+
+    /**
      * Creates a network partition containing the specified nodes. Nodes within the partition remain connected to each
      * other, but are disconnected from all nodes outside the partition.
      *
@@ -140,7 +159,7 @@ public interface Network {
      * @throws IllegalArgumentException if {@code nodes} is empty or contains all nodes in the network
      */
     @NonNull
-    Partition createPartition(@NonNull Collection<Node> nodes);
+    Partition createNetworkPartition(@NonNull Collection<Node> nodes);
 
     /**
      * Creates a network partition containing the specified nodes. Nodes within the partition remain connected to each
@@ -155,8 +174,8 @@ public interface Network {
      * @throws IllegalArgumentException if {@code nodes} is empty or contains all nodes in the network
      */
     @NonNull
-    default Partition createPartition(@NonNull final Node node0, @NonNull final Node... nodes) {
-        return createPartition(Utils.collect(node0, nodes));
+    default Partition createNetworkPartition(@NonNull final Node node0, @NonNull final Node... nodes) {
+        return createNetworkPartition(Utils.collect(node0, nodes));
     }
 
     /**
@@ -173,7 +192,7 @@ public interface Network {
      * @return set of all active partitions
      */
     @NonNull
-    Set<Partition> partitions();
+    Set<Partition> networkPartitions();
 
     /**
      * Gets the partition containing the specified node.
@@ -182,7 +201,7 @@ public interface Network {
      * @return the partition containing the node, or {@code null} if not in any partition
      */
     @Nullable
-    Partition getPartitionContaining(@NonNull Node node);
+    Partition getNetworkPartitionContaining(@NonNull Node node);
 
     /**
      * Isolates a node from the network. Disconnects all connections to and from this node.
@@ -278,6 +297,11 @@ public interface Network {
      * {@code FREEZE_COMPLETE} state. The default can be overridden by calling {@link #withTimeout(Duration)}.
      */
     void freeze();
+
+    /**
+     * Triggers a catastrophic ISS. All nodes in the network will calculate different hashes for an upcoming round.
+     */
+    void triggerCatastrophicIss();
 
     /**
      * Shuts down the network. The nodes are killed immediately. No attempt is made to finish any outstanding tasks or

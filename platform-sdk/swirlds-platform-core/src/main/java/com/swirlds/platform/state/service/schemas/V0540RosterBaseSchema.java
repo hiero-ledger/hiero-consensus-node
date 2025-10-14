@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state.service.schemas;
 
+import static com.hedera.hapi.util.HapiUtils.SEMANTIC_VERSION_COMPARATOR;
+
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.hapi.node.state.roster.Roster;
@@ -12,13 +14,12 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Set;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.roster.RosterStateId;
 
 /**
  * Roster Schema
  */
-public class V0540RosterBaseSchema extends Schema {
-    public static final String ROSTER_KEY = "ROSTERS";
-    public static final String ROSTER_STATES_KEY = "ROSTER_STATE";
+public class V0540RosterBaseSchema extends Schema<SemanticVersion> {
 
     private static final Logger log = LogManager.getLogger(V0540RosterBaseSchema.class);
     /**
@@ -36,20 +37,26 @@ public class V0540RosterBaseSchema extends Schema {
      * Create a new instance
      */
     public V0540RosterBaseSchema() {
-        super(VERSION);
+        super(VERSION, SEMANTIC_VERSION_COMPARATOR);
     }
 
     @NonNull
     @Override
     public Set<StateDefinition> statesToCreate() {
         return Set.of(
-                StateDefinition.singleton(ROSTER_STATES_KEY, RosterState.PROTOBUF),
-                StateDefinition.onDisk(ROSTER_KEY, ProtoBytes.PROTOBUF, Roster.PROTOBUF, MAX_ROSTERS));
+                StateDefinition.singleton(
+                        RosterStateId.ROSTER_STATE_STATE_ID, RosterStateId.ROSTER_STATE_KEY, RosterState.PROTOBUF),
+                StateDefinition.onDisk(
+                        RosterStateId.ROSTERS_STATE_ID,
+                        RosterStateId.ROSTERS_KEY,
+                        ProtoBytes.PROTOBUF,
+                        Roster.PROTOBUF,
+                        MAX_ROSTERS));
     }
 
     @Override
     public void migrate(@NonNull final MigrationContext ctx) {
-        final var rosterState = ctx.newStates().getSingleton(ROSTER_STATES_KEY);
+        final var rosterState = ctx.newStates().getSingleton(RosterStateId.ROSTER_STATE_STATE_ID);
         // On genesis, create a default roster state from the genesis network info
         if (rosterState.get() == null) {
             log.info("Creating default roster state");

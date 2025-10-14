@@ -863,8 +863,8 @@ jobs:
           echo "create-release=${CREATE_RELEASE}" >> "${GITHUB_OUTPUT}"
 
       - name: Create github release
-        if: ${{ steps.set-gh-release-flag.outputs.create-release == 'true' }}
-        uses: ncipollo/release-action@bcfe5470707e8832e12347755757cec0eb3c22af # v1.18.0
+        if: ${{ steps.set-gh-release-flags.outputs.create-release == 'true' }}
+        uses: step-security/release-action@03a57407052f15d1537fd5469a6fbbc536aba326 # v1.20.0
         with:
           tag: ${{ inputs.ref-name }}
           prerelease: false

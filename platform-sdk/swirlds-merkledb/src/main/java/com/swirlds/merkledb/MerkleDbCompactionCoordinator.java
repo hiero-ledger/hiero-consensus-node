@@ -143,9 +143,13 @@ class MerkleDbCompactionCoordinator {
      * @param timeoutMillis - maximum timeout to wait for compaction tasks to complete (0 for indefinite wait).
      */
     synchronized void awaitForCurrentCompactionsToComplete(long timeoutMillis) {
+        final long deadline = timeoutMillis > 0 ? System.currentTimeMillis() + timeoutMillis : Long.MAX_VALUE;
         while (!compactorsByName.isEmpty()) {
+            final long remaining = deadline - System.currentTimeMillis();
+            if (remaining <= 0) break;
+
             try {
-                wait(timeoutMillis);
+                wait(remaining);
             } catch (InterruptedException e) {
                 logger.warn(MERKLE_DB.getMarker(), "Interrupted while waiting for compaction tasks to complete", e);
                 Thread.currentThread().interrupt(); // Restore the interrupted status

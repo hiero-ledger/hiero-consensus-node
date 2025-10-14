@@ -14,12 +14,12 @@ import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.service.PlatformStateService;
 import com.swirlds.platform.system.address.AddressBookUtils;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import com.swirlds.platform.test.fixtures.crypto.PreGeneratedX509Certs;
 import com.swirlds.platform.test.fixtures.roster.RosterServiceStateMock;
+import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.spi.ReadableStates;
 import java.security.cert.CertificateEncodingException;
 import java.util.List;
@@ -32,6 +32,7 @@ import org.hiero.consensus.model.roster.AddressBook;
 import org.junit.jupiter.api.Test;
 
 public class RosterUtilsTest {
+
     @Test
     void testHash() {
         final Hash hash = RosterUtils.hash(Roster.DEFAULT);
@@ -198,7 +199,7 @@ public class RosterUtilsTest {
     @Test
     void testCreateRosterHistoryNoActiveRosters() {
         final MerkleNodeState state = mock(MerkleNodeState.class);
-        when(state.getReadableStates(RosterStateId.NAME)).thenReturn(null);
+        when(state.getReadableStates(RosterStateId.SERVICE_NAME)).thenReturn(null);
 
         assertThrows(NullPointerException.class, () -> RosterUtils.createRosterHistory(state));
     }
