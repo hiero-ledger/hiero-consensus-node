@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app;
 
-import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_BLOCK_STREAM_INFO;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.DUPLICATE_TRANSACTION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.NOT_SUPPORTED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.PLATFORM_NOT_ACTIVE;
@@ -9,8 +8,6 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.UNKNOWN;
 import static com.hedera.hapi.util.HapiUtils.SEMANTIC_VERSION_COMPARATOR;
 import static com.hedera.hapi.util.HapiUtils.functionOf;
 import static com.hedera.node.app.blocks.BlockStreamManager.ZERO_BLOCK_HASH;
-import static com.hedera.node.app.blocks.schemas.V0560BlockStreamSchema.BLOCK_STREAM_INFO_STATE_ID;
-import static com.hedera.node.app.records.impl.BlockRecordInfoUtils.blockHashByBlockNumber;
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCKS_STATE_ID;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.nodeSignedTxWith;
 import static com.hedera.node.app.util.HederaAsciiArt.HEDERA;
@@ -26,8 +23,6 @@ import static java.util.concurrent.CompletableFuture.completedFuture;
 import static org.hiero.consensus.model.status.PlatformStatus.ACTIVE;
 import static org.hiero.consensus.model.status.PlatformStatus.STARTING_UP;
 
-import com.hedera.hapi.block.stream.output.SingletonUpdateChange;
-import com.hedera.hapi.block.stream.output.StateChange;
 import com.hedera.hapi.block.stream.output.StateChanges;
 import com.hedera.hapi.node.base.Duration;
 import com.hedera.hapi.node.base.HederaFunctionality;
@@ -36,7 +31,6 @@ import com.hedera.hapi.node.base.SignatureMap;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
-import com.hedera.hapi.node.state.blockstream.BlockStreamInfo;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.ThrottleDefinitions;
@@ -52,7 +46,6 @@ import com.hedera.node.app.blocks.InitialStateHash;
 import com.hedera.node.app.blocks.impl.BlockStreamManagerImpl;
 import com.hedera.node.app.blocks.impl.BoundaryStateChangeListener;
 import com.hedera.node.app.blocks.impl.ImmediateStateChangeListener;
-import com.hedera.node.app.blocks.impl.IncrementalStreamingHasher;
 import com.hedera.node.app.config.BootstrapConfigProviderImpl;
 import com.hedera.node.app.config.ConfigProviderImpl;
 import com.hedera.node.app.fees.FeeService;
@@ -1242,119 +1235,12 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
         notifications.register(AsyncFatalIssListener.class, daggerApp.fatalIssListener());
         if (blockStreamEnabled) {
             notifications.register(StateHashedListener.class, daggerApp.blockStreamManager());
-            daggerApp
-                    .blockStreamManager()
-                    .initLastBlockHash(
-                            switch (trigger) {
-                                case GENESIS -> ZERO_BLOCK_HASH;
-                                default ->
-                                    blockStreamService
-                                            .migratedLastBlockHash()
-                                            .orElseGet(() -> startBlockHashFrom(state));
-                            });
+            final var lastBlockHash = (trigger == GENESIS)
+                    ? ZERO_BLOCK_HASH
+                    : blockStreamService.migratedLastBlockHash().orElse(null);
+            daggerApp.blockStreamManager().initBlockTreeStates(state, lastBlockHash);
             migrationStateChanges = null;
         }
-    }
-
-    /**
-     * Given the {@link BlockStreamInfo} context from a {@link State}, infers the block hash of the
-     * last block that was incorporated in this state.
-     *
-     * @param state the state to use
-     * @return the inferred block hash
-     */
-    private Bytes startBlockHashFrom(@NonNull final State state) {
-        final var blockStreamInfo = state.getReadableStates(BlockStreamService.NAME)
-                .<BlockStreamInfo>getSingleton(BLOCK_STREAM_INFO_STATE_ID)
-                .get();
-        requireNonNull(blockStreamInfo);
-
-        // Most of the ingredients in the block hash are directly in the BlockStreamInfo
-        // Branch 1: lastBlockHash
-        final var prevBlockHash = blockStreamInfo.blockNumber() == 0L
-                ? ZERO_BLOCK_HASH
-                : blockHashByBlockNumber(
-                        blockStreamInfo.trailingBlockHashes(),
-                        blockStreamInfo.blockNumber() - 1,
-                        blockStreamInfo.blockNumber() - 1);
-        requireNonNull(prevBlockHash);
-        // Branch 2
-        final var prevBlockRootsHash =
-                Bytes.wrap(new IncrementalStreamingHasher(blockStreamInfo.intermediatePreviousBlockRootHashes().stream()
-                                .map(Bytes::toByteArray)
-                                .toList())
-                        .computeRootHash());
-        // Branch 3:
-        final var blockStartStateHash = blockStreamInfo.startOfBlockStateHash();
-        // Branch 4
-        final var consensusHeaderHash =
-                Bytes.wrap(new IncrementalStreamingHasher(blockStreamInfo.intermediatePreviousBlockRootHashes().stream()
-                                .map(Bytes::toByteArray)
-                                .toList())
-                        .computeRootHash());
-        // Branch 5
-        final var inputsHash =
-                Bytes.wrap(new IncrementalStreamingHasher(blockStreamInfo.intermediatePreviousBlockRootHashes().stream()
-                                .map(Bytes::toByteArray)
-                                .toList())
-                        .computeRootHash());
-        // Branch 6
-        final var outputsHash =
-                Bytes.wrap(new IncrementalStreamingHasher(blockStreamInfo.intermediatePreviousBlockRootHashes().stream()
-                                .map(Bytes::toByteArray)
-                                .toList())
-                        .computeRootHash());
-        // Branch 7, the state changes hash, will come immediately following
-        // Branch 8
-        final var traceDataHash =
-                Bytes.wrap(new IncrementalStreamingHasher(blockStreamInfo.intermediatePreviousBlockRootHashes().stream()
-                                .map(Bytes::toByteArray)
-                                .toList())
-                        .computeRootHash());
-
-        // The final ingredient, the state changes tree root hash (branch 7), is not directly in the BlockStreamInfo,
-        // but we can recompute it based on the tree hash information and the fact the last state changes item in the
-        // block was devoted to putting the BlockStreamInfo itself into the state
-        final var stateChangesHash = Bytes.wrap(stateChangesSubTreeRootHashFrom(blockStreamInfo));
-
-        return BlockStreamManagerImpl.combine(
-                prevBlockHash,
-                prevBlockRootsHash,
-                blockStartStateHash,
-                consensusHeaderHash,
-                inputsHash,
-                outputsHash,
-                stateChangesHash,
-                traceDataHash,
-                // TODO: use the correct timestamp
-                blockStreamInfo.lastIntervalProcessTime());
-    }
-
-    /**
-     * Given a {@link BlockStreamInfo} context, computes the state changes tree root hash that must have been
-     * computed at the end of the block that the context describes, assuming the final state change block item
-     * was the state change that put the context into the state.
-     *
-     * @param info the context to use
-     * @return the inferred output tree root hash
-     */
-    private @NonNull byte[] stateChangesSubTreeRootHashFrom(@NonNull final BlockStreamInfo info) {
-        // Construct the final state change
-        final var blockStreamInfoChange = StateChange.newBuilder()
-                .stateId(STATE_ID_BLOCK_STREAM_INFO.protoOrdinal())
-                .singletonUpdate(SingletonUpdateChange.newBuilder()
-                        .blockStreamInfoValue(info)
-                        .build())
-                .build();
-        final var changeBytes = StateChange.PROTOBUF.toBytes(blockStreamInfoChange);
-
-        // Add the final state change as a leaf and compute the root
-        final var stateChangeSubTree =
-                new IncrementalStreamingHasher(info.intermediateStateChangeBlockItemHashes().stream()
-                        .map(Bytes::toByteArray)
-                        .toList());
-        stateChangeSubTree.addLeaf(changeBytes.toByteArray());
-        return stateChangeSubTree.computeRootHash();
     }
 
     private void logConfiguration() {

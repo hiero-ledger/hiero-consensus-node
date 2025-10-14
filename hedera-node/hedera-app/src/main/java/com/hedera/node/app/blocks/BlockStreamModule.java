@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.blocks;
 
-import com.google.protobuf.ByteString;
 import com.hedera.node.app.blocks.impl.BlockStreamManagerImpl;
 import com.hedera.node.app.blocks.impl.BoundaryStateChangeListener;
 import com.hedera.node.app.blocks.impl.streaming.BlockBufferService;
@@ -9,13 +8,11 @@ import com.hedera.node.app.blocks.impl.streaming.BlockNodeConnectionManager;
 import com.hedera.node.app.blocks.impl.streaming.FileAndGrpcBlockItemWriter;
 import com.hedera.node.app.blocks.impl.streaming.FileBlockItemWriter;
 import com.hedera.node.app.blocks.impl.streaming.GrpcBlockItemWriter;
-import com.hedera.node.app.blocks.schemas.V0560BlockStreamSchema;
 import com.hedera.node.app.metrics.BlockStreamMetrics;
 import com.hedera.node.app.services.NodeRewardManager;
 import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockStreamConfig;
-import com.hederahashgraph.api.proto.java.BlockStreamInfo;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.state.State;
 import dagger.Module;
@@ -47,33 +44,6 @@ public interface BlockStreamModule {
                 new BlockNodeConnectionManager(configProvider, blockBufferService, blockStreamMetrics);
         blockBufferService.setBlockNodeConnectionManager(manager);
         return manager;
-    }
-
-    @Provides
-    @Singleton
-    static BlockStreamManagerImpl.StateHashes provideStateHashes(@NonNull final State state) {
-        var blockStreamInfo = state.getReadableStates(BlockStreamService.NAME)
-                .<BlockStreamInfo>getSingleton(V0560BlockStreamSchema.BLOCK_STREAM_INFO_STATE_ID)
-                .get();
-        return new BlockStreamManagerImpl.StateHashes(
-                blockStreamInfo.getIntermediatePreviousBlockRootHashesList().stream()
-                        .map(ByteString::toByteArray)
-                        .toList(),
-                blockStreamInfo.getIntermediateConsensusHeaderHashesList().stream()
-                        .map(ByteString::toByteArray)
-                        .toList(),
-                blockStreamInfo.getIntermediateInputBlockItemHashesList().stream()
-                        .map(ByteString::toByteArray)
-                        .toList(),
-                blockStreamInfo.getIntermediateOutputBlockItemHashesList().stream()
-                        .map(ByteString::toByteArray)
-                        .toList(),
-                blockStreamInfo.getIntermediateStateChangeBlockItemHashesList().stream()
-                        .map(ByteString::toByteArray)
-                        .toList(),
-                blockStreamInfo.getIntermediateTraceDataHashesList().stream()
-                        .map(ByteString::toByteArray)
-                        .toList());
     }
 
     @Provides
