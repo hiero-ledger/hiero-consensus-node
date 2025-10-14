@@ -375,15 +375,14 @@ public class HandleWorkflow {
                     && event.getEventCore().birthRound() <= platformStateStore.getLatestFreezeRound()) {
                 strategy = TransactionStrategy.TRANSACTION_ONLY;
                 if (streamMode != RECORDS) {
-                    // Include all transactions in the event, BUT NO TRANSACTION RESULTS. We don't want to process
-                    // transactions submitted prior to a freeze round
+                    // Include all transactions from the event in the block stream, BUT NO TRANSACTION RESULTS. We can't process transactions submitted prior to a freeze round without a potential ISS
                     final var iter = event.consensusTransactionIterator();
                     while (iter.hasNext()) {
                         final var currentTxn = iter.next();
                         final var txnToWrite = BlockItem.newBuilder()
                                 .signedTransaction(currentTxn.getApplicationTransaction())
                                 .build();
-                        blockStreamManager.writeItemNoTimeUpdate(txnToWrite);
+                        blockStreamManager.writeItemSansLastUsedTime(txnToWrite);
                     }
                 }
             } else if (creator == null) {
@@ -568,12 +567,14 @@ public class HandleWorkflow {
         } else if (streamMode != BLOCKS && startsNewRecordFile) {
             blockRecordManager.startUserTransaction(consensusNow, state);
         }
+
+		// Before executing the transaction, check if it's a state signature transaction. These don't need to be processed through the entire handle workflow, so write the transaction to the block stream and skip execution
         if (streamMode != BLOCKS
                 && topLevelTxn.txnInfo().functionality() == HederaFunctionality.STATE_SIGNATURE_TRANSACTION) {
-            var bi = BlockItem.newBuilder()
+            final var blockItem = BlockItem.newBuilder()
                     .signedTransaction(topLevelTxn.txnInfo().serializedSignedTx())
                     .build();
-            blockStreamManager.writeItem2(bi);
+            blockStreamManager.writeItem(blockItem);
             return true;
         }
 

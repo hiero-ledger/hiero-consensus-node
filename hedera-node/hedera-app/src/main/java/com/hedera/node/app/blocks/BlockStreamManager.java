@@ -150,7 +150,12 @@ public interface BlockStreamManager extends BlockRecordInfo, StateHashedListener
      */
     boolean endRound(@NonNull State state, long roundNum);
 
-    void writeItemNoTimeUpdate(@NonNull BlockItem item);
+	/**
+	 * Similar to {@link BlockStreamManager#writeItem(BlockItem)}, but doesn't update
+	 * the last used time
+	 * @param item the block item to write
+	 */
+    void writeItemSansLastUsedTime(@NonNull BlockItem item);
 
     /**
      * Writes a block item to the stream.
@@ -159,8 +164,6 @@ public interface BlockStreamManager extends BlockRecordInfo, StateHashedListener
      * @throws IllegalStateException if the stream is closed
      */
     void writeItem(@NonNull BlockItem item);
-
-    boolean writeItem2(@NonNull BlockItem item);
 
     /**
      * Writes a block item to the stream.
