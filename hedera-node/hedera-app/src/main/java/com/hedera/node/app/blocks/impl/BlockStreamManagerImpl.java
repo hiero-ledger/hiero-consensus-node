@@ -215,14 +215,6 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
      */
     private final Counter indirectProofCounter;
 
-    public record StateHashes(
-            @NonNull List<byte[]> previousBlockRootHashes,
-            @NonNull List<byte[]> consensusHeaderHashes,
-            @NonNull List<byte[]> inputItemHashes,
-            @NonNull List<byte[]> outputItemHashes,
-            @NonNull List<byte[]> stateChangeHashes,
-            @NonNull List<byte[]> traceDataHashes) {}
-
     @Inject
     public BlockStreamManagerImpl(
             @NonNull final BlockHashSigner blockHashSigner,
@@ -277,7 +269,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     }
 
     @Override
-    public void initBlockTreeStates(@NonNull final State state, @Nullable final Bytes lastBlockHash) {
+    public void initBlockTrees(@NonNull final State state, @Nullable final Bytes lastBlockHash) {
         final var blockStreamInfo = state.getReadableStates(BlockStreamService.NAME)
                 .<BlockStreamInfo>getSingleton(BLOCK_STREAM_INFO_STATE_ID)
                 .get();
@@ -293,10 +285,10 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                         blockStreamInfo.blockNumber() - 1);
         requireNonNull(prevBlockHash);
         // Branch 2
-        final var prevBlockHashes = blockStreamInfo.intermediatePreviousBlockRootHashes().stream()
+        final var prevBlocksHasher = blockStreamInfo.intermediatePreviousBlockRootHashes().stream()
                 .map(Bytes::toByteArray)
                 .toList();
-        final var prevBlockRootsHash = Bytes.wrap(new IncrementalStreamingHasher(prevBlockHashes).computeRootHash());
+        final var prevBlocksHash = Bytes.wrap(new IncrementalStreamingHasher(prevBlocksHasher).computeRootHash());
         // Branch 3:
         final var blockStartStateHash = blockStreamInfo.startOfBlockStateHash();
         // Branch 4
@@ -324,31 +316,31 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         // The final ingredient, the state changes tree root hash (branch 7), is not directly in the BlockStreamInfo,
         // but we can recompute it based on the tree hash information and the fact the last state changes item in the
         // block was devoted to putting the BlockStreamInfo itself into the state
-        final var stateChanges = blockStreamInfo.intermediateStateChangeBlockItemHashes().stream()
-                .map(Bytes::toByteArray)
-                .toList();
-        final var stateChangesHash = Bytes.wrap(stateChangesSubTreeRootHashFrom(blockStreamInfo));
+        // First, construct the final state change and add the final state change as a leaf
+        stateChangesHasher = stateChangesSubTreeRootHashFrom(blockStreamInfo);
+        // Compute the state change subtree's current root hash
+        final var stateChangesHash = Bytes.wrap(stateChangesHasher.computeRootHash());
 
-        previousBlockHashes = new IncrementalStreamingHasher(prevBlockHashes);
+        // Now, define the remaining subtrees
+        previousBlockHashes = new IncrementalStreamingHasher(prevBlocksHasher);
         consensusHeaderHasher = new IncrementalStreamingHasher(consensusHeaders);
         inputTreeHasher = new IncrementalStreamingHasher(inputItems);
         outputTreeHasher = new IncrementalStreamingHasher(outputItems);
-        stateChangesHasher = new IncrementalStreamingHasher(stateChanges);
         traceDataHasher = new IncrementalStreamingHasher(traceItems);
 
         final var calculatedLastBlockHash = Optional.ofNullable(lastBlockHash)
                 .orElseGet(() -> BlockStreamManagerImpl.combine(
                         prevBlockHash,
-                        prevBlockRootsHash,
+                        prevBlocksHash,
                         blockStartStateHash,
                         consensusHeadersHash,
                         inputsHash,
                         outputsHash,
                         stateChangesHash,
                         traceDataHash,
-                        // TODO: use the correct timestamp
-                        blockStreamInfo.lastIntervalProcessTime()));
-        this.lastBlockHash = requireNonNull(calculatedLastBlockHash);
+                        blockStreamInfo.blockStartConsensusTimestamp()));
+        requireNonNull(calculatedLastBlockHash);
+        initLastBlockHash(calculatedLastBlockHash);
     }
 
     /**
@@ -359,7 +351,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
      * @param info the context to use
      * @return the inferred output tree root hash
      */
-    private @NonNull byte[] stateChangesSubTreeRootHashFrom(@NonNull final BlockStreamInfo info) {
+    private @NonNull IncrementalStreamingHasher stateChangesSubTreeRootHashFrom(@NonNull final BlockStreamInfo info) {
         // Construct the final state change
         final var blockStreamInfoChange = StateChange.newBuilder()
                 .stateId(STATE_ID_BLOCK_STREAM_INFO.protoOrdinal())
@@ -375,19 +367,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                         .map(Bytes::toByteArray)
                         .toList());
         stateChangeSubTree.addLeaf(changeBytes.toByteArray());
-        return stateChangeSubTree.computeRootHash();
-    }
-
-    @VisibleForTesting
-    /**
-     * Initializes the block stream manager after a restart or during reconnect with the hash of the last block
-     * incorporated in the state used in the restart or reconnect. (At genesis, this hash should be the
-     * {@link #ZERO_BLOCK_HASH}.)
-     *
-     * @param blockHash the hash of the last block
-     */
-    void initLastBlockHash(@NonNull final Bytes blockHash) {
-        lastBlockHash = requireNonNull(blockHash);
+        return stateChangeSubTree;
     }
 
     @Override
@@ -441,6 +421,18 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         }
         consensusTimeLastRound = round.getConsensusTimestamp();
         firstConsensusTimeOfCurrentBlock = round.getConsensusTimestamp();
+    }
+
+    /**
+     * Initializes the block stream manager after a restart or during reconnect with the hash of the last block
+     * incorporated in the state used in the restart or reconnect. (At genesis, this hash should be the
+     * {@link #ZERO_BLOCK_HASH}.)
+     *
+     * @param blockHash the hash of the last block
+     */
+    @VisibleForTesting
+    void initLastBlockHash(@NonNull final Bytes blockHash) {
+        lastBlockHash = requireNonNull(blockHash);
     }
 
     /**
@@ -661,7 +653,8 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                     inputTreeHasher.intermediateHashingState(),
                     outputTreeHasher.intermediateHashingState(),
                     stateChangesHasher.intermediateHashingState(),
-                    traceDataHasher.intermediateHashingState()));
+                    traceDataHasher.intermediateHashingState(),
+                    asTimestamp(firstConsensusTimeOfCurrentBlock)));
             ((CommittableWritableStates) writableState).commit();
 
             // Produce one more state change item (i.e. putting the block stream info just constructed into state)

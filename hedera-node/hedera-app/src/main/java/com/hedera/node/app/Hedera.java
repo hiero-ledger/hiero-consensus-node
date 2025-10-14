@@ -1238,7 +1238,7 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
             final var lastBlockHash = (trigger == GENESIS)
                     ? ZERO_BLOCK_HASH
                     : blockStreamService.migratedLastBlockHash().orElse(null);
-            daggerApp.blockStreamManager().initBlockTreeStates(state, lastBlockHash);
+            daggerApp.blockStreamManager().initBlockTrees(state, lastBlockHash);
             migrationStateChanges = null;
         }
     }
