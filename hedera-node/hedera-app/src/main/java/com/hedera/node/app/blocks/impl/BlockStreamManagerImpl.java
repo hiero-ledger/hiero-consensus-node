@@ -560,7 +560,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             case TRANSACTION_RESULT -> item.transactionResultOrThrow().consensusTimestampOrThrow();
             default -> lastUsedTime;
         };
-        writeItemSansLastUsedTime(item);
+        worker.addItem(item);
     }
 
     @Override
