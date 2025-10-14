@@ -19,6 +19,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.BUSY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CREATING_SYSTEM_ENTITIES;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.DUPLICATE_TRANSACTION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOKS_NOT_ENABLED;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_ACCOUNT_BALANCE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_NODE_ACCOUNT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.NOT_SUPPORTED;
@@ -226,7 +227,7 @@ public final class IngestChecker {
         final var accountStore = new ReadableStoreFactory(state).getStore(ReadableAccountStore.class);
         final var nodeAccount = accountStore.getAccountById(nodeAccountId);
         if (nodeAccount == null || nodeAccount.tinybarBalance() <= 0) {
-            throw new PreCheckException(INVALID_NODE_ACCOUNT);
+            throw new PreCheckException(INSUFFICIENT_ACCOUNT_BALANCE);
         }
     }
 
