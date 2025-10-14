@@ -9,6 +9,7 @@ import static java.time.ZoneOffset.UTC;
 import static java.util.Objects.requireNonNull;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.node.app.blocks.BlockStreamManager;
@@ -21,8 +22,6 @@ import com.hedera.node.app.service.addressbook.AddressBookService;
 import com.hedera.node.app.service.addressbook.impl.ReadableNodeStoreImpl;
 import com.hedera.node.app.service.roster.RosterService;
 import com.hedera.node.app.service.token.ReadableStakingInfoStore;
-import com.hedera.node.app.service.token.TokenService;
-import com.hedera.node.app.service.token.impl.ReadableAccountStoreImpl;
 import com.hedera.node.app.service.token.impl.handlers.staking.EndOfStakingPeriodUpdater;
 import com.hedera.node.app.service.token.records.TokenContext;
 import com.hedera.node.app.workflows.handle.stack.SavepointStackImpl;
@@ -33,6 +32,7 @@ import com.hedera.node.config.types.StreamMode;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.Objects;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
@@ -190,15 +190,17 @@ public class StakePeriodChanges {
         final var entityCounters = new ReadableEntityIdStoreImpl(stack.getReadableStates(EntityIdService.NAME));
         final var nodeStore =
                 new ReadableNodeStoreImpl(stack.getReadableStates(AddressBookService.NAME), entityCounters);
-        final var accountStore =
-                new ReadableAccountStoreImpl(stack.getReadableStates(TokenService.NAME), entityCounters);
 
         final var node = nodeStore.get(rosterEntry.nodeId());
-        if (node == null || !node.hasAccountId()) {
-            return false;
-        }
-        final var account = accountStore.getAccountById(node.accountId());
-        return account != null && account.tinybarBalance() < 0;
+        return node != null
+                && node.hasAccountId()
+                && !Objects.equals(
+                        node.accountId(),
+                        AccountID.newBuilder()
+                                .shardNum(0)
+                                .realmNum(0)
+                                .accountNum(0)
+                                .build());
     }
 
     private boolean isStakingPeriodBoundary(
