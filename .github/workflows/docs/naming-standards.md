@@ -6,10 +6,16 @@ It is intended to ensure consistency, readability, and maintainability across al
 
 ## Workflow Naming Standards:
 
+### Workflow Name
+
+`ddd: [XXXX] <my-21-char-name>`
+
+### Workflow Name Description
+
 - 3-digit prefix (000 to 999)
 
   | Prefix | Category / Description         | Notes / Subcategory               |
-    |--------|--------------------------------|-----------------------------------|
+  |--------|--------------------------------|-----------------------------------|
   | 000    | User-centric workflows         | Sorted by priority/use            |
   | 100    | Operational workflows          | Manual-run RE flows               |
   | 200    | CITR workflows (all workflows) |                                   |
@@ -40,7 +46,25 @@ It is intended to ensure consistency, readability, and maintainability across al
   - Use proper casing
   - Separator used should be spaces
 
+### Example Workflow Name
+
+Example: Suppose we have a user-centric workflow that is the highest priority workflow in the repo. This workflow is 
+for performing status checks.
+
+Name of the Workflow: `000: [USER] Status Checks`
+
+| Numeric Prefix | `: ` | Workflow Code | Name of Workflow |
+|----------------|------|---------------|------------------|
+| `000`          | `: ` | `[USER]`      | `Status Checks`   |
+
+
 ## File Naming Standards:
+
+### File Name
+
+`ddd-xxxx-<my-30-char-file-name>.yaml`
+
+### File Name Description
 
 - 3-digit prefix (000 to 999)
 
@@ -78,3 +102,14 @@ It is intended to ensure consistency, readability, and maintainability across al
   - All letters in filename should be lowercase
   - Separator used should be a hyphen
   - No special characters are allowed in filename
+
+### Example File Name
+
+Example: Suppose we have a user-centric workflow that is the highest priority workflow in the repo. This workflow is
+for performing status checks. Note hyphens are used as separators in the workflow.
+
+Name of the Workflow File: `000-user-status-checks.yaml`
+
+| Numeric Prefix | Workflow Code | Name of Workflow | File Extension |
+|----------------|---------------|------------------|----------------|
+| `000`          | `user`        | `status-checks`  | `.yaml`         |
