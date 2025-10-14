@@ -12,7 +12,6 @@ import com.swirlds.platform.freeze.FreezePeriodChecker;
 import com.swirlds.platform.metrics.StateMetrics;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.SignedState;
-import com.swirlds.platform.system.status.StatusActionSubmitter;
 import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -65,7 +64,6 @@ public class SwirldStateManager implements FreezePeriodChecker {
      * @param platformContext       the platform context
      * @param roster                the current roster
      * @param selfId                this node's id
-     * @param statusActionSubmitter enables submitting platform status actions
      * @param softwareVersion       the current software version
      * @param consensusStateEventHandler       the state lifecycles
      */
@@ -73,7 +71,6 @@ public class SwirldStateManager implements FreezePeriodChecker {
             @NonNull final PlatformContext platformContext,
             @NonNull final Roster roster,
             @NonNull final NodeId selfId,
-            @NonNull final StatusActionSubmitter statusActionSubmitter,
             @NonNull final SemanticVersion softwareVersion,
             @NonNull final ConsensusStateEventHandler<MerkleNodeState> consensusStateEventHandler,
             @NonNull final PlatformStateFacade platformStateFacade) {
@@ -86,7 +83,6 @@ public class SwirldStateManager implements FreezePeriodChecker {
         this.platformStateFacade = requireNonNull(platformStateFacade);
         this.consensusStateEventHandler = consensusStateEventHandler;
         this.stats = new StateMetrics(platformContext.getMetrics());
-        requireNonNull(statusActionSubmitter);
         this.softwareVersion = requireNonNull(softwareVersion);
         this.transactionHandler = new TransactionHandler(selfId, stats);
     }
