@@ -1,13 +1,13 @@
-| Current File Name                                     | Current Workflow Name                                             | Future File Name | Future Workflow Name |
+|                   Current File Name                   |                       Current Workflow Name                       | Future File Name | Future Workflow Name |
 |-------------------------------------------------------|-------------------------------------------------------------------|------------------|----------------------|
 | # Cron                                                |                                                                   |                  |                      |
 | zxcron-extended-test-suite.yaml                       | ZXCron: [CITR] Extended Test Suite                                |                  |                      |
 | zxcron-promote-build-candidate.yaml                   | ZXCron: [CITR] Promote Build Candidate                            |                  |                      |
-| node-zxcron-release-branching.yaml                    | ZXCron: Automatic Release Branching                               |                  |                      | 
+| node-zxcron-release-branching.yaml                    | ZXCron: Automatic Release Branching                               |                  |                      |
 | zxcron-clean.yaml                                     | CronClean Latitude Namespaces                                     |                  |                      |
-| zxcron-auto-namespaces-delete.yaml                    | Delete automation Latitude Namespaces                             |                  |                      | 
+| zxcron-auto-namespaces-delete.yaml                    | Delete automation Latitude Namespaces                             |                  |                      |
 | node-zxcron-main-fsts-regression.yaml                 | ZXCron: [Node] Main JRS Tests                                     |                  |                      |
-| node-zxcron-release-fsts-regression.yaml              | ZXCron: [Node] Release JRS Tests                                  |                  |                      |                
+| node-zxcron-release-fsts-regression.yaml              | ZXCron: [Node] Release JRS Tests                                  |                  |                      |
 | platform-zxcron-main-jrs-regression.yaml              | ZXCron: [Platform] Main JRS Regression                            |                  |                      |
 | platform-zxcron-release-jrs-regression.yaml           | ZXCron: [Platform] Release JRS Regression"                        |                  |                      |
 |                                                       |                                                                   |                  |                      |

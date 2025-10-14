@@ -14,7 +14,7 @@ It is intended to ensure consistency, readability, and maintainability across al
 
 - 3-digit prefix (000 to 999)
 
-  | Prefix | Category / Description         | Notes / Subcategory               |
+  | Prefix |     Category / Description     |        Notes / Subcategory        |
   |--------|--------------------------------|-----------------------------------|
   | 000    | User-centric workflows         | Sorted by priority/use            |
   | 100    | Operational workflows          | Manual-run RE flows               |
@@ -31,9 +31,10 @@ It is intended to ensure consistency, readability, and maintainability across al
   | 900    | Cron tasks                     | Prefixed by 900 to sort to bottom |
 
 - Followed by `: ` (colon and a space)
+
 - Followed by square-bracket notation `[XXXX] ` followed by a space
 
-  | Workflow Code | Description                                                                           |
+  | Workflow Code |                                      Description                                      |
   |---------------|---------------------------------------------------------------------------------------|
   | `[USER]`      | Called by user directly via workflow dispatch                                         |
   | `[FLOW]`      | Triggered through some manner (PR Target, Branch Push, or Tag Push)                   |
@@ -42,21 +43,22 @@ It is intended to ensure consistency, readability, and maintainability across al
   | `[DISP]`      | Internal dispatchable (workflow dispatch triggered by other workflows, not end users) |
 
 - Followed by the name of the workflow, maximum of 21 characters
+
 - Workflow Naming Notes:
+
   - Use proper casing
   - Separator used should be spaces
 
 ### Example Workflow Name
 
-Example: Suppose we have a user-centric workflow that is the highest priority workflow in the repo. This workflow is 
+Example: Suppose we have a user-centric workflow that is the highest priority workflow in the repo. This workflow is
 for performing status checks.
 
 Name of the Workflow: `000: [USER] Status Checks`
 
 | Numeric Prefix | `: ` | Workflow Code | Name of Workflow |
 |----------------|------|---------------|------------------|
-| `000`          | `: ` | `[USER]`      | `Status Checks`   |
-
+| `000`          | `: ` | `[USER]`      | `Status Checks`  |
 
 ## File Naming Standards:
 
@@ -68,7 +70,7 @@ Name of the Workflow: `000: [USER] Status Checks`
 
 - 3-digit prefix (000 to 999)
 
-  | Prefix | Category / Description         | Notes / Subcategory               |
+  | Prefix |     Category / Description     |        Notes / Subcategory        |
   |--------|--------------------------------|-----------------------------------|
   | 000    | User-centric workflows         | Sorted by priority/use            |
   | 100    | Operational workflows          | Manual-run RE flows               |
@@ -85,9 +87,10 @@ Name of the Workflow: `000: [USER] Status Checks`
   | 900    | Cron tasks                     | Prefixed by 900 to sort to bottom |
 
 - Followed by a hyphen `-`
+
 - Followed by the workflow code (see table below)
 
-  | Workflow Code | Description                                                                           |
+  | Workflow Code |                                      Description                                      |
   |---------------|---------------------------------------------------------------------------------------|
   | `[USER]`      | Called by user directly via workflow dispatch                                         |
   | `[FLOW]`      | Triggered through some manner (PR Target, Branch Push, or Tag Push)                   |
@@ -96,9 +99,13 @@ Name of the Workflow: `000: [USER] Status Checks`
   | `[DISP]`      | Internal dispatchable (workflow dispatch triggered by other workflows, not end users) |
 
 - Followed by a hypen `-`
+
 - Followed by the workflow name, maximum of 30 characters
+
 - Followed by`.yaml`
+
 - File Naming Notes:
+
   - All letters in filename should be lowercase
   - Separator used should be a hyphen
   - No special characters are allowed in filename
@@ -112,4 +119,4 @@ Name of the Workflow File: `000-user-status-checks.yaml`
 
 | Numeric Prefix | Workflow Code | Name of Workflow | File Extension |
 |----------------|---------------|------------------|----------------|
-| `000`          | `user`        | `status-checks`  | `.yaml`         |
+| `000`          | `user`        | `status-checks`  | `.yaml`        |
