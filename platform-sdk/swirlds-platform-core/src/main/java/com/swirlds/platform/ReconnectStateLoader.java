@@ -121,9 +121,7 @@ public class ReconnectStateLoader {
             swirldStateManager.loadFromSignedState(signedState);
             // kick off transition to RECONNECT_COMPLETE before beginning to save the reconnect state to disk
             // this guarantees that the platform status will be RECONNECT_COMPLETE before the state is saved
-            platformCoordinator
-                    .getStatusActionSubmitter()
-                    .submitStatusAction(new ReconnectCompleteAction(signedState.getRound()));
+            platformCoordinator.submitStatusAction(new ReconnectCompleteAction(signedState.getRound()));
             latestImmutableStateNexus.setState(signedState.reserve("set latest immutable to reconnect state"));
             savedStateController.reconnectStateReceived(
                     signedState.reserve("savedStateController.reconnectStateReceived"));
