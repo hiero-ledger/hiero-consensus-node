@@ -10,7 +10,9 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_PAYER_ACCOUNT_I
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSFER_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TRANSACTION_REQUIRES_ZERO_TOKEN_BALANCES;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TRANSFER_ACCOUNT_SAME_AS_DELETE_ACCOUNT;
+import static com.hedera.node.app.service.addressbook.impl.schemas.V068AddressBookSchema.ACCOUNT_NODE_REL_STATE_ID;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_STATE_ID;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_STATE_LABEL;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ALIASES_STATE_ID;
 import static com.hedera.node.app.spi.fixtures.Assertions.assertThrowsPreCheck;
 import static com.hedera.node.app.spi.fixtures.workflows.ExceptionConditions.responseCode;
@@ -34,7 +36,6 @@ import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.token.CryptoDeleteTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
-import com.hedera.hapi.platform.state.StateKey;
 import com.hedera.node.app.hapi.utils.EntityType;
 import com.hedera.node.app.service.addressbook.ReadableAccountNodeRelStore;
 import com.hedera.node.app.service.addressbook.impl.ReadableAccountNodeRelStoreImpl;
@@ -467,11 +468,10 @@ class CryptoDeleteHandlerTest extends CryptoHandlerTestBase {
     }
 
     private void mockReadableAccountNodeState() {
-        final var accountNodeRelStateId = StateKey.KeyOneOfType.ADDRESSBOOKSERVICE_I_ACCOUNT_NODE_REL.protoOrdinal();
         readableAccountNodeRels = MapReadableKVState.<AccountID, NodeIdList>builder(
-                        accountNodeRelStateId, "AddressBookService.ACCOUNT_NODE_REL")
+                        ACCOUNT_NODE_REL_STATE_ID, ACCOUNTS_STATE_LABEL)
                 .build();
-        given(readableStates.<AccountID, NodeIdList>get(accountNodeRelStateId)).willReturn(readableAccountNodeRels);
+        given(readableStates.<AccountID, NodeIdList>get(ACCOUNT_NODE_REL_STATE_ID)).willReturn(readableAccountNodeRels);
         final var accountNodeRelStore = new ReadableAccountNodeRelStoreImpl(readableStates, readableEntityCounters);
         given(storeFactory.readableStore(ReadableAccountNodeRelStore.class)).willReturn(accountNodeRelStore);
     }

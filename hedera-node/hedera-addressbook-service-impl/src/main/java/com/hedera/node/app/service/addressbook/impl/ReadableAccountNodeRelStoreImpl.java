@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.addressbook.impl;
 
-import static com.hedera.node.app.service.addressbook.impl.schemas.V068AddressBookSchema.ACCOUNT_NODE_REL_ID;
+import static com.hedera.node.app.service.addressbook.impl.schemas.V068AddressBookSchema.ACCOUNT_NODE_REL_STATE_ID;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
@@ -34,7 +34,7 @@ public class ReadableAccountNodeRelStoreImpl implements ReadableAccountNodeRelSt
             @NonNull final ReadableStates states, @NonNull final ReadableEntityCounters entityCounters) {
         requireNonNull(states);
         this.entityCounters = requireNonNull(entityCounters);
-        this.accountNodeRelState = states.get(ACCOUNT_NODE_REL_ID);
+        this.accountNodeRelState = states.get(ACCOUNT_NODE_REL_STATE_ID);
     }
 
     protected <T extends ReadableKVState<AccountID, NodeIdList>> T accountNodeRelState() {

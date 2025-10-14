@@ -18,10 +18,10 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Set;
 
 public class V068AddressBookSchema extends Schema<SemanticVersion> {
-    public static final String ACCOUNT_NODE_REL_KEY = "ACCOUNT_NODE_REL";
-    public static final int ACCOUNT_NODE_REL_ID =
+    public static final String ACCOUNT_NODE_REL_STATE_KEY = "ACCOUNT_NODE_REL";
+    public static final int ACCOUNT_NODE_REL_STATE_ID =
             StateKey.KeyOneOfType.ADDRESSBOOKSERVICE_I_ACCOUNT_NODE_REL.protoOrdinal();
-    public static final String ACCOUNT_NODE_REL_LABEL = computeLabel(AddressBookService.NAME, ACCOUNT_NODE_REL_KEY);
+    public static final String ACCOUNT_NODE_REL_STATE_LABEL = computeLabel(AddressBookService.NAME, ACCOUNT_NODE_REL_STATE_KEY);
 
     private static final SemanticVersion VERSION =
             SemanticVersion.newBuilder().major(0).minor(68).patch(0).build();
@@ -36,14 +36,14 @@ public class V068AddressBookSchema extends Schema<SemanticVersion> {
     @Override
     public Set<StateDefinition> statesToCreate() {
         return Set.of(StateDefinition.onDisk(
-                ACCOUNT_NODE_REL_ID, ACCOUNT_NODE_REL_KEY, AccountID.PROTOBUF, NodeIdList.PROTOBUF, MAX_RELATIONS));
+                ACCOUNT_NODE_REL_STATE_ID, ACCOUNT_NODE_REL_STATE_KEY, AccountID.PROTOBUF, NodeIdList.PROTOBUF, MAX_RELATIONS));
     }
 
     @Override
     public void migrate(@NonNull final MigrationContext ctx) {
         if (!ctx.isGenesis()) {
             final var nodeState = ctx.previousStates().get(NODES_STATE_ID);
-            final var relState = ctx.newStates().get(ACCOUNT_NODE_REL_ID);
+            final var relState = ctx.newStates().get(ACCOUNT_NODE_REL_STATE_ID);
             final var keyIterator = nodeState.keys();
             while (keyIterator.hasNext()) {
                 final var node = (Node) nodeState.get(keyIterator.next());

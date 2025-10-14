@@ -3,8 +3,8 @@ package com.hedera.node.app.service.addressbook.impl.test.schemas;
 
 import static com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema.NODES_STATE_ID;
 import static com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema.NODES_STATE_LABEL;
-import static com.hedera.node.app.service.addressbook.impl.schemas.V068AddressBookSchema.ACCOUNT_NODE_REL_ID;
-import static com.hedera.node.app.service.addressbook.impl.schemas.V068AddressBookSchema.ACCOUNT_NODE_REL_LABEL;
+import static com.hedera.node.app.service.addressbook.impl.schemas.V068AddressBookSchema.ACCOUNT_NODE_REL_STATE_ID;
+import static com.hedera.node.app.service.addressbook.impl.schemas.V068AddressBookSchema.ACCOUNT_NODE_REL_STATE_LABEL;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.hedera.hapi.node.base.AccountID;
@@ -58,7 +58,7 @@ public class V068AddressBookSchemaTest {
         oldStates = MapReadableStates.builder().state(nodeState).build();
         // initialize empty account-node state (new state)
         accountNodeRelState = MapWritableKVState.<AccountID, NodeIdList>builder(
-                        ACCOUNT_NODE_REL_ID, ACCOUNT_NODE_REL_LABEL)
+                        ACCOUNT_NODE_REL_STATE_ID, ACCOUNT_NODE_REL_STATE_LABEL)
                 .build();
         newStates = MapWritableStates.builder().state(accountNodeRelState).build();
         // config and previous version
@@ -77,7 +77,7 @@ public class V068AddressBookSchemaTest {
         schema.migrate(migrationContext);
 
         // assert that the map is updated
-        final var accountNodeRelations = newStates.<AccountID, NodeIdList>get(ACCOUNT_NODE_REL_ID);
+        final var accountNodeRelations = newStates.<AccountID, NodeIdList>get(ACCOUNT_NODE_REL_STATE_ID);
         assertThat(accountNodeRelations.isModified()).isTrue();
         // assert values are correct
         final var nodeIdInState = accountNodeRelations.get(accountId).nodeId().getFirst();
