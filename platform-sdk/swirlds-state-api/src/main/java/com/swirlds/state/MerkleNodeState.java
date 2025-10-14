@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.state;
 
+import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.state.lifecycle.StateMetadata;
@@ -96,10 +97,20 @@ public interface MerkleNodeState extends State {
      * @param stateId The state ID of the queue state.
      * @param expectedValue The expected value of the queue element to retrieve the path for
      * @return The merkle path of the queue element
+     */
+    default long queueElementPath(int stateId, @NonNull Bytes expectedValue) {
+        throw new UnsupportedOperationException();
+    }
+
+    /**
+     * Get the merkle path of the queue element
+     * @param stateId The state ID of the queue state.
+     * @param expectedValue The expected value of the queue element to retrieve the path for
+     * @return The merkle path of the queue element
      * @param <V> The type of the value of the queue element
      */
-    default <V> long queueElementPath(int stateId, @NonNull Bytes expectedValue) {
-        throw new UnsupportedOperationException();
+    default <V> long queueElementPath(int stateId, @NonNull final V expectedValue, @NonNull final Codec<V> valueCodec) {
+        return queueElementPath(stateId, valueCodec.toBytes(expectedValue));
     }
 
     /**
@@ -111,5 +122,17 @@ public interface MerkleNodeState extends State {
      */
     default long kvPath(int stateId, @NonNull Bytes key) {
         throw new UnsupportedOperationException();
+    }
+
+    /**
+     * Get the merkle path of the key-value pair in the state by its ID.
+     * @param stateId The state ID of the key-value pair.
+     * @param key The key of the key-value pair.
+     * @return The merkle path of the key-value pair or {@code com.swirlds.virtualmap.internal.Path#INVALID_PATH}
+     * if the key is not found or the stateId is unknown.
+     * @param <V> The type of the value of the queue element
+     */
+    default <V> long kvPath(int stateId, @NonNull V key, @NonNull Codec<V> keyCodec) {
+        return kvPath(stateId, keyCodec.toBytes(key));
     }
 }

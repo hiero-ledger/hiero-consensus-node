@@ -789,6 +789,38 @@ public class VirtualMapStateTest extends MerkleTestBase {
         }
 
         @Test
+        @DisplayName("singletonPath returns path for existing singleton after state update")
+        void singletonPath_found_after_update() {
+            // releasing pre-created test fixtures, we're not going to need them
+            virtualMapState.release();
+            fruitVirtualMap.release();
+
+            // create and prepare a new state
+            virtualMapState = new TestVirtualMapState(new NoOpMetrics());
+            virtualMapState.init(
+                    new FakeTime(), new NoOpMetrics(), mock(MerkleCryptography.class), () -> GENESIS_ROUND);
+            setupFruitVirtualMap();
+            setupSingletonCountry();
+            virtualMap = (VirtualMap) virtualMapState.getRoot();
+            virtualMapState.initializeState(steamMetadata);
+
+            addSingletonState(virtualMap, countryMetadata, GHANA);
+
+            final long initialPath = ((VirtualMap) virtualMapState.getRoot())
+                    .getRecords()
+                    .findPath(StateUtils.getStateKeyForSingleton(COUNTRY_STATE_ID));
+            assertThat(initialPath).isEqualTo(1);
+
+            addKvState(virtualMap, fruitMetadata, B_KEY, BANANA);
+            addKvState(virtualMap, fruitMetadata, C_KEY, CHERRY);
+            ((CommittableWritableStates) virtualMapState.getWritableStates(FIRST_SERVICE)).commit();
+
+            // after the update of the state we expect the path of the singleton to be updated as well
+            final long actual = virtualMapState.singletonPath(COUNTRY_STATE_ID);
+            assertThat(actual).isEqualTo(initialPath + 2);
+        }
+
+        @Test
         @DisplayName("singletonPath returns invalid path for unkown singleton state ID")
         void singletonPath_unknownState() {
             // Register the singleton metadata with the state (not strictly needed for path lookup)
@@ -806,8 +838,10 @@ public class VirtualMapStateTest extends MerkleTestBase {
             final long expected =
                     ((VirtualMap) virtualMapState.getRoot()).getRecords().findPath(kvKey);
 
-            final long actual = virtualMapState.kvPath(FRUIT_STATE_ID, ProtoBytes.PROTOBUF.toBytes(A_KEY));
-            assertThat(actual).isEqualTo(expected);
+            final long actualForBytes = virtualMapState.kvPath(FRUIT_STATE_ID, ProtoBytes.PROTOBUF.toBytes(A_KEY));
+            final long actualForObj = virtualMapState.kvPath(FRUIT_STATE_ID, A_KEY, ProtoBytes.PROTOBUF);
+            assertThat(actualForBytes).isEqualTo(expected);
+            assertThat(actualForObj).isEqualTo(expected);
         }
 
         @Test
@@ -841,9 +875,13 @@ public class VirtualMapStateTest extends MerkleTestBase {
             final var expectedPath = virtualMap.getRecords().findPath(thirdIdxKey);
 
             // Found case
-            final long actualPath =
+            final long actualPathForBytes =
                     virtualMapState.queueElementPath(STEAM_STATE_ID, ProtoBytes.PROTOBUF.toBytes(CHEMISTRY));
-            assertThat(actualPath).isEqualTo(expectedPath);
+            assertThat(actualPathForBytes).isEqualTo(expectedPath);
+
+            final long actualPathForObj =
+                    virtualMapState.queueElementPath(STEAM_STATE_ID, CHEMISTRY, ProtoBytes.PROTOBUF);
+            assertThat(actualPathForObj).isEqualTo(expectedPath);
 
             // Not found case - use a key not present in the map
             final long notFoundPath =

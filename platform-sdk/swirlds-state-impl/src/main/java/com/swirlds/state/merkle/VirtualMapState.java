@@ -809,8 +809,7 @@ public abstract class VirtualMapState<T extends VirtualMapState<T>> implements M
      * {@inheritDoc}}
      */
     @Override
-    @NonNull
-    public <V> long queueElementPath(final int stateId, @NonNull final Bytes expectedValue) {
+    public long queueElementPath(final int stateId, @NonNull final Bytes expectedValue) {
         final StateValue<QueueState> queueStateValue =
                 virtualMap.get(StateKeyUtils.queueStateKey(stateId), QUEUE_STATE_VALUE_CODEC);
         if (queueStateValue == null) {
@@ -828,7 +827,8 @@ public abstract class VirtualMapState<T extends VirtualMapState<T>> implements M
             if (leafRecord == null) {
                 continue;
             }
-            if (leafRecord.valueBytes().equals(expectedValue)) {
+            Bytes actualValue = StateValue.StateValueCodec.unwrap(leafRecord.valueBytes());
+            if (actualValue.equals(expectedValue)) {
                 return path;
             }
         }

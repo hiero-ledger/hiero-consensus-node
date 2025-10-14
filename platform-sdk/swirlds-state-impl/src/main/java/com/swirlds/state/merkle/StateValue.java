@@ -11,6 +11,8 @@ import com.hedera.pbj.runtime.io.WritableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.util.Objects;
 
 /**
@@ -136,6 +138,20 @@ public record StateValue<V>(int stateId, @NonNull V value) {
                 in.limit(limit);
             }
             return new StateValue<>(stateId, value);
+        }
+
+        public static Bytes unwrap(Bytes stateValueBytes) {
+            ReadableSequentialData sequentialData = stateValueBytes.toReadableSequentialData();
+            // skipping tag
+            sequentialData.readVarInt(false);
+            // skipping size
+            sequentialData.readVarInt(false);
+
+            try (InputStream is = sequentialData.asInputStream()) {
+                return Bytes.wrap(is.readAllBytes());
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
         }
 
         @Override
