@@ -70,7 +70,7 @@ public class PartitionTest {
         final Network network = env.network();
         final TimeManager timeManager = env.timeManager();
 
-        for (Double weightFraction : weightFractions) {
+        for (final Double weightFraction : weightFractions) {
             network.addNode().weight(Math.round(TOTAL_WEIGHTS * weightFraction));
         }
 

@@ -11,6 +11,11 @@ import java.util.random.RandomGenerator;
 
 public final class WeightGenerators {
 
+    /**
+     * total weight is the same as the total stake, which is the number of hbar in existence (50 billion)
+     */
+    public static final long TOTAL_WEIGHTS = 50L * 1_000_000_000L;
+
     public static final WeightGenerator BALANCED = (l, i) -> WeightGenerators.balancedNodeWeights(i);
     public static final WeightGenerator BALANCED_1000_PER_NODE =
             (l, i) -> WeightGenerators.balancedNodeWeights(i, i * 1000L);
@@ -21,12 +26,9 @@ public final class WeightGenerators {
     public static final WeightGenerator ONE_THIRD_ZERO_WEIGHT = WeightGenerators::oneThirdNodesZeroWeight;
     public static final WeightGenerator RANDOM = WeightGenerators::randomNodeWeights;
     public static final WeightGenerator RANDOM_REAL_WEIGHT = (l, i) -> WeightGenerators.randomNodeWeights(l, i, true);
-    public static final WeightGenerator GAUSSIAN = new GaussianWeightGenerator(1000, 100);
-
-    /**
-     * total weight is the same as the total stake, which is the number of hbar in existence (50 billion)
-     */
-    public static final long TOTAL_WEIGHTS = 50L * 1_000_000_000L;
+    public static final WeightGenerator GAUSSIAN = GaussianWeightGenerator.withAverageNodeWeight(1000, 100);
+    public static final WeightGenerator REAL_NETWORK_GAUSSIAN =
+            GaussianWeightGenerator.withNetworkWeight(TOTAL_WEIGHTS, 100_000);
 
     private static final long MINIMUM_NON_ZERO_WEIGHT = 1L;
 

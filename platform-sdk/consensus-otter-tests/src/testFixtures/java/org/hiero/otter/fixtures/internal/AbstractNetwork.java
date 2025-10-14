@@ -111,7 +111,7 @@ public abstract class AbstractNetwork implements Network {
     private final Topology topology;
 
     protected Lifecycle lifecycle = Lifecycle.INIT;
-    protected WeightGenerator weightGenerator = WeightGenerators.GAUSSIAN;
+    protected WeightGenerator weightGenerator = WeightGenerators.REAL_NETWORK_GAUSSIAN;
 
     @Nullable
     private PartitionImpl remainingNetworkPartition;

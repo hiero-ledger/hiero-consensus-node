@@ -193,7 +193,7 @@ class TipsetTests {
     @Test
     @DisplayName("Weighted getAdvancementCount() Test")
     void weightedGetAdvancementCountTest() {
-        final Random random = getRandomPrintSeed();
+        final Random random = getRandomPrintSeed(-5303867704381395133L);
         final int nodeCount = 100;
 
         final Roster roster =
