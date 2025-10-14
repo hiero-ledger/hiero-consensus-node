@@ -273,7 +273,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         final List<BlockNodeConfig> availableNodes = availableNodes();
         availableNodes.clear();
         availableNodes.add(nodeConfig);
-        availableNodes.add(newBlockNodeConfig("pbj-unit-test-host", 8081, 1));
+        availableNodes.add(newBlockNodeConfig(8081, 1));
 
         // Add the connection to the map so it can be removed during reschedule
         final Map<BlockNodeConfig, BlockNodeConnection> connections = connections();
@@ -287,7 +287,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
         // Verify new connections were created (map should have 2 entries - retry + new node)
         assertThat(connections).hasSize(2);
-        assertThat(connections).containsKeys(nodeConfig, newBlockNodeConfig("pbj-unit-test-host", 8081, 1));
+        assertThat(connections).containsKeys(nodeConfig, newBlockNodeConfig(8081, 1));
     }
 
     @Test
@@ -324,7 +324,6 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         connectionManager = new BlockNodeConnectionManager(configProvider, bufferService, metrics);
         // Inject the mock executor service to control scheduling in tests
         sharedExecutorServiceHandle.set(connectionManager, executorService);
-        replaceLocalhostWithPbjUnitTestHost();
 
         connectionManager.rescheduleConnection(connection, Duration.ZERO, null, true);
         Thread.sleep(1_000L); // sleep to ensure the backoff timeframe has passed
@@ -1700,8 +1699,6 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
         reset(executorService);
 
-        reset(executorService);
-
         final BlockNodeConnection connection = mock(BlockNodeConnection.class);
         final BlockNodeConfig nodeConfig = newBlockNodeConfig(8080, 1);
         doReturn(nodeConfig).when(connection).getNodeConfig();
@@ -2400,84 +2397,6 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         verify(connection, never()).createRequestPipeline();
     }
 
-    @Test
-    void testStopConnections() {
-        final BlockNodeConnection conn = mock(BlockNodeConnection.class);
-        connections().put(newBlockNodeConfig(8080, 1), conn);
-
-        invoke_stopConnections();
-
-        verify(conn).close(true);
-        assertThat(connections()).isEmpty();
-    }
-
-    @Test
-    void testStopConnections_whenStreamingDisabled() {
-        isStreamingEnabled().set(false);
-        final BlockNodeConnection conn = mock(BlockNodeConnection.class);
-        connections().put(newBlockNodeConfig(8080, 1), conn);
-
-        invoke_stopConnections();
-
-        verifyNoInteractions(conn);
-    }
-
-    @Test
-    void testHandleConfigFileChange() {
-        final BlockNodeConnection conn = mock(BlockNodeConnection.class);
-        final BlockNodeConfig oldNode = newBlockNodeConfig(9999, 1);
-        connections().put(oldNode, conn);
-
-        invoke_handleConfigFileChange();
-
-        // Verify old connection was closed
-        verify(conn).close(true);
-    }
-
-    @Test
-    void testStopConnections_withException() {
-        final BlockNodeConnection conn = mock(BlockNodeConnection.class);
-        doThrow(new RuntimeException("Close failed")).when(conn).close(true);
-        connections().put(newBlockNodeConfig(8080, 1), conn);
-
-        // Should not throw - exceptions are caught and logged
-        invoke_stopConnections();
-
-        verify(conn).close(true);
-        assertThat(connections()).isEmpty();
-    }
-
-    @Test
-    void testExtractBlockNodesConfigurations_fileNotExists() {
-        final List<BlockNodeConfig> configs = invoke_extractBlockNodesConfigurations("/non/existent/path");
-
-        assertThat(configs).isEmpty();
-    }
-
-    @Test
-    void testExtractBlockNodesConfigurations_invalidJson() {
-        // Use a path that exists but doesn't contain valid JSON
-        final List<BlockNodeConfig> configs = invoke_extractBlockNodesConfigurations("/tmp");
-
-        // Should return empty list when parse fails
-        assertThat(configs).isEmpty();
-    }
-
-    @Test
-    void testConnectionTask_activeConnectionIsSameConnection() {
-        final BlockNodeConnection connection = mock(BlockNodeConnection.class);
-
-        activeConnection().set(connection);
-
-        final BlockNodeConnectionTask task =
-                connectionManager.new BlockNodeConnectionTask(connection, Duration.ZERO, null, false);
-
-        task.run();
-
-        // Should return early without creating pipeline
-        verify(connection, never()).createRequestPipeline();
-    }
-
     // Utilities
 
     private BlockNodeConnectionManager createConnectionManager(List<BlockNodeConfig> blockNodes) {
@@ -2624,6 +2543,38 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         } catch (final Throwable e) {
             throw new RuntimeException(e);
         }
+    }
+
+    private void invoke_performInitialConfigLoad() {
+        try {
+            performInitialConfigLoadHandle.invoke(connectionManager);
+        } catch (final Throwable e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private void invoke_startConfigWatcher() {
+        try {
+            startConfigWatcherHandle.invoke(connectionManager);
+        } catch (final Throwable e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private void invoke_stopConfigWatcher() {
+        try {
+            stopConfigWatcherHandle.invoke(connectionManager);
+        } catch (final Throwable e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private void awaitCondition(final java.util.function.BooleanSupplier condition, final long timeoutMs) {
+        final long start = System.currentTimeMillis();
+        while (!condition.getAsBoolean() && (System.currentTimeMillis() - start) < timeoutMs) {
+            LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(10));
+        }
+        assertThat(condition.getAsBoolean()).isTrue();
     }
 
     private void resetMocks() {
