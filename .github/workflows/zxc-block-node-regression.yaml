@@ -249,6 +249,11 @@ jobs:
           solo consensus node start -i node1 --deployment "${{ env.SOLO_DEPLOYMENT }}"
           solo mirror node add --deployment "${{ env.SOLO_DEPLOYMENT }}" --pinger --cluster-ref kind-${{ env.SOLO_CLUSTER_NAME }} --enable-ingress -f mirror-bn-values.yaml
 
+      # service endpoint checks
+      - name: Solo Service Endpoint Checks
+        run: |
+          kubectl get svc --all-namespaces
+
       # port forwards
       - name: Solo Port forwards
         run: |
