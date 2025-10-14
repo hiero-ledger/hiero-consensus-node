@@ -4,8 +4,8 @@ package org.hiero.otter.fixtures;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.hiero.consensus.model.status.PlatformStatus.CHECKING;
-import static org.hiero.otter.fixtures.Constants.RANDOM_NODE_IDS;
-import static org.hiero.otter.fixtures.Constants.RANDOM_SEED;
+import static org.hiero.otter.fixtures.Constants.USE_RANDOM_NODE_IDS;
+import static org.hiero.otter.fixtures.Constants.USE_RANDOM_SEED;
 
 import com.swirlds.common.test.fixtures.WeightGenerators;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -34,7 +34,8 @@ class NetworkPartitionTest {
      */
     public static Stream<TestEnvironment> environments() {
         return Stream.of(
-                new TurtleTestEnvironment(RANDOM_SEED, RANDOM_NODE_IDS), new ContainerTestEnvironment(RANDOM_NODE_IDS));
+                new TurtleTestEnvironment(USE_RANDOM_SEED, USE_RANDOM_NODE_IDS),
+                new ContainerTestEnvironment(USE_RANDOM_NODE_IDS));
     }
 
     /**
@@ -135,7 +136,7 @@ class NetworkPartitionTest {
      */
     @Test
     void testCreatePartitionWithCollection() {
-        final TestEnvironment env = new TurtleTestEnvironment(RANDOM_SEED, RANDOM_NODE_IDS);
+        final TestEnvironment env = new TurtleTestEnvironment(USE_RANDOM_SEED, USE_RANDOM_NODE_IDS);
         try {
             final Network network = env.network();
             final TimeManager timeManager = env.timeManager();
@@ -202,7 +203,7 @@ class NetworkPartitionTest {
      */
     @Test
     void testMultiplePartitions() {
-        final TestEnvironment env = new TurtleTestEnvironment(RANDOM_SEED, RANDOM_NODE_IDS);
+        final TestEnvironment env = new TurtleTestEnvironment(USE_RANDOM_SEED, USE_RANDOM_NODE_IDS);
         try {
             final Network network = env.network();
             final TimeManager timeManager = env.timeManager();
@@ -260,7 +261,7 @@ class NetworkPartitionTest {
      */
     @Test
     void testMoveNodeBetweenPartitions() {
-        final TestEnvironment env = new TurtleTestEnvironment(RANDOM_SEED, RANDOM_NODE_IDS);
+        final TestEnvironment env = new TurtleTestEnvironment(USE_RANDOM_SEED, USE_RANDOM_NODE_IDS);
         try {
             final Network network = env.network();
             final TimeManager timeManager = env.timeManager();
@@ -312,7 +313,7 @@ class NetworkPartitionTest {
      */
     @Test
     void testCreatePartitionWithAllNodes() {
-        final TestEnvironment env = new TurtleTestEnvironment(RANDOM_SEED, RANDOM_NODE_IDS);
+        final TestEnvironment env = new TurtleTestEnvironment(USE_RANDOM_SEED, USE_RANDOM_NODE_IDS);
         try {
             final Network network = env.network();
             final TimeManager timeManager = env.timeManager();
@@ -339,7 +340,7 @@ class NetworkPartitionTest {
      */
     @Test
     void testCreatePartitionWithNoNodes() {
-        final TestEnvironment env = new TurtleTestEnvironment(RANDOM_SEED, RANDOM_NODE_IDS);
+        final TestEnvironment env = new TurtleTestEnvironment(USE_RANDOM_SEED, USE_RANDOM_NODE_IDS);
         try {
             final Network network = env.network();
             final TimeManager timeManager = env.timeManager();
@@ -366,7 +367,7 @@ class NetworkPartitionTest {
      */
     @Test
     void testRemoveNonExistentPartition() {
-        final TestEnvironment env = new TurtleTestEnvironment(RANDOM_SEED, RANDOM_NODE_IDS);
+        final TestEnvironment env = new TurtleTestEnvironment(USE_RANDOM_SEED, USE_RANDOM_NODE_IDS);
         try {
             final Network network = env.network();
             final TimeManager timeManager = env.timeManager();
@@ -397,7 +398,7 @@ class NetworkPartitionTest {
      */
     @Test
     void testRestoreConnectivityWithMultiplePartitions() {
-        final TestEnvironment env = new TurtleTestEnvironment(RANDOM_SEED, RANDOM_NODE_IDS);
+        final TestEnvironment env = new TurtleTestEnvironment(USE_RANDOM_SEED, USE_RANDOM_NODE_IDS);
         try {
             final Network network = env.network();
             final TimeManager timeManager = env.timeManager();
@@ -450,7 +451,7 @@ class NetworkPartitionTest {
      */
     @Test
     void testRemoveOneOfTwoPartitions() {
-        final TestEnvironment env = new TurtleTestEnvironment(RANDOM_SEED, RANDOM_NODE_IDS);
+        final TestEnvironment env = new TurtleTestEnvironment(USE_RANDOM_SEED, USE_RANDOM_NODE_IDS);
         try {
             final Network network = env.network();
             final TimeManager timeManager = env.timeManager();

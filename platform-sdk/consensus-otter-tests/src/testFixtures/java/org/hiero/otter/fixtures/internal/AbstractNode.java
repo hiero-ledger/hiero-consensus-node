@@ -26,7 +26,7 @@ import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.TimeManager;
 import org.hiero.otter.fixtures.TransactionFactory;
 import org.hiero.otter.fixtures.app.OtterTransaction;
-import org.hiero.otter.fixtures.util.OtterUtils;
+import org.hiero.otter.fixtures.util.OtterSavedStateUtils;
 
 /**
  * Base implementation of the {@link Node} interface that provides common functionality.
@@ -188,20 +188,19 @@ public abstract class AbstractNode implements Node {
      * {@inheritDoc}
      */
     @Override
-    public void savedStateDirectory(@NonNull final String savedStateDirectory) {
+    public void startFromSavedState(@NonNull final String savedStateDirectory) {
         throwIfInLifecycle(LifeCycle.RUNNING, "Cannot set saved state directory while the node is running");
         throwIfInLifecycle(LifeCycle.DESTROYED, "Cannot set saved state directory after the node has been destroyed");
 
-        this.savedStateDirectory = OtterUtils.findSaveState(requireNonNull(savedStateDirectory));
+        this.savedStateDirectory = OtterSavedStateUtils.findSaveState(requireNonNull(savedStateDirectory));
     }
 
     /**
      * {@inheritDoc}
      */
     @Override
-    @Nullable
-    public Path savedStateDirectory() {
-        return savedStateDirectory;
+    public boolean startFromSavedState() {
+        return savedStateDirectory != null;
     }
 
     /**

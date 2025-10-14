@@ -141,12 +141,12 @@ public class ConsensusNodeManager {
         final ReservedSignedState initialState = reservedState.state();
 
         final Bytes rosterHash = RosterUtils.hash(genesisRoster).getBytes();
-        final RosterHistory rosterHistory = new RosterHistory(
-                List.of(RoundRosterPair.newBuilder()
-                        .roundNumber(0)
-                        .activeRosterHash(rosterHash)
-                        .build()),
-                Map.of(rosterHash, genesisRoster));
+        final RoundRosterPair roundRosterPair = RoundRosterPair.newBuilder()
+                .roundNumber(0)
+                .activeRosterHash(rosterHash)
+                .build();
+        final RosterHistory rosterHistory =
+                new RosterHistory(List.of(roundRosterPair), Map.of(rosterHash, genesisRoster));
         executionCallback = new OtterExecutionLayer(new Random(), metrics, time);
         final PlatformBuilder builder = PlatformBuilder.create(
                         OtterApp.APP_NAME,

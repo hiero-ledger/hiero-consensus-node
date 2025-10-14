@@ -108,7 +108,7 @@ public abstract class AbstractNetwork implements Network {
     private final Random random;
     private final Map<NodeId, PartitionImpl> networkPartitions = new HashMap<>();
     private final Topology topology;
-    private final boolean randomNodeIds;
+    private final boolean useRandomNodeIds;
 
     protected Lifecycle lifecycle = Lifecycle.INIT;
     protected WeightGenerator weightGenerator = WeightGenerators.GAUSSIAN;
@@ -118,10 +118,10 @@ public abstract class AbstractNetwork implements Network {
 
     private NodeId nextNodeId = NodeId.FIRST_NODE_ID;
 
-    protected AbstractNetwork(@NonNull final Random random, final boolean randomNodeIds) {
+    protected AbstractNetwork(@NonNull final Random random, final boolean useRandomNodeIds) {
         this.random = requireNonNull(random);
         this.topology = new GeoMeshTopologyImpl(random, this::createNodes, this::createInstrumentedNode);
-        this.randomNodeIds = randomNodeIds;
+        this.useRandomNodeIds = useRandomNodeIds;
     }
 
     /**
@@ -223,7 +223,7 @@ public abstract class AbstractNetwork implements Network {
     private NodeId getNextNodeId() {
         final NodeId nextId = nextNodeId;
         // If enabled, advance by a random number of steps between 1 and 3
-        final int randomAdvance = (randomNodeIds) ? random.nextInt(3) : 0;
+        final int randomAdvance = (useRandomNodeIds) ? random.nextInt(3) : 0;
 
         nextNodeId = nextNodeId.getOffset(randomAdvance + 1L);
         return nextId;
@@ -726,7 +726,7 @@ public abstract class AbstractNetwork implements Network {
 
     @Override
     public void savedStateDirectory(@NonNull final String savedStateDirectory) {
-        nodes().forEach(node -> node.savedStateDirectory(savedStateDirectory));
+        nodes().forEach(node -> node.startFromSavedState(savedStateDirectory));
     }
 
     /**

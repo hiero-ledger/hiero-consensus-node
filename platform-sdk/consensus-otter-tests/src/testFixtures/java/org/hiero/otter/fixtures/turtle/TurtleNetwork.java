@@ -20,6 +20,7 @@ import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.otter.fixtures.InstrumentedNode;
 import org.hiero.otter.fixtures.Network;
+import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.TimeManager;
 import org.hiero.otter.fixtures.TransactionGenerator;
 import org.hiero.otter.fixtures.internal.AbstractNetwork;
@@ -56,7 +57,7 @@ public class TurtleNetwork extends AbstractNetwork implements TimeTickReceiver {
      * @param logging              the logging utility
      * @param rootOutputDirectory  the directory where the node output will be stored, like saved state and so on
      * @param transactionGenerator the transaction generator that generates a steady flow of transactions to all nodes
-     * @param randomNodeIds {@code true} if the node IDs should be selected randomly; {@code false} otherwise
+     * @param useRandomNodeIds {@code true} if the node IDs should be selected randomly; {@code false} otherwise
      */
     public TurtleNetwork(
             @NonNull final Randotron randotron,
@@ -64,8 +65,8 @@ public class TurtleNetwork extends AbstractNetwork implements TimeTickReceiver {
             @NonNull final TurtleLogging logging,
             @NonNull final Path rootOutputDirectory,
             @NonNull final TurtleTransactionGenerator transactionGenerator,
-            final boolean randomNodeIds) {
-        super(randotron, randomNodeIds);
+            final boolean useRandomNodeIds) {
+        super(randotron, useRandomNodeIds);
         this.randotron = requireNonNull(randotron);
         this.timeManager = requireNonNull(timeManager);
         this.logging = requireNonNull(logging);
@@ -135,7 +136,7 @@ public class TurtleNetwork extends AbstractNetwork implements TimeTickReceiver {
 
         // The saved state was generated with the same seed; without advancing time,
         // all nodes would start simultaneously, and the saved state would lie in their future.
-        final boolean runFromState = nodes().stream().anyMatch(node -> node.savedStateDirectory() != null);
+        final boolean runFromState = nodes().stream().anyMatch(Node::startFromSavedState);
         if (runFromState) {
             timeManager.advanceTime(Duration.ofHours(1));
         }

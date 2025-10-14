@@ -54,9 +54,9 @@ public class TurtleTestEnvironment implements TestEnvironment {
      * Constructor for the {@link TurtleTestEnvironment} class.
      *
      * @param randomSeed the seed for the PRNG; if {@code 0}, a random seed will be generated
-     * @param randomNodeIds {@code true} if the node IDs should be selected randomly; {@code false} otherwise
+     * @param useRandomNodeIds {@code true} if the node IDs should be selected randomly; {@code false} otherwise
      */
-    public TurtleTestEnvironment(final long randomSeed, final boolean randomNodeIds) {
+    public TurtleTestEnvironment(final long randomSeed, final boolean useRandomNodeIds) {
         final Path rootOutputDirectory = Path.of("build", "turtle");
         try {
             if (Files.exists(rootOutputDirectory)) {
@@ -92,7 +92,7 @@ public class TurtleTestEnvironment implements TestEnvironment {
 
         transactionGenerator = new TurtleTransactionGenerator(randotron);
         network = new TurtleNetwork(
-                randotron, timeManager, logging, rootOutputDirectory, transactionGenerator, randomNodeIds);
+                randotron, timeManager, logging, rootOutputDirectory, transactionGenerator, useRandomNodeIds);
 
         timeManager.addTimeTickReceiver(network);
     }

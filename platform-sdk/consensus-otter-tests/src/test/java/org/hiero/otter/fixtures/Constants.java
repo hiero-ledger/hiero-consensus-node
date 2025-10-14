@@ -9,12 +9,12 @@ public class Constants {
     /**
      * The random seed used for generating non-deterministic test data.
      */
-    public static final long RANDOM_SEED = 0L;
+    public static final long USE_RANDOM_SEED = 0L;
 
     /**
      * Enables random node IDs
      */
-    public static final boolean RANDOM_NODE_IDS = true;
+    public static final boolean USE_RANDOM_NODE_IDS = true;
 
     private Constants() {}
 }

@@ -34,7 +34,6 @@ import com.swirlds.platform.state.signed.HashedReservedSignedState;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.wiring.PlatformComponents;
-import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
@@ -77,7 +76,7 @@ import org.hiero.otter.fixtures.result.SingleNodeReconnectResult;
 import org.hiero.otter.fixtures.turtle.gossip.SimulatedGossip;
 import org.hiero.otter.fixtures.turtle.gossip.SimulatedNetwork;
 import org.hiero.otter.fixtures.turtle.logging.TurtleLogging;
-import org.hiero.otter.fixtures.util.OtterUtils;
+import org.hiero.otter.fixtures.util.OtterSavedStateUtils;
 import org.hiero.otter.fixtures.util.SecureRandomBuilder;
 
 /**
@@ -161,7 +160,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
 
             if (savedStateDirectory != null) {
                 try {
-                    OtterUtils.copySaveState(selfId, savedStateDirectory, outputDirectory);
+                    OtterSavedStateUtils.copySaveState(selfId, savedStateDirectory, outputDirectory);
                 } catch (final IOException exception) {
                     log.error("Failed to copy save state to output directory", exception);
                 }
@@ -217,15 +216,14 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
                     OtterAppState::new);
 
             final ReservedSignedState initialState = reservedState.state();
-            final State state = initialState.get().getState();
 
             final Bytes rosterHash = RosterUtils.hash(roster()).getBytes();
-            final RosterHistory rosterHistory = new RosterHistory(
-                    List.of(RoundRosterPair.newBuilder()
-                            .roundNumber(0)
-                            .activeRosterHash(rosterHash)
-                            .build()),
-                    Map.of(rosterHash, roster()));
+            final RoundRosterPair roundRosterPair = RoundRosterPair.newBuilder()
+                    .roundNumber(0)
+                    .activeRosterHash(rosterHash)
+                    .build();
+            final RosterHistory rosterHistory =
+                    new RosterHistory(List.of(roundRosterPair), Map.of(rosterHash, roster()));
             final String eventStreamLoc = selfId.toString();
 
             this.executionLayer = new OtterExecutionLayer(

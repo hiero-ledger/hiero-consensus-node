@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.util;
 
+import static java.util.Objects.requireNonNull;
 import static org.hiero.otter.fixtures.tools.GenerateStateTool.PCES_DIRECTORY;
 import static org.hiero.otter.fixtures.tools.GenerateStateTool.SAVE_STATE_DIRECTORY;
 
@@ -9,22 +10,21 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Objects;
 import java.util.stream.Stream;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.otter.fixtures.app.OtterApp;
 
 /**
- * Utility methods for Otter
+ * Utility methods for Otter to handle saved states
  * <p>
  * This class provides helper functions to find saved state directories and copy them to output locations,
  * renaming subdirectories as needed for test scenarios.
  */
-public class OtterUtils {
+public class OtterSavedStateUtils {
     /**
      * Private constructor to prevent instantiation.
      */
-    private OtterUtils() {
+    private OtterSavedStateUtils() {
         // Utility class
     }
 
@@ -33,7 +33,7 @@ public class OtterUtils {
      *
      * @param savedStateDirectory the name or path of the saved state directory, either relative to
      *                            {@code consensus-otter-tests/saved-states} or an absolute path
-     * @return the {@link Path} to the saved state directory, or {@code null} if the input is empty
+     * @return the {@link Path} to the saved state directory
      * @throws IllegalArgumentException if the directory does not exist
      */
     @NonNull
@@ -65,9 +65,9 @@ public class OtterUtils {
      */
     public static void copySaveState(
             @NonNull NodeId nodeId, @NonNull final Path savedState, @NonNull final Path outputDir) throws IOException {
-        Objects.requireNonNull(nodeId);
-        Objects.requireNonNull(outputDir);
-        Objects.requireNonNull(savedState);
+        requireNonNull(nodeId);
+        requireNonNull(outputDir);
+        requireNonNull(savedState);
 
         final Path targetPath = outputDir.resolve("data").resolve("saved");
         FileUtils.copyDirectory(savedState, targetPath);
@@ -85,14 +85,17 @@ public class OtterUtils {
      * @param appPath the path containing the subdirectory to rename
      * @throws IOException if an I/O error occurs during renaming
      */
-    private static void renameToNodeId(final @NonNull NodeId nodeId, final Path appPath) throws IOException {
+    private static void renameToNodeId(final @NonNull NodeId nodeId, @NonNull final Path appPath) throws IOException {
+        requireNonNull(nodeId);
+        requireNonNull(appPath);
         try (final Stream<Path> stream = Files.list(appPath)) {
             stream.filter(Files::isDirectory)
                     .filter(p -> p.getFileName().toString().matches("\\d+"))
                     .findFirst()
                     .ifPresent(dir -> {
                         try {
-                            int number = Integer.parseInt(dir.getFileName().toString());
+                            final int number =
+                                    Integer.parseInt(dir.getFileName().toString());
                             if (number != nodeId.id()) {
                                 FileUtils.moveDirectory(dir, appPath.resolve(nodeId.id() + ""));
                             }

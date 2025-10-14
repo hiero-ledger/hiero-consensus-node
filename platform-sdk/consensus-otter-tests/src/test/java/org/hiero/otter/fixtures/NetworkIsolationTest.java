@@ -4,8 +4,8 @@ package org.hiero.otter.fixtures;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.hiero.consensus.model.status.PlatformStatus.ACTIVE;
-import static org.hiero.otter.fixtures.Constants.RANDOM_NODE_IDS;
-import static org.hiero.otter.fixtures.Constants.RANDOM_SEED;
+import static org.hiero.otter.fixtures.Constants.USE_RANDOM_NODE_IDS;
+import static org.hiero.otter.fixtures.Constants.USE_RANDOM_SEED;
 
 import com.swirlds.common.test.fixtures.WeightGenerators;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -31,7 +31,8 @@ class NetworkIsolationTest {
      */
     public static Stream<TestEnvironment> environments() {
         return Stream.of(
-                new TurtleTestEnvironment(RANDOM_SEED, RANDOM_NODE_IDS), new ContainerTestEnvironment(RANDOM_NODE_IDS));
+                new TurtleTestEnvironment(USE_RANDOM_SEED, USE_RANDOM_NODE_IDS),
+                new ContainerTestEnvironment(USE_RANDOM_NODE_IDS));
     }
 
     /**
@@ -131,7 +132,7 @@ class NetworkIsolationTest {
      */
     @Test
     void testIsolateMultipleNodesSequentially() {
-        final TestEnvironment env = new TurtleTestEnvironment(RANDOM_SEED, RANDOM_NODE_IDS);
+        final TestEnvironment env = new TurtleTestEnvironment(USE_RANDOM_SEED, USE_RANDOM_NODE_IDS);
         try {
             final Network network = env.network();
             final TimeManager timeManager = env.timeManager();
@@ -183,7 +184,7 @@ class NetworkIsolationTest {
      */
     @Test
     void testIsolateAlreadyPartitionedNode() {
-        final TestEnvironment env = new TurtleTestEnvironment(RANDOM_SEED, RANDOM_NODE_IDS);
+        final TestEnvironment env = new TurtleTestEnvironment(USE_RANDOM_SEED, USE_RANDOM_NODE_IDS);
         try {
             final Network network = env.network();
             final TimeManager timeManager = env.timeManager();
@@ -232,7 +233,7 @@ class NetworkIsolationTest {
      */
     @Test
     void testRejoinNonIsolatedNode() {
-        final TestEnvironment env = new TurtleTestEnvironment(RANDOM_SEED, RANDOM_NODE_IDS);
+        final TestEnvironment env = new TurtleTestEnvironment(USE_RANDOM_SEED, USE_RANDOM_NODE_IDS);
         try {
             final Network network = env.network();
             final TimeManager timeManager = env.timeManager();
@@ -264,7 +265,7 @@ class NetworkIsolationTest {
      */
     @Test
     void testIsolateAndRejoinMultipleNodes() {
-        final TestEnvironment env = new TurtleTestEnvironment(RANDOM_SEED, RANDOM_NODE_IDS);
+        final TestEnvironment env = new TurtleTestEnvironment(USE_RANDOM_SEED, USE_RANDOM_NODE_IDS);
         try {
             final Network network = env.network();
             final TimeManager timeManager = env.timeManager();
@@ -334,7 +335,7 @@ class NetworkIsolationTest {
      */
     @Test
     void testRestoreConnectivityWithIsolatedNodes() {
-        final TestEnvironment env = new TurtleTestEnvironment(RANDOM_SEED, RANDOM_NODE_IDS);
+        final TestEnvironment env = new TurtleTestEnvironment(USE_RANDOM_SEED, USE_RANDOM_NODE_IDS);
         try {
             final Network network = env.network();
             final TimeManager timeManager = env.timeManager();
@@ -385,7 +386,7 @@ class NetworkIsolationTest {
      */
     @Test
     void testIsolationAndPartitionInteraction() {
-        final TestEnvironment env = new TurtleTestEnvironment(RANDOM_SEED, RANDOM_NODE_IDS);
+        final TestEnvironment env = new TurtleTestEnvironment(USE_RANDOM_SEED, USE_RANDOM_NODE_IDS);
         try {
             final Network network = env.network();
             final TimeManager timeManager = env.timeManager();

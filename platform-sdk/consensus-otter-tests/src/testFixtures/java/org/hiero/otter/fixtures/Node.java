@@ -4,7 +4,6 @@ package org.hiero.otter.fixtures;
 import com.hedera.hapi.node.base.SemanticVersion;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.nio.file.Path;
 import java.time.Duration;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
@@ -257,13 +256,12 @@ public interface Node {
      *
      * @param savedStateDirectory the software version to set for the node
      */
-    void savedStateDirectory(@NonNull final String savedStateDirectory);
+    void startFromSavedState(@NonNull final String savedStateDirectory);
 
     /**
-     * Gets the directory of the saved state directory.
+     * Indicated if the node starts from saved state
      *
-     * @return {@code null} if no saved state is set
+     * @return {@code true} if node starts from saved state
      */
-    @Nullable
-    Path savedStateDirectory();
+    boolean startFromSavedState();
 }
