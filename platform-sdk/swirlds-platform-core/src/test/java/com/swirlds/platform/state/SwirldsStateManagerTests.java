@@ -18,7 +18,6 @@ import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
 import com.swirlds.platform.SwirldsPlatform;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.SignedState;
-import com.swirlds.platform.system.status.StatusActionSubmitter;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
 import com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer;
@@ -50,7 +49,6 @@ class SwirldsStateManagerTests {
                 platformContext,
                 roster,
                 NodeId.of(0L),
-                mock(StatusActionSubmitter.class),
                 SemanticVersion.newBuilder().major(1).build(),
                 FAKE_CONSENSUS_STATE_EVENT_HANDLER,
                 platformStateFacade);

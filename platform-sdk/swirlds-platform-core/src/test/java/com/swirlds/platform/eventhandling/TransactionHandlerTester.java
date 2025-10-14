@@ -70,7 +70,6 @@ public class TransactionHandlerTester {
                 platformContext,
                 roster,
                 NodeId.FIRST_NODE_ID,
-                statusActionSubmitter,
                 SemanticVersion.newBuilder().major(1).build(),
                 consensusStateEventHandler,
                 platformStateFacade);

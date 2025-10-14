@@ -1,13 +1,17 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.wiring;
 
+import static com.swirlds.platform.state.service.PlatformStateFacade.DEFAULT_PLATFORM_STATE_FACADE;
+
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.common.io.IOIterator;
 import com.swirlds.common.stream.RunningEventHashOverride;
 import com.swirlds.component.framework.schedulers.builders.TaskSchedulerType;
+import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.components.AppNotifier;
 import com.swirlds.platform.components.EventWindowManager;
 import com.swirlds.platform.components.consensus.ConsensusEngine;
+import com.swirlds.platform.consensus.EventWindowUtils;
 import com.swirlds.platform.event.branching.BranchDetector;
 import com.swirlds.platform.event.branching.BranchReporter;
 import com.swirlds.platform.event.deduplication.EventDeduplicator;
@@ -16,8 +20,10 @@ import com.swirlds.platform.event.preconsensus.InlinePcesWriter;
 import com.swirlds.platform.event.validation.EventSignatureValidator;
 import com.swirlds.platform.listeners.ReconnectCompleteNotification;
 import com.swirlds.platform.publisher.PlatformPublisher;
+import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.hashlogger.HashLogger;
 import com.swirlds.platform.state.iss.IssDetector;
+import com.swirlds.platform.state.nexus.SignedStateNexus;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.state.signed.StateSignatureCollector;
@@ -27,6 +33,7 @@ import com.swirlds.platform.system.PlatformMonitor;
 import com.swirlds.platform.system.status.StatusActionSubmitter;
 import com.swirlds.platform.system.status.StatusStateMachine;
 import com.swirlds.platform.system.status.actions.PlatformStatusAction;
+import com.swirlds.platform.system.status.actions.ReconnectCompleteAction;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
 import org.hiero.consensus.event.creator.EventCreatorModule;
@@ -34,6 +41,7 @@ import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.consensus.roster.RosterHistory;
+import org.hiero.consensus.roster.RosterUtils;
 
 /**
  * Responsible for coordinating activities through the component's wire for the platform.
@@ -372,5 +380,49 @@ public record PlatformCoordinator(@NonNull PlatformComponents components) implem
                 .eventCreationManagerWiring()
                 .getInputWire(EventCreatorModule::quiescenceCommand)
                 .inject(quiescenceCommand);
+    }
+
+    /**
+     * Load the received signed state into the platform (inline former ReconnectStateLoader#loadReconnectState).
+     */
+    public void loadReconnectState(@NonNull final Configuration configuration, @NonNull final SignedState signedState) {
+        // the state was received, so now we load its data into different objects
+        // logger.info(LogMarker.STATE_HASH.getMarker(), "RECONNECT: loadReconnectState: reloading state");
+        // logger.debug(RECONNECT.getMarker(), "`loadReconnectState` : reloading state");
+        this.overrideIssDetectorState(signedState.reserve("reconnect state to issDetector"));
+
+        // It's important to call init() before loading the signed state. The loading process makes copies
+        // of the state, and we want to be sure that the first state in the chain of copies has been initialized.
+        final MerkleNodeState state = signedState.getState();
+
+        // kick off transition to RECONNECT_COMPLETE before beginning to save the reconnect state to disk
+        // this guarantees that the platform status will be RECONNECT_COMPLETE before the state is saved
+        this.submitStatusAction(new ReconnectCompleteAction(signedState.getRound()));
+        components
+                .latestImmutableStateNexusWiring()
+                .getInputWire(SignedStateNexus::setState)
+                .put(signedState.reserve("set latest immutable to reconnect state"));
+
+        this.sendStateToHashLogger(signedState);
+        // this will send the state to the signature collector which will send it to be written to disk.
+        // in the future, we might not send it to the collector because it already has all the signatures
+        // if this is the case, we must make sure to send it to the writer directly
+        this.putSignatureCollectorState(signedState.reserve("loading reconnect state into sig collector"));
+        final ConsensusSnapshot consensusSnapshot =
+                Objects.requireNonNull(DEFAULT_PLATFORM_STATE_FACADE.consensusSnapshotOf(state));
+        this.consensusSnapshotOverride(consensusSnapshot);
+
+        final RosterHistory rosterHistory = RosterUtils.createRosterHistory(state);
+        this.injectRosterHistory(rosterHistory);
+
+        this.updateEventWindow(EventWindowUtils.createEventWindow(consensusSnapshot, configuration));
+
+        final RunningEventHashOverride runningEventHashOverride =
+                new RunningEventHashOverride(DEFAULT_PLATFORM_STATE_FACADE.legacyRunningEventHashOf(state), true);
+        this.updateRunningHash(runningEventHashOverride);
+        this.registerPcesDiscontinuity(signedState.getRound());
+
+        // Notify any listeners that the reconnect has been completed
+        this.sendReconnectCompleteNotification(signedState);
     }
 }
