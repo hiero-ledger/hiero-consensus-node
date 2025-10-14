@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.blocks.impl.streaming;
 
+import static com.hedera.node.app.blocks.impl.streaming.BlockNodeUtils.getContiguousRangesAsString;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.block.internal.BufferedBlock;
@@ -282,16 +283,6 @@ public class BlockBufferService {
     }
 
     /**
-     * @return the batch size for a request to send to the block node
-     */
-    private int blockItemBatchSize() {
-        return configProvider
-                .getConfiguration()
-                .getConfigData(BlockStreamConfig.class)
-                .blockItemBatchSize();
-    }
-
-    /**
      * Sets the block node connection manager for notifications.
      *
      * @param blockNodeConnectionManager the block node connection manager
@@ -332,7 +323,6 @@ public class BlockBufferService {
         lastProducedBlockNumber.updateAndGet(old -> Math.max(old, blockNumber));
         blockStreamMetrics.recordLatestBlockOpened(blockNumber);
         blockStreamMetrics.recordBlockOpened();
-        blockNodeConnectionManager.openBlock(blockNumber);
     }
 
     /**
@@ -495,21 +485,11 @@ public class BlockBufferService {
             return;
         }
 
-        final int batchSize = blockItemBatchSize();
-
         logger.info("Block buffer is being restored from disk (blocksRead: {})", blocks.size());
 
         for (final BufferedBlock bufferedBlock : blocks) {
             final BlockState block = new BlockState(bufferedBlock.blockNumber());
             bufferedBlock.block().items().forEach(block::addItem);
-            // create the requests
-            block.processPendingItems(batchSize);
-            if (bufferedBlock.isProofSent()) {
-                // the proof is sent and since it is the last thing in a block, mark all the requests as sent
-                for (int i = 0; i < block.numRequestsCreated(); ++i) {
-                    block.markRequestSent(i);
-                }
-            }
 
             final Timestamp closedTimestamp = bufferedBlock.closedTimestamp();
             final Instant closedInstant = Instant.ofEpochSecond(closedTimestamp.seconds(), closedTimestamp.nanos());
@@ -545,10 +525,6 @@ public class BlockBufferService {
                 .filter(BlockState::isClosed)
                 .filter(blockState -> blockState.blockNumber() > highestAckedBlockNumber.get())
                 .toList();
-
-        // ensure all closed blocks have their items packed in requests before writing them out
-        final int batchSize = blockItemBatchSize();
-        blocksToPersist.forEach(block -> block.processPendingItems(batchSize));
 
         try {
             bufferIO.write(blocksToPersist, highestAckedBlockNumber.get());
@@ -707,7 +683,7 @@ public class BlockBufferService {
         final PruneResult previousPruneResult = lastPruningResult;
         lastPruningResult = pruningResult;
 
-        // create a list of ranges of continguous blocks in the buffer
+        // create a list of ranges of contiguous blocks in the buffer
         if (logger.isDebugEnabled()) {
             logger.debug(
                     "Block buffer status: idealMaxBufferSize={}, blocksChecked={}, blocksPruned={}, blocksPendingAck={}, blockRange={}, saturation={}%",
@@ -715,7 +691,7 @@ public class BlockBufferService {
                     pruningResult.numBlocksChecked,
                     pruningResult.numBlocksPruned,
                     pruningResult.numBlocksPendingAck,
-                    getContiguousRangesAsString(),
+                    getContiguousRangesAsString(new ArrayList<>(blockBuffer.keySet())),
                     pruningResult.saturationPercent);
         }
 
@@ -817,41 +793,6 @@ public class BlockBufferService {
         if (awaitingRecovery && !pruningResult.isSaturated) {
             disableBackPressureIfRecovered(pruningResult);
         }
-    }
-
-    public String getContiguousRangesAsString() {
-        // Collect and sort keys
-        List<Long> keys = new ArrayList<>(blockBuffer.keySet());
-        Collections.sort(keys);
-
-        if (keys.isEmpty()) {
-            return "[]";
-        }
-
-        List<String> ranges = new ArrayList<>();
-        long start = keys.get(0);
-        long prev = start;
-
-        for (int i = 1; i < keys.size(); i++) {
-            long current = keys.get(i);
-            if (current == prev + 1) {
-                // Still contiguous
-                prev = current;
-            } else {
-                // Close previous range
-                ranges.add(formatRange(start, prev));
-                start = current;
-                prev = current;
-            }
-        }
-        // Add last range
-        ranges.add(formatRange(start, prev));
-
-        return "[" + String.join(",", ranges) + "]";
-    }
-
-    private String formatRange(long start, long end) {
-        return start == end ? "(" + start + ")" : "(" + start + "-" + end + ")";
     }
 
     /**

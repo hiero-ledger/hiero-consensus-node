@@ -3,12 +3,16 @@ package com.hedera.node.app.blocks.impl.streaming;
 
 import static java.util.Objects.requireNonNull;
 import static org.apache.logging.log4j.Level.DEBUG;
+import static org.apache.logging.log4j.Level.ERROR;
+import static org.apache.logging.log4j.Level.INFO;
 import static org.apache.logging.log4j.Level.TRACE;
+import static org.apache.logging.log4j.Level.WARN;
 import static org.hiero.block.api.PublishStreamRequest.EndStream.Code.RESET;
 import static org.hiero.block.api.PublishStreamRequest.EndStream.Code.TIMEOUT;
 import static org.hiero.block.api.PublishStreamRequest.EndStream.Code.TOO_FAR_BEHIND;
 
 import com.hedera.hapi.block.stream.BlockItem;
+import com.hedera.hapi.block.stream.BlockProof;
 import com.hedera.node.app.metrics.BlockStreamMetrics;
 import com.hedera.node.app.util.LoggingUtilities;
 import com.hedera.node.config.ConfigProvider;
@@ -18,8 +22,11 @@ import com.hedera.pbj.runtime.grpc.GrpcException;
 import com.hedera.pbj.runtime.grpc.Pipeline;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.io.UncheckedIOException;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.Flow;
 import java.util.concurrent.ScheduledExecutorService;
@@ -31,6 +38,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.block.api.BlockItemSet;
 import org.hiero.block.api.BlockStreamPublishServiceInterface.BlockStreamPublishServiceClient;
 import org.hiero.block.api.PublishStreamRequest;
 import org.hiero.block.api.PublishStreamRequest.EndStream;
@@ -56,7 +64,11 @@ import org.hiero.block.api.PublishStreamResponse.SkipBlock;
 public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
 
     private static final Logger logger = LogManager.getLogger(BlockNodeConnection.class);
-
+    /**
+     * PBJ has a deserialization hard limit of 2 MB. Any request we send to the block node MUST BE less than or equal
+     * to 2 MB. If a request exceeds this, it will fail to deserialize.
+     */
+    private static final int MAX_BYTES_PER_REQUEST = 2_097_152;
     /**
      * Counter used to get unique identities for connection instances.
      */
@@ -114,6 +126,18 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
      * The unique ID of this connection instance.
      */
     private final String connectionId;
+    /**
+     * The current block number being streamed.
+     */
+    private final AtomicLong streamingBlockNumber = new AtomicLong(-1);
+    /**
+     * Reference to the worker thread, once it is initialized.
+     */
+    private final AtomicReference<Thread> workerThreadRef = new AtomicReference<>();
+    /**
+     * Mechanism to retrieve configuration properties related to block-node communication.
+     */
+    private final ConfigProvider configProvider;
 
     /**
      * Represents the possible states of a Block Node connection.
@@ -156,16 +180,6 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
     }
 
     /**
-     * Helper method to add current instance information for debug logging.
-     */
-    private void logWithContext(Level level, String message, Object... args) {
-        if (logger.isEnabled(level)) {
-            message = String.format("%s %s %s", LoggingUtilities.threadInfo(), this, message);
-            logger.atLevel(level).log(message, args);
-        }
-    }
-
-    /**
      * Construct a new BlockNodeConnection.
      *
      * @param configProvider the configuration to use
@@ -183,8 +197,9 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
             @NonNull final BlockBufferService blockBufferService,
             @NonNull final BlockStreamPublishServiceClient grpcServiceClient,
             @NonNull final BlockStreamMetrics blockStreamMetrics,
-            @NonNull final ScheduledExecutorService executorService) {
-        requireNonNull(configProvider, "configProvider must not be null");
+            @NonNull final ScheduledExecutorService executorService,
+            @Nullable final Long initialBlockToStream) {
+        this.configProvider = requireNonNull(configProvider, "configProvider must not be null");
         this.blockNodeConfig = requireNonNull(nodeConfig, "nodeConfig must not be null");
         this.blockNodeConnectionManager =
                 requireNonNull(blockNodeConnectionManager, "blockNodeConnectionManager must not be null");
@@ -196,7 +211,23 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
         final var blockNodeConnectionConfig =
                 configProvider.getConfiguration().getConfigData(BlockNodeConnectionConfig.class);
         this.streamResetPeriod = blockNodeConnectionConfig.streamResetPeriod();
+
         connectionId = String.format("%04d", connectionIdCounter.incrementAndGet());
+
+        if (initialBlockToStream != null) {
+            streamingBlockNumber.set(initialBlockToStream);
+            logWithContext(INFO, "Block node connection will initially stream with block {}", initialBlockToStream);
+        }
+    }
+
+    /**
+     * Helper method to add current instance information for debug logging.
+     */
+    private void logWithContext(final Level level, final String message, final Object... args) {
+        if (logger.isEnabled(level)) {
+            final String msg = String.format("%s %s %s", LoggingUtilities.threadInfo(), this, message);
+            logger.atLevel(level).log(msg, args);
+        }
     }
 
     /**
@@ -218,10 +249,9 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
     /**
      * Updates the connection's state.
      * @param newState the new state to transition to
-     * @return true if the state was successfully updated to the new state, else false
      */
-    public boolean updateConnectionState(@NonNull final ConnectionState newState) {
-        return updateConnectionState(null, newState);
+    public void updateConnectionState(@NonNull final ConnectionState newState) {
+        updateConnectionState(null, newState);
     }
 
     /**
@@ -253,6 +283,11 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
 
         if (newState == ConnectionState.ACTIVE) {
             scheduleStreamReset();
+            // start worker thread to handle sending requests
+            final Thread workerThread = new Thread(new ConnectionWorkerLoopTask(), "bn-conn-worker-" + connectionId);
+            if (workerThreadRef.compareAndSet(null, workerThread)) {
+                workerThread.start();
+            }
         } else {
             cancelStreamReset();
         }
@@ -372,13 +407,14 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
      * @param acknowledgedBlockNumber the block number that has been known to be persisted and verified by the block node
      */
     private void acknowledgeBlocks(final long acknowledgedBlockNumber, final boolean maybeJumpToBlock) {
-        logWithContext(DEBUG, "Acknowledging blocks <= {}.", acknowledgedBlockNumber);
+        logWithContext(DEBUG, "Acknowledging blocks <= {}", acknowledgedBlockNumber);
 
-        final long currentBlockStreaming = blockNodeConnectionManager.currentStreamingBlockNumber();
+        final long currentBlockStreaming = streamingBlockNumber.get();
         final long currentBlockProducing = blockBufferService.getLastBlockNumberProduced();
 
         // Update the last verified block by the current connection
-        blockNodeConnectionManager.updateLastVerifiedBlock(blockNodeConfig, acknowledgedBlockNumber);
+        blockBufferService.setLatestAcknowledgedBlock(acknowledgedBlockNumber);
+
         if (maybeJumpToBlock
                 && (acknowledgedBlockNumber > currentBlockProducing
                         || acknowledgedBlockNumber > currentBlockStreaming)) {
@@ -395,7 +431,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                     acknowledgedBlockNumber,
                     currentBlockStreaming,
                     currentBlockProducing);
-            jumpToBlock(blockToJumpTo);
+            streamingBlockNumber.updateAndGet(current -> Math.max(current, blockToJumpTo));
         }
     }
 
@@ -497,20 +533,21 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
     private void handleSkipBlock(@NonNull final SkipBlock skipBlock) {
         requireNonNull(skipBlock, "skipBlock must not be null");
         final long skipBlockNumber = skipBlock.blockNumber();
-        final long streamingBlockNumber = blockNodeConnectionManager.currentStreamingBlockNumber();
+        final long activeBlockNumber = streamingBlockNumber.get();
 
         // Only jump if the skip is for the block we are currently processing
-        if (skipBlockNumber == streamingBlockNumber) {
-            final long nextBlock = skipBlockNumber + 1L;
-            logWithContext(DEBUG, "Received SkipBlock response.");
-            jumpToBlock(nextBlock); // Now uses signaling instead of thread interruption
-        } else {
-            logWithContext(
-                    DEBUG,
-                    "Received SkipBlock response for block {}, but we are streaming block {} so it will be ignored.",
-                    skipBlockNumber,
-                    streamingBlockNumber);
+        if (skipBlockNumber == activeBlockNumber) {
+            final long nextBlock = skipBlockNumber + 1;
+            if (streamingBlockNumber.compareAndSet(activeBlockNumber, nextBlock)) {
+                logWithContext(DEBUG, "Received SkipBlock response; skipping to block {}", nextBlock);
+                return;
+            }
         }
+
+        logWithContext(
+                DEBUG,
+                "Received SkipBlock response (blockToSkip={}), but we've moved on to another block. Ignoring skip request",
+                skipBlockNumber);
     }
 
     /**
@@ -527,7 +564,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
         logWithContext(DEBUG, "Received ResendBlock response for block {}.", resendBlockNumber);
 
         if (blockBufferService.getBlockState(resendBlockNumber) != null) {
-            jumpToBlock(resendBlockNumber);
+            streamingBlockNumber.set(resendBlockNumber);
         } else {
             // If we don't have the block state, we schedule retry for this connection and establish new one
             // with different block node
@@ -570,11 +607,13 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
      * If connection is active sends a stream request to the block node, otherwise does nothing.
      *
      * @param request the request to send
+     * @return true if the request was sent, else false
      */
-    public void sendRequest(@NonNull final PublishStreamRequest request) {
+    public boolean sendRequest(@NonNull final PublishStreamRequest request) {
         requireNonNull(request, "request must not be null");
 
         final Pipeline<? super PublishStreamRequest> pipeline = requestPipelineRef.get();
+
         if (getConnectionState() == ConnectionState.ACTIVE && pipeline != null) {
             try {
                 if (logger.isDebugEnabled()) {
@@ -601,26 +640,24 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                 logWithContext(TRACE, "[{}] Request took {}ms to send", this, durationMs);
 
                 if (request.hasEndStream()) {
-                    blockStreamMetrics.recordRequestEndStreamSent(
-                            request.endStream().endCode());
+                    blockStreamMetrics.recordRequestEndStreamSent(request.endStream().endCode());
                 } else {
                     blockStreamMetrics.recordRequestSent(request.request().kind());
-                    blockStreamMetrics.recordBlockItemsSent(
-                            request.blockItems().blockItems().size());
-                }
-
-                // Record the timestamp when the block is sent
-                if (request.blockItems() != null
-                        && !request.blockItems().blockItems().isEmpty()) {
-                    // Find the first block item
-                    // if it is a block proof, record the time it was sent
-                    final BlockItem firstItem =
-                            request.blockItems().blockItems().getFirst();
-                    if (firstItem.hasBlockProof()) {
-                        blockNodeConnectionManager.recordBlockProofSent(
-                                blockNodeConfig, firstItem.blockProof().block(), Instant.now());
+                    final BlockItemSet itemSet = request.blockItems();
+                    if (itemSet != null) {
+                        final List<BlockItem> items = itemSet.blockItems();
+                        blockStreamMetrics.recordBlockItemsSent(items.size());
+                        for (final BlockItem item : items) {
+                            final BlockProof blockProof = item.blockProof();
+                            if (blockProof != null) {
+                                blockNodeConnectionManager.recordBlockProofSent(
+                                        blockNodeConfig, blockProof.block(), Instant.now());
+                            }
+                        }
                     }
                 }
+
+                return true;
             } catch (final RuntimeException e) {
                 /*
                 There is a possible, and somewhat expected, race condition when one thread is attempting to close this
@@ -635,6 +672,8 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                 }
             }
         }
+
+        return false;
     }
 
     /**
@@ -658,7 +697,6 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
 
         try {
             closePipeline(callOnComplete);
-            jumpToBlock(-1L);
             logWithContext(DEBUG, "Connection successfully closed.");
         } catch (final RuntimeException e) {
             logWithContext(DEBUG, "Error occurred while attempting to close connection.", e);
@@ -699,19 +737,6 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
      */
     public BlockNodeConfig getNodeConfig() {
         return blockNodeConfig;
-    }
-
-    /**
-     * Restarts the worker thread at a specific block number without ending the stream.
-     * This method will interrupt the current worker thread if it exists,
-     * set the new block number and request index, and start a new worker thread.
-     * The gRPC stream with the block node is maintained.
-     *
-     * @param blockNumber the block number to jump to
-     */
-    private void jumpToBlock(final long blockNumber) {
-        // Set the target block for the worker loop to pick up
-        blockNodeConnectionManager.jumpToBlock(blockNumber);
     }
 
     @Override
@@ -829,11 +854,242 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
             return false;
         }
         final BlockNodeConnection that = (BlockNodeConnection) o;
-        return connectionId == that.connectionId && Objects.equals(blockNodeConfig, that.blockNodeConfig);
+        return Objects.equals(connectionId, that.connectionId) && Objects.equals(blockNodeConfig, that.blockNodeConfig);
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(blockNodeConfig, connectionId);
+    }
+
+    /**
+     * Worker that handles sending requests to the block node this connection is associated with.
+     * <p>
+     * This task/worker is based around an infinite loop that only exits when the connection state enters a terminal
+     * state. Otherwise, each iteration of the loop will check to see if the block to stream has been changed (either
+     * because all block items have been sent for the current block or a response from the block node indicates we need
+     * to change blocks - e.g. SkipBlock response).
+     * <p>
+     * If there are block items available for the current streaming block, then they will be added to a "pending" block.
+     * This pending request will be sent if any one of the following conditions are met:
+     * <ul>
+     *     <li>The request contains the block proof</li>
+     *     <li>The next item to add to the request exceeds the maximum allowable request size</li>
+     *     <li>The time since the last request was sent exceeds the maximum delay configured</li>
+     * </ul>
+     */
+    private class ConnectionWorkerLoopTask implements Runnable {
+
+        private static final int BYTES_PADDING = 100;
+
+        private final List<BlockItem> pendingRequestItems = new ArrayList<>();
+        private long pendingRequestBytes = BYTES_PADDING;
+        private int itemIndex = 0;
+        private BlockState block;
+        private long lastSendTimeMillis = -1;
+
+        @Override
+        public void run() {
+            logWithContext(INFO, "Worker thread started");
+            while (true) {
+                try {
+                    doWork();
+
+                    final ConnectionState state = getConnectionState();
+                    if (state.isTerminal()) {
+                        // The connection is in a terminal state so allow the worker to stop
+                        break;
+                    } else {
+                        Thread.sleep(connectionWorkerSleepMillis());
+                    }
+                } catch (final InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                } catch (final Exception e) {
+                    logWithContext(WARN, "Error caught in connection worker loop", e);
+                }
+            }
+
+            // if we exit the worker loop, then this thread is over... remove it from the worker thread reference
+            logWithContext(INFO, "Worker thread exiting");
+            workerThreadRef.compareAndSet(Thread.currentThread(), null);
+        }
+
+        private void doWork() {
+            switchBlockIfNeeded();
+
+            if (block == null) {
+                // The block we want to stream is not available
+                return;
+            }
+
+            for (; ; ) {
+                final BlockItem item = block.blockItem(itemIndex);
+
+                if (item == null) {
+                    // We attempted to get the next item in the block, but it doesn't exist yet
+                    break;
+                }
+
+                if (itemIndex == 0) {
+                    logWithContext(TRACE, "Starting to process items for block {}", block.blockNumber());
+                }
+
+                final int itemSize = item.protobufSize();
+                final long newRequestBytes = pendingRequestBytes + itemSize;
+
+                if (newRequestBytes > MAX_BYTES_PER_REQUEST) {
+                    // Adding this item to the request would exceed the max size per request
+                    if (!pendingRequestItems.isEmpty()) {
+                        // Try to send the pending request
+                        if (!sendPendingRequest()) {
+                            // The request failed. Exit the loop and try again later.
+                            break;
+                        }
+                    } else {
+                        // There are no other items in the current pending request. This means that the item is too big
+                        // to send. We've entered a fatal, non-recoverable situation.
+                        logWithContext(
+                                ERROR,
+                                "!!! FATAL: Request would contain a block item that is too big to send (block={}, itemIndex={}, expectedRequestSize={}, maxAllowed={}). Closing connection.",
+                                block.blockNumber(),
+                                itemIndex,
+                                newRequestBytes,
+                                MAX_BYTES_PER_REQUEST);
+                        endTheStreamWith(EndStream.Code.ERROR);
+                        blockNodeConnectionManager.connectionResetsTheStream(BlockNodeConnection.this);
+                        break;
+                    }
+                } else {
+                    // The item fits into the pending request
+                    pendingRequestItems.add(item);
+                    pendingRequestBytes = newRequestBytes;
+                    ++itemIndex; // allow loop to advance to next block item
+                }
+            }
+
+            if (!pendingRequestItems.isEmpty()) {
+                // There are pending items to send. Check if enough time has elapsed since the last request was sent.
+                // If so, send the current pending request.
+                final long diffMillis = System.currentTimeMillis() - lastSendTimeMillis;
+                if (diffMillis >= maxRequestDelayMillis()) {
+                    sendPendingRequest();
+                }
+            }
+
+            if (pendingRequestItems.isEmpty() && block.isClosed() && block.itemCount() == itemIndex) {
+                // We've gathered all block items and have sent them to the block node. No additional work is needed
+                // for the current block so we can move to the next block.
+                final long nextBlockNumber = block.blockNumber() + 1;
+                if (streamingBlockNumber.compareAndSet(block.blockNumber(), nextBlockNumber)) {
+                    logWithContext(TRACE, "Advancing to block {}", nextBlockNumber);
+                } else {
+                    logWithContext(
+                            TRACE,
+                            "Tried to advance to block {} but the block to stream was updated externally",
+                            nextBlockNumber);
+                }
+            }
+        }
+
+        /**
+         * Attempt to send the pending block items to the block node.
+         *
+         * @return true if the request with the pending items was successfully sent, else false
+         */
+        private boolean sendPendingRequest() {
+            final BlockItemSet itemSet = BlockItemSet.newBuilder()
+                    .blockItems(List.copyOf(pendingRequestItems))
+                    .build();
+            final PublishStreamRequest req =
+                    PublishStreamRequest.newBuilder().blockItems(itemSet).build();
+
+            try {
+                if (sendRequest(req)) {
+                    // record that we've sent the request
+                    lastSendTimeMillis = System.currentTimeMillis();
+
+                    // clear the pending request data
+                    pendingRequestBytes = BYTES_PADDING;
+                    pendingRequestItems.clear();
+                    return true;
+                }
+            } catch (final UncheckedIOException e) {
+                logWithContext(DEBUG, "UncheckedIOException caught in connection worker thread", e);
+                handleStreamFailureWithoutOnComplete();
+            } catch (final Exception e) {
+                logWithContext(DEBUG, "Exception caught in connection worker thread", e);
+                handleStreamFailure();
+            }
+
+            return false;
+        }
+
+        /**
+         * Switches the active block if the connection's specified active block is different from the most recently
+         * used block. This will also determine which block to initialize with.
+         */
+        private void switchBlockIfNeeded() {
+            final long activeBlockNum = streamingBlockNumber.get();
+            if (activeBlockNum == -1) {
+                final long highestAckedBlock = blockBufferService.getHighestAckedBlockNumber();
+                if (highestAckedBlock != -1) {
+                    // Set to the next block that isn't acked
+                    streamingBlockNumber.compareAndSet(activeBlockNum, highestAckedBlock + 1);
+                } else {
+                    // If no blocks are acked, start with the earliest block in the buffer
+                    final long earliestBlock = blockBufferService.getEarliestAvailableBlockNumber();
+                    streamingBlockNumber.compareAndSet(activeBlockNum, earliestBlock);
+                }
+            }
+
+            final long latestActiveBlockNumber = streamingBlockNumber.get();
+            if (latestActiveBlockNumber == -1) {
+                return; // No blocks available to stream
+            }
+
+            if (block != null && block.blockNumber() == latestActiveBlockNumber) {
+                // The block hasn't changed so we can exit
+                return;
+            }
+
+            // Swap blocks and reset
+            if (logger.isTraceEnabled()) {
+                final long oldBlock = block == null ? -1 : block.blockNumber();
+                if (oldBlock == -1) {
+                    logWithContext(
+                            TRACE,
+                            "Worker ready to switch to block {}, but the block isn't ready yet",
+                            latestActiveBlockNumber);
+                } else {
+                    logWithContext(TRACE, "Worker switching to block {}", latestActiveBlockNumber);
+                }
+            }
+            block = blockBufferService.getBlockState(latestActiveBlockNumber);
+            pendingRequestBytes = BYTES_PADDING;
+            itemIndex = 0;
+            pendingRequestItems.clear();
+        }
+
+        /**
+         * @return the maximum amount of time (in milliseconds) between sending requests to a block node
+         */
+        private long maxRequestDelayMillis() {
+            return configProvider
+                    .getConfiguration()
+                    .getConfigData(BlockNodeConnectionConfig.class)
+                    .maxRequestDelay()
+                    .toMillis();
+        }
+
+        /**
+         * @return the amount of time (in milliseconds) to sleep between connection worker loop iterations
+         */
+        private long connectionWorkerSleepMillis() {
+            return configProvider
+                    .getConfiguration()
+                    .getConfigData(BlockNodeConnectionConfig.class)
+                    .connectionWorkerSleepDuration()
+                    .toMillis();
+        }
     }
 }
