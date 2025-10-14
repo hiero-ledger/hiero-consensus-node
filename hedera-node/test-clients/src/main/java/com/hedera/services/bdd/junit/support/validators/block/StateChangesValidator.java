@@ -205,7 +205,7 @@ public class StateChangesValidator implements BlockStreamValidator {
                 .toAbsolutePath()
                 .normalize();
         // 3 if debugging most PR checks, 4 if debugging the HAPI (Restart) check
-        final long hintsThresholdDenominator = 4;
+        final long hintsThresholdDenominator = 3;
         final long shard = 11;
         final long realm = 12;
         final var validator = new StateChangesValidator(
