@@ -749,21 +749,33 @@ public class VirtualMapStateTest extends MerkleTestBase {
     @Nested
     @DisplayName("Path lookup tests")
     class PathLookupTest {
+
+        private VirtualMap virtualMap;
+
         @BeforeEach
         void setUp() {
             // Initialize metadata for all relevant states
             setupFruitVirtualMap();
             setupSingletonCountry();
             setupSteamQueue();
+            virtualMap = (VirtualMap) virtualMapState.getRoot();
+            virtualMapState.initializeState(steamMetadata);
+
+            addSingletonState(virtualMap, countryMetadata, GHANA);
+            addKvState(virtualMap, fruitMetadata, A_KEY, APPLE);
+            // Initialize a queue state and add three elements via the API to ensure QueueState is set up
+
+            final WritableStates writable = virtualMapState.getWritableStates(FIRST_SERVICE);
+            final WritableQueueState<ProtoBytes> queue = writable.getQueue(STEAM_STATE_ID);
+            queue.add(ART);
+            queue.add(BIOLOGY);
+            queue.add(CHEMISTRY);
+            ((CommittableWritableStates) writable).commit();
         }
 
         @Test
-        @DisplayName("singletonPathByKey returns path for existing singleton")
-        void singletonPathByKey_found() {
-            final VirtualMap virtualMap = (VirtualMap) virtualMapState.getRoot();
-            // Add the singleton value directly into the virtual map
-            addSingletonState(virtualMap, countryMetadata, GHANA);
-
+        @DisplayName("singletonPath returns path for existing singleton")
+        void singletonPath_found() {
             // Register the singleton metadata with the state (not strictly needed for path lookup)
             virtualMapState.initializeState(countryMetadata);
 
@@ -772,61 +784,75 @@ public class VirtualMapStateTest extends MerkleTestBase {
                     .getRecords()
                     .findPath(StateUtils.getStateKeyForSingleton(COUNTRY_STATE_ID));
 
-            final long actual = virtualMapState.singletonPathByKey(COUNTRY_STATE_ID);
+            final long actual = virtualMapState.singletonPath(COUNTRY_STATE_ID);
             assertThat(actual).isEqualTo(expected);
         }
 
         @Test
-        @DisplayName("kvPathByKey returns path for existing kv key")
-        void kvPathByKey_found() {
-            final VirtualMap virtualMap = (VirtualMap) virtualMapState.getRoot();
-            // Add a KV entry directly
-            addKvState(virtualMap, fruitMetadata, A_KEY, APPLE);
+        @DisplayName("singletonPath returns invalid path for unkown singleton state ID")
+        void singletonPath_unknownState() {
+            // Register the singleton metadata with the state (not strictly needed for path lookup)
+            virtualMapState.initializeState(countryMetadata);
+            final long actual = virtualMapState.singletonPath(rand.nextInt(65535));
+            assertThat(actual).isEqualTo(INVALID_PATH);
+        }
+
+        @Test
+        @DisplayName("kvPath returns path for existing kv key")
+        void kvPath_found() {
             virtualMapState.initializeState(fruitMetadata);
 
             final var kvKey = StateUtils.getStateKeyForKv(FRUIT_STATE_ID, A_KEY, ProtoBytes.PROTOBUF);
             final long expected =
                     ((VirtualMap) virtualMapState.getRoot()).getRecords().findPath(kvKey);
 
-            final long actual = virtualMapState.kvPathByKey(FRUIT_STATE_ID, ProtoBytes.PROTOBUF.toBytes(A_KEY));
+            final long actual = virtualMapState.kvPath(FRUIT_STATE_ID, ProtoBytes.PROTOBUF.toBytes(A_KEY));
             assertThat(actual).isEqualTo(expected);
         }
 
         @Test
-        @DisplayName("queueElementPathByValue returns correct path for existing element and INVALID_PATH otherwise")
-        void queueElementPathByValue_foundAndNotFound() {
-            // Initialize a queue state and add three elements via the API to ensure QueueState is set up
-            virtualMapState.initializeState(steamMetadata);
-            final WritableStates writable = virtualMapState.getWritableStates(FIRST_SERVICE);
-            final WritableQueueState<ProtoBytes> queue = writable.getQueue(STEAM_STATE_ID);
-            queue.add(ART);
-            queue.add(BIOLOGY);
-            queue.add(CHEMISTRY);
-            ((CommittableWritableStates) writable).commit();
+        @DisplayName("kvPath returns path for existing kv key")
+        void kvPath_notFound() {
+            virtualMapState.initializeState(fruitMetadata);
 
-            final VirtualMap vm = (VirtualMap) virtualMapState.getRoot();
+            final long actual = virtualMapState.kvPath(FRUIT_STATE_ID, ProtoBytes.PROTOBUF.toBytes(B_KEY));
+            assertThat(actual).isEqualTo(INVALID_PATH);
+        }
+
+        @Test
+        @DisplayName("kvPath returns path for existing kv key")
+        void kvPath_unknownState() {
+            virtualMapState.initializeState(fruitMetadata);
+
+            final long actual = virtualMapState.kvPath(rand.nextInt(65535), ProtoBytes.PROTOBUF.toBytes(A_KEY));
+            assertThat(actual).isEqualTo(INVALID_PATH);
+        }
+
+        @Test
+        @DisplayName("queueElementPath returns correct path for existing element and INVALID_PATH otherwise")
+        void queueElementPath_foundAndNotFound() {
 
             final var firstIdxKey = StateUtils.getStateKeyForQueue(STEAM_STATE_ID, 1);
             // normally this shouldn't be happening as we don't delete values from VM directly.
             // This is needed to cover the case when VM returns null
-            vm.remove(firstIdxKey);
+            virtualMap.remove(firstIdxKey);
 
             final var thirdIdxKey = StateUtils.getStateKeyForQueue(STEAM_STATE_ID, 3);
-            final var expectedPath = vm.getRecords().findPath(thirdIdxKey);
+            final var expectedPath = virtualMap.getRecords().findPath(thirdIdxKey);
 
             // Found case
             final long actualPath =
-                    virtualMapState.queueElementPathByValue(STEAM_STATE_ID, CHEMISTRY, ProtoBytes.PROTOBUF);
+                    virtualMapState.queueElementPath(STEAM_STATE_ID, ProtoBytes.PROTOBUF.toBytes(CHEMISTRY));
             assertThat(actualPath).isEqualTo(expectedPath);
 
             // Not found case - use a key not present in the map
             final long notFoundPath =
-                    virtualMapState.queueElementPathByValue(STEAM_STATE_ID, DISCIPLINE, ProtoBytes.PROTOBUF);
+                    virtualMapState.queueElementPath(STEAM_STATE_ID, ProtoBytes.PROTOBUF.toBytes(DISCIPLINE));
             assertThat(notFoundPath).isEqualTo(INVALID_PATH);
 
-            final int unknownStateId = rand.nextInt();
+            final int unknownStateId = rand.nextInt(65535);
             final long unknownStatePath =
-                    virtualMapState.queueElementPathByValue(unknownStateId, DISCIPLINE, ProtoBytes.PROTOBUF);
+                    virtualMapState.queueElementPath(unknownStateId, ProtoBytes.PROTOBUF.toBytes(CHEMISTRY));
             assertThat(unknownStatePath).isEqualTo(INVALID_PATH);
         }
     }

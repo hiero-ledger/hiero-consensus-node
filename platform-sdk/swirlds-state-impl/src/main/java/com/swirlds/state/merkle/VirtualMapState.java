@@ -21,9 +21,9 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.merkledb.MerkleDbDataSourceBuilder;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.metrics.api.Metrics;
+import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.State;
 import com.swirlds.state.StateChangeListener;
-import com.swirlds.state.StateProofView;
 import com.swirlds.state.lifecycle.StateMetadata;
 import com.swirlds.state.merkle.disk.OnDiskReadableKVState;
 import com.swirlds.state.merkle.disk.OnDiskReadableQueueState;
@@ -48,6 +48,7 @@ import com.swirlds.state.spi.WritableSingletonState;
 import com.swirlds.state.spi.WritableSingletonStateBase;
 import com.swirlds.state.spi.WritableStates;
 import com.swirlds.virtualmap.VirtualMap;
+import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
@@ -68,7 +69,7 @@ import org.hiero.base.crypto.Hash;
 /**
  * An implementation of {@link State} backed by a single Virtual Map.
  */
-public abstract class VirtualMapState<T extends VirtualMapState<T>> implements State, StateProofView {
+public abstract class VirtualMapState<T extends VirtualMapState<T>> implements MerkleNodeState {
 
     public static final String VM_LABEL = "state";
 
@@ -800,30 +801,35 @@ public abstract class VirtualMapState<T extends VirtualMapState<T>> implements S
     /**
      * {@inheritDoc}}
      */
-    public long singletonPathByKey(int stateId) {
+    public long singletonPath(final int stateId) {
         return virtualMap.getRecords().findPath(StateUtils.getStateKeyForSingleton(stateId));
     }
 
     /**
      * {@inheritDoc}}
      */
-    public <V> long queueElementPathByValue(int stateId, V expectedValue, Codec<V> valueCodec) {
+    @Override
+    @NonNull
+    public <V> long queueElementPath(final int stateId, @NonNull final Bytes expectedValue) {
         final StateValue<QueueState> queueStateValue =
                 virtualMap.get(StateKeyUtils.queueStateKey(stateId), QUEUE_STATE_VALUE_CODEC);
         if (queueStateValue == null) {
             return INVALID_PATH;
         }
         final QueueState queueState = queueStateValue.value();
-        final StateValue.StateValueCodec<V> codec = new StateValue.StateValueCodec<>(stateId, valueCodec);
 
         for (long i = queueState.head(); i < queueState.tail(); i++) {
             final Bytes stateKey = StateUtils.getStateKeyForQueue(stateId, i);
-            StateValue<V> actualValue = virtualMap.get(stateKey, codec);
-            if (actualValue == null) {
+            long path = virtualMap.getRecords().findPath(stateKey);
+            if (path == INVALID_PATH) {
                 continue;
             }
-            if (actualValue.value().equals(expectedValue)) {
-                return virtualMap.getRecords().findPath(stateKey);
+            VirtualLeafBytes<?> leafRecord = virtualMap.getRecords().findLeafRecord(path);
+            if (leafRecord == null) {
+                continue;
+            }
+            if (leafRecord.valueBytes().equals(expectedValue)) {
+                return path;
             }
         }
 
@@ -834,11 +840,7 @@ public abstract class VirtualMapState<T extends VirtualMapState<T>> implements S
      * {@inheritDoc}
      */
     @Override
-    public StateProofView getStateProofView() {
-        return this;
-    }
-
-    public long kvPathByKey(int stateId, Bytes key) {
+    public long kvPath(final int stateId, @NonNull final Bytes key) {
         return virtualMap.getRecords().findPath(StateKeyUtils.kvKey(stateId, key));
     }
 
