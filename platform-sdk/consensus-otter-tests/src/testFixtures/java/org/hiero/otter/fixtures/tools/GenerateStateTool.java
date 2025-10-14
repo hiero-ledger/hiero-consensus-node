@@ -4,22 +4,21 @@ package org.hiero.otter.fixtures.tools;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.otter.fixtures.app.OtterApp.SWIRLD_NAME;
 
+import com.hedera.hapi.node.base.SemanticVersion;
 import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.common.io.utility.FileUtils;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.nio.file.StandardCopyOption;
 import java.time.Duration;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
-import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 import org.hiero.otter.fixtures.Network;
@@ -35,10 +34,11 @@ import org.hiero.otter.fixtures.turtle.TurtleTestEnvironment;
  * <p>
  * This tool performs the following steps:
  * <ul>
- *   <li>Creates a 1-node network</li>
+ *   <li>Creates a 4-node network</li>
  *   <li>Runs it for some time</li>
  *   <li>Freezes the network and shuts it down</li>
- *   <li>Moves the produced saved state</li>
+ *   <li>Cleans up the saved state directory</li>
+ *   <li>Moves the produced saved state to test resources</li>
  * </ul>
  * Intended to be run manually when refreshing the prior-version state used by tests.
  */
@@ -61,15 +61,17 @@ public class GenerateStateTool {
     /** Self-ID of the node */
     private static final long SELF_ID = 0L;
 
-    private static final List<String> FILES_TO_CLEAN = List.of("emergencyRecovery.yaml");
+    private static final List<String> FILES_TO_CLEAN = List.of("emergencyRecovery.yaml", PCES_DIRECTORY);
 
     /**
      * Create a new tool bound to the given test environment.
      *
      * @param environment the test environment to use; must not be {@code null}
+     * @param version the version in which the state should be written
      */
-    public GenerateStateTool(@NonNull final TestEnvironment environment) {
+    public GenerateStateTool(@NonNull final TestEnvironment environment, @NonNull final SemanticVersion version) {
         this.environment = requireNonNull(environment, "environment cannot be null");
+        environment.network().version(requireNonNull(version, "version cannot be null"));
     }
 
     /**
@@ -103,44 +105,39 @@ public class GenerateStateTool {
 
     /**
      * Cleans up the saved state directory by removing unnecessary files and keeping only the latest round.
-     * This method deletes all directories except the application directory, removes all non-directory files,
-     * cleans up the application state to keep only the maximum round directory, and prepares the PCES directory.
+     * This method deletes all directories except the application directory and PCES directory, removes all
+     * non-directory files, and cleans up the application state to keep only the maximum round directory.
      *
      * @param rootOutputDirectory the root directory containing the saved state to clean up
      * @throws IOException if file operations fail
-     * @throws IllegalStateException if the maximum round path is not found
      */
     public void cleanUpDirectory(@NonNull final Path rootOutputDirectory) throws IOException {
         requireNonNull(rootOutputDirectory, "root output directory cannot be null");
-        Path maxRoundPath = null;
+
         try (final DirectoryStream<Path> stream = Files.newDirectoryStream(rootOutputDirectory)) {
             for (final Path path : stream) {
                 if (Files.isDirectory(path)) {
                     if (path.getFileName().toString().equals(OtterApp.APP_NAME)) {
-                        maxRoundPath = removeAllButLatestState(path);
+                        removeAllButLatestState(path);
                     } else {
-                        FileUtils.deleteDirectory(path);
+                        if(!path.getFileName().toString().equals(PCES_DIRECTORY)) {
+                            FileUtils.deleteDirectory(path);
+                        }
                     }
                 } else {
                     Files.delete(path);
                 }
             }
         }
-
-        if (maxRoundPath != null) {
-            cleanUpStateDirectory(maxRoundPath);
-            preparePces(rootOutputDirectory, maxRoundPath);
-        } else {
-            throw new IllegalStateException("Max round path not found");
-        }
     }
 
     /**
-     * Removes specific files from the state directory that should not be included in the saved state.
-     * This method deletes files listed in {@link #FILES_TO_CLEAN} from the given directory.
+     * Removes specific files and directories from the state directory that should not be included in the saved state.
+     * This method deletes entries listed in {@link #FILES_TO_CLEAN} from the given directory.
+     * Both files and directories can be deleted.
      *
      * @param stateDirectory the state directory to clean up
-     * @throws UncheckedIOException if an I/O error occurs while listing or deleting files
+     * @throws UncheckedIOException if an I/O error occurs while listing or deleting entries
      */
     private void cleanUpStateDirectory(@NonNull final Path stateDirectory) {
         requireNonNull(stateDirectory, "state directory cannot be null");
@@ -149,7 +146,7 @@ public class GenerateStateTool {
                     .filter(p -> FILES_TO_CLEAN.contains(p.getFileName().toString()))
                     .forEach(p -> {
                         try {
-                            Files.deleteIfExists(p);
+                            FileUtils.delete(p);
                         } catch (final IOException exception) {
                             throw new UncheckedIOException(exception);
                         }
@@ -160,57 +157,14 @@ public class GenerateStateTool {
     }
 
     /**
-     * Prepares the PCES directory for the saved state.
-     * This method moves the PCES directory from the round directory to the root output directory,
-     * then reorganizes PCES files into a date-based directory structure (YYYY/MM/DD).
-     *
-     * @param rootOutputDirectory the root directory where the PCES directory will be moved
-     * @param maxRoundPath the path to the maximum round directory containing the PCES directory
-     * @throws IOException if the PCES directory does not exist or if file operations fail
-     */
-    private void preparePces(@NonNull final Path rootOutputDirectory, @NonNull final Path maxRoundPath)
-            throws IOException {
-        final Path pcesDirectory = maxRoundPath.resolve(PCES_DIRECTORY);
-        if (!Files.exists(pcesDirectory)) {
-            throw new IOException("PCES directory does not exist: " + pcesDirectory);
-        }
-        FileUtils.moveDirectory(pcesDirectory, rootOutputDirectory.resolve(PCES_DIRECTORY));
-
-        final Path nodePcesDirectory =
-                rootOutputDirectory.resolve(PCES_DIRECTORY).resolve(Long.toString(SELF_ID));
-        try (final DirectoryStream<Path> stream = Files.newDirectoryStream(nodePcesDirectory)) {
-            for (Path entry : stream) {
-                if (Files.isDirectory(entry)) {
-                    continue;
-                }
-
-                final String fileName = entry.getFileName().toString();
-                final Matcher matcher = DATE_PREFIX.matcher(fileName);
-                if (!matcher.matches()) {
-                    continue;
-                }
-
-                final Path targetDir =
-                        nodePcesDirectory.resolve(Paths.get(matcher.group(1), matcher.group(2), matcher.group(3)));
-                Files.createDirectories(targetDir);
-
-                final Path targetFile = targetDir.resolve(fileName);
-                Files.move(entry, targetFile, StandardCopyOption.REPLACE_EXISTING);
-            }
-        }
-    }
-
-    /**
      * Removes all saved state round directories except for the highest round.
      * This method identifies the maximum round number, deletes all other round directories,
-     * and returns the path to the maximum round.
+     * and cleans up the directory after.
      *
      * @param path the application directory path containing the node and swirld subdirectories
-     * @return the path to the maximum round directory
      * @throws IOException if no round directory is found or if file operations fail
      */
-    @NonNull
-    private Path removeAllButLatestState(@NonNull final Path path) throws IOException {
+    private void removeAllButLatestState(@NonNull final Path path) throws IOException {
         final Path dir = path.resolve(String.valueOf(SELF_ID)).resolve(SWIRLD_NAME);
         try (final Stream<Path> list = Files.list(dir)) {
             final List<Path> roundDirectories = list.filter(Files::isDirectory)
@@ -231,7 +185,76 @@ public class GenerateStateTool {
                 }
             }
 
-            return maxRound.get();
+            cleanUpStateDirectory(maxRound.get());
+        }
+    }
+
+    /**
+     * Reads the application version from the {@code version.txt} file in the current directory.
+     * Falls back to system property {@code app.version} if the file is not available.
+     * If neither is available or cannot be parsed, returns {@link SemanticVersion#DEFAULT}.
+     * <p>
+     * The expected version format is "major.minor.patch" or "major.minor.patch-qualifier"
+     * (e.g., "0.58.0" or "0.58.0-SNAPSHOT"). The qualifier portion, if present, is ignored.
+     *
+     * @return the semantic version parsed from the version file or system property, or the default version
+     */
+    @NonNull
+    private static SemanticVersion readVersionFile() {
+        // First, try to read from version.txt file
+        try (final BufferedReader reader = Files.newBufferedReader(Path.of("version.txt"))) {
+                final String versionString = reader.readLine();
+                if (versionString != null && !versionString.isEmpty()) {
+                    return parseVersion(versionString);
+                }
+        } catch (final IOException e) {
+            System.err.println("Failed to load version.txt: " + e.getMessage());
+        }
+
+        // Fall back to system property
+        final String versionString = System.getProperty("app.version");
+        if (versionString != null && !versionString.isEmpty()) {
+            return parseVersion(versionString);
+        }
+
+        System.out.println("No version found in properties file or system property, using default version");
+        return SemanticVersion.DEFAULT;
+    }
+
+    /**
+     * Parses a version string in "major.minor.patch" format into a {@link SemanticVersion}.
+     * Supports optional qualifiers (e.g., "0.58.0-SNAPSHOT") which are ignored.
+     *
+     * @param versionString the version string to parse (e.g., "0.58.0" or "0.58.0-SNAPSHOT")
+     * @return the parsed semantic version, or {@link SemanticVersion#DEFAULT} if parsing fails
+     */
+    @NonNull
+    private static SemanticVersion parseVersion(@NonNull final String versionString) {
+        try {
+            // Strip optional qualifier (e.g., "-SNAPSHOT", "-RC1") by splitting on hyphen
+            final String[] versionAndQualifier = versionString.split("-");
+            final String versionNumbersOnly = versionAndQualifier[0];
+
+            // Split version numbers by dot
+            final String[] versionComponents = versionNumbersOnly.split("\\.");
+            if (versionComponents.length < 3) {
+                System.err.println(
+                        "Invalid version format: " + versionString + ", expected format: major.minor.patch");
+                return SemanticVersion.DEFAULT;
+            }
+
+            final int major = Integer.parseInt(versionComponents[0]);
+            final int minor = Integer.parseInt(versionComponents[1]);
+            final int patch = Integer.parseInt(versionComponents[2]);
+
+            return SemanticVersion.newBuilder()
+                    .major(major)
+                    .minor(minor)
+                    .patch(patch)
+                    .build();
+        } catch (final NumberFormatException e) {
+            System.err.println("Failed to parse version from: " + versionString + ", using default");
+            return SemanticVersion.DEFAULT;
         }
     }
 
@@ -260,6 +283,10 @@ public class GenerateStateTool {
      * Command-line entry point. Generates a state using a deterministic turtle environment
      * and installs it into test resources.
      * <p>
+     * The version is read from the {@code version.txt} file in root directory. If not available,
+     * it falls back to the system property {@code app.version}. If neither is available,
+     * {@link SemanticVersion#DEFAULT} is used.
+     * <p>
      * Exit code {@code 0} on success, {@code -1} on failure.
      *
      * @param args ignored
@@ -271,7 +298,8 @@ public class GenerateStateTool {
                 FileUtils.deleteDirectory(turtleDir);
             }
 
-            final GenerateStateTool generateStateTool = new GenerateStateTool(new TurtleTestEnvironment(SEED, false));
+            final SemanticVersion version = readVersionFile();
+            final GenerateStateTool generateStateTool = new GenerateStateTool(new TurtleTestEnvironment(SEED, false), version);
             generateStateTool.generateState();
 
             final Node node = generateStateTool.getNode((int) SELF_ID);

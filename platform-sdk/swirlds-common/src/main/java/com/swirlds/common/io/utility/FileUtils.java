@@ -100,6 +100,23 @@ public final class FileUtils {
     }
 
     /**
+     * Deletes a file or directory at the specified path.
+     * If the path points to a directory, recursively deletes the directory and all its contents.
+     * If the path points to a regular file, deletes the file.
+     * If the path does not exist, no action is taken.
+     *
+     * @param pathToDelete the path to the file or directory to be deleted
+     * @throws IOException if an I/O error occurs during deletion
+     */
+    public static void delete(@NonNull final Path pathToDelete) throws IOException {
+        if(Files.isDirectory(pathToDelete)) {
+            deleteDirectory(pathToDelete);
+        } else {
+            Files.deleteIfExists(pathToDelete);
+        }
+    }
+
+    /**
      * Delete a directory and all files contained in this directory. If there is a problem deleting a file
      * or subdirectory, no more files or directories are attempted to be deleted.
      *
