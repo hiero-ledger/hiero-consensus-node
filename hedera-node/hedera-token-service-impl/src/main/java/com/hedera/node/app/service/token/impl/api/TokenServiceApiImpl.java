@@ -4,6 +4,7 @@ package com.hedera.node.app.service.token.impl.api;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.ACCOUNT_DELETED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.ACCOUNT_EXPIRED_AND_PENDING_REMOVAL;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.ACCOUNT_HAS_PENDING_AIRDROPS;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.ACCOUNT_IS_LINKED_TO_A_NODE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.ACCOUNT_IS_TREASURY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_ACCOUNT_BALANCE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID;
@@ -655,8 +656,7 @@ public class TokenServiceApiImpl implements TokenServiceApi {
         validateTrue(deletedAccount.numberPositiveBalances() == 0, TRANSACTION_REQUIRES_ZERO_TOKEN_BALANCES);
         // Can't delete account with non-zero hooks
         validateTrue(deletedAccount.numberHooksInUse() == 0, TRANSACTION_REQUIRES_ZERO_HOOKS);
-        // TODO Introduce new response code
-        validateTrue(accountNodeRelStore.get(deletedAccount.accountId()) == null, ACCOUNT_IS_TREASURY);
+        validateTrue(accountNodeRelStore.get(deletedAccount.accountId()) == null, ACCOUNT_IS_LINKED_TO_A_NODE);
         return new InvolvedAccounts(deletedAccount, transferAccount);
     }
 

@@ -196,8 +196,10 @@ public class AddressBookTestBase {
 
         readableAccountNodeRelState = readableAccountNodeRelState();
         writableAccountNodeRelState = writableAccountNodeRelState();
-        given(readableStates.<AccountID, NodeIdList>get(ACCOUNT_NODE_REL_STATE_ID)).willReturn(readableAccountNodeRelState);
-        given(writableStates.<AccountID, NodeIdList>get(ACCOUNT_NODE_REL_STATE_ID)).willReturn(writableAccountNodeRelState);
+        given(readableStates.<AccountID, NodeIdList>get(ACCOUNT_NODE_REL_STATE_ID))
+                .willReturn(readableAccountNodeRelState);
+        given(writableStates.<AccountID, NodeIdList>get(ACCOUNT_NODE_REL_STATE_ID))
+                .willReturn(writableAccountNodeRelState);
         readableAccountNodeRelStore = new ReadableAccountNodeRelStoreImpl(readableStates, readableEntityCounters);
         writableAccountNodeRelStore = new WritableAccountNodeRelStore(writableStates, writableEntityCounters);
         // readableAccountNodeRelStore = new ReadableAccountNodeRelStoreImpl(readableAccountNodeRelState(),
@@ -279,8 +281,10 @@ public class AddressBookTestBase {
 
         readableAccountNodeRelState = readableAccountNodeRelState();
         writableAccountNodeRelState = writableAccountNodeRelState();
-        given(readableStates.<AccountID, NodeIdList>get(ACCOUNT_NODE_REL_STATE_ID)).willReturn(readableAccountNodeRelState);
-        given(writableStates.<AccountID, NodeIdList>get(ACCOUNT_NODE_REL_STATE_ID)).willReturn(writableAccountNodeRelState);
+        given(readableStates.<AccountID, NodeIdList>get(ACCOUNT_NODE_REL_STATE_ID))
+                .willReturn(readableAccountNodeRelState);
+        given(writableStates.<AccountID, NodeIdList>get(ACCOUNT_NODE_REL_STATE_ID))
+                .willReturn(writableAccountNodeRelState);
         readableAccountNodeRelStore = new ReadableAccountNodeRelStoreImpl(readableStates, readableEntityCounters);
         writableAccountNodeRelStore = new WritableAccountNodeRelStore(writableStates, writableEntityCounters);
     }
@@ -320,7 +324,8 @@ public class AddressBookTestBase {
 
     @NonNull
     protected MapReadableKVState<AccountID, NodeIdList> readableAccountNodeRelState() {
-        return MapReadableKVState.<AccountID, NodeIdList>builder(ACCOUNT_NODE_REL_STATE_ID, ACCOUNT_NODE_REL_STATE_LABEL)
+        return MapReadableKVState.<AccountID, NodeIdList>builder(
+                        ACCOUNT_NODE_REL_STATE_ID, ACCOUNT_NODE_REL_STATE_LABEL)
                 .value(
                         node.accountId(),
                         NodeIdList.newBuilder().nodeId(node.nodeId()).build())
@@ -329,7 +334,8 @@ public class AddressBookTestBase {
 
     @NonNull
     protected MapWritableKVState<AccountID, NodeIdList> writableAccountNodeRelState() {
-        return MapWritableKVState.<AccountID, NodeIdList>builder(ACCOUNT_NODE_REL_STATE_ID, ACCOUNT_NODE_REL_STATE_LABEL)
+        return MapWritableKVState.<AccountID, NodeIdList>builder(
+                        ACCOUNT_NODE_REL_STATE_ID, ACCOUNT_NODE_REL_STATE_LABEL)
                 .value(
                         node.accountId(),
                         NodeIdList.newBuilder().nodeId(node.nodeId()).build())

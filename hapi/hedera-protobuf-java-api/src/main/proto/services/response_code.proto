@@ -1892,4 +1892,9 @@ enum ResponseCodeEnum {
      *  Hooks are not supported to be used in TokenAirdrop transactions
      */
     HOOKS_ARE_NOT_SUPPORTED_IN_AIRDROPS = 523;
+
+    /**
+     * An attempted operation is invalid because the account is linked to node
+     */
+    ACCOUNT_IS_LINKED_TO_A_NODE = 524;
 }
