@@ -10,17 +10,19 @@ import static org.hiero.otter.fixtures.OtterAssertions.assertThat;
 import static org.hiero.otter.fixtures.assertions.StatusProgressionStep.target;
 
 import com.swirlds.common.utility.Threshold;
-import com.swirlds.logging.legacy.LogMarker;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import org.hiero.consensus.model.node.NodeId;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.OtterTest;
 import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.TimeManager;
-import org.hiero.otter.fixtures.result.MultipleNodeLogResults;
+import org.hiero.otter.fixtures.result.MultipleNodePlatformStatusResults;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
@@ -33,6 +35,7 @@ public class PartitionTest {
 
     /**
      * Various network weighting distributions and partitions that create a strong minority but not a supermajority.
+     *
      * @return the arguments for the parameterized test
      */
     public static Stream<Arguments> strongMinorityPartitions() {
@@ -42,8 +45,7 @@ public class PartitionTest {
                 // Similar stake profile
                 Arguments.of(List.of(.2625, .2375, .255, .245), List.of(1, 3)),
                 // Uneven stake profile
-                Arguments.of(List.of(.0625, .3200, .3175, .3000), List.of(2, 3))
-        );
+                Arguments.of(List.of(.0625, .3200, .3175, .3000), List.of(2, 3)));
     }
 
     /**
@@ -52,75 +54,74 @@ public class PartitionTest {
      * upon partition healing.
      *
      * @param weightFractions the fractions of total network weight for every node in the network - must sum to 1.0
-     * @param partitionIndices the indices of the nodes to partition from the rest of the network, which must constitute
-     * @param env the environment to test in
-     * a strong minority but not a supermajority
+     * @param partitionIndices the indices of the nodes to partition from the rest of the network, which must
+     * constitute
+     * @param env the environment to test in a strong minority but not a supermajority
      */
     @OtterTest
     @ParameterizedTest
     @MethodSource("strongMinorityPartitions")
-    void testStrongMinorityNetworkPartition(@NonNull final List<Double> weightFractions,
-            @NonNull final List<Integer> partitionIndices, @NonNull final TestEnvironment env) {
+    void testStrongMinorityNetworkPartition(
+            @NonNull final List<Double> weightFractions,
+            @NonNull final List<Integer> partitionIndices,
+            @NonNull final TestEnvironment env) {
         throwIfInvalidArguments(weightFractions, partitionIndices);
 
         final Network network = env.network();
         final TimeManager timeManager = env.timeManager();
 
-        network.addNodes(weightFractions.size());
-        for (int i = 0; i < weightFractions.size(); i++) {
-            network.nodes().get(i).weight(Math.round(TOTAL_WEIGHTS * weightFractions.get(i)));
+        for (Double weightFraction : weightFractions) {
+            network.addNode().weight(Math.round(TOTAL_WEIGHTS * weightFraction));
         }
 
         network.start();
-
-        assertThat(network.newLogResults()).haveNoErrorLevelMessages();
 
         final List<Node> nodesToPartition =
                 partitionIndices.stream().map(i -> network.nodes().get(i)).toList();
         network.createNetworkPartition(nodesToPartition);
 
-        final long partitionRound = network.newConsensusResults().results().stream()
-                .mapToLong(SingleNodeConsensusResult::lastRoundNum)
-                .max()
-                .orElseThrow();
+        timeManager.waitFor(Duration.ofSeconds(5));
 
-        timeManager.waitFor(Duration.ofSeconds(10));
+        final Map<NodeId, Long> lastRoundByNodeBeforePartition = network.newConsensusResults().results().stream()
+                .collect(Collectors.toMap(SingleNodeConsensusResult::nodeId, SingleNodeConsensusResult::lastRoundNum));
 
-        // Assert that no nodes make consensus progress during the partition
-        assertThat(network.newConsensusResults()).haveLastRoundNum(partitionRound);
+        timeManager.waitFor(Duration.ofSeconds(15));
 
-        // Network marker errors are acceptable during the partition, but no other errors.
-        assertThat(network.newLogResults().suppressingLogMarker(LogMarker.NETWORK))
-                .haveNoErrorLevelMessages();
+        final Map<NodeId, Long> lastRoundByNodeAfterPartition = network.newConsensusResults().results().stream()
+                .collect(Collectors.toMap(SingleNodeConsensusResult::nodeId, SingleNodeConsensusResult::lastRoundNum));
 
-        // Clear the log results so we can check for errors after healing the partition
-        final MultipleNodeLogResults networkLogResults = network.newLogResults();
-        networkLogResults.clear();
+        // Assert that no nodes have made consensus progress during the partition
+        assertThat(lastRoundByNodeAfterPartition).isEqualTo(lastRoundByNodeBeforePartition);
+
+        // Assert that all nodes go into CHECKING when a supermajority is lost
+        final MultipleNodePlatformStatusResults networkStatusResults = network.newPlatformStatusResults();
+        assertThat(networkStatusResults)
+                .haveSteps(target(ACTIVE).requiringInterim(REPLAYING_EVENTS, OBSERVING, CHECKING), target(CHECKING));
+        networkStatusResults.clear();
 
         network.restoreConnectivity();
         timeManager.waitFor(Duration.ofSeconds(10));
 
-        // Check that there are no errors since healing the partition
-        assertThat(networkLogResults).haveNoErrorLevelMessages();
+        final long maxPartitionRoundReached = lastRoundByNodeAfterPartition.values().stream()
+                .max(Long::compareTo)
+                .orElseThrow();
 
-        assertThat(network.newConsensusResults()).haveAdvancedSinceRound(partitionRound);
-        assertThat(network.newPlatformStatusResults())
-                .haveSteps(
-                        target(ACTIVE).requiringInterim(REPLAYING_EVENTS, OBSERVING, CHECKING),
-                        target(ACTIVE).requiringInterim(CHECKING));
+        assertThat(network.newLogResults()).haveNoErrorLevelMessages();
+        assertThat(network.newConsensusResults()).haveAdvancedSinceRound(maxPartitionRoundReached);
+        assertThat(networkStatusResults).haveSteps(target(ACTIVE));
         assertThat(network.newMarkerFileResults()).haveNoMarkerFiles();
         assertThat(network.newReconnectResults()).haveNoReconnects();
     }
 
-    private void throwIfInvalidArguments(@NonNull final List<Double> weightFractions,
-            @NonNull final List<Integer> partitionIndices) {
-        final double totalWeightFraction = weightFractions.stream().mapToDouble(Double::doubleValue).sum();
+    private void throwIfInvalidArguments(
+            @NonNull final List<Double> weightFractions, @NonNull final List<Integer> partitionIndices) {
+        final double totalWeightFraction =
+                weightFractions.stream().mapToDouble(Double::doubleValue).sum();
         assertThat(totalWeightFraction)
                 .withFailMessage("weight fractions do not sum to 1.0")
                 .isEqualTo(1.0);
-        final double partitionSum = partitionIndices.stream()
-                .mapToDouble(weightFractions::get)
-                .sum();
+        final double partitionSum =
+                partitionIndices.stream().mapToDouble(weightFractions::get).sum();
         assertThat(Threshold.STRONG_MINORITY.isSatisfiedBy(Math.round(TOTAL_WEIGHTS * partitionSum), TOTAL_WEIGHTS))
                 .withFailMessage("partition is not a strong minority")
                 .isTrue();
