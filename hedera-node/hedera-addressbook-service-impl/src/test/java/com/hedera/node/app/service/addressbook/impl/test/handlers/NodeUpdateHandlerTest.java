@@ -16,7 +16,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -74,7 +73,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 class NodeUpdateHandlerTest extends AddressBookTestBase {
     private static final AccountID SENTINEL_NODE_ACCOUNT_ID =
-            AccountID.newBuilder().accountNum(0).build();
+            AccountID.newBuilder().shardNum(0).realmNum(0).accountNum(0).build();
 
     @Mock(strictness = LENIENT)
     private HandleContext handleContext;
@@ -650,9 +649,10 @@ class NodeUpdateHandlerTest extends AddressBookTestBase {
         // Execute the method
         assertDoesNotThrow(() -> subject.handle(handleContext));
 
-        // Verify the account ID was set to null
-        assertNotNull(writableStore.get(nodeId.number()));
-        assertFalse(writableStore.get(nodeId.number()).hasAccountId());
+        // Verify the account ID was set to the sentinel value
+        var node = writableStore.get(nodeId.number());
+        assertNotNull(node);
+        assertEquals(SENTINEL_NODE_ACCOUNT_ID, node.accountId());
     }
 
     @Test

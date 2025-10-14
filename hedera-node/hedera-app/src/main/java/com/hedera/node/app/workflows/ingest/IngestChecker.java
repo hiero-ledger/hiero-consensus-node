@@ -34,6 +34,7 @@ import static com.hedera.node.app.workflows.handle.dispatch.DispatchValidator.Wo
 import static java.util.Objects.requireNonNull;
 import static org.hiero.consensus.model.status.PlatformStatus.ACTIVE;
 
+import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.SignaturePair;
 import com.hedera.hapi.node.base.TokenTransferList;
@@ -47,6 +48,7 @@ import com.hedera.node.app.fees.FeeContextImpl;
 import com.hedera.node.app.fees.FeeManager;
 import com.hedera.node.app.hapi.utils.EthSigsUtils;
 import com.hedera.node.app.info.CurrentPlatformStatus;
+import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.signature.DefaultKeyVerifier;
 import com.hedera.node.app.signature.ExpandedSignaturePair;
 import com.hedera.node.app.signature.SignatureExpander;
@@ -107,6 +109,8 @@ public final class IngestChecker {
             EnumSet.of(CRYPTO_ADD_LIVE_HASH, CRYPTO_DELETE_LIVE_HASH);
     private static final Set<HederaFunctionality> PRIVILEGED_TRANSACTIONS =
             EnumSet.of(FREEZE, SYSTEM_DELETE, SYSTEM_UNDELETE);
+    private static final AccountID SENTINEL_ACCOUNT_ID =
+            AccountID.newBuilder().shardNum(0).realmNum(0).accountNum(0).build();
 
     private final CurrentPlatformStatus currentPlatformStatus;
     private final BlockStreamManager blockStreamManager;
@@ -211,6 +215,18 @@ public final class IngestChecker {
     public void verifyPlatformActive() throws PreCheckException {
         if (currentPlatformStatus.get() != ACTIVE) {
             throw new PreCheckException(PLATFORM_NOT_ACTIVE);
+        }
+    }
+
+    public void verifyValidNodeAccount(State state) throws PreCheckException {
+        final var nodeAccountId = networkInfo.selfNodeInfo().accountId();
+        if (nodeAccountId == null || nodeAccountId.equals(SENTINEL_ACCOUNT_ID)) {
+            throw new PreCheckException(INVALID_NODE_ACCOUNT);
+        }
+        final var accountStore = new ReadableStoreFactory(state).getStore(ReadableAccountStore.class);
+        final var nodeAccount = accountStore.getAccountById(nodeAccountId);
+        if (nodeAccount == null || nodeAccount.tinybarBalance() <= 0) {
+            throw new PreCheckException(INVALID_NODE_ACCOUNT);
         }
     }
 

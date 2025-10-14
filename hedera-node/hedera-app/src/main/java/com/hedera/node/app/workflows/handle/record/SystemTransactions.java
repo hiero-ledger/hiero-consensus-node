@@ -240,8 +240,9 @@ public class SystemTransactions {
                             .cryptoCreateAccount(CryptoCreateTransactionBody.newBuilder()
                                     .key(systemKey)
                                     .autoRenewPeriod(systemAutoRenewPeriod)
+                                    // Fix for initial node account balances
                                     .initialBalance(
-                                            num == accountsConfig.treasury() ? ledgerConfig.totalTinyBarFloat() : 0L)
+                                            num == accountsConfig.treasury() ? ledgerConfig.totalTinyBarFloat() : 100L)
                                     .build())
                             .build(),
                     i);

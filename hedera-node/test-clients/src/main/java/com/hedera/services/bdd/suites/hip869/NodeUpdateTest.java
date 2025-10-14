@@ -152,7 +152,7 @@ public class NodeUpdateTest {
                 nodeUpdate(String.valueOf(nodeIdToUpdate))
                         .accountId("newNodeAccount")
                         .payingWith(DEFAULT_PAYER)
-                        .signedByPayerAnd(GENESIS),
+                        .signedByPayerAnd("newNodeAccount"),
                 cryptoCreate("foo")
                         .setNode(oldNodeAccountId)
                         .hasPrecheck(INVALID_NODE_ACCOUNT)
@@ -232,7 +232,7 @@ public class NodeUpdateTest {
                         .fullAccountId(sentinelValue)
                         .payingWith(DEFAULT_PAYER)
                         .signedByPayerAnd("initialNodeAccount"),
-                viewNode("testNode", node -> assertNull(node.accountId(), "node account ID should be unset")),
+                viewNode("testNode", node -> assertEquals(node.accountId(), toPbj(sentinelValue))),
                 // update to new account when node account is null works with admin key and new account key
                 nodeUpdate("testNode")
                         .accountId("newAccount")

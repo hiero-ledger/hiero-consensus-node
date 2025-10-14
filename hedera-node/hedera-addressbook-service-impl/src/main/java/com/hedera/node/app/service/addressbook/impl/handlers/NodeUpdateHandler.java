@@ -176,11 +176,7 @@ public class NodeUpdateHandler implements TransactionHandler {
 
         final var nodeBuilder = node.copyBuilder();
         if (op.hasAccountId()) {
-            if (op.accountIdOrThrow().equals(SENTINEL_NODE_ACCOUNT_ID)) {
-                nodeBuilder.accountId((AccountID) null);
-            } else {
-                nodeBuilder.accountId(op.accountId());
-            }
+            nodeBuilder.accountId(op.accountId());
         }
         if (op.hasDescription()) {
             nodeBuilder.description(op.description());
@@ -210,7 +206,7 @@ public class NodeUpdateHandler implements TransactionHandler {
     }
 
     private void handleAccountIdOnlyUpdate(PreHandleContext context, Node existingNode) throws PreCheckException {
-        if (existingNode.hasAccountId()) {
+        if (existingNode.hasAccountId() && !Objects.equals(existingNode.accountId(), SENTINEL_NODE_ACCOUNT_ID)) {
             // Allow signature from either admin key or existing account key
             Key requiredKey =
                     oneOf(existingNode.adminKey(), context.getKeyFromAccount(existingNode.accountIdOrThrow()));
