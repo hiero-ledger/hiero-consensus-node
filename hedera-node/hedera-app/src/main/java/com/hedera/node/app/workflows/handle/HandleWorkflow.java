@@ -375,12 +375,12 @@ public class HandleWorkflow {
                     && event.getEventCore().birthRound() <= platformStateStore.getLatestFreezeRound()) {
                 strategy = TransactionStrategy.TRANSACTION_ONLY;
                 if (streamMode != RECORDS) {
-                    // include all transactions in the event, BUT NO TRANSACTION RESULTS. we don't want to process
+                    // Include all transactions in the event, BUT NO TRANSACTION RESULTS. We don't want to process
                     // transactions submitted prior to a freeze round
-                    var iter = event.consensusTransactionIterator();
+                    final var iter = event.consensusTransactionIterator();
                     while (iter.hasNext()) {
-                        var currentTxn = iter.next();
-                        var txnToWrite = BlockItem.newBuilder()
+                        final var currentTxn = iter.next();
+                        final var txnToWrite = BlockItem.newBuilder()
                                 .signedTransaction(currentTxn.getApplicationTransaction())
                                 .build();
                         blockStreamManager.writeItemNoTimeUpdate(txnToWrite);
