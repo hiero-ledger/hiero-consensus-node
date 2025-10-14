@@ -847,7 +847,10 @@ public class BaseTranslator {
             if (stateChange.hasMapUpdate()) {
                 final var mapUpdate = stateChange.mapUpdateOrThrow();
                 final var key = mapUpdate.keyOrThrow();
-                if (key.hasAccountIdKey()) {
+                final var value = mapUpdate.valueOrThrow();
+                // check the key and the value to ensure this update is on accounts state
+                // and not in account-node relation state
+                if (key.hasAccountIdKey() && value.hasAccountValue()) {
                     final var num = key.accountIdKeyOrThrow().accountNumOrThrow();
                     nonces.put(
                             num, mapUpdate.valueOrThrow().accountValueOrThrow().ethereumNonce());
