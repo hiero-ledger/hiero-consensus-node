@@ -48,6 +48,9 @@ This code is maintained by the "Platform Hashgraph" team.
   - Transaction Handling
   - BLS
   - Application Communication
+- Event creation
+  - [Tipset algorithm](core/tipset-algorithm.md)
+  - [Quiescence](core/quiescence/quiescence.md)
 - Event Flow
   - Event Intake
   - [Pre-consensus event stream](core/preconsensusEventStream.svg)
@@ -56,7 +59,6 @@ This code is maintained by the "Platform Hashgraph" team.
 - [Freeze](core/freeze/freeze.md)
 - WIP
   - [Address book management](core/address-book-management.md)
-- [External docs](https://drive.google.com/drive/folders/161GObnZVBWXKy4MHulBZKFcBDsNTU5FB?usp=drive_link)
 
 ## Data
 
