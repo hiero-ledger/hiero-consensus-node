@@ -346,15 +346,7 @@ jobs:
           }
           EOF
 
-      - name: Report Status to TCK Working Group
-        uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
-        with:
-          webhook: ${{ secrets.slack-tck-report-webhook }}
-          webhook-type: incoming-webhook
-          payload-templated: true
-          payload-file-path: slack_payload.json
-
-      - name: Report Status to TCK Working Group
+      - name: Report Status to CITR Detailed Test Results
         uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
         with:
           webhook: ${{ secrets.slack-detailed-report-webhook }}
