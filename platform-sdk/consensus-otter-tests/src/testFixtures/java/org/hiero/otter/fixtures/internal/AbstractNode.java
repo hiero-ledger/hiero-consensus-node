@@ -33,6 +33,8 @@ import org.hiero.otter.fixtures.util.OtterSavedStateUtils;
  */
 public abstract class AbstractNode implements Node {
 
+    static final long UNSET_WEIGHT = -1;
+
     /**
      * Represents the lifecycle states of a node.
      */
@@ -58,7 +60,7 @@ public abstract class AbstractNode implements Node {
     protected final KeysAndCerts keysAndCerts;
 
     private Roster roster;
-    private long weight;
+    private long weight = UNSET_WEIGHT;
 
     /**
      * The current state of the node's life cycle. Volatile because it is set by the test thread and read by the
@@ -116,17 +118,22 @@ public abstract class AbstractNode implements Node {
     }
 
     /**
-     * Sets the roster for this node.
+     * Sets the roster for this node. If the weight for this node in the roster does not match the weight set for this
+     * node, an {@link IllegalArgumentException} is thrown.
      *
      * @param roster the roster to set
      */
     protected void roster(@NonNull final Roster roster) {
         this.roster = requireNonNull(roster);
-        this.weight = roster.rosterEntries().stream()
+        final long rosterWeight = roster.rosterEntries().stream()
                 .filter(r -> r.nodeId() == selfId.id())
                 .findFirst()
                 .map(RosterEntry::weight)
-                .orElse(0L);
+                .orElseThrow(() -> new IllegalStateException("Node ID " + selfId.id() + " not found in roster"));
+        if (weight != UNSET_WEIGHT && weight != rosterWeight) {
+            throw new IllegalStateException("Node weight " + weight + " does not match roster weight " + rosterWeight);
+        }
+        weight = rosterWeight;
     }
 
     /**
@@ -162,6 +169,19 @@ public abstract class AbstractNode implements Node {
     @Override
     public long weight() {
         return weight;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void weight(final long weight) {
+        throwIfInLifecycle(LifeCycle.RUNNING, "Cannot set weight while the node is running");
+        throwIfInLifecycle(LifeCycle.DESTROYED, "Cannot set weight after the node has been destroyed");
+        if (weight < 0) {
+            throw new IllegalArgumentException("Weight must be non-negative");
+        }
+        this.weight = weight;
     }
 
     /**

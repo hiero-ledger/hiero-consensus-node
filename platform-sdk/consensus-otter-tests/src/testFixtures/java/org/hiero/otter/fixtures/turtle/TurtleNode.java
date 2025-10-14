@@ -8,7 +8,6 @@ import static com.swirlds.platform.state.signed.StartupStateUtils.loadInitialSta
 import static java.util.Objects.requireNonNull;
 import static org.assertj.core.api.Assertions.fail;
 import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.DESTROYED;
-import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.INIT;
 import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.RUNNING;
 import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.SHUTDOWN;
 import static org.hiero.otter.fixtures.result.SubscriberAction.CONTINUE;
@@ -64,6 +63,7 @@ import org.hiero.otter.fixtures.internal.AbstractNode;
 import org.hiero.otter.fixtures.internal.result.NodeResultsCollector;
 import org.hiero.otter.fixtures.internal.result.SingleNodeMarkerFileResultImpl;
 import org.hiero.otter.fixtures.internal.result.SingleNodePcesResultImpl;
+import org.hiero.otter.fixtures.internal.result.SingleNodeReconnectResultImpl;
 import org.hiero.otter.fixtures.logging.context.NodeLoggingContext;
 import org.hiero.otter.fixtures.logging.context.NodeLoggingContext.LoggingContextScope;
 import org.hiero.otter.fixtures.logging.internal.InMemorySubscriptionManager;
@@ -343,9 +343,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
     @Override
     public void submitTransaction(@NonNull final OtterTransaction transaction) {
         try (final LoggingContextScope ignored = installNodeContext()) {
-            throwIfInLifecycle(INIT, "Node has not been started yet.");
-            throwIfInLifecycle(SHUTDOWN, "Node has been shut down.");
-            throwIfInLifecycle(DESTROYED, "Node has been destroyed.");
+            throwIsNotInLifecycle(RUNNING, "Cannot submit transaction when the network is not running.");
             assert platform != null; // platform must be initialized if lifeCycle is STARTED
             assert executionLayer != null; // executionLayer must be initialized
 
@@ -412,7 +410,12 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
     @Override
     @NonNull
     public SingleNodeReconnectResult newReconnectResult() {
-        throw new UnsupportedOperationException("Reconnect is not supported in TurtleNode.");
+        // Turtle networks do not support reconnects. However we can
+        // still provide a result object that contains the base results.
+        // Doing so allows tests that can run in multiple environments can
+        // still make basic verifications, like the absence of reconnects.
+        return new SingleNodeReconnectResultImpl(
+                selfId, resultsCollector.newStatusProgression(), resultsCollector.newLogResult());
     }
 
     /**

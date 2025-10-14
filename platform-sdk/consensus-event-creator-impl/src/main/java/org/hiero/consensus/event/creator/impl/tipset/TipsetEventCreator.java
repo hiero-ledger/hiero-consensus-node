@@ -475,7 +475,16 @@ public class TipsetEventCreator implements EventCreator {
     }
 
     /**
-     * Calculate the creation time for a new event.
+     * Calculate the creation time for a new event. The creation time should be the wall clock time at which the latest
+     * information affecting this event was received by this node. The information received is:
+     * <ul>
+     *     <li>the parent, if any</li>
+     *     <li>the transactions, if any</li>
+     *     <li>the birth round</li>
+     * </ul>
+     * <p>
+     * If there are no parents or transactions, and the birth round is the first one ever, then the creation time is
+     * simply the current wall clock time.
      * <p>
      * Regardless of whatever the host computer's clock says, the event creation time must always advance from self
      * parent to child.

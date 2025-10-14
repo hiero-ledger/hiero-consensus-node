@@ -132,6 +132,13 @@ public interface Node {
     long weight();
 
     /**
+     * Sets the weight of the node. This method can only be called while the node is not running.
+     *
+     * @param weight the new weight. Must be non-negative.
+     */
+    void weight(long weight);
+
+    /**
      * Returns the status of the platform while the node is running or {@code null} if not.
      *
      * @return the status of the platform

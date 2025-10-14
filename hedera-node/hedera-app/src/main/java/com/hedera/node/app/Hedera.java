@@ -1439,8 +1439,7 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
             final var writableEntityStates = initState.getWritableStates(EntityIdService.NAME);
             final var entityCounters = new WritableEntityIdStore(writableEntityStates);
             final var store = new WritableHintsStoreImpl(writableHintsStates, entityCounters);
-            hintsService.manageRosterAdoption(
-                    store, previousRoster, adoptedRoster, adoptedRosterHash, tssConfig.forceHandoffs());
+            hintsService.handoff(store, previousRoster, adoptedRoster, adoptedRosterHash, tssConfig.forceHandoffs());
             ((CommittableWritableStates) writableHintsStates).commit();
         }
     }
