@@ -198,7 +198,7 @@ public record EthTxData(
                                 s));
             case EIP7702 ->
                 RLPEncoder.sequence(
-                        Integers.toBytes(0x02),
+                        Integers.toBytes(0x04),
                         List.of(
                                 chainId,
                                 Integers.toBytes(nonce),
@@ -209,7 +209,7 @@ public record EthTxData(
                                 Integers.toBytesUnsigned(value),
                                 callData,
                                 List.of(/*accessList*/ ),
-                                authorizationList,
+                                List.of(/*authorizationList*/ ),
                                 Integers.toBytes(recId),
                                 r,
                                 s));
@@ -340,7 +340,7 @@ public record EthTxData(
                 .add("value", value)
                 .add("callData", Hex.encodeHexString(callData))
                 .add("accessList", accessList == null ? null : Hex.encodeHexString(accessList))
-                .add("authorizationList", accessList == null ? null : Hex.encodeHexString(authorizationList))
+                .add("authorizationList", authorizationList == null ? null : Hex.encodeHexString(authorizationList))
                 .add("recId", recId)
                 .add("v", v == null ? null : Hex.encodeHexString(v))
                 .add("r", Hex.encodeHexString(r))

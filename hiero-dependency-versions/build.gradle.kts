@@ -31,7 +31,6 @@ val pbj = "0.11.15" // ATTENTION: keep in sync with plugin version in 'hapi/hapi
 val protobuf = "4.31.1"
 val blockNodeProtobufSources = "0.17.1"
 val testContainers = "1.21.3"
-val tuweniBytes = "2.7.1"
 val tuweni = "2.7.1"
 val webcompare = "2.1.8"
 
@@ -117,6 +116,9 @@ dependencies.constraints {
     api("org.hyperledger.besu:secp256k1:1.3.0") {
         because("org.hyperledger.besu.nativelib.secp256k1")
     }
+    api("org.hyperledger.besu:gnark:1.3.0")
+    api("org.hyperledger.besu:secp256r1:1.3.0")
+    api("org.hyperledger.besu:arithmetic:1.3.0")
     api("org.jetbrains:annotations:26.0.2") { because("org.jetbrains.annotations") }
     api("org.json:json:20250517") { because("org.json") }
     api("org.junit.jupiter:junit-jupiter-api:$junit5") { because("org.junit.jupiter.api") }
