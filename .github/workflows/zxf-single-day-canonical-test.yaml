@@ -1,5 +1,4 @@
-# SPDX-License-Identifier: Apache-2.0
-name: "ZXF: [CITR] Single Day Canonical Test (SDCT)"
+name: Nightly Canonical Tests (Fail-Fast)
 
 on:
   workflow_dispatch:
@@ -7,353 +6,428 @@ on:
       ref:
         required: true
         default: "main"
-        description: "Version of hiero-consensus-node: branch, tag, commit."
-        type: string
-      build-tag:
-        required: true
-        description: "build-XXXXX tag associated with the ref input."
+        description: "Version of hiero-consensus-node: branch, tag, commit"
         type: string
 
-defaults:
-  run:
-    shell: bash
+      build-tag:
+        required: true
+        description: "build-XXXXX tag associated with the ref input"
+        type: string
+
+      test-list:
+        required: false
+        description: "Space-separated test names (empty = use default from config)"
+        type: string
+        default: ""
+
+      fail-fast:
+        required: false
+        default: true
+        description: "Stop on first test failure"
+        type: boolean
+
+      parallel:
+        required: false
+        default: false
+        description: "Run tests in parallel (experimental, overrides fail-fast)"
+        type: boolean
+
+      version-service:
+        required: true
+        description: "Hedera services version"
+        type: string
+
+      version-mirrornode:
+        required: true
+        description: "Mirror node version"
+        type: string
 
 permissions:
   contents: read
   id-token: write
+  actions: read
+
+env:
+  CONFIG_FILE: github/config/test_config.yaml
+  JENKINS_JOB_NAME: nightly-jenkins
 
 jobs:
-  canonical-test:
-    name: Canonical
-    runs-on: hiero-citr-linux-medium
-
-    timeout-minutes: 90 # max one hour timeout
-
+  # Job 1: Initialize - Parse test configuration and prepare matrix
+  initialize:
+    runs-on: ubuntu-latest
     outputs:
-      harden-runner: ${{ steps.harden-runner.outcome }}
-      checkout-code: ${{ steps.checkout-code.outcome }}
-      gcloud-auth: ${{ steps.gcloud-auth.outcome }}
-      setup-gcloud: ${{ steps.setup-gcloud.outcome }}
-      install-tools: ${{ steps.install-tools.outcome }}
-      parameters: ${{ steps.parameters.outcome }}
-      check-if-exist: ${{ steps.check-if-exist.outcome }}
-      start-canonical-test: ${{ steps.start-canonical-test.outcome }}
-      summary: ${{ steps.summary.outcome }}
-      commit: ${{ steps.parameters.outputs.sha || 'N/A' }}
-
+      test_matrix: ${{ steps.parse-tests.outputs.matrix }}
+      test_list: ${{ steps.parse-tests.outputs.list }}
+      max_parallel: ${{ steps.parse-tests.outputs.max_parallel }}
     steps:
-      - name: Harden Runner
-        id: harden-runner
-        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
-        with:
-          egress-policy: audit
+      - name: Checkout Repository
+        uses: actions/checkout@v4
 
-      - name: Checkout Code
-        id: checkout-code
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          fetch-depth: 0
-          fetch-tags: true
-          token: ${{ github.token }}
-          persist-credentials: false
-
-      - name: Authenticate to Google Cloud
-        id: gcloud-auth
-        uses: step-security/google-github-auth@40f6deebd366f16c782d7a0ad0844e3b96a032a6 # v2.1.10
-        with:
-          workload_identity_provider: "projects/235822363393/locations/global/workloadIdentityPools/hedera-builds-pool/providers/hedera-builds-gh-actions"
-          service_account: "hedera-artifact-builds@devops-1-254919.iam.gserviceaccount.com"
-          token_format: "access_token"
-          create_credentials_file: true
-
-      - name: Setup Google Cloud SDK
-        id: setup-gcloud
-        uses: google-github-actions/setup-gcloud@77e7a554d41e2ee56fc945c52dfd3f33d12def9a # v2.1.4
-        with:
-          version: "latest"
-          install_components: "gsutil"
-
-      - name: Install Utility Tools
-        id: install-tools
-        run: |-
-          # log functions
-          log_info() { echo "[$(date '+%Y-%m-%d %T')] ℹ️  $1"; }
-          log_pass() { echo "[$(date '+%Y-%m-%d %T')] ✅ $1"; }
-
-          sudo apt-get update -qq
-          sudo apt-get install -y --no-install-recommends \
-            jq=1.6-* curl=7.81.0-*
-
-          log_info "Verifying tool installations..."
-          echo "JQ Version: $(jq --version)"
-          echo "Curl Version: $(curl --version | head -1)"
-          echo "GSUtil Version: $(gsutil version | head -1)"
-
-          log_pass "All tools successfully installed and verified"
-
-      - name: Verify Workflow Parameters
-        id: parameters
-        env:
-          REF_INPUT: ${{ inputs.ref }}
-          BUILD_TAG_INPUT: ${{ inputs.build-tag }}
-        run: |-
-          # log functions
-          log_info() { echo "[$(date '+%Y-%m-%d %T')] ℹ️  $1"; }
-          log_pass() { echo "[$(date '+%Y-%m-%d %T')] ✅ $1"; }
-          log_error() { echo "[$(date '+%Y-%m-%d %T')] ❌ $1" >&2; }
-
+      - name: Parse Test Configuration
+        id: parse-tests
+        run: |
           set -euo pipefail
 
-          BRANCH_NAME="${REF_INPUT//[^a-zA-Z0-9\-_]/_}"
-          BRANCH_NAME_LOWER="$(echo "${BRANCH_NAME}" | tr '[:upper:]' '[:lower:]')"
-          BUILD_ARTIFACT="${BUILD_TAG_INPUT//[^a-zA-Z0-9\-_.]/_}"
+          # Load test config
+          CONFIG_FILE="${{ env.CONFIG_FILE }}"
 
-          log_info "Parameters: Branch: ${BRANCH_NAME}, Build: ${BUILD_ARTIFACT}"
-          if [[ "${BRANCH_NAME_LOWER}" = "main" ]]; then
-            TAG_COMMIT_SHA=$(git rev-list -n 1 "${BUILD_ARTIFACT}") || {
-              log_error "Failed to get commit SHA for tag: ${BUILD_ARTIFACT}"
-              log_info "Available tags:"
-              git tag -l | head -10
-              exit 1
-            }
-            TAG_COMMIT_SHORT="${TAG_COMMIT_SHA:0:8}"
-            BUILD_ARTIFACT="build-${BRANCH_NAME_LOWER}-${TAG_COMMIT_SHORT}"
-            log_info "Artifact name for main branch: ${BUILD_ARTIFACT}"
-            echo "sha=${TAG_COMMIT_SHA}" >> "${GITHUB_OUTPUT}"
-          fi
-          log_pass "Parameter verification completed"
-          echo "artifact-name=${BUILD_ARTIFACT}" >> "${GITHUB_OUTPUT}"
-
-          # Update Summary
-          {
-            echo "## Parameter Processing Results"
-            echo "- **Input Branch/Ref**: ${BRANCH_NAME}"
-            echo "- **Input Build Tag**: ${{ inputs.build-tag }}"
-            echo "- **Generated Artifact Name**: ${BUILD_ARTIFACT}"
-            if [[ "${BRANCH_NAME_LOWER}" = "main" ]]; then
-              echo "- **Commit SHA**: \`${TAG_COMMIT_SHA}\`"
-              echo "- **Short Commit**: \`${TAG_COMMIT_SHORT}\`"
-            fi
-          } >> "${GITHUB_STEP_SUMMARY}"
-
-      - name: Check Artifact Availability
-        id: check-if-exist
-        timeout-minutes: 60 # step timeout
-        run: |-
-          # log functions
-          log_info() { echo "[$(date '+%Y-%m-%d %T')] ℹ️  $1"; }
-          log_pass() { echo "[$(date '+%Y-%m-%d %T')] ✅ $1"; }
-          log_error() { echo "[$(date '+%Y-%m-%d %T')] ❌ $1" >&2; }
-          log_warning() { echo "[$(date '+%Y-%m-%d %T')] ⚠️  $1"; }
-
-          set -euo pipefail
-
-          ARTIFACT_NAME="${{ steps.parameters.outputs.artifact-name }}"
-          BUCKET_NAME="${{ secrets.RELEASE_ARTIFACT_BUCKET_NAME }}"
-          if [[ -z "${ARTIFACT_NAME// }" ]]; then
-            log_error "Artifact name is empty or contains only whitespace"
-            exit 1
-          fi
-          if [[ -z "${BUCKET_NAME// }" ]]; then
-            log_error "Bucket name is empty - check RELEASE_ARTIFACT_BUCKET_NAME secret"
+          if [[ ! -f "$CONFIG_FILE" ]]; then
+            echo "Error: Config file not found: $CONFIG_FILE"
             exit 1
           fi
 
-          ARTIFACT_PATH="gs://${BUCKET_NAME}/${ARTIFACT_NAME}.zip"
-
-          log_info "Check artifact availability for up to 2 minutes max 30 attempts......"
-          i=1
-          while [ "$i" -le 30 ]; do
-            if gsutil -q stat "${ARTIFACT_PATH}"; then
-              log_pass "Artifact ${ARTIFACT_NAME}.zip found on attempt ${i}!"
-              break
-            fi
-            log_warning "Artifact ${ARTIFACT_NAME}.zip not ready on attempt ${i}, waiting for 2 minutes......"
-            sleep 120
-            i=$((i + 1))
-          done
-
-          if [ "$i" -gt 30 ]; then
-            log_error "Artifact ${ARTIFACT_NAME}.zip not found after 30 attempts"
-            exit 1
+          # Get test list (from input or default)
+          TEST_LIST="${{ inputs.test-list }}"
+          if [[ -z "$TEST_LIST" ]]; then
+            TEST_LIST=$(yq eval '.default_test_list' "$CONFIG_FILE")
           fi
 
-          log_pass "Artifact ${ARTIFACT_NAME}.zip is available and ready"
+          echo "Test list: $TEST_LIST"
 
-          echo "build-tag=${{ inputs.build-tag }}" >> "${GITHUB_OUTPUT}"
-          echo "build-version=${ARTIFACT_NAME}" >> "${GITHUB_OUTPUT}"
+          # Convert to JSON array for matrix
+          TEST_ARRAY=$(echo "$TEST_LIST" | tr ' ' '\n' | jq -R . | jq -s .)
+          echo "matrix=$TEST_ARRAY" >> "$GITHUB_OUTPUT"
+          echo "list=$TEST_LIST" >> "$GITHUB_OUTPUT"
 
-          # Update Summary
-          {
-            echo "## Artifact Verification Results"
-            echo "- **Artifact Path**: \`${ARTIFACT_PATH}\`"
-            echo "- **Verification Time**: $(date '+%Y-%m-%d %T UTC')"
-            echo "- **Attempts Required**: ${i}/30"
-          } >> "${GITHUB_STEP_SUMMARY}"
-
-      - name: Start Canonical Test
-        id: start-canonical-test
-        env:
-          USERNAME: ${{ secrets.TESTING_JENKINS_API_USERNAME }}
-          PASSWORD: ${{ secrets.TESTING_JENKINS_API_PASSWORD }}
-          SERVER: ${{ secrets.TESTING_JENKINS_API_SERVER }}
-          TEST_SCRIPT: ".github/workflows/support/scripts/sdct.sh"
-        run: |-
-          # log functions
-          log_info() { echo "[$(date '+%Y-%m-%d %T')] ℹ️  $1"; }
-          log_pass() { echo "[$(date '+%Y-%m-%d %T')] ✅ $1"; }
-          log_error() { echo "[$(date '+%Y-%m-%d %T')] ❌ $1" >&2; }
-          log_warning() { echo "[$(date '+%Y-%m-%d %T')] ⚠️  $1"; }
-
-          set -euo pipefail
-
-          TEST_SCRIPT_PATH="${{ github.workspace }}/${{ env.TEST_SCRIPT }}"
-          if [ ! -f "${TEST_SCRIPT_PATH}" ]; then
-            log_error "Test script not found: ${TEST_SCRIPT_PATH}"
-            exit 1
-          fi
-
-          for var in USERNAME PASSWORD SERVER; do
-            if [[ -z "${!var:-}" ]]; then
-              log_error "Required environment variable ${var} is not set"
-              exit 1
-            fi
-          done
-
-          BUILD_TAG="${{ steps.check-if-exist.outputs.build-tag }}"
-          BUILD_VERSION="${{ steps.check-if-exist.outputs.build-version }}"
-
-          log_info "Starting canonical test execution......"
-          log_info "Build Tag: ${BUILD_TAG}"
-          log_info "Build Version: ${BUILD_VERSION}"
-
-
-          if bash "${TEST_SCRIPT_PATH}" "${BUILD_TAG}" "${BUILD_VERSION}"; then
-            log_pass "Canonical test started successfully"
-            echo "status=success" >> "${GITHUB_OUTPUT}"
+          # Determine parallelism
+          if [[ "${{ inputs.parallel }}" == "true" ]]; then
+            echo "max_parallel=5" >> "$GITHUB_OUTPUT"
           else
-            log_error "Canonical test failed to start"
-            echo "status=failure" >> "${GITHUB_OUTPUT}"
+            echo "max_parallel=1" >> "$GITHUB_OUTPUT"
+          fi
+
+          echo "Test matrix prepared: $TEST_ARRAY"
+
+      - name: Authenticate to GCP
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Setup gcloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+  # Job 2: Run Tests - Sequential execution with fail-fast
+  run-tests:
+    needs: initialize
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: ${{ inputs.fail-fast }}
+      max-parallel: ${{ fromJson(needs.initialize.outputs.max_parallel) }}
+      matrix:
+        test: ${{ fromJson(needs.initialize.outputs.test_matrix) }}
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Environment
+        run: |
+          set -euo pipefail
+
+          # Install jq if not present
+          if ! command -v jq &> /dev/null; then
+            sudo apt-get update && sudo apt-get install -y jq
+          fi
+
+          # Install yq for YAML parsing
+          if ! command -v yq &> /dev/null; then
+            sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+            sudo chmod +x /usr/local/bin/yq
+          fi
+
+          echo "Environment setup complete"
+
+      - name: Authenticate to GCP
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Setup gcloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Trigger Jenkins Job
+        id: trigger
+        env:
+          JENKINS_URL: ${{ secrets.JENKINS_URL }}
+          JENKINS_USER: ${{ secrets.JENKINS_USER }}
+          JENKINS_TOKEN: ${{ secrets.JENKINS_TOKEN }}
+          TEST_NAME: ${{ matrix.test }}
+          BUILD_TAG: ${{ inputs.build-tag }}
+          VERSION_SERVICE: ${{ inputs.version-service }}
+          VERSION_MIRRORNODE: ${{ inputs.version-mirrornode }}
+        run: |
+          set -euo pipefail
+
+          echo "Triggering Jenkins job for test: ${TEST_NAME}"
+
+          # Make script executable
+          chmod +x .github/workflows/support/scripts/jenkins_trigger.sh
+
+          # Trigger build with FAIL_FAST=true and single test
+          QUEUE_ID=$(.github/workflows/support/scripts/jenkins_trigger.sh trigger \
+            "$JENKINS_URL" "${{ env.JENKINS_JOB_NAME }}" \
+            --user "$JENKINS_USER" \
+            --token "$JENKINS_TOKEN" \
+            --param "TEST_LIST=${TEST_NAME}" \
+            --param "FAIL_FAST=true" \
+            --param "BUILD_TAG=${BUILD_TAG}" \
+            --param "VERSION_SERVICE=${VERSION_SERVICE}" \
+            --param "VERSION_MIRRORNODE=${VERSION_MIRRORNODE}" \
+            --param "SLACK_CHANNEL=${{ secrets.SLACK_CHANNEL }}" \
+            --param "TEST_CLUSTER=${{ secrets.TEST_CLUSTER }}" \
+            --param "TEST_NETWORK=${{ secrets.TEST_NETWORK }}" \
+            --param "GCS_BUCKET_DEST=${{ secrets.GCS_BUCKET_DEST }}")
+
+          echo "queue_id=$QUEUE_ID" >> "$GITHUB_OUTPUT"
+          echo "Jenkins job queued with ID: $QUEUE_ID"
+
+      - name: Wait for Jenkins Job to Start
+        id: wait-start
+        env:
+          JENKINS_URL: ${{ secrets.JENKINS_URL }}
+          JENKINS_USER: ${{ secrets.JENKINS_USER }}
+          JENKINS_TOKEN: ${{ secrets.JENKINS_TOKEN }}
+          QUEUE_ID: ${{ steps.trigger.outputs.queue_id }}
+        run: |
+          set -euo pipefail
+
+          echo "Waiting for Jenkins job to start..."
+
+          BUILD_NUM=$(./github/scripts/jenkins_trigger.sh wait-start \
+            "$JENKINS_URL" "${{ env.JENKINS_JOB_NAME }}" \
+            --user "$JENKINS_USER" \
+            --token "$JENKINS_TOKEN" \
+            --queue-id "$QUEUE_ID")
+
+          echo "build_number=$BUILD_NUM" >> "$GITHUB_OUTPUT"
+          echo "Jenkins build started with number: $BUILD_NUM"
+          echo "### Jenkins Build Started :rocket:" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Test: ${{ matrix.test }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Build: #$BUILD_NUM" >> "$GITHUB_STEP_SUMMARY"
+          echo "- URL: ${JENKINS_URL}/job/${{ env.JENKINS_JOB_NAME }}/${BUILD_NUM}" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Poll Jenkins Build Status
+        id: poll
+        timeout-minutes: 180
+        env:
+          JENKINS_URL: ${{ secrets.JENKINS_URL }}
+          JENKINS_USER: ${{ secrets.JENKINS_USER }}
+          JENKINS_TOKEN: ${{ secrets.JENKINS_TOKEN }}
+          BUILD_NUM: ${{ steps.wait-start.outputs.build_number }}
+          TEST_NAME: ${{ matrix.test }}
+        run: |
+          set -euo pipefail
+
+          echo "Polling Jenkins build status..."
+
+          POLL_INTERVAL=30  # seconds
+          MAX_ATTEMPTS=360  # 3 hours (360 * 30s)
+          ATTEMPT=0
+
+          while [[ $ATTEMPT -lt $MAX_ATTEMPTS ]]; do
+            STATUS=$(./github/scripts/jenkins_trigger.sh status \
+              "$JENKINS_URL" "${{ env.JENKINS_JOB_NAME }}" "$BUILD_NUM" \
+              --user "$JENKINS_USER" \
+              --token "$JENKINS_TOKEN")
+
+            echo "Attempt $((ATTEMPT+1))/$MAX_ATTEMPTS: Status = $STATUS"
+
+            if [[ "$STATUS" != "BUILDING" && "$STATUS" != "null" ]]; then
+              echo "Build completed with status: $STATUS"
+              echo "status=$STATUS" >> "$GITHUB_OUTPUT"
+
+              if [[ "$STATUS" == "SUCCESS" ]]; then
+                echo "Jenkins build succeeded"
+                exit 0
+              else
+                echo "Jenkins build failed with status: $STATUS"
+                # Note: We still check marker files below, as Jenkins may fail but test may have passed
+                echo "status_failed=true" >> "$GITHUB_OUTPUT"
+                exit 0
+              fi
+            fi
+
+            sleep $POLL_INTERVAL
+            ((ATTEMPT++))
+          done
+
+          echo "Timeout waiting for build to complete after $((MAX_ATTEMPTS * POLL_INTERVAL))s"
+          exit 1
+
+      - name: Download Results from GCS
+        if: always()
+        id: download
+        env:
+          GCS_BUCKET: ${{ secrets.GCS_BUCKET_DEST }}
+          BUILD_TAG: ${{ inputs.build-tag }}
+          TEST_NAME: ${{ matrix.test }}
+        run: |
+          set -euo pipefail
+
+          echo "Downloading test results from GCS..."
+
+          # Make script executable
+          chmod +x .github/workflows/support/scripts/gcs_download.sh
+
+          # Create results directory
+          RESULTS_DIR="./results/$TEST_NAME"
+          mkdir -p "$RESULTS_DIR"
+
+          # Download with marker file check (returns exit code based on pass/fail)
+          if DEBUG=1 .github/workflows/support/scripts/gcs_download.sh \
+              "$GCS_BUCKET" "$BUILD_TAG" "$TEST_NAME" "$RESULTS_DIR"; then
+            echo "test_passed=true" >> "$GITHUB_OUTPUT"
+            echo "Test result: PASSED"
+          else
+            DOWNLOAD_EXIT=$?
+            if [[ $DOWNLOAD_EXIT -eq 1 ]]; then
+              echo "test_passed=false" >> "$GITHUB_OUTPUT"
+              echo "Test result: FAILED"
+            else
+              echo "test_passed=indeterminate" >> "$GITHUB_OUTPUT"
+              echo "Test result: INDETERMINATE (no marker file)"
+            fi
+          fi
+
+      - name: Check Test Result
+        if: always()
+        env:
+          TEST_PASSED: ${{ steps.download.outputs.test_passed }}
+          TEST_NAME: ${{ matrix.test }}
+        run: |
+          set -euo pipefail
+
+          echo "### Test Result: $TEST_NAME" >> "$GITHUB_STEP_SUMMARY"
+
+          if [[ "$TEST_PASSED" == "true" ]]; then
+            echo "✅ Test **PASSED**" >> "$GITHUB_STEP_SUMMARY"
+            echo "Test $TEST_NAME: PASSED"
+            exit 0
+          elif [[ "$TEST_PASSED" == "false" ]]; then
+            echo "❌ Test **FAILED**" >> "$GITHUB_STEP_SUMMARY"
+            echo "Test $TEST_NAME: FAILED"
+            exit 1
+          else
+            echo "⚠️ Test result **INDETERMINATE** (no marker file found)" >> "$GITHUB_STEP_SUMMARY"
+            echo "Test $TEST_NAME: INDETERMINATE"
             exit 1
           fi
 
-      - name: Summary
-        id: summary
+      - name: Upload Artifacts
         if: always()
-        run: |-
-          # log functions
-          log_info() { echo "[$(date '+%Y-%m-%d %T')] ℹ️  $1"; }
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-${{ matrix.test }}
+          path: ./results/${{ matrix.test }}/
+          retention-days: 30
 
-          # overall status
-          OVERALL_STATUS="✅ Success"
-          if [[ "${{ steps.start-canonical-test.outcome }}" != "success" ]]; then
-            OVERALL_STATUS="❌ Failed"
-          elif [[ "${{ steps.check-if-exist.outcome }}" != "success" ]]; then
-            OVERALL_STATUS="❌ Failed (Artifact Check)"
-          elif [[ "${{ steps.parameters.outcome }}" != "success" ]]; then
-            OVERALL_STATUS="❌ Failed (Parameter Processing)"
-          fi
-
-          # Summary
-          {
-            echo "# ZXF Canonical Test Workflow Summary"
-            echo
-            echo "## Overall Status: ${OVERALL_STATUS}"
-            echo
-            echo "## Input Parameters"
-            echo "- **Reference**: \`${{ inputs.ref }}\`"
-            echo "- **Build Tag**: \`${{ inputs.build-tag }}\`"
-            echo
-            echo "## Processing Results"
-            echo "- **Generated Artifact Name**: \`${{ steps.check-if-exist.outputs.build-version || 'N/A' }}\`"
-            echo "- **Artifact Check**: ${{ steps.check-if-exist.outcome == 'success' && '✅ Passed' || '❌ Failed' }}"
-            echo "- **Test Trigger**: ${{ steps.start-canonical-test.outcome == 'success' && '✅ Passed' || '❌ Failed' }}"
-            echo
-            echo "## Execution Details"
-            echo "- **Workflow Run ID**: ${{ github.run_id }}"
-            echo "- **Workflow Run Number**: ${{ github.run_number }}"
-            echo "- **Runner**: \`${{ runner.name }}\`"
-            echo "- **OS**: \`${{ runner.os }}\`"
-            echo "- **Triggered By**: ${{ github.actor }}"
-            echo "- **Execution Time**: $(date '+%Y-%m-%d %T UTC')"
-            echo
-            if [[ "${OVERALL_STATUS}" == *"Failed"* ]]; then
-              echo "## ⚠️ Troubleshooting"
-              echo "1. Check the artifact exists in the specified bucket"
-              echo "2. Review the test script for any issues"
-            fi
-          } >> "${GITHUB_STEP_SUMMARY}"
-
-  report-failures:
-    name: Report Failures to Rootly
-    needs: canonical-test
-    if: ${{ needs.canonical-test.result != 'success' }}
-    runs-on: hiero-citr-linux-medium
+  # Job 3: Generate Final Report
+  report:
+    needs: [initialize, run-tests]
+    if: always()
+    runs-on: ubuntu-latest
     steps:
-      - name: Harden Runner
-        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
-        with:
-          egress-policy: audit
+      - name: Checkout Repository
+        uses: actions/checkout@v4
 
-      - name: Set Rootly Service
-        id: set-rootly-service
+      - name: Authenticate to GCP
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Setup gcloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Download All Test Results
+        env:
+          GCS_BUCKET: ${{ secrets.GCS_BUCKET_DEST }}
+          BUILD_TAG: ${{ inputs.build-tag }}
         run: |
-          ROOTLY_SERVICE="CITR SDCT"
-          if [[ "${{ needs.canonical-test.outputs.harden-runner }}" =~ ^(cancelled|failure)$ ]] \
-            || [[ "${{ needs.canonical-test.outputs.checkout-code }}" =~ ^(cancelled|failure)$ ]] \
-            || [[ "${{ needs.canonical-test.outputs.gcloud-auth }}" =~ ^(cancelled|failure)$ ]] \
-            || [[ "${{ needs.canonical-test.outputs.setup-gcloud }}" =~ ^(cancelled|failure)$ ]] \
-            || [[ "${{ needs.canonical-test.outputs.install-tools }}" =~ ^(cancelled|failure)$ ]] \
-            || [[ "${{ needs.canonical-test.outputs.summary }}" =~ ^(cancelled|failure)$ ]]; then
-            ROOTLY_SERVICE="CI/CD Workflows"
+          set -euo pipefail
+
+          echo "Downloading all test results for aggregation..."
+
+          GCS_PATH="gs://${GCS_BUCKET}/citr/${BUILD_TAG}"
+          LOCAL_DIR="./all-results"
+
+          mkdir -p "$LOCAL_DIR"
+
+          # Download all results
+          if gsutil -m cp -r "${GCS_PATH}/*" "$LOCAL_DIR/" 2>/dev/null; then
+            echo "Successfully downloaded all results"
+          else
+            echo "Warning: Some results may not be available"
           fi
-          echo "service=${ROOTLY_SERVICE}" >> "${GITHUB_OUTPUT}"
 
-      - name: Build Rootly Summary
-        id: rootly-summary
+          # List downloaded files
+          echo "Downloaded files:"
+          find "$LOCAL_DIR" -type f
+
+      - name: Generate Summary Report
         run: |
-          title="The SDCT Job Failed"
-          echo "title=${title}" >> "${GITHUB_OUTPUT}"
-          {
-            echo 'summary<<EOF'
-            echo "------------------------------------"
-            echo "- Harden Runner: ${{ needs.canonical-test.outputs.harden-runner }}"
-            echo "- Checkout Code: ${{ needs.canonical-test.outputs.checkout-code }}"
-            echo "- GCloud Auth: ${{ needs.canonical-test.outputs.gcloud-auth }}"
-            echo "- Setup GCloud: ${{ needs.canonical-test.outputs.setup-gcloud }}"
-            echo "- Install Tools: ${{ needs.canonical-test.outputs.install-tools }}"
-            echo "- Parameters: ${{ needs.canonical-test.outputs.parameters }}"
-            echo "- Check Artifact: ${{ needs.canonical-test.outputs.check-if-exist }}"
-            echo "- Start Canonical Test: ${{ needs.canonical-test.outputs.start-canonical-test }}"
-            echo "- Summary: ${{ needs.canonical-test.outputs.summary }}"
-            echo "------------------------------------"
-            echo "Commit Information:"
-            echo "- Commit: <${{ github.server_url }}/${{ github.repository }}/commit/${{ needs.canonical-test.outputs.commit }}
-            echo "- Tag: ${{ inputs.build-tag }}"
-            echo "- Workflow: <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}>"
-            echo EOF
-          } >> "${GITHUB_OUTPUT}"
+          set -euo pipefail
 
-      - name: Log Rootly Summary
+          echo "# Nightly Test Results Summary" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "**Build Tag**: ${{ inputs.build-tag }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "**Service Version**: ${{ inputs.version-service }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "**Mirror Node Version**: ${{ inputs.version-mirrornode }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+
+          # Count pass/fail markers
+          PASSED=0
+          FAILED=0
+          TOTAL=0
+
+          for test in ${{ needs.initialize.outputs.test_list }}; do
+            ((TOTAL++))
+            if [[ -f "./all-results/${test}.pass" ]]; then
+              ((PASSED++))
+              echo "- ✅ **${test}**: PASSED" >> "$GITHUB_STEP_SUMMARY"
+            elif [[ -f "./all-results/${test}.fail" ]]; then
+              ((FAILED++))
+              echo "- ❌ **${test}**: FAILED" >> "$GITHUB_STEP_SUMMARY"
+            else
+              echo "- ⚠️ **${test}**: NOT RUN" >> "$GITHUB_STEP_SUMMARY"
+            fi
+          done
+
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "**Summary**: $PASSED passed, $FAILED failed, $TOTAL total" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "**GCS Path**: gs://${{ secrets.GCS_BUCKET_DEST }}/citr/${{ inputs.build-tag }}/" >> "$GITHUB_STEP_SUMMARY"
+
+  # Job 4: Notify on Failures
+  notify-failures:
+    needs: [initialize, run-tests, report]
+    if: failure()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Report Failure
+        env:
+          TEST_LIST: ${{ needs.initialize.outputs.test_list }}
+          BUILD_TAG: ${{ inputs.build-tag }}
         run: |
-          echo "## Rootly Summary:"
-          echo "### Title: ${{ steps.rootly-summary.outputs.title }}" >> "${GITHUB_STEP_SUMMARY}"
-          echo "${{ steps.rootly-summary.outputs.summary }}" >> "${GITHUB_STEP_SUMMARY}"
-          echo "### Service" >> "${GITHUB_STEP_SUMMARY}"
-          echo "${{ steps.set-service.outputs.service }}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "### ❌ Test Suite Failed" >> "$GITHUB_STEP_SUMMARY"
+          echo "One or more tests failed. Check individual test results above." >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "**Build Tag**: ${BUILD_TAG}" >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Create Rootly Alert
-        id: create-rootly-alert
-        uses: pandaswhocode/rootly-alert-action@fdae1529e5aed62040016accf719a0ceb7dae57f # v1.0.0
-        continue-on-error: true # continue on error so we can get the incident reporting
-        with:
-          api_key: ${{ secrets.ROOTLY_API_TOKEN }}
-          summary: ${{ steps.rootly-summary.outputs.title }}
-          details: ${{ steps.rootly-summary.outputs.summary }}
-          notification_target_type: "Service"
-          notification_target: ${{ steps.set-service.outputs.service }}
-          set_as_noise: "true"
-          alert_urgency: "High"
-          environments: "CITR"
-          external_id: ${{ github.run_id }}
-          external_url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+      # TODO: Add Rootly integration here
+      # - name: Create Rootly Incident
+      #   if: env.ROOTLY_ENABLED == 'true'
+      #   uses: rootly/github-actions/incident@main
+      #   with:
+      #     api_key: ${{ secrets.ROOTLY_API_KEY }}
+      #     title: "Nightly Tests Failed: ${{ inputs.build-tag }}"
+      #     description: "One or more nightly tests failed"
+
+      # TODO: Add Slack notification here
+      # - name: Send Slack Notification
+      #   if: env.SLACK_ENABLED == 'true'
+      #   uses: slackapi/slack-github-action@v1
+      #   with:
+      #     webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
