@@ -6,6 +6,7 @@ import static com.swirlds.state.StateChangeListener.StateType.QUEUE;
 import static com.swirlds.state.StateChangeListener.StateType.SINGLETON;
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.crypto.MerkleCryptography;
@@ -13,6 +14,7 @@ import com.swirlds.metrics.api.Metrics;
 import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.State;
 import com.swirlds.state.StateChangeListener;
+import com.swirlds.state.lifecycle.StateMetadata;
 import com.swirlds.state.spi.EmptyReadableStates;
 import com.swirlds.state.spi.EmptyWritableStates;
 import com.swirlds.state.spi.KVChangeListener;
@@ -33,6 +35,8 @@ import com.swirlds.state.test.fixtures.MapWritableKVState;
 import com.swirlds.state.test.fixtures.MapWritableStates;
 import com.swirlds.state.test.fixtures.merkle.TestVirtualMapState;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.io.IOException;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -276,6 +280,31 @@ public class FakeState implements MerkleNodeState {
 
     @Override
     public void unregisterService(@NonNull String serviceName) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public long kvPath(int stateId, @NonNull Bytes key) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public long singletonPath(int stateId) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public long queueElementPath(int stateId, @NonNull Bytes expectedValue) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public void initializeState(@NonNull StateMetadata<?, ?> md) {
+        // do nothing
+    }
+
+    @Override
+    public MerkleNodeState loadSnapshot(@NonNull Path targetPath) throws IOException {
         throw new UnsupportedOperationException();
     }
 }

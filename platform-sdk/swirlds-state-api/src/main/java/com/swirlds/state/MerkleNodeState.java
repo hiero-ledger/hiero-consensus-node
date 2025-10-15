@@ -36,9 +36,7 @@ public interface MerkleNodeState extends State {
      *
      * @param md The metadata associated with the state.
      */
-    default void initializeState(@NonNull final StateMetadata<?, ?> md) {
-        throw new UnsupportedOperationException();
-    }
+    void initializeState(@NonNull final StateMetadata<?, ?> md);
 
     /**
      * Unregister a service without removing its nodes from the state.
@@ -79,18 +77,14 @@ public interface MerkleNodeState extends State {
      * Loads a snapshot of a state.
      * @param targetPath The path to load the snapshot from.
      */
-    default MerkleNodeState loadSnapshot(final @NonNull Path targetPath) throws IOException {
-        throw new UnsupportedOperationException();
-    }
+    MerkleNodeState loadSnapshot(final @NonNull Path targetPath) throws IOException;
 
     /**
      * Get the merkle path of the singleton state by its ID.
      * @param stateId The state ID of the singleton state.
      * @return The merkle path of the singleton state
      */
-    default long singletonPath(int stateId) {
-        throw new UnsupportedOperationException();
-    }
+    long singletonPath(int stateId);
 
     /**
      * Get the merkle path of the queue element
@@ -98,9 +92,7 @@ public interface MerkleNodeState extends State {
      * @param expectedValue The expected value of the queue element to retrieve the path for
      * @return The merkle path of the queue element
      */
-    default long queueElementPath(int stateId, @NonNull Bytes expectedValue) {
-        throw new UnsupportedOperationException();
-    }
+    long queueElementPath(int stateId, @NonNull Bytes expectedValue);
 
     /**
      * Get the merkle path of the queue element
@@ -120,9 +112,7 @@ public interface MerkleNodeState extends State {
      * @return The merkle path of the key-value pair or {@code com.swirlds.virtualmap.internal.Path#INVALID_PATH}
      * if the key is not found or the stateId is unknown.
      */
-    default long kvPath(int stateId, @NonNull Bytes key) {
-        throw new UnsupportedOperationException();
-    }
+    long kvPath(int stateId, @NonNull Bytes key);
 
     /**
      * Get the merkle path of the key-value pair in the state by its ID.
