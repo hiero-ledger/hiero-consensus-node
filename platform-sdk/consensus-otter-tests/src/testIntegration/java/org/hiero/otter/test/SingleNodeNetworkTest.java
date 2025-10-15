@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.test;
 
 import static org.hiero.otter.fixtures.assertions.MultipleNodeLogResultsAssert.assertThat;
@@ -31,8 +32,7 @@ public class SingleNodeNetworkTest {
         network.freeze();
         final long freezeRound = network.nodes().getFirst().newConsensusResult().lastRoundNum();
         network.shutdown();
-        Assertions
-                .assertThat(freezeRound)
+        Assertions.assertThat(freezeRound)
                 .withFailMessage("10 seconds should be enough time for a single node to reach at least round 20")
                 .isGreaterThan(20);
         assertThat(network.newLogResults()).haveNoErrorLevelMessages();
