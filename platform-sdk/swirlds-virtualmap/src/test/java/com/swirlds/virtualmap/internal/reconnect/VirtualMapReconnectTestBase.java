@@ -26,7 +26,6 @@ import com.swirlds.virtualmap.internal.merkle.VirtualRootNode;
 import com.swirlds.virtualmap.test.fixtures.TestKey;
 import com.swirlds.virtualmap.test.fixtures.TestValue;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.OutputStream;
@@ -194,21 +193,28 @@ public abstract class VirtualMapReconnectTestBase {
             numTimesBroken = in.readInt();
         }
 
-        @NonNull
         @Override
-        public BreakableDataSource build(
-                final String label,
-                @Nullable final Path sourceDir,
-                final boolean compactionEnabled,
-                final boolean offlineUse) {
-            return new BreakableDataSource(this, delegate.build(label, sourceDir, compactionEnabled, offlineUse));
+        public BreakableDataSource build(final String label, final boolean withDbCompactionEnabled) {
+            return new BreakableDataSource(this, delegate.build(label, withDbCompactionEnabled));
         }
 
-        @NonNull
         @Override
-        public Path snapshot(@Nullable final Path destination, @NonNull final VirtualDataSource snapshotMe) {
+        public BreakableDataSource copy(
+                final VirtualDataSource snapshotMe, final boolean compactionEnabled, final boolean offlineUse) {
             final var breakableSnapshot = (BreakableDataSource) snapshotMe;
-            return delegate.snapshot(destination, breakableSnapshot.delegate);
+            return new BreakableDataSource(
+                    this, delegate.copy(breakableSnapshot.delegate, compactionEnabled, offlineUse));
+        }
+
+        @Override
+        public void snapshot(final Path destination, final VirtualDataSource snapshotMe) {
+            final var breakableSnapshot = (BreakableDataSource) snapshotMe;
+            delegate.snapshot(destination, breakableSnapshot.delegate);
+        }
+
+        @Override
+        public BreakableDataSource restore(final String label, final Path from) {
+            return new BreakableDataSource(this, delegate.restore(label, from));
         }
 
         public void setNumCallsBeforeThrow(int num) {
