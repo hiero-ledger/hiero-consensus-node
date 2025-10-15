@@ -18,7 +18,7 @@ import com.swirlds.common.test.fixtures.WeightGenerator;
 import com.swirlds.common.test.fixtures.WeightGenerators;
 import com.swirlds.common.utility.Threshold;
 import com.swirlds.platform.crypto.CryptoStatic;
-import com.swirlds.platform.gossip.shadowgraph.SyncFallenBehindStatus;
+import com.swirlds.platform.reconnect.FallenBehindStatus;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.file.Path;
@@ -741,8 +741,8 @@ public abstract class AbstractNetwork implements Network {
                     maybeAheadNode.newConsensusResult().getLatestEventWindow();
 
             // If any peer in the required list says the "self" node is not behind, the node is not behind.
-            if (SyncFallenBehindStatus.getStatus(selfEventWindow, peerEventWindow)
-                    != SyncFallenBehindStatus.SELF_FALLEN_BEHIND) {
+            if (FallenBehindStatus.getStatus(selfEventWindow, peerEventWindow)
+                    != FallenBehindStatus.SELF_FALLEN_BEHIND) {
                 weightOfAheadNodes += maybeAheadNode.weight();
             }
         }
@@ -770,8 +770,8 @@ public abstract class AbstractNetwork implements Network {
                         maybeAheadNode.newConsensusResult().getLatestEventWindow();
 
                 // If any peer in the required list says the "self" node is behind, it is ahead so add it to the count
-                if (SyncFallenBehindStatus.getStatus(selfEventWindow, peerEventWindow)
-                        == SyncFallenBehindStatus.SELF_FALLEN_BEHIND) {
+                if (FallenBehindStatus.getStatus(selfEventWindow, peerEventWindow)
+                        == FallenBehindStatus.SELF_FALLEN_BEHIND) {
                     numNodesAhead++;
                 }
             }

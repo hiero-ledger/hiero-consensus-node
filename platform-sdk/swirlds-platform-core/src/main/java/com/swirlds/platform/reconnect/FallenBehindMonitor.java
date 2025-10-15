@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.gossip;
+package com.swirlds.platform.reconnect;
 
 import static com.swirlds.metrics.api.Metrics.INTERNAL_CATEGORY;
+import static java.util.Objects.requireNonNull;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.hedera.hapi.node.state.roster.Roster;
@@ -9,69 +10,75 @@ import com.swirlds.common.merkle.synchronization.config.ReconnectConfig;
 import com.swirlds.common.metrics.FunctionGauge;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
-import com.swirlds.platform.reconnect.PlatformReconnecter;
-import com.swirlds.platform.system.status.StatusActionSubmitter;
-import com.swirlds.platform.system.status.actions.FallenBehindAction;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.HashSet;
-import java.util.Objects;
 import java.util.Set;
+import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
 
 /**
- * A thread-safe implementation for tracking fallen behind status
+ * Detects when this node has fallen behind the network.
+ * <p>This monitor tracks reports from peer nodes by comparing event windows' ancient and
+ * expired thresholds. When the number of reporting peers exceeds a configurable threshold
+ * (as a proportion of total peers), all interested clients are notified.
+ *
+ * <p>The monitor can be queried if a particular peer reported this node as behind and it also provides
+ * a blocking {@link #awaitFallenBehind()} method that suspends calling threads until the fallen-behind
+ * condition is detected that allow interested parties to be notified without the need of polling for the information.
  */
 public class FallenBehindMonitor {
 
     /**
-     * the number of neighbors we have
+     * the number of peers in the roster
      */
-    private int numNeighbors;
+    private int peersSize;
 
     /**
-     * set of neighbors who report that this node has fallen behind
+     * set of peers that reported this node has fallen behind
      */
     private final Set<NodeId> reportFallenBehind = new HashSet<>();
 
-    /**
-     * Enables submitting platform status actions
-     */
-    private StatusActionSubmitter statusActionSubmitter;
-
-    private final ReconnectConfig config;
-    private boolean previouslyFallenBehind;
-    private PlatformReconnecter platformReconnecter;
+    private final double fallenBehindThreshold;
+    private boolean isBehind;
 
     public FallenBehindMonitor(
             @NonNull final Roster roster, @NonNull final Configuration config, @NonNull final Metrics metrics) {
-        this(roster.rosterEntries().size() - 1, config, metrics);
-    }
-
-    @VisibleForTesting
-    protected FallenBehindMonitor(
-            int numNeighbors, @NonNull final Configuration config, @NonNull final Metrics metrics) {
-        this.numNeighbors = numNeighbors;
-        this.config = Objects.requireNonNull(config, "config must not be null").getConfigData(ReconnectConfig.class);
-
-        metrics.getOrCreate(
-                new FunctionGauge.Config<>(INTERNAL_CATEGORY, "hasFallenBehind", Object.class, this::hasFallenBehind)
+        this(
+                requireNonNull(roster).rosterEntries().size() - 1,
+                requireNonNull(config).getConfigData(ReconnectConfig.class).fallenBehindThreshold());
+        requireNonNull(metrics)
+                .getOrCreate(new FunctionGauge.Config<>(
+                                INTERNAL_CATEGORY, "hasFallenBehind", Object.class, this::hasFallenBehind)
                         .withDescription("has this node fallen behind?"));
         metrics.getOrCreate(new FunctionGauge.Config<>(
                         INTERNAL_CATEGORY, "numReportFallenBehind", Integer.class, this::reportedSize)
                 .withDescription("the number of nodes that have fallen behind")
                 .withUnit("count"));
     }
+
+    @VisibleForTesting
+    public FallenBehindMonitor(int peersSize, final double fallenBehindThreshold) {
+        this.peersSize = peersSize;
+        this.fallenBehindThreshold = fallenBehindThreshold;
+    }
+
+    private void checkAndNotify() {
+        boolean wasNotBehind = !isBehind;
+        isBehind = peersSize * fallenBehindThreshold < reportFallenBehind.size();
+        if (wasNotBehind && isBehind) {
+            notifyAll(); // Wake up waiting threads
+        }
+    }
+
     /**
      * Notify the fallen behind manager that a node has reported that they don't have events we need. This means we have
      * probably fallen behind and will need to reconnect
      *
      * @param id the id of the node who says we have fallen behind
      */
-    public synchronized void report(@NonNull final NodeId id) {
+    synchronized void report(@NonNull final NodeId id) {
         if (reportFallenBehind.add(id)) {
-            checkAndNotifyFallingBehind();
-            previouslyFallenBehind = true;
-            platformReconnecter.start(this::reset, () -> {});
+            checkAndNotify();
         }
     }
 
@@ -81,20 +88,9 @@ public class FallenBehindMonitor {
      *
      * @param id the id of the node who is providing us with up to date events
      */
-    public synchronized void clear(@NonNull final NodeId id) {
+    synchronized void clear(@NonNull final NodeId id) {
         reportFallenBehind.remove(id);
-    }
-
-    /**
-     * Notify the fallen behind manager that a node has reported that they don't have events we need. This means we have
-     * probably fallen behind and will need to reconnect
-     *
-     */
-    public synchronized void checkAndNotifyFallingBehind() {
-        if (!previouslyFallenBehind && hasFallenBehind()) {
-            statusActionSubmitter.submitStatusAction(new FallenBehindAction());
-            previouslyFallenBehind = true;
-        }
+        checkAndNotify();
     }
 
     /**
@@ -104,16 +100,16 @@ public class FallenBehindMonitor {
      * @param removed node ids which were removed from the roster
      */
     public synchronized void update(@NonNull final Set<NodeId> added, @NonNull final Set<NodeId> removed) {
-        Objects.requireNonNull(added);
-        Objects.requireNonNull(removed);
+        requireNonNull(added);
+        requireNonNull(removed);
 
-        numNeighbors += added.size() - removed.size();
+        peersSize += added.size() - removed.size();
         for (final NodeId nodeId : removed) {
             if (reportFallenBehind.contains(nodeId) && !added.contains(nodeId)) {
                 reportFallenBehind.remove(nodeId);
             }
         }
-        checkAndNotifyFallingBehind();
+        checkAndNotify();
     }
 
     /**
@@ -122,7 +118,7 @@ public class FallenBehindMonitor {
      * @return true if we have fallen behind, false otherwise
      */
     public synchronized boolean hasFallenBehind() {
-        return numNeighbors * config.fallenBehindThreshold() < reportFallenBehind.size();
+        return isBehind;
     }
 
     /**
@@ -132,9 +128,6 @@ public class FallenBehindMonitor {
      * @return true if I should attempt a reconnect
      */
     public boolean wasReportedByPeer(@NonNull final NodeId peerId) {
-        if (!hasFallenBehind()) {
-            return false;
-        }
         synchronized (this) {
             // if this neighbor has told me I have fallen behind, I will reconnect with him
             return reportFallenBehind.contains(peerId);
@@ -147,7 +140,7 @@ public class FallenBehindMonitor {
      */
     public synchronized void reset() {
         reportFallenBehind.clear();
-        previouslyFallenBehind = false;
+        isBehind = false;
     }
 
     /**
@@ -157,17 +150,34 @@ public class FallenBehindMonitor {
         return reportFallenBehind.size();
     }
 
-    /**
-     * Binds an statusActionSubmitter
-     */
-    public void bind(@NonNull final StatusActionSubmitter statusActionSubmitter) {
-        this.statusActionSubmitter = Objects.requireNonNull(statusActionSubmitter);
+    public void awaitFallenBehind() throws InterruptedException {
+        synchronized (this) {
+            while (!isBehind) {
+                wait();
+            }
+        }
     }
 
     /**
-     * Binds the thread that will execute once the monitor detects the platform has fallen behind
+     * checks if we have fallen behind with respect to this peer.
+     *
+     * @param self                            our event window
+     * @param other                           their event window
+     * @param peer                          node id against which we have fallen behind
+     * @return status about who has fallen behind
      */
-    public void bind(@NonNull final PlatformReconnecter reconnectStarter) {
-        this.platformReconnecter = Objects.requireNonNull(reconnectStarter);
+    public FallenBehindStatus check(
+            @NonNull final EventWindow self, @NonNull final EventWindow other, @NonNull final NodeId peer) {
+        requireNonNull(self);
+        requireNonNull(other);
+        requireNonNull(peer);
+
+        final FallenBehindStatus status = FallenBehindStatus.getStatus(self, other);
+        if (status == FallenBehindStatus.SELF_FALLEN_BEHIND) {
+            report(peer);
+        } else {
+            clear(peer);
+        }
+        return status;
     }
 }

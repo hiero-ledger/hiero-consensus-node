@@ -17,7 +17,6 @@ import com.swirlds.logging.legacy.payload.ReconnectFinishPayload;
 import com.swirlds.logging.legacy.payload.ReconnectStartPayload;
 import com.swirlds.platform.Utilities;
 import com.swirlds.platform.config.StateConfig;
-import com.swirlds.platform.gossip.FallenBehindMonitor;
 import com.swirlds.platform.metrics.ReconnectMetrics;
 import com.swirlds.platform.network.Connection;
 import com.swirlds.platform.network.NetworkProtocolException;
@@ -159,6 +158,9 @@ public class StateSyncPeerProtocol implements PeerProtocol {
     @Override
     public boolean shouldInitiate() {
         // if this neighbor has not told me I have fallen behind, I will not reconnect with him
+        if (!fallenBehindMonitor.hasFallenBehind()) {
+            return false;
+        }
         if (!fallenBehindMonitor.wasReportedByPeer(peerId)) {
             return false;
         }

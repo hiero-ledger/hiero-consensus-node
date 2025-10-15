@@ -5,19 +5,11 @@ import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSee
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.Mockito.mock;
 
 import com.google.common.collect.ImmutableSet;
 import com.hedera.hapi.node.state.roster.Roster;
-import com.swirlds.common.merkle.synchronization.config.ReconnectConfig_;
-import com.swirlds.common.metrics.noop.NoOpMetrics;
-import com.swirlds.common.test.fixtures.Randotron;
-import com.swirlds.config.api.Configuration;
-import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.platform.Utilities;
-import com.swirlds.platform.gossip.FallenBehindMonitor;
 import com.swirlds.platform.network.PeerInfo;
-import com.swirlds.platform.system.status.StatusActionSubmitter;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import java.util.Collections;
 import java.util.List;
@@ -28,23 +20,13 @@ import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
 
 class FallenBehindMonitorTest {
-    private final int numNodes = 11;
-    private final Configuration config = new TestConfigBuilder()
-            .withValue(ReconnectConfig_.FALLEN_BEHIND_THRESHOLD, 0.5)
-            .getOrCreateConfig();
     private FallenBehindMonitor monitor;
 
     @BeforeEach
     void setUp() {
 
-        monitor = new FallenBehindMonitor(
-                RandomRosterBuilder.create(Randotron.create())
-                        .withSize(numNodes)
-                        .build(),
-                config,
-                new NoOpMetrics());
-        monitor.bind(mock(StatusActionSubmitter.class));
-        monitor.bind(mock(PlatformReconnecter.class));
+        final int numNodes = 11;
+        monitor = new FallenBehindMonitor(numNodes - 1, 0.5);
     }
 
     @Test
@@ -174,20 +156,14 @@ class FallenBehindMonitorTest {
         public Roster roster;
         public NodeId selfId;
         public FallenBehindMonitor fallenBehindMonitor;
-        public Configuration configuration;
 
         public FallenBehindMonitorTestData() {
             final Random random = getRandomPrintSeed();
-            configuration = new TestConfigBuilder()
-                    .withValue(ReconnectConfig_.FALLEN_BEHIND_THRESHOLD, "0.25")
-                    .getOrCreateConfig();
 
             this.roster = RandomRosterBuilder.create(random).withSize(41).build();
             this.selfId = NodeId.of(roster.rosterEntries().get(0).nodeId());
 
-            this.fallenBehindMonitor = new FallenBehindMonitor(roster, configuration, new NoOpMetrics());
-            fallenBehindMonitor.bind(mock(StatusActionSubmitter.class));
-            fallenBehindMonitor.bind(mock(PlatformReconnecter.class));
+            this.fallenBehindMonitor = new FallenBehindMonitor(40, .25);
         }
     }
 

@@ -5,10 +5,10 @@ import static com.swirlds.platform.gossip.shadowgraph.SyncUtils.filterLikelyDupl
 
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.platform.reconnect.FallenBehindMonitor;
 import com.swirlds.platform.gossip.IntakeEventCounter;
 import com.swirlds.platform.gossip.sync.config.SyncConfig;
 import com.swirlds.platform.metrics.SyncMetrics;
+import com.swirlds.platform.reconnect.FallenBehindMonitor;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -59,7 +59,7 @@ public class AbstractShadowgraphSynchronizer {
     /**
      * manages sync related decisions
      */
-    private final FallenBehindMonitor fallenBehindMonitor;
+    protected final FallenBehindMonitor fallenBehindMonitor;
 
     /**
      * Keeps track of how many events from each peer have been received, but haven't yet made it through the intake
@@ -143,29 +143,6 @@ public class AbstractShadowgraphSynchronizer {
         syncMetrics.updateTipsPerSync(myTips.size());
         syncMetrics.updateMultiTipsPerSync(SyncUtils.computeMultiTipCount(myTips));
         return myTips;
-    }
-
-    /**
-     * checks if we have fallen behind with respect to this peer.
-     *
-     * @param self   our event window
-     * @param other  their event window
-     * @param nodeId node id against which we have fallen behind
-     * @return status about who has fallen behind
-     */
-    protected SyncFallenBehindStatus checkFallenBehindStatus(
-            @NonNull final EventWindow self, @NonNull final EventWindow other, @NonNull final NodeId nodeId) {
-        Objects.requireNonNull(self);
-        Objects.requireNonNull(other);
-        Objects.requireNonNull(nodeId);
-
-        final SyncFallenBehindStatus status = SyncFallenBehindStatus.getStatus(self, other);
-        if (status == SyncFallenBehindStatus.SELF_FALLEN_BEHIND) {
-            fallenBehindMonitor.report(nodeId);
-        } else {
-            fallenBehindMonitor.clear(nodeId);
-        }
-        return status;
     }
 
     protected void reportRoundDifference(
