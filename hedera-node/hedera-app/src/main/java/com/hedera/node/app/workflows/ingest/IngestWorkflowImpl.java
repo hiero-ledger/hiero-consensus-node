@@ -71,7 +71,7 @@ public final class IngestWorkflowImpl implements IngestWorkflow {
 
             // 1.-6. Parse and check the transaction
             final var state = wrappedState.get();
-            ingestChecker.verifyValidNodeAccount(state);
+            ingestChecker.verifyValidNodeAccount();
             final var configuration = configProvider.getConfiguration();
             ingestChecker.runAllChecks(state, requestBuffer, configuration, checkerResult);
 

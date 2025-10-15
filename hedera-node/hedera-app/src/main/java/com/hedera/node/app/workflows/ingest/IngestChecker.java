@@ -217,18 +217,13 @@ public final class IngestChecker {
         }
     }
 
-    public void verifyValidNodeAccount(State state) throws PreCheckException {
+    public void verifyValidNodeAccount() throws PreCheckException {
         final var nodeAccountId = networkInfo.selfNodeInfo().accountId();
         if (nodeAccountId == null || nodeAccountId.equals(SENTINEL_ACCOUNT_ID)) {
             throw new PreCheckException(INVALID_NODE_ACCOUNT);
         }
 
-        // Fix me!
-        //        final var accountStore = new ReadableStoreFactory(state).getStore(ReadableAccountStore.class);
-        //        final var nodeAccount = accountStore.getAccountById(nodeAccountId);
-        //        if (nodeAccount == null || nodeAccount.tinybarBalance() <= 0) {
-        //            throw new PreCheckException(INSUFFICIENT_ACCOUNT_BALANCE);
-        //        }
+        // FUTURE WORK: add account balance validation
     }
 
     /**

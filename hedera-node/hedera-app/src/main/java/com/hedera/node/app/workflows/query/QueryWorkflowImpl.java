@@ -182,7 +182,7 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
                 }
 
                 final var state = wrappedState.get();
-                ingestChecker.verifyValidNodeAccount(state);
+                ingestChecker.verifyValidNodeAccount();
                 final var storeFactory = new ReadableStoreFactory(state);
                 final var paymentRequired = handler.requiresNodePayment(responseType);
                 final var feeCalculator = feeManager.createFeeCalculator(function, consensusTime, storeFactory);
