@@ -106,7 +106,7 @@ public interface MerkleNodeState extends State {
     }
 
     /**
-     * Get the merkle path of the key-value pair in the state by its ID.
+     * Get the merkle path of the key-value pair in the state by its state ID and key.
      * @param stateId The state ID of the key-value pair.
      * @param key The key of the key-value pair.
      * @return The merkle path of the key-value pair or {@code com.swirlds.virtualmap.internal.Path#INVALID_PATH}
