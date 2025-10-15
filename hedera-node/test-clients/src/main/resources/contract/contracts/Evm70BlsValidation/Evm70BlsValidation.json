@@ -1,0 +1,26 @@
+[
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "precompileAddress",
+        "type": "address"
+      },
+      {
+        "internalType": "bytes",
+        "name": "callData",
+        "type": "bytes"
+      }
+    ],
+    "name": "callBls12",
+    "outputs": [
+      {
+        "internalType": "bytes",
+        "name": "response",
+        "type": "bytes"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  }
+]
