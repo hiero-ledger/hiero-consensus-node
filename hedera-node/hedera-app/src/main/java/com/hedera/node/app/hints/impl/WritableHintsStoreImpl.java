@@ -34,12 +34,12 @@ import com.swirlds.state.spi.WritableKVState;
 import com.swirlds.state.spi.WritableSingletonState;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
-import java.util.OptionalLong;
 import java.util.function.Function;
 import java.util.function.UnaryOperator;
 import org.apache.logging.log4j.LogManager;
@@ -194,10 +194,10 @@ public class WritableHintsStoreImpl extends ReadableHintsStoreImpl implements Wr
 
     @Override
     public void moveToNextNode(
-            @NonNull final OptionalLong nextNodeIdFromRoster, @NonNull final Instant nextContributionTimeEnd) {
+            @Nullable final Long nextNodeIdFromRoster, @NonNull final Instant nextContributionTimeEnd) {
         final var crsState = requireNonNull(this.crsState.get());
         final var newCrsState = crsState.copyBuilder()
-                .nextContributingNodeId(nextNodeIdFromRoster.isPresent() ? nextNodeIdFromRoster.getAsLong() : null)
+                .nextContributingNodeId(nextNodeIdFromRoster)
                 .contributionEndTime(asTimestamp(nextContributionTimeEnd))
                 .build();
         setCrsState(newCrsState);

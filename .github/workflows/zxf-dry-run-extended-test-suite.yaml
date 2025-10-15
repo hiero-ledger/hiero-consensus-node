@@ -220,7 +220,7 @@ jobs:
     with:
       ref: ${{ inputs.commit_sha }} # pass the xts-candidate tag to the BN panel for checkout
       custom-job-name: "Dry Run: Block Node Regression"
-      solo-version: ${{ vars.CITR_SOLO_VERSION }}
+      solo-version: "v0.46.1"
     secrets:
       access-token: ${{ secrets.GH_ACCESS_TOKEN }}
       slack-detailed-report-webhook: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}

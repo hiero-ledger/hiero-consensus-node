@@ -10,6 +10,7 @@ import static org.mockito.BDDMockito.given;
 
 import com.hedera.node.app.hapi.utils.CommonUtils;
 import com.hedera.node.app.hints.HintsService;
+import com.hedera.node.app.hints.impl.HintsContext;
 import com.hedera.node.app.history.HistoryService;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfigImpl;
@@ -27,7 +28,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 class TssBlockHashSignerTest {
     private static final Bytes FAKE_BLOCK_HASH = Bytes.wrap("FAKE_BLOCK_HASH");
     private static final Bytes FAKE_HINTS_SIGNATURE = CommonUtils.noThrowSha384HashOf(FAKE_BLOCK_HASH);
-    private static final Bytes FAKE_VK = Bytes.wrap("FAKE_VK");
 
     @Mock
     private HintsService hintsService;
@@ -37,6 +37,9 @@ class TssBlockHashSignerTest {
 
     @Mock
     private ConfigProvider configProvider;
+
+    @Mock
+    private HintsContext.Signing signing;
 
     private TssBlockHashSigner subject;
 
@@ -56,7 +59,7 @@ class TssBlockHashSignerTest {
 
         assertTrue(subject.isReady());
 
-        final var signature = subject.signFuture(FAKE_BLOCK_HASH).join();
+        final var signature = subject.sign(FAKE_BLOCK_HASH).signatureFuture().join();
 
         assertEquals(FAKE_HINTS_SIGNATURE, signature);
     }
@@ -66,13 +69,13 @@ class TssBlockHashSignerTest {
         givenSubjectWith(HintsEnabled.YES, HistoryEnabled.NO);
 
         assertFalse(subject.isReady());
-        assertThrows(IllegalStateException.class, () -> subject.signFuture(FAKE_BLOCK_HASH));
+        assertThrows(IllegalStateException.class, () -> subject.sign(FAKE_BLOCK_HASH));
         given(hintsService.isReady()).willReturn(true);
         assertTrue(subject.isReady());
-        given(hintsService.signFuture(FAKE_BLOCK_HASH))
-                .willReturn(CompletableFuture.completedFuture(FAKE_HINTS_SIGNATURE));
+        given(signing.future()).willReturn(CompletableFuture.completedFuture(FAKE_HINTS_SIGNATURE));
+        given(hintsService.sign(FAKE_BLOCK_HASH)).willReturn(signing);
 
-        final var signature = subject.signFuture(FAKE_BLOCK_HASH).join();
+        final var signature = subject.sign(FAKE_BLOCK_HASH).signatureFuture().join();
 
         assertSame(FAKE_HINTS_SIGNATURE, signature);
     }
@@ -82,11 +85,11 @@ class TssBlockHashSignerTest {
         givenSubjectWith(HintsEnabled.NO, HistoryEnabled.YES);
 
         assertFalse(subject.isReady());
-        assertThrows(IllegalStateException.class, () -> subject.signFuture(FAKE_BLOCK_HASH));
+        assertThrows(IllegalStateException.class, () -> subject.sign(FAKE_BLOCK_HASH));
         given(historyService.isReady()).willReturn(true);
         assertTrue(subject.isReady());
 
-        final var signature = subject.signFuture(FAKE_BLOCK_HASH).join();
+        final var signature = subject.sign(FAKE_BLOCK_HASH).signatureFuture().join();
 
         assertEquals(FAKE_HINTS_SIGNATURE, signature);
     }
@@ -96,16 +99,16 @@ class TssBlockHashSignerTest {
         givenSubjectWith(HintsEnabled.YES, HistoryEnabled.YES);
 
         assertFalse(subject.isReady());
-        assertThrows(IllegalStateException.class, () -> subject.signFuture(FAKE_BLOCK_HASH));
+        assertThrows(IllegalStateException.class, () -> subject.sign(FAKE_BLOCK_HASH));
         given(historyService.isReady()).willReturn(true);
         assertFalse(subject.isReady());
-        assertThrows(IllegalStateException.class, () -> subject.signFuture(FAKE_BLOCK_HASH));
+        assertThrows(IllegalStateException.class, () -> subject.sign(FAKE_BLOCK_HASH));
         given(hintsService.isReady()).willReturn(true);
         assertTrue(subject.isReady());
-        given(hintsService.signFuture(FAKE_BLOCK_HASH))
-                .willReturn(CompletableFuture.completedFuture(FAKE_HINTS_SIGNATURE));
+        given(signing.future()).willReturn(CompletableFuture.completedFuture(FAKE_HINTS_SIGNATURE));
+        given(hintsService.sign(FAKE_BLOCK_HASH)).willReturn(signing);
 
-        final var signature = subject.signFuture(FAKE_BLOCK_HASH).join();
+        final var signature = subject.sign(FAKE_BLOCK_HASH).signatureFuture().join();
 
         assertEquals(FAKE_HINTS_SIGNATURE, signature);
     }

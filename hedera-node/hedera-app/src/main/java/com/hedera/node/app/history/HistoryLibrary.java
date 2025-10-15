@@ -1,15 +1,47 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.history;
 
+import static java.util.Objects.requireNonNull;
+
 import com.hedera.cryptography.rpm.SigningAndVerifyingSchnorrKeys;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.util.Arrays;
+import java.util.Set;
+import java.util.function.LongFunction;
+import java.util.function.LongUnaryOperator;
 
 /**
  * The cryptographic operations required by the {@link HistoryService}.
  */
 public interface HistoryLibrary {
+    /**
+     * Computes the canonical hash of the given situation from a {@link HistoryLibrary}.
+     * @param library the library
+     * @param nodeIds the node ids
+     * @param weightFn the weight function
+     * @param proofKeyFn the proof key function
+     * @return the canonical hash
+     */
+    static Bytes computeHash(
+            @NonNull final HistoryLibrary library,
+            @NonNull final Set<Long> nodeIds,
+            @NonNull final LongUnaryOperator weightFn,
+            @NonNull final LongFunction<Bytes> proofKeyFn) {
+        requireNonNull(nodeIds);
+        requireNonNull(weightFn);
+        requireNonNull(proofKeyFn);
+        final var sortedNodeIds =
+                nodeIds.stream().sorted().mapToLong(Long::longValue).toArray();
+        final var targetWeights = Arrays.stream(sortedNodeIds).map(weightFn).toArray();
+        final var proofKeysArray = Arrays.stream(sortedNodeIds)
+                .mapToObj(proofKeyFn)
+                .map(Bytes::toByteArray)
+                .toArray(byte[][]::new);
+        return library.hashAddressBook(targetWeights, proofKeysArray);
+    }
+
     /**
      * Returns the SNARK verification key in use by this library.
      * <p>

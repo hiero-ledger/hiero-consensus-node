@@ -9,6 +9,7 @@ import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
+import org.hiero.otter.fixtures.result.SingleNodeEventStreamResult;
 import org.hiero.otter.fixtures.result.SingleNodeLogResult;
 import org.hiero.otter.fixtures.result.SingleNodeMarkerFileResult;
 import org.hiero.otter.fixtures.result.SingleNodePcesResult;
@@ -84,6 +85,13 @@ public interface Node {
     void stopSyntheticBottleneck();
 
     /**
+     * Triggers a self-ISS on this node. The node will be able to recover from the ISS by restarting. This type of ISS
+     * simulates a bug where a transaction updates the state based on data in memory that is different on other nodes
+     * (due to the bug).
+     */
+    void triggerSelfIss();
+
+    /**
      * Sets the quiescence command of the node.
      *
      * <p>The default command is {@link QuiescenceCommand#DONT_QUIESCE}.
@@ -123,6 +131,13 @@ public interface Node {
      * @return the weight
      */
     long weight();
+
+    /**
+     * Sets the weight of the node. This method can only be called while the node is not running.
+     *
+     * @param weight the new weight. Must be non-negative.
+     */
+    void weight(long weight);
 
     /**
      * Returns the status of the platform while the node is running or {@code null} if not.
@@ -240,4 +255,12 @@ public interface Node {
      */
     @NonNull
     SingleNodeMarkerFileResult newMarkerFileResult();
+
+    /**
+     * Creates a new result with all the event streams created by this node.
+     *
+     * @return the event stream results of this node
+     */
+    @NonNull
+    SingleNodeEventStreamResult newEventStreamResult();
 }
