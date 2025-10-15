@@ -349,7 +349,7 @@ jobs:
         if: always()
         run: |
           # Get BN Logs
-          kubectl logs -n ${{ env.SOLO_NAMESPACE }} -l "app.kubernetes.io/name=block-node-0" --all-containers --since=24h --timestamps --prefix --tail=-1 > bn0-logs.log
+          kubectl logs -n ${{ env.SOLO_NAMESPACE }} -l "app.kubernetes.io/name=block-node-server" --all-containers --since=24h --timestamps --prefix --tail=-1 > bn0-logs.log
 
           # Get MN Logs
           kubectl logs -n ${{ env.SOLO_NAMESPACE }} -l "app.kubernetes.io/instance=mirror,app.kubernetes.io/component=importer" --all-containers --since=24h --timestamps --prefix --tail=-1 > mn0-logs.log
