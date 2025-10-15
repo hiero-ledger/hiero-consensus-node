@@ -87,7 +87,7 @@ public interface MerkleNodeState extends State {
     long singletonPath(int stateId);
 
     /**
-     * Get the merkle path of the queue element
+     * Get the merkle path of the queue element by its state ID and value.
      * @param stateId The state ID of the queue state.
      * @param expectedValue The expected value of the queue element to retrieve the path for
      * @return The merkle path of the queue element
