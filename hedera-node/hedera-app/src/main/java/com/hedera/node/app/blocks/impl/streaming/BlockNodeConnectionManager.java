@@ -166,7 +166,7 @@ public class BlockNodeConnectionManager {
      * Map that contains one or more connections to block nodes. The connections in this map will be a subset (or all)
      * of the available block node connections. (see {@link BlockNodeConnectionManager#availableBlockNodes})
      */
-    private final Map<BlockNodeConfig, BlockNodeConnection> connections = new ConcurrentHashMap<>();
+    private final Map<BlockNodeConfig, Optional<BlockNodeConnection>> connections = new ConcurrentHashMap<>();
     /**
      * Reference to the currently active connection. If this reference is null, then there is no active connection.
      */
@@ -539,7 +539,7 @@ public class BlockNodeConnectionManager {
      */
     private void removeConnectionAndClearActive(@NonNull final BlockNodeConnection connection) {
         requireNonNull(connection);
-        connections.remove(connection.getNodeConfig(), connection);
+        connections.remove(connection.getNodeConfig());
         activeConnectionRef.compareAndSet(connection, null);
     }
 
@@ -590,6 +590,7 @@ public class BlockNodeConnectionManager {
 
         // Schedule the first attempt using the connectionExecutor
         try {
+            connections.put(blockNodeConfig, Optional.empty());
             sharedExecutorService.schedule(
                     new BlockNodeConnectionTask(blockNodeConfig, initialDelay, blockNumber, force),
                     delayMillis,
@@ -629,24 +630,7 @@ public class BlockNodeConnectionManager {
 
         // Stop the block stream worker loop thread
         shutdownBlockStreamWorkerThread();
-
-        // Close all connections
-        final Iterator<Map.Entry<BlockNodeConfig, BlockNodeConnection>> it =
-                connections.entrySet().iterator();
-        while (it.hasNext()) {
-            final Map.Entry<BlockNodeConfig, BlockNodeConnection> entry = it.next();
-            final BlockNodeConnection connection = entry.getValue();
-            try {
-                connection.close(true);
-            } catch (final RuntimeException e) {
-                logWithContext(
-                        DEBUG,
-                        "Error while closing connection during connection manager shutdown. Ignoring.",
-                        connection,
-                        e);
-            }
-            it.remove();
-        }
+        closeConnections();
 
         // clear metadata
         streamingBlockNumber.set(-1);
@@ -669,6 +653,29 @@ public class BlockNodeConnectionManager {
         blockStreamWorkerThreadRef.set(null);
     }
 
+    private void closeConnections() {
+        if (!isStreamingEnabled.get()) {
+            return;
+        }
+
+        // Close all connections
+        final Iterator<Map.Entry<BlockNodeConfig, Optional<BlockNodeConnection>>> it =
+                connections.entrySet().iterator();
+        while (it.hasNext()) {
+            final Map.Entry<BlockNodeConfig, Optional<BlockNodeConnection>> entry = it.next();
+            if (entry.getValue().isPresent()) {
+                final BlockNodeConnection connection = entry.getValue().get();
+                try {
+                    connection.close(true);
+                } catch (final RuntimeException e) {
+                    logWithContext(
+                            DEBUG, "Error while closing connection during closeConnections. Ignoring.", connection, e);
+                }
+            }
+            it.remove();
+        }
+    }
+
     /**
      * Stops only the connection processing and active connections, without shutting down the block buffer
      * or the configuration watcher. Intended for dynamic reconfiguration when the configuration file changes.
@@ -679,21 +686,7 @@ public class BlockNodeConnectionManager {
         }
 
         logWithContext(INFO, "Stopping block node connections.");
-
-        // Close all connections
-        final Iterator<Map.Entry<BlockNodeConfig, BlockNodeConnection>> it =
-                connections.entrySet().iterator();
-        while (it.hasNext()) {
-            final Map.Entry<BlockNodeConfig, BlockNodeConnection> entry = it.next();
-            final BlockNodeConnection connection = entry.getValue();
-            try {
-                connection.close(true);
-            } catch (final RuntimeException e) {
-                logWithContext(
-                        DEBUG, "Error while closing connection during stopConnections. Ignoring.", connection, e);
-            }
-            it.remove();
-        }
+        closeConnections();
 
         // clear metadata
         streamingBlockNumber.set(-1);
@@ -847,7 +840,7 @@ public class BlockNodeConnectionManager {
                 blockStreamMetrics,
                 sharedExecutorService);
 
-        connections.put(nodeConfig, connection);
+        connections.put(nodeConfig, Optional.of(connection));
         return connection;
     }
 
