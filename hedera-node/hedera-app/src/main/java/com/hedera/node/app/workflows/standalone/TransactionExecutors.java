@@ -291,8 +291,7 @@ public enum TransactionExecutors {
                 ForkJoinPool.commonPool(),
                 appContext,
                 new HintsLibraryImpl(),
-                bootstrapConfig.getConfigData(BlockStreamConfig.class).blockPeriod(),
-                bootstrapConfig.getConfigData(TssConfig.class));
+                bootstrapConfig.getConfigData(BlockStreamConfig.class).blockPeriod());
         final var historyService = new HistoryServiceImpl(
                 NO_OP_METRICS, ForkJoinPool.commonPool(), appContext, new HistoryLibraryImpl(), bootstrapConfig);
         final var component = DaggerExecutorComponent.builder()

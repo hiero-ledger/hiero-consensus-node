@@ -50,12 +50,11 @@ public class HintsServiceImpl implements HintsService, OnHintsFinished {
             @NonNull final Executor executor,
             @NonNull final AppContext appContext,
             @NonNull final HintsLibrary library,
-            @NonNull final Duration blockPeriod,
-            @NonNull final TssConfig tssConfig) {
+            @NonNull final Duration blockPeriod) {
         this.library = requireNonNull(library);
         // Fully qualified for benefit of javadoc
         this.component = com.hedera.node.app.hints.impl.DaggerHintsServiceComponent.factory()
-                .create(library, appContext, executor, metrics, currentRoster, blockPeriod, this, tssConfig);
+                .create(library, appContext, executor, metrics, currentRoster, blockPeriod, this);
     }
 
     @VisibleForTesting

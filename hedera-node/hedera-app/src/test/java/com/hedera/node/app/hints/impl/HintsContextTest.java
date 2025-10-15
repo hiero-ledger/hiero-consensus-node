@@ -3,6 +3,7 @@ package com.hedera.node.app.hints.impl;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.lenient;
 
 import com.hedera.hapi.node.state.hints.HintsConstruction;
 import com.hedera.hapi.node.state.hints.HintsScheme;
@@ -11,9 +12,11 @@ import com.hedera.hapi.node.state.hints.PreprocessedKeys;
 import com.hedera.node.app.hints.HintsLibrary;
 import com.hedera.node.config.data.TssConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.config.api.Configuration;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -43,15 +46,19 @@ class HintsContextTest {
     @Mock
     private Bytes signature;
 
-    private HintsContext subject;
+    @Mock
+    private Supplier<Configuration> configProvider;
 
     @Mock
-    private TssConfig strictHalfConfig;
+    private Configuration configuration;
+
+    private HintsContext subject;
 
     @BeforeEach
     void setUp() {
-        strictHalfConfig = defaultConfig(2);
-        subject = new HintsContext(library, strictHalfConfig);
+        lenient().when(configProvider.get()).thenReturn(configuration);
+        lenient().when(configuration.getConfigData(TssConfig.class)).thenReturn(defaultConfig(2));
+        subject = new HintsContext(library, configProvider);
     }
 
     private static TssConfig defaultConfig(final int divisor) {

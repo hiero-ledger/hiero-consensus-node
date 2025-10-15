@@ -465,8 +465,7 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
                         ForkJoinPool.commonPool(),
                         appContext,
                         new HintsLibraryImpl(),
-                        bootstrapConfig.getConfigData(BlockStreamConfig.class).blockPeriod(),
-                        bootstrapConfig.getConfigData(TssConfig.class)),
+                        bootstrapConfig.getConfigData(BlockStreamConfig.class).blockPeriod()),
                 (appContext, bootstrapConfig) -> new HistoryServiceImpl(
                         metrics, ForkJoinPool.commonPool(), appContext, new HistoryLibraryImpl(), bootstrapConfig),
                 TssBlockHashSigner::new,
