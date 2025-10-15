@@ -37,6 +37,7 @@ public class SingleNodeReconnectResultImpl implements SingleNodeReconnectResult 
     /**
      * Constructor for SingleNodeReconnectResultImpl.
      *
+     * @param nodeId the ID of the node
      * @param statusResults the platform status results for the single node
      * @param logResults the log results for the single node
      */

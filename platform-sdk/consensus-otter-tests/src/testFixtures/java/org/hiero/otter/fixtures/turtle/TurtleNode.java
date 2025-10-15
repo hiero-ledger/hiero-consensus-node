@@ -420,14 +420,14 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
     /**
      * {@inheritDoc}
      */
-    @NonNull
     @Override
+    @NonNull
     public SingleNodeEventStreamResult newEventStreamResult() {
         final Configuration currentConfiguration = configuration().current();
         final EventConfig eventConfig = currentConfiguration.getConfigData(EventConfig.class);
         final Path eventStreamDir = Path.of(eventConfig.eventsLogDir());
 
-        return new SingleNodeEventStreamResultImpl(selfId, eventStreamDir, currentConfiguration);
+        return new SingleNodeEventStreamResultImpl(selfId, eventStreamDir, currentConfiguration, newReconnectResult());
     }
 
     /**

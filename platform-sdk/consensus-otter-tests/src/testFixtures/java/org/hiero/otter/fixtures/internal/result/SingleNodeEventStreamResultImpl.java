@@ -16,6 +16,7 @@ import java.util.stream.Stream;
 import org.hiero.consensus.config.EventConfig;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.otter.fixtures.result.SingleNodeEventStreamResult;
+import org.hiero.otter.fixtures.result.SingleNodeReconnectResult;
 
 /**
  * Default implementation of {@link SingleNodeEventStreamResult}
@@ -35,7 +36,7 @@ public class SingleNodeEventStreamResultImpl implements SingleNodeEventStreamRes
 
     private final NodeId nodeId;
     private final Path eventStreamDir;
-    private final boolean reconnected;
+    private final SingleNodeReconnectResult reconnectResult;
 
     /**
      * Creates a new instance of {@link SingleNodeEventStreamResultImpl}.
@@ -43,24 +44,21 @@ public class SingleNodeEventStreamResultImpl implements SingleNodeEventStreamRes
      * @param nodeId the {@link NodeId} of the node
      * @param baseDir the base directory where event stream files are stored
      * @param configuration the configuration of the node
+     * @param reconnectResult the result of the reconnect operation for the node
      */
     public SingleNodeEventStreamResultImpl(
-            @NonNull final NodeId nodeId, @NonNull final Path baseDir, @NonNull final Configuration configuration) {
+            @NonNull final NodeId nodeId,
+            @NonNull final Path baseDir,
+            @NonNull final Configuration configuration,
+            @NonNull final SingleNodeReconnectResult reconnectResult) {
         this.nodeId = requireNonNull(nodeId);
         this.eventStreamDir = baseDir.resolve("events_" + nodeId.id());
-        this.reconnected = false;
+        this.reconnectResult = requireNonNull(reconnectResult);
 
         final EventConfig eventConfig = configuration.getConfigData(EventConfig.class);
         if (!eventConfig.enableEventStreaming()) {
             throw new IllegalStateException("Event streaming is not enabled");
         }
-    }
-
-    private SingleNodeEventStreamResultImpl(
-            @NonNull final NodeId nodeId, @NonNull final Path eventStreamDir, final boolean reconnected) {
-        this.nodeId = requireNonNull(nodeId);
-        this.eventStreamDir = requireNonNull(eventStreamDir);
-        this.reconnected = reconnected;
     }
 
     /**
@@ -98,20 +96,8 @@ public class SingleNodeEventStreamResultImpl implements SingleNodeEventStreamRes
         }
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
-    @NonNull
-    public SingleNodeEventStreamResult markReconnected() {
-        return new SingleNodeEventStreamResultImpl(nodeId, eventStreamDir, true);
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public boolean hasNotReconnected() {
-        return !reconnected;
+    public boolean hasReconnected() {
+        return reconnectResult.numSuccessfulReconnects() + reconnectResult.numFailedReconnects() > 0;
     }
 }

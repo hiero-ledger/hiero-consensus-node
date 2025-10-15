@@ -33,11 +33,11 @@ public class MultipleNodeEventStreamResultsImpl implements MultipleNodeEventStre
      *
      * @param results the list of {@link SingleNodeEventStreamResult} for all nodes
      */
-    private MultipleNodeEventStreamResultsImpl(@NonNull final List<SingleNodeEventStreamResult> results) {
+    public MultipleNodeEventStreamResultsImpl(@NonNull final List<SingleNodeEventStreamResult> results) {
         if (results.isEmpty()) {
             throw new IllegalArgumentException("At least one result must be provided");
         }
-        if (results.stream().noneMatch(SingleNodeEventStreamResult::hasNotReconnected)) {
+        if (results.stream().allMatch(SingleNodeEventStreamResult::hasReconnected)) {
             throw new IllegalArgumentException("At least one result must be from a node that has not reconnected");
         }
         this.results = results;
@@ -75,19 +75,5 @@ public class MultipleNodeEventStreamResultsImpl implements MultipleNodeEventStre
                 .filter(node -> !nodeIdsToSuppress.contains(node.nodeId()))
                 .toList();
         return new MultipleNodeEventStreamResultsImpl(filtered);
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    @NonNull
-    public MultipleNodeEventStreamResults withReconnectedNodes(@NonNull final Collection<Node> reconnectedNodes) {
-        final Set<NodeId> reconnectedNodeIds =
-                reconnectedNodes.stream().map(Node::selfId).collect(Collectors.toSet());
-        final List<SingleNodeEventStreamResult> mappedResults = results.stream()
-                .map(result -> reconnectedNodeIds.contains(result.nodeId()) ? result.markReconnected() : result)
-                .toList();
-        return new MultipleNodeEventStreamResultsImpl(mappedResults);
     }
 }

@@ -171,7 +171,7 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
         final Path eventStreamDir = localOutputDirectory.resolve(ContainerConstants.EVENT_STREAM_DIRECTORY);
         downloadEventStreamFiles(localOutputDirectory);
         return new SingleNodeEventStreamResultImpl(
-                selfId, eventStreamDir, configuration().current());
+                selfId, eventStreamDir, configuration().current(), newReconnectResult());
     }
 
     /**
@@ -459,7 +459,7 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
         lifeCycle = DESTROYED;
     }
 
-    private void downloadEventStreamFiles(final Path localOutputDirectory) {
+    private void downloadEventStreamFiles(@NonNull final Path localOutputDirectory) {
         try {
             Files.createDirectories(localOutputDirectory.resolve(EVENT_STREAM_DIRECTORY));
             final Configuration configuration = nodeConfiguration.current();

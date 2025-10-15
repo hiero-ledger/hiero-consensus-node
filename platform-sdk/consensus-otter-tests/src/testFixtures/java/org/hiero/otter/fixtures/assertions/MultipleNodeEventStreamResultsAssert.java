@@ -8,8 +8,6 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.IntSummaryStatistics;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -50,10 +48,10 @@ public class MultipleNodeEventStreamResultsAssert
     }
 
     /**
-     * Identifies the rounds which have reached consensus on more than one node and verifies that they are equal. If no
-     * rounds have been produced or if only one node has produced rounds, this assertion will always pass.
+     * Asserts that all nodes have the same event stream files and signature files with identical content.
+     * Reconnected nodes may be missing some files, but the files that are present must match the corresponding files.
      *
-     * <p>Please note: this method will fail if no event stream files or signature files are found.
+     * <p>Please note: this method will fail if all nodes have reconnected or no event stream files or signature files are found.
      *
      * @return this assertion object for method chaining
      */
@@ -64,31 +62,27 @@ public class MultipleNodeEventStreamResultsAssert
         final int nodeCount = actual.results().size();
 
         // determine statistics of signature file counts (ignoring nodes that have reconnected)
-        final IntSummaryStatistics statistics = actual.results().stream()
-                .filter(SingleNodeEventStreamResult::hasNotReconnected)
+        final int maxNumberSignatureFiles = actual.results().stream()
+                .filter(result -> !result.hasReconnected())
                 .map(SingleNodeEventStreamResult::signatureFiles)
                 .mapToInt(List::size)
-                .summaryStatistics();
-        if (statistics.getMax() == 0) {
-            fail("No signature files found for any node");
-        }
-        if (statistics.getMax() - statistics.getMin() > 1) {
-            fail(
-                    "Difference between min (%d) and max (%d) signature file count is greater than 1",
-                    statistics.getMin(), statistics.getMax());
+                .max()
+                .orElseThrow();
+        if (maxNumberSignatureFiles == 0) {
+            fail("No signature files found");
         }
 
         // pick a node with the maximum number of signature files that has not reconnected
         // this will be our blueprint and we will compare all other nodes with this one
         final SingleNodeEventStreamResult bluePrint = actual.results().stream()
-                .filter(SingleNodeEventStreamResult::hasNotReconnected)
-                .filter(result -> result.signatureFiles().size() == statistics.getMax())
+                .filter(result ->
+                        !result.hasReconnected() && result.signatureFiles().size() == maxNumberSignatureFiles)
                 .findAny()
                 .orElseThrow();
 
         final List<Path> bluePrintEventStreamFiles = bluePrint.eventStreamFiles();
-        final Map<Path, Path> bluePrintEventStreamFileLookup = bluePrintEventStreamFiles.stream()
-                .collect(Collectors.toMap(Path::getFileName, Function.identity(), (a, b) -> a, LinkedHashMap::new));
+        final Map<Path, Path> bluePrintEventStreamFileLookup =
+                bluePrintEventStreamFiles.stream().collect(Collectors.toMap(Path::getFileName, Function.identity()));
 
         final List<Path> bluePrintSignatureFiles = bluePrint.signatureFiles();
         final Map<Path, Path> bluePrintSignatureFileLookup =
@@ -99,12 +93,12 @@ public class MultipleNodeEventStreamResultsAssert
                 if (result.nodeId().equals(bluePrint.nodeId())) {
                     continue;
                 }
-                if (result.hasNotReconnected()) {
-                    compareEventStreamFiles(bluePrint.nodeId(), bluePrintEventStreamFiles, result);
-                    compareSignatureFiles(bluePrint.nodeId(), bluePrintSignatureFiles, result);
-                } else {
+                if (result.hasReconnected()) {
                     compareReconnectedEventStreamFiles(bluePrint.nodeId(), bluePrintEventStreamFileLookup, result);
                     compareReconnectedSignatureFiles(bluePrint.nodeId(), bluePrintSignatureFileLookup, result);
+                } else {
+                    compareEventStreamFiles(bluePrint.nodeId(), bluePrintEventStreamFiles, result);
+                    compareSignatureFiles(bluePrint.nodeId(), bluePrintSignatureFiles, result);
                 }
             }
         } catch (final IOException e) {

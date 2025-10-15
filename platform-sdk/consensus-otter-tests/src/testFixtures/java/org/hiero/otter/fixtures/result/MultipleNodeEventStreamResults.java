@@ -60,28 +60,4 @@ public interface MultipleNodeEventStreamResults {
     default MultipleNodeEventStreamResults suppressingNodes(@NonNull final Node... nodes) {
         return suppressingNodes(Arrays.asList(nodes));
     }
-
-    /**
-     * Marks the event stream results of one or more nodes as having reconnected during the test.
-     * When a node reconnects, its event stream may have gaps or discontinuities, so this method
-     * allows the assertions to account for that.
-     *
-     * @param nodes the nodes that reconnected during the test
-     * @return a new instance of {@link MultipleNodeEventStreamResults} with the specified nodes marked as reconnected
-     */
-    @NonNull
-    MultipleNodeEventStreamResults withReconnectedNodes(@NonNull final Collection<Node> nodes);
-
-    /**
-     * Marks the event stream results of one or more nodes as having reconnected during the test.
-     * When a node reconnects, its event stream may have gaps or discontinuities, so this method
-     * allows the assertions to account for that.
-     *
-     * @param nodes the nodes that reconnected during the test
-     * @return a new instance of {@link MultipleNodeEventStreamResults} with the specified nodes marked as reconnected
-     */
-    @NonNull
-    default MultipleNodeEventStreamResults withReconnectedNodes(@NonNull final Node... nodes) {
-        return withReconnectedNodes(Arrays.asList(nodes));
-    }
 }
