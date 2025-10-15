@@ -17,7 +17,7 @@ public interface ReadableAccountNodeRelStore {
      * @return node identifier
      */
     @Nullable
-    Long get(final AccountID accountId);
+    Long get(AccountID accountId);
 
     /**
      * Returns the number of relations in the state.

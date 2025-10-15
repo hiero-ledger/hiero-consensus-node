@@ -17,6 +17,10 @@ import com.swirlds.state.lifecycle.StateDefinition;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Set;
 
+/**
+ * Defines the schema for the account-to-node relation.
+ * Introduces a new state map and provides migration logic to populate the map with current node relations.
+ */
 public class V068AddressBookSchema extends Schema<SemanticVersion> {
     public static final String ACCOUNT_NODE_REL_STATE_KEY = "ACCOUNT_NODE_REL";
     public static final int ACCOUNT_NODE_REL_STATE_ID =
@@ -29,6 +33,10 @@ public class V068AddressBookSchema extends Schema<SemanticVersion> {
 
     private static final long MAX_RELATIONS = 100L;
 
+    /**
+     * Constructs a new schema instance for version 0.68.0,
+     * using the semantic version comparator for version management.
+     */
     public V068AddressBookSchema() {
         super(VERSION, SEMANTIC_VERSION_COMPARATOR);
     }

@@ -99,8 +99,8 @@ public class HapiNodeCreate extends HapiTxnOp<HapiNodeCreate> {
         return this;
     }
 
-    public HapiNodeCreate accountId(final String account) {
-        this.account = Optional.of(account);
+    public HapiNodeCreate accountId(final String accountStr) {
+        this.account = Optional.of(accountStr);
         return this;
     }
 

@@ -17,7 +17,9 @@ import edu.umd.cs.findbugs.annotations.NonNull;
  * <p>This class is not exported from the module. It is an internal implementation detail.
  */
 public class WritableAccountNodeRelStore extends ReadableAccountNodeRelStoreImpl {
+
     private final WritableEntityCounters entityCounters;
+
     /**
      * Create a new {@link WritableAccountNodeRelStore} instance.
      *
@@ -42,7 +44,7 @@ public class WritableAccountNodeRelStore extends ReadableAccountNodeRelStoreImpl
      * @param accountId The account identifier to associate with the node
      * @param nodeId The node identifier to associate with the account
      */
-    public void put(@NonNull final AccountID accountId, @NonNull Long nodeId) {
+    public void put(@NonNull final AccountID accountId, @NonNull final Long nodeId) {
         requireNonNull(accountId);
         requireNonNull(nodeId);
         accountNodeRelState()

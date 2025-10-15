@@ -31,10 +31,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
-public class V068AddressBookSchemaTest {
-    private MapReadableKVState<EntityNumber, Node> nodeState;
-    private MapWritableKVState<AccountID, Long> accountNodeRelState;
-
+class V068AddressBookSchemaTest {
     private WritableStates newStates;
     private AccountID accountId;
     private Node node;
@@ -47,17 +44,17 @@ public class V068AddressBookSchemaTest {
     private StartupNetworks startupNetworks;
 
     @BeforeEach
-    void setUp() {
+    void before() {
         // initialize and populate the node state (old state)
         final var nodeEntityNumber = EntityNumber.newBuilder().number(1).build();
         accountId = AccountID.newBuilder().accountNum(1009).build();
         node = Node.newBuilder().accountId(accountId).build();
-        nodeState = MapReadableKVState.<EntityNumber, Node>builder(NODES_STATE_ID, NODES_STATE_LABEL)
+        final var nodeState = MapReadableKVState.<EntityNumber, Node>builder(NODES_STATE_ID, NODES_STATE_LABEL)
                 .value(nodeEntityNumber, node)
                 .build();
         oldStates = MapReadableStates.builder().state(nodeState).build();
         // initialize empty account-node state (new state)
-        accountNodeRelState = MapWritableKVState.<AccountID, Long>builder(
+        final var accountNodeRelState = MapWritableKVState.<AccountID, ProtoLong>builder(
                         ACCOUNT_NODE_REL_STATE_ID, ACCOUNT_NODE_REL_STATE_LABEL)
                 .build();
         newStates = MapWritableStates.builder().state(accountNodeRelState).build();
@@ -71,7 +68,6 @@ public class V068AddressBookSchemaTest {
     void populateAccountNodeRelationMap() {
         // migrate account node rel map
         final var schema = new V068AddressBookSchema();
-        ;
         final var migrationContext = new MigrationContextImpl(
                 oldStates, newStates, config, config, previousVersion, 100L, new HashMap<>(), startupNetworks);
         schema.migrate(migrationContext);
