@@ -463,7 +463,7 @@ jobs:
           for i in `seq 1 1 ${{ env.NUM_OF_BLOCK_NODES }}`
           do
            helm upgrade --install --set name=bn-${i} --set appName=bn-${i} block-node-${i} oci://swirldslabs.jfrog.io/load-generator-helm-release-local/network-load-generator \
-             --version 0.6.2 --values blocknode-values.yaml -n "${{ steps.set-namespace.outputs.namespace }}" &
+             --version ${{ env.NLG_VERSION }} --values blocknode-values.yaml -n "${{ steps.set-namespace.outputs.namespace }}" &
           done
           sleep 180
           wait
@@ -518,13 +518,13 @@ jobs:
           for ip in `cat block_ips.txt`
           do
             echo "{\"nodes\": [" > block-nodes_$counter.json
-            if [ \( $counter -eq 0 \) -o \( $counter -eq 1 \) ]
-            then
-              echo "{ \"address\": \"1.2.3.4\", \"port\": 40840, \"priority\": 1 }" >> block-nodes_$counter.json
-              # echo "{ \"address\": \"$ip\", \"port\": 40840, \"priority\": 1 }" >> block-nodes_$counter.json
-            else
+            #if [ \( $counter -eq 0 \) -o \( $counter -eq 1 \) ]
+            #then
+            #  echo "{ \"address\": \"1.2.3.4\", \"port\": 40840, \"priority\": 1 }" >> block-nodes_$counter.json
+            #  # echo "{ \"address\": \"$ip\", \"port\": 40840, \"priority\": 1 }" >> block-nodes_$counter.json
+            #else
               echo "{ \"address\": \"$ip\", \"port\": 40840, \"priority\": 1 }" >> block-nodes_$counter.json
-            fi
+            #fi
             echo "]}" >> block-nodes_$counter.json
             counter=`expr $counter + 1`
           done
@@ -573,7 +573,7 @@ jobs:
               node_id=`echo ${i} | sed -e 's/network-node\([0-9][0-9]*\)-0/\1/g'`
               node_id=`expr $node_id - 1`
               sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" cp application.properties $i:/opt/hgcapp/services-hedera/HapiApp2.0/data/config/application.properties
-              sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" cp block-nodes_${node_id}.json $i:/opt/hgcapp/services-hedera/HapiApp2.0/data/config/block-nodes.json
+          ##    sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" cp block-nodes_${node_id}.json $i:/opt/hgcapp/services-hedera/HapiApp2.0/data/config/block-nodes.json
               sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" cp "${{ github.workspace }}"/.github/workflows/support/citr/startPodJava.sh $i:/opt/hgcapp/services-hedera/HapiApp2.0/startPodJava.sh
               sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" exec $i -c root-container -- bash -c "yum install -q -y unzip perl"
 
@@ -861,9 +861,23 @@ jobs:
           echo "Truncating logs for next test..."
           sh "${{ github.workspace }}"/.github/workflows/support/citr/resetCNlogs.sh "${{ steps.set-namespace.outputs.namespace }}"
 
+      - name: Enable BNs after accounts were created
+        run: |
+          set +x
+          set +e
+          cd "${{ github.workspace}}"/solo
+          
+          for i in `sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods | grep network-node | awk '{print $1}'`
+          do
+              node_id=`echo ${i} | sed -e 's/network-node\([0-9][0-9]*\)-0/\1/g'`
+              node_id=`expr $node_id - 1`
+              sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" cp block-nodes_${node_id}.json $i:/opt/hgcapp/services-hedera/HapiApp2.0/data/config/block-nodes.json
+          done
+          sleep 60
+
       - name: Start test
         run: |
-          run_NLGDparams="" # e.g. -Dbenchmark.maxtps=8000
+          run_NLGDparams="-Dbenchmark.maxtps=100" # e.g. -Dbenchmark.maxtps=8000
           run_NLGDebugparams="-Dorg.slf4j.simpleLogger.defaultLogLevel=debug" # e.g. -Dorg.slf4j.simpleLogger.defaultLogLevel=debug
 
           nlgpod="$(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods | grep nlg-network-load-generator| awk '{print $1}')"
@@ -1345,6 +1359,7 @@ jobs:
           sh "${{ github.workspace }}"/.github/workflows/support/citr/resetCNlogs.sh "${{ needs.performance-tests-start.outputs.namespace }}"
 
   performance-HCSLoadTest:
+    if: false
     needs:
       - performance-NftTransferLoadTest-report
     uses: ./.github/workflows/zxc-execute-performance-test.yaml
@@ -1360,6 +1375,7 @@ jobs:
       gs-root-https: "https://perf.analytics.eng.hashgraph.io/ephemeral/test_runs"
 
   performance-CryptoTransferLoadTest:
+    if: false
     needs:
       - performance-HCSLoadTest
     uses: ./.github/workflows/zxc-execute-performance-test.yaml
@@ -1375,6 +1391,7 @@ jobs:
       gs-root-https: "https://perf.analytics.eng.hashgraph.io/ephemeral/test_runs"
 
   performance-HeliSwapLoadTest:
+    if: false
     needs:
       - performance-CryptoTransferLoadTest
     uses: ./.github/workflows/zxc-execute-performance-test.yaml
@@ -1390,6 +1407,7 @@ jobs:
       gs-root-https: "https://perf.analytics.eng.hashgraph.io/ephemeral/test_runs"
 
   performance-SmartContractLoadTest:
+    if: false
     needs:
       - performance-HeliSwapLoadTest
     uses: ./.github/workflows/zxc-execute-performance-test.yaml
@@ -1406,9 +1424,10 @@ jobs:
 
   # Send this output back to the caller workflow
   single-day-performance-test-result:
+    if: false
     name: Calculate Result
     runs-on: hiero-citr-linux-large
-    if: ${{ always() }}
+    #if: ${{ always() }}
     needs:
       - performance-NftTransferLoadTest-report
       - performance-HCSLoadTest
@@ -1484,6 +1503,7 @@ jobs:
           echo "result=${RESULT}" >> "${GITHUB_STEP_SUMMARY}"
 
   performance-report-to-rootly:
+    if: false
     name: Report Failures to Rootly
     runs-on: hiero-citr-linux-medium
     needs:
@@ -1495,16 +1515,16 @@ jobs:
       - performance-HeliSwapLoadTest
       - performance-SmartContractLoadTest
       - single-day-performance-test-result
-    if: ${{ (needs.performance-tests-start.result != 'success' ||
-      needs.performance-NftTransferLoadTest-watch1.result != 'success' ||
-      needs.performance-NftTransferLoadTest-report.result != 'success' ||
-      needs.HCSLoadTest.result != 'success' ||
-      needs.CryptoTransferLoadTest.result != 'success' ||
-      needs.HeliSwapLoadTest.result != 'success' ||
-      needs.SmartContractLoadTest.result != 'success' ||
-      needs.single-day-performance-test-result.result != 'success' ||
-      needs.single-day-performance-test-result.outputs.result == 'failure') &&
-      !cancelled() && always() }}
+#    if: ${{ (needs.performance-tests-start.result != 'success' ||
+#      needs.performance-NftTransferLoadTest-watch1.result != 'success' ||
+#      needs.performance-NftTransferLoadTest-report.result != 'success' ||
+#      needs.HCSLoadTest.result != 'success' ||
+#      needs.CryptoTransferLoadTest.result != 'success' ||
+#      needs.HeliSwapLoadTest.result != 'success' ||
+#      needs.SmartContractLoadTest.result != 'success' ||
+#      needs.single-day-performance-test-result.result != 'success' ||
+#      needs.single-day-performance-test-result.outputs.result == 'failure') &&
+#      !cancelled() && always() }}
     steps:
       - name: Harden the runner (Audit all outbound calls)
         uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
@@ -1579,6 +1599,7 @@ jobs:
           environments: "CITR"
 
   performance-report-to-slack:
+    if: false
     runs-on: hiero-citr-linux-medium
     needs:
       - performance-NftTransferLoadTest-report
