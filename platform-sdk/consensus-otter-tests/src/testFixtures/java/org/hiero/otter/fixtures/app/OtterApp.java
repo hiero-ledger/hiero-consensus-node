@@ -41,6 +41,8 @@ public class OtterApp implements ConsensusStateEventHandler<OtterAppState> {
 
     private static final Logger log = LogManager.getLogger();
 
+    private static final long BOTTLENECK_STEP_MILLIS = 500L;
+
     public static final String APP_NAME = "OtterApp";
     public static final String SWIRLD_NAME = "123";
 
@@ -177,12 +179,15 @@ public class OtterApp implements ConsensusStateEventHandler<OtterAppState> {
      * milliseconds to sleep is zero or negative.
      */
     private void maybeDoBottleneck() {
-        final long millisToSleep = syntheticBottleneckMillis.get();
-        if (millisToSleep > 0) {
-            try {
-                Thread.sleep(millisToSleep);
-            } catch (final InterruptedException e) {
-                Thread.currentThread().interrupt();
+        long millisSleptSoFar = 0L;
+        if (syntheticBottleneckMillis.get() > 0) {
+            while (millisSleptSoFar < syntheticBottleneckMillis.get()) {
+                try {
+                    Thread.sleep(BOTTLENECK_STEP_MILLIS);
+                    millisSleptSoFar += BOTTLENECK_STEP_MILLIS;
+                } catch (final InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
             }
         }
     }

@@ -28,7 +28,7 @@ import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.TimeManager;
 import org.hiero.otter.fixtures.result.MultipleNodePlatformStatusResults;
 import org.hiero.otter.fixtures.result.SingleNodePlatformStatusResult;
-import org.junit.jupiter.api.Disabled;
+import org.junit.jupiter.api.RepeatedTest;
 
 /**
  * Tests the reconnect functionality of a node that has fallen behind in the consensus rounds. The test ensures that the
@@ -137,8 +137,9 @@ public class ReconnectTest {
      *
      * @param env the test environment
      */
+    @RepeatedTest(5)
     @OtterTest(requires = Capability.BACK_PRESSURE)
-    @Disabled
+    //    @Disabled
     void testSyntheticBottleneckReconnect(final TestEnvironment env) {
         final int numReconnectCycles = 2;
         final Network network = env.network();
@@ -179,7 +180,7 @@ public class ReconnectTest {
 
         for (int i = 0; i < numReconnectCycles; i++) {
             // Throttle the last node for a period of time so that it falls into CHECKING
-            enableSyntheticBottleneck(Duration.ofSeconds(30), node0, node1, node2);
+            enableSyntheticBottleneck(Duration.ofMinutes(10), node0, node1, node2);
 
             timeManager.waitForCondition(
                     () -> network.nodesAreBehindByNodeCount(node0, node1, node2),
