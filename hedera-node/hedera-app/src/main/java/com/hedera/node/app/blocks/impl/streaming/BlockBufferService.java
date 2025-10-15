@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.blocks.impl.streaming;
 
-import static com.hedera.node.app.blocks.impl.streaming.BlockNodeUtils.getContiguousRangesAsString;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.block.internal.BufferedBlock;
@@ -21,6 +20,7 @@ import java.math.RoundingMode;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -930,5 +930,53 @@ public class BlockBufferService {
                 scheduleNextWorkerTask();
             }
         }
+    }
+
+    /**
+     * Format the specified block numbers into a string that shows the range of discrete contiguous ranges. For example,
+     * block numbers 3, 4, 5, 6 will be formatted as string "[(3-6)]". If the block numbers were 1, 2, 3, 10, 11, 12
+     * then the formatted string will be "[(1-3),(10-12)]". If no block numbers are specified, then "[]" is returned.
+     * If only one unique block number is specified, then it will be formatted as "[(N)]" where N is the unique number.
+     *
+     * @param blockNumbers the block numbers to format
+     * @return a String representing the contiguous ranges of block numbers specified
+     */
+    private static String getContiguousRangesAsString(final List<Long> blockNumbers) {
+        // Sort the block numbers
+        Collections.sort(blockNumbers);
+
+        if (blockNumbers.isEmpty()) {
+            return "[]";
+        }
+
+        final List<String> ranges = new ArrayList<>();
+        long start = blockNumbers.getFirst();
+        long prev = start;
+
+        for (int i = 1; i < blockNumbers.size(); i++) {
+            final long current = blockNumbers.get(i);
+            if (current != prev + 1) {
+                // Close previous range
+                ranges.add(formatRange(start, prev));
+                start = current;
+            }
+            prev = current;
+        }
+        // Add last range
+        ranges.add(formatRange(start, prev));
+
+        return "[" + String.join(",", ranges) + "]";
+    }
+
+    /**
+     * Format the specified range into a string. If the start and end are the same number N, the output will be "(N)".
+     * If the start (S) and end (E) are different, then the output will be formatted as "(S-E)".
+     *
+     * @param start the start of the range
+     * @param end the end of the range
+     * @return a String representing the specified range
+     */
+    private static String formatRange(final long start, final long end) {
+        return start == end ? "(" + start + ")" : "(" + start + "-" + end + ")";
     }
 }
