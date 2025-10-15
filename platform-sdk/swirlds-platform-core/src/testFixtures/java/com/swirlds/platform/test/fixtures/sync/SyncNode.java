@@ -6,14 +6,11 @@ import static org.assertj.core.api.Assertions.fail;
 import static org.mockito.Mockito.mock;
 
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.common.threading.pool.CachedPoolParallelExecutor;
 import com.swirlds.common.threading.pool.ParallelExecutor;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
-import com.swirlds.metrics.api.Metrics;
-import com.swirlds.platform.gossip.FallenBehindMonitor;
 import com.swirlds.platform.gossip.IntakeEventCounter;
 import com.swirlds.platform.gossip.NoOpIntakeEventCounter;
 import com.swirlds.platform.gossip.shadowgraph.Shadowgraph;
@@ -23,6 +20,8 @@ import com.swirlds.platform.gossip.sync.config.SyncConfig_;
 import com.swirlds.platform.internal.EventImpl;
 import com.swirlds.platform.metrics.SyncMetrics;
 import com.swirlds.platform.network.Connection;
+import com.swirlds.platform.reconnect.FallenBehindMonitor;
+import com.swirlds.platform.reconnect.FallenBehindStatus;
 import com.swirlds.platform.test.fixtures.event.emitter.EventEmitter;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
@@ -106,7 +105,7 @@ public class SyncNode {
                 .withValue(SyncConfig_.MAX_SYNC_EVENT_COUNT, 0)
                 .getOrCreateConfig();
 
-        fallenBehindMonitor = new TestFallenBehindMonitor(numNodes - 1, configuration, new NoOpMetrics());
+        fallenBehindMonitor = new TestFallenBehindMonitor(numNodes - 1);
         platformContext = TestPlatformContextBuilder.create()
                 .withConfiguration(configuration)
                 .build();
@@ -349,26 +348,18 @@ public class SyncNode {
     }
 
     private static class TestFallenBehindMonitor extends FallenBehindMonitor {
-        public TestFallenBehindMonitor(
-                final int numNeighbors, @NonNull final Configuration config, @NonNull final Metrics metrics) {
-            super(numNeighbors, config, metrics);
+        public TestFallenBehindMonitor(final int numNeighbors) {
+            super(numNeighbors, 0.50);
         }
 
         private boolean fallenBehind = false;
 
         @Override
-        public synchronized void report(@NonNull final NodeId id) {
-            fallenBehind = true;
-        }
-
-        @Override
-        public synchronized void clear(@NonNull final NodeId id) {
-            fallenBehind = false;
-        }
-
-        @Override
-        public synchronized void checkAndNotifyFallingBehind() {
-            super.checkAndNotifyFallingBehind();
+        public synchronized FallenBehindStatus check(EventWindow self, EventWindow other, NodeId peer) {
+            final var status = FallenBehindStatus.getStatus(self, other);
+            fallenBehind = FallenBehindStatus.getStatus(self, other)
+                    == com.swirlds.platform.reconnect.FallenBehindStatus.SELF_FALLEN_BEHIND;
+            return status;
         }
 
         @Override
