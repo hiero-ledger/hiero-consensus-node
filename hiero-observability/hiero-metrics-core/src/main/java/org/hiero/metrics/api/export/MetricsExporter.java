@@ -21,5 +21,7 @@ public interface MetricsExporter extends Closeable {
      * @return the name of the exporter, never {@code null} or blank
      */
     @NonNull
-    String name();
+    default String name() {
+        return getClass().getSimpleName();
+    }
 }

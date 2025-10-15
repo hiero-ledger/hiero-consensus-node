@@ -12,6 +12,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import org.hiero.metrics.api.utils.MetricUtils;
+import org.hiero.metrics.api.utils.Unit;
 
 /**
  * Base interface for all metrics.
@@ -164,6 +165,27 @@ public interface Metric {
                 MetricUtils.validateNameCharacters(unit);
             }
             this.unit = unit;
+            return self();
+        }
+
+        /**
+         * Sets the metric unit. <br>
+         *
+         * @param unit the metric unit, must not be {@code null}
+         * @return the builder instance
+         */
+        public final B withUnit(@NonNull Unit unit) {
+            Objects.requireNonNull(unit, "unit must not be null");
+            return withUnit(unit.toString());
+        }
+
+        /**
+         * Removes any previously set unit from the metric.
+         *
+         * @return the builder instance
+         */
+        protected final B withoutUnit() {
+            this.unit = null;
             return self();
         }
 

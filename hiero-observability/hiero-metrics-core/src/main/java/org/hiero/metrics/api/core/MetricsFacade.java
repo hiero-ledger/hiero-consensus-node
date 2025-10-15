@@ -148,7 +148,7 @@ public final class MetricsFacade {
             try {
                 optionalExporter = exporterFactory.createExporter(configuration);
             } catch (Exception e) {
-                logger.error("Failed to create metrics exporter from factory: {}", exporterFactory.getClass(), e);
+                logger.warn("Failed to create metrics exporter from factory: {}", exporterFactory.getClass(), e);
                 continue;
             }
 
