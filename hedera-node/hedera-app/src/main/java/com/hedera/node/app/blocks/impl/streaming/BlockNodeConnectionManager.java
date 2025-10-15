@@ -562,13 +562,10 @@ public class BlockNodeConnectionManager {
         }
         logWithContext(DEBUG, "Shutting down block node connection manager.");
 
-        // If writerMode is FILE stop config watcher and block buffer service
         stopConfigWatcher();
 
-        // Shutdown the block buffer
         blockBufferService.shutdown();
 
-        // Stop the scheduled executor service
         if (sharedExecutorService != null) {
             sharedExecutorService.shutdownNow();
         }
