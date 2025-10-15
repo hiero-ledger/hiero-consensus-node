@@ -137,8 +137,8 @@ jobs:
           - windows-2022
           - windows-2025
           - hiero-network-node-linux-medium
-          - hiero-network-node-linux-medium-ubuntu-24
-          - hiero-network-node-linux-medium-debian-12
+          - hiero-network-node-linux-ubuntu-24-medium
+          - hiero-network-node-linux-debian-12-medium
           - hiero-network-node-linux-large
           - hiero-network-node-linux-ubuntu-24-large
           - hiero-network-node-linux-debian-12-large
