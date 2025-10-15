@@ -157,17 +157,16 @@ public class BlockItemsTranslator {
                             translatingExtractor(CONTRACT_CREATE_EXTRACTOR, context, logs),
                             outputs));
                 } else if (function == ETHEREUM_TRANSACTION) {
-                    recordBuilder.ethereumHash(((ContractOpContext) context).ethHash());
+                    final var contractOpContext = (ContractOpContext) context;
+                    recordBuilder.ethereumHash((contractOpContext).ethHash());
                     final var ethOutput = outputValueIfPresent(
                             TransactionOutput::hasEthereumCall, TransactionOutput::ethereumCallOrThrow, outputs);
                     if (ethOutput != null) {
-                        switch (ethOutput.transactionResult().kind()) {
-                            case EVM_CALL_TRANSACTION_RESULT ->
-                                recordBuilder.contractCallResult(
-                                        legacyResultFrom(ethOutput.evmCallTransactionResultOrThrow(), context, logs));
-                            case EVM_CREATE_TRANSACTION_RESULT ->
-                                recordBuilder.contractCreateResult(
-                                        legacyResultFrom(ethOutput.evmCreateTransactionResultOrThrow(), context, logs));
+                        final var evmTxResult = ethOutput.evmTransactionResultOrThrow();
+                        if (contractOpContext.ethTopLevelCreation())  {
+                            recordBuilder.contractCreateResult(legacyResultFrom(evmTxResult, context, logs));
+                        } else {
+                            recordBuilder.contractCallResult(legacyResultFrom(evmTxResult, context, logs));
                         }
                     }
                 }

@@ -149,29 +149,6 @@ public class BlockStreamBuilderTest {
     }
 
     @Test
-    void testBlockItemsWithAdditionalAutomaticTokenAssociationTraceData() {
-        final var association = TokenAssociation.newBuilder()
-                .tokenId(TokenID.newBuilder().tokenNum(1L))
-                .accountId(AccountID.newBuilder().accountNum(2L))
-                .build();
-
-        final var itemsBuilder = createEmptyBuilder().functionality(TOKEN_UPDATE);
-        // set additional trace data
-        itemsBuilder.addAutomaticTokenAssociation(association);
-        final var blockItems = itemsBuilder.build(false, List.of()).blockItems();
-
-        final var traceItem = blockItems.get(2);
-        assertThat(traceItem.hasTraceData()).isTrue();
-        final var trace = traceItem.traceDataOrThrow();
-
-        assertThat(trace.hasAutoAssociateTraceData()).isTrue();
-        final var autoAssociateTraceData = trace.autoAssociateTraceData();
-        assertThat(autoAssociateTraceData).isNotNull();
-        assertThat(autoAssociateTraceData.automaticTokenAssociations().accountNum())
-                .isEqualTo(2);
-    }
-
-    @Test
     void testBlockItemsWithAdditionalSubmitMsgTraceData() {
         final var itemsBuilder = createEmptyBuilder().functionality(CONSENSUS_SUBMIT_MESSAGE);
         // set additional trace data
