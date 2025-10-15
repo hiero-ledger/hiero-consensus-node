@@ -15,20 +15,21 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.function.ToDoubleFunction;
+import java.util.function.ToLongFunction;
 import org.hiero.metrics.api.core.MetricKey;
 import org.hiero.metrics.api.core.MetricType;
 import org.hiero.metrics.api.core.StatefulMetric;
+import org.hiero.metrics.api.core.ToLongOrDoubleFunction;
 import org.hiero.metrics.api.stat.StatUtils;
 import org.hiero.metrics.api.utils.MetricUtils;
-import org.hiero.metrics.internal.DefaultStatsGaugeAdapter;
+import org.hiero.metrics.internal.StatsGaugeAdapterImpl;
 
 /**
  * A stateful metric of type {@link MetricType#GAUGE} similar to {@link GaugeAdapter} but holding multiple
  * custom data points (provided by the client code) per label set.
  * <p>
  * This metric can be used for cases when some custom logic or aggregation is required to handle observed values,
- * which cannot be achieved with {@link DoubleGaugeComposite} that using multiple accumulating {@link DoubleGauge}
- * instances to hold multiple values per label set.<br>
+ * and hold multiple values per label set.<br>
  * <p>
  * On export each value will have additional label to classify the value type - see {@link Builder#getStatLabel()}.
  * <p>
@@ -100,7 +101,7 @@ public interface StatsGaugeAdapter<I, D> extends StatefulMetric<I, D> {
 
         private String statLabel = DEFAULT_STAT_LABEL;
         private final List<String> statNames = new ArrayList<>();
-        private final List<ToDoubleFunction<D>> statExportGetters = new ArrayList<>();
+        private final List<ToLongOrDoubleFunction<D>> statExportGetters = new ArrayList<>();
         private Consumer<D> reset;
 
         private Builder(
@@ -130,7 +131,7 @@ public interface StatsGaugeAdapter<I, D> extends StatefulMetric<I, D> {
          * @return the list of functions to get the stat values from the data point
          */
         @NonNull
-        public List<ToDoubleFunction<D>> getStatExportGetters() {
+        public List<ToLongOrDoubleFunction<D>> getStatExportGetters() {
             return statExportGetters;
         }
 
@@ -178,12 +179,31 @@ public interface StatsGaugeAdapter<I, D> extends StatefulMetric<I, D> {
          * The stat name must be unique and not blank.
          *
          * @param statName     the name of the stat
-         * @param exportGetter the function to get the stat value from the data point, must not be {@code null}
+         * @param exportGetter the function to get the {@code double} from the data point, must not be {@code null}
          * @return this builder
          * @throws IllegalArgumentException if the stat name is blank or if the export getter is {@code null}
          */
         @NonNull
-        public Builder<I, D> withStat(@NonNull String statName, @NonNull ToDoubleFunction<D> exportGetter) {
+        public Builder<I, D> withDoubleStat(@NonNull String statName, @NonNull ToDoubleFunction<D> exportGetter) {
+            return withStat(statName, new ToLongOrDoubleFunction<>(exportGetter));
+        }
+
+        /**
+         * Add a stat to be exported from the data point using the given function.
+         * The stat name must be unique and not blank.
+         *
+         * @param statName     the name of the stat
+         * @param exportGetter the function to get the {@code long} from the data point, must not be {@code null}
+         * @return this builder
+         * @throws IllegalArgumentException if the stat name is blank or if the export getter is {@code null}
+         */
+        @NonNull
+        public Builder<I, D> withLongStat(@NonNull String statName, @NonNull ToLongFunction<D> exportGetter) {
+            return withStat(statName, new ToLongOrDoubleFunction<>(exportGetter));
+        }
+
+        @NonNull
+        private Builder<I, D> withStat(@NonNull String statName, @NonNull ToLongOrDoubleFunction<D> exportGetter) {
             statNames.add(ArgumentUtils.throwArgBlank(statName, "stat name"));
             statExportGetters.add(Objects.requireNonNull(exportGetter, "Export getter must not be null"));
             return this;
@@ -213,7 +233,7 @@ public interface StatsGaugeAdapter<I, D> extends StatefulMetric<I, D> {
                 }
             }
 
-            return new DefaultStatsGaugeAdapter<>(this);
+            return new StatsGaugeAdapterImpl<>(this);
         }
 
         /**

@@ -2,6 +2,7 @@
 package org.hiero.metrics.api.export;
 
 import java.io.IOException;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.IntSupplier;
 import org.hiero.metrics.ConsoleMetricsExporter;
 import org.hiero.metrics.TestExporterContext;
@@ -13,6 +14,7 @@ import org.hiero.metrics.api.StatContainer;
 import org.hiero.metrics.api.StatelessMetric;
 import org.hiero.metrics.api.StatsGaugeAdapter;
 import org.hiero.metrics.api.core.Label;
+import org.hiero.metrics.api.core.LongOrDoubleSupplier;
 import org.hiero.metrics.api.core.MetricRegistry;
 import org.hiero.metrics.api.core.MetricsFacade;
 import org.hiero.metrics.api.export.extension.writer.OpenMetricsSnapshotsWriter;
@@ -932,11 +934,11 @@ public class OpenMetricsExportComprehensiveTest {
         private static StatelessMetric dynamicLabel;
         private static StatelessMetric manyLabels;
 
-        private static AtomicDouble nameDescriptionAndUnitContainer = new AtomicDouble(0);
-        private static AtomicDouble dynamicLabelContainer1 = new AtomicDouble(0);
-        private static AtomicDouble dynamicLabelContainer2 = new AtomicDouble(0);
-        private static AtomicDouble manyLabelsContainer1 = new AtomicDouble(0);
-        private static AtomicDouble manyLabelsContainer2 = new AtomicDouble(0);
+        private static final AtomicDouble nameDescriptionAndUnitContainer = new AtomicDouble(0);
+        private static final AtomicDouble dynamicLabelContainer1 = new AtomicDouble(0);
+        private static final AtomicLong dynamicLabelContainer2 = new AtomicLong(0);
+        private static final AtomicDouble manyLabelsContainer1 = new AtomicDouble(0);
+        private static final AtomicDouble manyLabelsContainer2 = new AtomicDouble(0);
 
         @Test
         @Order(1)
@@ -994,20 +996,20 @@ public class OpenMetricsExportComprehensiveTest {
         @Test
         @Order(2)
         public void testObserve1() throws IOException {
-            onlyName.registerDataPoint(() -> 1.1);
+            onlyName.registerDataPoint(new LongOrDoubleSupplier(() -> 1.1));
 
             nameDescriptionAndUnitContainer.set(1.89);
             nameDescriptionAndUnitContainer.set(1.99); // becomes 1.99
 
             AtomicDouble constLabelContainer = new AtomicDouble(10.234);
             constLabelContainer.set(0.01);
-            constLabel.registerDataPoint(constLabelContainer);
+            constLabel.registerDataPoint(new LongOrDoubleSupplier(constLabelContainer));
 
             dynamicLabelContainer2.set(10);
-            dynamicLabel.registerDataPoint(dynamicLabelContainer1, "d1", "d1_v1");
-            dynamicLabel.registerDataPoint(dynamicLabelContainer2, "d1", "d1_v2");
+            dynamicLabel.registerDataPoint(new LongOrDoubleSupplier(dynamicLabelContainer1), "d1", "d1_v1");
+            dynamicLabel.registerDataPoint(new LongOrDoubleSupplier(dynamicLabelContainer2::longValue), "d1", "d1_v2");
 
-            manyLabels.registerDataPoint(manyLabelsContainer1, "d1", "d1_v1", "d2", "d2_v1");
+            manyLabels.registerDataPoint(new LongOrDoubleSupplier(manyLabelsContainer1), "d1", "d1_v1", "d2", "d2_v1");
             manyLabelsContainer1.set(3.14);
 
             context.exportAndVerify(
@@ -1045,7 +1047,7 @@ public class OpenMetricsExportComprehensiveTest {
             dynamicLabelContainer1.set(0.01);
             dynamicLabelContainer2.set(42);
 
-            manyLabels.registerDataPoint(manyLabelsContainer2, "d1", "d1_v1", "d2", "d2_v2");
+            manyLabels.registerDataPoint(new LongOrDoubleSupplier(manyLabelsContainer2), "d1", "d1_v1", "d2", "d2_v2");
             manyLabelsContainer2.set(1.9);
 
             context.exportAndVerify(
@@ -1149,9 +1151,9 @@ public class OpenMetricsExportComprehensiveTest {
                 .withConstantLabel(new Label("constant_label", "constant-value"))
                 .withDynamicLabelNames("name")
                 .withUnit("ms")
-                .withStat("counter", StatContainer::getCounter)
-                .withStat("sum", StatContainer::getSum)
-                .withStat("average", StatContainer::getAverage)
+                .withLongStat("counter", StatContainer::getCounter)
+                .withLongStat("sum", StatContainer::getSum)
+                .withDoubleStat("average", StatContainer::getAverage)
                 .withReset(StatContainer::reset)
                 .register(registry);
 

@@ -5,18 +5,20 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.DoubleSupplier;
+import java.util.function.LongSupplier;
+import org.hiero.metrics.api.core.LongOrDoubleSupplier;
 import org.hiero.metrics.api.core.Metric;
 import org.hiero.metrics.api.core.MetricKey;
 import org.hiero.metrics.api.core.MetricType;
-import org.hiero.metrics.internal.DefaultStatelessMetric;
+import org.hiero.metrics.internal.StatelessMetricImpl;
 
 /**
  * A stateless metric of type {@link MetricType#GAUGE} that doesn't hold any state
  * and gets/exports its value using provided suppliers.
  * <p>
  * Value suppliers are provided per data point during metric construction using
- * {@link Builder#registerDataPoint(DoubleSupplier, String...)}, or could be added later
- * using {@link #registerDataPoint(DoubleSupplier, String...)}.
+ * {@link Builder#registerDataPoint(LongOrDoubleSupplier, String...)}, or could be added later
+ * using {@link #registerDataPoint(LongOrDoubleSupplier, String...)}.
  */
 public interface StatelessMetric extends Metric {
 
@@ -62,14 +64,15 @@ public interface StatelessMetric extends Metric {
      * Constant labels should not be provided here, as they are already associated with the metric.
      * Order doesn't matter, but for efficiency, it is recommended to provide label names in alphabetical order.
      *
-     * @param valueSupplier         the supplier to get the value of the data point
+     * @param valueSupplier         the supplier to get the numerical value of the data point
      * @param labelNamesAndValues   alternating label names and values, e.g. "label1", "value1", "label2", "value2"
      * @return this metric
      * @throws IllegalStateException if metric has no dynamic labels specified during creation
      * @throws IllegalArgumentException if provided label names do not match {@link #dynamicLabelNames()}
      */
     @NonNull
-    StatelessMetric registerDataPoint(@NonNull DoubleSupplier valueSupplier, @NonNull String... labelNamesAndValues);
+    StatelessMetric registerDataPoint(
+            @NonNull LongOrDoubleSupplier valueSupplier, @NonNull String... labelNamesAndValues);
 
     /**
      * Stateless metrics do not hold any state, so this is a no-op.
@@ -85,7 +88,7 @@ public interface StatelessMetric extends Metric {
     final class Builder extends Metric.Builder<Builder, StatelessMetric> {
 
         private final List<String[]> labelKeysAndValues = new ArrayList<>();
-        private final List<DoubleSupplier> valuesSuppliers = new ArrayList<>();
+        private final List<LongOrDoubleSupplier> valuesSuppliers = new ArrayList<>();
 
         private Builder(MetricKey<StatelessMetric> key) {
             super(MetricType.GAUGE, key);
@@ -99,16 +102,42 @@ public interface StatelessMetric extends Metric {
          * Order doesn't matter, but for efficiency, it is recommended to provide label names in alphabetical order.
          * <p>
          * All requirements for labels above are validated during metric construction
-         * (when {@link StatelessMetric#registerDataPoint(DoubleSupplier, String...)} is called),
+         * (when {@link StatelessMetric#registerDataPoint(LongOrDoubleSupplier, String...)} is called),
          * due to builder usage pattern, when dynamic labels can be registered after data points.
          *
-         * @param valueSupplier the supplier to get the value of the data point
+         * @param valueSupplier the supplier to get the {@code long} value of the data point
+         * @param labelNamesAndValues alternating label names and values, e.g. "label1", "value1", "label2", "value2"
+         * @return this builder
+         */
+        @NonNull
+        public Builder registerDataPoint(@NonNull LongSupplier valueSupplier, @NonNull String... labelNamesAndValues) {
+            return registerDataPoint(new LongOrDoubleSupplier(valueSupplier), labelNamesAndValues);
+        }
+
+        /**
+         * Register a data point with the given value supplier and labels.
+         * <p>
+         * Provided label names must match the dynamic labels specified during metric creation.
+         * Constant labels should not be provided here, as they are already associated with the metric.
+         * Order doesn't matter, but for efficiency, it is recommended to provide label names in alphabetical order.
+         * <p>
+         * All requirements for labels above are validated during metric construction
+         * (when {@link StatelessMetric#registerDataPoint(LongOrDoubleSupplier, String...)} is called),
+         * due to builder usage pattern, when dynamic labels can be registered after data points.
+         *
+         * @param valueSupplier the supplier to get the {@code double} value of the data point
          * @param labelNamesAndValues alternating label names and values, e.g. "label1", "value1", "label2", "value2"
          * @return this builder
          */
         @NonNull
         public Builder registerDataPoint(
                 @NonNull DoubleSupplier valueSupplier, @NonNull String... labelNamesAndValues) {
+            return registerDataPoint(new LongOrDoubleSupplier(valueSupplier), labelNamesAndValues);
+        }
+
+        @NonNull
+        private Builder registerDataPoint(
+                @NonNull LongOrDoubleSupplier valueSupplier, @NonNull String... labelNamesAndValues) {
             // labels will be validated during metric construction
             valuesSuppliers.add(valueSupplier);
             labelKeysAndValues.add(labelNamesAndValues);
@@ -125,7 +154,7 @@ public interface StatelessMetric extends Metric {
         }
 
         @NonNull
-        public DoubleSupplier getValuesSupplier(int idx) {
+        public LongOrDoubleSupplier getValuesSupplier(int idx) {
             return valuesSuppliers.get(idx);
         }
 
@@ -137,7 +166,7 @@ public interface StatelessMetric extends Metric {
         @NonNull
         @Override
         protected StatelessMetric buildMetric() {
-            return new DefaultStatelessMetric(this);
+            return new StatelessMetricImpl(this);
         }
 
         /**

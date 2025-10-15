@@ -10,7 +10,7 @@ import org.hiero.metrics.api.core.MetricType;
 import org.hiero.metrics.api.core.StatefulMetric;
 import org.hiero.metrics.api.datapoint.LongGaugeDataPoint;
 import org.hiero.metrics.api.stat.StatUtils;
-import org.hiero.metrics.internal.DefaultLongGauge;
+import org.hiero.metrics.internal.LongGaugeImpl;
 import org.hiero.metrics.internal.datapoint.AtomicLongGaugeDataPoint;
 import org.hiero.metrics.internal.datapoint.LongAccumulatorGaugeDataPoint;
 
@@ -142,7 +142,7 @@ public interface LongGauge extends StatefulMetric<LongSupplier, LongGaugeDataPoi
                 withContainerFactory(AtomicLongGaugeDataPoint::new);
             }
 
-            return new DefaultLongGauge(this);
+            return new LongGaugeImpl(this);
         }
 
         /**

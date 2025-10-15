@@ -51,7 +51,7 @@ public abstract class PushingMetricsExporterWriterAdapter extends AbstractMetric
     protected abstract OutputStream openStream() throws IOException;
 
     @Override
-    public void close() throws IOException {
+    public void close() {
         // No resources to close
     }
 }

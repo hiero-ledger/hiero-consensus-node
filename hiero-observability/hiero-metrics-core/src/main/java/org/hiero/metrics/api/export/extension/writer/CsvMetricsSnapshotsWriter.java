@@ -13,9 +13,9 @@ import java.util.Iterator;
 import java.util.List;
 import org.hiero.metrics.api.core.Label;
 import org.hiero.metrics.api.export.snapshot.DataPointSnapshot;
-import org.hiero.metrics.api.export.snapshot.GenericMultiValueDataPointSnapshot;
 import org.hiero.metrics.api.export.snapshot.MetricSnapshot;
-import org.hiero.metrics.api.export.snapshot.SingleValueDataPointSnapshot;
+import org.hiero.metrics.api.export.snapshot.MultiValueDataPointSnapshot;
+import org.hiero.metrics.api.export.snapshot.OneValueDataPointSnapshot;
 import org.hiero.metrics.api.export.snapshot.StateSetDataPointSnapshot;
 
 /**
@@ -65,13 +65,21 @@ public class CsvMetricsSnapshotsWriter
         variables[0] = timestamp.toString().getBytes(StandardCharsets.UTF_8);
 
         switch (dataPointSnapshot) {
-            case SingleValueDataPointSnapshot snapshot -> {
-                variables[1] = format(snapshot.getAsDouble()).getBytes(StandardCharsets.UTF_8);
+            case OneValueDataPointSnapshot snapshot -> {
+                if (snapshot.isFloatingPoint()) {
+                    variables[1] = format(snapshot.getAsDouble()).getBytes(StandardCharsets.UTF_8);
+                } else {
+                    variables[1] = format(snapshot.getAsLong()).getBytes(StandardCharsets.UTF_8);
+                }
                 writeDataLine(template, 2, variables, output);
             }
-            case GenericMultiValueDataPointSnapshot snapshot -> {
+            case MultiValueDataPointSnapshot snapshot -> {
                 for (int i = 0; i < snapshot.valuesCount(); i++) {
-                    variables[1] = format(snapshot.valueAt(i)).getBytes(StandardCharsets.UTF_8);
+                    if (snapshot.isFloatingPointAt(i)) {
+                        variables[1] = format(snapshot.doubleValueAt(i)).getBytes(StandardCharsets.UTF_8);
+                    } else {
+                        variables[1] = format(snapshot.longValueAt(i)).getBytes(StandardCharsets.UTF_8);
+                    }
                     variables[2] = snapshot.valueTypeAt(i).getBytes(StandardCharsets.UTF_8);
                     writeDataLine(template, 3, variables, output);
                 }
@@ -124,7 +132,7 @@ public class CsvMetricsSnapshotsWriter
                     .append(QUOTE);
 
             boolean firstLabel = appendLabels(dataPointSnapshot, builder);
-            if (dataPointSnapshot instanceof GenericMultiValueDataPointSnapshot snapshot) {
+            if (dataPointSnapshot instanceof MultiValueDataPointSnapshot snapshot) {
                 appendGenericMultiValueLabels(snapshot, builder, firstLabel);
             } else if (dataPointSnapshot instanceof StateSetDataPointSnapshot) {
                 appendStateSetLabels(builder, firstLabel);
@@ -142,7 +150,7 @@ public class CsvMetricsSnapshotsWriter
         }
 
         private void appendGenericMultiValueLabels(
-                GenericMultiValueDataPointSnapshot snapshot, ByteArrayTemplate.Builder builder, boolean firstLabel) {
+                MultiValueDataPointSnapshot snapshot, ByteArrayTemplate.Builder builder, boolean firstLabel) {
             if (!firstLabel) {
                 builder.append(COMMA);
             }

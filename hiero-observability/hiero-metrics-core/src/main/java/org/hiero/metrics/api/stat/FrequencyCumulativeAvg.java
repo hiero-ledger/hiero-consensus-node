@@ -10,6 +10,7 @@ import java.util.function.DoubleSupplier;
 import java.util.function.ToDoubleBiFunction;
 import org.hiero.metrics.api.GaugeAdapter;
 import org.hiero.metrics.api.core.MetricKey;
+import org.hiero.metrics.api.core.ToLongOrDoubleFunction;
 import org.hiero.metrics.api.stat.container.AtomicIntPair;
 import org.hiero.metrics.api.utils.Unit;
 
@@ -42,7 +43,10 @@ public class FrequencyCumulativeAvg implements DoubleSupplier {
 
     public static GaugeAdapter.Builder<Object, FrequencyCumulativeAvg> metricBuilder(
             Time time, MetricKey<GaugeAdapter<Object, FrequencyCumulativeAvg>> key) {
-        return GaugeAdapter.builder(key, () -> new FrequencyCumulativeAvg(time), FrequencyCumulativeAvg::getAndReset)
+        return GaugeAdapter.builder(
+                        key,
+                        () -> new FrequencyCumulativeAvg(time),
+                        new ToLongOrDoubleFunction<>(FrequencyCumulativeAvg::getAndReset))
                 .withReset(FrequencyCumulativeAvg::reset)
                 .withUnit(Unit.FREQUENCY_UNIT);
     }

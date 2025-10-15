@@ -5,6 +5,7 @@ import com.swirlds.base.time.Time;
 import java.util.function.DoubleSupplier;
 import org.hiero.metrics.api.GaugeAdapter;
 import org.hiero.metrics.api.core.MetricKey;
+import org.hiero.metrics.api.core.ToLongOrDoubleFunction;
 
 // similar to com.swirlds.common.metrics.statistics.StatsRunningAverage
 public class MovingAverageStat implements DoubleSupplier {
@@ -45,7 +46,7 @@ public class MovingAverageStat implements DoubleSupplier {
                         key,
                         StatUtils.asInitializer(halfLife),
                         init -> new MovingAverageStat(init.getAsDouble(), time),
-                        MovingAverageStat::getAsDouble)
+                        new ToLongOrDoubleFunction<>(MovingAverageStat::getAsDouble))
                 .withReset(MovingAverageStat::reset);
     }
 
