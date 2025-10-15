@@ -161,7 +161,11 @@ public class EthereumTransactionTranslator implements BlockTransactionPartsTrans
                                     }
                                 }
                                 final var fnResult = derivedBuilder.build();
-                                recordBuilder.contractCallResult(fnResult);
+                                if (knownCreation) {
+                                    recordBuilder.contractCreateResult(fnResult);
+                                } else {
+                                    recordBuilder.contractCallResult(fnResult);
+                                }
                                 result = fnResult;
                                 if (result.gasUsed() > 0L) {
                                     receiptBuilder.contractID(result.contractID());
