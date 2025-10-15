@@ -487,17 +487,17 @@ public class PlatformTestingToolState extends MerkleStateRoot<PlatformTestingToo
     }
 
     @Override
-    public long singletonPath(int stateId) {
+    public long singletonPath(final int stateId) {
         throw new UnsupportedOperationException();
     }
 
     @Override
-    public long queueElementPath(int stateId, @NonNull Bytes expectedValue) {
+    public long queueElementPath(final int stateId, @NonNull final Bytes expectedValue) {
         throw new UnsupportedOperationException();
     }
 
     @Override
-    public long kvPath(int stateId, @NonNull Bytes key) {
+    public long kvPath(final int stateId, @NonNull final Bytes key) {
         throw new UnsupportedOperationException();
     }
 

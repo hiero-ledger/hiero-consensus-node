@@ -845,7 +845,7 @@ public class VirtualMapStateTest extends MerkleTestBase {
         }
 
         @Test
-        @DisplayName("kvPath returns path for existing kv key")
+        @DisplayName("kvPath lookup for non-existing key")
         void kvPath_notFound() {
             virtualMapState.initializeState(fruitMetadata);
 
@@ -854,7 +854,7 @@ public class VirtualMapStateTest extends MerkleTestBase {
         }
 
         @Test
-        @DisplayName("kvPath returns path for existing kv key")
+        @DisplayName("kvPath lookup for unknown state")
         void kvPath_unknownState() {
             virtualMapState.initializeState(fruitMetadata);
 
@@ -882,12 +882,21 @@ public class VirtualMapStateTest extends MerkleTestBase {
             final long actualPathForObj =
                     virtualMapState.queueElementPath(STEAM_STATE_ID, CHEMISTRY, ProtoBytes.PROTOBUF);
             assertThat(actualPathForObj).isEqualTo(expectedPath);
+        }
 
-            // Not found case - use a key not present in the map
-            final long notFoundPath =
+        @Test
+        @DisplayName("queueElementPath returns INVALID_PATH for a not found value")
+        void queueElementPath_notFound() {
+            virtualMapState.initializeState(steamMetadata);
+            final long actual =
                     virtualMapState.queueElementPath(STEAM_STATE_ID, ProtoBytes.PROTOBUF.toBytes(DISCIPLINE));
-            assertThat(notFoundPath).isEqualTo(INVALID_PATH);
+            assertThat(actual).isEqualTo(INVALID_PATH);
+        }
 
+        @Test
+        @DisplayName("queueElementPath returns INVALID_PATH for unknown state")
+        void queueElementPath_unknownState() {
+            virtualMapState.initializeState(steamMetadata);
             final int unknownStateId = rand.nextInt(65535);
             final long unknownStatePath =
                     virtualMapState.queueElementPath(unknownStateId, ProtoBytes.PROTOBUF.toBytes(CHEMISTRY));

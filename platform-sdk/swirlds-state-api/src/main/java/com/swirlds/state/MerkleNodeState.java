@@ -36,7 +36,7 @@ public interface MerkleNodeState extends State {
      *
      * @param md The metadata associated with the state.
      */
-    void initializeState(@NonNull final StateMetadata<?, ?> md);
+    void initializeState(@NonNull StateMetadata<?, ?> md);
 
     /**
      * Unregister a service without removing its nodes from the state.
@@ -63,7 +63,7 @@ public interface MerkleNodeState extends State {
      *
      * @param serviceName a service to unregister
      */
-    void unregisterService(@NonNull final String serviceName);
+    void unregisterService(@NonNull String serviceName);
 
     /**
      * Removes the node and metadata from the state merkle tree.
@@ -71,13 +71,13 @@ public interface MerkleNodeState extends State {
      * @param serviceName The service name. Cannot be null.
      * @param stateId The state ID
      */
-    void removeServiceState(@NonNull final String serviceName, final int stateId);
+    void removeServiceState(@NonNull String serviceName, int stateId);
 
     /**
      * Loads a snapshot of a state.
      * @param targetPath The path to load the snapshot from.
      */
-    MerkleNodeState loadSnapshot(final @NonNull Path targetPath) throws IOException;
+    MerkleNodeState loadSnapshot(@NonNull Path targetPath) throws IOException;
 
     /**
      * Get the merkle path of the singleton state by its ID.
@@ -101,7 +101,8 @@ public interface MerkleNodeState extends State {
      * @return The merkle path of the queue element
      * @param <V> The type of the value of the queue element
      */
-    default <V> long queueElementPath(int stateId, @NonNull final V expectedValue, @NonNull final Codec<V> valueCodec) {
+    default <V> long queueElementPath(
+            final int stateId, @NonNull final V expectedValue, @NonNull final Codec<V> valueCodec) {
         return queueElementPath(stateId, valueCodec.toBytes(expectedValue));
     }
 
@@ -122,7 +123,7 @@ public interface MerkleNodeState extends State {
      * if the key is not found or the stateId is unknown.
      * @param <V> The type of the value of the queue element
      */
-    default <V> long kvPath(int stateId, @NonNull V key, @NonNull Codec<V> keyCodec) {
+    default <V> long kvPath(final int stateId, @NonNull final V key, @NonNull final Codec<V> keyCodec) {
         return kvPath(stateId, keyCodec.toBytes(key));
     }
 }

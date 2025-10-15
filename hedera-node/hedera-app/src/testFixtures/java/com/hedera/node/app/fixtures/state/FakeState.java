@@ -35,7 +35,6 @@ import com.swirlds.state.test.fixtures.MapWritableKVState;
 import com.swirlds.state.test.fixtures.MapWritableStates;
 import com.swirlds.state.test.fixtures.merkle.TestVirtualMapState;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
@@ -264,7 +263,11 @@ public class FakeState implements MerkleNodeState {
     }
 
     @Override
-    public void init(Time time, Metrics metrics, MerkleCryptography merkleCryptography, LongSupplier roundSupplier) {
+    public void init(
+            final @NonNull Time time,
+            final @NonNull Metrics metrics,
+            final @NonNull MerkleCryptography merkleCryptography,
+            final LongSupplier roundSupplier) {
         // no-op
     }
 
@@ -279,32 +282,32 @@ public class FakeState implements MerkleNodeState {
     }
 
     @Override
-    public void unregisterService(@NonNull String serviceName) {
+    public void unregisterService(@NonNull final String serviceName) {
         throw new UnsupportedOperationException();
     }
 
     @Override
-    public long kvPath(int stateId, @NonNull Bytes key) {
+    public long kvPath(final int stateId, @NonNull final Bytes key) {
         throw new UnsupportedOperationException();
     }
 
     @Override
-    public long singletonPath(int stateId) {
+    public long singletonPath(final int stateId) {
         throw new UnsupportedOperationException();
     }
 
     @Override
-    public long queueElementPath(int stateId, @NonNull Bytes expectedValue) {
+    public long queueElementPath(final int stateId, @NonNull final Bytes expectedValue) {
         throw new UnsupportedOperationException();
     }
 
     @Override
-    public void initializeState(@NonNull StateMetadata<?, ?> md) {
+    public void initializeState(@NonNull final StateMetadata<?, ?> md) {
         // do nothing
     }
 
     @Override
-    public MerkleNodeState loadSnapshot(@NonNull Path targetPath) throws IOException {
+    public MerkleNodeState loadSnapshot(@NonNull final Path targetPath) {
         throw new UnsupportedOperationException();
     }
 }

@@ -151,7 +151,11 @@ public abstract class VirtualMapState<T extends VirtualMapState<T>> implements M
         }
     }
 
-    public void init(Time time, Metrics metrics, MerkleCryptography merkleCryptography, LongSupplier roundSupplier) {
+    public void init(
+            @NonNull Time time,
+            @NonNull Metrics metrics,
+            @NonNull MerkleCryptography merkleCryptography,
+            @NonNull LongSupplier roundSupplier) {
         this.time = time;
         this.metrics = metrics;
         this.snapshotMetrics = new MerkleRootSnapshotMetrics(metrics);

@@ -140,7 +140,8 @@ public record StateValue<V>(int stateId, @NonNull V value) {
             return new StateValue<>(stateId, value);
         }
 
-        public static Bytes unwrap(Bytes stateValueBytes) {
+        @NonNull
+        public static Bytes unwrap(@NonNull final Bytes stateValueBytes) {
             ReadableSequentialData sequentialData = stateValueBytes.toReadableSequentialData();
             // skipping tag
             sequentialData.readVarInt(false);
