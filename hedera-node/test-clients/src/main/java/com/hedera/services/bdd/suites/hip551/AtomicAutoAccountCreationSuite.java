@@ -106,7 +106,6 @@ import com.hederahashgraph.api.proto.java.TokenType;
 import com.hederahashgraph.api.proto.java.TransferList;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -119,12 +118,10 @@ import org.junit.jupiter.api.Tag;
 // The difference here is that we are wrapping the operations in an atomic batch to confirm the behavior is the same
 @Tag(CRYPTO)
 @HapiTestLifecycle
-public class AtomicAutoAccountCreationSuite {
+class AtomicAutoAccountCreationSuite {
 
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
-        testLifecycle.overrideInClass(
-                Map.of("atomicBatch.isEnabled", "true", "atomicBatch.maxNumberOfTransactions", "50"));
         testLifecycle.doAdhoc(cryptoCreate("batchOperator").balance(ONE_MILLION_HBARS));
     }
 

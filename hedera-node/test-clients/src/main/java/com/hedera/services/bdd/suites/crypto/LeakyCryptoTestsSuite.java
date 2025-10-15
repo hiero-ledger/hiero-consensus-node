@@ -26,6 +26,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoApproveAl
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoUpdate;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.explicit;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.mintToken;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenAssociate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
@@ -53,6 +54,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
+import static com.hedera.services.bdd.suites.HapiSuite.CIVILIAN_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.FIVE_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.FUNDING;
@@ -82,9 +84,20 @@ import static com.hedera.services.bdd.suites.token.TokenTransactSpecs.SUPPLY_KEY
 import static com.hedera.services.bdd.suites.token.TokenTransactSpecs.TRANSFER_TXN;
 import static com.hedera.services.bdd.suites.token.TokenTransactSpecs.UNIQUE;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.ContractCreate;
+import static com.hederahashgraph.api.proto.java.HederaFunctionality.CrsPublication;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.CryptoCreate;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.CryptoTransfer;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.CryptoUpdate;
+import static com.hederahashgraph.api.proto.java.HederaFunctionality.HintsKeyPublication;
+import static com.hederahashgraph.api.proto.java.HederaFunctionality.HintsPartialSignature;
+import static com.hederahashgraph.api.proto.java.HederaFunctionality.HintsPreprocessingVote;
+import static com.hederahashgraph.api.proto.java.HederaFunctionality.HistoryAssemblySignature;
+import static com.hederahashgraph.api.proto.java.HederaFunctionality.HistoryProofKeyPublication;
+import static com.hederahashgraph.api.proto.java.HederaFunctionality.HistoryProofVote;
+import static com.hederahashgraph.api.proto.java.HederaFunctionality.HookDispatch;
+import static com.hederahashgraph.api.proto.java.HederaFunctionality.NodeStakeUpdate;
+import static com.hederahashgraph.api.proto.java.HederaFunctionality.StateSignatureTransaction;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BUSY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_ACCOUNT_BALANCE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_SENDER_ACCOUNT_BALANCE_FOR_CUSTOM_FEE;
@@ -100,6 +113,14 @@ import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
 import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
 
 import com.google.protobuf.ByteString;
+import com.hedera.hapi.node.hooks.legacy.HookDispatchTransactionBody;
+import com.hedera.hapi.services.auxiliary.hints.legacy.CrsPublicationTransactionBody;
+import com.hedera.hapi.services.auxiliary.hints.legacy.HintsKeyPublicationTransactionBody;
+import com.hedera.hapi.services.auxiliary.hints.legacy.HintsPartialSignatureTransactionBody;
+import com.hedera.hapi.services.auxiliary.hints.legacy.HintsPreprocessingVoteTransactionBody;
+import com.hedera.hapi.services.auxiliary.history.legacy.HistoryProofKeyPublicationTransactionBody;
+import com.hedera.hapi.services.auxiliary.history.legacy.HistoryProofSignatureTransactionBody;
+import com.hedera.hapi.services.auxiliary.history.legacy.HistoryProofVoteTransactionBody;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
@@ -112,6 +133,7 @@ import com.hedera.services.bdd.spec.assertions.ContractInfoAsserts;
 import com.hedera.services.bdd.spec.transactions.TxnVerbs;
 import com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer;
 import com.hederahashgraph.api.proto.java.HederaFunctionality;
+import com.hederahashgraph.api.proto.java.NodeStakeUpdateTransactionBody;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import com.hederahashgraph.api.proto.java.TokenSupplyType;
 import com.hederahashgraph.api.proto.java.TokenType;
@@ -380,6 +402,74 @@ public class LeakyCryptoTestsSuite {
                         .addTokenAllowance(OWNER, FUNGIBLE_TOKEN, SPENDER, 100L)
                         .hasPrecheckFrom(OK, MAX_ALLOWANCES_EXCEEDED)
                         .hasKnownStatus(MAX_ALLOWANCES_EXCEEDED));
+    }
+
+    /**
+     * Characterize the current behavior of the network when submitting internal txs via a normal payer account.
+     * <p>
+     * (FUTURE) Revisit this with superuser payer.
+     */
+    @Tag(MATS)
+    @HapiTest
+    final Stream<DynamicTest> internalTxsCannotBeSubmittedByUserAccounts() {
+        return hapiTest(
+                cryptoCreate(CIVILIAN_PAYER),
+                explicit(
+                                StateSignatureTransaction,
+                                (spec, b) ->
+                                        b.setStateSignatureTransaction(com.hedera.hapi.platform.event.legacy
+                                                .StateSignatureTransaction.getDefaultInstance()))
+                        .payingWith(CIVILIAN_PAYER)
+                        .hasPrecheck(BUSY),
+                explicit(
+                                HintsPreprocessingVote,
+                                (spec, b) -> b.setHintsPreprocessingVote(
+                                        HintsPreprocessingVoteTransactionBody.getDefaultInstance()))
+                        .payingWith(CIVILIAN_PAYER)
+                        .hasPrecheck(BUSY),
+                explicit(
+                                HintsKeyPublication,
+                                (spec, b) -> b.setHintsKeyPublication(
+                                        HintsKeyPublicationTransactionBody.getDefaultInstance()))
+                        .payingWith(CIVILIAN_PAYER)
+                        .hasPrecheck(BUSY),
+                explicit(
+                                HintsPartialSignature,
+                                (spec, b) -> b.setHintsPartialSignature(
+                                        HintsPartialSignatureTransactionBody.getDefaultInstance()))
+                        .payingWith(CIVILIAN_PAYER)
+                        .hasPrecheck(BUSY),
+                explicit(
+                                HistoryProofKeyPublication,
+                                (spec, b) -> b.setHistoryProofKeyPublication(
+                                        HistoryProofKeyPublicationTransactionBody.getDefaultInstance()))
+                        .payingWith(CIVILIAN_PAYER)
+                        .hasPrecheck(BUSY),
+                explicit(
+                                HistoryAssemblySignature,
+                                (spec, b) -> b.setHistoryProofSignature(
+                                        HistoryProofSignatureTransactionBody.getDefaultInstance()))
+                        .payingWith(CIVILIAN_PAYER)
+                        .hasPrecheck(BUSY),
+                explicit(
+                                HistoryProofVote,
+                                (spec, b) ->
+                                        b.setHistoryProofVote(HistoryProofVoteTransactionBody.getDefaultInstance()))
+                        .payingWith(CIVILIAN_PAYER)
+                        .hasPrecheck(BUSY),
+                explicit(
+                                CrsPublication,
+                                (spec, b) -> b.setCrsPublication(CrsPublicationTransactionBody.getDefaultInstance()))
+                        .payingWith(CIVILIAN_PAYER)
+                        .hasPrecheck(BUSY),
+                explicit(HookDispatch, (spec, b) -> b.setHookDispatch(HookDispatchTransactionBody.getDefaultInstance()))
+                        .payingWith(CIVILIAN_PAYER)
+                        .hasPrecheck(BUSY),
+                explicit(
+                                NodeStakeUpdate,
+                                (spec, b) -> b.setNodeStakeUpdate(NodeStakeUpdateTransactionBody.getDefaultInstance()))
+                        .payingWith(CIVILIAN_PAYER)
+                        .hasPrecheck(BUSY));
     }
 
     @LeakyHapiTest(requirement = FEE_SCHEDULE_OVERRIDES)

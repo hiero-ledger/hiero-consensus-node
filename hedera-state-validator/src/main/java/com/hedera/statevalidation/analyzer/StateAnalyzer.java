@@ -6,15 +6,18 @@ import static com.swirlds.base.units.UnitConstants.BYTES_TO_MEBIBYTES;
 import static java.math.RoundingMode.HALF_UP;
 
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
+import com.hedera.statevalidation.merkledb.reflect.BucketIterator;
 import com.hedera.statevalidation.merkledb.reflect.MemoryIndexDiskKeyValueStoreW;
 import com.hedera.statevalidation.reporting.Report;
 import com.hedera.statevalidation.reporting.StorageReport;
 import com.hedera.statevalidation.validators.Utils.LongCountArray;
 import com.swirlds.merkledb.KeyRange;
 import com.swirlds.merkledb.MerkleDbDataSource;
+import com.swirlds.merkledb.collections.LongList;
 import com.swirlds.merkledb.files.DataFileCollection;
 import com.swirlds.merkledb.files.DataFileIterator;
 import com.swirlds.merkledb.files.DataFileReader;
+import com.swirlds.merkledb.files.hashmap.ParsedBucket;
 import com.swirlds.virtualmap.datasource.VirtualHashRecord;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -46,6 +49,20 @@ public final class StateAnalyzer {
                 VirtualLeafBytes::parseFrom);
     }
 
+    public static void analyzeKeyToPathValueStorage(
+            @NonNull final Report report, @NonNull final MerkleDbDataSource vds) {
+        updateReport(
+                report,
+                vds.getKeyToPath().getFileCollection(),
+                ((LongList) vds.getKeyToPath().getBucketIndexToBucketLocation()).size(),
+                Report::setKeyToPathReport,
+                obj -> {
+                    final ParsedBucket bucket = new ParsedBucket();
+                    bucket.readFrom(obj);
+                    return bucket;
+                });
+    }
+
     public static void analyzePathToHashStorage(@NonNull final Report report, @NonNull final MerkleDbDataSource vds) {
         updateReport(
                 report,
@@ -63,8 +80,8 @@ public final class StateAnalyzer {
             @NonNull final Function<ReadableSequentialData, ?> deserializer) {
         final StorageReport storageReport = createStoreReport(dataFileCollection, indexSize, deserializer);
         final KeyRange validKeyRange = dataFileCollection.getValidKeyRange();
-        storageReport.setMinPath(validKeyRange.getMinValidKey());
-        storageReport.setMaxPath(validKeyRange.getMaxValidKey());
+        storageReport.setMinKey(validKeyRange.getMinValidKey());
+        storageReport.setMaxKey(validKeyRange.getMaxValidKey());
         vmReportUpdater.accept(report, storageReport);
     }
 
@@ -94,37 +111,48 @@ public final class StateAnalyzer {
 
                 while (dataIterator.next()) {
                     try {
-                        int itemSize = 0;
-                        final long path;
                         final Object dataItemData = deserializer.apply(dataIterator.getDataItemData());
                         if (dataItemData
                                 instanceof @SuppressWarnings("DeconstructionCanBeUsed") VirtualHashRecord hashRecord) {
-                            itemSize = hashRecord.hash().getSerializedLength() + /*path*/ Long.BYTES;
-                            path = hashRecord.path();
+                            final long path = hashRecord.path();
+                            final int itemSize = hashRecord.hash().getSerializedLength() + /*path*/ Long.BYTES;
+
+                            updateStats(
+                                    path, itemSize, indexSize, itemCountByPath, wastedSpaceInBytes, duplicateItemCount);
                         } else if (dataItemData instanceof @SuppressWarnings("rawtypes") VirtualLeafBytes leafRecord) {
-                            path = leafRecord.path();
+                            final long path = leafRecord.path();
                             final SerializableDataOutputStream outputStream =
                                     new SerializableDataOutputStream(arrayOutputStream);
                             outputStream.writeByteArray(leafRecord.keyBytes().toByteArray());
-                            itemSize += outputStream.size();
+                            int itemSize = outputStream.size();
                             arrayOutputStream.reset();
                             outputStream.writeByteArray(leafRecord.valueBytes().toByteArray());
                             itemSize += outputStream.size() + /*path*/ Long.BYTES;
                             arrayOutputStream.reset();
+
+                            updateStats(
+                                    path, itemSize, indexSize, itemCountByPath, wastedSpaceInBytes, duplicateItemCount);
+                        } else if (dataItemData instanceof ParsedBucket parsedBucket) {
+                            var bucketIterator = new BucketIterator(parsedBucket);
+                            while (bucketIterator.hasNext()) {
+                                final ParsedBucket.BucketEntry entry = bucketIterator.next();
+                                final long path = entry.getValue();
+                                final SerializableDataOutputStream outputStream =
+                                        new SerializableDataOutputStream(arrayOutputStream);
+                                outputStream.writeByteArray(entry.getKeyBytes().toByteArray());
+                                final int itemSize = outputStream.size() + /*path*/ Long.BYTES;
+                                arrayOutputStream.reset();
+
+                                updateStats(
+                                        path,
+                                        itemSize,
+                                        indexSize,
+                                        itemCountByPath,
+                                        wastedSpaceInBytes,
+                                        duplicateItemCount);
+                            }
                         } else {
                             throw new UnsupportedOperationException("Unsupported data item type");
-                        }
-
-                        if (path >= indexSize) {
-                            wastedSpaceInBytes.addAndGet(itemSize);
-                        } else {
-                            long oldVal = itemCountByPath.getAndIncrement(path);
-                            if (oldVal > 0) {
-                                wastedSpaceInBytes.addAndGet(itemSize);
-                                if (oldVal == 1) {
-                                    duplicateItemCount.incrementAndGet();
-                                }
-                            }
                         }
                     } catch (Exception e) {
                         failure.incrementAndGet();
@@ -160,5 +188,25 @@ public final class StateAnalyzer {
         storageReport.setItemCount(itemCount.get());
 
         return storageReport;
+    }
+
+    private static void updateStats(
+            long path,
+            int itemSize,
+            long indexSize,
+            @NonNull final LongCountArray itemCountByPath,
+            @NonNull final AtomicLong wastedSpaceInBytes,
+            @NonNull final AtomicLong duplicateItemCount) {
+        if (path >= indexSize) {
+            wastedSpaceInBytes.addAndGet(itemSize);
+        } else {
+            long oldVal = itemCountByPath.getAndIncrement(path);
+            if (oldVal > 0) {
+                wastedSpaceInBytes.addAndGet(itemSize);
+                if (oldVal == 1) {
+                    duplicateItemCount.incrementAndGet();
+                }
+            }
+        }
     }
 }

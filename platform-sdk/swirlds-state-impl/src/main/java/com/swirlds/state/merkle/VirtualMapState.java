@@ -101,8 +101,6 @@ public abstract class VirtualMapState<T extends VirtualMapState<T>> implements S
      */
     private final List<StateChangeListener> listeners = new ArrayList<>();
 
-    private Configuration configuration;
-
     private LongSupplier roundSupplier;
 
     protected VirtualMap virtualMap;
@@ -139,7 +137,6 @@ public abstract class VirtualMapState<T extends VirtualMapState<T>> implements S
      */
     protected VirtualMapState(@NonNull final VirtualMapState<T> from) {
         this.virtualMap = from.virtualMap.copy();
-        this.configuration = from.configuration;
         this.roundSupplier = from.roundSupplier;
         this.startupMode = from.startupMode;
         this.listeners.addAll(from.listeners);
@@ -150,14 +147,8 @@ public abstract class VirtualMapState<T extends VirtualMapState<T>> implements S
         }
     }
 
-    public void init(
-            Time time,
-            Configuration configuration,
-            Metrics metrics,
-            MerkleCryptography merkleCryptography,
-            LongSupplier roundSupplier) {
+    public void init(Time time, Metrics metrics, MerkleCryptography merkleCryptography, LongSupplier roundSupplier) {
         this.time = time;
-        this.configuration = configuration;
         this.metrics = metrics;
         this.snapshotMetrics = new MerkleRootSnapshotMetrics(metrics);
         this.roundSupplier = roundSupplier;
@@ -254,8 +245,8 @@ public abstract class VirtualMapState<T extends VirtualMapState<T>> implements S
      */
     @Override
     public T loadSnapshot(@NonNull Path targetPath) throws IOException {
-        final MerkleNode root = MerkleTreeSnapshotReader.readStateFileData(configuration, targetPath)
-                .stateRoot();
+        final MerkleNode root =
+                MerkleTreeSnapshotReader.readStateFileData(targetPath).stateRoot();
         if (!(root instanceof VirtualMap readVirtualMap)) {
             throw new IllegalStateException(
                     "Root should be a VirtualMap, but it is " + root.getClass().getSimpleName() + " instead");

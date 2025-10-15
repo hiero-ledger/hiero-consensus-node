@@ -44,7 +44,7 @@ class DummyVirtualRoot extends PartialMerkleLeaf implements VirtualRoot, MerkleL
 
     private final VirtualPipeline pipeline;
 
-    private boolean detached = false;
+    private boolean destroyed = false;
 
     private boolean crashOnFlush = false;
     private boolean shutdownHandlerCalled;
@@ -53,7 +53,7 @@ class DummyVirtualRoot extends PartialMerkleLeaf implements VirtualRoot, MerkleL
      * Used to provoke a race condition in the hashFlushMerge() method when a copy
      * is destroyed part of the way through the method's execution.
      */
-    private volatile boolean releaseInIsDetached;
+    private volatile boolean releaseInIsDestroyed;
 
     private final VirtualMapStatistics statistics;
 
@@ -62,8 +62,6 @@ class DummyVirtualRoot extends PartialMerkleLeaf implements VirtualRoot, MerkleL
         flushLatch = new CountDownLatch(1);
         mergeLatch = new CountDownLatch(1);
         statistics = new VirtualMapStatistics(label);
-
-        releaseInIsDetached = false;
 
         // class is final, everything is initialized at this point in time
         pipeline.registerCopy(this);
@@ -210,8 +208,8 @@ class DummyVirtualRoot extends PartialMerkleLeaf implements VirtualRoot, MerkleL
 
         DummyVirtualRoot target = this.previous;
         while (target != null) {
-            if (!(target.isDestroyed() || target.isDetached())) {
-                throw new IllegalStateException("all older copies should have been destroyed or detached");
+            if (!target.isDestroyed()) {
+                throw new IllegalStateException("all older copies should have been destroyed");
             }
             if (!target.isHashed()) {
                 throw new IllegalStateException("all older copies should have been hashed");
@@ -283,8 +281,8 @@ class DummyVirtualRoot extends PartialMerkleLeaf implements VirtualRoot, MerkleL
         if (shouldBeFlushed) {
             throw new IllegalStateException("this copy should never be merged");
         }
-        if (!(isDestroyed() || isDetached())) {
-            throw new IllegalStateException("only destroyed or detached copies should be merged");
+        if (!isDestroyed()) {
+            throw new IllegalStateException("only destroyed copies should be merged");
         }
         if (!isImmutable()) {
             throw new IllegalStateException("only immutable copies should be merged");
@@ -383,28 +381,26 @@ class DummyVirtualRoot extends PartialMerkleLeaf implements VirtualRoot, MerkleL
      */
     @Override
     public RecordAccessor detach() {
-        this.detached = true;
         return null;
     }
 
     /**
-     * If true, this copy will release itself when isDetached() is called.
+     * If true, this copy will release itself when isDestroyed() is called.
      */
-    public void setReleaseInIsDetached(final boolean releaseInIsDetached) {
-        this.releaseInIsDetached = releaseInIsDetached;
+    public void setReleaseInIsDestroyed(final boolean releaseInIsDestroyed) {
+        this.releaseInIsDestroyed = releaseInIsDestroyed;
     }
 
     /**
      * {@inheritDoc}
      */
     @Override
-    public boolean isDetached() {
-        if (releaseInIsDetached) {
-            releaseInIsDetached = false;
+    public boolean isDestroyed() {
+        if (releaseInIsDestroyed) {
+            releaseInIsDestroyed = false;
             release();
         }
-
-        return detached;
+        return super.isDestroyed();
     }
 
     /**

@@ -186,7 +186,6 @@ jobs:
   deploy-xts-ci-trigger:
     name: Trigger XTS CI Flow
     runs-on: hiero-network-node-linux-medium
-    if: ${{ github.event_name == 'workflow_dispatch' }}
     needs:
       - release-branch
     steps:
@@ -229,7 +228,6 @@ jobs:
   deploy-integration-ci-trigger:
     name: Trigger Deploy Integration Flow
     runs-on: hiero-network-node-linux-medium
-    if: ${{ github.event_name == 'workflow_dispatch' && inputs.dry-run-enabled == false }}
     needs:
       - release-branch
     steps:
@@ -257,7 +255,13 @@ jobs:
           echo "enabled=${JOB_ENABLED}" >> $GITHUB_OUTPUT
 
       - name: Trigger ZXF Deploy Integration
-        if: ${{ needs.release-branch.result == 'success' && steps.check-integration-job.outputs.enabled == 'true' && !cancelled() }}
+        if: >-
+          ${{
+            inputs.dry-run-enabled == false &&
+            needs.release-branch.result == 'success' &&
+            steps.check-integration-job.outputs.enabled == 'true' &&
+            !cancelled()
+          }}
         uses: step-security/workflow-dispatch@b4c1dc0afa074d0b4f0e653d3b80d4b2798599aa # v1.2.7
         with:
           workflow: .github/workflows/node-zxf-deploy-integration.yaml

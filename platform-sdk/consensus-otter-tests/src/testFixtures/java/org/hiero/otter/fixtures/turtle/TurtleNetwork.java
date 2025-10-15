@@ -7,6 +7,7 @@ import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.common.test.fixtures.Randotron;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -16,6 +17,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.otter.fixtures.InstrumentedNode;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.TimeManager;
@@ -104,8 +106,7 @@ public class TurtleNetwork extends AbstractNetwork implements TimeTickReceiver {
     protected TurtleNode doCreateNode(@NonNull final NodeId nodeId, @NonNull final KeysAndCerts keysAndCerts) {
         simulatedNetwork.addNode(nodeId);
         final Path outputDir = rootOutputDirectory.resolve(NODE_IDENTIFIER_FORMAT.formatted(nodeId.id()));
-        return new TurtleNode(
-                randotron, timeManager.time(), nodeId, keysAndCerts, simulatedNetwork, logging, outputDir);
+        return new TurtleNode(randotron, timeManager, nodeId, keysAndCerts, simulatedNetwork, logging, outputDir);
     }
 
     /**
@@ -118,7 +119,7 @@ public class TurtleNetwork extends AbstractNetwork implements TimeTickReceiver {
         simulatedNetwork.addNode(nodeId);
         final Path outputDir = rootOutputDirectory.resolve(NODE_IDENTIFIER_FORMAT.formatted(nodeId.id()));
         return new InstrumentedTurtleNode(
-                randotron, timeManager.time(), nodeId, keysAndCerts, simulatedNetwork, logging, outputDir);
+                randotron, timeManager, nodeId, keysAndCerts, simulatedNetwork, logging, outputDir);
     }
 
     /**
@@ -131,12 +132,17 @@ public class TurtleNetwork extends AbstractNetwork implements TimeTickReceiver {
                 Math.min(size, Runtime.getRuntime().availableProcessors()), new ContextAwareThreadFactory()));
     }
 
+    @Override
+    protected void doSendQuiescenceCommand(@NonNull final QuiescenceCommand command, @NonNull final Duration timeout) {
+        nodes().forEach(node -> node.sendQuiescenceCommand(command));
+    }
+
     /**
      * {@inheritDoc}
      */
     @Override
     public void tick(@NonNull final Instant now) {
-        if (state != State.RUNNING) {
+        if (lifecycle != Lifecycle.RUNNING) {
             return;
         }
 

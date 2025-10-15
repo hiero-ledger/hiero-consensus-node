@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.fixtures.state;
 
-import static com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer.CONFIGURATION;
+import static com.swirlds.platform.test.fixtures.config.ConfigUtils.CONFIGURATION;
 import static com.swirlds.platform.test.fixtures.state.manager.SignatureVerificationTestUtils.buildFakeSignature;
 import static org.hiero.base.crypto.test.fixtures.CryptoRandomUtils.randomHash;
 import static org.hiero.base.crypto.test.fixtures.CryptoRandomUtils.randomHashBytes;
@@ -27,10 +27,11 @@ import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
 import com.swirlds.platform.config.StateConfig;
 import com.swirlds.platform.crypto.SignatureVerifier;
-import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import com.swirlds.platform.test.fixtures.state.manager.SignatureVerificationTestUtils;
+import com.swirlds.state.MerkleNodeState;
+import com.swirlds.state.test.fixtures.merkle.TestVirtualMapState;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.lang.reflect.Field;
@@ -157,7 +158,6 @@ public class RandomSignedStateGenerator {
             stateInstance = TestVirtualMapState.createInstanceWithVirtualMapLabel(virtualMapLabel);
             stateInstance.init(
                     Time.getCurrent(),
-                    CONFIGURATION,
                     new NoOpMetrics(),
                     TestMerkleCryptoFactory.getInstance(),
                     () -> platformStateFacade.roundOf(stateInstance));
@@ -210,7 +210,7 @@ public class RandomSignedStateGenerator {
         } else {
             consensusSnapshotInstance = consensusSnapshot;
         }
-        TestingAppStateInitializer.DEFAULT.initPlatformState(stateInstance);
+        TestingAppStateInitializer.initPlatformState(stateInstance);
 
         platformStateFacade.bulkUpdateOf(stateInstance, v -> {
             v.setSnapshot(consensusSnapshotInstance);
@@ -220,7 +220,7 @@ public class RandomSignedStateGenerator {
             v.setConsensusTimestamp(consensusTimestampInstance);
         });
 
-        TestingAppStateInitializer.DEFAULT.initRosterState(stateInstance);
+        TestingAppStateInitializer.initRosterState(stateInstance, CONFIGURATION);
         RosterUtils.setActiveRoster(stateInstance, rosterInstance, roundInstance);
 
         if (signatureVerifier == null) {

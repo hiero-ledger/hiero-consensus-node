@@ -6,8 +6,8 @@ import com.swirlds.common.test.fixtures.Randotron;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.platform.test.fixtures.event.generator.GraphGenerator;
 import com.swirlds.platform.test.fixtures.event.generator.StandardGraphGenerator;
+import com.swirlds.platform.test.fixtures.event.source.BranchingEventSource;
 import com.swirlds.platform.test.fixtures.event.source.EventSource;
-import com.swirlds.platform.test.fixtures.event.source.ForkingEventSource;
 import com.swirlds.platform.test.fixtures.event.source.StandardEventSource;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Arrays;
@@ -20,7 +20,7 @@ public class HashgraphGui {
      * The main method that runs the GUI. It creates a Randotron, a GraphGenerator, and a TestGuiSource.
      * It generates events and runs the GUI.
      *
-     * @param args command line arguments - if "branch" is passed the GUI will have a forking event source and branched
+     * @param args command line arguments - if "branch" is passed the GUI will have a branching event source and branched
      *             events will be shown
      */
     public static void main(final String[] args) {
@@ -45,16 +45,16 @@ public class HashgraphGui {
 
     /**
      * Method that generates event source  for each node. It can also accept a boolean flag that
-     * indicates if we should have a forking event source or not.
+     * indicates if we should have a branching event source or not.
      *
      * @param numNetworkNodes the number of nodes in the network
-     * @param shouldBranch true if we should have a forking event source, false otherwise
+     * @param shouldBranch true if we should have a branching event source, false otherwise
      */
     private static @NonNull List<EventSource> generateSources(final int numNetworkNodes, final boolean shouldBranch) {
         final List<EventSource> list = new LinkedList<>();
         for (long i = 0; i < numNetworkNodes; i++) {
             if (i == 1 && shouldBranch) {
-                list.add(new ForkingEventSource().setForkProbability(0.8).setMaximumBranchCount(5));
+                list.add(new BranchingEventSource().setBranchProbability(0.8).setMaximumBranchCount(5));
                 continue;
             }
             list.add(new StandardEventSource(true));

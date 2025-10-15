@@ -213,6 +213,14 @@ public class FeeCalculatorImpl implements FeeCalculator {
     }
 
     @NonNull
+    @Override
+    public FeeCalculator addGas(final long amount) {
+        failIfLegacyOnly();
+        usage.addGas(amount);
+        return this;
+    }
+
+    @NonNull
     public FeeCalculator resetUsage() {
         if (usage != null) {
             usage.reset();
