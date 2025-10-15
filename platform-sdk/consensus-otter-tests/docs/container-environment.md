@@ -463,7 +463,8 @@ docker inspect <container_name>
 
 To attach a debugger to a running container, first identify the node ID of the node you want to attach to. The debug
 port for the container running the consensus node is `5005` plus the node ID (`5005` for node 0, `5006` for node 1,
-etc.). Please note that you cannot attach the debugger until the node has been started.
+etc.). These debug ports are automattically configured in the consensus node containers. Please note that you cannot
+attach the debugger until the node has been started.
 
 ## 🔗 Related Documentation
 
