@@ -80,7 +80,7 @@ public interface GenericGauge<T> extends StatefulMetric<Supplier<T>, GaugeDataPo
         Objects.requireNonNull(unit, "unit cannot be null");
         final MetricKey<GenericGauge<Duration>> key = key(name);
         return new Builder<>(key, duration -> duration == null ? StatUtils.ZERO : duration.get(unit))
-                .withUnit(Unit.getUnit(unit));
+                .withUnit(Unit.fromChronoUnit(unit));
     }
 
     /**

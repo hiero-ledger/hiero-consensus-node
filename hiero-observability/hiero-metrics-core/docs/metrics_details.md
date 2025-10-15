@@ -14,10 +14,11 @@ which provides methods to access metric metadata and information about labels of
 Metric may have zero or more _constant_ labels that already have a value and will be attached to all data points of the metric.
 Metric may also have zero or more _dynamic_ labels, names of which are defined during metric creation
 and values are defined when accessing a specific data point of the metric for observation.
+Metric names and labels must be of pattern `^[a-zA-Z_][a-zA-Z0-9_]*$`.
 
 There are two main extensions of the Metric interface:
 - [StatelessMetric](../src/main/java/org/hiero/metrics/api/StatelessMetric.java)<br/>
-Terminal metric that doesn't have any internal state and does not provide methods to observe data points - only access them.
+Terminal metric that does not provide methods to observe/update data points - only access/read them.
 Updates for such metrics are done via external code. Examples are JVM memory usage metric, CPU usage metric, etc.
 - [StatefulMetric](../src/main/java/org/hiero/metrics/api/core/StatefulMetric.java)<br/>
 This is not a terminal metric (has an abstract builder) which stores data points per unique combination of dynamic label values.
