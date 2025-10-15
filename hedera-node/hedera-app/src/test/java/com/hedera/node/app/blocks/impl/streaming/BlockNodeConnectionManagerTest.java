@@ -2224,7 +2224,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
         invoke_stopConnections();
 
-        verifyNoInteractions(conn);
+        verify(conn).close(true);
     }
 
     @Test
