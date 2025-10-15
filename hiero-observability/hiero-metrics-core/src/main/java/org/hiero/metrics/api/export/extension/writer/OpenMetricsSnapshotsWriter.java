@@ -16,10 +16,10 @@ import org.hiero.metrics.api.core.Label;
 import org.hiero.metrics.api.core.MetricMetadata;
 import org.hiero.metrics.api.core.MetricType;
 import org.hiero.metrics.api.export.snapshot.DataPointSnapshot;
-import org.hiero.metrics.api.export.snapshot.GenericMultiValueDataPointSnapshot;
 import org.hiero.metrics.api.export.snapshot.MetricSnapshot;
 import org.hiero.metrics.api.export.snapshot.MetricsSnapshot;
-import org.hiero.metrics.api.export.snapshot.SingleValueDataPointSnapshot;
+import org.hiero.metrics.api.export.snapshot.MultiValueDataPointSnapshot;
+import org.hiero.metrics.api.export.snapshot.OneValueDataPointSnapshot;
 import org.hiero.metrics.api.export.snapshot.StateSetDataPointSnapshot;
 
 /**
@@ -92,16 +92,21 @@ public class OpenMetricsSnapshotsWriter
         byte[][] variables = new byte[3][]; // max 3 variables: value type, value, timestamp
 
         switch (dataPointSnapshot) {
-            case SingleValueDataPointSnapshot snapshot -> {
-                int varIdx =
-                        addValueAndTimestampVariables(timestamp, variables, convertValue(snapshot.getAsDouble()), 0);
+            case OneValueDataPointSnapshot snapshot -> {
+                byte[] convertedValue = snapshot.isFloatingPoint()
+                        ? convertValue(snapshot.getAsDouble())
+                        : convertValue(snapshot.getAsLong());
+                int varIdx = addValueAndTimestampVariables(timestamp, variables, convertedValue, 0);
                 writeDataLine(template, varIdx, variables, output);
             }
-            case GenericMultiValueDataPointSnapshot snapshot -> {
+            case MultiValueDataPointSnapshot snapshot -> {
+                byte[] convertedValue;
                 for (int i = 0; i < snapshot.valuesCount(); i++) {
                     variables[0] = escape(snapshot.valueTypeAt(i)).getBytes(StandardCharsets.UTF_8);
-                    int varIdx =
-                            addValueAndTimestampVariables(timestamp, variables, convertValue(snapshot.valueAt(i)), 1);
+                    convertedValue = snapshot.isFloatingPointAt(i)
+                            ? convertValue(snapshot.doubleValueAt(i))
+                            : convertValue(snapshot.longValueAt(i));
+                    int varIdx = addValueAndTimestampVariables(timestamp, variables, convertedValue, 1);
                     writeDataLine(template, varIdx, variables, output);
                 }
             }
@@ -153,6 +158,10 @@ public class OpenMetricsSnapshotsWriter
     @Override
     protected MetricExportData buildMetricExportData(MetricSnapshot metricSnapshot) {
         return new MetricExportData(metricSnapshot);
+    }
+
+    private byte[] convertValue(long value) {
+        return format(value).getBytes(StandardCharsets.UTF_8);
     }
 
     private byte[] convertValue(double value) {
@@ -243,8 +252,8 @@ public class OpenMetricsSnapshotsWriter
         @Override
         protected ByteArrayTemplate buildDataPointExportTemplate(DataPointSnapshot dataPointSnapshot) {
             return switch (dataPointSnapshot) {
-                case SingleValueDataPointSnapshot snapshot -> buildSingleValueTemplate(snapshot);
-                case GenericMultiValueDataPointSnapshot snapshot -> buildGenericMultiValueTemplate(snapshot);
+                case OneValueDataPointSnapshot snapshot -> buildSingleValueTemplate(snapshot);
+                case MultiValueDataPointSnapshot snapshot -> buildGenericMultiValueTemplate(snapshot);
                 case StateSetDataPointSnapshot<?> snapshot -> buildStateSetTemplate(snapshot);
                 default ->
                     throw new IllegalArgumentException(
@@ -252,7 +261,7 @@ public class OpenMetricsSnapshotsWriter
             };
         }
 
-        private ByteArrayTemplate buildSingleValueTemplate(SingleValueDataPointSnapshot dataPointSnapshot) {
+        private ByteArrayTemplate buildSingleValueTemplate(OneValueDataPointSnapshot dataPointSnapshot) {
             ByteArrayTemplate.Builder builder = ByteArrayTemplate.builder();
 
             builder.append(metricNameBytes);
@@ -272,7 +281,7 @@ public class OpenMetricsSnapshotsWriter
             return builder.build();
         }
 
-        private ByteArrayTemplate buildGenericMultiValueTemplate(GenericMultiValueDataPointSnapshot dataPointSnapshot) {
+        private ByteArrayTemplate buildGenericMultiValueTemplate(MultiValueDataPointSnapshot dataPointSnapshot) {
             ByteArrayTemplate.Builder builder =
                     ByteArrayTemplate.builder().append(metricNameBytes).append(OPEN_BRACKET);
 

@@ -7,27 +7,28 @@ import org.hiero.metrics.api.datapoint.StateSetDataPoint;
 import org.hiero.metrics.internal.core.AbstractStatefulMetric;
 import org.hiero.metrics.internal.core.LabelValues;
 import org.hiero.metrics.internal.datapoint.DataPointHolder;
-import org.hiero.metrics.internal.export.snapshot.DefaultStateSetDataPointSnapshot;
+import org.hiero.metrics.internal.export.snapshot.StateSetDataPointSnapshotImpl;
 
-public class DefaultStateSet<E extends Enum<E>>
-        extends AbstractStatefulMetric<List<E>, StateSetDataPoint<E>, DefaultStateSetDataPointSnapshot<E>>
+public class StateSetImpl<E extends Enum<E>>
+        extends AbstractStatefulMetric<List<E>, StateSetDataPoint<E>, StateSetDataPointSnapshotImpl<E>>
         implements StateSet<E> {
 
     private final E[] enumConstants;
 
-    public DefaultStateSet(StateSet.Builder<E> builder) {
+    public StateSetImpl(StateSet.Builder<E> builder) {
         super(builder);
         enumConstants = builder.getEnumClass().getEnumConstants();
     }
 
     @Override
-    protected DefaultStateSetDataPointSnapshot<E> createDataPointSnapshot(LabelValues dynamicLabelValues) {
-        return new DefaultStateSetDataPointSnapshot<>(dynamicLabelValues, enumConstants);
+    protected StateSetDataPointSnapshotImpl<E> createDataPointSnapshot(
+            StateSetDataPoint<E> datapoint, LabelValues dynamicLabelValues) {
+        return new StateSetDataPointSnapshotImpl<>(dynamicLabelValues, enumConstants);
     }
 
     @Override
     protected void updateDatapointSnapshot(
-            DataPointHolder<StateSetDataPoint<E>, DefaultStateSetDataPointSnapshot<E>> dataPointHolder) {
+            DataPointHolder<StateSetDataPoint<E>, StateSetDataPointSnapshotImpl<E>> dataPointHolder) {
         for (E enumConstant : enumConstants) {
             boolean value = dataPointHolder.dataPoint().getState(enumConstant);
             dataPointHolder.snapshot().updateState(enumConstant.ordinal(), value);

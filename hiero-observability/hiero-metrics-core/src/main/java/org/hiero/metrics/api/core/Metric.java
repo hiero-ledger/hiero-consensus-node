@@ -181,12 +181,9 @@ public interface Metric {
 
         /**
          * Removes any previously set unit from the metric.
-         *
-         * @return the builder instance
          */
-        protected final B withoutUnit() {
+        protected final void withoutUnit() {
             this.unit = null;
-            return self();
         }
 
         /**

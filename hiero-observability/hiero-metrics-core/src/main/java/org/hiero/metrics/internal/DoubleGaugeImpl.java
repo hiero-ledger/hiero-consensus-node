@@ -8,15 +8,15 @@ import org.hiero.metrics.api.datapoint.DoubleGaugeDataPoint;
 import org.hiero.metrics.internal.core.AbstractStatefulMetric;
 import org.hiero.metrics.internal.core.LabelValues;
 import org.hiero.metrics.internal.datapoint.DataPointHolder;
-import org.hiero.metrics.internal.export.snapshot.DefaultSingleValueDataPointSnapshot;
+import org.hiero.metrics.internal.export.snapshot.OneValueDataPointSnapshotImpl;
 
-public final class DefaultDoubleGauge
-        extends AbstractStatefulMetric<DoubleSupplier, DoubleGaugeDataPoint, DefaultSingleValueDataPointSnapshot>
+public final class DoubleGaugeImpl
+        extends AbstractStatefulMetric<DoubleSupplier, DoubleGaugeDataPoint, OneValueDataPointSnapshotImpl>
         implements DoubleGauge {
 
     private final ToDoubleFunction<DoubleGaugeDataPoint> exportValueSupplier;
 
-    public DefaultDoubleGauge(DoubleGauge.Builder builder) {
+    public DoubleGaugeImpl(DoubleGauge.Builder builder) {
         super(builder);
 
         exportValueSupplier =
@@ -24,15 +24,15 @@ public final class DefaultDoubleGauge
     }
 
     @Override
-    protected DefaultSingleValueDataPointSnapshot createDataPointSnapshot(LabelValues dynamicLabelValues) {
-        return new DefaultSingleValueDataPointSnapshot(dynamicLabelValues);
+    protected OneValueDataPointSnapshotImpl createDataPointSnapshot(
+            DoubleGaugeDataPoint datapoint, LabelValues dynamicLabelValues) {
+        return new OneValueDataPointSnapshotImpl(dynamicLabelValues, true);
     }
 
     @Override
     protected void updateDatapointSnapshot(
-            DataPointHolder<DoubleGaugeDataPoint, DefaultSingleValueDataPointSnapshot> dataPointHolder) {
-        double value = exportValueSupplier.applyAsDouble(dataPointHolder.dataPoint());
-        dataPointHolder.snapshot().update(value);
+            DataPointHolder<DoubleGaugeDataPoint, OneValueDataPointSnapshotImpl> dataPointHolder) {
+        dataPointHolder.snapshot().set(exportValueSupplier.applyAsDouble(dataPointHolder.dataPoint()));
     }
 
     @Override

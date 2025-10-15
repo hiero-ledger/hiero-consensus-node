@@ -10,13 +10,13 @@ import org.hiero.metrics.internal.core.LabelValues;
  *
  * @param <E> the enum type representing the possible states
  */
-public final class DefaultStateSetDataPointSnapshot<E extends Enum<E>> extends BaseDataPointSnapshot
+public final class StateSetDataPointSnapshotImpl<E extends Enum<E>> extends BaseDataPointSnapshot
         implements StateSetDataPointSnapshot<E> {
 
     private final E[] enumConstants;
     private final boolean[] states;
 
-    public DefaultStateSetDataPointSnapshot(@NonNull LabelValues dynamicLabelValues, @NonNull E[] enumConstants) {
+    public StateSetDataPointSnapshotImpl(@NonNull LabelValues dynamicLabelValues, @NonNull E[] enumConstants) {
         super(dynamicLabelValues);
         this.enumConstants = enumConstants;
         this.states = new boolean[enumConstants.length];
