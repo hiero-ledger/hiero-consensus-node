@@ -318,7 +318,7 @@ tasks:
     cmds:
       - |
         if [[ "{{ .solo_ge_0440 }}" == "true" ]]; then
-          SOLO_HOME_DIR=${SOLO_HOME_DIR} relay node add --deployment "${SOLO_DEPLOYMENT}" -i node1 ${RELAY_NODE_DEPLOY_EXTRA_FLAGS} -q --dev
+          SOLO_HOME_DIR=${SOLO_HOME_DIR} solo relay node add --deployment "${SOLO_DEPLOYMENT}" -i node1 ${RELAY_NODE_DEPLOY_EXTRA_FLAGS} -q --dev
         else
           SOLO_HOME_DIR=${SOLO_HOME_DIR} solo relay deploy --deployment "${SOLO_DEPLOYMENT}" -i node1 ${RELAY_NODE_DEPLOY_EXTRA_FLAGS} -q --dev
         fi
