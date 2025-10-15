@@ -106,8 +106,7 @@ public class TurtleNetwork extends AbstractNetwork implements TimeTickReceiver {
     protected TurtleNode doCreateNode(@NonNull final NodeId nodeId, @NonNull final KeysAndCerts keysAndCerts) {
         simulatedNetwork.addNode(nodeId);
         final Path outputDir = rootOutputDirectory.resolve(NODE_IDENTIFIER_FORMAT.formatted(nodeId.id()));
-        return new TurtleNode(
-                randotron, timeManager.time(), nodeId, keysAndCerts, simulatedNetwork, logging, outputDir);
+        return new TurtleNode(randotron, timeManager, nodeId, keysAndCerts, simulatedNetwork, logging, outputDir);
     }
 
     /**
@@ -120,7 +119,7 @@ public class TurtleNetwork extends AbstractNetwork implements TimeTickReceiver {
         simulatedNetwork.addNode(nodeId);
         final Path outputDir = rootOutputDirectory.resolve(NODE_IDENTIFIER_FORMAT.formatted(nodeId.id()));
         return new InstrumentedTurtleNode(
-                randotron, timeManager.time(), nodeId, keysAndCerts, simulatedNetwork, logging, outputDir);
+                randotron, timeManager, nodeId, keysAndCerts, simulatedNetwork, logging, outputDir);
     }
 
     /**
@@ -143,7 +142,7 @@ public class TurtleNetwork extends AbstractNetwork implements TimeTickReceiver {
      */
     @Override
     public void tick(@NonNull final Instant now) {
-        if (state != State.RUNNING) {
+        if (lifecycle != Lifecycle.RUNNING) {
             return;
         }
 

@@ -16,6 +16,7 @@ message OtterTransaction {
     EmptyTransaction emptyTransaction = 100;
     OtterFreezeTransaction freezeTransaction = 101;
     com.hedera.hapi.platform.event.StateSignatureTransaction stateSignatureTransaction = 102;
+    OtterIssTransaction issTransaction = 103;
   }
 }
 
@@ -24,5 +25,13 @@ message EmptyTransaction {
 
 message OtterFreezeTransaction {
   proto.Timestamp freezeTime = 1;
+}
+
+message OtterIssTransaction {
+  repeated HashPartition partition = 1;
+}
+
+message HashPartition {
+  repeated uint64 node_id = 1;
 }
 

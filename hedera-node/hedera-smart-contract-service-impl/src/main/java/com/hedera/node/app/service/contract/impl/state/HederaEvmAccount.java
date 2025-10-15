@@ -10,6 +10,9 @@ import org.hyperledger.besu.evm.account.Account;
 import org.hyperledger.besu.evm.account.MutableAccount;
 import org.hyperledger.besu.evm.code.CodeFactory;
 
+/**
+ * A Hedera specialization of a Besu {@link MutableAccount} that provides additional Hedera-specific information.
+ */
 public interface HederaEvmAccount extends MutableAccount {
     /**
      * Returns a native Hedera account representation of this account.

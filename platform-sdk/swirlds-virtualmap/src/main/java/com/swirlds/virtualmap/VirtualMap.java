@@ -298,8 +298,6 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
      */
     private final AtomicBoolean merged = new AtomicBoolean(false);
 
-    private final AtomicBoolean detached = new AtomicBoolean(false);
-
     /**
      * Created at the beginning of reconnect as a <strong>learner</strong>, this iterator allows
      * for other threads to feed its leaf records to be used during hashing.
@@ -797,8 +795,8 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
     @Override
     public void merge() {
         final long start = System.currentTimeMillis();
-        if (!(isDestroyed() || isDetached())) {
-            throw new IllegalStateException("merge is legal only after this node is destroyed or detached");
+        if (!isDestroyed()) {
+            throw new IllegalStateException("merge is legal only after this node is destroyed");
         }
         if (!isImmutable()) {
             throw new IllegalStateException("merge is only allowed on immutable copies");
@@ -1154,17 +1152,7 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
             throw new IllegalStateException("Can't make data source copy: virtual map copy isn't hashed");
         }
 
-        detached.set(true);
-
         return dataSourceBuilder.snapshot(null, dataSource);
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public boolean isDetached() {
-        return detached.get();
     }
 
     /*

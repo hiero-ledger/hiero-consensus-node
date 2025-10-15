@@ -33,6 +33,7 @@ env:
   XTS_CANDIDATE_TAG: "xts-candidate"
   XTS_PASS_GREP_PATTERN: "xts-pass-*"
   PROMOTED_GREP_PATTERN: "build-.{5}"
+  BUILD_GREP_PATTERN: "build-*"
 
 jobs:
   fetch-xts-candidate:
@@ -71,22 +72,23 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           XTS_PASS_PATTERN: ${{ env.XTS_PASS_GREP_PATTERN }}
           BUILD_PROMO_PATTERN: ${{ env.PROMOTED_GREP_PATTERN }}
+          BUILD_PATTERN: ${{ env.BUILD_GREP_PATTERN }}
           RC_TAG: ${{ inputs.rc-tag || '' }}
         run: |
           # Check if the tag exists and if so grab its commit id
           if [[ -n "${RC_TAG}" ]]; then
-            COMMIT_ON_DEFAULT_BRANCH=0
+            echo "::debug::Using RC Tag: ${RC_TAG}"
             XTS_COMMIT=$(git rev-list -n 1 "${RC_TAG}") >/dev/null 2>&1
             XTS_COMMIT_FOUND="${?}"
             set -e
 
             # Cancel out if the tag does not exist
             if [[ "${XTS_COMMIT_FOUND}" -ne 0 ]]; then
+              echo "::debug::Tag ${RC_TAG} not found. Cancelling out."
               gh run cancel ${{ github.run_id }}
             fi
 
             COMMIT_LIST="$(git log -n 1 --pretty=format:"- [%h: %s](https://github.com/${{ github.repository }}/commit/%H)" "${XTS_COMMIT}")"
-
           else
             set +e
             XTS_COMMIT="$(git rev-list -n 1 "${XTS_CANDIDATE_TAG}")" >/dev/null 2>&1
@@ -95,6 +97,7 @@ jobs:
 
             # Cancel out if the tag does not exist
             if [[ "${XTS_COMMIT_FOUND}" -ne 0 ]]; then
+              echo "::debug::Tag ${XTS_CANDIDATE_TAG} not found. Cancelling out."
               gh run cancel ${{ github.run_id }}
             fi
 
@@ -106,31 +109,41 @@ jobs:
 
             # Use -n; if the BUILD_PROMOTED_TAGGED/XTS_PASS_TAGGED flags are not empty than the commit has been tagged.
             if [[ -n "${XTS_PASS_TAGGED}" || -n "${BUILD_PROMOTED_TAGGED}" ]]; then
+              echo "::debug::Commit ${XTS_COMMIT} has already been tagged as xts-pass or build. Cancelling out."
               gh run cancel ${{ github.run_id }}
             fi
 
             # Get the list of commits between the previous XTS Pass and the current commit
             COMMIT_LIST=""
-            LATEST_XTS_PASS_TAG="$(git tag --list --sort=-version:refname "xts-pass-*" | head --lines 1)"
+            LATEST_XTS_PASS_TAG="$(git tag --list --sort=-version:refname "${XTS_PASS_PATTERN}" | head --lines 1)"
+            LATEST_PROMOTED_BUILD_TAG="$(git tag --list --sort=-version:refname "${BUILD_PATTERN}" | head --lines 1)"
             if [[ -n "${LATEST_XTS_PASS_TAG}" ]]; then
+              echo "::debug::Using latest xts-pass tag"
               echo "Latest XTS Pass Tag: ${LATEST_XTS_PASS_TAG}"
               LATEST_XTS_PASS_COMMIT="$(git rev-list -n 1 "${LATEST_XTS_PASS_TAG}")"
               COMMIT_LIST="$(git log --pretty=format:"- [%h: %s](https://github.com/${{ github.repository }}/commit/%H)" "${LATEST_XTS_PASS_COMMIT}..${XTS_COMMIT}")"
-            fi
-
-            # Check if the tag exists on the main branch
-            if [[ "${XTS_COMMIT_BRANCH}" != "main" ]]; then
-              COMMIT_ON_DEFAULT_BRANCH=0
-            else
-              COMMIT_ON_DEFAULT_BRANCH=1
+            elif [[ -n "${LATEST_PROMOTED_BUILD_TAG}" ]]; then
+              echo "::debug::Using latest promoted build tag as no xts-pass tag found"
+              echo "Latest Promoted Tag: ${LATEST_PROMOTED_BUILD_TAG}"
+              LATEST_PROMOTED_BUILD_COMMIT="$(git rev-list -n 1 "${LATEST_PROMOTED_BUILD_TAG}")"
+              COMMIT_LIST="$(git log --pretty=format:"- [%h: %s](https://github.com/${{ github.repository }}/commit/%H)" "${LATEST_PROMOTED_BUILD_COMMIT}..${XTS_COMMIT}")"
             fi
           fi
 
           # Get the short commit id
           XTS_SHORT_COMMIT="$(git rev-parse --short "${XTS_COMMIT}")"
+          echo "::debug::XTS_SHORT_COMMIT=${XTS_SHORT_COMMIT}"
 
           # Get the branch name for the commit
           XTS_COMMIT_BRANCH="$(git name-rev --name-only --refs="refs/remotes/*" "${XTS_COMMIT}" | sed 's~^.*origin/~~' | sed 's/~.*//')"
+          echo "::debug::XTS_COMMIT_BRANCH=${XTS_COMMIT_BRANCH}"
+
+          # Check if the tag exists on the main branch
+          COMMIT_ON_DEFAULT_BRANCH=0
+          if [[ "${XTS_COMMIT_BRANCH}" != "main" ]]; then
+            COMMIT_ON_DEFAULT_BRANCH=1
+          fi
+          echo "::debug::COMMIT_ON_DEFAULT_BRANCH=${COMMIT_ON_DEFAULT_BRANCH}"
 
           # Get commit author
           AUTHOR_NAME="$(git log -1 --format='%an' "${XTS_COMMIT}")"
@@ -148,26 +161,26 @@ jobs:
             echo "xts-tag-commit-email=${AUTHOR_EMAIL}" >> "${GITHUB_OUTPUT}"
             echo "xts-info=${XTS_COMMIT_BRANCH} - ${XTS_SHORT_COMMIT}" >> "${GITHUB_OUTPUT}"
 
-            # Commit list output (multiline)
-            {
-              echo 'commit-list<<EOF'
-              echo "${COMMIT_LIST//\`/}"
-              echo EOF
-            } >> "${GITHUB_OUTPUT}"
+            CLEANED_COMMIT_LIST="${COMMIT_LIST//\`/}"
+            ESCAPED_COMMIT_LIST=$(jq -Rs . <<< "${CLEANED_COMMIT_LIST}")
+            ESCAPED_COMMIT_LIST=${ESCAPED_COMMIT_LIST:1:-1}
+            echo "commit-list=${ESCAPED_COMMIT_LIST}" >> "${GITHUB_OUTPUT}"
 
             # GitHub Step Summary
             echo "### XTS-Candidate commit found" >>  "${GITHUB_STEP_SUMMARY}"
             echo "xts-tag-commit=${XTS_COMMIT}" >> "${GITHUB_STEP_SUMMARY}"
             echo "### Commit List" >> "${GITHUB_STEP_SUMMARY}"
-            echo "${COMMIT_LIST}" >> "${GITHUB_STEP_SUMMARY}"
+            echo -e "${COMMIT_LIST}" >> "${GITHUB_STEP_SUMMARY}"
             echo "### XTS Information" >> "${GITHUB_STEP_SUMMARY}"
             echo "xts-info=${XTS_COMMIT_BRANCH} - ${XTS_SHORT_COMMIT}" >> "${GITHUB_STEP_SUMMARY}"
 
             if [[ -z "${RC_TAG}" ]]; then
+              echo "::debug::Deleting the XTS candidate tag so we can recreate it later."
               git push --delete origin "${XTS_CANDIDATE_TAG}"
               git tag -d "${XTS_CANDIDATE_TAG}"
             fi
           else
+            echo "::debug::Commit ${XTS_COMMIT} not found on main branch. Cancelling out."
             gh run cancel "${{ github.run_id }}"
           fi
 
@@ -403,6 +416,7 @@ jobs:
           TAG_WITH_EPOCH: ${{ inputs.enable-promotion || 'false' }}
         run: |
           if [[ -n "${RC_TAG}" ]] && [[ "${TAG_WITH_EPOCH}" == "false" ]]; then
+            echo "::debug::Tagging adhoc commit as XTS passing"
             TAG="adhoc-xts-pass-${RC_TAG}"
 
             set +e
@@ -411,16 +425,19 @@ jobs:
             set -e
 
             if [[ "${TAG_EXISTS}" -eq 0 ]]; then
+              echo "::debug::Tag exists, recreate it"
               echo "Tag ${TAG} already exists. Deleting."
               git push --delete origin "${TAG}"
               git tag -d "${TAG}"
             fi
 
+            echo "::debug::Push the new tag ${TAG}"
             git tag --annotate "${TAG}" --message "chore: tagging release candidate as XTS passing"
             git push --set-upstream origin "${TAG}"
             echo "### Commit Tagged as XTS-Passing" >>  "${GITHUB_STEP_SUMMARY}"
             echo "xts-pass-tag=${TAG}" >> "${GITHUB_STEP_SUMMARY}"
           else
+            echo "::debug::Tagging commit with epoch timestamp as XTS passing"
             EPOCH_TIME="$(date +%s)"
             TAG="xts-pass-${EPOCH_TIME}"
             git tag --annotate "${TAG}" --message "chore: tagging commit for build candidate promotion"
@@ -459,14 +476,6 @@ jobs:
         uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
         with:
           egress-policy: audit
-
-      - name: JSON Stringify Commit List
-        id: stringify-commit-list
-        run: |
-          COMMIT_LIST="${{ needs.fetch-xts-candidate.outputs.commit-list }}"
-          # Escape double quotes and backslashes for JSON
-          ESCAPED_COMMIT_LIST=$(jq -Rs . <<< "${COMMIT_LIST}")
-          echo "commit-list=${ESCAPED_COMMIT_LIST}" >> "${GITHUB_OUTPUT}"
 
       - name: Report Success (slack)
         uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
@@ -596,7 +605,7 @@ jobs:
                       "fields": [
                         {
                           "type": "mrkdwn",
-                          "text": "${{ steps.stringify-commit-list.outputs.commit-list }}"
+                          "text": "${{ needs.fetch-xts-candidate.outputs.commit-list }}"
                         }
                       ]
                     }
@@ -636,17 +645,6 @@ jobs:
         uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
         with:
           egress-policy: audit
-
-      - name: JSON Stringify Commit List
-        id: stringify-commit-list
-        run: |
-          COMMIT_LIST="${{ needs.fetch-xts-candidate.outputs.commit-list }}"
-          # Escape double quotes and backslashes for JSON
-          ESCAPED_COMMIT_LIST=$(jq -Rs . <<< "${COMMIT_LIST}")
-
-          # Remove the surrounding quotes added by jq
-          ESCAPED_COMMIT_LIST=${ESCAPED_COMMIT_LIST:1:-1}
-          echo "commit-list=${ESCAPED_COMMIT_LIST}" >> "${GITHUB_OUTPUT}"
 
       - name: Checkout Code
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -772,7 +770,7 @@ jobs:
             echo "- Workflow: <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}>"
             echo "------------------------------------"
             echo "Commit List:"
-            echo "${{ needs.fetch-xts-candidate.outputs.commit-list }}"
+            echo -e "${{ needs.fetch-xts-candidate.outputs.commit-list }}"
             echo EOF
           } >> "${GITHUB_OUTPUT}"
 
@@ -933,7 +931,7 @@ jobs:
                     "fields": [
                       {
                         "type": "mrkdwn",
-                        "text": "${{ steps.stringify-commit-list.outputs.commit-list }}"
+                        "text": "${{ needs.fetch-xts-candidate.outputs.commit-list }}"
                       }
                     ]
                   }
