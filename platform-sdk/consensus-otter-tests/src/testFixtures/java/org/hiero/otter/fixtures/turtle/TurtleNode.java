@@ -40,6 +40,7 @@ import java.time.Instant;
 import java.util.Objects;
 import java.util.Random;
 import java.util.function.Consumer;
+import org.hiero.consensus.config.EventConfig;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
@@ -55,6 +56,7 @@ import org.hiero.otter.fixtures.app.OtterExecutionLayer;
 import org.hiero.otter.fixtures.app.OtterTransaction;
 import org.hiero.otter.fixtures.internal.AbstractNode;
 import org.hiero.otter.fixtures.internal.result.NodeResultsCollector;
+import org.hiero.otter.fixtures.internal.result.SingleNodeEventStreamResultImpl;
 import org.hiero.otter.fixtures.internal.result.SingleNodeMarkerFileResultImpl;
 import org.hiero.otter.fixtures.internal.result.SingleNodePcesResultImpl;
 import org.hiero.otter.fixtures.internal.result.SingleNodeReconnectResultImpl;
@@ -62,6 +64,7 @@ import org.hiero.otter.fixtures.logging.context.NodeLoggingContext;
 import org.hiero.otter.fixtures.logging.context.NodeLoggingContext.LoggingContextScope;
 import org.hiero.otter.fixtures.logging.internal.InMemorySubscriptionManager;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
+import org.hiero.otter.fixtures.result.SingleNodeEventStreamResult;
 import org.hiero.otter.fixtures.result.SingleNodeLogResult;
 import org.hiero.otter.fixtures.result.SingleNodeMarkerFileResult;
 import org.hiero.otter.fixtures.result.SingleNodePcesResult;
@@ -201,7 +204,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
             final State state = initialState.get().getState();
 
             final RosterHistory rosterHistory = RosterUtils.createRosterHistory(state);
-            final String eventStreamLoc = selfId.toString();
+            final String eventStreamLoc = Long.toString(selfId.id());
 
             this.executionLayer = new OtterExecutionLayer(
                     new Random(randotron.nextLong()), platformContext.getMetrics(), timeManager.time());
@@ -413,6 +416,18 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
     @NonNull
     public SingleNodeMarkerFileResult newMarkerFileResult() {
         return new SingleNodeMarkerFileResultImpl(resultsCollector);
+    }
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
+    public SingleNodeEventStreamResult newEventStreamResult() {
+        final Configuration currentConfiguration = configuration().current();
+        final EventConfig eventConfig = currentConfiguration.getConfigData(EventConfig.class);
+        final Path eventStreamDir = Path.of(eventConfig.eventsLogDir());
+
+        return new SingleNodeEventStreamResultImpl(selfId, eventStreamDir, currentConfiguration, newReconnectResult());
     }
 
     /**

@@ -9,6 +9,7 @@ import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
+import org.hiero.otter.fixtures.result.SingleNodeEventStreamResult;
 import org.hiero.otter.fixtures.result.SingleNodeLogResult;
 import org.hiero.otter.fixtures.result.SingleNodeMarkerFileResult;
 import org.hiero.otter.fixtures.result.SingleNodePcesResult;
@@ -254,4 +255,12 @@ public interface Node {
      */
     @NonNull
     SingleNodeMarkerFileResult newMarkerFileResult();
+
+    /**
+     * Creates a new result with all the event streams created by this node.
+     *
+     * @return the event stream results of this node
+     */
+    @NonNull
+    SingleNodeEventStreamResult newEventStreamResult();
 }
