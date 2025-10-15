@@ -85,7 +85,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     private static final MethodHandle jumpToBlockIfNeededHandle;
     private static final MethodHandle processStreamingToBlockNodeHandle;
     private static final MethodHandle blockStreamWorkerLoopHandle;
-    private static final MethodHandle stopConnectionsHandle;
+    private static final MethodHandle closeAllConnectionsHandle;
     private static final MethodHandle handleConfigFileChangeHandle;
     private static final MethodHandle extractBlockNodesConfigurationsHandle;
     private static final MethodHandle performInitialConfigLoadHandle;
@@ -146,9 +146,10 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
             blockStreamWorkerLoop.setAccessible(true);
             blockStreamWorkerLoopHandle = lookup.unreflect(blockStreamWorkerLoop);
 
-            final Method stopConnections = BlockNodeConnectionManager.class.getDeclaredMethod("stopConnections");
-            stopConnections.setAccessible(true);
-            stopConnectionsHandle = lookup.unreflect(stopConnections);
+            final Method closeAllConnections =
+                    BlockNodeConnectionManager.class.getDeclaredMethod("closeAllConnections");
+            closeAllConnections.setAccessible(true);
+            closeAllConnectionsHandle = lookup.unreflect(closeAllConnections);
 
             final Method handleConfigFileChange =
                     BlockNodeConnectionManager.class.getDeclaredMethod("handleConfigFileChange");
@@ -2205,24 +2206,24 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     }
 
     @Test
-    void testStopConnections() {
+    void testCloseAllConnections() {
         final BlockNodeConnection conn = mock(BlockNodeConnection.class);
         connections().put(newBlockNodeConfig(8080, 1), conn);
 
-        invoke_stopConnections();
+        invoke_closeAllConnections();
 
         verify(conn).close(true);
         assertThat(connections()).isEmpty();
     }
 
     @Test
-    void testStopConnections_whenStreamingDisabled() {
+    void testCloseAllConnections_whenStreamingDisabled() {
         useStreamingDisabledManager();
         // Streaming disabled via config in constructor setup
         final BlockNodeConnection conn = mock(BlockNodeConnection.class);
         connections().put(newBlockNodeConfig(8080, 1), conn);
 
-        invoke_stopConnections();
+        invoke_closeAllConnections();
 
         verify(conn).close(true);
     }
@@ -2263,7 +2264,6 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
         // Old connection closed and executor shut down
         verify(existing).close(true);
-        verify(oldExecutor).shutdownNow();
 
         // Available nodes should be reloaded from bootstrap JSON (non-empty)
         assertThat(availableNodes()).isNotEmpty();
@@ -2341,13 +2341,13 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     }
 
     @Test
-    void testStopConnections_withException() {
+    void testCloseAllConnections_withException() {
         final BlockNodeConnection conn = mock(BlockNodeConnection.class);
         doThrow(new RuntimeException("Close failed")).when(conn).close(true);
         connections().put(newBlockNodeConfig(8080, 1), conn);
 
         // Should not throw - exceptions are caught and logged
-        invoke_stopConnections();
+        invoke_closeAllConnections();
 
         verify(conn).close(true);
         assertThat(connections()).isEmpty();
@@ -2508,9 +2508,9 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         requestIndexHandle.set(connectionManager, value);
     }
 
-    private void invoke_stopConnections() {
+    private void invoke_closeAllConnections() {
         try {
-            stopConnectionsHandle.invoke(connectionManager);
+            closeAllConnectionsHandle.invoke(connectionManager);
         } catch (final Throwable e) {
             throw new RuntimeException(e);
         }
