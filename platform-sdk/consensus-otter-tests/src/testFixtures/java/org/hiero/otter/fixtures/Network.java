@@ -17,6 +17,7 @@ import org.hiero.otter.fixtures.internal.helpers.Utils;
 import org.hiero.otter.fixtures.network.Partition;
 import org.hiero.otter.fixtures.network.Topology;
 import org.hiero.otter.fixtures.result.MultipleNodeConsensusResults;
+import org.hiero.otter.fixtures.result.MultipleNodeEventStreamResults;
 import org.hiero.otter.fixtures.result.MultipleNodeLogResults;
 import org.hiero.otter.fixtures.result.MultipleNodeMarkerFileResults;
 import org.hiero.otter.fixtures.result.MultipleNodePcesResults;
@@ -392,6 +393,13 @@ public interface Network {
     MultipleNodeMarkerFileResults newMarkerFileResults();
 
     /**
+     * Creates a new result with event streams from all nodes that are currently in the network.
+     *
+     * @return the event streams results of the nodes
+     */
+    MultipleNodeEventStreamResults newEventStreamResults();
+
+    /**
      * Checks if a node is behind compared to a strong minority of the network. A node is considered behind a peer when
      * its minimum non-ancient round is older than the peer's minimum non-expired round.
      *
@@ -406,11 +414,25 @@ public interface Network {
      * when its minimum non-ancient round is older than the peer's minimum non-expired round.
      *
      * @param maybeBehindNode the node to check behind status for
-     * @param fraction the fraction of peers to consider for the behind check
+     * @return {@code true} if the node is behind by the specified fraction of peers, {@code false} otherwise
+     * @see com.swirlds.platform.gossip.shadowgraph.SyncFallenBehindStatus
+     * @see Network#nodesAreBehindByNodeCount(double, Node, Node...)
+     */
+    default boolean nodeIsBehindByNodeCount(@NonNull Node maybeBehindNode) {
+        return nodesAreBehindByNodeCount(maybeBehindNode);
+    }
+
+    /**
+     * Checks if one or more nodes are behind compared to a fraction of peers in the network. A node is considered
+     * behind a peer when its minimum non-ancient round is older than the peer's minimum non-expired round. This method
+     * will return {@code true} if all supplied nodes are behind the specified fraction of peers.
+     *
+     * @param maybeBehindNode the node to check behind status for
+     * @param otherNodes additional nodes to consider for the behind check (optional)
      * @return {@code true} if the node is behind by the specified fraction of peers, {@code false} otherwise
      * @see com.swirlds.platform.gossip.shadowgraph.SyncFallenBehindStatus
      */
-    boolean nodeIsBehindByNodeCount(@NonNull Node maybeBehindNode, double fraction);
+    boolean nodesAreBehindByNodeCount(@NonNull Node maybeBehindNode, @Nullable Node... otherNodes);
 
     /**
      * Checks if all nodes in the network are in the specified {@link PlatformStatus}.

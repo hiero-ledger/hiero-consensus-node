@@ -42,6 +42,7 @@ import java.util.Random;
 import java.util.function.Consumer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.config.EventConfig;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
@@ -57,6 +58,7 @@ import org.hiero.otter.fixtures.app.OtterExecutionLayer;
 import org.hiero.otter.fixtures.app.OtterTransaction;
 import org.hiero.otter.fixtures.internal.AbstractNode;
 import org.hiero.otter.fixtures.internal.result.NodeResultsCollector;
+import org.hiero.otter.fixtures.internal.result.SingleNodeEventStreamResultImpl;
 import org.hiero.otter.fixtures.internal.result.SingleNodeMarkerFileResultImpl;
 import org.hiero.otter.fixtures.internal.result.SingleNodePcesResultImpl;
 import org.hiero.otter.fixtures.internal.result.SingleNodeReconnectResultImpl;
@@ -64,6 +66,7 @@ import org.hiero.otter.fixtures.logging.context.NodeLoggingContext;
 import org.hiero.otter.fixtures.logging.context.NodeLoggingContext.LoggingContextScope;
 import org.hiero.otter.fixtures.logging.internal.InMemorySubscriptionManager;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
+import org.hiero.otter.fixtures.result.SingleNodeEventStreamResult;
 import org.hiero.otter.fixtures.result.SingleNodeLogResult;
 import org.hiero.otter.fixtures.result.SingleNodeMarkerFileResult;
 import org.hiero.otter.fixtures.result.SingleNodePcesResult;
@@ -215,7 +218,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
 
             final RosterHistory rosterHistory =
                     RosterUtils.createRosterHistory(initialState.get().getState());
-            final String eventStreamLoc = selfId.toString();
+            final String eventStreamLoc = Long.toString(selfId.id());
 
             this.executionLayer = new OtterExecutionLayer(
                     new Random(randotron.nextLong()), platformContext.getMetrics(), timeManager.time());
@@ -282,6 +285,12 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
         }
     }
 
+    /**
+     * {@inheritDoc}
+     * <p>This method must <emphasize>NEVER</emphasize> be called from inside the
+     * {@link org.hiero.otter.fixtures.internal.AbstractTimeManager.TimeTickReceiver#tick(Instant)} because this method
+     * requires time to pass using that method.
+     */
     @Override
     protected void doKillImmediately(@NonNull final Duration timeout) {
         try (final LoggingContextScope ignored = installNodeContext()) {
@@ -298,6 +307,11 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
             platformComponent = null;
             model = null;
             lifeCycle = SHUTDOWN;
+
+            // Wait a bit to allow a simulated gossip cycle to pass.
+            // This is important to ensure that the node receives all
+            // necessary events when/if it is restarted.
+            timeManager.waitFor(Duration.ofSeconds(1));
         }
     }
 
@@ -416,6 +430,18 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
     @NonNull
     public SingleNodeMarkerFileResult newMarkerFileResult() {
         return new SingleNodeMarkerFileResultImpl(resultsCollector);
+    }
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
+    public SingleNodeEventStreamResult newEventStreamResult() {
+        final Configuration currentConfiguration = configuration().current();
+        final EventConfig eventConfig = currentConfiguration.getConfigData(EventConfig.class);
+        final Path eventStreamDir = Path.of(eventConfig.eventsLogDir());
+
+        return new SingleNodeEventStreamResultImpl(selfId, eventStreamDir, currentConfiguration, newReconnectResult());
     }
 
     /**
