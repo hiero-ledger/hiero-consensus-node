@@ -82,7 +82,7 @@ message BlockProof {
      * This value SHOULD match the block number of the current block,
      * under normal operation.
      */
-    uint64 block = 1 [deprecated = true];
+    uint64 block = 1;
 
     /**
      * A block root hash for the previous block.
@@ -227,17 +227,33 @@ message BlockProof {
      */
     ChainOfTrustProof verification_key_proof = 7;
 
-    oneof proof {
-        TssSignedBlockProof signed_block_proof = 8;
-//        StateProof block_state_proof = 9;
-        SignedRecordFileProof signed_record_file_proof = 10;
-    }
+    /**
+     * TODO
+     */
+    StateProof state_proof = 8;
 }
 
+/**
+ * TODO
+ */
+message StateProof {
+//  repeated MerklePath paths = 1;
+  oneof proof {
+    TssSignedBlockProof signed_block_proof = 2;
+    SignedRecordFileProof signed_record_file_proof = 3;
+  }
+}
+
+/**
+ * TODO
+ */
 message TssSignedBlockProof {
     bytes block_signature = 1;
 }
 
+/**
+ * TODO
+ */
 message SignedRecordFileProof {
     /**
      * A collection of RSA signatures from consensus nodes.<br/>
