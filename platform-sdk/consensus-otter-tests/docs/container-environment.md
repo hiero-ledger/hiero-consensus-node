@@ -7,11 +7,11 @@ Comprehensive guide to Docker-based testing with the Container environment for r
 - [🎯 Overview](#-overview)
 - [🏗️ Network and Node Management](#-network-and-node-management)
 - [🐳 Docker Integration](#-docker-integration)
-    - [Image Building](#image-building)
-    - [Container Startup Process](#container-startup-process)
-    - [gRPC Protocol](#grpc-protocol)
-    - [Event Streaming Flow](#event-streaming-flow)
-    - [Debugging Container Tests](#debugging-container-tests)
+  - [Image Building](#image-building)
+  - [Container Startup Process](#container-startup-process)
+  - [gRPC Protocol](#grpc-protocol)
+  - [Event Streaming Flow](#event-streaming-flow)
+  - [Debugging Container Tests](#debugging-container-tests)
 
 ## 🎯 Overview
 
@@ -467,7 +467,7 @@ etc.). Please note that you cannot attach the debugger until the node has been s
 
 ## 🔗 Related Documentation
 
-| Guide                                                | Description               |
+|                        Guide                         |        Description        |
 |------------------------------------------------------|---------------------------|
 | [🏁 Getting Started](getting-started.md)             | Setup and your first test |
 | [🏛️ Architecture](architecture.md)                  | Framework design overview |
