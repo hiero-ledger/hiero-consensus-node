@@ -523,9 +523,9 @@ tasks:
           SOLO_HOME_DIR=${SOLO_HOME_DIR} npm run solo-test -- deployment add-cluster --deployment ${EXPLORER_DEPLOYMENT} --cluster-ref ${EXPLORER_CLUSTER_CONTEXT} --num-consensus-nodes ${SOLO_NETWORK_SIZE}
 
           if [[ "{{ .solo_ge_0440 }}" == "true" ]]; then
-            solo explorer node add --deployment "${EXPLORER_DEPLOYMENT}" --cluster-ref ${EXPLORER_CLUSTER_CONTEXT} --mirrorNamespace ${SOLO_NAMESPACE} ${SOLO_CHARTS_DIR_FLAG} ${EXPLORER_DEPLOY_EXTRA_FLAGS}  ${ENABLE_EXPLORER_TLS_FLAG} ${TLS_CLUSTER_ISSUER_TYPE_FLAG} ${ENABLE_EXPLORER_INGRESS} -q --dev
+            solo explorer node add --deployment "${EXPLORER_DEPLOYMENT}" --cluster-ref ${EXPLORER_CLUSTER_CONTEXT} --mirrorNamespace ${SOLO_NAMESPACE} ${SOLO_CHARTS_DIR_FLAG} ${EXPLORER_DEPLOY_EXTRA_FLAGS} ${ENABLE_EXPLORER_TLS_FLAG} ${TLS_CLUSTER_ISSUER_TYPE_FLAG} ${ENABLE_EXPLORER_INGRESS} -q --dev
           else
-            solo explorer deploy --deployment "${EXPLORER_DEPLOYMENT}" --cluster-ref ${EXPLORER_CLUSTER_CONTEXT} --mirrorNamespace ${SOLO_NAMESPACE} ${SOLO_CHARTS_DIR_FLAG} ${EXPLORER_DEPLOY_EXTRA_FLAGS}  ${ENABLE_EXPLORER_TLS_FLAG} ${TLS_CLUSTER_ISSUER_TYPE_FLAG} ${ENABLE_EXPLORER_INGRESS} -q --dev
+            solo explorer deploy --deployment "${EXPLORER_DEPLOYMENT}" --cluster-ref ${EXPLORER_CLUSTER_CONTEXT} --mirrorNamespace ${SOLO_NAMESPACE} ${SOLO_CHARTS_DIR_FLAG} ${EXPLORER_DEPLOY_EXTRA_FLAGS} ${ENABLE_EXPLORER_TLS_FLAG} ${TLS_CLUSTER_ISSUER_TYPE_FLAG} ${ENABLE_EXPLORER_INGRESS} -q --dev
           fi
           export EXPLORER_DEPLOYED_NAME_SPACE=${EXPLORER_NAME_SPACE}
         else
