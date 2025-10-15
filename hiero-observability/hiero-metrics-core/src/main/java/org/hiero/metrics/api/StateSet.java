@@ -92,7 +92,7 @@ public interface StateSet<E extends Enum<E>> extends StatefulMetric<List<E>, Sta
         @NonNull
         @Override
         protected StateSet<E> buildMetric() {
-            withUnit(null); // StateSet does not have a unit
+            withoutUnit(); // StateSet does not have a unit
 
             // state set must not have a label as metric name
             for (String dynamicLabelName : getDynamicLabelNames()) {

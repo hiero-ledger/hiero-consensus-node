@@ -23,7 +23,7 @@ public final class AtomicLongCounterDataPoint extends AbstractLongCounterDataPoi
 
     @Override
     protected void safeIncrement(long value) {
-        container.addAndGet(value);
+        container.getAndAdd(value);
     }
 
     @Override
