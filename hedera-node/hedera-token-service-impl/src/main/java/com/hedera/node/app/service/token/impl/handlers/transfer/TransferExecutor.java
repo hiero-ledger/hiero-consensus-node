@@ -2,6 +2,7 @@
 package com.hedera.node.app.service.token.impl.handlers.transfer;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_HOOK_CALL;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TOKEN_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSFER_ACCOUNT_ID;
 import static com.hedera.hapi.util.HapiUtils.isHollow;
@@ -12,7 +13,6 @@ import static com.hedera.node.app.service.token.impl.handlers.transfer.TransferE
 import static com.hedera.node.app.service.token.impl.handlers.transfer.TransferExecutor.OptionalKeyCheck.RECEIVER_KEY_IS_REQUIRED;
 import static com.hedera.node.app.service.token.impl.util.CryptoTransferValidationHelper.checkReceiver;
 import static com.hedera.node.app.service.token.impl.util.CryptoTransferValidationHelper.checkSender;
-import static com.hedera.node.app.service.token.impl.validators.CryptoTransferValidator.hasHooks;
 import static com.hedera.node.app.spi.validation.Validations.validateAccountID;
 
 import com.hedera.hapi.node.base.AccountAmount;
@@ -27,6 +27,7 @@ import com.hedera.hapi.node.base.TransferList;
 import com.hedera.hapi.node.hooks.HookExecution;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.node.app.hapi.utils.contracts.HookUtils;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.ReadableTokenStore;
 import com.hedera.node.app.service.token.impl.handlers.BaseTokenHandler;
@@ -160,7 +161,7 @@ public class TransferExecutor extends BaseTokenHandler {
             txns = customFeeStep.assessCustomFees(transferContext);
         }
 
-        final var hasHooks = hasHooks(replacedOp);
+        final var hasHooks = HookUtils.hasHooks(replacedOp);
         HookCalls hookCalls = null;
 
         if (hasHooks) {
@@ -326,6 +327,13 @@ public class TransferExecutor extends BaseTokenHandler {
             final HandleContext handleContext,
             com.esaulpaugh.headlong.abi.Function function) {
         for (final var hookInvocation : hookInvocations) {
+            byte[] calldata;
+            try {
+                calldata = HooksABI.encode(hookInvocation, hookContext, function);
+            } catch (Exception e) {
+                throw new HandleException(INVALID_HOOK_CALL);
+            }
+
             final HookExecution execution = HookExecution.newBuilder()
                     .hookEntityId(HookEntityId.newBuilder()
                             .accountId(hookInvocation.ownerId())
@@ -333,7 +341,7 @@ public class TransferExecutor extends BaseTokenHandler {
                     .call(HookCall.newBuilder()
                             .evmHookCall(EvmHookCall.newBuilder()
                                     .gasLimit(hookInvocation.gasLimit())
-                                    .data(Bytes.wrap(HooksABI.encode(hookInvocation, hookContext, function)))
+                                    .data(Bytes.wrap(calldata))
                                     .build())
                             .hookId(hookInvocation.hookId())
                             .build())

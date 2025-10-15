@@ -117,18 +117,20 @@ public abstract class AbstractNetwork implements Network {
     private final Random random;
     private final Map<NodeId, PartitionImpl> networkPartitions = new HashMap<>();
     private final Topology topology;
+    private final boolean useRandomNodeIds;
 
     protected Lifecycle lifecycle = Lifecycle.INIT;
-    protected WeightGenerator weightGenerator = WeightGenerators.GAUSSIAN;
+    protected WeightGenerator weightGenerator = WeightGenerators.REAL_NETWORK_GAUSSIAN;
 
     @Nullable
     private PartitionImpl remainingNetworkPartition;
 
     private NodeId nextNodeId = NodeId.FIRST_NODE_ID;
 
-    protected AbstractNetwork(@NonNull final Random random) {
+    protected AbstractNetwork(@NonNull final Random random, final boolean useRandomNodeIds) {
         this.random = requireNonNull(random);
         this.topology = new GeoMeshTopologyImpl(random, this::createNodes, this::createInstrumentedNode);
+        this.useRandomNodeIds = useRandomNodeIds;
     }
 
     /**
@@ -241,8 +243,9 @@ public abstract class AbstractNetwork implements Network {
     @NonNull
     private NodeId getNextNodeId() {
         final NodeId nextId = nextNodeId;
-        // randomly advance between 1 and 3 steps
-        final int randomAdvance = random.nextInt(3);
+        // If enabled, advance by a random number of steps between 1 and 3
+        final int randomAdvance = (useRandomNodeIds) ? random.nextInt(3) : 0;
+
         nextNodeId = nextNodeId.getOffset(randomAdvance + 1L);
         return nextId;
     }
@@ -348,6 +351,7 @@ public abstract class AbstractNetwork implements Network {
     @Override
     @NonNull
     public Partition createNetworkPartition(@NonNull final Collection<Node> partitionNodes) {
+        log.info("Creating network partition...");
         if (partitionNodes.isEmpty()) {
             throw new IllegalArgumentException("Cannot create a partition with no nodes.");
         }
@@ -372,6 +376,7 @@ public abstract class AbstractNetwork implements Network {
             }
         }
         updateConnections();
+        log.info("Network partition created.");
         return partition;
     }
 
@@ -380,6 +385,7 @@ public abstract class AbstractNetwork implements Network {
      */
     @Override
     public void removePartition(@NonNull final Partition partition) {
+        log.info("Removing network partition...");
         final Set<Partition> allPartitions = networkPartitions();
         if (!allPartitions.contains(partition)) {
             throw new IllegalArgumentException("Partition does not exist in the network: " + partition);
@@ -396,6 +402,7 @@ public abstract class AbstractNetwork implements Network {
             }
         }
         updateConnections();
+        log.info("Network partition removed.");
     }
 
     /**
@@ -771,6 +778,11 @@ public abstract class AbstractNetwork implements Network {
             allNodesAreBehind &= (numNodesAhead / (1.0 * peerNodes.size())) >= BEHIND_FRACTION;
         }
         return allNodesAreBehind;
+    }
+
+    @Override
+    public void savedStateDirectory(@NonNull final Path savedStateDirectory) {
+        nodes().forEach(node -> node.startFromSavedState(savedStateDirectory));
     }
 
     /**

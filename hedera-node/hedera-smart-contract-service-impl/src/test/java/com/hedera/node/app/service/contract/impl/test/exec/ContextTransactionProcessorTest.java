@@ -307,8 +307,8 @@ class ContextTransactionProcessorTest {
         given(context.payer()).willReturn(payer);
         given(hevmTransactionFactory.fromHapiTransaction(transactionBody, payer))
                 .willReturn(HEVM_Exception);
-        given(transactionBody.transactionIDOrThrow()).willReturn(transactionID);
-        given(transactionID.accountIDOrThrow()).willReturn(SENDER_ID);
+        given(transactionBody.transactionIDOrElse(TransactionID.DEFAULT)).willReturn(transactionID);
+        given(transactionID.accountIDOrElse(AccountID.DEFAULT)).willReturn(SENDER_ID);
 
         final var outcome = subject.call();
 
@@ -338,8 +338,8 @@ class ContextTransactionProcessorTest {
         given(context.payer()).willReturn(RELAYER_ID);
         given(hevmTransactionFactory.fromHapiTransaction(transactionBody, RELAYER_ID))
                 .willReturn(HEVM_OversizeException);
-        given(transactionBody.transactionIDOrThrow()).willReturn(transactionID);
-        given(transactionID.accountIDOrThrow()).willReturn(RELAYER_ID);
+        given(transactionBody.transactionIDOrElse(TransactionID.DEFAULT)).willReturn(transactionID);
+        given(transactionID.accountIDOrElse(AccountID.DEFAULT)).willReturn(RELAYER_ID);
 
         final var outcome = subject.call();
 
@@ -370,8 +370,8 @@ class ContextTransactionProcessorTest {
         given(context.payer()).willReturn(payer);
         given(hevmTransactionFactory.fromHapiTransaction(transactionBody, payer))
                 .willReturn(HEVM_Exception);
-        given(transactionBody.transactionIDOrThrow()).willReturn(transactionID);
-        given(transactionID.accountIDOrThrow()).willReturn(SENDER_ID);
+        given(transactionBody.transactionIDOrElse(TransactionID.DEFAULT)).willReturn(transactionID);
+        given(transactionID.accountIDOrElse(AccountID.DEFAULT)).willReturn(SENDER_ID);
 
         final var outcome = subject.call();
 
@@ -403,8 +403,8 @@ class ContextTransactionProcessorTest {
         given(hevmTransactionFactory.fromHapiTransaction(transactionBody, payer))
                 .willThrow(new HandleException(INVALID_CONTRACT_ID));
         given(hevmTransactionFactory.fromContractTxException(any(), any())).willReturn(HEVM_Exception);
-        given(transactionBody.transactionIDOrThrow()).willReturn(transactionID);
-        given(transactionID.accountIDOrThrow()).willReturn(SENDER_ID);
+        given(transactionBody.transactionIDOrElse(TransactionID.DEFAULT)).willReturn(transactionID);
+        given(transactionID.accountIDOrElse(AccountID.DEFAULT)).willReturn(SENDER_ID);
 
         final var outcome = subject.call();
 
@@ -438,8 +438,8 @@ class ContextTransactionProcessorTest {
         given(hevmTransactionFactory.fromHapiTransaction(transactionBody, payer))
                 .willThrow(new HandleException(INVALID_CONTRACT_ID));
         given(hevmTransactionFactory.fromContractTxException(any(), any())).willReturn(HEVM_Exception);
-        given(transactionBody.transactionIDOrThrow()).willReturn(transactionID);
-        given(transactionID.accountIDOrThrow()).willReturn(SENDER_ID);
+        given(transactionBody.transactionIDOrElse(TransactionID.DEFAULT)).willReturn(transactionID);
+        given(transactionID.accountIDOrElse(AccountID.DEFAULT)).willReturn(SENDER_ID);
 
         final var outcome = subject.call();
 
@@ -469,8 +469,8 @@ class ContextTransactionProcessorTest {
 
         given(context.body()).willReturn(transactionBody);
         given(context.payer()).willReturn(SENDER_ID);
-        given(transactionBody.transactionIDOrThrow()).willReturn(transactionID);
-        given(transactionID.accountIDOrThrow()).willReturn(SENDER_ID);
+        given(transactionBody.transactionIDOrElse(TransactionID.DEFAULT)).willReturn(transactionID);
+        given(transactionID.accountIDOrElse(AccountID.DEFAULT)).willReturn(SENDER_ID);
         given(hevmTransactionFactory.fromHapiTransaction(transactionBody, SENDER_ID))
                 .willThrow(new HandleException(INVALID_CONTRACT_ID));
         given(hevmTransactionFactory.fromContractTxException(any(), any())).willReturn(HEVM_Exception);
