@@ -215,6 +215,7 @@ public class BlockNodeSoftwareUpgradeSuite implements LifecycleTest {
                         Duration.ofMinutes(2),
                         Duration.ofSeconds(2),
                         "Enabling gRPC Block Node streaming as the network properties have changed writerMode from FILE to FILE_AND_GRPC",
+                        "Current streaming block number is",
                         String.format(
                                 "/localhost:%s/ACTIVE] Connection state transitioned from PENDING to ACTIVE.",
                                 portNumbers.getFirst()))),

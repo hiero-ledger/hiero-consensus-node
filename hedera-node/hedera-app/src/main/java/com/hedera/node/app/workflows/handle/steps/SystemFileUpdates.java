@@ -25,12 +25,11 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.concurrent.CompletableFuture;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-
-import java.util.concurrent.CompletableFuture;
 
 /**
  * Simple facility that notifies interested parties when a special file is updated.
