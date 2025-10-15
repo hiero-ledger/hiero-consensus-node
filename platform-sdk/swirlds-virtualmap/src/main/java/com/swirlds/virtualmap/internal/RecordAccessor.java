@@ -110,6 +110,7 @@ public final class RecordAccessor {
      * 		If we fail to access the data store, then a catastrophic error occurred and
      * 		an UncheckedIOException is thrown.
      */
+    @Nullable
     public VirtualLeafBytes findLeafRecord(final @NonNull Bytes key) {
         VirtualLeafBytes rec = cache.lookupLeafByKey(key);
         if (rec == null) {

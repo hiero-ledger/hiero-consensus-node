@@ -823,15 +823,13 @@ public abstract class VirtualMapState<T extends VirtualMapState<T>> implements M
 
         for (long i = queueState.head(); i < queueState.tail(); i++) {
             final Bytes stateKey = StateUtils.getStateKeyForQueue(stateId, i);
-            long path = virtualMap.getRecords().findPath(stateKey);
-            if (path == INVALID_PATH) {
+            VirtualLeafBytes<?> leafRecord = virtualMap.getRecords().findLeafRecord(stateKey);
+            if (leafRecord == null) {
                 continue;
             }
-            VirtualLeafBytes<?> leafRecord = virtualMap.getRecords().findLeafRecord(path);
-            assert leafRecord != null;
             Bytes actualValue = StateValue.StateValueCodec.unwrap(leafRecord.valueBytes());
             if (actualValue.equals(expectedValue)) {
-                return path;
+                return leafRecord.path();
             }
         }
 
