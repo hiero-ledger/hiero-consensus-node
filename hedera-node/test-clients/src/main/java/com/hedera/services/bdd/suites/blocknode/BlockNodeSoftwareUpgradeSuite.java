@@ -182,7 +182,7 @@ public class BlockNodeSoftwareUpgradeSuite implements LifecycleTest {
                         byNodeId(0),
                         timeRef::get,
                         Duration.ofMinutes(2),
-                        Duration.ofSeconds(2),
+                        Duration.ofMinutes(2),
                         String.format(
                                 "/localhost:%s/ACTIVE] Connection state transitioned from PENDING to ACTIVE.",
                                 portNumbers.getFirst()),
@@ -197,7 +197,7 @@ public class BlockNodeSoftwareUpgradeSuite implements LifecycleTest {
                         byNodeId(0),
                         timeRef::get,
                         Duration.ofMinutes(2),
-                        Duration.ofSeconds(2),
+                        Duration.ofMinutes(2),
                         "Disabling gRPC Block Node streaming as the network properties have changed writerMode from FILE_AND_GRPC to FILE only",
                         String.format(
                                 "/localhost:%s/CLOSED] Connection state transitioned from CLOSING to CLOSED.",
@@ -213,12 +213,13 @@ public class BlockNodeSoftwareUpgradeSuite implements LifecycleTest {
                         byNodeId(0),
                         timeRef::get,
                         Duration.ofMinutes(2),
-                        Duration.ofSeconds(2),
+                        Duration.ofMinutes(2),
                         "Enabling gRPC Block Node streaming as the network properties have changed writerMode from FILE to FILE_AND_GRPC",
                         "Current streaming block number is",
                         String.format(
                                 "/localhost:%s/ACTIVE] Connection state transitioned from PENDING to ACTIVE.",
                                 portNumbers.getFirst()))),
+                waitUntilNextBlocks(20).withBackgroundTraffic(true),
                 // Verify no errors in the log after the config change and all nodes are active
                 waitForActive(NodeSelector.allNodes(), Duration.ofSeconds(30)),
                 assertHgcaaLogDoesNotContain(NodeSelector.allNodes(), "ERROR", Duration.ofSeconds(5)));

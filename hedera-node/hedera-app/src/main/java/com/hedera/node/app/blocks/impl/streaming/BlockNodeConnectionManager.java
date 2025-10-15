@@ -562,7 +562,7 @@ public class BlockNodeConnectionManager {
         }
         logWithContext(DEBUG, "Shutting down block node connection manager.");
 
-        // Stop config watcher
+        // If writerMode is FILE stop config watcher and block buffer service
         stopConfigWatcher();
 
         // Shutdown the block buffer
@@ -573,9 +573,19 @@ public class BlockNodeConnectionManager {
             sharedExecutorService.shutdownNow();
         }
 
-        // Stop the block stream worker loop thread
         shutdownBlockStreamWorkerThread();
+        closeAllConnections();
+        clearManagerMetadata();
+    }
 
+    private void clearManagerMetadata() {
+        streamingBlockNumber.set(-1);
+        requestIndex = 0;
+        activeConnectionRef.set(null);
+        nodeStats.clear();
+    }
+
+    private void closeAllConnections() {
         // Close all connections
         final Iterator<Map.Entry<BlockNodeConfig, BlockNodeConnection>> it =
                 connections.entrySet().iterator();
@@ -593,12 +603,6 @@ public class BlockNodeConnectionManager {
             }
             it.remove();
         }
-
-        // clear metadata
-        streamingBlockNumber.set(-1);
-        requestIndex = 0;
-        activeConnectionRef.set(null);
-        nodeStats.clear();
     }
 
     private void shutdownBlockStreamWorkerThread() {
@@ -613,34 +617,6 @@ public class BlockNodeConnectionManager {
             }
         }
         blockStreamWorkerThreadRef.set(null);
-    }
-
-    /**
-     * Stops only the connection processing and active connections, without shutting down the block buffer
-     * or the configuration watcher. Intended for dynamic reconfiguration when the configuration file changes.
-     */
-    private void stopConnections() {
-        logWithContext(INFO, "Stopping block node connections.");
-
-        // Close all connections
-        final Iterator<Map.Entry<BlockNodeConfig, BlockNodeConnection>> it =
-                connections.entrySet().iterator();
-        while (it.hasNext()) {
-            final Map.Entry<BlockNodeConfig, BlockNodeConnection> entry = it.next();
-            final BlockNodeConnection connection = entry.getValue();
-            try {
-                connection.close(true);
-            } catch (final RuntimeException e) {
-                logWithContext(
-                        DEBUG, "Error while closing connection during stopConnections. Ignoring.", connection, e);
-            }
-            it.remove();
-        }
-
-        // clear metadata
-        streamingBlockNumber.set(-1);
-        requestIndex = 0;
-        activeConnectionRef.set(null);
     }
 
     /**
@@ -664,26 +640,27 @@ public class BlockNodeConnectionManager {
         // Start a watcher to monitor changes to the block-nodes.json file for dynamic updates
         startConfigWatcher();
 
-        // Determine if we have a node to connect to before starting worker thread
-        final BlockNodeConfig selectedNode = getNextPriorityBlockNode();
-        if (selectedNode == null) {
-            logWithContext(INFO, "No block nodes available to connect to. Waiting for configuration updates.");
-            return;
-        }
-
         // Create a Single-threaded executor for sharedExecutorService
-        logWithContext(DEBUG, "Creating scheduled executor service for the Block Node connection manager.");
-        sharedExecutorService = Executors.newSingleThreadScheduledExecutor();
+        createScheduledExectorService();
 
         // Start worker thread if not already running
+        startBlockStreamWorkerThread();
+
+        // Schedule connection attempt to the selected node
+        selectNewBlockNodeForStreaming(false);
+    }
+
+    private void startBlockStreamWorkerThread() {
         if (blockStreamWorkerThreadRef.get() == null) {
             logWithContext(DEBUG, "Starting block stream worker loop thread.");
             final Thread t = Thread.ofPlatform().name("BlockStreamWorkerLoop").start(this::blockStreamWorkerLoop);
             blockStreamWorkerThreadRef.set(t);
         }
+    }
 
-        // Schedule connection attempt to the selected node
-        scheduleConnectionAttempt(selectedNode, Duration.ZERO, null, false);
+    private void createScheduledExectorService() {
+        logWithContext(DEBUG, "Creating scheduled executor service for the Block Node connection manager.");
+        sharedExecutorService = Executors.newSingleThreadScheduledExecutor();
     }
 
     /**
@@ -1028,19 +1005,9 @@ public class BlockNodeConnectionManager {
             }
         }
 
-        logWithContext(DEBUG, "Shutting down block stream worker thread for config reload.");
-        // Shutdown the block stream worker thread
         shutdownBlockStreamWorkerThread();
-        logWithContext(DEBUG, "Block stream worker thread is shutdown.");
-
-        // Shutdown the executor service for BlockNodeConnectionTask's
-        if (sharedExecutorService != null) {
-            logWithContext(DEBUG, "Shutting down existing scheduled executor service for config reload.");
-            sharedExecutorService.shutdownNow();
-        }
-
-        // Stop connections immediately to avoid streaming with stale configs
-        stopConnections();
+        closeAllConnections();
+        clearManagerMetadata();
 
         synchronized (availableBlockNodes) {
             availableBlockNodes.clear();
@@ -1049,7 +1016,9 @@ public class BlockNodeConnectionManager {
 
         if (!newConfigs.isEmpty()) {
             logWithContext(INFO, "Reloaded block node configurations ({})", newConfigs);
+
             start();
+            selectNewBlockNodeForStreaming(false);
         } else {
             logWithContext(
                     INFO,

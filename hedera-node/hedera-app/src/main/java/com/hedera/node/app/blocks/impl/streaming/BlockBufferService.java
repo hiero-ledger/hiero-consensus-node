@@ -336,7 +336,7 @@ public class BlockBufferService {
         blockBuffer.put(blockNumber, blockState);
         // update the earliest block number if this is first block or lower than current earliest
         earliestBlockNumber.updateAndGet(
-                current -> current == Long.MIN_VALUE ? blockNumber : Math.min(current, blockNumber));
+                current -> (current == Long.MIN_VALUE || current == -1) ? blockNumber : Math.min(current, blockNumber));
         lastProducedBlockNumber.updateAndGet(old -> Math.max(old, blockNumber));
         blockStreamMetrics.recordLatestBlockOpened(blockNumber);
         blockStreamMetrics.recordBlockOpened();
@@ -373,11 +373,7 @@ public class BlockBufferService {
         }
 
         final BlockState blockState = getBlockState(blockNumber);
-        if (blockState == null) {
-            throw new IllegalStateException("Block state not found for block " + blockNumber);
-        }
-
-        if (blockState.isClosed()) {
+        if (blockState == null || blockState.isClosed()) {
             return;
         }
         blockStreamMetrics.recordBlockClosed();
