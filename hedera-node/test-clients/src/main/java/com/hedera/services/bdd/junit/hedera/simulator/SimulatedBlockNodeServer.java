@@ -401,17 +401,6 @@ public class SimulatedBlockNodeServer {
                                         return;
                                     }
 
-                                    // Set the current block number being processed by THIS stream instance
-                                    currentBlockNumber = blockNumber;
-                                    // Start capturing items for this block if not already
-                                    blockItemsByNumber.computeIfAbsent(blockNumber, k -> new ArrayList<>());
-                                    blockItemsByNumber.get(blockNumber).add(item);
-                                    log.info(
-                                            "Received BlockHeader for block {} on port {} from stream {}",
-                                            blockNumber,
-                                            port,
-                                            replies.hashCode());
-
                                     // Requirement 3: Check if block already exists (header AND proof received)
                                     if (blocksWithProofs.contains(blockNumber)) {
                                         log.warn(
@@ -448,8 +437,22 @@ public class SimulatedBlockNodeServer {
                                     }
 
                                     // If block doesn't exist and no one else is streaming it, mark it as
-                                    // header-received
-                                    // and associate this stream with it.
+                                    // header-received and associate this stream with it.
+
+                                    // Set the current block number being processed by THIS stream instance
+                                    currentBlockNumber = blockNumber;
+
+                                    // Start capturing items for this block - replace any incomplete previous attempt
+                                    // (e.g., from before a CN restart). This ensures a clean slate for the block.
+                                    final List<BlockItem> blockItems = new ArrayList<>();
+                                    blockItems.add(item);
+                                    blockItemsByNumber.put(blockNumber, blockItems);
+
+                                    // Clear any stale state for this block from incomplete previous attempts
+                                    sealedBlocks.remove(blockNumber);
+                                    blocksWithHeadersOnly.remove(blockNumber);
+
+                                    // Now mark as header-received and associate with this stream
                                     blocksWithHeadersOnly.add(blockNumber);
                                     streamingBlocks.put(blockNumber, replies);
                                     log.info(
