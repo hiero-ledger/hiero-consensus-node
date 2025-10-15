@@ -130,6 +130,8 @@ public class SystemTransactions {
 
     private static final Logger log = LogManager.getLogger(SystemTransactions.class);
 
+    private static final AccountID SENTINEL_NODE_ACCOUNT_ID =
+            AccountID.newBuilder().shardNum(0).realmNum(0).accountNum(0L).build();
     private static final int DEFAULT_GENESIS_WEIGHT = 500;
     private static final long FIRST_RESERVED_SYSTEM_CONTRACT = 350L;
     private static final long LAST_RESERVED_SYSTEM_CONTRACT = 399L;
@@ -520,6 +522,7 @@ public class SystemTransactions {
                 .map(id -> systemContext.networkInfo().nodeInfo(id))
                 .filter(nodeInfo -> nodeInfo != null && !nodeInfo.declineReward())
                 .map(NodeInfo::accountId)
+                .filter(accountID -> !accountID.equals(SENTINEL_NODE_ACCOUNT_ID))
                 .toList();
         final var inactiveNodeAccountIds = rosterEntries.stream()
                 .map(RosterEntry::nodeId)

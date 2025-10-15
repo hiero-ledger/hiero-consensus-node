@@ -131,7 +131,6 @@ public record ValidationResult(
     @NonNull
     public static ValidationResult newSuccess(@NonNull final AccountID creatorId, @Nullable final Account payer) {
         requireNonNull(creatorId);
-        requireNonNull(payer);
         return new ValidationResult(creatorId, null, payer, null, CAN_PAY_SERVICE_FEE, NO_DUPLICATE);
     }
 
