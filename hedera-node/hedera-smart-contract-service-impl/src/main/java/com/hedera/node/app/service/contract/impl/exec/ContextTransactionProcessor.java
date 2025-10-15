@@ -126,7 +126,7 @@ public class ContextTransactionProcessor implements Callable<CallOutcome> {
                         requireNonNull(hevmTransaction.exception()).getStatus());
                 outcome = CallOutcome.fromResultsWithoutSidecars(
                         result.asProtoResultOf(null, rootProxyWorldUpdater, null),
-                        result.asEvmTxResultOf(null, null),
+                        result.asEvmTxResultOf(null, rootProxyWorldUpdater, null),
                         null,
                         null,
                         null,

@@ -236,7 +236,8 @@ class BlockItemsTranslatorTest {
                 null,
                 null,
                 Bytes.EMPTY,
-                null, false);
+                null,
+                false);
 
         final var actualReceipt = BLOCK_ITEMS_TRANSLATOR.translateReceipt(context, TRANSACTION_RESULT);
         assertEquals(EXPECTED_BASE_RECEIPT.copyBuilder().contractID(CONTRACT_ID).build(), actualReceipt);
@@ -416,7 +417,8 @@ class BlockItemsTranslatorTest {
                 null,
                 null,
                 Bytes.EMPTY,
-                null, false);
+                null,
+                false);
 
         final var actualRecordNoOutput = BLOCK_ITEMS_TRANSLATOR.translateRecord(context, TRANSACTION_RESULT, null);
         assertEquals(
@@ -462,7 +464,8 @@ class BlockItemsTranslatorTest {
                 null,
                 null,
                 Bytes.EMPTY,
-                null, false);
+                null,
+                false);
 
         final var actualRecordNoOutput = BLOCK_ITEMS_TRANSLATOR.translateRecord(context, TRANSACTION_RESULT, null);
         assertEquals(
@@ -509,7 +512,8 @@ class BlockItemsTranslatorTest {
                 null,
                 null,
                 Bytes.EMPTY,
-                null, false);
+                null,
+                false);
 
         final var actualRecordNoOutput = BLOCK_ITEMS_TRANSLATOR.translateRecord(context, TRANSACTION_RESULT, null);
         assertEquals(
@@ -557,7 +561,8 @@ class BlockItemsTranslatorTest {
                 null,
                 null,
                 ETH_HASH,
-                null, false);
+                null,
+                false);
 
         final var actualRecordNoOutput = BLOCK_ITEMS_TRANSLATOR.translateRecord(context, TRANSACTION_RESULT, null);
         assertEquals(
@@ -606,7 +611,8 @@ class BlockItemsTranslatorTest {
                 null,
                 null,
                 ETH_HASH,
-                null, true);
+                null,
+                true);
 
         final var actualRecordNoOutput = BLOCK_ITEMS_TRANSLATOR.translateRecord(context, TRANSACTION_RESULT, null);
         assertEquals(
