@@ -247,7 +247,7 @@ tasks:
         if [[ "${CONSENSUS_NODE_VERSION}" != "" ]]; then
           export CONSENSUS_NODE_FLAG='--release-tag {{.CONSENSUS_NODE_VERSION}}'
         fi
-        if [[ "{{ .solo_ge_0440 }}" ]]; then
+        if [[ "{{ .solo_ge_0440 }}" == "true" ]]; then
           SOLO_HOME_DIR=${SOLO_HOME_DIR} solo consensus network deploy --deployment "${SOLO_DEPLOYMENT}" --node-aliases {{.node_identifiers}} ${CONSENSUS_NODE_FLAG} ${VALUES_FLAG} ${SETTINGS_FLAG} ${LOG4J2_FLAG} ${APPLICATION_PROPERTIES_FLAG} ${GENESIS_THROTTLES_FLAG} ${DEBUG_NODE_FLAG} ${SOLO_CHARTS_DIR_FLAG} ${LOAD_BALANCER_FLAG} ${NETWORK_DEPLOY_EXTRA_FLAGS} -q --dev
         else
           SOLO_HOME_DIR=${SOLO_HOME_DIR} solo network deploy --deployment "${SOLO_DEPLOYMENT}" --node-aliases {{.node_identifiers}} ${CONSENSUS_NODE_FLAG} ${VALUES_FLAG} ${SETTINGS_FLAG} ${LOG4J2_FLAG} ${APPLICATION_PROPERTIES_FLAG} ${GENESIS_THROTTLES_FLAG} ${DEBUG_NODE_FLAG} ${SOLO_CHARTS_DIR_FLAG} ${LOAD_BALANCER_FLAG} ${NETWORK_DEPLOY_EXTRA_FLAGS} -q --dev
@@ -448,7 +448,12 @@ tasks:
   solo:node:logs:
     silent: true
     cmds:
-      - SOLO_HOME_DIR=${SOLO_HOME_DIR} solo consensus diagnostics all --deployment "${SOLO_DEPLOYMENT}" -q --dev
+      - |
+        if [[ "{{ .solo_ge_0440 }}"  == "true" ]]; then
+          SOLO_HOME_DIR=${SOLO_HOME_DIR} solo consensus diagnostics all --deployment "${SOLO_DEPLOYMENT}" -q --dev
+        else
+          SOLO_HOME_DIR=${SOLO_HOME_DIR} solo node logs --deployment "${SOLO_DEPLOYMENT}" -q --dev
+        fi
 
   start:
     desc: solo node start
@@ -495,6 +500,7 @@ tasks:
     cmds:
       - |
         if [[ "{{ .solo_ge_0440 }}" == "true" ]]; then
+          SOLO_HOME_DIR=${SOLO_HOME_DIR} solo mirror node add --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} ${SOLO_CHARTS_DIR_FLAG} ${MIRROR_NODE_DEPLOY_EXTRA_FLAGS} ${ENABLE_MIRROR_INGRESS} --pinger -q --dev
         else
           SOLO_HOME_DIR=${SOLO_HOME_DIR} solo mirror-node deploy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} ${SOLO_CHARTS_DIR_FLAG} ${MIRROR_NODE_DEPLOY_EXTRA_FLAGS} ${ENABLE_MIRROR_INGRESS} --pinger -q --dev
         fi
