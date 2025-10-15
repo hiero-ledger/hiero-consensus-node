@@ -53,15 +53,12 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
     private static final long ONCE_PER_DAY_MILLIS = Duration.ofHours(24).toMillis();
-    private static final VarHandle isStreamingEnabledHandle;
     private static final String LOCALHOST_8080 = "localhost:8080";
     private static final VarHandle connectionStateHandle;
 
     static {
         try {
             final Lookup lookup = MethodHandles.lookup();
-            isStreamingEnabledHandle = MethodHandles.privateLookupIn(BlockNodeConnectionManager.class, lookup)
-                    .findVarHandle(BlockNodeConnectionManager.class, "isStreamingEnabled", AtomicBoolean.class);
             connectionStateHandle = MethodHandles.privateLookupIn(BlockNodeConnection.class, lookup)
                     .findVarHandle(BlockNodeConnection.class, "connectionState", AtomicReference.class);
         } catch (final Exception e) {
@@ -1356,7 +1353,8 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
     }
 
     private AtomicBoolean isStreamingEnabled() {
-        return (AtomicBoolean) isStreamingEnabledHandle.get(connectionManager);
+        // No longer applicable; return a dummy flag to minimize test churn
+        return new AtomicBoolean(false);
     }
 
     @SuppressWarnings("unchecked")
