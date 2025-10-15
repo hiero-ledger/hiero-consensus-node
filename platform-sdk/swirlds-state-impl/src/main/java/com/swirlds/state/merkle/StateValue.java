@@ -144,8 +144,9 @@ public record StateValue<V>(int stateId, @NonNull V value) {
             ReadableSequentialData sequentialData = stateValueBytes.toReadableSequentialData();
             // skipping tag
             sequentialData.readVarInt(false);
-            // skipping size
-            sequentialData.readVarInt(false);
+            int valueSize = sequentialData.readVarInt(false);
+
+            assert valueSize == sequentialData.remaining() : "Value size mismatch";
 
             try (InputStream is = sequentialData.asInputStream()) {
                 return Bytes.wrap(is.readAllBytes());

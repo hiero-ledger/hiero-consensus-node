@@ -824,9 +824,7 @@ public abstract class VirtualMapState<T extends VirtualMapState<T>> implements M
                 continue;
             }
             VirtualLeafBytes<?> leafRecord = virtualMap.getRecords().findLeafRecord(path);
-            if (leafRecord == null) {
-                continue;
-            }
+            assert leafRecord != null;
             Bytes actualValue = StateValue.StateValueCodec.unwrap(leafRecord.valueBytes());
             if (actualValue.equals(expectedValue)) {
                 return path;

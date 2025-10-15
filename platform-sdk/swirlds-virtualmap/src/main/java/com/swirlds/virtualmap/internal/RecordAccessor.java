@@ -10,6 +10,7 @@ import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.internal.cache.VirtualNodeCache;
 import com.swirlds.virtualmap.internal.merkle.VirtualMapMetadata;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Objects;
@@ -140,6 +141,7 @@ public final class RecordAccessor {
      * 		If we fail to access the data store, then a catastrophic error occurred and
      * 		an UncheckedIOException is thrown.
      */
+    @Nullable
     public VirtualLeafBytes findLeafRecord(final long path) {
         assert path != INVALID_PATH;
         assert path != ROOT_PATH;
