@@ -85,6 +85,11 @@ import org.hiero.otter.fixtures.result.SingleNodeReconnectResult;
  */
 public abstract class AbstractNetwork implements Network {
     /**
+     * The fraction of nodes that must consider a node behind for the node to be considered behind by the network.
+     */
+    private static final double BEHIND_FRACTION = 0.5;
+
+    /**
      * The state of the network.
      */
     protected enum Lifecycle {
@@ -731,7 +736,7 @@ public abstract class AbstractNetwork implements Network {
      */
     @Override
     public boolean nodesAreBehindByNodeCount(
-            final double fraction, @NonNull final Node maybeBehindNode, @Nullable final Node... otherMaybeBehindNodes) {
+            @NonNull final Node maybeBehindNode, @Nullable final Node... otherMaybeBehindNodes) {
         final Set<Node> maybeBehindNodes = Utils.collect(maybeBehindNode, otherMaybeBehindNodes);
         final Set<Node> peerNodes =
                 nodes().stream().filter(n -> !maybeBehindNodes.contains(n)).collect(Collectors.toSet());
@@ -752,7 +757,7 @@ public abstract class AbstractNetwork implements Network {
                     numNodesAhead++;
                 }
             }
-            allNodesAreBehind &= (numNodesAhead / (1.0 * peerNodes.size())) >= fraction;
+            allNodesAreBehind &= (numNodesAhead / (1.0 * peerNodes.size())) >= BEHIND_FRACTION;
         }
         return allNodesAreBehind;
     }

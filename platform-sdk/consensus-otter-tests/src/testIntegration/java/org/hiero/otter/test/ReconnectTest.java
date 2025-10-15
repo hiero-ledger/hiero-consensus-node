@@ -85,7 +85,7 @@ public class ReconnectTest {
 
         // Wait for the node we just killed to become behind enough to require a reconnect.
         timeManager.waitForCondition(
-                () -> network.nodeIsBehindByNodeCount(0.5, nodeToReconnect),
+                () -> network.nodeIsBehindByNodeCount(nodeToReconnect),
                 Duration.ofSeconds(120L),
                 "Node did not fall behind in the time allotted.");
 
@@ -169,7 +169,7 @@ public class ReconnectTest {
             enableSyntheticBottleneck(Duration.ofSeconds(30), node0, node1, node2);
 
             timeManager.waitForCondition(
-                    () -> network.nodesAreBehindByNodeCount(0.5, node0, node1, node2),
+                    () -> network.nodesAreBehindByNodeCount(node0, node1, node2),
                     Duration.ofSeconds(120L),
                     String.format(
                             "Node did not enter CHECKING status within the expected time "
