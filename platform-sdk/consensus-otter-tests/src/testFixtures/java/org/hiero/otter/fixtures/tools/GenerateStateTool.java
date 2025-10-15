@@ -3,13 +3,13 @@ package org.hiero.otter.fixtures.tools;
 
 import static java.util.Objects.requireNonNull;
 import static org.hiero.otter.fixtures.app.OtterApp.SWIRLD_NAME;
+import static org.hiero.otter.fixtures.util.OtterSavedStateUtils.fetchApplicationVersion;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.common.io.utility.FileUtils;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.DirectoryStream;
@@ -55,13 +55,14 @@ public class GenerateStateTool {
 
     private static final Pattern DATE_PREFIX = Pattern.compile("^(\\d{4})-(\\d{2})-(\\d{2}).*");
 
-    /** Test environment used to create and control the ephemeral network. */
-    private final TestEnvironment environment;
-
     /** Self-ID of the node */
     private static final long SELF_ID = 0L;
 
+    /** List of file which will be removed before moving the state */
     private static final List<String> FILES_TO_CLEAN = List.of("emergencyRecovery.yaml", PCES_DIRECTORY);
+
+    /** Test environment used to create and control the ephemeral network. */
+    private final TestEnvironment environment;
 
     /**
      * Create a new tool bound to the given test environment.
@@ -190,74 +191,6 @@ public class GenerateStateTool {
     }
 
     /**
-     * Reads the application version from the {@code version.txt} file in the current directory.
-     * Falls back to system property {@code app.version} if the file is not available.
-     * If neither is available or cannot be parsed, returns {@link SemanticVersion#DEFAULT}.
-     * <p>
-     * The expected version format is "major.minor.patch" or "major.minor.patch-qualifier"
-     * (e.g., "0.58.0" or "0.58.0-SNAPSHOT"). The qualifier portion, if present, is ignored.
-     *
-     * @return the semantic version parsed from the version file or system property, or the default version
-     */
-    @NonNull
-    private static SemanticVersion readVersionFile() {
-        // First, try to read from version.txt file
-        try (final BufferedReader reader = Files.newBufferedReader(Path.of("version.txt"))) {
-            final String versionString = reader.readLine();
-            if (versionString != null && !versionString.isEmpty()) {
-                return parseVersion(versionString);
-            }
-        } catch (final IOException e) {
-            System.err.println("Failed to load version.txt: " + e.getMessage());
-        }
-
-        // Fall back to system property
-        final String versionString = System.getProperty("app.version");
-        if (versionString != null && !versionString.isEmpty()) {
-            return parseVersion(versionString);
-        }
-
-        System.out.println("No version found in properties file or system property, using default version");
-        return SemanticVersion.DEFAULT;
-    }
-
-    /**
-     * Parses a version string in "major.minor.patch" format into a {@link SemanticVersion}.
-     * Supports optional qualifiers (e.g., "0.58.0-SNAPSHOT") which are ignored.
-     *
-     * @param versionString the version string to parse (e.g., "0.58.0" or "0.58.0-SNAPSHOT")
-     * @return the parsed semantic version, or {@link SemanticVersion#DEFAULT} if parsing fails
-     */
-    @NonNull
-    private static SemanticVersion parseVersion(@NonNull final String versionString) {
-        try {
-            // Strip optional qualifier (e.g., "-SNAPSHOT", "-RC1") by splitting on hyphen
-            final String[] versionAndQualifier = versionString.split("-");
-            final String versionNumbersOnly = versionAndQualifier[0];
-
-            // Split version numbers by dot
-            final String[] versionComponents = versionNumbersOnly.split("\\.");
-            if (versionComponents.length < 3) {
-                System.err.println("Invalid version format: " + versionString + ", expected format: major.minor.patch");
-                return SemanticVersion.DEFAULT;
-            }
-
-            final int major = Integer.parseInt(versionComponents[0]);
-            final int minor = Integer.parseInt(versionComponents[1]);
-            final int patch = Integer.parseInt(versionComponents[2]);
-
-            return SemanticVersion.newBuilder()
-                    .major(major)
-                    .minor(minor)
-                    .patch(patch)
-                    .build();
-        } catch (final NumberFormatException e) {
-            System.err.println("Failed to parse version from: " + versionString + ", using default");
-            return SemanticVersion.DEFAULT;
-        }
-    }
-
-    /**
      * Replace the {@code previous-version-state} test resource with the most recently generated state.
      * <p>
      * Deletes the target directory if it already exists, then moves the content to the resources directory from the consensus-otter-tests module
@@ -297,7 +230,7 @@ public class GenerateStateTool {
                 FileUtils.deleteDirectory(turtleDir);
             }
 
-            final SemanticVersion version = readVersionFile();
+            final SemanticVersion version = fetchApplicationVersion();
             final GenerateStateTool generateStateTool =
                     new GenerateStateTool(new TurtleTestEnvironment(SEED, false), version);
             generateStateTool.generateState();

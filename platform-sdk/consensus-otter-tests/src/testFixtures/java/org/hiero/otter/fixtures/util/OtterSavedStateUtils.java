@@ -5,8 +5,10 @@ import static java.util.Objects.requireNonNull;
 import static org.hiero.otter.fixtures.tools.GenerateStateTool.PCES_DIRECTORY;
 import static org.hiero.otter.fixtures.tools.GenerateStateTool.SAVE_STATE_DIRECTORY;
 
+import com.hedera.hapi.node.base.SemanticVersion;
 import com.swirlds.common.io.utility.FileUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.io.BufferedReader;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -21,6 +23,9 @@ import org.hiero.otter.fixtures.app.OtterApp;
  * renaming subdirectories as needed for test scenarios.
  */
 public class OtterSavedStateUtils {
+    /** Name of the version file */
+    public static final String VERSION_FILE_NAME = "version.txt";
+
     /**
      * Private constructor to prevent instantiation.
      */
@@ -98,6 +103,78 @@ public class OtterSavedStateUtils {
                             throw new RuntimeException(e);
                         }
                     });
+        }
+    }
+
+    /**
+     * Retrieves the application version from either the system property or a version file.
+     * First attempts to read from the {@code app.version} system property. If not set,
+     * searches for the {@link #VERSION_FILE_NAME} file by traversing up to 5 parent directories
+     * from the current working directory. If neither is available or cannot be parsed,
+     * returns {@link SemanticVersion#DEFAULT}.
+     * <p>
+     * The expected version format is "major.minor.patch" or "major.minor.patch-qualifier"
+     * (e.g., "0.58.0" or "0.58.0-SNAPSHOT"). The qualifier portion, if present, is ignored.
+     *
+     * @return the semantic version parsed from the system property or version file, or the default version
+     * @throws RuntimeException if the version file is not found within 5 parent directories
+     */
+    @NonNull
+    public static SemanticVersion fetchApplicationVersion() {
+        // First, try to use system property
+        final String versionStringFromEnv = System.getProperty("app.version");
+        if (versionStringFromEnv != null && !versionStringFromEnv.isEmpty()) {
+            return parseVersion(versionStringFromEnv);
+        }
+
+        // Fall back to read from version.txt file
+        final Path versionFilePath = FileUtils.searchFileUpwards(VERSION_FILE_NAME, 5);
+        try (final BufferedReader reader = Files.newBufferedReader(versionFilePath)) {
+            final String versionString = reader.readLine();
+            if (versionString != null && !versionString.isEmpty()) {
+                return parseVersion(versionString);
+            }
+        } catch (final IOException e) {
+            System.err.println("Failed to load version.txt: " + e.getMessage());
+        }
+
+        System.out.println("No version found in properties file or system property, using default version");
+        return SemanticVersion.DEFAULT;
+    }
+
+    /**
+     * Parses a version string in "major.minor.patch" format into a {@link SemanticVersion}.
+     * Supports optional qualifiers (e.g., "0.58.0-SNAPSHOT") which are ignored.
+     *
+     * @param versionString the version string to parse (e.g., "0.58.0" or "0.58.0-SNAPSHOT")
+     * @return the parsed semantic version, or {@link SemanticVersion#DEFAULT} if parsing fails
+     */
+    @NonNull
+    private static SemanticVersion parseVersion(@NonNull final String versionString) {
+        try {
+            // Strip optional qualifier (e.g., "-SNAPSHOT", "-RC1") by splitting on hyphen
+            final String[] versionAndQualifier = versionString.split("-");
+            final String versionNumbersOnly = versionAndQualifier[0];
+
+            // Split version numbers by dot
+            final String[] versionComponents = versionNumbersOnly.split("\\.");
+            if (versionComponents.length < 3) {
+                System.err.println("Invalid version format: " + versionString + ", expected format: major.minor.patch");
+                return SemanticVersion.DEFAULT;
+            }
+
+            final int major = Integer.parseInt(versionComponents[0]);
+            final int minor = Integer.parseInt(versionComponents[1]);
+            final int patch = Integer.parseInt(versionComponents[2]);
+
+            return SemanticVersion.newBuilder()
+                    .major(major)
+                    .minor(minor)
+                    .patch(patch)
+                    .build();
+        } catch (final NumberFormatException e) {
+            System.err.println("Failed to parse version from: " + versionString + ", using default");
+            return SemanticVersion.DEFAULT;
         }
     }
 }

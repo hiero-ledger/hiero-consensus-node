@@ -22,6 +22,7 @@ import java.nio.file.FileSystems;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.attribute.BasicFileAttributes;
@@ -461,5 +462,41 @@ public final class FileUtils {
         } catch (final AtomicMoveNotSupportedException e) {
             Files.move(source, target);
         }
+    }
+
+    /**
+     * Searches for a file starting from the current working directory,
+     * moving up parent directories up to maxTries times.
+     *
+     * @param filename the name of the file to search for
+     * @param maxTries maximum number of directories to check (including current)
+     * @return Path object of the found file
+     * @throws RuntimeException if file is not found within maxTries
+     */
+    public static Path searchFileUpwards(@NonNull final String filename, final int maxTries) {
+        if (maxTries < 1) {
+            throw new IllegalArgumentException("maxTries must be at least 1");
+        }
+
+        Path currentDir = Paths.get("").toAbsolutePath();
+
+        for (int i = 0; i < maxTries; i++) {
+            final Path filePath = currentDir.resolve(filename);
+
+            if (Files.exists(filePath)) {
+                return filePath;
+            }
+
+            // Move to parent directory
+            final Path parent = currentDir.getParent();
+            if (parent == null) {
+                // Reached root directory, can't go further up
+                break;
+            }
+            currentDir = parent;
+        }
+
+        throw new RuntimeException("File '" + filename + "' not found after searching " + maxTries + " director"
+                + (maxTries == 1 ? "y" : "ies") + " upwards from current working directory");
     }
 }
