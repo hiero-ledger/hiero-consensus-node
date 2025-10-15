@@ -50,11 +50,11 @@ class HintsContextTest {
 
     @BeforeEach
     void setUp() {
-        strictHalfConfig = defaultConfig(2, true);
+        strictHalfConfig = defaultConfig(2);
         subject = new HintsContext(library, strictHalfConfig);
     }
 
-    private static TssConfig defaultConfig(final int divisor, final boolean strict) {
+    private static TssConfig defaultConfig(final int divisor) {
         return new TssConfig(
                 Duration.ofSeconds(60),
                 Duration.ofSeconds(300),
@@ -67,8 +67,7 @@ class HintsContextTest {
                 false,
                 false,
                 false,
-                divisor,
-                strict);
+                divisor);
     }
 
     @Test
@@ -113,33 +112,7 @@ class HintsContextTest {
     }
 
     @Test
-    void greaterOrEqualComparisonAllowsExactThreshold() {
-        final var equalWeightA = new NodePartyId(11L, 1, 5L);
-        final var equalWeightB = new NodePartyId(12L, 2, 5L);
-        final var equalConstruction = HintsConstruction.newBuilder()
-                .constructionId(2L)
-                .hintsScheme(new HintsScheme(PREPROCESSED_KEYS, List.of(equalWeightA, equalWeightB)))
-                .build();
-
-        final Map<Integer, Bytes> expectedSignatures = Map.of(equalWeightA.partyId(), signature);
-        final var aggregateSignature = Bytes.wrap("AS2");
-        given(library.aggregateSignatures(CRS, AGGREGATION_KEY, VERIFICATION_KEY, expectedSignatures))
-                .willReturn(aggregateSignature);
-
-        final var geConfig = defaultConfig(2, false);
-        final var geSubject = new HintsContext(library, geConfig);
-        geSubject.setConstruction(equalConstruction);
-
-        final var signing = geSubject.newSigning(BLOCK_HASH, () -> {});
-        final var future = signing.future();
-
-        signing.incorporateValid(CRS, equalWeightA.nodeId(), signature);
-        assertTrue(future.isDone());
-        assertEquals(aggregateSignature, future.join());
-    }
-
-    @Test
-    void strictComparisonRequiresGreaterThanThreshold() {
+    void alwaysRequiresGreaterThanThreshold() {
         final var a = new NodePartyId(21L, 1, 5L);
         final var b = new NodePartyId(22L, 2, 5L);
         final var construction = HintsConstruction.newBuilder()
@@ -152,18 +125,16 @@ class HintsContextTest {
         given(library.aggregateSignatures(CRS, AGGREGATION_KEY, VERIFICATION_KEY, expectedSignatures))
                 .willReturn(aggregateSignature);
 
-        final var strictConfig = defaultConfig(2, true);
-        final var s = new HintsContext(library, strictConfig);
-        s.setConstruction(construction);
+        subject.setConstruction(construction);
 
-        final var signing = s.newSigning(BLOCK_HASH, () -> {});
+        final var signing = subject.newSigning(BLOCK_HASH, () -> {});
         final var future = signing.future();
 
-        // Exactly half: should NOT complete when strict
+        // Exactly half (5 out of 10 total weight): should NOT complete, need strictly > 1/2
         signing.incorporateValid(CRS, a.nodeId(), signature);
         assertFalse(future.isDone());
 
-        // One more: now it should complete
+        // One more signature gives us 10 out of 10: now it should complete
         signing.incorporateValid(CRS, b.nodeId(), signature);
         assertTrue(future.isDone());
         assertEquals(aggregateSignature, future.join());
