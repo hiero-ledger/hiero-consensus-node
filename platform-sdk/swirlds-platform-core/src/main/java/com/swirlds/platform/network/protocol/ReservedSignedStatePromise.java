@@ -5,6 +5,7 @@ import com.swirlds.platform.state.signed.ReservedSignedState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import org.hiero.base.concurrent.BlockingResourceProvider;
+import org.hiero.base.concurrent.locks.locked.LockedResource;
 
 /**
  * A promise for a reserved signed state that allows coordination between providers and consumers.
@@ -58,11 +59,7 @@ public class ReservedSignedStatePromise {
      * @throws RuntimeException if the thread is interrupted while waiting
      */
     @Nullable
-    public ReservedSignedState await() {
-        try (final var lock = provider.waitForResource()) {
-            return lock.getResource();
-        } catch (final InterruptedException e) {
-            throw new RuntimeException(e);
-        }
+    public LockedResource<ReservedSignedState> await() throws InterruptedException {
+        return provider.waitForResource();
     }
 }

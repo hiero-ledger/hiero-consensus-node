@@ -32,7 +32,6 @@ import com.swirlds.platform.system.PlatformMonitor;
 import com.swirlds.platform.system.status.StatusActionSubmitter;
 import com.swirlds.platform.system.status.StatusStateMachine;
 import com.swirlds.platform.system.status.actions.PlatformStatusAction;
-import com.swirlds.platform.system.status.actions.ReconnectCompleteAction;
 import com.swirlds.state.MerkleNodeState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
@@ -386,28 +385,20 @@ public record PlatformCoordinator(@NonNull PlatformComponents components) implem
      * Load the received signed state into the platform (inline former ReconnectStateLoader#loadReconnectState).
      */
     public void loadReconnectState(@NonNull final Configuration configuration, @NonNull final SignedState signedState) {
-        // the state was received, so now we load its data into different objects
-        // logger.info(LogMarker.STATE_HASH.getMarker(), "RECONNECT: loadReconnectState: reloading state");
-        // logger.debug(RECONNECT.getMarker(), "`loadReconnectState` : reloading state");
         this.overrideIssDetectorState(signedState.reserve("reconnect state to issDetector"));
 
-        // It's important to call init() before loading the signed state. The loading process makes copies
-        // of the state, and we want to be sure that the first state in the chain of copies has been initialized.
-        final MerkleNodeState state = signedState.getState();
-
-        // kick off transition to RECONNECT_COMPLETE before beginning to save the reconnect state to disk
-        // this guarantees that the platform status will be RECONNECT_COMPLETE before the state is saved
-        this.submitStatusAction(new ReconnectCompleteAction(signedState.getRound()));
         components
                 .latestImmutableStateNexusWiring()
                 .getInputWire(SignedStateNexus::setState)
                 .put(signedState.reserve("set latest immutable to reconnect state"));
-
         this.sendStateToHashLogger(signedState);
         // this will send the state to the signature collector which will send it to be written to disk.
         // in the future, we might not send it to the collector because it already has all the signatures
         // if this is the case, we must make sure to send it to the writer directly
         this.putSignatureCollectorState(signedState.reserve("loading reconnect state into sig collector"));
+
+        final MerkleNodeState state = signedState.getState();
+
         final ConsensusSnapshot consensusSnapshot =
                 Objects.requireNonNull(DEFAULT_PLATFORM_STATE_FACADE.consensusSnapshotOf(state));
         this.consensusSnapshotOverride(consensusSnapshot);
@@ -421,8 +412,5 @@ public record PlatformCoordinator(@NonNull PlatformComponents components) implem
                 new RunningEventHashOverride(DEFAULT_PLATFORM_STATE_FACADE.legacyRunningEventHashOf(state), true);
         this.updateRunningHash(runningEventHashOverride);
         this.registerPcesDiscontinuity(signedState.getRound());
-
-        // Notify any listeners that the reconnect has been completed
-        this.sendReconnectCompleteNotification(signedState);
     }
 }

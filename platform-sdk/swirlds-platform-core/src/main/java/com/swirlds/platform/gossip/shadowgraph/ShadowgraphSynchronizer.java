@@ -16,13 +16,14 @@ import com.swirlds.common.threading.framework.Stoppable;
 import com.swirlds.common.threading.framework.Stoppable.StopBehavior;
 import com.swirlds.common.threading.pool.ParallelExecutionException;
 import com.swirlds.common.threading.pool.ParallelExecutor;
-import com.swirlds.platform.gossip.FallenBehindMonitor;
 import com.swirlds.platform.gossip.IntakeEventCounter;
 import com.swirlds.platform.gossip.SyncException;
 import com.swirlds.platform.gossip.shadowgraph.SyncUtils.TipsInfo;
 import com.swirlds.platform.gossip.sync.config.SyncConfig;
 import com.swirlds.platform.metrics.SyncMetrics;
 import com.swirlds.platform.network.Connection;
+import com.swirlds.platform.reconnect.FallenBehindMonitor;
+import com.swirlds.platform.reconnect.FallenBehindStatus;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
@@ -155,9 +156,9 @@ public class ShadowgraphSynchronizer extends AbstractShadowgraphSynchronizer {
 
             reportRoundDifference(myWindow, theirTipsAndEventWindow.eventWindow(), connection.getOtherId());
 
-            final SyncFallenBehindStatus status =
-                    checkFallenBehindStatus(myWindow, theirTipsAndEventWindow.eventWindow(), connection.getOtherId());
-            if (status != SyncFallenBehindStatus.NONE_FALLEN_BEHIND) {
+            final FallenBehindStatus status =
+                    fallenBehindMonitor.check(myWindow, theirTipsAndEventWindow.eventWindow(), connection.getOtherId());
+            if (status != FallenBehindStatus.NONE_FALLEN_BEHIND) {
                 // aborting the sync since someone has fallen behind
                 logger.info(
                         SYNC_INFO.getMarker(),
