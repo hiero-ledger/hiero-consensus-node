@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.hapi.utils.ethereum;
 
+import static java.lang.Byte.toUnsignedInt;
+
 import com.esaulpaugh.headlong.rlp.RLPDecoder;
 import com.esaulpaugh.headlong.rlp.RLPEncoder;
 import com.esaulpaugh.headlong.rlp.RLPItem;
@@ -77,6 +79,20 @@ public record EthTxData(
 
         } catch (final IllegalArgumentException | NoSuchElementException e) {
             return null;
+        }
+    }
+
+    public static int getTransactionType(byte[] data) {
+        try {
+            var decoder = RLPDecoder.RLP_STRICT.sequenceIterator(data);
+            var rlpItem = decoder.next();
+            if (rlpItem.isList()) {
+                return 0;
+            }
+
+            return toUnsignedInt(asByte(rlpItem));
+        } catch (IllegalArgumentException | NoSuchElementException e) {
+            return -1;
         }
     }
 
