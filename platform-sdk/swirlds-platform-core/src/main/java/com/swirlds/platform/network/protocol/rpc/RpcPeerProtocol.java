@@ -2,6 +2,7 @@
 package com.swirlds.platform.network.protocol.rpc;
 
 import static com.swirlds.logging.legacy.LogMarker.NETWORK;
+import static com.swirlds.logging.legacy.LogMarker.SOCKET_EXCEPTIONS;
 import static com.swirlds.platform.network.protocol.rpc.RpcMessageId.EVENT;
 import static com.swirlds.platform.network.protocol.rpc.RpcMessageId.EVENTS_FINISHED;
 import static com.swirlds.platform.network.protocol.rpc.RpcMessageId.KNOWN_TIPS;
@@ -286,7 +287,7 @@ public class RpcPeerProtocol implements PeerProtocol, GossipRpcSender {
                     () -> readMessages(connection),
                     () -> writeMessages(connection));
         } catch (final ParallelExecutionException e) {
-            logger.warn(NETWORK.getMarker(), "Failure during communication with node {}", remotePeerId, e);
+            logger.warn(SOCKET_EXCEPTIONS.getMarker(), "Failure during communication with node {}", remotePeerId, e);
         } finally {
             permitProvider.release();
             previousPhase = syncMetrics.reportSyncPhase(remotePeerId, SyncPhase.OUTSIDE_OF_RPC);
