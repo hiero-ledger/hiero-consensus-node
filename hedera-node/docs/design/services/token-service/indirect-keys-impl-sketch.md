@@ -64,10 +64,10 @@ Update `HandleWorkflow` logic to consider not just pending scheduled transaction
 has both opportunity and capacity to dispatch them.
 
 **Todo:**
-- Update `HandleWorkflow.executeAsManyScheduled()` to return the work capacity remaining after dispatching scheduled
+- [ ] Update `HandleWorkflow.executeAsManyScheduled()` to return the work capacity remaining after dispatching scheduled
 transactions (in particular, the remaining usable consensus times left in the current platform transaction's "window").
-- Implement a concrete `SystemTaskContext` as anonymous class a la `SystemTransactions.newSystemContext()`.
-- Add a `HandleWorkflow.doAsManyPendingTasks()` method call that takes capacity left after scheduled transactions and
+- [ ] Implement a concrete `SystemTaskContext` as anonymous class a la `SystemTransactions.newSystemContext()`.
+- [ ] Add a `HandleWorkflow.doAsManyPendingTasks()` method call that takes capacity left after scheduled transactions and
 polls/dispatches `SystemTask`s as capacity allows.
 
 ## Update `PreHandleContext` for indirect keys
@@ -77,7 +77,7 @@ During pre-handle, if we have a signing requirement from an account that indirec
 not the its "template key" that specifies the indirection.
 
 **Todo:**
-- Update all `requireKeyOrThrow()` variants that take an `AccountID` to prioritize a fetched account's materialized key.
+- [ ] Update all `requireKeyOrThrow()` variants that take an `AccountID` to prioritize a fetched account's materialized key.
 
 ## Update `CryptoUpdateHandler` for indirect keys
 
@@ -157,5 +157,5 @@ Provide dynamic system properties to control the impact of indirect keys on the 
 Ensure network charges for all additional work done to store and manage indirect keys. (E.g., $10 USD per indirect key).
 
 **Todo:**
-- Increase cost of `CryptoUpdate` with each indirect key "extra" added by a configurable amount of
+- [ ] Increase cost of `CryptoUpdate` with each indirect key "extra" added by a configurable amount of
 `fees.indirectKeyExtraTinycents=100_000_000_000`.
