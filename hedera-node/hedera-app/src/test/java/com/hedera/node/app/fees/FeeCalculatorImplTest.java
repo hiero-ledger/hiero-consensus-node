@@ -16,6 +16,7 @@ import com.hedera.node.app.fixtures.state.FakeState;
 import com.hedera.node.app.store.ReadableStoreFactory;
 import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.pbj.runtime.OneOf;
+import org.hiero.hapi.support.fees.FeeSchedule;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -28,6 +29,7 @@ public class FeeCalculatorImplTest {
     private CongestionMultipliers congestionMultipliers;
 
     private FeeData feeData;
+    private FeeSchedule simpleFeesSchedule;
 
     @Mock
     private TransactionBody txnBody;
@@ -53,7 +55,8 @@ public class FeeCalculatorImplTest {
                 ExchangeRate.DEFAULT,
                 false,
                 congestionMultipliers,
-                new ReadableStoreFactory(new FakeState()));
+                new ReadableStoreFactory(new FakeState()),
+                this.simpleFeesSchedule);
         assertNotNull(calculator);
 
         calculator = new FeeCalculatorImpl(
@@ -61,7 +64,8 @@ public class FeeCalculatorImplTest {
                 new ExchangeRate(0, 0, null),
                 congestionMultipliers,
                 new ReadableStoreFactory(new FakeState()),
-                HederaFunctionality.CONTRACT_CALL);
+                HederaFunctionality.CONTRACT_CALL,
+                this.simpleFeesSchedule);
         assertNotNull(calculator);
     }
 
@@ -81,7 +85,8 @@ public class FeeCalculatorImplTest {
                         ExchangeRate.DEFAULT,
                         false,
                         congestionMultipliers,
-                        new ReadableStoreFactory(new FakeState())));
+                        new ReadableStoreFactory(new FakeState()),
+                        this.simpleFeesSchedule));
     }
 
     @Test
@@ -92,7 +97,8 @@ public class FeeCalculatorImplTest {
                 new ExchangeRate(0, 0, null),
                 congestionMultipliers,
                 storeFactory,
-                HederaFunctionality.CONTRACT_CALL);
+                HederaFunctionality.CONTRACT_CALL,
+                this.simpleFeesSchedule);
 
         calculator.getCongestionMultiplier();
         verify(congestionMultipliers).maxCurrentMultiplier(any(TransactionInfo.class), eq(storeFactory));

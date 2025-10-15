@@ -13,10 +13,12 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.MAX_CUSTOM_FEE_LIMIT_EX
 import static com.hedera.hapi.node.base.ResponseCodeEnum.MESSAGE_SIZE_TOO_LARGE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.NO_VALID_MAX_CUSTOM_FEE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
+import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
 import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.BASIC_ENTITY_ID_SIZE;
 import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.LONG_SIZE;
 import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.RECEIPT_STORAGE_TIME_SEC;
 import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.TX_HASH_SIZE;
+import static com.hedera.node.app.service.consensus.impl.handlers.ConsensusCreateTopicHandler.feeResultToFees;
 import static com.hedera.node.app.spi.validation.Validations.mustExist;
 import static com.hedera.node.app.spi.workflows.DispatchOptions.stepDispatch;
 import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.TRANSACTION_FIXED_FEE;
@@ -40,6 +42,7 @@ import com.hedera.hapi.node.transaction.CustomFeeLimit;
 import com.hedera.hapi.node.transaction.FixedCustomFee;
 import com.hedera.hapi.node.transaction.FixedFee;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.node.app.hapi.fees.calc.OverflowCheckingCalc;
 import com.hedera.node.app.hapi.utils.CommonPbjConverters;
 import com.hedera.node.app.service.consensus.ReadableTopicStore;
 import com.hedera.node.app.service.consensus.impl.WritableTopicStore;
@@ -59,6 +62,7 @@ import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
 import com.hedera.node.config.data.ConsensusConfig;
+import com.hedera.node.config.data.FeesConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -79,6 +83,8 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import org.hiero.hapi.fees.FeeModelRegistry;
+import org.hiero.hapi.support.fees.Extra;
 
 /**
  * This class contains all workflow-related functionality regarding
@@ -512,7 +518,27 @@ public class ConsensusSubmitMessageHandler implements TransactionHandler {
 
         final var topic =
                 feeContext.readableStore(ReadableTopicStore.class).getTopic(op.topicIDOrElse(TopicID.DEFAULT));
-        if (topic != null && !topic.customFees().isEmpty()) {
+        final var hasCustomFees = topic != null && !topic.customFees().isEmpty();
+
+        if (feeContext.configuration().getConfigData(FeesConfig.class).simpleFeesEnabled()) {
+            final var entity = FeeModelRegistry.lookupModel(HederaFunctionality.CONSENSUS_SUBMIT_MESSAGE);
+            Map<Extra, Long> params = new HashMap<>();
+            params.put(Extra.BYTES, msgSize);
+            params.put(Extra.SIGNATURES, (long) feeContext.numTxnSignatures());
+            params.put(Extra.CUSTOM_FEE, 0L);
+            if (hasCustomFees) {
+                params.put(Extra.CUSTOM_FEE, 5L);
+            }
+            final var feeResult = entity.computeFee(
+                    params,
+                    feeContext
+                            .feeCalculatorFactory()
+                            .feeCalculator(SubType.DEFAULT)
+                            .getSimpleFeesSchedule());
+            return feeResultToFees(feeResult,fromPbj(feeContext.activeRate()));
+        }
+
+        if (hasCustomFees) {
             final var calculator = calculatorFactory.feeCalculator(SubType.SUBMIT_MESSAGE_WITH_CUSTOM_FEES);
             calculator.resetUsage();
             // Charges the canonical price of $0.05 for a message up to 512 bytes and scales up to $0.06 for 1KB

@@ -123,6 +123,7 @@ public interface FacilityInitModule {
                 final var bootstrapConfig = bootstrapConfigProvider.getConfiguration();
                 exchangeRateManager.init(state, schema.genesisExchangeRates(bootstrapConfig));
                 feeManager.update(schema.genesisFeeSchedules(bootstrapConfig));
+                feeManager.updateSimpleFees(schema.genesisSimpleFeesSchedules(bootstrapConfig));
                 throttleServiceManager.init(state, schema.genesisThrottleDefinitions(bootstrapConfig));
             }
             workingStateAccessor.setState(state);
@@ -147,16 +148,32 @@ public interface FacilityInitModule {
             @NonNull final FeeManager feeManager) {
         log.info("Initializing fee schedules");
         final var filesConfig = configProvider.getConfiguration().getConfigData(FilesConfig.class);
-        final var fileNum = filesConfig.feeSchedules();
-        final var file = requireNonNull(
-                getFileFromStorage(state, configProvider, fileNum),
-                "The initialized state had no fee schedule file 0.0." + fileNum);
-        final var status = feeManager.update(file.contents());
-        if (status != SUCCESS) {
-            // (FUTURE) Ideally this would be a fatal error, but unlike the exchange rates file, it
-            // is possible with the current design for state to include a partial fee schedules file,
-            // so we cannot fail hard here
-            log.error("State file 0.0.{} did not contain parseable fee schedules ({})", fileNum, status);
+        {
+            final var fileNum = filesConfig.feeSchedules();
+            final var file = requireNonNull(
+                    getFileFromStorage(state, configProvider, fileNum),
+                    "The initialized state had no fee schedule file 0.0." + fileNum);
+            final var status = feeManager.update(file.contents());
+            if (status != SUCCESS) {
+                // (FUTURE) Ideally this would be a fatal error, but unlike the exchange rates file, it
+                // is possible with the current design for state to include a partial fee schedules file,
+                // so we cannot fail hard here
+                log.error("State file 0.0.{} did not contain parseable fee schedules ({})", fileNum, status);
+            }
+        }
+
+        {
+            final var fileNum = filesConfig.simpleFeesSchedules();
+            final var file = requireNonNull(
+                    getFileFromStorage(state, configProvider, fileNum),
+                    "The initialized state had no fee schedule file 0.0." + fileNum);
+            final var status = feeManager.updateSimpleFees(file.contents());
+            if (status != SUCCESS) {
+                // (FUTURE) Ideally this would be a fatal error, but unlike the exchange rates file, it
+                // is possible with the current design for state to include a partial fee schedules file,
+                // so we cannot fail hard here
+                log.error("State file 0.0.{} did not contain parseable fee schedules ({})", fileNum, status);
+            }
         }
     }
 

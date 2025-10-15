@@ -309,6 +309,26 @@ class SystemFileUpdatesTest implements TransactionFactory {
     }
 
     @Test
+    void feeManagerUpdatedOnSimpleFeesFileUpdate() {
+        // given
+        final var configuration = configProvider.getConfiguration();
+        final var config = configuration.getConfigData(FilesConfig.class);
+
+        final var fileNum = config.simpleFeesSchedules();
+        final var fileID = FileID.newBuilder().fileNum(fileNum).build();
+        final var txBody = TransactionBody.newBuilder()
+                .transactionID(TransactionID.newBuilder()
+                        .accountID(AccountID.newBuilder().accountNum(50L).build())
+                        .build())
+                .fileUpdate(FileUpdateTransactionBody.newBuilder().fileID(fileID));
+        files.put(fileID, File.newBuilder().contents(FILE_BYTES).build());
+        // when
+        subject.handleTxBody(state, txBody.build());
+        // then
+        verify(feeManager, times(1)).update(FileUtilities.getFileContent(state, fileID));
+    }
+
+    @Test
     void disablesGrpcStreamingWhenWriterModeChangesFromFileAndGrpcToFile() {
         // given
         final var initialConfig = new TestConfigBuilder(false)

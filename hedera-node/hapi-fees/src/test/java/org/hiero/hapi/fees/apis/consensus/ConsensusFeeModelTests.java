@@ -61,7 +61,7 @@ class ConsensusFeeModelTests {
     @Test
     void createTopicWithExtraKeys() {
         FeeModel model = FeeModelRegistry.lookupModel(CONSENSUS_CREATE_TOPIC);
-        Map<Extra, Object> params = new HashMap<>();
+        Map<Extra, Long> params = new HashMap<>();
         params.put(Extra.SIGNATURES, 1L);
         params.put(Extra.KEYS, 5L);
         params.put(Extra.BYTES, 20L);
@@ -86,7 +86,7 @@ class ConsensusFeeModelTests {
     @Test
     void updateTopic() {
         FeeModel model = FeeModelRegistry.lookupModel(CONSENSUS_UPDATE_TOPIC);
-        Map<Extra, Object> params = new HashMap<>();
+        Map<Extra, Long> params = new HashMap<>();
         params.put(Extra.SIGNATURES, 1L);
         params.put(Extra.KEYS, 1L);
         params.put(Extra.BYTES, 10L);
@@ -97,7 +97,7 @@ class ConsensusFeeModelTests {
     @Test
     void submitMessage() {
         FeeModel model = FeeModelRegistry.lookupModel(CONSENSUS_SUBMIT_MESSAGE);
-        Map<Extra, Object> params = new HashMap<>();
+        Map<Extra, Long> params = new HashMap<>();
         params.put(Extra.SIGNATURES, 1L);
         params.put(Extra.KEYS, 1L);
         params.put(Extra.BYTES, 100L);
@@ -111,7 +111,7 @@ class ConsensusFeeModelTests {
     @Test
     void submitMessageWithExtraBytes() {
         FeeModel model = FeeModelRegistry.lookupModel(CONSENSUS_SUBMIT_MESSAGE);
-        Map<Extra, Object> params = new HashMap<>();
+        Map<Extra, Long> params = new HashMap<>();
         params.put(Extra.SIGNATURES, 1L);
         params.put(Extra.KEYS, 1L);
         params.put(Extra.BYTES, 500L);
@@ -126,7 +126,7 @@ class ConsensusFeeModelTests {
     @Test
     void submitMessageWithCustomFee() {
         FeeModel model = FeeModelRegistry.lookupModel(CONSENSUS_SUBMIT_MESSAGE);
-        Map<Extra, Object> params = new HashMap<>();
+        Map<Extra, Long> params = new HashMap<>();
         params.put(Extra.SIGNATURES, 1L);
         params.put(Extra.KEYS, 1L);
         params.put(Extra.BYTES, 10L);
@@ -141,7 +141,7 @@ class ConsensusFeeModelTests {
     @Test
     void deleteTopic() {
         FeeModel model = FeeModelRegistry.lookupModel(CONSENSUS_DELETE_TOPIC);
-        Map<Extra, Object> params = new HashMap<>();
+        Map<Extra, Long> params = new HashMap<>();
         params.put(Extra.SIGNATURES, 1L);
         params.put(Extra.KEYS, 1L);
         params.put(Extra.BYTES, 1L);

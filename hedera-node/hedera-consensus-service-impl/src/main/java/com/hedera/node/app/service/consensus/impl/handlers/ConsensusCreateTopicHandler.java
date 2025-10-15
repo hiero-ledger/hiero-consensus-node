@@ -11,6 +11,8 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_EXPIRATION_TIME
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_KEY_IN_FEE_EXEMPT_KEY_LIST;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.MAX_ENTITIES_IN_PRICE_REGIME_HAVE_BEEN_CREATED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.MAX_ENTRIES_FOR_FEE_EXEMPT_KEY_LIST_EXCEEDED;
+import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
+import static com.hedera.node.app.hapi.utils.CommonUtils.productWouldOverflow;
 import static com.hedera.node.app.hapi.utils.fee.ConsensusServiceFeeBuilder.getConsensusCreateTopicFee;
 import static com.hedera.node.app.service.consensus.impl.ConsensusServiceImpl.RUNNING_HASH_BYTE_ARRAY_SIZE;
 import static com.hedera.node.app.spi.validation.AttributeValidator.isImmutableKey;
@@ -23,7 +25,9 @@ import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.consensus.ConsensusCreateTopicTransactionBody;
 import com.hedera.hapi.node.state.consensus.Topic;
+import com.hedera.node.app.hapi.fees.calc.OverflowCheckingCalc;
 import com.hedera.node.app.hapi.utils.CommonPbjConverters;
+import com.hedera.node.app.hapi.utils.fee.FeeBuilder;
 import com.hedera.node.app.hapi.utils.fee.SigValueObj;
 import com.hedera.node.app.service.consensus.ReadableTopicStore;
 import com.hedera.node.app.service.consensus.impl.WritableTopicStore;
@@ -42,12 +46,19 @@ import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
+import com.hedera.node.config.data.FeesConfig;
 import com.hedera.node.config.data.TopicsConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.hederahashgraph.api.proto.java.ExchangeRate;
 import com.hederahashgraph.api.proto.java.FeeData;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.HashMap;
+import java.util.Map;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import org.hiero.hapi.fees.FeeModelRegistry;
+import org.hiero.hapi.fees.FeeResult;
+import org.hiero.hapi.support.fees.Extra;
 
 /**
  * This class contains all workflow-related functionality regarding {@link HederaFunctionality#CONSENSUS_CREATE_TOPIC}.
@@ -213,6 +224,21 @@ public class ConsensusCreateTopicHandler implements TransactionHandler {
         handleContext.attributeValidator().validateMemo(op.memo());
     }
 
+    public static long tinycentsToTinybars(final long amount, final ExchangeRate rate) {
+        final var hbarEquiv = rate.getHbarEquiv();
+        if (productWouldOverflow(amount, hbarEquiv)) {
+            return FeeBuilder.getTinybarsFromTinyCents(rate, amount);
+        }
+        return amount * hbarEquiv / rate.getCentEquiv();
+    }
+
+    public static Fees feeResultToFees(FeeResult feeResult, ExchangeRate rate) {
+        return new Fees(
+                tinycentsToTinybars(feeResult.node, rate),
+                tinycentsToTinybars(feeResult.network, rate),
+                tinycentsToTinybars(feeResult.service, rate));
+    }
+
     @NonNull
     @Override
     public Fees calculateFees(@NonNull final FeeContext feeContext) {
@@ -221,6 +247,25 @@ public class ConsensusCreateTopicHandler implements TransactionHandler {
         final var hasCustomFees =
                 !body.consensusCreateTopicOrThrow().customFees().isEmpty();
         final var subType = hasCustomFees ? SubType.TOPIC_CREATE_WITH_CUSTOM_FEES : SubType.DEFAULT;
+        if (feeContext.configuration().getConfigData(FeesConfig.class).simpleFeesEnabled()) {
+            var createTopic = body.consensusCreateTopicOrThrow();
+            var key_count = createTopic.customFees().size();
+            if (createTopic.hasAdminKey()) {
+                key_count+=1;
+            }
+            final var entity = FeeModelRegistry.lookupModel(HederaFunctionality.CONSENSUS_CREATE_TOPIC);
+            Map<Extra, Long> params = new HashMap<>();
+            params.put(Extra.SIGNATURES, (long) feeContext.numTxnSignatures());
+            params.put(Extra.KEYS, (long) key_count);
+            params.put(Extra.CUSTOM_FEE, 0L);
+            if (hasCustomFees) {
+                params.put(Extra.CUSTOM_FEE, 200L);
+            }
+            final var feeResult = entity.computeFee(
+                    params,
+                    feeContext.feeCalculatorFactory().feeCalculator(subType).getSimpleFeesSchedule());
+            return feeResultToFees(feeResult, fromPbj(feeContext.activeRate()));
+        }
 
         return feeContext
                 .feeCalculatorFactory()
