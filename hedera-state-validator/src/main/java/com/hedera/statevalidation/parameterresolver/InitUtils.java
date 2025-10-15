@@ -20,13 +20,13 @@ import com.hedera.node.app.hapi.utils.sysfiles.domain.KnownBlockValues;
 import com.hedera.node.app.hapi.utils.sysfiles.domain.throttling.ScaleFactor;
 import com.hedera.node.app.hints.impl.HintsLibraryImpl;
 import com.hedera.node.app.hints.impl.HintsServiceImpl;
-import com.hedera.node.app.ids.AppEntityIdFactory;
-import com.hedera.node.app.ids.EntityIdService;
 import com.hedera.node.app.metrics.StoreMetricsServiceImpl;
 import com.hedera.node.app.records.BlockRecordService;
 import com.hedera.node.app.service.addressbook.impl.AddressBookServiceImpl;
 import com.hedera.node.app.service.consensus.impl.ConsensusServiceImpl;
 import com.hedera.node.app.service.contract.impl.ContractServiceImpl;
+import com.hedera.node.app.service.entityid.impl.AppEntityIdFactory;
+import com.hedera.node.app.service.entityid.impl.EntityIdServiceImpl;
 import com.hedera.node.app.service.file.impl.FileServiceImpl;
 import com.hedera.node.app.service.networkadmin.impl.FreezeServiceImpl;
 import com.hedera.node.app.service.networkadmin.impl.NetworkServiceImpl;
@@ -188,7 +188,7 @@ public class InitUtils {
 
         final AtomicReference<ExecutorComponent> componentRef = new AtomicReference<>();
         Set.of(
-                        new EntityIdService(),
+                        new EntityIdServiceImpl(),
                         new ConsensusServiceImpl(),
                         new ContractServiceImpl(appContext, new NoOpMetrics()),
                         new FileServiceImpl(),
