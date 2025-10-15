@@ -151,8 +151,8 @@ public class GenerateStateTool {
                             throw new UncheckedIOException(exception);
                         }
                     });
-        } catch (IOException e) {
-            throw new UncheckedIOException("Exception while cleaning state directory", e);
+        } catch (final IOException exception) {
+            throw new UncheckedIOException("Exception while cleaning state directory", exception);
         }
     }
 

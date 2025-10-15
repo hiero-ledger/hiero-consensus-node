@@ -34,6 +34,13 @@ public class ContainerTestEnvironment implements TestEnvironment {
     private final ContainerTransactionGenerator transactionGenerator = new ContainerTransactionGenerator();
 
     /**
+     * Constructor with default values for using random node-ids
+     */
+    public ContainerTestEnvironment() {
+        this(true);
+    }
+
+    /**
      * Constructor for the {@link ContainerTestEnvironment} class.
      *
      * @param useRandomNodeIds {@code true} if the node IDs should be selected randomly; {@code false} otherwise

@@ -13,8 +13,6 @@ import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.SHUTDOWN;
 import static org.hiero.otter.fixtures.result.SubscriberAction.CONTINUE;
 import static org.hiero.otter.fixtures.result.SubscriberAction.UNSUBSCRIBE;
 
-import com.hedera.hapi.node.state.roster.RoundRosterPair;
-import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.filesystem.FileSystemManager;
 import com.swirlds.common.io.utility.RecycleBin;
@@ -39,8 +37,6 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Random;
 import java.util.function.Consumer;
@@ -217,13 +213,8 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
 
             final ReservedSignedState initialState = reservedState.state();
 
-            final Bytes rosterHash = RosterUtils.hash(roster()).getBytes();
-            final RoundRosterPair roundRosterPair = RoundRosterPair.newBuilder()
-                    .roundNumber(0)
-                    .activeRosterHash(rosterHash)
-                    .build();
             final RosterHistory rosterHistory =
-                    new RosterHistory(List.of(roundRosterPair), Map.of(rosterHash, roster()));
+                    RosterUtils.createRosterHistory(initialState.get().getState());
             final String eventStreamLoc = selfId.toString();
 
             this.executionLayer = new OtterExecutionLayer(
@@ -495,5 +486,14 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
                 consumer.accept(value);
             }
         };
+    }
+
+    /**
+     * Indicated if the node starts from a saved state
+     *
+     * @return {@code true} if node starts from saved state
+     */
+    public boolean startFromSavedState() {
+        return savedStateDirectory != null;
     }
 }

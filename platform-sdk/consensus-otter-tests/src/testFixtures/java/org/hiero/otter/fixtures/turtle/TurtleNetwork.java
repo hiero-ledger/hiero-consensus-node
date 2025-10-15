@@ -20,7 +20,6 @@ import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.otter.fixtures.InstrumentedNode;
 import org.hiero.otter.fixtures.Network;
-import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.TimeManager;
 import org.hiero.otter.fixtures.TransactionGenerator;
 import org.hiero.otter.fixtures.internal.AbstractNetwork;
@@ -136,7 +135,8 @@ public class TurtleNetwork extends AbstractNetwork implements TimeTickReceiver {
 
         // The saved state was generated with the same seed; without advancing time,
         // all nodes would start simultaneously, and the saved state would lie in their future.
-        final boolean runFromState = nodes().stream().anyMatch(Node::startFromSavedState);
+        final boolean runFromState =
+                nodes().stream().map(TurtleNode.class::cast).anyMatch(TurtleNode::startFromSavedState);
         if (runFromState) {
             timeManager.advanceTime(Duration.ofHours(1));
         }

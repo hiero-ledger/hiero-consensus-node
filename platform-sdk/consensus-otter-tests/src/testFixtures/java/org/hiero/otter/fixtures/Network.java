@@ -432,12 +432,13 @@ public interface Network {
     }
 
     /**
-     * Sets the directory to the state directory for all nodes relative to the consensus-otter-tests/saved-states directory.
+     * Sets the source directory to the state directory for all nodes. The directory is either relative
+     * to {@code platform-sdk/consensus-otter-tests/saved-states} or an absolute path
      *
      * <p>This method sets the directory of all nodes currently added to the network. Please note that the new directory
      * will become effective only after a node is (re-)started.
      *
      * @param savedStateDirectory directory name of the state directory relative to the consensus-otter-tests/saved-states directory
      */
-    void savedStateDirectory(@NonNull final String savedStateDirectory);
+    void savedStateDirectory(@NonNull final Path savedStateDirectory);
 }

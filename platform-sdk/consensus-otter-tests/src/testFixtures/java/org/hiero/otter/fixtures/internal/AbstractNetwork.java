@@ -755,7 +755,7 @@ public abstract class AbstractNetwork implements Network {
     }
 
     @Override
-    public void savedStateDirectory(@NonNull final String savedStateDirectory) {
+    public void savedStateDirectory(@NonNull final Path savedStateDirectory) {
         nodes().forEach(node -> node.startFromSavedState(savedStateDirectory));
     }
 

@@ -51,6 +51,13 @@ public class TurtleTestEnvironment implements TestEnvironment {
     private final TurtleTimeManager timeManager;
 
     /**
+     * Constructor with default values for using a random seed and random node-ids
+     */
+    public TurtleTestEnvironment() {
+        this(0L, true);
+    }
+
+    /**
      * Constructor for the {@link TurtleTestEnvironment} class.
      *
      * @param randomSeed the seed for the PRNG; if {@code 0}, a random seed will be generated

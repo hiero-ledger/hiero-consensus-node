@@ -31,24 +31,19 @@ public class OtterSavedStateUtils {
     /**
      * Finds the path to a saved state directory within the test resources.
      *
-     * @param savedStateDirectory the name or path of the saved state directory, either relative to
+     * @param savedStateDirectory the path of the saved state directory, either relative to
      *                            {@code consensus-otter-tests/saved-states} or an absolute path
      * @return the {@link Path} to the saved state directory
      * @throws IllegalArgumentException if the directory does not exist
      */
     @NonNull
-    public static Path findSaveState(@NonNull final String savedStateDirectory) {
-        if (savedStateDirectory.isEmpty()) {
-            throw new IllegalArgumentException("Saved state directory is empty");
+    public static Path findSaveState(@NonNull final Path savedStateDirectory) {
+        if (Files.exists(savedStateDirectory) && Files.isDirectory(savedStateDirectory)) {
+            return savedStateDirectory;
         }
 
-        final Path directPath = Path.of(savedStateDirectory);
-        if (Files.exists(directPath)) {
-            return directPath;
-        }
-
-        final Path fallbackPath = Path.of(SAVE_STATE_DIRECTORY, savedStateDirectory);
-        if (Files.exists(fallbackPath)) {
+        final Path fallbackPath = Path.of(SAVE_STATE_DIRECTORY).resolve(savedStateDirectory);
+        if (Files.exists(fallbackPath) && Files.isDirectory(fallbackPath)) {
             return fallbackPath;
         }
 

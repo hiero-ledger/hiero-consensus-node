@@ -10,6 +10,7 @@ import static org.hiero.otter.fixtures.assertions.StatusProgressionStep.target;
 import static org.hiero.otter.fixtures.tools.GenerateStateTool.SEED;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -33,7 +34,7 @@ public class StartFromStateTest {
 
         // Setup simulation
         network.addNodes(4);
-        network.savedStateDirectory("previous-version-state");
+        network.savedStateDirectory(Path.of("previous-version-state"));
         network.start();
 
         final Map<NodeId, Long> lastRoundByNodeAtStart = network.newConsensusResults().results().stream()

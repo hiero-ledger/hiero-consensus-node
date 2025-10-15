@@ -3,8 +3,6 @@ package org.hiero.otter.fixtures;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.hiero.otter.fixtures.Constants.USE_RANDOM_NODE_IDS;
-import static org.hiero.otter.fixtures.Constants.USE_RANDOM_SEED;
 
 import com.swirlds.common.test.fixtures.WeightGenerator;
 import com.swirlds.common.test.fixtures.WeightGenerators;
@@ -24,7 +22,7 @@ class WeightGeneratorTest {
      */
     @Test
     void testWeightGeneratorCanBeSetBeforeNetworkStarts() {
-        final TurtleTestEnvironment env = new TurtleTestEnvironment(USE_RANDOM_SEED, USE_RANDOM_NODE_IDS);
+        final TurtleTestEnvironment env = new TurtleTestEnvironment();
         try {
             final Network network = env.network();
 
@@ -55,7 +53,7 @@ class WeightGeneratorTest {
      */
     @Test
     void testWeightGeneratorCannotBeSetWhenNetworkIsRunning() {
-        final TurtleTestEnvironment env = new TurtleTestEnvironment(USE_RANDOM_SEED, USE_RANDOM_NODE_IDS);
+        final TurtleTestEnvironment env = new TurtleTestEnvironment();
         try {
             final Network network = env.network();
 
@@ -78,7 +76,7 @@ class WeightGeneratorTest {
      */
     @Test
     void testGaussianWeightGeneratorProducesVariedWeights() {
-        final TurtleTestEnvironment env = new TurtleTestEnvironment(USE_RANDOM_SEED, USE_RANDOM_NODE_IDS);
+        final TurtleTestEnvironment env = new TurtleTestEnvironment();
         try {
             final Network network = env.network();
 
@@ -114,7 +112,7 @@ class WeightGeneratorTest {
      */
     @Test
     void testWeightGeneratorCanBeChangedBeforeStart() {
-        final TurtleTestEnvironment env = new TurtleTestEnvironment(USE_RANDOM_SEED, USE_RANDOM_NODE_IDS);
+        final TurtleTestEnvironment env = new TurtleTestEnvironment();
         try {
             final Network network = env.network();
 
@@ -146,7 +144,7 @@ class WeightGeneratorTest {
      */
     @Test
     void testCustomWeightGenerator() {
-        final TurtleTestEnvironment env = new TurtleTestEnvironment(USE_RANDOM_SEED, USE_RANDOM_NODE_IDS);
+        final TurtleTestEnvironment env = new TurtleTestEnvironment();
         try {
             final Network network = env.network();
 
@@ -184,7 +182,7 @@ class WeightGeneratorTest {
      */
     @Test
     void testWeightGeneratorWithSingleNode() {
-        final TurtleTestEnvironment env = new TurtleTestEnvironment(USE_RANDOM_SEED, USE_RANDOM_NODE_IDS);
+        final TurtleTestEnvironment env = new TurtleTestEnvironment();
         try {
             final Network network = env.network();
 
