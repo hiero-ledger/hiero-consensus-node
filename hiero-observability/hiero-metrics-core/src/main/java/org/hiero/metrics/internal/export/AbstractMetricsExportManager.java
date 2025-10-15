@@ -15,7 +15,7 @@ import org.hiero.metrics.api.core.MetricRegistry;
 import org.hiero.metrics.api.core.MetricsFacade;
 import org.hiero.metrics.api.export.MetricsExportManager;
 import org.hiero.metrics.api.export.snapshot.MetricsSnapshot;
-import org.hiero.metrics.internal.export.snapshot.DefaultMetricsSnapshot;
+import org.hiero.metrics.internal.export.snapshot.MetricsSnapshotImpl;
 
 /**
  * Base class for {@link MetricsExportManager} implementations.
@@ -37,7 +37,7 @@ public abstract class AbstractMetricsExportManager implements MetricsExportManag
     private final String name;
     private final Set<Set<Label>> registriesGlobalLabels = new HashSet<>();
     private final List<SnapshotableMetricsRegistry> metricRegistries = new ArrayList<>();
-    private final DefaultMetricsSnapshot snapshots = new DefaultMetricsSnapshot();
+    private final MetricsSnapshotImpl snapshots = new MetricsSnapshotImpl();
 
     protected AbstractMetricsExportManager(@NonNull String name) {
         this.name = ArgumentUtils.throwArgBlank(name, "name");
@@ -66,7 +66,7 @@ public abstract class AbstractMetricsExportManager implements MetricsExportManag
     /**
      * Register export metrics.
      *
-     * @param category category for export mentrics to be used
+     * @param category category for export metrics to be used
      * @param exportMetricsRegistry registry to register export metrics with
      */
     protected void registerExportMetrics(@NonNull String category, @NonNull MetricRegistry exportMetricsRegistry) {

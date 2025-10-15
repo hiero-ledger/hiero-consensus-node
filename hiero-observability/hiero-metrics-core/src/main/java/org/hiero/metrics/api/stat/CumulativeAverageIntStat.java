@@ -8,6 +8,7 @@ import java.util.function.DoubleSupplier;
 import java.util.function.IntSupplier;
 import org.hiero.metrics.api.GaugeAdapter;
 import org.hiero.metrics.api.core.MetricKey;
+import org.hiero.metrics.api.core.ToLongOrDoubleFunction;
 import org.hiero.metrics.api.stat.container.AtomicIntPair;
 
 public class CumulativeAverageIntStat implements DoubleSupplier {
@@ -36,7 +37,10 @@ public class CumulativeAverageIntStat implements DoubleSupplier {
     public static GaugeAdapter.Builder<IntSupplier, CumulativeAverageIntStat> metricBuilder(
             MetricKey<GaugeAdapter<IntSupplier, CumulativeAverageIntStat>> key, IntSupplier initializer) {
         return GaugeAdapter.builder(
-                        key, initializer, CumulativeAverageIntStat::new, CumulativeAverageIntStat::getAndReset)
+                        key,
+                        initializer,
+                        CumulativeAverageIntStat::new,
+                        new ToLongOrDoubleFunction<>(CumulativeAverageIntStat::getAndReset))
                 .withReset(CumulativeAverageIntStat::reset);
     }
 

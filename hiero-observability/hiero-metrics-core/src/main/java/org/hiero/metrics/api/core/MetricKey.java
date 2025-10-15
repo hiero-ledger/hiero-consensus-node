@@ -13,10 +13,8 @@ import org.hiero.metrics.api.utils.MetricUtils;
  */
 public final class MetricKey<M extends Metric> {
 
-    @NonNull
     private final String name;
 
-    @NonNull
     private final Class<M> type;
 
     private final int hashCode;
@@ -80,7 +78,7 @@ public final class MetricKey<M extends Metric> {
     public boolean equals(Object obj) {
         if (obj == this) return true;
         if (obj == null || obj.getClass() != this.getClass()) return false;
-        var that = (MetricKey) obj;
+        var that = (MetricKey<?>) obj;
         return Objects.equals(this.name, that.name) && Objects.equals(this.type, that.type);
     }
 

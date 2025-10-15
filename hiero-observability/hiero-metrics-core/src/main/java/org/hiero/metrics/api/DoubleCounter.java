@@ -8,7 +8,7 @@ import org.hiero.metrics.api.core.MetricType;
 import org.hiero.metrics.api.core.StatefulMetric;
 import org.hiero.metrics.api.datapoint.DoubleCounterDataPoint;
 import org.hiero.metrics.api.stat.StatUtils;
-import org.hiero.metrics.internal.DefaultDoubleCounter;
+import org.hiero.metrics.internal.DoubleCounterImpl;
 import org.hiero.metrics.internal.datapoint.DoubleAdderCounterDataPoint;
 
 /**
@@ -81,7 +81,7 @@ public interface DoubleCounter extends StatefulMetric<DoubleSupplier, DoubleCoun
         @NonNull
         @Override
         public DoubleCounter buildMetric() {
-            return new DefaultDoubleCounter(this);
+            return new DoubleCounterImpl(this);
         }
 
         /**

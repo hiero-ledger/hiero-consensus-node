@@ -28,7 +28,7 @@ public abstract class AbstractStatefulMetric<I, D, S extends DataPointSnapshot> 
     private final I defaultInitializer;
     private final Function<I, D> dataPointFactory;
 
-    private D noLabelsDataPoint;
+    private volatile D noLabelsDataPoint;
     private final Map<LabelValues, DataPointHolder<D, S>> dataPoints;
 
     protected AbstractStatefulMetric(StatefulMetric.Builder<I, D, ?, ?> builder) {
@@ -64,15 +64,16 @@ public abstract class AbstractStatefulMetric<I, D, S extends DataPointSnapshot> 
             throw new IllegalStateException("This metric has dynamic labels, so you must call getOrCreateLabeled()");
         }
         // lazy init of no labels data point
-        if (noLabelsDataPoint == null) {
+        D localRef = noLabelsDataPoint;
+        if (localRef == null) {
             synchronized (this) {
-                if (noLabelsDataPoint == null) {
-                    noLabelsDataPoint =
-                            createAndTrackDataPointHolder(LabelValues.empty()).dataPoint();
+                localRef = noLabelsDataPoint;
+                if (localRef == null) {
+                    noLabelsDataPoint = localRef = dataPointFactory.apply(defaultInitializer);
                 }
             }
         }
-        return noLabelsDataPoint;
+        return localRef;
     }
 
     @NonNull

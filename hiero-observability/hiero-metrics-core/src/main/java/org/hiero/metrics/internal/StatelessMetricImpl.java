@@ -5,19 +5,19 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.function.DoubleSupplier;
 import org.hiero.metrics.api.StatelessMetric;
+import org.hiero.metrics.api.core.LongOrDoubleSupplier;
 import org.hiero.metrics.internal.core.AbstractMetric;
 import org.hiero.metrics.internal.core.LabelValues;
 import org.hiero.metrics.internal.datapoint.DataPointHolder;
-import org.hiero.metrics.internal.export.snapshot.DefaultSingleValueDataPointSnapshot;
+import org.hiero.metrics.internal.export.snapshot.OneValueDataPointSnapshotImpl;
 
-public final class DefaultStatelessMetric extends AbstractMetric<DoubleSupplier, DefaultSingleValueDataPointSnapshot>
+public final class StatelessMetricImpl extends AbstractMetric<LongOrDoubleSupplier, OneValueDataPointSnapshotImpl>
         implements StatelessMetric {
 
     private final Set<LabelValues> labelValuesSet = ConcurrentHashMap.newKeySet();
 
-    public DefaultStatelessMetric(StatelessMetric.Builder builder) {
+    public StatelessMetricImpl(StatelessMetric.Builder builder) {
         super(builder);
 
         int dataPointsSize = builder.getDataPointsSize();
@@ -27,20 +27,26 @@ public final class DefaultStatelessMetric extends AbstractMetric<DoubleSupplier,
     }
 
     @Override
-    protected DefaultSingleValueDataPointSnapshot createDataPointSnapshot(LabelValues dynamicLabelValues) {
-        return new DefaultSingleValueDataPointSnapshot(dynamicLabelValues);
+    protected OneValueDataPointSnapshotImpl createDataPointSnapshot(
+            LongOrDoubleSupplier datapoint, LabelValues dynamicLabelValues) {
+        return new OneValueDataPointSnapshotImpl(dynamicLabelValues, datapoint.isDoubleSupplier());
     }
 
     @Override
     protected void updateDatapointSnapshot(
-            DataPointHolder<DoubleSupplier, DefaultSingleValueDataPointSnapshot> dataPointHolder) {
-        dataPointHolder.snapshot().update(dataPointHolder.dataPoint().getAsDouble());
+            DataPointHolder<LongOrDoubleSupplier, OneValueDataPointSnapshotImpl> dataPointHolder) {
+        LongOrDoubleSupplier datapoint = dataPointHolder.dataPoint();
+        if (datapoint.isDoubleSupplier()) {
+            dataPointHolder.snapshot().set(datapoint.getDoubleValueSupplier().getAsDouble());
+        } else {
+            dataPointHolder.snapshot().set(datapoint.getLongValueSupplier().getAsLong());
+        }
     }
 
     @NonNull
     @Override
     public StatelessMetric registerDataPoint(
-            @NonNull DoubleSupplier valueSupplier, @NonNull String... labelNamesAndValues) {
+            @NonNull LongOrDoubleSupplier valueSupplier, @NonNull String... labelNamesAndValues) {
         Objects.requireNonNull(valueSupplier, "Value supplier must not be null");
 
         LabelValues labelValues = createLabelValues(labelNamesAndValues);

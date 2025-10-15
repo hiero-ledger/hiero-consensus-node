@@ -12,7 +12,9 @@ import java.util.function.Supplier;
 import org.hiero.metrics.api.core.MetricKey;
 import org.hiero.metrics.api.core.MetricType;
 import org.hiero.metrics.api.core.StatefulMetric;
-import org.hiero.metrics.internal.DefaultGaugeAdapter;
+import org.hiero.metrics.api.core.ToLongOrDoubleFunction;
+import org.hiero.metrics.internal.DoubleGaugeAdapterImpl;
+import org.hiero.metrics.internal.LongGaugeAdapterImpl;
 
 /**
  * A stateful metric of type {@link MetricType#GAUGE} that holds custom data point (provided by the client code)
@@ -63,7 +65,7 @@ public interface GaugeAdapter<I, D> extends StatefulMetric<I, D> {
             @NonNull MetricKey<GaugeAdapter<I, D>> key,
             @NonNull I defaultInitializer,
             @NonNull Function<I, D> dataPointFactory,
-            @NonNull Function<D, Number> exportGetter) {
+            @NonNull ToLongOrDoubleFunction<D> exportGetter) {
         return new Builder<>(key, defaultInitializer, dataPointFactory, exportGetter);
     }
 
@@ -84,7 +86,7 @@ public interface GaugeAdapter<I, D> extends StatefulMetric<I, D> {
             @NonNull String name,
             @NonNull I defaultInitializer,
             @NonNull Function<I, D> dataPointFactory,
-            @NonNull Function<D, Number> exportGetter) {
+            @NonNull ToLongOrDoubleFunction<D> exportGetter) {
         return builder(key(name), defaultInitializer, dataPointFactory, exportGetter);
     }
 
@@ -102,7 +104,7 @@ public interface GaugeAdapter<I, D> extends StatefulMetric<I, D> {
     static <D> Builder<Object, D> builder(
             @NonNull MetricKey<GaugeAdapter<Object, D>> key,
             @NonNull Supplier<D> dataPointFactory,
-            @NonNull Function<D, Number> exportGetter) {
+            @NonNull ToLongOrDoubleFunction<D> exportGetter) {
         return new Builder<>(key, NO_DEFAULT_INITIALIZER, init -> dataPointFactory.get(), exportGetter);
     }
 
@@ -118,7 +120,9 @@ public interface GaugeAdapter<I, D> extends StatefulMetric<I, D> {
      * @return the builder
      */
     static <D> Builder<Object, D> builder(
-            @NonNull String name, @NonNull Supplier<D> dataPointFactory, @NonNull Function<D, Number> exportGetter) {
+            @NonNull String name,
+            @NonNull Supplier<D> dataPointFactory,
+            @NonNull ToLongOrDoubleFunction<D> exportGetter) {
         return builder(key(name), dataPointFactory, exportGetter);
     }
 
@@ -127,7 +131,7 @@ public interface GaugeAdapter<I, D> extends StatefulMetric<I, D> {
      */
     final class Builder<I, D> extends StatefulMetric.Builder<I, D, Builder<I, D>, GaugeAdapter<I, D>> {
 
-        private final Function<D, Number> exportGetter;
+        private final ToLongOrDoubleFunction<D> valueConverter;
         private Consumer<D> reset;
 
         /**
@@ -136,25 +140,25 @@ public interface GaugeAdapter<I, D> extends StatefulMetric<I, D> {
          * @param key                the metric key
          * @param defaultInitializer the default initializer used to create the data point
          * @param dataPointFactory   the factory function to create the data point using the initializer
-         * @param exportGetter       the function to get the numerical value from the data point for export
+         * @param valueConverter     the function to get the {@code double} value from the data point for export
          */
         private Builder(
                 @NonNull MetricKey<GaugeAdapter<I, D>> key,
                 @NonNull I defaultInitializer,
                 @NonNull Function<I, D> dataPointFactory,
-                @NonNull Function<D, Number> exportGetter) {
+                @NonNull ToLongOrDoubleFunction<D> valueConverter) {
             super(MetricType.GAUGE, key, defaultInitializer, dataPointFactory);
-            this.exportGetter = Objects.requireNonNull(exportGetter, "Export getter must not be null");
+            this.valueConverter = Objects.requireNonNull(valueConverter, "valueConverter cannot be null");
         }
 
         /**
-         * Get the function to get the numerical value from the data point for export.
+         * Get the function holder to convert the value to {@code double} or {@code long} for export.
          *
-         * @return the export getter function
+         * @return the value converter function
          */
         @NonNull
-        public Function<D, Number> getExportGetter() {
-            return exportGetter;
+        public ToLongOrDoubleFunction<D> getValueConverter() {
+            return valueConverter;
         }
 
         /**
@@ -188,7 +192,11 @@ public interface GaugeAdapter<I, D> extends StatefulMetric<I, D> {
         @NonNull
         @Override
         protected GaugeAdapter<I, D> buildMetric() {
-            return new DefaultGaugeAdapter<>(this);
+            if (valueConverter.isToDoubleFunction()) {
+                return new LongGaugeAdapterImpl<>(this);
+            } else {
+                return new DoubleGaugeAdapterImpl<>(this);
+            }
         }
 
         /**

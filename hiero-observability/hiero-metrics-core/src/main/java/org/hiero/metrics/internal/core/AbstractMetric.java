@@ -44,12 +44,12 @@ public abstract class AbstractMetric<D, S extends DataPointSnapshot> implements 
 
     protected final DataPointHolder<D, S> createAndTrackDataPointHolder(D datapoint, LabelValues dynamicLabelValues) {
         DataPointHolder<D, S> dataPointHolder =
-                new DataPointHolder<>(datapoint, createDataPointSnapshot(dynamicLabelValues));
+                new DataPointHolder<>(datapoint, createDataPointSnapshot(datapoint, dynamicLabelValues));
         metricSnapshot.addDataPointHolder(dataPointHolder);
         return dataPointHolder;
     }
 
-    protected abstract S createDataPointSnapshot(LabelValues dynamicLabelValues);
+    protected abstract S createDataPointSnapshot(D datapoint, LabelValues dynamicLabelValues);
 
     protected abstract void updateDatapointSnapshot(DataPointHolder<D, S> dataPointHolder);
 

@@ -11,12 +11,12 @@ import org.hiero.metrics.api.export.snapshot.MetricSnapshot;
 import org.hiero.metrics.api.export.snapshot.MetricsSnapshot;
 import org.hiero.metrics.internal.export.SnapshotableMetricsRegistry;
 
-public final class DefaultMetricsSnapshot implements MetricsSnapshot {
+public final class MetricsSnapshotImpl implements MetricsSnapshot {
 
     private Instant createdAt = Instant.now();
     private List<UpdatableMetricRegistrySnapshot> registrySnapshots = List.of();
 
-    public DefaultMetricsSnapshot update() {
+    public MetricsSnapshotImpl update() {
         createdAt = Instant.now();
         for (UpdatableMetricRegistrySnapshot snapshot : registrySnapshots) {
             snapshot.updateSnapshot();

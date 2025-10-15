@@ -8,7 +8,7 @@ import org.hiero.metrics.api.core.MetricType;
 import org.hiero.metrics.api.core.StatefulMetric;
 import org.hiero.metrics.api.datapoint.LongCounterDataPoint;
 import org.hiero.metrics.api.stat.StatUtils;
-import org.hiero.metrics.internal.DefaultLongCounter;
+import org.hiero.metrics.internal.LongCounterImpl;
 import org.hiero.metrics.internal.datapoint.AtomicLongCounterDataPoint;
 import org.hiero.metrics.internal.datapoint.LongAdderCounterDataPoint;
 
@@ -97,7 +97,7 @@ public interface LongCounter extends StatefulMetric<LongSupplier, LongCounterDat
         @NonNull
         @Override
         public LongCounter buildMetric() {
-            return new DefaultLongCounter(this);
+            return new LongCounterImpl(this);
         }
 
         /**

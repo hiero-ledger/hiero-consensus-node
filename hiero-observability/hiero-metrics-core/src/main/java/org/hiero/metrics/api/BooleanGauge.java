@@ -8,7 +8,7 @@ import org.hiero.metrics.api.core.MetricType;
 import org.hiero.metrics.api.core.StatefulMetric;
 import org.hiero.metrics.api.datapoint.BooleanGaugeDataPoint;
 import org.hiero.metrics.api.stat.StatUtils;
-import org.hiero.metrics.internal.DefaultBooleanGauge;
+import org.hiero.metrics.internal.BooleanGaugeImpl;
 import org.hiero.metrics.internal.datapoint.AtomicBooleanGaugeDataPoint;
 
 /**
@@ -82,7 +82,7 @@ public interface BooleanGauge extends StatefulMetric<BooleanSupplier, BooleanGau
         @NonNull
         @Override
         public BooleanGauge buildMetric() {
-            return new DefaultBooleanGauge(this);
+            return new BooleanGaugeImpl(this);
         }
 
         /**

@@ -12,7 +12,7 @@ import org.hiero.metrics.api.core.MetricType;
 import org.hiero.metrics.api.core.StatefulMetric;
 import org.hiero.metrics.api.datapoint.DoubleGaugeDataPoint;
 import org.hiero.metrics.api.stat.StatUtils;
-import org.hiero.metrics.internal.DefaultDoubleGauge;
+import org.hiero.metrics.internal.DoubleGaugeImpl;
 import org.hiero.metrics.internal.datapoint.AtomicDoubleGaugeDataPoint;
 import org.hiero.metrics.internal.datapoint.DoubleAccumulatorGaugeDataPoint;
 
@@ -145,7 +145,7 @@ public interface DoubleGauge extends StatefulMetric<DoubleSupplier, DoubleGaugeD
                 withContainerFactory(AtomicDoubleGaugeDataPoint::new);
             }
 
-            return new DefaultDoubleGauge(this);
+            return new DoubleGaugeImpl(this);
         }
 
         /**

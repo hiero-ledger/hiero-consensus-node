@@ -20,9 +20,9 @@ import org.hiero.metrics.internal.export.SnapshotableMetric;
 import org.hiero.metrics.internal.export.SnapshotableMetricsRegistry;
 import org.hiero.metrics.internal.export.snapshot.UpdatableMetricRegistrySnapshot;
 
-public class DefaultMetricRegistry implements SnapshotableMetricsRegistry {
+public class MetricRegistryImpl implements SnapshotableMetricsRegistry {
 
-    private static final Logger logger = LogManager.getLogger(DefaultMetricRegistry.class);
+    private static final Logger logger = LogManager.getLogger(MetricRegistryImpl.class);
 
     private final List<Label> globalLabels;
     private final ConcurrentHashMap<String, Metric> metrics = new ConcurrentHashMap<>();
@@ -30,7 +30,7 @@ public class DefaultMetricRegistry implements SnapshotableMetricsRegistry {
 
     private final UpdatableMetricRegistrySnapshot snapshot = new UpdatableMetricRegistrySnapshot();
 
-    public DefaultMetricRegistry(@NonNull Label... globalLabels) {
+    public MetricRegistryImpl(@NonNull Label... globalLabels) {
         this.globalLabels = MetricUtils.asList(globalLabels);
     }
 
