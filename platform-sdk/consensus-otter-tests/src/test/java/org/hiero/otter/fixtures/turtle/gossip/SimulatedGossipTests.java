@@ -8,10 +8,8 @@ import static org.mockito.Mockito.mock;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.base.time.Time;
-import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.common.test.fixtures.Randotron;
-import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.component.framework.model.TraceableWiringModel;
 import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.component.framework.model.WiringModelBuilder;
@@ -65,8 +63,6 @@ class SimulatedGossipTests {
         final Randotron randotron = Randotron.create();
 
         final FakeTime time = new FakeTime();
-        final PlatformContext context =
-                TestPlatformContextBuilder.create().withTime(time).build();
 
         final Roster roster =
                 RandomRosterBuilder.create(randotron).withSize(networkSize).build();
@@ -132,6 +128,7 @@ class SimulatedGossipTests {
                             mock(BindableInputWire.class),
                             mock(BindableInputWire.class),
                             mock(StandardOutputWire.class));
+            model.start();
         }
 
         // For each event, choose a random subset of nodes that will submit the event. Our end goal is to see

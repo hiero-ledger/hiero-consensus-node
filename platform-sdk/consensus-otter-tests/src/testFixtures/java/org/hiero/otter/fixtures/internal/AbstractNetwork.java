@@ -54,9 +54,11 @@ import org.hiero.otter.fixtures.TimeManager;
 import org.hiero.otter.fixtures.TransactionFactory;
 import org.hiero.otter.fixtures.TransactionGenerator;
 import org.hiero.otter.fixtures.app.OtterTransaction;
+import org.hiero.otter.fixtures.internal.helpers.Utils;
 import org.hiero.otter.fixtures.internal.network.ConnectionKey;
 import org.hiero.otter.fixtures.internal.network.GeoMeshTopologyImpl;
 import org.hiero.otter.fixtures.internal.result.MultipleNodeConsensusResultsImpl;
+import org.hiero.otter.fixtures.internal.result.MultipleNodeEventStreamResultsImpl;
 import org.hiero.otter.fixtures.internal.result.MultipleNodeLogResultsImpl;
 import org.hiero.otter.fixtures.internal.result.MultipleNodeMarkerFileResultsImpl;
 import org.hiero.otter.fixtures.internal.result.MultipleNodePcesResultsImpl;
@@ -66,6 +68,7 @@ import org.hiero.otter.fixtures.network.Partition;
 import org.hiero.otter.fixtures.network.Topology;
 import org.hiero.otter.fixtures.network.Topology.ConnectionData;
 import org.hiero.otter.fixtures.result.MultipleNodeConsensusResults;
+import org.hiero.otter.fixtures.result.MultipleNodeEventStreamResults;
 import org.hiero.otter.fixtures.result.MultipleNodeLogResults;
 import org.hiero.otter.fixtures.result.MultipleNodeMarkerFileResults;
 import org.hiero.otter.fixtures.result.MultipleNodePcesResults;
@@ -83,6 +86,11 @@ import org.hiero.otter.fixtures.result.SingleNodeReconnectResult;
  * environments.
  */
 public abstract class AbstractNetwork implements Network {
+    /**
+     * The fraction of nodes that must consider a node behind for the node to be considered behind by the network.
+     */
+    private static final double BEHIND_FRACTION = 0.5;
+
     /**
      * The state of the network.
      */
@@ -703,6 +711,15 @@ public abstract class AbstractNetwork implements Network {
      * {@inheritDoc}
      */
     @Override
+    @NonNull
+    public MultipleNodeEventStreamResults newEventStreamResults() {
+        return new MultipleNodeEventStreamResultsImpl(nodes());
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
     public boolean nodeIsBehindByNodeWeight(@NonNull final Node maybeBehindNode) {
         final Set<Node> otherNodes = nodes().stream()
                 .filter(n -> !n.selfId().equals(maybeBehindNode.selfId()))
@@ -729,26 +746,31 @@ public abstract class AbstractNetwork implements Network {
      * {@inheritDoc}
      */
     @Override
-    public boolean nodeIsBehindByNodeCount(@NonNull final Node maybeBehindNode, final double fraction) {
-        final Set<Node> otherNodes = nodes().stream()
-                .filter(n -> !n.selfId().equals(maybeBehindNode.selfId()))
-                .collect(Collectors.toSet());
+    public boolean nodesAreBehindByNodeCount(
+            @NonNull final Node maybeBehindNode, @Nullable final Node... otherMaybeBehindNodes) {
+        final Set<Node> maybeBehindNodes = Utils.collect(maybeBehindNode, otherMaybeBehindNodes);
+        final Set<Node> peerNodes =
+                nodes().stream().filter(n -> !maybeBehindNodes.contains(n)).collect(Collectors.toSet());
 
-        // For simplicity, consider the node that we are checking as "behind" to be the "self" node.
-        final EventWindow selfEventWindow = maybeBehindNode.newConsensusResult().getLatestEventWindow();
+        boolean allNodesAreBehind = true;
+        for (final Node node : maybeBehindNodes) {
+            // For simplicity, consider the node that we are checking as "behind" to be the "self" node.
+            final EventWindow selfEventWindow = node.newConsensusResult().getLatestEventWindow();
 
-        int numNodesAhead = 0;
-        for (final Node maybeAheadNode : otherNodes) {
-            final EventWindow peerEventWindow =
-                    maybeAheadNode.newConsensusResult().getLatestEventWindow();
+            int numNodesAhead = 0;
+            for (final Node maybeAheadNode : peerNodes) {
+                final EventWindow peerEventWindow =
+                        maybeAheadNode.newConsensusResult().getLatestEventWindow();
 
-            // If any peer in the required list says the "self" node is behind, it is ahead so add it to the count
-            if (SyncFallenBehindStatus.getStatus(selfEventWindow, peerEventWindow)
-                    == SyncFallenBehindStatus.SELF_FALLEN_BEHIND) {
-                numNodesAhead++;
+                // If any peer in the required list says the "self" node is behind, it is ahead so add it to the count
+                if (SyncFallenBehindStatus.getStatus(selfEventWindow, peerEventWindow)
+                        == SyncFallenBehindStatus.SELF_FALLEN_BEHIND) {
+                    numNodesAhead++;
+                }
             }
+            allNodesAreBehind &= (numNodesAhead / (1.0 * peerNodes.size())) >= BEHIND_FRACTION;
         }
-        return (numNodesAhead / (1.0 * otherNodes.size())) >= fraction;
+        return allNodesAreBehind;
     }
 
     /**
