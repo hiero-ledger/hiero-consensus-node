@@ -620,10 +620,6 @@ public class BlockNodeConnectionManager {
      * or the configuration watcher. Intended for dynamic reconfiguration when the configuration file changes.
      */
     private void stopConnections() {
-        if (!isStreamingEnabled()) {
-            return;
-        }
-
         logWithContext(INFO, "Stopping block node connections.");
 
         // Close all connections
