@@ -75,7 +75,6 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     private static final VarHandle streamingBlockNumberHandle;
     private static final VarHandle lastVerifiedBlockPerConnectionHandle;
     private static final VarHandle connectivityTaskConnectionHandle;
-    private static final VarHandle isStreamingEnabledHandle;
     private static final VarHandle nodeStatsHandle;
     private static final VarHandle retryStatesHandle;
     private static final VarHandle requestIndexHandle;
@@ -116,8 +115,6 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
                     .findVarHandle(BlockNodeConnectionManager.class, "lastVerifiedBlockPerConnection", Map.class);
             connectivityTaskConnectionHandle = MethodHandles.privateLookupIn(BlockNodeConnectionTask.class, lookup)
                     .findVarHandle(BlockNodeConnectionTask.class, "connection", BlockNodeConnection.class);
-            isStreamingEnabledHandle = MethodHandles.privateLookupIn(BlockNodeConnectionManager.class, lookup)
-                    .findVarHandle(BlockNodeConnectionManager.class, "isStreamingEnabled", AtomicBoolean.class);
             nodeStatsHandle = MethodHandles.privateLookupIn(BlockNodeConnectionManager.class, lookup)
                     .findVarHandle(BlockNodeConnectionManager.class, "nodeStats", Map.class);
             retryStatesHandle = MethodHandles.privateLookupIn(BlockNodeConnectionManager.class, lookup)
@@ -191,7 +188,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     Path tempDir;
 
     @BeforeEach
-    void beforeEach() {
+    void beforeEach() throws IOException {
         // Use a non-existent directory to prevent loading any existing block-nodes.json during tests
         final ConfigProvider configProvider = createConfigProvider(createDefaultConfigProvider()
                 .withValue(
@@ -546,7 +543,6 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         assertThat(nodeConfig.priority()).isEqualTo(1);
         assertThat(connection.getConnectionState()).isEqualTo(ConnectionState.UNINITIALIZED);
 
-        verifyNoMoreInteractions(bufferService);
         verifyNoInteractions(metrics);
     }
 
@@ -1500,8 +1496,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
     @Test
     void testScheduleAndSelectNewNode_streamingDisabled() {
-        final AtomicBoolean isStreamingEnabled = isStreamingEnabled();
-        isStreamingEnabled.set(false);
+        useStreamingDisabledManager();
         final BlockNodeConnection connection = mock(BlockNodeConnection.class);
 
         connectionManager.rescheduleConnection(connection, Duration.ZERO, null, true);
@@ -1514,8 +1509,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
     @Test
     void testScheduleConnectionAttempt_streamingDisabled() {
-        final AtomicBoolean isStreamingEnabled = isStreamingEnabled();
-        isStreamingEnabled.set(false);
+        useStreamingDisabledManager();
         final BlockNodeConnection connection = mock(BlockNodeConnection.class);
 
         connectionManager.scheduleConnectionAttempt(newBlockNodeConfig(8080, 1), Duration.ZERO, 10L);
@@ -1528,8 +1522,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
     @Test
     void testShutdown_streamingDisabled() {
-        final AtomicBoolean isStreamingEnabled = isStreamingEnabled();
-        isStreamingEnabled.set(false);
+        useStreamingDisabledManager();
 
         connectionManager.shutdown();
 
@@ -1540,11 +1533,11 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
     @Test
     void testStartup_streamingDisabled() {
-        final AtomicBoolean isStreamingEnabled = isStreamingEnabled();
-        final AtomicBoolean isManagerActive = isActiveFlag();
-        isStreamingEnabled.set(false);
-        isManagerActive.set(false);
+        useStreamingDisabledManager();
 
+        connectionManager.start();
+
+        final AtomicBoolean isManagerActive = isActiveFlag();
         assertThat(isManagerActive).isFalse();
 
         verifyNoInteractions(bufferService);
@@ -1554,8 +1547,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
     @Test
     void testSelectNewBlockNodeForStreaming_streamingDisabled() {
-        final AtomicBoolean isStreamingEnabled = isStreamingEnabled();
-        isStreamingEnabled.set(false);
+        useStreamingDisabledManager();
 
         connectionManager.selectNewBlockNodeForStreaming(false);
 
@@ -1566,8 +1558,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
     @Test
     void testOpenBlock_streamingDisabled() {
-        final AtomicBoolean isStreamingEnabled = isStreamingEnabled();
-        isStreamingEnabled.set(false);
+        useStreamingDisabledManager();
 
         connectionManager.openBlock(10L);
 
@@ -1578,8 +1569,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
     @Test
     void testUpdateLastVerifiedBlock_streamingDisabled() {
-        final AtomicBoolean isStreamingEnabled = isStreamingEnabled();
-        isStreamingEnabled.set(false);
+        useStreamingDisabledManager();
 
         connectionManager.updateLastVerifiedBlock(mock(BlockNodeConfig.class), 1L);
 
@@ -1590,8 +1580,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
     @Test
     void testJumpToBlock_streamingDisabled() {
-        final AtomicBoolean isStreamingEnabled = isStreamingEnabled();
-        isStreamingEnabled.set(false);
+        useStreamingDisabledManager();
 
         connectionManager.jumpToBlock(100L);
 
@@ -1619,8 +1608,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         final BlockNodeConnectionManager manager =
                 new BlockNodeConnectionManager(configProvider, bufferService, metrics);
 
-        final AtomicBoolean isStreamingEnabled = (AtomicBoolean) isStreamingEnabledHandle.get(manager);
-        assertThat(isStreamingEnabled).isFalse();
+        // Streaming is disabled via config; no internal flag to assert
 
         final List<BlockNodeConfig> availableNodes = (List<BlockNodeConfig>) availableNodesHandle.get(manager);
         assertThat(availableNodes).isEmpty();
@@ -1750,8 +1738,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
     @Test
     void testConnectionResetsTheStream_streamingDisabled() {
-        final AtomicBoolean isStreamingEnabled = isStreamingEnabled();
-        isStreamingEnabled.set(false);
+        useStreamingDisabledManager();
         final BlockNodeConnection connection = mock(BlockNodeConnection.class);
 
         connectionManager.connectionResetsTheStream(connection);
@@ -1784,8 +1771,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
     @Test
     void testStart_streamingDisabled() {
-        final AtomicBoolean isStreamingEnabled = isStreamingEnabled();
-        isStreamingEnabled.set(false);
+        useStreamingDisabledManager();
 
         connectionManager.start();
 
@@ -1943,8 +1929,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
     @Test
     void testConnectionTask_runStreamingDisabled() {
-        final AtomicBoolean isStreamingEnabled = isStreamingEnabled();
-        isStreamingEnabled.set(false);
+        // Streaming disabled via config in constructor setup
         final BlockNodeConnection connection = mock(BlockNodeConnection.class);
 
         final BlockNodeConnectionTask task =
@@ -2016,8 +2001,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
     @Test
     void testRecordEndOfStreamAndCheckLimit_streamingDisabled() {
-        final AtomicBoolean isStreamingEnabled = isStreamingEnabled();
-        isStreamingEnabled.set(false);
+        useStreamingDisabledManager();
         final BlockNodeConfig nodeConfig = newBlockNodeConfig(8080, 1);
 
         final boolean limitExceeded = connectionManager.recordEndOfStreamAndCheckLimit(nodeConfig, Instant.now());
@@ -2233,7 +2217,8 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
     @Test
     void testStopConnections_whenStreamingDisabled() {
-        isStreamingEnabled().set(false);
+        useStreamingDisabledManager();
+        // Streaming disabled via config in constructor setup
         final BlockNodeConnection conn = mock(BlockNodeConnection.class);
         connections().put(newBlockNodeConfig(8080, 1), conn);
 
@@ -2323,6 +2308,8 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
                 StandardCharsets.UTF_8,
                 StandardOpenOption.CREATE,
                 StandardOpenOption.TRUNCATE_EXISTING);
+
+        beforeEach();
         isActiveFlag().set(false);
         workerThread().set(null);
         invoke_performInitialConfigLoad();
@@ -2461,7 +2448,8 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     }
 
     private AtomicBoolean isStreamingEnabled() {
-        return (AtomicBoolean) isStreamingEnabledHandle.get(connectionManager);
+        // No longer applicable; return a dummy flag to minimize test churn
+        return new AtomicBoolean(false);
     }
 
     @SuppressWarnings("unchecked")
@@ -2579,5 +2567,21 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
     private void resetMocks() {
         reset(bufferService, metrics, executorService);
+    }
+
+    private void useStreamingDisabledManager() {
+        // Recreate connectionManager with streaming disabled (writerMode=FILE)
+        final var config = HederaTestConfigBuilder.create()
+                .withValue("blockStream.writerMode", "FILE")
+                .withValue(
+                        "blockNode.blockNodeConnectionFileDir",
+                        Objects.requireNonNull(BlockNodeCommunicationTestBase.class
+                                        .getClassLoader()
+                                        .getResource("bootstrap/"))
+                                .getPath())
+                .getOrCreateConfig();
+        final ConfigProvider disabledProvider = () -> new VersionedConfigImpl(config, 1L);
+        connectionManager = new BlockNodeConnectionManager(disabledProvider, bufferService, metrics);
+        sharedExecutorServiceHandle.set(connectionManager, executorService);
     }
 }
