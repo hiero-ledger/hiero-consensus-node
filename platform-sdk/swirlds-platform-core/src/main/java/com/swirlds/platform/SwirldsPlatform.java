@@ -15,6 +15,7 @@ import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.IOIterator;
 import com.swirlds.common.notification.NotificationEngine;
 import com.swirlds.common.stream.RunningEventHashOverride;
+import com.swirlds.common.threading.framework.config.ThreadConfiguration;
 import com.swirlds.common.threading.manager.AdHocThreadManager;
 import com.swirlds.common.utility.AutoCloseableWrapper;
 import com.swirlds.platform.builder.PlatformBuildingBlocks;
@@ -35,7 +36,7 @@ import com.swirlds.platform.event.preconsensus.PcesReplayer;
 import com.swirlds.platform.metrics.RuntimeMetrics;
 import com.swirlds.platform.publisher.DefaultPlatformPublisher;
 import com.swirlds.platform.publisher.PlatformPublisher;
-import com.swirlds.platform.reconnect.PlatformReconnecter;
+import com.swirlds.platform.reconnect.ReconnectController;
 import com.swirlds.platform.state.SwirldStateManager;
 import com.swirlds.platform.state.nexus.DefaultLatestCompleteStateNexus;
 import com.swirlds.platform.state.nexus.LatestCompleteStateNexus;
@@ -222,9 +223,8 @@ public class SwirldsPlatform implements Platform {
         final AppNotifier appNotifier = new DefaultAppNotifier(blocks.notificationEngine());
 
         final PlatformPublisher publisher = new DefaultPlatformPublisher(blocks.applicationCallbacks());
-        final PlatformReconnecter platformReconnecter = new PlatformReconnecter(
+        final ReconnectController reconnectController = new ReconnectController(
                 platformStateFacade,
-                AdHocThreadManager.getStaticThreadManager(),
                 currentRoster,
                 getContext().getMerkleCryptography(),
                 this,
@@ -234,9 +234,16 @@ public class SwirldsPlatform implements Platform {
                 savedStateController,
                 blocks.consensusStateEventHandler(),
                 blocks.reservedSignedStatePromise(),
-                selfId);
-        blocks.fallenBehindMonitor().bind(platformReconnecter);
-        blocks.fallenBehindMonitor().bind(platformCoordinator);
+                selfId,
+                blocks.fallenBehindMonitor());
+
+        Runtime.getRuntime().addShutdownHook(new Thread(reconnectController::stop));
+        new ThreadConfiguration(AdHocThreadManager.getStaticThreadManager())
+                .setComponent("reconnecter")
+                .setThreadName("platform-reconnecter")
+                .setRunnable(reconnectController::start)
+                .build(true);
+
         platformComponents.bind(
                 builder,
                 pcesReplayer,

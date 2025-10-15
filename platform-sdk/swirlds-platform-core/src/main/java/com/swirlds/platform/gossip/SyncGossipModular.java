@@ -32,6 +32,7 @@ import com.swirlds.platform.network.protocol.ReservedSignedStatePromise;
 import com.swirlds.platform.network.protocol.StateSyncProtocol;
 import com.swirlds.platform.network.protocol.SyncProtocol;
 import com.swirlds.platform.network.protocol.rpc.RpcProtocol;
+import com.swirlds.platform.reconnect.FallenBehindMonitor;
 import com.swirlds.platform.reconnect.StateSyncThrottle;
 import com.swirlds.platform.state.SwirldStateManager;
 import com.swirlds.platform.state.service.PlatformStateFacade;

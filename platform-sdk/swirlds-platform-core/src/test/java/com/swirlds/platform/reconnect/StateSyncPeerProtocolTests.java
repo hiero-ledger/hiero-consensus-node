@@ -27,7 +27,6 @@ import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
-import com.swirlds.platform.gossip.FallenBehindMonitor;
 import com.swirlds.platform.metrics.ReconnectMetrics;
 import com.swirlds.platform.network.Connection;
 import com.swirlds.platform.network.protocol.PeerProtocol;
@@ -309,7 +308,13 @@ class StateSyncPeerProtocolTests {
                     reservedSignedStatePromise.acquire(),
                     "the while loop should have acquired the permit, so it should not be available");
 
-            t = new Thread(reservedSignedStatePromise::await);
+            t = new Thread(() -> {
+                try {
+                    reservedSignedStatePromise.await();
+                } catch (InterruptedException ie) {
+
+                }
+            });
             t.start();
 
             Thread.sleep(500);
