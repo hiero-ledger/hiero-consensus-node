@@ -84,7 +84,7 @@ public class DispatchValidator {
         if (creatorError != null) {
             return newCreatorError(dispatch.creatorInfo().accountId(), creatorError);
         } else {
-            if (dispatch.txnInfo().functionality() == HederaFunctionality.STATE_SIGNATURE_TRANSACTION) {
+            if (dispatch.txnInfo().functionality() == HederaFunctionality.HINTS_PARTIAL_SIGNATURE) {
                 // Skip all checks for state signature transaction
                 newSuccess(dispatch.creatorInfo().accountId(), null);
             }
