@@ -599,7 +599,6 @@ public class BlockNodeConnectionManager {
         } catch (final Exception e) {
             logWithContext(WARN, "Failed to schedule connection task for block node.", blockNodeConfig, e);
             connections.remove(blockNodeConfig);
-            // TODO newConnection.close(true);
         }
     }
 
@@ -1274,29 +1273,27 @@ public class BlockNodeConnectionManager {
             try {
                 logWithContext(DEBUG, "Running connection task.");
                 final BlockNodeConnection activeConnection = activeConnectionRef.get();
-
                 if (activeConnection != null) {
-                    if (activeConnection.getNodeConfig().equals(blockNodeConfig)) {
+                    final BlockNodeConfig activeBlockNodeConfig = activeConnection.getNodeConfig();
+                    if (activeBlockNodeConfig.equals(blockNodeConfig)) {
                         // not sure how the active connection is in a connectivity task, ignoring
                         logWithContext(DEBUG, "The current connection is the active connection, ignoring task.");
                         return;
                     } else if (force) {
-                        final BlockNodeConfig oldConnConfig = activeConnection.getNodeConfig();
                         logWithContext(
                                 DEBUG,
                                 "Promoting forced connection with priority={} over active ({}:{} priority={}).",
                                 blockNodeConfig.priority(),
-                                oldConnConfig.address(),
-                                oldConnConfig.port(),
-                                oldConnConfig.priority());
-                    } else if (activeConnection.getNodeConfig().priority() <= blockNodeConfig.priority()) {
+                                activeBlockNodeConfig.address(),
+                                activeBlockNodeConfig.port(),
+                                activeBlockNodeConfig.priority());
+                    } else if (activeBlockNodeConfig.priority() <= blockNodeConfig.priority()) {
                         // this new connection has a lower (or equal) priority than the existing active connection
                         // this connection task should thus be cancelled/ignored
                         logWithContext(
                                 DEBUG,
                                 "Active connection has equal/higher priority. Ignoring candidate. Active: {}.",
                                 activeConnection);
-                        // TODO newConnection.close(true);
                         return;
                     }
                 }
@@ -1306,6 +1303,9 @@ public class BlockNodeConnectionManager {
                 connection, but the active connection has a lower priority than the connection in this task. In either
                 case, we want to elevate this connection to be the new active connection.
                  */
+
+                // Record the connection IP metric, or set -1 if we cannot resolve the address
+                recordConnectionIp(blockNodeConfig);
 
                 final BlockNodeConnection newConnection = createConnection(blockNodeConfig);
                 newConnection.createRequestPipeline();
@@ -1317,7 +1317,6 @@ public class BlockNodeConnectionManager {
                             blockNumber != null ? blockNumber : blockBufferService.getLastBlockNumberProduced();
 
                     jumpTargetBlock.set(blockToJumpTo);
-                    recordActiveConnectionIp(newConnection.getNodeConfig());
                     logWithContext(DEBUG, "Jump target block is set to {}.", blockToJumpTo);
                 } else {
                     // Another connection task has preempted this task, reschedule and try again
@@ -1396,7 +1395,6 @@ public class BlockNodeConnectionManager {
                 // If rescheduling fails, close the connection and remove it from the connection map. A periodic task
                 // will handle checking if there are no longer any connections
                 connections.remove(blockNodeConfig);
-                // TODO newConnection.close(true);
             }
         }
     }
@@ -1497,7 +1495,7 @@ public class BlockNodeConnectionManager {
         return octet1 + octet2 + octet3 + octet4;
     }
 
-    private void recordActiveConnectionIp(final BlockNodeConfig nodeConfig) {
+    private void recordConnectionIp(final BlockNodeConfig nodeConfig) {
         long ipAsInteger;
 
         // Attempt to resolve the address of the block node

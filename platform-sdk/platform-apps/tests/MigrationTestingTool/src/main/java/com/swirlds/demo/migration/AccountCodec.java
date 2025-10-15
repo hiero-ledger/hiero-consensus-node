@@ -6,6 +6,7 @@ import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.io.IOException;
 
 public class AccountCodec implements Codec<Account> {
 
@@ -21,16 +22,12 @@ public class AccountCodec implements Codec<Account> {
     @NonNull
     @Override
     public Account parse(
-            @NonNull ReadableSequentialData in,
-            boolean strictMode,
-            boolean parseUnknownFields,
-            int maxDepth,
-            int maxSize) {
+            @NonNull ReadableSequentialData in, boolean strictMode, boolean parseUnknownFields, int maxDepth) {
         return new Account(in);
     }
 
     @Override
-    public void write(@NonNull Account value, @NonNull WritableSequentialData out) {
+    public void write(@NonNull Account value, @NonNull WritableSequentialData out) throws IOException {
         value.writeTo(out);
     }
 

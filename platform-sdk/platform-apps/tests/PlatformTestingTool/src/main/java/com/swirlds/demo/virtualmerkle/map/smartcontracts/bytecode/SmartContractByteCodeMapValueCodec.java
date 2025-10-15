@@ -22,11 +22,7 @@ public class SmartContractByteCodeMapValueCodec implements Codec<SmartContractBy
     @NonNull
     @Override
     public SmartContractByteCodeMapValue parse(
-            @NonNull ReadableSequentialData in,
-            boolean strictMode,
-            boolean parseUnknownFields,
-            int maxDepth,
-            int maxSize) {
+            @NonNull ReadableSequentialData in, boolean strictMode, boolean parseUnknownFields, int maxDepth) {
         return new SmartContractByteCodeMapValue(in);
     }
 

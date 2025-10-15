@@ -36,7 +36,7 @@ public final class ConsistencyStateJsonCodec implements JsonCodec<ConsistencySta
      * @throws ParseException If parsing fails
      */
     public @NonNull ConsistencyState parse(
-            @Nullable final JSONParser.ObjContext root, final boolean strictMode, final int maxDepth, final int maxSize)
+            @Nullable final JSONParser.ObjContext root, final boolean strictMode, final int maxDepth)
             throws ParseException {
         if (maxDepth < 0) {
             throw new ParseException("Reached maximum allowed depth of nested messages");
