@@ -410,19 +410,6 @@ public interface Network {
     boolean nodeIsBehindByNodeWeight(@NonNull Node maybeBehindNode);
 
     /**
-     * Checks if a node is behind compared to a fraction of peers in the network. A node is considered behind a peer
-     * when its minimum non-ancient round is older than the peer's minimum non-expired round.
-     *
-     * @param maybeBehindNode the node to check behind status for
-     * @return {@code true} if the node is behind by the specified fraction of peers, {@code false} otherwise
-     * @see com.swirlds.platform.gossip.shadowgraph.SyncFallenBehindStatus
-     * @see Network#nodesAreBehindByNodeCount(double, Node, Node...)
-     */
-    default boolean nodeIsBehindByNodeCount(@NonNull Node maybeBehindNode) {
-        return nodesAreBehindByNodeCount(maybeBehindNode);
-    }
-
-    /**
      * Checks if one or more nodes are behind compared to a fraction of peers in the network. A node is considered
      * behind a peer when its minimum non-ancient round is older than the peer's minimum non-expired round. This method
      * will return {@code true} if all supplied nodes are behind the specified fraction of peers.
