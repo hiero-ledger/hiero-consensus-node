@@ -20,6 +20,7 @@ import org.hiero.otter.fixtures.OtterTest;
 import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.result.SingleNodeLogResult;
 import org.hiero.otter.fixtures.result.SingleNodePlatformStatusResult;
+import org.hiero.otter.fixtures.turtle.TurtleSpecs;
 
 /**
  * Tests for the detection and response to ISSes (Inconsistent State Signatures).
@@ -65,6 +66,9 @@ public class IssTest {
         assertThat(issNodeStatusResult)
                 .hasSteps(target(ACTIVE).requiringInterim(REPLAYING_EVENTS, OBSERVING, CHECKING));
         assertThat(issLogResult).hasNoErrorLevelMessages();
+        assertThat(network.newConsensusResults()).haveEqualCommonRounds();
+        assertThat(network.newConsensusResults().suppressingNode(issNode)).haveConsistentRounds();
+        assertThat(network.newEventStreamResults().suppressingNode(issNode)).haveEqualFiles();
     }
 
     /**

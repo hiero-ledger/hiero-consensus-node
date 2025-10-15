@@ -181,7 +181,8 @@ class MultipleNodeEventStreamResultsAssertTest {
         createEventStreamFileWithSignature(node0EventStreamDir, "2024-01-01T02_00_00.000000000Z.evts", "content3");
 
         // Node 2 (reconnected) has matching names but different content
-        createEventStreamFileWithSignature(node1EventStreamDir, "2024-01-01T01_00_00.000000000Z.evts", "different");
+        createEventStreamFileWithSignature(
+                node1EventStreamDir, "2024-01-01T01_00_00.000000000Z.evts", "post-reconnect");
         createEventStreamFileWithSignature(node1EventStreamDir, "2024-01-01T02_00_00.000000000Z.evts", "content3");
 
         final MultipleNodeEventStreamResults results =
@@ -200,8 +201,9 @@ class MultipleNodeEventStreamResultsAssertTest {
         createEventStreamFileWithSignature(node0EventStreamDir, "2024-01-01T01_00_00.000000000Z.evts", "content2");
 
         // Node 2 (reconnected) has matching names but different content in the last file
-        createEventStreamFile(node1EventStreamDir, "2024-01-01T00_00_00.000000000Z.evts", "different1");
-        createEventStreamFileWithSignature(node1EventStreamDir, "2024-01-01T01_00_05.000000000Z.evts", "different2");
+        createEventStreamFile(node1EventStreamDir, "2024-01-01T00_00_00.000000000Z.evts", "pre-reconnect");
+        createEventStreamFileWithSignature(
+                node1EventStreamDir, "2024-01-01T01_00_05.000000000Z.evts", "post-reconnect");
 
         final MultipleNodeEventStreamResults results =
                 createResults(createSingleNodeResult(NodeId.of(0), 0), createSingleNodeResult(NodeId.of(1), 1));
@@ -216,8 +218,10 @@ class MultipleNodeEventStreamResultsAssertTest {
         createEventStreamFileWithSignature(node0EventStreamDir, "2024-01-01T01_00_00.000000000Z.evts", "content2");
         createEventStreamFileWithSignature(node0EventStreamDir, "2024-01-01T02_00_00.000000000Z.evts", "content3");
 
-        // Node 2 (reconnected) has matching names but different content in the last file
-        createEventStreamFileWithSignature(node1EventStreamDir, "2024-01-01T01_00_05.000000000Z.evts", "different2");
+        // Node 2 (reconnected) has a different file name with different content in the first file, but the second file
+        // has a matching name and content
+        createEventStreamFileWithSignature(
+                node1EventStreamDir, "2024-01-01T01_00_05.000000000Z.evts", "post-reconnect");
         createEventStreamFileWithSignature(node1EventStreamDir, "2024-01-01T02_00_00.000000000Z.evts", "content3");
 
         final MultipleNodeEventStreamResults results =
@@ -266,7 +270,8 @@ class MultipleNodeEventStreamResultsAssertTest {
         createEventStreamFileWithSignature(node1EventStreamDir, "2024-01-01T02_00_00.000000000Z.evts", content3);
 
         // Node 3 (reconnected) has different first file
-        createEventStreamFileWithSignature(node2EventStreamDir, "2024-01-01T01_00_05.000000000Z.evts", "different");
+        createEventStreamFileWithSignature(
+                node2EventStreamDir, "2024-01-01T01_00_05.000000000Z.evts", "post-reconnect");
         createEventStreamFileWithSignature(node2EventStreamDir, "2024-01-01T01_00_00.000000000Z.evts", content2);
         createEventStreamFileWithSignature(node2EventStreamDir, "2024-01-01T02_00_00.000000000Z.evts", content3);
 

@@ -73,13 +73,13 @@ public class SandboxTest {
     }
 
     /**
-     * Example of a migrated {@code ConsensusTest}.
+     * Example of a test using an instrumented node.
      *
      * @param env the test environment for this test
      */
     @OtterTest
     @Disabled("Sandbox test, not meant to be run")
-    void testBranching(@NonNull final TestEnvironment env) {
+    void testInstrumentedNode(@NonNull final TestEnvironment env) {
         final Network network = env.network();
         final TimeManager timeManager = env.timeManager();
 
