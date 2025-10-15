@@ -120,6 +120,9 @@ val prCheckStartPorts =
             put("$taskName$matsSuffix", port)
         }
     }
+// If a test task has an override for blockStream.writerMode=FILE_AND_GRPC or
+// blockStream.writerMode=GRPC,
+// block node simulators will run during PR Check execution of that task
 val prCheckPropOverrides =
     buildMap<String, String> {
         put(
@@ -136,7 +139,7 @@ val prCheckPropOverrides =
         )
         put(
             "hapiTestRestart",
-            "tss.hintsEnabled=true,tss.forceHandoffs=true,tss.initialCrsParties=16,blockStream.blockPeriod=1s",
+            "tss.hintsEnabled=true,tss.forceHandoffs=true,tss.initialCrsParties=16,blockStream.blockPeriod=1s,blockStream.writerMode=FILE_AND_GRPC",
         )
         put("hapiTestMisc", "nodes.nodeRewardsEnabled=false,blockStream.writerMode=FILE_AND_GRPC")
         put(
