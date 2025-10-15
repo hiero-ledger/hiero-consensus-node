@@ -3,7 +3,7 @@ package com.hedera.node.app.service.contract.impl.exec.v070;
 
 import static com.hedera.node.app.service.contract.impl.exec.processors.ProcessorModule.INITIAL_CONTRACT_NONCE;
 import static com.hedera.node.app.service.contract.impl.exec.processors.ProcessorModule.REQUIRE_CODE_DEPOSIT_TO_SUCCEED;
-import static org.hyperledger.besu.evm.MainnetEVMs.registerCancunOperations;
+import static org.hyperledger.besu.evm.MainnetEVMs.registerPragueOperations;
 import static org.hyperledger.besu.evm.operation.SStoreOperation.FRONTIER_MINIMUM;
 
 import com.hedera.node.app.service.contract.impl.annotations.CustomOps;
@@ -134,11 +134,12 @@ public interface V070Module {
         oneTimeEVMModuleInitialization();
 
         final var operationRegistry = new OperationRegistry();
-        registerCancunOperations(operationRegistry, gasCalculator, BigInteger.ZERO);
+        registerPragueOperations(operationRegistry, gasCalculator, BigInteger.ZERO);
         customOperations.forEach(operationRegistry::put);
         customOps.forEach(operationRegistry::put);
         // Create a return a custom HederaEVM instance
-        return new HederaEVM(operationRegistry, gasCalculator, evmConfiguration, EvmSpecVersion.CANCUN);
+        // TODO: version the HederaEVM class
+        return new HederaEVM(operationRegistry, gasCalculator, evmConfiguration, EvmSpecVersion.PRAGUE);
     }
 
     @Provides
@@ -146,7 +147,7 @@ public interface V070Module {
     @ServicesV070
     static PrecompileContractRegistry providePrecompileContractRegistry(@NonNull final GasCalculator gasCalculator) {
         final var precompileContractRegistry = new PrecompileContractRegistry();
-        MainnetPrecompiledContracts.populateForCancun(precompileContractRegistry, gasCalculator);
+        MainnetPrecompiledContracts.populateForPrague(precompileContractRegistry, gasCalculator);
         return precompileContractRegistry;
     }
 
