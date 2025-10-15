@@ -43,6 +43,7 @@ testIntegrationModuleInfo {
     requires("org.apache.logging.log4j")
     requires("org.hiero.otter.fixtures")
     requires("org.assertj.core")
+    requires("org.junit.jupiter.params")
     requires("com.github.spotbugs.annotations")
     runtimeOnly("io.grpc.netty.shaded")
 }

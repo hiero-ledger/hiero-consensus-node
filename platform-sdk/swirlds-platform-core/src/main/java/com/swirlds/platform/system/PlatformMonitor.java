@@ -9,6 +9,7 @@ import java.time.Instant;
 import java.util.List;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.notification.IssNotification;
+import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.consensus.model.state.StateSavingResult;
 import org.hiero.consensus.model.status.PlatformStatus;
 
@@ -63,4 +64,10 @@ public interface PlatformMonitor {
     @Nullable
     @InputWireLabel("monitor consensus round")
     PlatformStatus consensusRound(@NonNull final ConsensusRound round);
+
+    /**
+     * Inform the monitor the last requested quiescence command
+     */
+    @InputWireLabel("sets the quiescence command")
+    void quiescenceCommand(@NonNull final QuiescenceCommand command);
 }
