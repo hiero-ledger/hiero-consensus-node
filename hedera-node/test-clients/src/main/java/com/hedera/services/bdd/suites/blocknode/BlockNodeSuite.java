@@ -223,9 +223,8 @@ public class BlockNodeSuite {
                         String.format(
                                 "Created BlockStreamPublishServiceClient for localhost:%s", portNumbers.getFirst()),
                         String.format(
-                                "/localhost:%s/UNINITIALIZED] Scheduling reconnection for node in 0 ms",
-                                portNumbers.getFirst()),
-                        String.format("/localhost:%s/UNINITIALIZED] Running connection task", portNumbers.getFirst()),
+                                "[localhost:%s] Scheduling reconnection for node in 0 ms", portNumbers.getFirst()),
+                        String.format("[localhost:%s] Running connection task", portNumbers.getFirst()),
                         String.format(
                                 "/localhost:%s/UNINITIALIZED] Request pipeline initialized", portNumbers.getFirst()),
                         String.format(
