@@ -8,6 +8,7 @@ import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_CREATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_GET_ACCOUNT_BALANCE;
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_TRANSFER;
 import static com.hedera.hapi.node.base.HederaFunctionality.ETHEREUM_TRANSACTION;
+import static com.hedera.hapi.node.base.HederaFunctionality.HOOK_DISPATCH;
 import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_ASSOCIATE_TO_ACCOUNT;
 import static com.hedera.hapi.util.HapiUtils.functionOf;
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
@@ -27,13 +28,16 @@ import static java.util.Objects.requireNonNull;
 import com.google.common.annotations.VisibleForTesting;
 import com.hedera.hapi.node.base.AccountAmount;
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.EvmHookCall;
 import com.hedera.hapi.node.base.HederaFunctionality;
+import com.hedera.hapi.node.base.HookCall;
 import com.hedera.hapi.node.base.NftTransfer;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.base.TransferList;
 import com.hedera.hapi.node.contract.ContractCallLocalQuery;
+import com.hedera.hapi.node.hooks.HookExecution;
 import com.hedera.hapi.node.state.schedule.Schedule;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.hapi.node.token.TokenMintTransactionBody;
@@ -93,7 +97,7 @@ import org.apache.logging.log4j.Logger;
 public class ThrottleAccumulator {
     private static final Logger log = LogManager.getLogger(ThrottleAccumulator.class);
     private static final Set<HederaFunctionality> CONTRACT_FUNCTIONS =
-            EnumSet.of(CONTRACT_CALL_LOCAL, CONTRACT_CALL, CONTRACT_CREATE, ETHEREUM_TRANSACTION);
+            EnumSet.of(CONTRACT_CALL_LOCAL, CONTRACT_CALL, CONTRACT_CREATE, ETHEREUM_TRANSACTION, HOOK_DISPATCH);
     private static final Set<HederaFunctionality> AUTO_CREATE_FUNCTIONS =
             EnumSet.of(CRYPTO_TRANSFER, ETHEREUM_TRANSACTION);
     private static final int UNKNOWN_NUM_IMPLICIT_CREATIONS = -1;
@@ -383,11 +387,11 @@ public class ThrottleAccumulator {
     /**
      * Checks if the given functionality is a contract function.
      *
-     * @param function the functionality to check
+     * @param functionality the functionality to check
      * @return whether the given functionality is a contract function
      */
-    public static boolean isGasThrottled(@NonNull final HederaFunctionality function) {
-        return CONTRACT_FUNCTIONS.contains(function);
+    public static boolean isGasThrottled(@NonNull final HederaFunctionality functionality) {
+        return CONTRACT_FUNCTIONS.contains(functionality);
     }
 
     public static boolean canAutoCreate(@NonNull final HederaFunctionality function) {
@@ -598,6 +602,12 @@ public class ThrottleAccumulator {
                                 .map(EthTxData::populateEthTxData)
                                 .map(EthTxData::gasLimit)
                                 .orElse(0L);
+                    case HOOK_DISPATCH ->
+                        txnBody.hookDispatchOrThrow()
+                                .executionOrElse(HookExecution.DEFAULT)
+                                .callOrElse(HookCall.DEFAULT)
+                                .evmHookCallOrElse(EvmHookCall.DEFAULT)
+                                .gasLimit();
                     default -> 0L;
                 };
         // Interpret negative gas as overflow
