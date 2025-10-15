@@ -202,8 +202,6 @@ jobs:
         run: |
           cat <<EOF > mirror-bn-values.yaml
           importer:
-            image:
-              tag: 0.140.0
             config:
               hiero:
                 mirror:
@@ -211,7 +209,7 @@ jobs:
                     block:
                       enabled: true
                       nodes:
-                        - host: block-node-0.${{ env.SOLO_NAMESPACE }}.svc.cluster.local
+                        - host: block-node-1.${{ env.SOLO_NAMESPACE }}.svc.cluster.local
                           port: 40840
                       sourceType: BLOCK_NODE
                     downloader:
@@ -247,7 +245,7 @@ jobs:
           solo consensus network deploy -i node1 --deployment "${{ env.SOLO_DEPLOYMENT }}"
           solo consensus node setup -i node1 --deployment "${{ env.SOLO_DEPLOYMENT }}" --local-build-path ./hedera-node/data
           solo consensus node start -i node1 --deployment "${{ env.SOLO_DEPLOYMENT }}"
-          solo mirror node add --deployment "${{ env.SOLO_DEPLOYMENT }}" --pinger --cluster-ref kind-${{ env.SOLO_CLUSTER_NAME }} --enable-ingress -f mirror-bn-values.yaml
+          solo mirror node add --deployment "${{ env.SOLO_DEPLOYMENT }}" --pinger --cluster-ref kind-${{ env.SOLO_CLUSTER_NAME }} --enable-ingress --mirror-node-version 0.140.0 -f mirror-bn-values.yaml
 
       # port forwards
       - name: Solo Port forwards
@@ -349,10 +347,10 @@ jobs:
         if: always()
         run: |
           # Get BN Logs
-          kubectl logs -n ${{ env.SOLO_NAMESPACE }} -l "app.kubernetes.io/name=block-node-server" --all-containers --since=24h --timestamps --prefix --tail=-1 > bn0-logs.log
+          kubectl logs -n ${{ env.SOLO_NAMESPACE }} -l "app.kubernetes.io/name=block-node-1" --all-containers --since=24h --timestamps --prefix --tail=-1 > bn0-logs.log
 
           # Get MN Logs
-          kubectl logs -n ${{ env.SOLO_NAMESPACE }} -l "app.kubernetes.io/instance=mirror,app.kubernetes.io/component=importer" --all-containers --since=24h --timestamps --prefix --tail=-1 > mn0-logs.log
+          kubectl logs -n ${{ env.SOLO_NAMESPACE }} -l "app.kubernetes.io/instance=mirror-1,app.kubernetes.io/component=importer" --all-containers --since=24h --timestamps --prefix --tail=-1 > mn0-logs.log
 
       - name: Collect CN Logs
         if: always()
