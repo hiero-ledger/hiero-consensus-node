@@ -11,17 +11,17 @@ import java.util.function.ToDoubleFunction;
 import org.hiero.metrics.api.core.MetricKey;
 import org.hiero.metrics.api.core.MetricType;
 import org.hiero.metrics.api.core.StatefulMetric;
+import org.hiero.metrics.api.core.ToLongOrDoubleFunction;
 import org.hiero.metrics.api.datapoint.GaugeDataPoint;
-import org.hiero.metrics.api.stat.StatUtils;
-import org.hiero.metrics.api.utils.Unit;
-import org.hiero.metrics.internal.DefaultGenericGauge;
+import org.hiero.metrics.internal.GenericDoubleGaugeImpl;
+import org.hiero.metrics.internal.GenericLongGaugeImpl;
 import org.hiero.metrics.internal.datapoint.AtomicReferenceGaugeDataPoint;
 
 /**
  * A stateful metric of type {@link MetricType#GAUGE} that holds {@link GaugeDataPoint} per label set. <br>
  * Data points simply hold last observed custom value (convertable to numerical value on export).
  *
- * @param <T> the type of value used to observe/update the gauge and convert to double for export
+ * @param <T> the type of value used to observe/update the gauge and convert to {@code double} or {@code long} for export
  */
 public interface GenericGauge<T> extends StatefulMetric<Supplier<T>, GaugeDataPoint<T>> {
 
@@ -42,59 +42,39 @@ public interface GenericGauge<T> extends StatefulMetric<Supplier<T>, GaugeDataPo
      * Create a builder for a {@link GenericGauge} with the given metric key and value converter.
      *
      * @param key            the metric key
-     * @param valueConverter the function to convert the value to double for export
+     * @param valueConverter the function to convert the value to {@code double} or {@code long} for export
      * @param <T>            the type of value used to observe/update the gauge
      * @return the builder
      */
     @NonNull
     static <T> Builder<T> builder(
-            @NonNull MetricKey<GenericGauge<T>> key, @NonNull ToDoubleFunction<T> valueConverter) {
+            @NonNull MetricKey<GenericGauge<T>> key, @NonNull ToLongOrDoubleFunction<T> valueConverter) {
         return new Builder<>(key, valueConverter);
     }
 
     /**
-     * Create a builder for a {@link GenericGauge} with the given name and value converter. <br>
+     * Create a builder for a {@link GenericGauge} with the given name and {@code double} value converter. <br>
      * See {@link org.hiero.metrics.api.utils.MetricUtils#validateNameCharacters(String)} for name requirements.
      *
      * @param name           the name of the metric
-     * @param valueConverter the function to convert the value to double for export
+     * @param valueConverter the function to convert the value to {@code double} or {@code long}  for export
      * @param <T>            the type of value used to observe/update the gauge
      * @return the builder
      */
     @NonNull
-    static <T> Builder<T> builder(@NonNull String name, @NonNull ToDoubleFunction<T> valueConverter) {
+    static <T> Builder<T> builder(@NonNull String name, @NonNull ToLongOrDoubleFunction<T> valueConverter) {
         return builder(key(name), valueConverter);
     }
 
     /**
-     * Create a builder for a {@link GenericGauge} with the given metric key for {@link Duration} values.
-     * The duration will be converted to double using the specified {@link ChronoUnit}.<br>
-     * See {@link org.hiero.metrics.api.utils.MetricUtils#validateNameCharacters(String)} for name requirements.
+     * Create a function to convert {@link Duration} to {@code long} using the specified {@link ChronoUnit}.
      *
-     * @param name  the metric name
-     * @param unit the chrono unit to convert the duration to double for export
-     * @return the builder
+     * @param unit the chrono unit to convert the duration to {@code long} for export
+     * @return the function
      */
-    @NonNull
-    static Builder<Duration> durationBuilder(@NonNull String name, @NonNull ChronoUnit unit) {
+    static ToLongOrDoubleFunction<Duration> durationToLongFunction(@NonNull ChronoUnit unit) {
         Objects.requireNonNull(unit, "unit cannot be null");
-        final MetricKey<GenericGauge<Duration>> key = key(name);
-        return new Builder<>(key, duration -> duration == null ? StatUtils.ZERO : duration.get(unit))
-                .withUnit(Unit.fromChronoUnit(unit));
-    }
-
-    /**
-     * Create a builder for a {@link GenericGauge} with the given metric key for {@link Enum} values.
-     * The enum will be converted to double using its ordinal value. <br>
-     * See {@link org.hiero.metrics.api.utils.MetricUtils#validateNameCharacters(String)} for name requirements.
-     *
-     * @param name the metric name
-     * @param <E>  the type of the enum
-     * @return the builder
-     */
-    @NonNull
-    static <E extends Enum<E>> Builder<E> enumGauge(@NonNull String name) {
-        return new Builder<>(key(name), Enum::ordinal);
+        return new ToLongOrDoubleFunction<>((ToDoubleFunction<Duration>) duration -> duration.get(unit));
     }
 
     /**
@@ -106,14 +86,27 @@ public interface GenericGauge<T> extends StatefulMetric<Supplier<T>, GaugeDataPo
      */
     final class Builder<T> extends StatefulMetric.Builder<Supplier<T>, GaugeDataPoint<T>, Builder<T>, GenericGauge<T>> {
 
+        private final ToLongOrDoubleFunction<T> valueConverter;
+
         /**
-         * Create a builder for a {@link GenericGauge} with the given metric key and value converter.
+         * Create a builder for a {@link GenericGauge} with the given metric key and {@code double} value converter.
          *
          * @param key            the metric key
          * @param valueConverter the function to convert the value to double for export
          */
-        private Builder(@NonNull MetricKey<GenericGauge<T>> key, @NonNull ToDoubleFunction<T> valueConverter) {
-            super(MetricType.GAUGE, key, () -> null, init -> new AtomicReferenceGaugeDataPoint<>(init, valueConverter));
+        private Builder(@NonNull MetricKey<GenericGauge<T>> key, @NonNull ToLongOrDoubleFunction<T> valueConverter) {
+            super(MetricType.GAUGE, key, () -> null, AtomicReferenceGaugeDataPoint::new);
+            this.valueConverter = Objects.requireNonNull(valueConverter, "valueConverter cannot be null");
+        }
+
+        /**
+         * Get the function holder to convert the value to {@code double} or {@code long} for export.
+         *
+         * @return the value converter function
+         */
+        @NonNull
+        public ToLongOrDoubleFunction<T> getValueConverter() {
+            return valueConverter;
         }
 
         /**
@@ -135,7 +128,11 @@ public interface GenericGauge<T> extends StatefulMetric<Supplier<T>, GaugeDataPo
         @NonNull
         @Override
         public GenericGauge<T> buildMetric() {
-            return new DefaultGenericGauge<>(this);
+            if (valueConverter.isToDoubleFunction()) {
+                return new GenericLongGaugeImpl<>(this);
+            } else {
+                return new GenericDoubleGaugeImpl<>(this);
+            }
         }
 
         /**

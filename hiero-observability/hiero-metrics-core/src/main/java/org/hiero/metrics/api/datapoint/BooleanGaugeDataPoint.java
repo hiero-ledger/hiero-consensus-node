@@ -1,11 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.metrics.api.datapoint;
 
-import static org.hiero.metrics.api.stat.StatUtils.ONE;
-import static org.hiero.metrics.api.stat.StatUtils.ZERO;
-
 import java.util.function.BooleanSupplier;
-import java.util.function.DoubleSupplier;
+import java.util.function.LongSupplier;
 
 /**
  * A {@link DataPoint} that represents a {@code boolean} gauge value.
@@ -13,11 +10,11 @@ import java.util.function.DoubleSupplier;
  * The value can be set to {@code true} or {@code false} using {@link #setTrue()} and {@link #setFalse()} methods,
  * or to an arbitrary {@code boolean} value using {@link #set(boolean)} method.
  * <p>
- * The current value can be retrieved using the {@link #getAsBoolean()} or {@link #getAsDouble()}.
+ * The current value can be retrieved using the {@link #getAsBoolean()} or {@link #getAsLong()}.
  * <p>
  * <b>All operations are thread-safe and atomic.</b>
  */
-public interface BooleanGaugeDataPoint extends BooleanSupplier, DoubleSupplier, DataPoint {
+public interface BooleanGaugeDataPoint extends BooleanSupplier, LongSupplier, DataPoint {
 
     /**
      * Sets the value of this boolean gauge data point.
@@ -41,13 +38,13 @@ public interface BooleanGaugeDataPoint extends BooleanSupplier, DoubleSupplier, 
     }
 
     /**
-     * Gets the current value of this data point as {@code double},
-     * where {@code true} is represented as {@code 1.0} and {@code false} as {@code 0.0}.
+     * Gets the current value of this data point as {@code long},
+     * where {@code true} is represented as {@code 1L} and {@code false} as {@code 0L}.
      *
-     * @return the current {@code boolean} value converted to {@code double}
+     * @return the current {@code boolean} value converted to {@code long}
      */
     @Override
-    default double getAsDouble() {
-        return getAsBoolean() ? ONE : ZERO;
+    default long getAsLong() {
+        return getAsBoolean() ? 1L : 0L;
     }
 }

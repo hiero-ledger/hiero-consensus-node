@@ -49,7 +49,7 @@ public class CsvFileMetricsExporter extends AbstractMetricsExporter implements P
     }
 
     @Override
-    public void close() throws IOException {
+    public void close() {
         // No resources to close
     }
 }

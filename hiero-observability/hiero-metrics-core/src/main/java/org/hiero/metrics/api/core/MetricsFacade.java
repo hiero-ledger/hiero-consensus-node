@@ -20,7 +20,7 @@ import org.hiero.metrics.api.export.MetricsExporterFactory;
 import org.hiero.metrics.api.export.PullingMetricsExporter;
 import org.hiero.metrics.api.export.PushingMetricsExporter;
 import org.hiero.metrics.api.utils.MetricUtils;
-import org.hiero.metrics.internal.core.DefaultMetricRegistry;
+import org.hiero.metrics.internal.core.MetricRegistryImpl;
 import org.hiero.metrics.internal.export.DefaultMetricsExportManager;
 import org.hiero.metrics.internal.export.NoOpMetricsExportManager;
 import org.hiero.metrics.internal.export.SinglePullingExporterMetricsExportManager;
@@ -78,7 +78,7 @@ public final class MetricsFacade {
     @NonNull
     public static MetricRegistry createRegistry(@NonNull Label... globalLabels) {
         Objects.requireNonNull(globalLabels, "global labels must not be null");
-        return new DefaultMetricRegistry(globalLabels);
+        return new MetricRegistryImpl(globalLabels);
     }
 
     /**

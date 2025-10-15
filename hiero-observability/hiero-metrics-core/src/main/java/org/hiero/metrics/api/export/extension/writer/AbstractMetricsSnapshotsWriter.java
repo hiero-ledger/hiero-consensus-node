@@ -86,6 +86,16 @@ public abstract class AbstractMetricsSnapshotsWriter implements MetricsSnapshots
         return formatter.format(value);
     }
 
+    /**
+     * Formats a long value using the configured decimal format.
+     *
+     * @param value the value to format
+     * @return the formatted string
+     */
+    protected final String format(long value) {
+        return formatter.format(value);
+    }
+
     private boolean shouldSkip(MetricMetadata metadata) {
         return !metricFilter.test(metadata);
     }

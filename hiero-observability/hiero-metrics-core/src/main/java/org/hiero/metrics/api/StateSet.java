@@ -8,7 +8,7 @@ import org.hiero.metrics.api.core.MetricKey;
 import org.hiero.metrics.api.core.MetricType;
 import org.hiero.metrics.api.core.StatefulMetric;
 import org.hiero.metrics.api.datapoint.StateSetDataPoint;
-import org.hiero.metrics.internal.DefaultStateSet;
+import org.hiero.metrics.internal.StateSetImpl;
 import org.hiero.metrics.internal.datapoint.EnumStateSetDataPoint;
 
 /**
@@ -102,7 +102,7 @@ public interface StateSet<E extends Enum<E>> extends StatefulMetric<List<E>, Sta
                 }
             }
 
-            return new DefaultStateSet<>(this);
+            return new StateSetImpl<>(this);
         }
 
         /**
