@@ -52,7 +52,9 @@ public class V068AddressBookSchema extends Schema<SemanticVersion> {
             final var keyIterator = nodeState.keys();
             while (keyIterator.hasNext()) {
                 final var node = (Node) nodeState.get(keyIterator.next());
-                relState.put(node.accountId(), node.nodeId());
+                relState.put(
+                        node.accountId(),
+                        ProtoLong.newBuilder().value(node.nodeId()).build());
             }
         }
     }
