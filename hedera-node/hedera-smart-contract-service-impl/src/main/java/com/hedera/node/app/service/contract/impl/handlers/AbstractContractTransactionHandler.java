@@ -12,6 +12,7 @@ import com.hedera.node.app.hapi.utils.fee.SmartContractFeeBuilder;
 import com.hedera.node.app.service.contract.impl.ContractServiceComponent;
 import com.hedera.node.app.service.contract.impl.exec.TransactionComponent;
 import com.hedera.node.app.service.contract.impl.exec.TransactionComponent.Factory;
+import com.hedera.node.app.service.contract.impl.exec.gas.HederaGasCalculator;
 import com.hedera.node.app.service.contract.impl.state.EvmFrameStates;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
@@ -21,7 +22,6 @@ import com.hedera.node.app.spi.workflows.TransactionHandler;
 import com.hederahashgraph.api.proto.java.FeeData;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import javax.inject.Provider;
-import org.hyperledger.besu.evm.gascalculator.GasCalculator;
 
 /**
  * Holds some state and functionality common to the smart contract transaction handlers.
@@ -30,12 +30,12 @@ public abstract class AbstractContractTransactionHandler implements TransactionH
 
     protected final Provider<Factory> provider;
     protected final ContractServiceComponent component;
-    protected final GasCalculator gasCalculator;
+    protected final HederaGasCalculator gasCalculator;
     protected final SmartContractFeeBuilder usageEstimator = new SmartContractFeeBuilder();
 
     protected AbstractContractTransactionHandler(
             @NonNull final Provider<TransactionComponent.Factory> provider,
-            @NonNull final GasCalculator gasCalculator,
+            @NonNull final HederaGasCalculator gasCalculator,
             @NonNull final ContractServiceComponent component) {
         this.provider = requireNonNull(provider);
         this.gasCalculator = requireNonNull(gasCalculator);

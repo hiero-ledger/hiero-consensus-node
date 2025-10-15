@@ -93,7 +93,7 @@ public class IsAuthorizedCallTest extends CallTestBase {
 
         final var result = subject.execute(frame).fullResult().result();
 
-        assertEquals(State.COMPLETED_SUCCESS, result.getState());
+        assertEquals(State.COMPLETED_SUCCESS, result.state());
 
         final var output = getOutput(result);
         assertEquals(output.rce(), INVALID_ACCOUNT_ID);
@@ -117,7 +117,7 @@ public class IsAuthorizedCallTest extends CallTestBase {
 
             final var result = subject.execute(frame).fullResult().result();
 
-            assertEquals(State.COMPLETED_SUCCESS, result.getState());
+            assertEquals(State.COMPLETED_SUCCESS, result.state());
 
             final var output = getOutput(result);
             assertEquals(output.rce(), INVALID_TRANSACTION_BODY);
@@ -148,7 +148,7 @@ public class IsAuthorizedCallTest extends CallTestBase {
 
             final var result = subject.execute(frame).fullResult().result();
 
-            assertEquals(State.COMPLETED_SUCCESS, result.getState());
+            assertEquals(State.COMPLETED_SUCCESS, result.state());
 
             final var output = getOutput(result);
             assertEquals(output.rce(), INVALID_TRANSACTION_BODY);
@@ -330,7 +330,7 @@ public class IsAuthorizedCallTest extends CallTestBase {
     IAOutput getOutput(@NonNull final PrecompileContractResult pcr) {
         final var tuple = IsAuthorizedTranslator.IS_AUTHORIZED
                 .getOutputs()
-                .decode(pcr.getOutput().toArray());
+                .decode(pcr.output().toArray());
         final var rce = ResponseCodeEnum.fromProtobufOrdinal(Math.toIntExact((Long) tuple.get(0)));
         final var result = (Boolean) tuple.get(1);
         return new IAOutput(rce, result);

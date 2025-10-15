@@ -291,13 +291,13 @@ public class CustomMessageCallProcessor extends MessageCallProcessor {
             @NonNull final PrecompileContractResult result,
             @NonNull final ContractActionType type,
             @NonNull final ActionSidecarContentTracer tracer) {
-        if (result.getState() == MessageFrame.State.REVERT) {
-            frame.setRevertReason(result.getOutput());
+        if (result.state() == MessageFrame.State.REVERT) {
+            frame.setRevertReason(result.output());
         } else {
-            frame.setOutputData(result.getOutput());
+            frame.setOutputData(result.output());
         }
-        frame.setState(result.getState());
-        frame.setExceptionalHaltReason(result.getHaltReason());
+        frame.setState(result.state());
+        frame.setExceptionalHaltReason(result.haltReason());
         tracer.tracePrecompileResult(frame, type);
     }
 
