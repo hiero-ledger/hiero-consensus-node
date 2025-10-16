@@ -25,7 +25,6 @@ import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfe
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.ensureStakingActivated;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.recordStreamMustIncludePassFrom;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.selectedItems;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
@@ -53,7 +52,6 @@ import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
-import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.junit.OrderedInIsolation;
 import com.hedera.services.bdd.junit.hedera.HederaNode;
 import com.hedera.services.bdd.junit.hedera.NodeSelector;
@@ -65,7 +63,6 @@ import com.hedera.services.bdd.spec.queries.QueryVerbs;
 import com.hedera.services.bdd.spec.utilops.FakeNmt;
 import com.hedera.services.bdd.suites.utils.sysfiles.AddressBookPojo;
 import com.hedera.services.bdd.suites.utils.sysfiles.BookEntryPojo;
-import com.hederahashgraph.api.proto.java.AccountID;
 import com.hederahashgraph.api.proto.java.NodeAddressBook;
 import com.hederahashgraph.api.proto.java.SemanticVersion;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -200,28 +197,8 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
                 }));
     }
 
-    @LeakyHapiTest(overrides = {"nodes.updateAccountIdAllowed"})
-    @Order(2)
-    final Stream<DynamicTest> validateCandidateRosterAfterAccountUpdate() {
-        return hapiTest(
-                overriding("nodes.updateAccountIdAllowed", "true"),
-                nodeUpdate("1")
-                        .fullAccountId(AccountID.newBuilder()
-                                .setShardNum(0)
-                                .setRealmNum(0)
-                                .setAccountNum(0)
-                                .build()),
-                // trigger candidate roster refresh
-                prepareFakeUpgrade(),
-                waitUntilStartOfNextStakingPeriod(1).withBackgroundTraffic(),
-                // node should be excluded from the candidate roster, but still in address book
-                validateCandidateRoster(
-                        NodeSelector.exceptNodeIds(1L),
-                        addressBook -> assertThat(nodeIdsFrom(addressBook)).containsExactlyInAnyOrder(0L, 1L, 2L, 3L)));
-    }
-
     @HapiTest
-    @Order(3)
+    @Order(2)
     final Stream<DynamicTest> nodeId1NotInCandidateRosterAfterRemovalAndStakerNotRewardedAfterUpgrade() {
         return hapiTest(
                 recordStreamMustIncludePassFrom(selectedItems(
@@ -237,7 +214,7 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
     }
 
     @HapiTest
-    @Order(4)
+    @Order(3)
     final Stream<DynamicTest> nodeId3CanStillReconnectAfterRemovingNodeId1() {
         final AtomicReference<SemanticVersion> startVersion = new AtomicReference<>();
         return hapiTest(
@@ -246,7 +223,7 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
     }
 
     @HapiTest
-    @Order(5)
+    @Order(4)
     final Stream<DynamicTest> nodeId3NotInCandidateRosterAfterRemovalAndStakerNotRewardedAfterUpgrade() {
         return hapiTest(
                 recordStreamMustIncludePassFrom(selectedItems(
@@ -262,7 +239,7 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
     }
 
     @HapiTest
-    @Order(6)
+    @Order(5)
     final Stream<DynamicTest> newNodeId4InCandidateRosterAfterAddition() {
         return hapiTest(
                 recordStreamMustIncludePassFrom(selectedItems(
@@ -281,7 +258,7 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
     }
 
     @Nested
-    @Order(7)
+    @Order(6)
     @DisplayName("with multipart DAB edits before and after prepare upgrade")
     @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
     class WithMultipartDabEditsBeforeAndAfterPrepareUpgrade {

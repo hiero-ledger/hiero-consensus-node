@@ -12,7 +12,6 @@ import static com.hedera.node.app.ids.schemas.V0590EntityIdSchema.ENTITY_COUNTS_
 import static com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema.parseEd25519NodeAdminKeysFrom;
 import static com.hedera.node.app.service.file.impl.schemas.V0490FileSchema.dispatchSynthFileUpdate;
 import static com.hedera.node.app.service.file.impl.schemas.V0490FileSchema.parseConfigList;
-import static com.hedera.node.app.service.token.api.AccountSummariesApi.SENTINEL_ACCOUNT_ID;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_STATE_ID;
 import static com.hedera.node.app.service.token.impl.schemas.V0610TokenSchema.dispatchSynthNodeRewards;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.NODE;
@@ -521,7 +520,6 @@ public class SystemTransactions {
                 .map(id -> systemContext.networkInfo().nodeInfo(id))
                 .filter(nodeInfo -> nodeInfo != null && !nodeInfo.declineReward())
                 .map(NodeInfo::accountId)
-                .filter(accountID -> !accountID.equals(SENTINEL_ACCOUNT_ID))
                 .toList();
         final var inactiveNodeAccountIds = rosterEntries.stream()
                 .map(RosterEntry::nodeId)

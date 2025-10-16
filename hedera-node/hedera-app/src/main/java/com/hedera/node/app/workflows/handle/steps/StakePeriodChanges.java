@@ -13,12 +13,8 @@ import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.fees.ExchangeRateManager;
-import com.hedera.node.app.ids.EntityIdService;
-import com.hedera.node.app.ids.ReadableEntityIdStoreImpl;
 import com.hedera.node.app.records.BlockRecordManager;
 import com.hedera.node.app.records.ReadableBlockRecordStore;
-import com.hedera.node.app.service.addressbook.AddressBookService;
-import com.hedera.node.app.service.addressbook.impl.ReadableNodeStoreImpl;
 import com.hedera.node.app.service.roster.RosterService;
 import com.hedera.node.app.service.token.ReadableStakingInfoStore;
 import com.hedera.node.app.service.token.impl.handlers.staking.EndOfStakingPeriodUpdater;
@@ -166,7 +162,6 @@ public class StakePeriodChanges {
                             .weightFunction();
                     final var reweightedRoster =
                             new Roster(requireNonNull(rosterStore.getActiveRoster()).rosterEntries().stream()
-                                    .filter(rosterEntry -> isValidRosterEntry(rosterEntry, stack))
                                     .map(rosterEntry -> rosterEntry
                                             .copyBuilder()
                                             .weight(weightFunction.applyAsLong(rosterEntry.nodeId()))
@@ -182,24 +177,6 @@ public class StakePeriodChanges {
                 stack.rollbackFullStack();
             }
         }
-    }
-
-    private boolean isValidRosterEntry(final RosterEntry rosterEntry, final SavepointStackImpl stack) {
-        final var entityCounters = new ReadableEntityIdStoreImpl(stack.getReadableStates(EntityIdService.NAME));
-        final var nodeStore =
-                new ReadableNodeStoreImpl(stack.getReadableStates(AddressBookService.NAME), entityCounters);
-        final var node = nodeStore.get(rosterEntry.nodeId());
-
-        if (node == null) {
-            return false;
-        }
-        if (!node.hasAccountId()) {
-            return false;
-        }
-        final var accountId = node.accountId();
-        final var isSentinelAccount =
-                accountId.shardNum() == 0 && accountId.realmNum() == 0 && accountId.accountNum() == 0;
-        return !isSentinelAccount;
     }
 
     private boolean isStakingPeriodBoundary(

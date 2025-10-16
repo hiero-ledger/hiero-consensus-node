@@ -4,13 +4,10 @@ package com.hedera.node.app.tss;
 import static java.time.temporal.ChronoUnit.SECONDS;
 import static java.util.Objects.requireNonNull;
 
-import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.spi.AppContext;
-import com.hedera.node.config.data.AccountsConfig;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.NetworkAdminConfig;
-import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
@@ -53,15 +50,15 @@ public class TssSubmissions {
             log.info("Skipping TSS submission because gossip is unavailable");
             return CompletableFuture.completedFuture(null);
         }
+        final var selfId = appContext.selfNodeInfoSupplier().get().accountId();
         final var consensusNow = appContext.instantSource().instant();
         final var config = appContext.configSupplier().get();
-        final var submitterId = resolveSubmitterAccountId(config);
         final var adminConfig = config.getConfigData(NetworkAdminConfig.class);
         final var hederaConfig = config.getConfigData(HederaConfig.class);
         return appContext
                 .gossip()
                 .submitFuture(
-                        submitterId,
+                        selfId,
                         consensusNow,
                         Duration.of(hederaConfig.transactionMaxValidDuration(), SECONDS),
                         spec,
@@ -70,17 +67,5 @@ public class TssSubmissions {
                         adminConfig.distinctTxnIdsToTry(),
                         adminConfig.retryDelay(),
                         onFailure);
-    }
-
-    private AccountID resolveSubmitterAccountId(Configuration config) {
-        final var sentinelAccountId =
-                AccountID.newBuilder().accountNum(0).shardNum(0).realmNum(0).build();
-        final var selfId = appContext.selfNodeInfoSupplier().get().accountId();
-
-        return selfId.equals(sentinelAccountId)
-                ? appContext
-                        .idFactory()
-                        .newAccountId(config.getConfigData(AccountsConfig.class).systemAdmin())
-                : selfId;
     }
 }

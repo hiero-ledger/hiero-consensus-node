@@ -47,7 +47,7 @@ public class LogValidationOp extends UtilOp {
         doIfNotInterrupted(() -> MILLISECONDS.sleep(delay.toMillis()));
         nodesToValidate(spec).forEach(node -> {
             // A node added after genesis initialization will not have admin key override logs
-            if (node.getNodeId() >= CLASSIC_HAPI_TEST_NETWORK_SIZE && node.getAccountId() == null) {
+            if (node.getNodeId() >= CLASSIC_HAPI_TEST_NETWORK_SIZE) {
                 return;
             }
             try {

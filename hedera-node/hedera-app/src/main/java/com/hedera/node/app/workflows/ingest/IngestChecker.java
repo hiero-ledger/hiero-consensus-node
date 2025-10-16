@@ -26,7 +26,6 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.PLATFORM_NOT_ACTIVE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.UNAUTHORIZED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.WAITING_FOR_LEDGER_ID;
 import static com.hedera.hapi.util.HapiUtils.isHollow;
-import static com.hedera.node.app.service.token.api.AccountSummariesApi.SENTINEL_ACCOUNT_ID;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateFalsePreCheck;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
 import static com.hedera.node.app.workflows.InnerTransaction.NO;
@@ -213,15 +212,6 @@ public final class IngestChecker {
         if (currentPlatformStatus.get() != ACTIVE) {
             throw new PreCheckException(PLATFORM_NOT_ACTIVE);
         }
-    }
-
-    public void verifyValidNodeAccount() throws PreCheckException {
-        final var nodeAccountId = networkInfo.selfNodeInfo().accountId();
-        if (nodeAccountId == null || nodeAccountId.equals(SENTINEL_ACCOUNT_ID)) {
-            throw new PreCheckException(INVALID_NODE_ACCOUNT);
-        }
-
-        // FUTURE WORK: add account balance validation
     }
 
     /**

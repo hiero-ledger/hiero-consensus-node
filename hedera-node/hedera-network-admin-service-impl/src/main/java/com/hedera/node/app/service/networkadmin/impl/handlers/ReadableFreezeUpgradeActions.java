@@ -3,7 +3,6 @@ package com.hedera.node.app.service.networkadmin.impl.handlers;
 
 import static com.hedera.node.app.hapi.utils.CommonUtils.noThrowSha384HashOf;
 import static com.hedera.node.app.service.addressbook.AddressBookHelper.writeCertificatePemFile;
-import static com.hedera.node.app.service.token.api.AccountSummariesApi.SENTINEL_ACCOUNT_ID;
 import static com.swirlds.common.io.utility.FileUtils.getAbsolutePath;
 import static com.swirlds.common.utility.CommonUtils.nameToAlias;
 import static java.util.Objects.requireNonNull;
@@ -239,7 +238,7 @@ public class ReadableFreezeUpgradeActions {
                 .mapToLong(EntityNumber::number)
                 .sorted()
                 .mapToObj(nodeStore::get)
-                .filter(this::isActive)
+                .filter(node -> node != null && !node.deleted())
                 .map(node -> new ActiveNode(node, stakingInfoStore.get(node.nodeId())))
                 .toList();
     }
@@ -342,12 +341,8 @@ public class ReadableFreezeUpgradeActions {
                     .append(", ")
                     .append(gossipEndpoints.get(EXT).port())
                     .append(", ")
-                    .append(
-                            node.hasAccountId()
-                                    ? node.accountId().shardNum() + "."
-                                            + node.accountId().realmNum() + "."
-                                            + node.accountId().accountNum()
-                                    : "null")
+                    .append(node.accountId().shardNum() + "." + node.accountId().realmNum() + "."
+                            + node.accountId().accountNum())
                     .append("\n");
             try {
                 bw.write(line.toString());
@@ -427,12 +422,5 @@ public class ReadableFreezeUpgradeActions {
                     e);
             log.error(MANUAL_REMEDIATION_ALERT);
         }
-    }
-
-    private boolean isActive(Node node) {
-        return node != null
-                && !node.deleted()
-                && node.hasAccountId()
-                && !node.accountId().equals(SENTINEL_ACCOUNT_ID);
     }
 }
