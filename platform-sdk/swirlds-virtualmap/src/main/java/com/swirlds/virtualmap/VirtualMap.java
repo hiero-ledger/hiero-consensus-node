@@ -25,6 +25,7 @@ import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.io.ExternalSelfSerializable;
 import com.swirlds.common.io.streams.MerkleDataInputStream;
+import com.swirlds.common.io.utility.FileUtils;
 import com.swirlds.common.merkle.MerkleInternal;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.exceptions.IllegalChildIndexException;
@@ -1561,6 +1562,7 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
                 // And finally snapshot the copy to the target dir
                 dataSourceBuilder.snapshot(outputDirectory, dataSourceCopy);
             } finally {
+                FileUtils.deleteDirectory(snapshotPath);
                 if (dataSourceCopy != null) {
                     dataSourceCopy.close();
                 }
