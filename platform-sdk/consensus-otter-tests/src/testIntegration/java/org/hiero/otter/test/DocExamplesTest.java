@@ -10,6 +10,7 @@ import com.swirlds.platform.consensus.ConsensusConfig_;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.util.List;
+import java.util.stream.Stream;
 import org.hiero.otter.fixtures.Capability;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.Node;
@@ -20,6 +21,9 @@ import org.hiero.otter.fixtures.assertions.MultipleNodeLogResultsContinuousAsser
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
 import org.hiero.otter.fixtures.turtle.TurtleSpecs;
 import org.junit.jupiter.api.RepeatedTest;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 /**
  * This class contains examples that are used in the documentation. If you change the examples, please make sure to
@@ -160,5 +164,28 @@ class DocExamplesTest {
 
         // Stop suppressing the RECONNECT log marker
         assertion.stopSuppressingLogMarker(RECONNECT);
+    }
+
+    // This test is used in the writing-tests.md file.
+    @OtterTest
+    @ParameterizedTest
+    @MethodSource("provideWeightDistributions")
+    void testWithDifferentWeightDistributions(
+            @NonNull final List<Long> weightDistribution, @NonNull final TestEnvironment env) {
+        final Network network = env.network();
+        weightDistribution.forEach(weight -> network.addNode().weight(weight));
+        network.start();
+
+        env.timeManager().waitFor(Duration.ofSeconds(5));
+
+        assertThat(network.newLogResults()).haveNoErrorLevelMessages();
+    }
+
+    private static Stream<Arguments> provideWeightDistributions() {
+        return Stream.of(
+                Arguments.of(List.of(1L, 1L, 1L, 1L)), // 4 nodes, equal weights
+                Arguments.of(List.of(5L, 5L, 5L, 15L)), // 4 nodes, one dominant weight
+                Arguments.of(List.of(1L, 2L, 3L, 4L, 5L, 6L, 7L, 8L, 9L)) // 9 nodes, increasing weights
+                );
     }
 }

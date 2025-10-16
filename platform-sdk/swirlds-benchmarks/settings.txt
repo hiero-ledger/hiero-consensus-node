@@ -7,6 +7,4 @@ benchmark.csvOutputFolder,                     data
 benchmark.csvWriteFrequency,                   1000
 benchmark.csvAppend,                           true
 virtualMap.flushInterval,                      20
-virtualMap.preferredFlushQueueSize,            1
-virtualMap.flushThrottleStepSize,              500ms
-
+virtualMap.familyThrottleThreshold,            10000000000

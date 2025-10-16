@@ -240,7 +240,8 @@ public class NodeCommunicationService extends NodeCommunicationServiceImplBase {
     }
 
     @Override
-    public void quiescence(final QuiescenceRequest request, final StreamObserver<Empty> responseObserver) {
+    public void quiescenceCommandUpdate(
+            @NonNull final QuiescenceRequest request, @NonNull final StreamObserver<Empty> responseObserver) {
         log.info(DEMO_INFO.getMarker(), "Received quiescence request: {}", request.getCommand());
         if (consensusNodeManager == null) {
             setPlatformNotStartedResponse(responseObserver);

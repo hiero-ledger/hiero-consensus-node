@@ -79,6 +79,11 @@ class RpcPeerState {
      * @param syncMessage synchronization data peer has passed to us
      */
     public void syncInitiated(final SyncData syncMessage) {
+        if (remoteSyncData != null) {
+            throw new IllegalStateException(
+                    "Already received remoteSyncData " + remoteSyncData + " but got it again with " + syncMessage);
+        }
+
         // if they are sending us sync data, they are no longer behind compared to the self node
         peerIsBehind = false;
         peerStillSendingEvents = false;

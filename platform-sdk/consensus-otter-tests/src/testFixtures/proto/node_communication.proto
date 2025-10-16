@@ -227,5 +227,5 @@ service NodeCommunicationService {
   rpc SyntheticBottleneckUpdate(SyntheticBottleneckRequest) returns (google.protobuf.Empty);
 
   // RPC to control quiescence of the node.
-  rpc Quiescence(QuiescenceRequest) returns (google.protobuf.Empty);
+  rpc QuiescenceCommandUpdate(QuiescenceRequest) returns (google.protobuf.Empty);
 }

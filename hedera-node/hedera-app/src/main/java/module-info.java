@@ -6,8 +6,10 @@ module com.hedera.node.app {
     requires transitive com.hedera.node.app.service.addressbook.impl;
     requires transitive com.hedera.node.app.service.consensus.impl;
     requires transitive com.hedera.node.app.service.contract.impl;
+    requires transitive com.hedera.node.app.service.entityid;
     requires transitive com.hedera.node.app.service.file.impl;
     requires transitive com.hedera.node.app.service.network.admin.impl;
+    requires transitive com.hedera.node.app.service.roster.impl;
     requires transitive com.hedera.node.app.service.schedule.impl;
     requires transitive com.hedera.node.app.service.schedule;
     requires transitive com.hedera.node.app.service.token.impl;
@@ -41,8 +43,10 @@ module com.hedera.node.app {
     requires com.hedera.node.app.service.addressbook;
     requires com.hedera.node.app.service.consensus;
     requires com.hedera.node.app.service.contract;
+    requires com.hedera.node.app.service.entityid.impl;
     requires com.hedera.node.app.service.file;
     requires com.hedera.node.app.service.network.admin;
+    requires com.hedera.node.app.service.roster;
     requires com.hedera.node.app.service.util;
     requires com.hedera.pbj.grpc.client.helidon;
     requires com.swirlds.config.extensions;
@@ -100,7 +104,6 @@ module com.hedera.node.app {
     exports com.hedera.node.app.workflows.handle.throttle;
     exports com.hedera.node.app.workflows.handle.dispatch;
     exports com.hedera.node.app.workflows.handle.cache;
-    exports com.hedera.node.app.ids;
     exports com.hedera.node.app.state.recordcache;
     exports com.hedera.node.app.records;
     exports com.hedera.node.app.blocks;
@@ -109,7 +112,6 @@ module com.hedera.node.app {
     exports com.hedera.node.app.blocks.impl;
     exports com.hedera.node.app.blocks.impl.streaming;
     exports com.hedera.node.app.workflows.handle.metric;
-    exports com.hedera.node.app.roster;
     exports com.hedera.node.app.tss;
     exports com.hedera.node.app.workflows.handle.stack;
     exports com.hedera.node.app.fees.congestion;
@@ -124,8 +126,6 @@ module com.hedera.node.app {
     exports com.hedera.node.app.tss.schemas;
     exports com.hedera.node.app.blocks.schemas;
     exports com.hedera.node.app.records.schemas;
-    exports com.hedera.node.app.roster.schemas;
-    exports com.hedera.node.app.ids.schemas;
     exports com.hedera.node.app.hints.schemas;
 
     provides com.swirlds.config.api.ConfigurationExtension with
