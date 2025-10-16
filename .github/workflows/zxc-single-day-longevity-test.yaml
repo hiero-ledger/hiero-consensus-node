@@ -688,7 +688,7 @@ jobs:
           if [ "${{ inputs.perf_analysis }}" = "true" ]
           then
             NLG_c=4
-            run_NLGDebugparams="${run_NLGDebugparams} -Dbenchmark.maxtps=250"
+            run_NLGDebugparams="${run_NLGDebugparams}"
           fi
 
           test=LongevityLoadTest
