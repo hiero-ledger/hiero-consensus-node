@@ -81,18 +81,31 @@ jobs:
 
       - name: Print Params
         run: |
-            echo "Commit SHA: ${{ inputs.commit_sha }}"
-            echo "Branch Name: ${{ inputs.branch_name }}"
-            echo "Enable Extended Test Suite: ${{ inputs.enable-extended-test-suite }}"
-            echo "Enable Abbreviated Panel: ${{ inputs.enable-abbreviated-panel }}"
-            echo "Enable Hedera Node JRS Panel: ${{ inputs.enable-hedera-node-jrs-panel }}"
-            echo "Enable SDK TCK Regression Panel: ${{ inputs.enable-sdk-tck-regression-panel }}"
-            echo "Enable Mirror Node Regression Panel: ${{ inputs.enable-mirror-node-regression-panel }}"
-            echo "Enable JSON-RPC Relay Regression Panel: ${{ inputs.enable-rpc-relay-regression-panel }}"
-            echo "Enable Block Node Regression Panel: ${{ inputs.enable-block-node-regression-panel }}"
-            echo "Additional Parameters: ${{ inputs.additional-parameters }}"
-            echo "Solo Version: ${{ fromJson(inputs.additional-parameters).solo-version || vars.CITR_SOLO_VERSION }}"
-            echo "Helm Release Name: ${{ fromJson(inputs.additional-parameters).helm-release || 'mirror' }}"
+          echo "Commit SHA: ${{ inputs.commit_sha }}"
+          echo "Branch Name: ${{ inputs.branch_name }}"
+          echo "Enable Extended Test Suite: ${{ inputs.enable-extended-test-suite }}"
+          echo "Enable Abbreviated Panel: ${{ inputs.enable-abbreviated-panel }}"
+          echo "Enable Hedera Node JRS Panel: ${{ inputs.enable-hedera-node-jrs-panel }}"
+          echo "Enable SDK TCK Regression Panel: ${{ inputs.enable-sdk-tck-regression-panel }}"
+          echo "Enable Mirror Node Regression Panel: ${{ inputs.enable-mirror-node-regression-panel }}"
+          echo "Enable JSON-RPC Relay Regression Panel: ${{ inputs.enable-rpc-relay-regression-panel }}"
+          echo "Enable Block Node Regression Panel: ${{ inputs.enable-block-node-regression-panel }}"
+          echo "Additional Parameters: ${{ inputs.additional-parameters }}"
+          echo "Solo Version: ${{ fromJson(inputs.additional-parameters).solo-version || vars.CITR_SOLO_VERSION }}"
+          echo "Helm Release Name: ${{ fromJson(inputs.additional-parameters).helm-release || 'mirror' }}"
+          
+          echo "Commit SHA: ${{ inputs.commit_sha }}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "Branch Name: ${{ inputs.branch_name }}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "Enable Extended Test Suite: ${{ inputs.enable-extended-test-suite }}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "Enable Abbreviated Panel: ${{ inputs.enable-abbreviated-panel }}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "Enable Hedera Node JRS Panel: ${{ inputs.enable-hedera-node-jrs-panel }}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "Enable SDK TCK Regression Panel: ${{ inputs.enable-sdk-tck-regression-panel }}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "Enable Mirror Node Regression Panel: ${{ inputs.enable-mirror-node-regression-panel }}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "Enable JSON-RPC Relay Regression Panel: ${{ inputs.enable-rpc-relay-regression-panel }}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "Enable Block Node Regression Panel: ${{ inputs.enable-block-node-regression-panel }}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "Additional Parameters: ${{ inputs.additional-parameters }}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "Solo Version: ${{ fromJson(inputs.additional-parameters).solo-version || '' }}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "Helm Release Name: ${{ fromJson(inputs.additional-parameters).helm-release || '' }}" >> "${GITHUB_STEP_SUMMARY}"
       - name: Set Outputs
         id: set-outputs
         run: |
