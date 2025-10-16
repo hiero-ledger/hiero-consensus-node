@@ -92,6 +92,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     private static final MethodHandle performInitialConfigLoadHandle;
     private static final MethodHandle startConfigWatcherHandle;
     private static final MethodHandle stopConfigWatcherHandle;
+    public static final String PBJ_UNIT_TEST_HOST = "pbj-unit-test-host";
 
     static {
         try {
@@ -276,7 +277,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     @Test
     void testRescheduleAndSelectNode() {
         final BlockNodeConnection connection = mock(BlockNodeConnection.class);
-        final BlockNodeConfig nodeConfig = newBlockNodeConfig("pbj-unit-test-host", 8080, 1);
+        final BlockNodeConfig nodeConfig = newBlockNodeConfig(PBJ_UNIT_TEST_HOST, 8080, 1);
         final Duration delay = Duration.ofSeconds(1);
         doReturn(nodeConfig).when(connection).getNodeConfig();
 
