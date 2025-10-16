@@ -1107,6 +1107,28 @@ message Key {
          * running another contract via a `delegatecall`.
          */
         ContractID delegatable_contract_id = 8;
+
+        /**
+         * A key that indirectly references an account or contract key.
+         */
+        IndirectKey indirect_key = 9;
+    }
+}
+
+/**
+ * An indirect key referencing an account or contract.
+ */
+message IndirectKey {
+    oneof target {
+        /**
+         * The account whose key is referenced indirectly.
+         */
+        AccountID account_id = 1;
+
+        /**
+         * The contract whose key is referenced indirectly.
+         */
+        ContractID contract_id = 2;
     }
 }
 
