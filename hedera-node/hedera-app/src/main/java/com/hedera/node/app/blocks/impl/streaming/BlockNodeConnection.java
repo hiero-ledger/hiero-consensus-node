@@ -1056,14 +1056,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
             // Swap blocks and reset
             if (logger.isTraceEnabled()) {
                 final long oldBlock = block == null ? -1 : block.blockNumber();
-                if (oldBlock == -1) {
-                    logWithContext(
-                            TRACE,
-                            "Worker ready to switch to block {}, but the block isn't ready yet",
-                            latestActiveBlockNumber);
-                } else {
-                    logWithContext(TRACE, "Worker switching to block {}", latestActiveBlockNumber);
-                }
+                logWithContext(TRACE, "Worker switching from block {} to block {}", oldBlock, latestActiveBlockNumber);
             }
             block = blockBufferService.getBlockState(latestActiveBlockNumber);
             pendingRequestBytes = BYTES_PADDING;
