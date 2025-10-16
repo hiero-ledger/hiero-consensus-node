@@ -6,6 +6,7 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
+import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.streams.ContractBytecode;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
 import com.hedera.node.app.service.contract.impl.annotations.TransactionScope;
@@ -113,13 +114,32 @@ public class ContextTransactionProcessor implements Callable<CallOutcome> {
         // Try to translate the HAPI operation to a Hedera EVM transaction, throw HandleException on failure
         // if an exception occurs during a ContractCall, charge fees to the sender and return a CallOutcome reflecting
         // the error.
-        final var hevmTransaction = safeCreateHevmTransaction();
+        final var creation = safeCreateHevmTransaction();
+        final var hevmTransaction = requireNonNull(creation.hevmTransaction());
+        final var isHookDispatch = creation.isHookDispatch();
         if (hevmTransaction.isException()) {
-            final var outcome = maybeChargeFeesAndReturnOutcome(
-                    hevmTransaction,
-                    context.body().transactionIDOrThrow().accountIDOrThrow(),
-                    rootProxyWorldUpdater.getHederaAccount(hevmTransaction.senderId()),
-                    contractsConfig.chargeGasOnEvmHandleException());
+            CallOutcome outcome;
+            if (isHookDispatch) {
+                var result = HederaEvmTransactionResult.fromAborted(
+                        hevmTransaction.senderId(),
+                        hevmTransaction.contractId(),
+                        requireNonNull(hevmTransaction.exception()).getStatus());
+                outcome = CallOutcome.fromResultsWithoutSidecars(
+                        result.asProtoResultOf(null, rootProxyWorldUpdater, null),
+                        result.asEvmTxResultOf(null, null),
+                        null,
+                        null,
+                        null,
+                        result);
+            } else {
+                outcome = maybeChargeFeesAndReturnOutcome(
+                        hevmTransaction,
+                        context.body()
+                                .transactionIDOrElse(TransactionID.DEFAULT)
+                                .accountIDOrElse(AccountID.DEFAULT),
+                        rootProxyWorldUpdater.getHederaAccount(hevmTransaction.senderId()),
+                        contractsConfig.chargeGasOnEvmHandleException());
+            }
 
             final var elapsedNanos = System.nanoTime() - startTimeNanos;
             recordProcessedTransactionToMetrics(hevmTransaction, outcome, elapsedNanos, 0L);
@@ -237,16 +257,20 @@ public class ContextTransactionProcessor implements Callable<CallOutcome> {
                 outcome.isSuccess()));
     }
 
-    private HederaEvmTransaction safeCreateHevmTransaction() {
+    private HevmTransactionCreationResult safeCreateHevmTransaction() {
         try {
             final var hevmTransaction = hevmTransactionFactory.fromHapiTransaction(context.body(), context.payer());
             validatePayloadLength(hevmTransaction);
-            return hevmTransaction;
+            return new HevmTransactionCreationResult(hevmTransaction, hevmTransaction.isHookDispatch());
         } catch (HandleException e) {
+            final var evmTxn = hevmTransactionFactory.fromContractTxException(context.body(), e);
             // Return a HederaEvmTransaction that represents the error in order to charge fees to the sender
-            return hevmTransactionFactory.fromContractTxException(context.body(), e);
+            return new HevmTransactionCreationResult(evmTxn, context.body().hasHookDispatch());
         }
     }
+
+    private record HevmTransactionCreationResult(
+            @Nullable HederaEvmTransaction hevmTransaction, boolean isHookDispatch) {}
 
     private void validatePayloadLength(HederaEvmTransaction hevmTransaction) {
         final var maxJumboEthereumCallDataSize =

@@ -11,6 +11,11 @@ import java.util.random.RandomGenerator;
 
 public final class WeightGenerators {
 
+    /**
+     * total weight is the same as the total stake, which is the number of hbar in existence (50 billion)
+     */
+    public static final long TOTAL_WEIGHTS = 50L * 1_000_000_000L;
+
     public static final WeightGenerator BALANCED = (l, i) -> WeightGenerators.balancedNodeWeights(i);
     public static final WeightGenerator BALANCED_1000_PER_NODE =
             (l, i) -> WeightGenerators.balancedNodeWeights(i, i * 1000L);
@@ -21,13 +26,9 @@ public final class WeightGenerators {
     public static final WeightGenerator ONE_THIRD_ZERO_WEIGHT = WeightGenerators::oneThirdNodesZeroWeight;
     public static final WeightGenerator RANDOM = WeightGenerators::randomNodeWeights;
     public static final WeightGenerator RANDOM_REAL_WEIGHT = (l, i) -> WeightGenerators.randomNodeWeights(l, i, true);
-    public static final WeightGenerator GAUSSIAN = new GaussianWeightGenerator(1000, 100);
-
-    /**
-     * total weights are the same as the number of the number of tinybars in existence
-     * (50 billion)*(times 100 million)
-     */
-    public static final long TOTAL_WEIGHTS = 50L * 1_000_000_000L * 100L * 1_000_000L;
+    public static final WeightGenerator GAUSSIAN = GaussianWeightGenerator.withAverageNodeWeight(1000, 100);
+    public static final WeightGenerator REAL_NETWORK_GAUSSIAN =
+            GaussianWeightGenerator.withNetworkWeight(TOTAL_WEIGHTS, 100_000);
 
     private static final long MINIMUM_NON_ZERO_WEIGHT = 1L;
 
@@ -39,8 +40,7 @@ public final class WeightGenerators {
     /**
      * Generates balanced weight values for each node, where each node has 1 weight.
      *
-     * @param numberOfNodes
-     * 		the number of nodes to generate weight for
+     * @param numberOfNodes the number of nodes to generate weight for
      * @return a list of weight values
      */
     public static List<Long> balancedNodeWeights(final int numberOfNodes) {
@@ -50,10 +50,8 @@ public final class WeightGenerators {
     /**
      * Generates balanced weight values for each node.
      *
-     * @param numberOfNodes
-     * 		the number of nodes to generate weight for
-     * @param useRealTotalWeight
-     * 		true if the real amount of total weight should be evenly distributed amongst each node
+     * @param numberOfNodes the number of nodes to generate weight for
+     * @param useRealTotalWeight true if the real amount of total weight should be evenly distributed amongst each node
      * @return a list of weight values
      */
     public static List<Long> balancedNodeWeights(final int numberOfNodes, final boolean useRealTotalWeight) {
@@ -64,15 +62,13 @@ public final class WeightGenerators {
     }
 
     /**
-     * Generates balanced weight values for each node, where each node is assigned an equal part of the {@code total
-     * weight}. If {@code totalWeight} is not evenly divisible by {@code numberOfNodes}, not all weight will be
-     * distributed to maintain weight balance.
+     * Generates balanced weight values for each node, where each node is assigned an equal part of the
+     * {@code total weight}. If {@code totalWeight} is not evenly divisible by {@code numberOfNodes}, not all weight
+     * will be distributed to maintain weight balance.
      *
-     * @param numberOfNodes
-     * 		the number of nodes to generate weight for
-     * @param totalWeight
-     * 		the total amount of weight to distribute. Note that not all weight is assigned if not evenly divisible among
-     * 		the nodes.
+     * @param numberOfNodes the number of nodes to generate weight for
+     * @param totalWeight the total amount of weight to distribute. Note that not all weight is assigned if not evenly
+     * divisible among the nodes.
      * @return a list of weight values
      */
     public static List<Long> balancedNodeWeights(final int numberOfNodes, final long totalWeight) {
@@ -83,13 +79,10 @@ public final class WeightGenerators {
     /**
      * Generates random node weights.
      *
-     * @param weightSeed
-     * 		the seed to use for the random number generator
-     * @param numberOfNodes
-     * 		the number of nodes to generate weight for
-     * @param useRealTotalWeight
-     * 		if true, the real amount of total weight should be distributed. If false, a smaller, easier to read value
-     * 		will be used as the maximum for each node.
+     * @param weightSeed the seed to use for the random number generator
+     * @param numberOfNodes the number of nodes to generate weight for
+     * @param useRealTotalWeight if true, the real amount of total weight should be distributed. If false, a smaller,
+     * easier to read value will be used as the maximum for each node.
      * @return a list of weight values
      */
     public static List<Long> randomNodeWeights(
@@ -101,15 +94,12 @@ public final class WeightGenerators {
     }
 
     /**
-     * Generates a list of node weights that are pseudo-random and sum to exactly {@code totalWeight}. No node is assigned
-     * more than 1/2 of the total weight. Nodes may be assigned zero weight.
+     * Generates a list of node weights that are pseudo-random and sum to exactly {@code totalWeight}. No node is
+     * assigned more than 1/2 of the total weight. Nodes may be assigned zero weight.
      *
-     * @param weightSeed
-     * 		the seed to use for the random number generator
-     * @param numberOfNodes
-     * 		the number of nodes to generate weight for
-     * @param totalWeight
-     * 		the total amount of weight to distribute
+     * @param weightSeed the seed to use for the random number generator
+     * @param numberOfNodes the number of nodes to generate weight for
+     * @param totalWeight the total amount of weight to distribute
      * @return a list of weight values
      */
     public static List<Long> randomNodeWeights(final long weightSeed, final int numberOfNodes, final long totalWeight) {
@@ -131,10 +121,8 @@ public final class WeightGenerators {
     /**
      * Generates random weight values for each node between 1 (inclusive) and 90 (exclusive).
      *
-     * @param weightSeed
-     * 		the seed to use for the random number generator
-     * @param numberOfNodes
-     * 		the number of nodes to generate weight for
+     * @param weightSeed the seed to use for the random number generator
+     * @param numberOfNodes the number of nodes to generate weight for
      * @return a list of weight values
      */
     public static List<Long> randomNodeWeights(final long weightSeed, final int numberOfNodes) {
@@ -147,8 +135,8 @@ public final class WeightGenerators {
     }
 
     /**
-     * Creates a list of node weights where 1/3 of the nodes are zero-weight and the
-     * remaining nodes are assigned a random weight value between 1 and 90, inclusive.
+     * Creates a list of node weights where 1/3 of the nodes are zero-weight and the remaining nodes are assigned a
+     * random weight value between 1 and 90, inclusive.
      *
      * @return test arguments
      */
@@ -167,11 +155,10 @@ public final class WeightGenerators {
     }
 
     /**
-     * Creates a list of node weights where a single node has a strong minority of weight and
-     * the remaining weight is evenly distributed among the remaining nodes.
+     * Creates a list of node weights where a single node has a strong minority of weight and the remaining weight is
+     * evenly distributed among the remaining nodes.
      *
-     * @param numberOfNodes
-     * 		the number of nodes to generate weight for. Minimum of 3 nodes is required.
+     * @param numberOfNodes the number of nodes to generate weight for. Minimum of 3 nodes is required.
      * @return test arguments
      */
     public static List<Long> singleNodeWithStrongMinority(final int numberOfNodes) {
