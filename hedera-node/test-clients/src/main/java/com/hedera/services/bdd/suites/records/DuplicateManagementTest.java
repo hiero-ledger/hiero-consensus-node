@@ -136,14 +136,16 @@ public class DuplicateManagementTest {
     @DisplayName("if a node submits an authorized transaction without payer signature, it is charged the network fee")
     final Stream<DynamicTest> chargesNetworkFeeToNodeThatSubmitsAuthorizedTransactionWithoutPayerSignature() {
         final var submittingNodeAccountId = "4";
+        final var nodeAccount = "nodeAccount";
         return hapiTest(
                 newKeyNamed("notTreasuryKey"),
+                cryptoCreate(nodeAccount),
                 cryptoTransfer(tinyBarsFromTo(GENESIS, submittingNodeAccountId, ONE_HBAR)),
                 // Take a snapshot of the node's balance before submitting
                 balanceSnapshot("preConsensus", submittingNodeAccountId),
                 // Bypass ingest using a non-default node to submit a privileged transaction that claims
                 // 0.0.2 as the payer, but signs with the wrong key
-                nodeCreate("newNode")
+                nodeCreate("newNode", nodeAccount)
                         .signedBy("notTreasuryKey")
                         .setNode(submittingNodeAccountId)
                         .hasKnownStatus(INVALID_PAYER_SIGNATURE),

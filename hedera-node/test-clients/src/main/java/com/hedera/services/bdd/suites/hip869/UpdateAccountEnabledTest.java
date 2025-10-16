@@ -53,9 +53,11 @@ public class UpdateAccountEnabledTest {
 
     @HapiTest
     final Stream<DynamicTest> updateEmptyAccountIdFail() throws CertificateEncodingException {
+        final var nodeAccount = "nodeAccount";
         return hapiTest(
                 newKeyNamed("adminKey"),
-                nodeCreate("testNode")
+                cryptoCreate(nodeAccount),
+                nodeCreate("testNode", nodeAccount)
                         .adminKey("adminKey")
                         .gossipCaCertificate(gossipCertificates.getFirst().getEncoded()),
                 nodeUpdate("testNode").accountId("").hasPrecheck(INVALID_NODE_ACCOUNT_ID));
@@ -63,9 +65,11 @@ public class UpdateAccountEnabledTest {
 
     @HapiTest
     final Stream<DynamicTest> updateAliasAccountIdFail() throws CertificateEncodingException {
+        final var nodeAccount = "nodeAccount";
         return hapiTest(
                 newKeyNamed("adminKey"),
-                nodeCreate("testNode")
+                cryptoCreate(nodeAccount),
+                nodeCreate("testNode", nodeAccount)
                         .adminKey("adminKey")
                         .gossipCaCertificate(gossipCertificates.getFirst().getEncoded()),
                 nodeUpdate("testNode").aliasAccountId("alias").hasPrecheck(INVALID_NODE_ACCOUNT_ID));
@@ -78,11 +82,13 @@ public class UpdateAccountEnabledTest {
     @Tag(MATS)
     final Stream<DynamicTest> validateFees() throws CertificateEncodingException {
         final String description = "His vorpal blade went snicker-snack!";
+        final var nodeAccount = "nodeAccount";
         return hapiTest(
                 newKeyNamed("testKey"),
                 newKeyNamed("randomAccount"),
                 cryptoCreate("payer").balance(10_000_000_000L),
-                nodeCreate("node100")
+                cryptoCreate(nodeAccount),
+                nodeCreate("node100", nodeAccount)
                         .adminKey("testKey")
                         .description(description)
                         .fee(ONE_HBAR)
@@ -122,9 +128,11 @@ public class UpdateAccountEnabledTest {
     @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
     @Tag(MATS)
     final Stream<DynamicTest> updateAccountIdWork() throws CertificateEncodingException {
+        final var nodeAccount = "nodeAccount";
         return hapiTest(
                 newKeyNamed("adminKey"),
-                nodeCreate("testNode")
+                cryptoCreate(nodeAccount),
+                nodeCreate("testNode", nodeAccount)
                         .adminKey("adminKey")
                         .gossipCaCertificate(gossipCertificates.getFirst().getEncoded()),
                 nodeUpdate("testNode").adminKey("adminKey").accountId("1000"),
