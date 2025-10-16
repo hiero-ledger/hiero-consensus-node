@@ -183,6 +183,7 @@ public class OtterApp implements ConsensusStateEventHandler<OtterAppState> {
         if (syntheticBottleneckMillis.get() > 0) {
             while (millisSleptSoFar < syntheticBottleneckMillis.get()) {
                 try {
+                    // We actually want to sleep here to simulate a busy thread.
                     Thread.sleep(BOTTLENECK_STEP_MILLIS);
                     millisSleptSoFar += BOTTLENECK_STEP_MILLIS;
                 } catch (final InterruptedException e) {
