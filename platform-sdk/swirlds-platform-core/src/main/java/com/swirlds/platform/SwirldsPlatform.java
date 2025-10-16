@@ -36,6 +36,7 @@ import com.swirlds.platform.event.preconsensus.PcesReplayer;
 import com.swirlds.platform.metrics.RuntimeMetrics;
 import com.swirlds.platform.publisher.DefaultPlatformPublisher;
 import com.swirlds.platform.publisher.PlatformPublisher;
+import com.swirlds.platform.reconnect.DefaultSignedStateValidator;
 import com.swirlds.platform.reconnect.ReconnectController;
 import com.swirlds.platform.state.SwirldStateManager;
 import com.swirlds.platform.state.nexus.DefaultLatestCompleteStateNexus;
@@ -235,7 +236,7 @@ public class SwirldsPlatform implements Platform {
                 blocks.consensusStateEventHandler(),
                 blocks.reservedSignedStatePromise(),
                 selfId,
-                blocks.fallenBehindMonitor());
+                blocks.fallenBehindMonitor(), new DefaultSignedStateValidator(platformContext, platformStateFacade));
 
         Runtime.getRuntime().addShutdownHook(new Thread(reconnectController::stop));
         new ThreadConfiguration(AdHocThreadManager.getStaticThreadManager())

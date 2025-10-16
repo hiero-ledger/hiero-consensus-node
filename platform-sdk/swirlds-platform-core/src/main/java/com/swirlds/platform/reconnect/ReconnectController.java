@@ -67,7 +67,7 @@ public class ReconnectController {
 
     private final PlatformStateFacade platformStateFacade;
     private final Roster roster;
-    private final SignedStateValidator validator;
+    private final SignedStateValidator signedStateValidator;
     private final MerkleCryptography merkleCryptography;
     private final Platform platform;
     private final PlatformContext platformContext;
@@ -95,13 +95,14 @@ public class ReconnectController {
             @NonNull final ConsensusStateEventHandler<MerkleNodeState> consensusStateEventHandler,
             @NonNull final ReservedSignedStatePromise peerReservedSignedStatePromise,
             @NonNull final NodeId selfId,
-            @NonNull final FallenBehindMonitor fallenBehindMonitor) {
+            @NonNull final FallenBehindMonitor fallenBehindMonitor,
+            @NonNull final SignedStateValidator signedStateValidator) {
         this.platformStateFacade = requireNonNull(platformStateFacade);
         this.roster = requireNonNull(roster);
         this.platformCoordinator = requireNonNull(platformCoordinator);
         this.peerReservedSignedStatePromise = requireNonNull(peerReservedSignedStatePromise);
         this.fallenBehindMonitor = requireNonNull(fallenBehindMonitor);
-        this.validator = new DefaultSignedStateValidator(platformContext, platformStateFacade);
+        this.signedStateValidator = requireNonNull(signedStateValidator);
         this.merkleCryptography = requireNonNull(merkleCryptography);
         this.reconnectConfig = platformContext.getConfiguration().getConfigData(ReconnectConfig.class);
         this.platform = requireNonNull(platform);
@@ -168,7 +169,7 @@ public class ReconnectController {
                 while (!doReconnect()) {
                     exitIfThresholdMet(++failedReconnectsInARow);
                     logger.info(RECONNECT.getMarker(), "Reconnect failed, retrying");
-                    Thread.sleep(reconnectConfig.minimumTimeBetweenReconnects().toMillis());
+                    //Thread.sleep(reconnectConfig.minimumTimeBetweenReconnects().toMillis());
                 }
                 // reset the monitor to the initial state
                 fallenBehindMonitor.reset();
@@ -201,7 +202,7 @@ public class ReconnectController {
                         requireNonNull(peerReservedSignedStatePromise.await());
                 final ReservedSignedState reservedState = requireNonNull(reservedStateResource.getResource())) {
             logger.info(RECONNECT.getMarker(), "A state was obtained from a peer");
-            validator.validate(
+            signedStateValidator.validate(
                     reservedState.get(),
                     roster,
                     new SignedStateValidationData(currentState, roster, platformStateFacade));
@@ -244,7 +245,7 @@ public class ReconnectController {
         }
 
         // Before attempting to load the state, verify that the platform roster matches the state roster.
-        final long round = platformStateFacade.roundOf(state);
+        final long round =  signedState.getRound();
         final Roster stateRoster = RosterRetriever.retrieveActive(state, round);
         if (!roster.equals(stateRoster)) {
             throw new IllegalStateException("Current roster and state-based roster do not contain the same nodes "
