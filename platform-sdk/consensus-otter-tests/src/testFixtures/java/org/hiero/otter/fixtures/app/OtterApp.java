@@ -180,15 +180,14 @@ public class OtterApp implements ConsensusStateEventHandler<OtterAppState> {
      */
     private void maybeDoBottleneck() {
         long millisSleptSoFar = 0L;
-        if (syntheticBottleneckMillis.get() > 0) {
-            while (millisSleptSoFar < syntheticBottleneckMillis.get()) {
-                try {
-                    // We actually want to sleep here to simulate a busy thread.
-                    Thread.sleep(BOTTLENECK_STEP_MILLIS);
-                    millisSleptSoFar += BOTTLENECK_STEP_MILLIS;
-                } catch (final InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                }
+        while (millisSleptSoFar < syntheticBottleneckMillis.get()) {
+            final long millisToSleep = Math.min(BOTTLENECK_STEP_MILLIS, syntheticBottleneckMillis.get());
+            try {
+                // We actually want to sleep here to simulate a busy thread.
+                Thread.sleep(millisToSleep);
+                millisSleptSoFar += millisToSleep;
+            } catch (final InterruptedException e) {
+                Thread.currentThread().interrupt();
             }
         }
     }
