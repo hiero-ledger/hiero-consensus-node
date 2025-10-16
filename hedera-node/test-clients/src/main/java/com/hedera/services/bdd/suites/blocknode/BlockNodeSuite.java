@@ -1015,4 +1015,35 @@ public class BlockNodeSuite {
                 assertBlockNodeCommsLogDoesNotContain(
                         byNodeId(0), "Block node has exceeded high latency threshold", Duration.ofSeconds(0)));
     }
+
+    @HapiTest
+    @HapiBlockNode(
+            networkSize = 1,
+            blockNodeConfigs = {@BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.SIMULATOR)},
+            subProcessNodeConfigs = {
+                @SubProcessNodeConfig(
+                        nodeId = 0,
+                        blockNodeIds = {0},
+                        blockNodePriorities = {0},
+                        applicationPropertiesOverrides = {
+                            "blockStream.streamMode", "BOTH",
+                            "blockStream.writerMode", "FILE_AND_GRPC"
+                        })
+            })
+    @Order(13)
+    final Stream<DynamicTest> node0SendEndOfBlockHappyPath() {
+        final AtomicReference<Instant> timeRef = new AtomicReference<>();
+        return hapiTest(
+                doingContextual(spec -> timeRef.set(Instant.now())),
+                waitUntilNextBlocks(10).withBackgroundTraffic(true),
+                // assert no errors
+                assertHgcaaLogDoesNotContain(byNodeId(0), "ERROR", Duration.ofSeconds(5)),
+                sourcingContextual(spec -> assertHgcaaLogContainsTimeframe(
+                        byNodeId(0),
+                        timeRef::get,
+                        Duration.ofMinutes(1),
+                        Duration.ofMinutes(1),
+                        // Should send END_OF_BLOCK requests
+                        "Sending request to block node (type=END_OF_BLOCK)")));
+    }
 }
