@@ -41,7 +41,10 @@ public class FileAndGrpcBlockItemWriter implements BlockItemWriter {
     }
 
     private boolean isStreamingEnabled() {
-        return configProvider.getConfiguration().getConfigData(BlockStreamConfig.class).streamToBlockNodes();
+        return configProvider
+                .getConfiguration()
+                .getConfigData(BlockStreamConfig.class)
+                .streamToBlockNodes();
     }
 
     @Override

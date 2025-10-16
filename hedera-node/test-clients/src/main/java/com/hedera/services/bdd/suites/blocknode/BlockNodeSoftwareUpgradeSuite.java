@@ -100,7 +100,7 @@ public class BlockNodeSoftwareUpgradeSuite implements LifecycleTest {
                         timeRef::get,
                         Duration.ofMinutes(2),
                         Duration.ofSeconds(45),
-                        "No initial block node configuration file found. Waiting for updates."),
+                        "Block node configuration unchanged. No action taken."),
                 burstOfTps(MIXED_OPS_BURST_TPS, Duration.ofSeconds(30)),
                 // Now let's write a block-nodes.json file to the data/config directory of node 0
                 // Create block-nodes.json to establish connection
