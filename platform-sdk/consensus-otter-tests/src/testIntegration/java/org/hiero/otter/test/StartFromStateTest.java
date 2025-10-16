@@ -40,13 +40,14 @@ public class StartFromStateTest {
     @OtterSpecs(randomNodeIds = false)
     @TurtleSpecs(randomSeed = SEED)
     @ParameterizedTest
-    @ValueSource(ints = {
-            4, // same as saved state
-            3, // one less
-            2, // half the original roster
-            5, // one more
-            8, // double the original roster
-    })
+    @ValueSource(
+            ints = {
+                4, // same as saved state
+                3, // one less
+                2, // half the original roster
+                5, // one more
+                8, // double the original roster
+            })
     void migrationTest(final int numberOfNodes, @NonNull final TestEnvironment env) {
         final Network network = env.network();
         final TimeManager timeManager = env.timeManager();

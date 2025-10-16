@@ -220,7 +220,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
             final MerkleNodeState state = initialState.get().getState();
 
             // Set active the roster
-            RosterUtils.setActiveRoster(state, roster(), DEFAULT_PLATFORM_STATE_FACADE.latestFreezeRoundOf(state));
+            RosterUtils.setActiveRoster(state, roster(), DEFAULT_PLATFORM_STATE_FACADE.roundOf(state) + 1);
 
             final RosterHistory rosterHistory = RosterUtils.createRosterHistory(state);
             final String eventStreamLoc = Long.toString(selfId.id());

@@ -87,7 +87,7 @@ public class ConsensusNodeManager {
      *
      * @param selfId the unique identifier for this node, must not be {@code null}
      * @param platformConfig the configuration for the platform, must not be {@code null}
-     * @param genesisRoster the initial roster of nodes in the network, must not be {@code null}
+     * @param activeRoster the roster of nodes in the network, must not be {@code null}
      * @param version the semantic version of the platform, must not be {@code null}
      * @param keysAndCerts the keys and certificates for this node, must not
      * @param backgroundExecutor the executor to run background tasks, must not be {@code null}
@@ -95,7 +95,7 @@ public class ConsensusNodeManager {
     public ConsensusNodeManager(
             @NonNull final NodeId selfId,
             @NonNull final Configuration platformConfig,
-            @NonNull final Roster genesisRoster,
+            @NonNull final Roster activeRoster,
             @NonNull final SemanticVersion version,
             @NonNull final KeysAndCerts keysAndCerts,
             @NonNull final Executor backgroundExecutor) {
@@ -130,7 +130,7 @@ public class ConsensusNodeManager {
                 recycleBin,
                 version,
                 () -> OtterAppState.createGenesisState(
-                        platformConfig, genesisRoster, metrics, version, otterApp.allServices()),
+                        platformConfig, activeRoster, metrics, version, otterApp.allServices()),
                 OtterApp.APP_NAME,
                 OtterApp.SWIRLD_NAME,
                 legacySelfId,
@@ -141,7 +141,7 @@ public class ConsensusNodeManager {
         final MerkleNodeState state = initialState.get().getState();
 
         // Set active the roster
-        RosterUtils.setActiveRoster(state, genesisRoster, DEFAULT_PLATFORM_STATE_FACADE.latestFreezeRoundOf(state));
+        RosterUtils.setActiveRoster(state, activeRoster, DEFAULT_PLATFORM_STATE_FACADE.roundOf(state) + 1);
 
         final RosterHistory rosterHistory = RosterUtils.createRosterHistory(state);
         executionCallback = new OtterExecutionLayer(new Random(), metrics, time);
