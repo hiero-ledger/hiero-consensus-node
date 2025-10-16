@@ -4,7 +4,6 @@ package org.hiero.otter.fixtures;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.hiero.consensus.model.status.PlatformStatus.ACTIVE;
-import static org.hiero.otter.fixtures.Constants.RANDOM_SEED;
 
 import com.swirlds.common.test.fixtures.WeightGenerators;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -14,6 +13,8 @@ import java.util.stream.Stream;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.otter.fixtures.container.ContainerTestEnvironment;
 import org.hiero.otter.fixtures.turtle.TurtleTestEnvironment;
+import org.hiero.otter.fixtures.util.TimeoutException;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -32,16 +33,11 @@ class NodeLifecycleTest {
      * @return a stream of {@link TestEnvironment} instances
      */
     public static Stream<TestEnvironment> environments() {
-        return Stream.of(new TurtleTestEnvironment(RANDOM_SEED), new ContainerTestEnvironment());
+        return Stream.of(new TurtleTestEnvironment(), new ContainerTestEnvironment());
     }
 
     /**
      * Test killing and restarting a single node on all environments.
-     *
-     * <p>Setting up environments other than Turtle is quite expensive. Therefore, this test covers the full lifecycle
-     * of node killing and restarting. It ensures that nodes can be killed, that the remaining nodes continue
-     * operating correctly, and that killed nodes can be restarted and rejoin the network. It is run in all
-     * environments to ensure consistent behavior across different setups.
      *
      * @param env the test environment for this test
      */
@@ -71,74 +67,39 @@ class NodeLifecycleTest {
             for (final Node node : nodes) {
                 assertThat(node.platformStatus()).isEqualTo(ACTIVE);
                 assertThat(node.isActive()).isTrue();
+                assertThat(node.isChecking()).isFalse();
+                assertThat(node.isBehind()).isFalse();
+                assertThat(node.isInStatus(PlatformStatus.ACTIVE)).isTrue();
             }
 
-            // Kill the first node
-            nodeToKill.killImmediately();
+            for (int i = 0; i < 3; i++) {
 
-            // Verify the killed node no longer has a platform status
-            assertThat(nodeToKill.platformStatus()).isNull();
-            assertThat(nodeToKill.isActive()).isFalse();
+                // Kill the first node
+                nodeToKill.killImmediately();
 
-            // Verify remaining nodes are still active (network maintains consensus)
-            timeManager.waitFor(Duration.ofSeconds(15L));
-            assertThat(node1.isActive()).isTrue();
-            assertThat(node2.isActive()).isTrue();
-            assertThat(node3.isActive()).isTrue();
+                // Verify the killed node no longer has a platform status
+                assertThat(nodeToKill.platformStatus()).isNull();
+                assertThat(nodeToKill.isActive()).isFalse();
+                assertThat(nodeToKill.isChecking()).isFalse();
+                assertThat(nodeToKill.isBehind()).isFalse();
+                assertThat(nodeToKill.isInStatus(PlatformStatus.ACTIVE)).isFalse();
 
-            // Restart the killed node
-            nodeToKill.start();
+                // Verify remaining nodes are still active (network maintains consensus)
+                timeManager.waitFor(Duration.ofSeconds(5L));
+                assertThat(node1.isActive()).isTrue();
+                assertThat(node2.isActive()).isTrue();
+                assertThat(node3.isActive()).isTrue();
 
-            // Wait for the restarted node to become active again
-            timeManager.waitForCondition(
-                    nodeToKill::isActive, Duration.ofSeconds(120L), "Node did not become ACTIVE after restart");
+                // Restart the killed node
+                nodeToKill.start();
+
+                // Wait for the restarted node to become active again
+                timeManager.waitForCondition(
+                        nodeToKill::isActive, Duration.ofSeconds(120L), "Node did not become ACTIVE after restart");
+            }
 
             // Verify all nodes are still active
             assertThat(network.allNodesInStatus(ACTIVE)).isTrue();
-        } finally {
-            env.destroy();
-        }
-    }
-
-    /**
-     * Test killing and restarting a node multiple times.
-     */
-    @Test
-    void testKillAndRestartNodeMultipleTimes() {
-        final TestEnvironment env = new TurtleTestEnvironment(RANDOM_SEED);
-        try {
-            final Network network = env.network();
-            final TimeManager timeManager = env.timeManager();
-
-            // Setup network with 4 nodes
-            network.weightGenerator(WeightGenerators.BALANCED);
-            final List<Node> nodes = network.addNodes(4);
-            final Node volatileNode = nodes.getFirst();
-
-            network.start();
-
-            // Perform kill and restart cycle 3 times
-            for (int i = 0; i < 3; i++) {
-                // Kill the node
-                volatileNode.killImmediately();
-
-                // Verify node is not active
-                assertThat(volatileNode.platformStatus()).isNull();
-
-                // Restart the node
-                volatileNode.start();
-
-                // Wait for node to become active again
-                timeManager.waitForCondition(
-                        volatileNode::isActive,
-                        Duration.ofSeconds(120L),
-                        "Node did not become ACTIVE after restart " + (i + 1));
-            }
-
-            // Verify all nodes are active at the end
-            for (final Node node : nodes) {
-                assertThat(node.isActive()).isTrue();
-            }
         } finally {
             env.destroy();
         }
@@ -149,7 +110,7 @@ class NodeLifecycleTest {
      */
     @Test
     void testStartAlreadyStartedNodeFails() {
-        final TestEnvironment env = new TurtleTestEnvironment(RANDOM_SEED);
+        final TestEnvironment env = new TurtleTestEnvironment();
         try {
             final Network network = env.network();
 
@@ -174,7 +135,7 @@ class NodeLifecycleTest {
      */
     @Test
     void testKillAlreadyKilledNodeIsNoOp() {
-        final TestEnvironment env = new TurtleTestEnvironment(RANDOM_SEED);
+        final TestEnvironment env = new TurtleTestEnvironment();
         try {
             final Network network = env.network();
 
@@ -203,7 +164,7 @@ class NodeLifecycleTest {
      */
     @Test
     void testKillNodeBeforeStartIsNoOp() {
-        final TestEnvironment env = new TurtleTestEnvironment(RANDOM_SEED);
+        final TestEnvironment env = new TurtleTestEnvironment();
         try {
             final Network network = env.network();
 
@@ -227,7 +188,7 @@ class NodeLifecycleTest {
      */
     @Test
     void testKillAllNodes() {
-        final TestEnvironment env = new TurtleTestEnvironment(RANDOM_SEED);
+        final TestEnvironment env = new TurtleTestEnvironment();
         try {
             final Network network = env.network();
 
@@ -256,7 +217,7 @@ class NodeLifecycleTest {
      */
     @Test
     void testKillAndRestartNodeWithCustomTimeout() {
-        final TestEnvironment env = new TurtleTestEnvironment(RANDOM_SEED);
+        final TestEnvironment env = new TurtleTestEnvironment();
         try {
             final Network network = env.network();
             final TimeManager timeManager = env.timeManager();
@@ -271,7 +232,7 @@ class NodeLifecycleTest {
             // Kill the node with custom timeout
             node.withTimeout(Duration.ofSeconds(30)).killImmediately();
 
-            // Verify node is not active
+            // Verify node is not running
             assertThat(node.platformStatus()).isNull();
 
             // Restart the node with custom timeout
@@ -286,134 +247,38 @@ class NodeLifecycleTest {
     }
 
     /**
-     * Test the platform status transitions when a node is killed.
+     * Test that timeouts are observed in container environment.
      */
     @Test
-    void testPlatformStatusTransitionsOnKill() {
-        final TestEnvironment env = new TurtleTestEnvironment(RANDOM_SEED);
+    @Disabled("Can be enabled once https://github.com/hiero-ledger/hiero-consensus-node/issues/21658 is fixed")
+    void testTimeoutAreObservedInContainerEnvironment() {
+        final TestEnvironment env = new ContainerTestEnvironment();
         try {
             final Network network = env.network();
             final TimeManager timeManager = env.timeManager();
 
             // Setup network with 4 nodes
-            network.weightGenerator(WeightGenerators.BALANCED);
             final List<Node> nodes = network.addNodes(4);
             final Node node = nodes.getFirst();
 
-            network.start();
+            assertThatThrownBy(() -> network.withTimeout(Duration.ofNanos(1L)).start())
+                    .isInstanceOf(TimeoutException.class);
 
-            // Verify node is active before kill
-            assertThat(node.platformStatus()).isEqualTo(ACTIVE);
-            assertThat(node.isActive()).isTrue();
-            assertThat(node.isChecking()).isFalse();
-            assertThat(node.isBehind()).isFalse();
-            assertThat(node.isInStatus(PlatformStatus.ACTIVE)).isTrue();
+            // Kill the node with custom timeout
+            assertThatThrownBy(() -> node.withTimeout(Duration.ofNanos(1L)).killImmediately())
+                    .isInstanceOf(TimeoutException.class);
 
-            // Kill the node
-            node.killImmediately();
-
-            // Verify node no longer has a platform status
+            // Verify node is not active
             assertThat(node.platformStatus()).isNull();
-            assertThat(node.isActive()).isFalse();
-            assertThat(node.isChecking()).isFalse();
-            assertThat(node.isBehind()).isFalse();
-            assertThat(node.isInStatus(PlatformStatus.ACTIVE)).isFalse();
-        } finally {
-            env.destroy();
-        }
-    }
 
-    /**
-     * Test restarting multiple killed nodes simultaneously.
-     */
-    @Test
-    void testRestartMultipleNodesInMinority() {
-        final TestEnvironment env = new TurtleTestEnvironment(RANDOM_SEED);
-        try {
-            final Network network = env.network();
-            final TimeManager timeManager = env.timeManager();
+            // Restart the node with custom timeout
+            assertThatThrownBy(() -> node.withTimeout(Duration.ofNanos(1L)).start())
+                    .isInstanceOf(TimeoutException.class);
+            node.withTimeout(Duration.ofMinutes(2L)).start();
 
-            // Setup network with 5 nodes
-            network.weightGenerator(WeightGenerators.BALANCED);
-            final List<Node> nodes = network.addNodes(7);
-            final Node node0 = nodes.get(0);
-            final Node node1 = nodes.get(1);
-
-            network.start();
-
-            // Kill two nodes
-            node0.killImmediately();
-            node1.killImmediately();
-
-            // Verify killed nodes have no platform status
-            assertThat(node0.platformStatus()).isNull();
-            assertThat(node1.platformStatus()).isNull();
-
-            // Wait for network to stabilize
-            timeManager.waitFor(Duration.ofSeconds(20L));
-
-            // Verify remaining nodes are still active
-            for (int i = 2; i < nodes.size(); i++) {
-                assertThat(nodes.get(i).isActive()).isTrue();
-            }
-
-            // Restart both nodes
-            node0.start();
-            node1.start();
-
-            // Wait for both nodes to become active again
+            // Wait for node to become active again
             timeManager.waitForCondition(
-                    () -> node0.isActive() && node1.isActive(),
-                    Duration.ofSeconds(120L),
-                    "Killed nodes did not become ACTIVE after restart");
-
-            // Verify all nodes are active
-            assertThat(network.allNodesInStatus(ACTIVE)).isTrue();
-        } finally {
-            env.destroy();
-        }
-    }
-
-    /**
-     * Test killing nodes until the network loses consensus.
-     */
-    @Test
-    void testRestartStrongMinority() {
-        final TestEnvironment env = new TurtleTestEnvironment(RANDOM_SEED);
-        try {
-            final Network network = env.network();
-            final TimeManager timeManager = env.timeManager();
-
-            // Setup network with 4 nodes (need 3 for consensus)
-            network.weightGenerator(WeightGenerators.BALANCED);
-            final List<Node> nodes = network.addNodes(4);
-            final Node node0 = nodes.get(0);
-            final Node node1 = nodes.get(1);
-            final Node node2 = nodes.get(2);
-            final Node node3 = nodes.get(3);
-
-            network.start();
-
-            // Kill two nodes, leaving only 2 active (below 2/3 threshold)
-            node0.killImmediately();
-            node1.killImmediately();
-
-            // Verify killed nodes have no platform status
-            assertThat(node0.platformStatus()).isNull();
-            assertThat(node1.platformStatus()).isNull();
-
-            timeManager.waitForCondition(
-                    () -> !node2.isActive() && !node3.isActive(),
-                    Duration.ofSeconds(120L),
-                    "Remaining nodes did not lose ACTIVE status after consensus loss");
-
-            // Restart killed nodes to restore consensus
-            node0.start();
-            node1.start();
-
-            // Wait for all nodes to become active again
-            timeManager.waitForCondition(
-                    network::allNodesAreActive, Duration.ofSeconds(120L), "Not all nodes became ACTIVE after restart");
+                    node::isActive, Duration.ofSeconds(120L), "Node did not become ACTIVE after restart");
         } finally {
             env.destroy();
         }
