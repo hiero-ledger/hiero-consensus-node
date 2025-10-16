@@ -47,11 +47,11 @@ on:
       additional-parameters:
         # Expected additional parameters (all optional):
         #   { "solo-version": "vX.Y.Z" } # for a specific solo version
-        #   { "helm-release": "mirror" } # for a specific helm release name
-        #   { "solo-version": "vX.Y.Z", "helm-release": "mirror" } # for multiple
+        #   { "helm-release-name": "mirror" } # for a specific helm release name
+        #   { "solo-version": "vX.Y.Z", "helm-release-name": "mirror" } # for multiple
         required: false
         type: string
-        description: "Additional Parameters (json format): solo-version, helm-release"
+        description: "Additional Parameters (json format): solo-version, helm-release-name"
         default: "{}"
 
 permissions:
@@ -92,12 +92,12 @@ jobs:
           echo "Enable Block Node Regression Panel: ${{ inputs.enable-block-node-regression-panel }}" | tee -a "${GITHUB_STEP_SUMMARY}"
           echo "Additional Parameters: ${{ inputs.additional-parameters }}" | tee -a "${GITHUB_STEP_SUMMARY}"
           echo "Solo Version: ${{ fromJson(inputs.additional-parameters).solo-version || '' }}" | tee -a "${GITHUB_STEP_SUMMARY}"
-          echo "Helm Release Name: ${{ fromJson(inputs.additional-parameters).helm-release || '' }}" | tee -a "${GITHUB_STEP_SUMMARY}"
+          echo "Helm Release Name: ${{ fromJson(inputs.additional-parameters).helm-release-name || '' }}" | tee -a "${GITHUB_STEP_SUMMARY}"
       - name: Set Outputs
         id: set-outputs
         run: |
           echo "solo-version=${{ fromJson(inputs.additional-parameters).solo-version || '' }}" >> "${GITHUB_OUTPUT}"
-          echo "helm-release-name=${{ fromJson(inputs.additional-parameters).helm-release || '' }}" >> "${GITHUB_OUTPUT}"
+          echo "helm-release-name=${{ fromJson(inputs.additional-parameters).helm-release-name || '' }}" >> "${GITHUB_OUTPUT}"
 
   xts-timing-sensitive-tests:
     name: XTS Timing Sensitive Tests

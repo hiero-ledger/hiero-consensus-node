@@ -113,7 +113,7 @@ jobs:
 
           # check solo version
           version=$(solo --version | grep Version | awk '{print $3}')
-          solo_ge_0440=[[ "$(printf '%s\n' "${version}" "0.44.0" | sort -V | head -n1)" == "0.44.0" ]] && echo "true" || echo "false"
+          solo_ge_0440=$([[ "$(printf '%s\n' "${version}" "0.44.0" | sort -V | head -n1)" == "0.44.0" ]] && echo "true" || echo "false")
           echo "::debug::solo_ge_0440=${solo_ge_0440}"
           if [[ "${solo_ge_0440}" == "true" ]]; then
             echo "::debug::Solo version ($version) is >= 0.44.0"
