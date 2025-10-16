@@ -5,6 +5,7 @@ import static com.hedera.node.app.hapi.utils.ethereum.EthTxSigs.extractAuthority
 
 import com.esaulpaugh.headlong.rlp.RLPEncoder;
 import com.google.common.base.MoreObjects;
+import com.google.common.primitives.Longs;
 import java.math.BigInteger;
 import java.util.Arrays;
 import java.util.Optional;
@@ -28,8 +29,8 @@ public record CodeDelegation(byte[] chainId, byte[] address, long nonce, int rec
      * Calculates the signable message for this code delegation.
      *
      */
-    byte[] calculateSignableMessage() {
-        return RLPEncoder.sequence(chainId, address, nonce);
+    public byte[] calculateSignableMessage() {
+        return RLPEncoder.sequence(chainId, address, Longs.toByteArray(nonce));
     }
 
     public BigInteger getS() {
