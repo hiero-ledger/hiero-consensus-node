@@ -737,7 +737,6 @@ jobs:
           ${NLGargs} -tt 10s > client.log 2>&1 &"
 
       - name: Start BlockNode Cleaner
-        if: false
         run: |
           set +x
           set +e
@@ -1019,7 +1018,6 @@ jobs:
           mkdir "${{ github.workspace }}"/report
 
       - name: Start BlockNode Cleaner
-        if: false
         run: |
           set +x
           set +e

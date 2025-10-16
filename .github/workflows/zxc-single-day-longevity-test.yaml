@@ -705,7 +705,6 @@ jobs:
           sleep 30
 
       - name: Start BlockNode Cleaner
-        if: false
         run: |
           set +x
           set +e
