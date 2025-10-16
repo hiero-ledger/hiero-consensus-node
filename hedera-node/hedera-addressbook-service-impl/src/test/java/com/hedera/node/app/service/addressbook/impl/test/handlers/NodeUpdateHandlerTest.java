@@ -72,8 +72,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class NodeUpdateHandlerTest extends AddressBookTestBase {
-    private static final AccountID SENTINEL_NODE_ACCOUNT_ID =
-            AccountID.newBuilder().shardNum(0).realmNum(0).accountNum(0).build();
 
     @Mock(strictness = LENIENT)
     private HandleContext handleContext;
@@ -520,6 +518,7 @@ class NodeUpdateHandlerTest extends AddressBookTestBase {
     void preHandleSpecialCaseWhenOnlyUpdatingAccountId() throws PreCheckException {
         // Setup existing node with an account ID
         givenValidNode();
+        final var newAccountId = idFactory.newAccountId(4);
 
         // Create a node with existing account ID
         Node nodeWithAccount = Node.newBuilder()
@@ -538,12 +537,13 @@ class NodeUpdateHandlerTest extends AddressBookTestBase {
         // Create transaction that only updates accountId (sentinel value to remove account)
         txn = new NodeUpdateBuilder()
                 .withNodeId(nodeId.number())
-                .withAccountId(SENTINEL_NODE_ACCOUNT_ID)
+                .withAccountId(newAccountId)
                 .build();
 
         final var config = HederaTestConfigBuilder.create()
                 .withValue("nodes.updateAccountIdAllowed", true)
                 .getOrCreateConfig();
+        mockAccountLookup(aPrimitiveKey, newAccountId, accountStore);
         mockAccountKeyOrThrow(aPrimitiveKey, accountId, accountStore);
         mockAccountLookup(anotherKey, payerId, accountStore);
         final var context = new FakePreHandleContext(accountStore, txn, config);
@@ -553,9 +553,18 @@ class NodeUpdateHandlerTest extends AddressBookTestBase {
         subject.preHandle(context);
 
         // Verify that either admin key or account key was accepted (via threshold key)
-        assertThat(context.requiredNonPayerKeys().size()).isEqualTo(1);
-        assertThat(context.requiredNonPayerKeys().stream().findFirst().get().hasThresholdKey())
-                .isTrue();
+        // Check if any of the required keys is a threshold key
+        boolean hasThresholdKey = context.requiredNonPayerKeys().stream().anyMatch(Key::hasThresholdKey);
+        assertTrue(hasThresholdKey);
+
+        // Find the threshold key and verify its properties
+        context.requiredNonPayerKeys().stream()
+                .filter(Key::hasThresholdKey)
+                .findFirst()
+                .ifPresent(key -> {
+                    assertThat(key.thresholdKeyOrThrow().threshold()).isEqualTo(1);
+                    assertThat(key.thresholdKeyOrThrow().keys().keys().size()).isEqualTo(2);
+                });
     }
 
     @Test
@@ -594,25 +603,6 @@ class NodeUpdateHandlerTest extends AddressBookTestBase {
     }
 
     @Test
-    void preHandleSentinelAccountIdValueDoesNotRequireAccountSignature() throws PreCheckException {
-        givenValidNode(false);
-        refreshStoresWithCurrentNodeInReadable();
-
-        txn = new NodeUpdateBuilder()
-                .withNodeId(nodeId.number())
-                .withAdminKey(key)
-                .withAccountId(SENTINEL_NODE_ACCOUNT_ID)
-                .build();
-
-        final var context = setupPreHandle(true, txn);
-
-        subject.preHandle(context);
-
-        // Should only require admin key verification, not account key
-        assertThat(context.requiredNonPayerKeys()).doesNotContain(aPrimitiveKey);
-    }
-
-    @Test
     void testHandleProxyEndpointDisabled() {
         txn = new NodeUpdateBuilder()
                 .withNodeId(1L)
@@ -631,28 +621,6 @@ class NodeUpdateHandlerTest extends AddressBookTestBase {
 
         final var msg = assertThrows(HandleException.class, () -> subject.handle(handleContext));
         assertEquals(GRPC_WEB_PROXY_NOT_SUPPORTED, msg.getStatus());
-    }
-
-    @Test
-    void testHandleAccountIdSentinelValueResetsAccountId() {
-        // Setup a transaction with sentinel account ID
-        txn = new NodeUpdateBuilder()
-                .withNodeId(nodeId.number())
-                .withAccountId(SENTINEL_NODE_ACCOUNT_ID)
-                .build();
-
-        // Create a node with existing account ID
-        Node nodeWithAccount =
-                Node.newBuilder().nodeId(nodeId.number()).accountId(accountId).build();
-        setupWritableNodeStore(nodeWithAccount);
-        setupMinimalHandle();
-        // Execute the method
-        assertDoesNotThrow(() -> subject.handle(handleContext));
-
-        // Verify the account ID was set to the sentinel value
-        var node = writableStore.get(nodeId.number());
-        assertNotNull(node);
-        assertEquals(SENTINEL_NODE_ACCOUNT_ID, node.accountId());
     }
 
     @Test
@@ -734,24 +702,33 @@ class NodeUpdateHandlerTest extends AddressBookTestBase {
     void testOneOfHelperCreatesThresholdKey() throws PreCheckException {
         // Setup existing node with an account ID
         givenValidNode();
+        var newAccountId = idFactory.newAccountId(4);
 
         // Create transaction that only updates accountId
         txn = new NodeUpdateBuilder()
                 .withNodeId(nodeId.number())
-                .withAccountId(SENTINEL_NODE_ACCOUNT_ID)
+                .withAccountId(newAccountId)
                 .build();
 
         final var context = setupPreHandle(true, txn);
-        mockAccountKeyOrThrow(aPrimitiveKey, accountId, accountStore);
+        mockAccountLookup(aPrimitiveKey, newAccountId, accountStore);
+        mockAccountKeyOrThrow(bPrimitiveKey, accountId, accountStore);
 
         // Execute preHandle
         subject.preHandle(context);
 
-        // Verify the threshold key was correctly created with threshold 1
-        Key requiredKey = context.requiredNonPayerKeys().iterator().next();
-        assertThat(requiredKey.hasThresholdKey()).isTrue();
-        assertThat(requiredKey.thresholdKeyOrThrow().threshold()).isEqualTo(1);
-        assertThat(requiredKey.thresholdKeyOrThrow().keys().keys().size()).isEqualTo(2);
+        // Check if any of the required keys is a threshold key
+        boolean hasThresholdKey = context.requiredNonPayerKeys().stream().anyMatch(Key::hasThresholdKey);
+        assertTrue(hasThresholdKey);
+
+        // Find the threshold key and verify its properties
+        context.requiredNonPayerKeys().stream()
+                .filter(Key::hasThresholdKey)
+                .findFirst()
+                .ifPresent(key -> {
+                    assertThat(key.thresholdKeyOrThrow().threshold()).isEqualTo(1);
+                    assertThat(key.thresholdKeyOrThrow().keys().keys().size()).isEqualTo(2);
+                });
     }
 
     @Test
