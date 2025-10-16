@@ -12,7 +12,6 @@ import static org.hiero.otter.fixtures.assertions.StatusProgressionStep.target;
 import com.swirlds.common.test.fixtures.WeightGenerators;
 import com.swirlds.platform.wiring.PlatformSchedulersConfig_;
 import java.time.Duration;
-import java.util.List;
 import org.hiero.otter.fixtures.Capability;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.Node;
@@ -41,15 +40,12 @@ public class CheckingRecoveryTest {
 
         // Add more than 3 nodes with balanced weights so that one node can be lost without halting consensus
         network.weightGenerator(WeightGenerators.BALANCED);
-        final List<Node> nodes = network.addNodes(4);
+        network.addNodes(4);
         // For this test to work, we need to lower the limit for the transaction handler component
         // With the new limit set, once the transaction handler has 100 pending transactions, the node will stop
         // gossipping and stop creating events. This will cause the node to go into the checking state.
-        nodes.stream()
-                .map(Node::configuration)
-                .forEach(c -> c.set(
-                        PlatformSchedulersConfig_.TRANSACTION_HANDLER,
-                        "SEQUENTIAL_THREAD CAPACITY(100) FLUSHABLE SQUELCHABLE"));
+        network.withConfigValue(
+                PlatformSchedulersConfig_.TRANSACTION_HANDLER, "SEQUENTIAL_THREAD CAPACITY(100) FLUSHABLE SQUELCHABLE");
 
         assertContinuouslyThat(network.newConsensusResults()).haveEqualRounds();
         network.start();
@@ -74,5 +70,7 @@ public class CheckingRecoveryTest {
                 nodeToThrottle::isActive,
                 Duration.ofSeconds(120L),
                 "Node did not recover from CHECKING status within the expected time frame after synthetic bottleneck was disabled.");
+
+        assertThat(network.newEventStreamResults()).haveEqualFiles();
     }
 }
