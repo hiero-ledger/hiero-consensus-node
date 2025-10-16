@@ -207,7 +207,7 @@ public class RpcPeerHandler implements GossipRpcReceiver {
      * @param gossipEvent event to be sent
      */
     // platform thread
-    void broadcastEvent(@NonNull final GossipEvent gossipEvent) {
+    public void broadcastEvent(@NonNull final GossipEvent gossipEvent) {
         // don't spam remote side if it is going to reconnect
         // or if we haven't completed even a first sync, as it might be a recovery phase for either for us
 
