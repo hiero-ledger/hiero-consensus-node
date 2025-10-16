@@ -68,11 +68,11 @@ on:
         default: false
         type: boolean
         description: "Algorithmic analysis"
-      disable-notifications:
+      NLGDparams:
         required: false
-        default: true
-        type: boolean
-        description: "If true, skip tag and notifications"
+        default: '-Dbenchmark.maxtps=8000'
+        description: 'Java props for Network Load Generator, e.g. -Dbenchmark.maxtps=8000'
+        type: string
       perf_ghp:
         required: true
         default: "MUST_BE_SET_BY_CALL"
@@ -146,6 +146,7 @@ jobs:
       add-settings: "${{ inputs.add-settings }}"
       bnref: "${{ inputs.bnref }}"
       perf_analysis: "${{ inputs.perf_analysis }}"
+      NLGDparams: "${{ inputs.NLGDparams }}"
 
     secrets:
       slack-report-webhook: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
