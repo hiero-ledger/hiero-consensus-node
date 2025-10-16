@@ -97,8 +97,8 @@ class FallenBehindMonitorTest {
 
         monitor.report(NodeId.of(7));
         assertFallenBehind(true, 6, "we should be fallen behind");
-        assertTrue(monitor.wasReportedByPeer(NodeId.of(6)));
-        assertFalse(monitor.wasReportedByPeer(NodeId.of(4)));
+        assertTrue(monitor.isBehindPeer(NodeId.of(6)));
+        assertFalse(monitor.isBehindPeer(NodeId.of(4)));
 
         monitor.report(NodeId.of(4));
         monitor.report(NodeId.of(8));
@@ -307,7 +307,7 @@ class FallenBehindMonitorTest {
         final FallenBehindStatus status = monitor.check(selfWindow, peerWindow, peer);
 
         assertEquals(FallenBehindStatus.SELF_FALLEN_BEHIND, status);
-        assertTrue(monitor.wasReportedByPeer(peer), "Peer should be in the reported set");
+        assertTrue(monitor.isBehindPeer(peer), "Peer should be in the reported set");
         assertEquals(1, monitor.reportedSize());
     }
 
@@ -322,7 +322,7 @@ class FallenBehindMonitorTest {
         final FallenBehindStatus status = monitor.check(selfWindow, peerWindow, peer);
 
         assertEquals(FallenBehindStatus.OTHER_FALLEN_BEHIND, status);
-        assertFalse(monitor.wasReportedByPeer(peer), "Peer should not be in the reported set");
+        assertFalse(monitor.isBehindPeer(peer), "Peer should not be in the reported set");
         assertEquals(0, monitor.reportedSize());
     }
 
@@ -337,7 +337,7 @@ class FallenBehindMonitorTest {
         final FallenBehindStatus status = monitor.check(selfWindow, peerWindow, peer);
 
         assertEquals(FallenBehindStatus.NONE_FALLEN_BEHIND, status);
-        assertFalse(monitor.wasReportedByPeer(peer), "Peer should not be in the reported set");
+        assertFalse(monitor.isBehindPeer(peer), "Peer should not be in the reported set");
         assertEquals(0, monitor.reportedSize());
     }
 
@@ -351,7 +351,7 @@ class FallenBehindMonitorTest {
         final EventWindow peerAhead = new EventWindow(110, 115, 100, 95);
         monitor.check(selfBehind, peerAhead, peer);
 
-        assertTrue(monitor.wasReportedByPeer(peer), "Peer should be reported initially");
+        assertTrue(monitor.isBehindPeer(peer), "Peer should be reported initially");
         assertEquals(1, monitor.reportedSize());
 
         // Now check with compatible windows
@@ -359,7 +359,7 @@ class FallenBehindMonitorTest {
         final EventWindow peerSame = new EventWindow(110, 115, 100, 95);
         monitor.check(selfCaughtUp, peerSame, peer);
 
-        assertFalse(monitor.wasReportedByPeer(peer), "Peer report should be cleared");
+        assertFalse(monitor.isBehindPeer(peer), "Peer report should be cleared");
         assertEquals(0, monitor.reportedSize());
     }
 
@@ -380,29 +380,29 @@ class FallenBehindMonitorTest {
 
     @Test
     @DisplayName("Test wasReportedByPeer for various scenarios")
-    void testWasReportedByPeer() {
+    void testIsBehindPeer() {
         final NodeId peer1 = NodeId.of(1);
         final NodeId peer2 = NodeId.of(2);
         final NodeId peer3 = NodeId.of(3);
 
-        assertFalse(monitor.wasReportedByPeer(peer1), "Initially no peer reported");
+        assertFalse(monitor.isBehindPeer(peer1), "Initially no peer reported");
 
         monitor.report(peer1);
-        assertTrue(monitor.wasReportedByPeer(peer1), "Peer1 should be reported");
-        assertFalse(monitor.wasReportedByPeer(peer2), "Peer2 should not be reported");
+        assertTrue(monitor.isBehindPeer(peer1), "Peer1 should be reported");
+        assertFalse(monitor.isBehindPeer(peer2), "Peer2 should not be reported");
 
         monitor.report(peer2);
-        assertTrue(monitor.wasReportedByPeer(peer1), "Peer1 should still be reported");
-        assertTrue(monitor.wasReportedByPeer(peer2), "Peer2 should be reported");
+        assertTrue(monitor.isBehindPeer(peer1), "Peer1 should still be reported");
+        assertTrue(monitor.isBehindPeer(peer2), "Peer2 should be reported");
 
         monitor.clear(peer1);
-        assertFalse(monitor.wasReportedByPeer(peer1), "Peer1 should be cleared");
-        assertTrue(monitor.wasReportedByPeer(peer2), "Peer2 should still be reported");
+        assertFalse(monitor.isBehindPeer(peer1), "Peer1 should be cleared");
+        assertTrue(monitor.isBehindPeer(peer2), "Peer2 should still be reported");
 
         monitor.reset();
-        assertFalse(monitor.wasReportedByPeer(peer1), "All should be cleared after reset");
-        assertFalse(monitor.wasReportedByPeer(peer2), "All should be cleared after reset");
-        assertFalse(monitor.wasReportedByPeer(peer3), "All should be cleared after reset");
+        assertFalse(monitor.isBehindPeer(peer1), "All should be cleared after reset");
+        assertFalse(monitor.isBehindPeer(peer2), "All should be cleared after reset");
+        assertFalse(monitor.isBehindPeer(peer3), "All should be cleared after reset");
     }
 
     @Test
@@ -419,9 +419,9 @@ class FallenBehindMonitorTest {
 
         // Node 2's report should be removed, but we now have 2 peers added
         assertEquals(2, monitor.reportedSize(), "Node 2 should be removed from reports");
-        assertFalse(monitor.wasReportedByPeer(NodeId.of(2)));
-        assertTrue(monitor.wasReportedByPeer(NodeId.of(1)));
-        assertTrue(monitor.wasReportedByPeer(NodeId.of(3)));
+        assertFalse(monitor.isBehindPeer(NodeId.of(2)));
+        assertTrue(monitor.isBehindPeer(NodeId.of(1)));
+        assertTrue(monitor.isBehindPeer(NodeId.of(3)));
     }
 
     @Test
@@ -433,7 +433,7 @@ class FallenBehindMonitorTest {
         // Node 2 is in both added and removed - should not be removed from reports
         monitor.update(ImmutableSet.of(NodeId.of(2)), ImmutableSet.of(NodeId.of(2)));
 
-        assertTrue(monitor.wasReportedByPeer(NodeId.of(2)), "Node 2 should still be in reports when in both sets");
+        assertTrue(monitor.isBehindPeer(NodeId.of(2)), "Node 2 should still be in reports when in both sets");
         assertEquals(2, monitor.reportedSize());
     }
 
@@ -512,7 +512,7 @@ class FallenBehindMonitorTest {
                             monitor.report(NodeId.of(nodeId));
                             monitor.hasFallenBehind();
                             monitor.reportedSize();
-                            monitor.wasReportedByPeer(NodeId.of(nodeId));
+                            monitor.isBehindPeer(NodeId.of(nodeId));
                         } catch (Exception e) {
                             failed.set(true);
                         } finally {
@@ -575,7 +575,7 @@ class FallenBehindMonitorTest {
 
         // State should be unchanged
         assertEquals(1, monitor.reportedSize());
-        assertTrue(monitor.wasReportedByPeer(NodeId.of(1)));
+        assertTrue(monitor.isBehindPeer(NodeId.of(1)));
     }
 
     @Test

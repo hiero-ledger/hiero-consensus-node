@@ -73,21 +73,19 @@ import org.hiero.consensus.roster.RosterHistory;
  * @param statusActionSubmitterReference         a reference to the status action submitter, this can be deleted once
  *                                               platform status management is handled by the wiring framework
  * @param swirldStateManager                     responsible for the mutable state, this is exposed here due to
- *                                               reconnect, can be removed once reconnect is made compatible with the
- *                                               wiring framework
+ *                                               reconnect
  * @param getLatestCompleteStateReference        a reference to a supplier that supplies the latest immutable state,
  *                                               this is exposed here due to reconnect, can be removed once reconnect is
  *                                               made compatible with the wiring framework
- * @param clearAllPipelinesForReconnectReference a reference to a runnable that clears all pipelines for reconnect, can
- *                                               be removed once reconnect is made compatible with the wiring framework
  * @param firstPlatform                          if this is the first platform being built (there is static setup that
  *                                               needs to be done, long term plan is to stop using static variables)
  * @param platformStateFacade                    the facade to access the platform state
  * @param execution                              the instance of the execution layer, which allows consensus to interact
  *                                               with the execution layer
  * @param createStateFromVirtualMap              a function to instantiate the state object from a Virtual Map
- * @param fallenBehindMonitor                    an instance of the fallenBehind Monitor
- * @param reservedSignedStatePromise
+ * @param fallenBehindMonitor                    an instance of the fallenBehind Monitor which tracks if the node has fallen behind
+ * @param reservedSignedStatePromise             a shared data structure that Gossip and the ReconnectController will use provide
+ *                                               and obtain a reference to a ReservedSignedState
  */
 public record PlatformBuildingBlocks(
         @NonNull PlatformComponents platformComponents,
@@ -114,7 +112,6 @@ public record PlatformBuildingBlocks(
         @NonNull AtomicReference<StatusActionSubmitter> statusActionSubmitterReference,
         @NonNull SwirldStateManager swirldStateManager,
         @NonNull AtomicReference<Supplier<ReservedSignedState>> getLatestCompleteStateReference,
-        @NonNull AtomicReference<Runnable> clearAllPipelinesForReconnectReference,
         boolean firstPlatform,
         @NonNull ConsensusStateEventHandler consensusStateEventHandler,
         @NonNull PlatformStateFacade platformStateFacade,
@@ -145,7 +142,6 @@ public record PlatformBuildingBlocks(
         requireNonNull(statusActionSubmitterReference);
         requireNonNull(swirldStateManager);
         requireNonNull(getLatestCompleteStateReference);
-        requireNonNull(clearAllPipelinesForReconnectReference);
         requireNonNull(consensusStateEventHandler);
         requireNonNull(platformStateFacade);
         requireNonNull(execution);

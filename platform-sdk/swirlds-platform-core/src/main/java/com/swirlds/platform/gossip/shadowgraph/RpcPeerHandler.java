@@ -106,7 +106,12 @@ public class RpcPeerHandler implements GossipRpcReceiver {
     private int incomingEventsCounter = 0;
 
     private final SyncGuard syncGuard;
+
+    /**
+     * Keeps track of the FallenBehind status of the local node
+     */
     private final FallenBehindMonitor fallenBehindMonitor;
+
     /**
      * Create new state class for an RPC peer
      *
@@ -120,7 +125,7 @@ public class RpcPeerHandler implements GossipRpcReceiver {
      * @param time                          platform time
      * @param intakeEventCounter            used for tracking events in the intake pipeline per peer
      * @param eventHandler                  events that are received are passed here
-     * @param fallenBehindMonitor
+     * @param fallenBehindMonitor           an instance of the fallenBehind Monitor which tracks if the node has fallen behind
      */
     public RpcPeerHandler(
             @NonNull final RpcShadowgraphSynchronizer sharedShadowgraphSynchronizer,

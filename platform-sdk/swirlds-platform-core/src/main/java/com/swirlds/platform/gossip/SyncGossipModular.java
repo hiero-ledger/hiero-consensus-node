@@ -94,7 +94,7 @@ public class SyncGossipModular implements Gossip {
      * @param intakeEventCounter            keeps track of the number of events in the intake pipeline from each peer
      * @param platformStateFacade           the facade to access the platform state
      * @param createStateFromVirtualMap     a function to instantiate the state object from a Virtual Map
-     * @param fallenBehindMonitor           an instance of the FallenBehindMonitor
+     * @param fallenBehindMonitor           an instance of the fallenBehind Monitor which tracks if the node has fallen behind
      * @param reservedSignedStatePromise a mechanism to get a SignedState or block while it is not available
      */
     public SyncGossipModular(
@@ -271,8 +271,8 @@ public class SyncGossipModular implements Gossip {
             @NonNull final BindableInputWire<NoInput, Void> startInput,
             @NonNull final BindableInputWire<NoInput, Void> stopInput,
             @NonNull final BindableInputWire<NoInput, Void> clearInput,
-            @NonNull final BindableInputWire<NoInput, Void> pause,
-            @NonNull final BindableInputWire<NoInput, Void> resume,
+            @NonNull final BindableInputWire<NoInput, Void> pauseGossip,
+            @NonNull final BindableInputWire<NoInput, Void> resumeGossip,
             @NonNull final BindableInputWire<Duration, Void> systemHealthInput,
             @NonNull final BindableInputWire<PlatformStatus, Void> platformStatusInput,
             @NonNull final StandardOutputWire<Double> syncLagOutput) {
@@ -294,10 +294,10 @@ public class SyncGossipModular implements Gossip {
         platformStatusInput.bindConsumer(status -> {
             protocols.forEach(protocol -> protocol.updatePlatformStatus(status));
         });
-        pause.bindConsumer(ignored -> {
+        pauseGossip.bindConsumer(ignored -> {
             syncProtocol.pause();
         });
-        resume.bindConsumer(ignored -> {
+        resumeGossip.bindConsumer(ignored -> {
             syncProtocol.resume();
         });
         this.receivedEventHandler = eventOutput::forward;
