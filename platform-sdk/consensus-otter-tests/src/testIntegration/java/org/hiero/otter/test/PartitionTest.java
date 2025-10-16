@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.test;
 
-import static com.swirlds.common.test.fixtures.WeightGenerators.TOTAL_WEIGHTS;
+import static com.swirlds.common.test.fixtures.WeightGenerators.TOTAL_NETWORK_WEIGHT;
 import static org.assertj.core.api.Assertions.within;
 import static org.hiero.consensus.model.status.PlatformStatus.ACTIVE;
 import static org.hiero.consensus.model.status.PlatformStatus.CHECKING;
@@ -72,7 +72,7 @@ public class PartitionTest {
         final TimeManager timeManager = env.timeManager();
 
         for (final Double weightFraction : weightFractions) {
-            network.addNode().weight(Math.round(TOTAL_WEIGHTS * weightFraction));
+            network.addNode().weight(Math.round(TOTAL_NETWORK_WEIGHT * weightFraction));
         }
 
         network.start();
@@ -123,10 +123,12 @@ public class PartitionTest {
                 .isCloseTo(1.0, within(0.0001));
         final double partitionSum =
                 partitionIndices.stream().mapToDouble(weightFractions::get).sum();
-        assertThat(Threshold.STRONG_MINORITY.isSatisfiedBy(Math.round(TOTAL_WEIGHTS * partitionSum), TOTAL_WEIGHTS))
+        assertThat(Threshold.STRONG_MINORITY.isSatisfiedBy(Math.round(TOTAL_NETWORK_WEIGHT * partitionSum),
+                TOTAL_NETWORK_WEIGHT))
                 .withFailMessage("partition is not a strong minority")
                 .isTrue();
-        assertThat(Threshold.SUPER_MAJORITY.isSatisfiedBy(Math.round(TOTAL_WEIGHTS * partitionSum), TOTAL_WEIGHTS))
+        assertThat(Threshold.SUPER_MAJORITY.isSatisfiedBy(Math.round(TOTAL_NETWORK_WEIGHT * partitionSum),
+                TOTAL_NETWORK_WEIGHT))
                 .withFailMessage("partition is a super majority")
                 .isFalse();
     }
