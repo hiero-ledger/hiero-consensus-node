@@ -7,11 +7,11 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.state.token.Account;
-import com.hedera.node.app.ids.EntityIdService;
-import com.hedera.node.app.ids.ReadableEntityIdStoreImpl;
+import com.hedera.node.app.service.entityid.EntityIdService;
+import com.hedera.node.app.service.entityid.ReadableEntityIdStore;
+import com.hedera.node.app.service.entityid.impl.ReadableEntityIdStoreImpl;
 import com.hedera.node.app.service.token.impl.TokenServiceImpl;
 import com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema;
-import com.hedera.node.app.spi.ids.ReadableEntityIdStore;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.statevalidation.parameterresolver.StateResolver;

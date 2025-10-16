@@ -41,8 +41,8 @@ import com.hedera.node.app.history.HistoryLibrary;
 import com.hedera.node.app.history.HistoryService;
 import com.hedera.node.app.history.ReadableHistoryStore;
 import com.hedera.node.app.history.schemas.V059HistorySchema;
-import com.hedera.node.app.ids.EntityIdService;
 import com.hedera.node.app.metrics.StoreMetricsServiceImpl;
+import com.hedera.node.app.service.entityid.impl.EntityIdServiceImpl;
 import com.hedera.node.app.service.roster.impl.ActiveRosters;
 import com.hedera.node.app.spi.AppContext;
 import com.hedera.node.app.spi.info.NetworkInfo;
@@ -382,7 +382,7 @@ class WritableHistoryStoreImplTest {
         final var state = new FakeState();
         final var servicesRegistry = new FakeServicesRegistry();
         Set.of(
-                        new EntityIdService(),
+                        new EntityIdServiceImpl(),
                         new HistoryServiceImpl(
                                 NO_OP_METRICS, ForkJoinPool.commonPool(), appContext, library, WITH_ENABLED_HISTORY))
                 .forEach(servicesRegistry::register);

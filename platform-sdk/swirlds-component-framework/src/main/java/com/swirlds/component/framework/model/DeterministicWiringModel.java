@@ -42,6 +42,8 @@ public class DeterministicWiringModel extends TraceableWiringModel {
 
     private final UncaughtExceptionHandler taskSchedulerExceptionHandler;
 
+    private boolean isRunning = false;
+
     /**
      * Constructor.
      *
@@ -150,6 +152,7 @@ public class DeterministicWiringModel extends TraceableWiringModel {
     public void start() {
         throwIfStarted();
         markAsStarted();
+        isRunning = true;
         heartbeatScheduler.start();
     }
 
@@ -159,6 +162,16 @@ public class DeterministicWiringModel extends TraceableWiringModel {
     @Override
     public void stop() {
         throwIfNotStarted();
+        isRunning = false;
         heartbeatScheduler.stop();
+    }
+
+    /**
+     * Check if the wiring model is currently running.
+     *
+     * @return true if the wiring model is running, false otherwise
+     */
+    public boolean isRunning() {
+        return isRunning;
     }
 }

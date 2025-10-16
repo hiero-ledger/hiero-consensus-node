@@ -14,10 +14,10 @@ import static com.hedera.node.app.hints.schemas.V060HintsSchema.CRS_PUBLICATIONS
 import static com.hedera.node.app.hints.schemas.V060HintsSchema.CRS_PUBLICATIONS_STATE_LABEL;
 import static com.hedera.node.app.hints.schemas.V060HintsSchema.CRS_STATE_STATE_ID;
 import static com.hedera.node.app.hints.schemas.V060HintsSchema.CRS_STATE_STATE_LABEL;
-import static com.hedera.node.app.ids.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_ID;
-import static com.hedera.node.app.ids.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_LABEL;
-import static com.hedera.node.app.ids.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
-import static com.hedera.node.app.ids.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_LABEL;
+import static com.hedera.node.app.service.entityid.impl.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_ID;
+import static com.hedera.node.app.service.entityid.impl.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_LABEL;
+import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
+import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_LABEL;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.doCallRealMethod;
@@ -35,8 +35,8 @@ import com.hedera.hapi.node.state.hints.PreprocessingVoteId;
 import com.hedera.hapi.platform.state.NodeId;
 import com.hedera.hapi.services.auxiliary.hints.CrsPublicationTransactionBody;
 import com.hedera.node.app.hints.impl.ReadableHintsStoreImpl;
-import com.hedera.node.app.ids.WritableEntityIdStore;
-import com.hedera.node.app.spi.ids.ReadableEntityCounters;
+import com.hedera.node.app.service.entityid.ReadableEntityCounters;
+import com.hedera.node.app.service.entityid.impl.WritableEntityIdStoreImpl;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.spi.ReadableStates;
 import com.swirlds.state.test.fixtures.FunctionReadableSingletonState;
@@ -64,7 +64,7 @@ class ReadableHintsStoreTest {
 
     @BeforeEach
     void setUp() {
-        entityCounters = new WritableEntityIdStore(new MapWritableStates(Map.of(
+        entityCounters = new WritableEntityIdStoreImpl(new MapWritableStates(Map.of(
                 ENTITY_ID_STATE_ID,
                 new FunctionWritableSingletonState<>(
                         ENTITY_ID_STATE_ID,

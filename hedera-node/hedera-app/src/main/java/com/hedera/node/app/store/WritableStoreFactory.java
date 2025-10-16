@@ -9,8 +9,6 @@ import com.hedera.node.app.hints.impl.WritableHintsStoreImpl;
 import com.hedera.node.app.history.HistoryService;
 import com.hedera.node.app.history.WritableHistoryStore;
 import com.hedera.node.app.history.impl.WritableHistoryStoreImpl;
-import com.hedera.node.app.ids.EntityIdService;
-import com.hedera.node.app.ids.WritableEntityIdStore;
 import com.hedera.node.app.service.addressbook.AddressBookService;
 import com.hedera.node.app.service.addressbook.impl.WritableNodeStore;
 import com.hedera.node.app.service.consensus.ConsensusService;
@@ -18,6 +16,9 @@ import com.hedera.node.app.service.consensus.impl.WritableTopicStore;
 import com.hedera.node.app.service.contract.ContractService;
 import com.hedera.node.app.service.contract.impl.state.WritableContractStateStore;
 import com.hedera.node.app.service.contract.impl.state.WritableEvmHookStore;
+import com.hedera.node.app.service.entityid.EntityIdService;
+import com.hedera.node.app.service.entityid.WritableEntityCounters;
+import com.hedera.node.app.service.entityid.impl.WritableEntityIdStoreImpl;
 import com.hedera.node.app.service.file.FileService;
 import com.hedera.node.app.service.file.impl.WritableFileStore;
 import com.hedera.node.app.service.file.impl.WritableUpgradeFileStore;
@@ -35,7 +36,6 @@ import com.hedera.node.app.service.token.impl.WritableNftStore;
 import com.hedera.node.app.service.token.impl.WritableStakingInfoStore;
 import com.hedera.node.app.service.token.impl.WritableTokenRelationStore;
 import com.hedera.node.app.service.token.impl.WritableTokenStore;
-import com.hedera.node.app.spi.ids.WritableEntityCounters;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -90,8 +90,9 @@ public class WritableStoreFactory {
         newMap.put(WritableEvmHookStore.class, new StoreEntry(ContractService.NAME, WritableEvmHookStore::new));
         // EntityIdService
         newMap.put(
-                WritableEntityIdStore.class,
-                new StoreEntry(EntityIdService.NAME, (states, entityCounters) -> new WritableEntityIdStore(states)));
+                WritableEntityIdStoreImpl.class,
+                new StoreEntry(
+                        EntityIdService.NAME, (states, entityCounters) -> new WritableEntityIdStoreImpl(states)));
         // Schedule Service
         newMap.put(WritableScheduleStore.class, new StoreEntry(ScheduleService.NAME, WritableScheduleStoreImpl::new));
         // Roster Service

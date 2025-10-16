@@ -8,6 +8,7 @@ import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_GET_ACCOUNT_B
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_TRANSFER;
 import static com.hedera.hapi.node.base.HederaFunctionality.ETHEREUM_TRANSACTION;
 import static com.hedera.hapi.node.base.HederaFunctionality.GET_VERSION_INFO;
+import static com.hedera.hapi.node.base.HederaFunctionality.HOOK_DISPATCH;
 import static com.hedera.hapi.node.base.HederaFunctionality.NETWORK_GET_EXECUTION_TIME;
 import static com.hedera.hapi.node.base.HederaFunctionality.SCHEDULE_CREATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.SCHEDULE_SIGN;
@@ -15,10 +16,10 @@ import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_BURN;
 import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_MINT;
 import static com.hedera.hapi.node.base.HederaFunctionality.TRANSACTION_GET_RECEIPT;
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
-import static com.hedera.node.app.ids.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_ID;
-import static com.hedera.node.app.ids.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_LABEL;
-import static com.hedera.node.app.ids.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
-import static com.hedera.node.app.ids.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_LABEL;
+import static com.hedera.node.app.service.entityid.impl.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_ID;
+import static com.hedera.node.app.service.entityid.impl.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_LABEL;
+import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
+import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_LABEL;
 import static com.hedera.node.app.service.schedule.impl.schemas.V0490ScheduleSchema.SCHEDULES_BY_ID_STATE_ID;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_STATE_ID;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_STATE_LABEL;
@@ -51,6 +52,8 @@ import com.hedera.hapi.node.base.TransferList;
 import com.hedera.hapi.node.contract.ContractCallTransactionBody;
 import com.hedera.hapi.node.contract.ContractCreateTransactionBody;
 import com.hedera.hapi.node.contract.EthereumTransactionBody;
+import com.hedera.hapi.node.hooks.HookDispatchTransactionBody;
+import com.hedera.hapi.node.hooks.HookExecution;
 import com.hedera.hapi.node.scheduled.SchedulableTransactionBody;
 import com.hedera.hapi.node.scheduled.ScheduleCreateTransactionBody;
 import com.hedera.hapi.node.scheduled.ScheduleSignTransactionBody;
@@ -70,7 +73,7 @@ import com.hedera.node.app.hapi.utils.throttles.BucketThrottle;
 import com.hedera.node.app.hapi.utils.throttles.DeterministicThrottle;
 import com.hedera.node.app.hapi.utils.throttles.LeakyBucketDeterministicThrottle;
 import com.hedera.node.app.hapi.utils.throttles.OpsDurationDeterministicThrottle;
-import com.hedera.node.app.ids.EntityIdService;
+import com.hedera.node.app.service.entityid.EntityIdService;
 import com.hedera.node.app.service.token.TokenService;
 import com.hedera.node.app.spi.fixtures.util.LogCaptor;
 import com.hedera.node.app.spi.fixtures.util.LogCaptureExtension;
@@ -1015,6 +1018,49 @@ class ThrottleAccumulatorTest {
 
         // then
         assertFalse(ans);
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = ThrottleAccumulator.ThrottleType.class, mode = EnumSource.Mode.EXCLUDE, names = "NOOP_THROTTLE")
+    void hookDispatchThrottledAsExpected(ThrottleAccumulator.ThrottleType throttleType)
+            throws IOException, ParseException {
+        // given
+        subject = new ThrottleAccumulator(
+                () -> CAPACITY_SPLIT,
+                configProvider::getConfiguration,
+                throttleType,
+                throttleMetrics,
+                gasThrottle,
+                bytesThrottle,
+                opsDurationThrottle);
+        given(configProvider.getConfiguration()).willReturn(configuration);
+        given(configuration.getConfigData(AccountsConfig.class)).willReturn(accountsConfig);
+        given(accountsConfig.lastThrottleExempt()).willReturn(100L);
+        given(configuration.getConfigData(ContractsConfig.class)).willReturn(contractsConfig);
+        given(contractsConfig.throttleThrottleByGas()).willReturn(true);
+        given(configuration.getConfigData(JumboTransactionsConfig.class)).willReturn(jumboTransactionsConfig);
+        given(jumboTransactionsConfig.isEnabled()).willReturn(false);
+
+        given(transactionInfo.payerID())
+                .willReturn(AccountID.newBuilder().accountNum(1234L).build());
+
+        final var defs = getThrottleDefs("bootstrap/throttles.json");
+
+        given(transactionInfo.functionality()).willReturn(HOOK_DISPATCH);
+        final var hookDispatchBody = HookDispatchTransactionBody.newBuilder()
+                .execution(HookExecution.DEFAULT)
+                .build();
+        given(transactionInfo.txBody())
+                .willReturn(TransactionBody.newBuilder()
+                        .hookDispatch(hookDispatchBody)
+                        .build());
+
+        // when
+        subject.rebuildFor(defs);
+        var ans = subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state, null);
+
+        // then
+        assertTrue(ans);
     }
 
     @ParameterizedTest

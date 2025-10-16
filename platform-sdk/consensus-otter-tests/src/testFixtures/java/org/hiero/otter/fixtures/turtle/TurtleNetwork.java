@@ -56,14 +56,16 @@ public class TurtleNetwork extends AbstractNetwork implements TimeTickReceiver {
      * @param logging              the logging utility
      * @param rootOutputDirectory  the directory where the node output will be stored, like saved state and so on
      * @param transactionGenerator the transaction generator that generates a steady flow of transactions to all nodes
+     * @param useRandomNodeIds {@code true} if the node IDs should be selected randomly; {@code false} otherwise
      */
     public TurtleNetwork(
             @NonNull final Randotron randotron,
             @NonNull final TurtleTimeManager timeManager,
             @NonNull final TurtleLogging logging,
             @NonNull final Path rootOutputDirectory,
-            @NonNull final TurtleTransactionGenerator transactionGenerator) {
-        super(randotron);
+            @NonNull final TurtleTransactionGenerator transactionGenerator,
+            final boolean useRandomNodeIds) {
+        super(randotron, useRandomNodeIds);
         this.randotron = requireNonNull(randotron);
         this.timeManager = requireNonNull(timeManager);
         this.logging = requireNonNull(logging);
@@ -130,6 +132,14 @@ public class TurtleNetwork extends AbstractNetwork implements TimeTickReceiver {
         final int size = nodes().size();
         executorService = NodeLoggingContext.wrap(Executors.newFixedThreadPool(
                 Math.min(size, Runtime.getRuntime().availableProcessors()), new ContextAwareThreadFactory()));
+
+        // The saved state was generated with the same seed; without advancing time,
+        // all nodes would start simultaneously, and the saved state would lie in their future.
+        final boolean runFromState =
+                nodes().stream().map(TurtleNode.class::cast).anyMatch(TurtleNode::startFromSavedState);
+        if (runFromState) {
+            timeManager.advanceTime(Duration.ofHours(1));
+        }
     }
 
     @Override

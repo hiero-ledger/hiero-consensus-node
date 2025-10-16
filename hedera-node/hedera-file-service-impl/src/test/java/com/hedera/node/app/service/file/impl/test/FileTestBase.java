@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.file.impl.test;
 
-import static com.hedera.node.app.ids.schemas.V0490EntityIdSchema.ENTITY_ID_KEY;
-import static com.hedera.node.app.ids.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_ID;
-import static com.hedera.node.app.ids.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_LABEL;
-import static com.hedera.node.app.ids.schemas.V0590EntityIdSchema.ENTITY_COUNTS_KEY;
-import static com.hedera.node.app.ids.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
-import static com.hedera.node.app.ids.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_LABEL;
+import static com.hedera.node.app.service.entityid.impl.schemas.V0490EntityIdSchema.ENTITY_ID_KEY;
+import static com.hedera.node.app.service.entityid.impl.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_ID;
+import static com.hedera.node.app.service.entityid.impl.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_LABEL;
+import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_KEY;
+import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
+import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_LABEL;
 import static com.hedera.node.app.service.file.impl.schemas.V0490FileSchema.FILES_STATE_ID;
 import static com.hedera.node.app.service.file.impl.schemas.V0490FileSchema.FILES_STATE_LABEL;
 import static com.hedera.node.app.service.file.impl.schemas.V0490FileSchema.UPGRADE_DATA_STATE_KEY_PATTERN;
@@ -24,18 +24,18 @@ import com.hedera.hapi.node.state.entity.EntityCounts;
 import com.hedera.hapi.node.state.file.File;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.hapi.platform.state.StateKey;
-import com.hedera.node.app.ids.EntityIdService;
-import com.hedera.node.app.ids.ReadableEntityIdStoreImpl;
-import com.hedera.node.app.ids.WritableEntityIdStore;
+import com.hedera.node.app.service.entityid.EntityIdFactory;
+import com.hedera.node.app.service.entityid.EntityIdService;
+import com.hedera.node.app.service.entityid.ReadableEntityCounters;
+import com.hedera.node.app.service.entityid.WritableEntityCounters;
+import com.hedera.node.app.service.entityid.impl.ReadableEntityIdStoreImpl;
+import com.hedera.node.app.service.entityid.impl.WritableEntityIdStoreImpl;
 import com.hedera.node.app.service.file.FileService;
 import com.hedera.node.app.service.file.impl.ReadableFileStoreImpl;
 import com.hedera.node.app.service.file.impl.ReadableUpgradeFileStoreImpl;
 import com.hedera.node.app.service.file.impl.WritableFileStore;
 import com.hedera.node.app.service.file.impl.WritableUpgradeFileStore;
 import com.hedera.node.app.spi.fixtures.ids.FakeEntityIdFactoryImpl;
-import com.hedera.node.app.spi.ids.EntityIdFactory;
-import com.hedera.node.app.spi.ids.ReadableEntityCounters;
-import com.hedera.node.app.spi.ids.WritableEntityCounters;
 import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.config.data.HederaConfig;
@@ -244,7 +244,7 @@ public class FileTestBase {
                         ENTITY_COUNTS_STATE_LABEL,
                         () -> EntityCounts.newBuilder().numFiles(numFiles).build()));
         readableEntityCounters = new ReadableEntityIdStoreImpl(readableStates);
-        writableEntityCounters = new WritableEntityIdStore(writableStates);
+        writableEntityCounters = new WritableEntityIdStoreImpl(writableStates);
     }
 
     protected void refreshStoresWithCurrentFileInBothReadableAndWritable() {

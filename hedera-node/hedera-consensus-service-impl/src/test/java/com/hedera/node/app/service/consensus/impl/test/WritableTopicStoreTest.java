@@ -11,7 +11,7 @@ import com.hedera.hapi.node.base.TopicID;
 import com.hedera.hapi.node.state.consensus.Topic;
 import com.hedera.node.app.service.consensus.impl.WritableTopicStore;
 import com.hedera.node.app.service.consensus.impl.test.handlers.ConsensusTestBase;
-import com.hedera.node.app.spi.ids.WritableEntityCounters;
+import com.hedera.node.app.service.entityid.WritableEntityCounters;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;

@@ -36,12 +36,12 @@ import com.hedera.node.app.service.contract.impl.records.ContractCreateStreamBui
 import com.hedera.node.app.service.contract.impl.records.ContractOperationStreamBuilder;
 import com.hedera.node.app.service.contract.impl.state.ContractStateStore;
 import com.hedera.node.app.service.contract.impl.state.WritableContractStateStore;
+import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.api.ContractChangeSummary;
 import com.hedera.node.app.service.token.api.TokenServiceApi;
 import com.hedera.node.app.spi.fees.FeeCharging;
 import com.hedera.node.app.spi.fees.Fees;
-import com.hedera.node.app.spi.ids.EntityIdFactory;
 import com.hedera.node.app.spi.throttle.ThrottleAdviser;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;

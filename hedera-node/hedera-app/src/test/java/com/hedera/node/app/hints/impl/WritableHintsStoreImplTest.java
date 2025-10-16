@@ -10,10 +10,10 @@ import static com.hedera.node.app.hints.schemas.V059HintsSchema.NEXT_HINTS_CONST
 import static com.hedera.node.app.hints.schemas.V059HintsSchema.NEXT_HINTS_CONSTRUCTION_STATE_LABEL;
 import static com.hedera.node.app.hints.schemas.V060HintsSchema.CRS_STATE_STATE_ID;
 import static com.hedera.node.app.hints.schemas.V060HintsSchema.CRS_STATE_STATE_LABEL;
-import static com.hedera.node.app.ids.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_ID;
-import static com.hedera.node.app.ids.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_LABEL;
-import static com.hedera.node.app.ids.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
-import static com.hedera.node.app.ids.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_LABEL;
+import static com.hedera.node.app.service.entityid.impl.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_ID;
+import static com.hedera.node.app.service.entityid.impl.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_LABEL;
+import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
+import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_LABEL;
 import static com.hedera.node.app.service.roster.impl.ActiveRosters.Phase.BOOTSTRAP;
 import static com.hedera.node.app.service.roster.impl.ActiveRosters.Phase.HANDOFF;
 import static com.hedera.node.app.service.roster.impl.ActiveRosters.Phase.TRANSITION;
@@ -45,12 +45,12 @@ import com.hedera.node.app.fixtures.state.FakeState;
 import com.hedera.node.app.hints.HintsLibrary;
 import com.hedera.node.app.hints.HintsService;
 import com.hedera.node.app.hints.schemas.V059HintsSchema;
-import com.hedera.node.app.ids.EntityIdService;
-import com.hedera.node.app.ids.WritableEntityIdStore;
 import com.hedera.node.app.metrics.StoreMetricsServiceImpl;
+import com.hedera.node.app.service.entityid.WritableEntityCounters;
+import com.hedera.node.app.service.entityid.impl.EntityIdServiceImpl;
+import com.hedera.node.app.service.entityid.impl.WritableEntityIdStoreImpl;
 import com.hedera.node.app.service.roster.impl.ActiveRosters;
 import com.hedera.node.app.spi.AppContext;
-import com.hedera.node.app.spi.ids.WritableEntityCounters;
 import com.hedera.node.app.spi.migrate.StartupNetworks;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.TssConfig;
@@ -124,7 +124,7 @@ class WritableHintsStoreImplTest {
     @BeforeEach
     void setUp() {
         state = emptyState();
-        entityCounters = new WritableEntityIdStore(new MapWritableStates(Map.of(
+        entityCounters = new WritableEntityIdStoreImpl(new MapWritableStates(Map.of(
                 ENTITY_ID_STATE_ID,
                 new FunctionWritableSingletonState<>(
                         ENTITY_ID_STATE_ID,
@@ -463,7 +463,7 @@ class WritableHintsStoreImplTest {
         final var state = new FakeState();
         final var servicesRegistry = new FakeServicesRegistry();
         Set.of(
-                        new EntityIdService(),
+                        new EntityIdServiceImpl(),
                         new HintsServiceImpl(
                                 NO_OP_METRICS,
                                 ForkJoinPool.commonPool(),

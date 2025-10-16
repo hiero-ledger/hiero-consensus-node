@@ -10,6 +10,7 @@ import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.nio.file.Path;
 import java.security.cert.X509Certificate;
 import java.time.Duration;
 import java.time.Instant;
@@ -25,6 +26,7 @@ import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.TimeManager;
 import org.hiero.otter.fixtures.TransactionFactory;
 import org.hiero.otter.fixtures.app.OtterTransaction;
+import org.hiero.otter.fixtures.util.OtterSavedStateUtils;
 
 /**
  * Base implementation of the {@link Node} interface that provides common functionality.
@@ -68,6 +70,9 @@ public abstract class AbstractNode implements Node {
 
     /** Current software version of the platform */
     protected SemanticVersion version = Node.DEFAULT_VERSION;
+
+    /** Saved state directory */
+    protected Path savedStateDirectory;
 
     /**
      * The current state of the platform. Volatile because it is set by the container callback thread and read by the
@@ -203,6 +208,17 @@ public abstract class AbstractNode implements Node {
      * {@inheritDoc}
      */
     @Override
+    public void startFromSavedState(@NonNull final Path savedStateDirectory) {
+        throwIfInLifecycle(LifeCycle.RUNNING, "Cannot set saved state directory while the node is running");
+        throwIfInLifecycle(LifeCycle.DESTROYED, "Cannot set saved state directory after the node has been destroyed");
+
+        this.savedStateDirectory = OtterSavedStateUtils.findSaveState(requireNonNull(savedStateDirectory));
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
     public void bumpConfigVersion() {
         throwIfInLifecycle(LifeCycle.RUNNING, "Cannot bump version while the node is running");
         throwIfInLifecycle(LifeCycle.DESTROYED, "Cannot bump version after the node has been destroyed");
@@ -303,6 +319,8 @@ public abstract class AbstractNode implements Node {
                         () -> platformStatus == CATASTROPHIC_FAILURE,
                         timeout.minus(elapsed),
                         "Did not receive IssPayload log before timeout");
+
+        log.info("Self ISS triggered");
     }
 
     /**

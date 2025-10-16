@@ -2,12 +2,12 @@
 package com.hedera.node.app.service.addressbook.impl.test.handlers;
 
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.asBytes;
-import static com.hedera.node.app.ids.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_ID;
-import static com.hedera.node.app.ids.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_LABEL;
-import static com.hedera.node.app.ids.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
-import static com.hedera.node.app.ids.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_LABEL;
 import static com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema.NODES_STATE_ID;
 import static com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema.NODES_STATE_LABEL;
+import static com.hedera.node.app.service.entityid.impl.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_ID;
+import static com.hedera.node.app.service.entityid.impl.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_LABEL;
+import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
+import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_LABEL;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 
@@ -24,16 +24,16 @@ import com.hedera.hapi.node.state.entity.EntityCounts;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.node.app.hapi.utils.EntityType;
-import com.hedera.node.app.ids.ReadableEntityIdStoreImpl;
-import com.hedera.node.app.ids.WritableEntityIdStore;
 import com.hedera.node.app.service.addressbook.ReadableNodeStore;
 import com.hedera.node.app.service.addressbook.impl.ReadableNodeStoreImpl;
 import com.hedera.node.app.service.addressbook.impl.WritableNodeStore;
 import com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema;
+import com.hedera.node.app.service.entityid.EntityIdFactory;
+import com.hedera.node.app.service.entityid.ReadableEntityIdStore;
+import com.hedera.node.app.service.entityid.impl.ReadableEntityIdStoreImpl;
+import com.hedera.node.app.service.entityid.impl.WritableEntityIdStoreImpl;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.spi.fixtures.ids.FakeEntityIdFactoryImpl;
-import com.hedera.node.app.spi.ids.EntityIdFactory;
-import com.hedera.node.app.spi.ids.ReadableEntityIdStore;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -160,7 +160,7 @@ public class AddressBookTestBase {
     protected WritableStates writableStates;
 
     protected ReadableEntityIdStore readableEntityCounters;
-    protected WritableEntityIdStore writableEntityCounters;
+    protected WritableEntityIdStoreImpl writableEntityCounters;
 
     protected MapReadableKVState<EntityNumber, Node> readableNodeState;
     protected MapWritableKVState<EntityNumber, Node> writableNodeState;
@@ -202,7 +202,7 @@ public class AddressBookTestBase {
                 .willReturn(new FunctionReadableSingletonState<>(
                         ENTITY_COUNTS_STATE_ID, ENTITY_COUNTS_STATE_LABEL, () -> EntityCounts.DEFAULT));
         readableEntityCounters = new ReadableEntityIdStoreImpl(readableStates);
-        writableEntityCounters = new WritableEntityIdStore(writableStates);
+        writableEntityCounters = new WritableEntityIdStoreImpl(writableStates);
     }
 
     protected void givenEntityCountersWithOneNodeInWritable() {
@@ -228,7 +228,7 @@ public class AddressBookTestBase {
                         ENTITY_COUNTS_STATE_LABEL,
                         () -> EntityCounts.newBuilder().numNodes(1).build()));
         readableEntityCounters = new ReadableEntityIdStoreImpl(readableStates);
-        writableEntityCounters = new WritableEntityIdStore(writableStates);
+        writableEntityCounters = new WritableEntityIdStoreImpl(writableStates);
     }
 
     protected void refreshStoresWithCurrentNodeInBothReadableAndWritable() {

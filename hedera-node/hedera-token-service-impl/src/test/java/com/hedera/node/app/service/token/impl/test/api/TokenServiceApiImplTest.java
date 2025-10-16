@@ -2,10 +2,10 @@
 package com.hedera.node.app.service.token.impl.test.api;
 
 import static com.hedera.node.app.hapi.utils.keys.KeyUtils.IMMUTABILITY_SENTINEL_KEY;
-import static com.hedera.node.app.ids.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_ID;
-import static com.hedera.node.app.ids.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_LABEL;
-import static com.hedera.node.app.ids.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
-import static com.hedera.node.app.ids.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_LABEL;
+import static com.hedera.node.app.service.entityid.impl.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_ID;
+import static com.hedera.node.app.service.entityid.impl.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_LABEL;
+import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
+import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_LABEL;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_STATE_ID;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_STATE_LABEL;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ALIASES_STATE_ID;
@@ -31,14 +31,14 @@ import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.entity.EntityCounts;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
-import com.hedera.node.app.ids.WritableEntityIdStore;
+import com.hedera.node.app.service.entityid.WritableEntityCounters;
+import com.hedera.node.app.service.entityid.impl.WritableEntityIdStoreImpl;
 import com.hedera.node.app.service.token.api.ContractChangeSummary;
 import com.hedera.node.app.service.token.fixtures.FakeFeeRecordBuilder;
 import com.hedera.node.app.service.token.impl.WritableAccountStore;
 import com.hedera.node.app.service.token.impl.api.TokenServiceApiImpl;
 import com.hedera.node.app.service.token.impl.validators.StakingValidator;
 import com.hedera.node.app.spi.fees.Fees;
-import com.hedera.node.app.spi.ids.WritableEntityCounters;
 import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -124,7 +124,7 @@ class TokenServiceApiImplTest {
 
     @BeforeEach
     void setUp() {
-        entityCounters = new WritableEntityIdStore(entityWritableStates);
+        entityCounters = new WritableEntityIdStoreImpl(entityWritableStates);
         accountStore = new WritableAccountStore(writableStates, entityCounters);
         subject = new TokenServiceApiImpl(DEFAULT_CONFIG, writableStates, customFeeTest, entityCounters);
     }

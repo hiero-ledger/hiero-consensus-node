@@ -54,7 +54,7 @@ import org.junit.jupiter.api.Test;
 
 @DisplayName("IssDetector Tests")
 class IssDetectorTests extends PlatformTest {
-    private static final WeightGenerator WEIGHT_GENERATOR = new GaussianWeightGenerator(100, 50);
+    private static final WeightGenerator WEIGHT_GENERATOR = GaussianWeightGenerator.withAverageNodeWeight(100, 50);
     private static final long GENESIS_LAST_FREEZE_ROUND = 0L;
 
     @Test

@@ -9,6 +9,7 @@ testModuleInfo {
     requires("org.junit.jupiter.api")
     requires("org.mockito")
     requires("org.mockito.junit.jupiter")
+    requires("com.hedera.pbj.runtime")
 
     opensTo("org.apache.commons.lang3") // allow using 'reflectionEquals'
 }

@@ -55,12 +55,14 @@ public class ContainerNetwork extends AbstractNetwork {
      * @param timeManager the time manager to use
      * @param transactionGenerator the transaction generator to use
      * @param rootOutputDirectory the root output directory for the network
+     * @param useRandomNodeIds {@code true} if the node IDs should be selected randomly; {@code false} otherwise
      */
     public ContainerNetwork(
             @NonNull final RegularTimeManager timeManager,
             @NonNull final ContainerTransactionGenerator transactionGenerator,
-            @NonNull final Path rootOutputDirectory) {
-        super(new Random());
+            @NonNull final Path rootOutputDirectory,
+            final boolean useRandomNodeIds) {
+        super(new Random(), useRandomNodeIds);
         this.timeManager = requireNonNull(timeManager);
         this.transactionGenerator = requireNonNull(transactionGenerator);
         this.rootOutputDirectory = requireNonNull(rootOutputDirectory);

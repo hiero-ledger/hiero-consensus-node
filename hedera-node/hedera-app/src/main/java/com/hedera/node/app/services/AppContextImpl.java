@@ -3,9 +3,9 @@ package com.hedera.node.app.services;
 
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.spi.AppContext;
 import com.hedera.node.app.spi.fees.FeeCharging;
-import com.hedera.node.app.spi.ids.EntityIdFactory;
 import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.spi.signatures.SignatureVerifier;
 import com.hedera.node.app.spi.throttle.Throttle;

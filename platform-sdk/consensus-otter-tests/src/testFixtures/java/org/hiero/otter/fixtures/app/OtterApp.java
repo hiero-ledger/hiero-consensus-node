@@ -41,7 +41,7 @@ public class OtterApp implements ConsensusStateEventHandler<OtterAppState> {
 
     private static final Logger log = LogManager.getLogger();
 
-    public static final String APP_NAME = "org.hiero.otter.fixtures.app.OtterApp";
+    public static final String APP_NAME = "OtterApp";
     public static final String SWIRLD_NAME = "123";
 
     private final SemanticVersion version;

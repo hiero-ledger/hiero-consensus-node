@@ -15,7 +15,7 @@ import com.hedera.node.app.service.contract.impl.hevm.HevmPropagatedCallFailure;
 import com.hedera.node.app.service.contract.impl.infra.StorageAccessTracker;
 import com.hedera.node.app.service.contract.impl.records.ContractOperationStreamBuilder;
 import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
-import com.hedera.node.app.spi.ids.EntityIdFactory;
+import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.spi.workflows.record.DeleteCapableTransactionStreamBuilder;
 import com.hedera.node.config.data.ContractsConfig;
 import com.swirlds.config.api.Configuration;

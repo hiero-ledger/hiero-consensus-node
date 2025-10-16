@@ -6,6 +6,7 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import org.assertj.core.api.Assertions;
 import org.hiero.otter.fixtures.assertions.MultipleNodeConsensusResultsAssert;
 import org.hiero.otter.fixtures.assertions.MultipleNodeConsensusResultsContinuousAssert;
+import org.hiero.otter.fixtures.assertions.MultipleNodeEventStreamResultsAssert;
 import org.hiero.otter.fixtures.assertions.MultipleNodeLogResultsAssert;
 import org.hiero.otter.fixtures.assertions.MultipleNodeLogResultsContinuousAssert;
 import org.hiero.otter.fixtures.assertions.MultipleNodeMarkerFileResultsAssert;
@@ -27,6 +28,7 @@ import org.hiero.otter.fixtures.assertions.SingleNodePlatformStatusResultContinu
 import org.hiero.otter.fixtures.assertions.SingleNodeReconnectResultAssert;
 import org.hiero.otter.fixtures.assertions.SingleNodeReconnectResultContinuousAssert;
 import org.hiero.otter.fixtures.result.MultipleNodeConsensusResults;
+import org.hiero.otter.fixtures.result.MultipleNodeEventStreamResults;
 import org.hiero.otter.fixtures.result.MultipleNodeLogResults;
 import org.hiero.otter.fixtures.result.MultipleNodeMarkerFileResults;
 import org.hiero.otter.fixtures.result.MultipleNodePcesResults;
@@ -338,5 +340,17 @@ public class OtterAssertions extends Assertions {
     public static MultipleNodeMarkerFileResultsContinuousAssert assertContinuouslyThat(
             @Nullable final MultipleNodeMarkerFileResults actual) {
         return MultipleNodeMarkerFileResultsContinuousAssert.assertContinuouslyThat(actual);
+    }
+
+    /**
+     * Creates an assertion for the given {@link MultipleNodeEventStreamResults}.
+     *
+     * @param actual the {@link MultipleNodeEventStreamResults} to assert
+     * @return an assertion for the given {@link MultipleNodeEventStreamResults}
+     */
+    @NonNull
+    public static MultipleNodeEventStreamResultsAssert assertThat(
+            @Nullable final MultipleNodeEventStreamResults actual) {
+        return MultipleNodeEventStreamResultsAssert.assertThat(actual);
     }
 }

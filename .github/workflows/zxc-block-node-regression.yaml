@@ -197,15 +197,11 @@ jobs:
 
       # Create Mirror Values Override File (uses BN service)
       # This is a temporary workaround until we have a proper release of the mirror node chart that supports block nodes
-      # and the latest version of blockstream in `0.65.0`
+      # and the latest version of blockstream in `0.68.0`
       - name: Create Mirror Values Override File
         run: |
           cat <<EOF > mirror-bn-values.yaml
           importer:
-            image:
-              registry: docker.io
-              repository: xinatswirlds/importer
-              tag: e741ea2b2
             config:
               hiero:
                 mirror:
@@ -213,7 +209,7 @@ jobs:
                     block:
                       enabled: true
                       nodes:
-                        - host: block-node-0.${{ env.SOLO_NAMESPACE }}.svc.cluster.local
+                        - host: block-node-1.${{ env.SOLO_NAMESPACE }}.svc.cluster.local
                           port: 40840
                       sourceType: BLOCK_NODE
                     downloader:
@@ -236,29 +232,29 @@ jobs:
           kind create cluster -n "${{ env.SOLO_CLUSTER_NAME }}"
           sleep 10
           solo init
-          solo cluster-ref connect --cluster-ref kind-${{ env.SOLO_CLUSTER_NAME }} --context kind-${{ env.SOLO_CLUSTER_NAME }}
-          solo deployment create -n "${{ env.SOLO_NAMESPACE }}" --deployment "${{ env.SOLO_DEPLOYMENT }}"
-          solo deployment add-cluster --deployment "${{ env.SOLO_DEPLOYMENT }}" --cluster-ref kind-${{ env.SOLO_CLUSTER_NAME }} --num-consensus-nodes 1
-          solo cluster-ref setup -s "${{ env.SOLO_CLUSTER_SETUP_NAMESPACE }}"
+          solo cluster-ref config connect --cluster-ref kind-${{ env.SOLO_CLUSTER_NAME }} --context kind-${{ env.SOLO_CLUSTER_NAME }}
+          solo deployment config create -n "${{ env.SOLO_NAMESPACE }}" --deployment "${{ env.SOLO_DEPLOYMENT }}"
+          solo deployment cluster attach --deployment "${{ env.SOLO_DEPLOYMENT }}" --cluster-ref kind-${{ env.SOLO_CLUSTER_NAME }} --num-consensus-nodes 1
+          solo cluster-ref config setup -s "${{ env.SOLO_CLUSTER_SETUP_NAMESPACE }}"
 
       # node deployment
       - name: Solo Nodes deployment (BN/CN/MN)
         run: |
           solo block node add --deployment "${{ env.SOLO_DEPLOYMENT }}" --release-tag "${{ env.CN_LATEST_TAG }}" --cluster-ref kind-${{ env.SOLO_CLUSTER_NAME }} --chart-version "${{ env.BLOCK_NODE_TAG }}"
-          solo node keys --gossip-keys --tls-keys -i node1 --deployment "${{ env.SOLO_DEPLOYMENT }}"
-          solo network deploy -i node1 --deployment "${{ env.SOLO_DEPLOYMENT }}"
-          solo node setup -i node1 --deployment "${{ env.SOLO_DEPLOYMENT }}" --local-build-path ./hedera-node/data
-          solo node start -i node1 --deployment "${{ env.SOLO_DEPLOYMENT }}"
-          solo mirror-node deploy --deployment "${{ env.SOLO_DEPLOYMENT }}" --pinger --cluster-ref kind-${{ env.SOLO_CLUSTER_NAME }} --enable-ingress -f mirror-bn-values.yaml
+          solo keys consensus generate --gossip-keys --tls-keys -i node1 --deployment "${{ env.SOLO_DEPLOYMENT }}"
+          solo consensus network deploy -i node1 --deployment "${{ env.SOLO_DEPLOYMENT }}"
+          solo consensus node setup -i node1 --deployment "${{ env.SOLO_DEPLOYMENT }}" --local-build-path ./hedera-node/data
+          solo consensus node start -i node1 --deployment "${{ env.SOLO_DEPLOYMENT }}"
+          solo mirror node add --deployment "${{ env.SOLO_DEPLOYMENT }}" --pinger --cluster-ref kind-${{ env.SOLO_CLUSTER_NAME }} --enable-ingress --mirror-node-version 0.140.0 -f mirror-bn-values.yaml
 
       # port forwards
       - name: Solo Port forwards
         run: |
           kubectl port-forward svc/haproxy-node1-svc -n "${{ env.SOLO_NAMESPACE }}" 50211:non-tls-grpc-client-port &
-          kubectl port-forward svc/mirror-monitor -n "${{ env.SOLO_NAMESPACE }}" 5600:http &
-          kubectl port-forward svc/mirror-rest -n "${{ env.SOLO_NAMESPACE }}" 5551:http &
-          kubectl port-forward svc/mirror-restjava -n "${{ env.SOLO_NAMESPACE }}" 8084:http &
-          kubectl port-forward svc/block-node-0 -n "${{ env.SOLO_NAMESPACE }}" 40840:40840 &
+          kubectl port-forward svc/mirror-1-monitor -n "${{ env.SOLO_NAMESPACE }}" 5600:http &
+          kubectl port-forward svc/mirror-1-rest -n "${{ env.SOLO_NAMESPACE }}" 5551:http &
+          kubectl port-forward svc/mirror-1-restjava -n "${{ env.SOLO_NAMESPACE }}" 8084:http &
+          kubectl port-forward svc/block-node-1 -n "${{ env.SOLO_NAMESPACE }}" 40840:40840 &
 
       # ---- BN verification with grpcurl ----
 
@@ -324,7 +320,7 @@ jobs:
           echo "FIRST_AVAILABLE_BLOCK=$FIRST_AVAILABLE_BLOCK" >> $GITHUB_ENV
           echo "LAST_AVAILABLE_BLOCK=$LAST_AVAILABLE_BLOCK" >> $GITHUB_ENV
 
-      # Start the TCK client
+      # Start the TCK client. Run a subset of the service tests expanding over time.
       - name: Start tck-client
         env:
           OPERATOR_ACCOUNT_ID: "0.0.2"
@@ -334,9 +330,9 @@ jobs:
           MIRROR_NODE_REST_URL: "http://127.0.0.1:5551"
           MIRROR_NODE_REST_JAVA_URL: "http://127.0.0.1:8084"
         run: |
-          solo account create --dev --ed25519-private-key "${{ env.OPERATOR_ACCOUNT_PRIVATE_KEY }}" --deployment ${{ env.SOLO_DEPLOYMENT }} --hbar-amount 1000000
+          solo ledger account create --dev --ed25519-private-key "${{ env.OPERATOR_ACCOUNT_PRIVATE_KEY }}" --deployment ${{ env.SOLO_DEPLOYMENT }} --hbar-amount 1000000
           cp .env.custom_node .env
-          npm run test
+          npm run test:file src/tests/contract-service/test-contract-execute-transaction.ts
         working-directory: sdk-tck/regression # required
 
       - name: BN Based - SDK TCK Regression Test Report
@@ -351,16 +347,16 @@ jobs:
         if: always()
         run: |
           # Get BN Logs
-          kubectl logs -n ${{ env.SOLO_NAMESPACE }} -l "app.kubernetes.io/name=block-node-0" --all-containers --since=24h --timestamps --prefix --tail=-1 > bn0-logs.log
+          kubectl logs -n ${{ env.SOLO_NAMESPACE }} -l "app.kubernetes.io/name=block-node-1" --all-containers --since=24h --timestamps --prefix --tail=-1 > bn0-logs.log
 
           # Get MN Logs
-          kubectl logs -n ${{ env.SOLO_NAMESPACE }} -l "app.kubernetes.io/instance=mirror,app.kubernetes.io/component=importer" --all-containers --since=24h --timestamps --prefix --tail=-1 > mn0-logs.log
+          kubectl logs -n ${{ env.SOLO_NAMESPACE }} -l "app.kubernetes.io/instance=mirror-1,app.kubernetes.io/component=importer" --all-containers --since=24h --timestamps --prefix --tail=-1 > mn0-logs.log
 
       - name: Collect CN Logs
         if: always()
         run: |
           # Get CN Logs
-          solo node logs -d ${{ env.SOLO_DEPLOYMENT }} --dev -q
+          solo consensus diagnostics all -d ${{ env.SOLO_DEPLOYMENT }} --dev -q
           BASE="${HOME}/.solo/logs/${SOLO_NAMESPACE}"
           LOG_FOLDER=$(ls -1d "$BASE"/* | sort -r | head -n1)
           echo "Latest log folder is $LOG_FOLDER"

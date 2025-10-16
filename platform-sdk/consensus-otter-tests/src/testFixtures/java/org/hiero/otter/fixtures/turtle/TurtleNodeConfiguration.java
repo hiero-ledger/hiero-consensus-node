@@ -7,10 +7,10 @@ import com.swirlds.platform.config.BasicConfig_;
 import com.swirlds.platform.config.PathsConfig_;
 import com.swirlds.platform.event.preconsensus.PcesConfig_;
 import com.swirlds.platform.event.preconsensus.PcesFileWriterType;
-import com.swirlds.platform.wiring.PlatformSchedulersConfig_;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.Path;
 import java.util.function.Supplier;
+import org.hiero.consensus.config.EventConfig_;
 import org.hiero.otter.fixtures.NodeConfiguration;
 import org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle;
 import org.hiero.otter.fixtures.internal.AbstractNodeConfiguration;
@@ -33,7 +33,8 @@ public class TurtleNodeConfiguration extends AbstractNodeConfiguration {
     }
 
     private void setTurtleSpecificOverrides(@NonNull final Path outputDirectory) {
-        overriddenProperties.put(PlatformSchedulersConfig_.CONSENSUS_EVENT_STREAM, "NO_OP");
+        overriddenProperties.put(
+                EventConfig_.EVENTS_LOG_DIR, outputDirectory.resolve("hgcapp").toString());
         overriddenProperties.put(BasicConfig_.JVM_PAUSE_DETECTOR_SLEEP_MS, "0");
         overriddenProperties.put(
                 StateCommonConfig_.SAVED_STATE_DIRECTORY,

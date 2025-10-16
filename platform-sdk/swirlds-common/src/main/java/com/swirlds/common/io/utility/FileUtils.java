@@ -22,6 +22,7 @@ import java.nio.file.FileSystems;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.attribute.BasicFileAttributes;
@@ -97,6 +98,23 @@ public final class FileUtils {
      */
     public static @NonNull Path getAbsolutePath(@NonNull final Path path) {
         return getAbsolutePath(path.toString());
+    }
+
+    /**
+     * Deletes a file or directory at the specified path.
+     * If the path points to a directory, recursively deletes the directory and all its contents.
+     * If the path points to a regular file, deletes the file.
+     * If the path does not exist, no action is taken.
+     *
+     * @param pathToDelete the path to the file or directory to be deleted
+     * @throws IOException if an I/O error occurs during deletion
+     */
+    public static void delete(@NonNull final Path pathToDelete) throws IOException {
+        if (Files.isDirectory(pathToDelete)) {
+            deleteDirectory(pathToDelete);
+        } else {
+            Files.deleteIfExists(pathToDelete);
+        }
     }
 
     /**
@@ -444,5 +462,41 @@ public final class FileUtils {
         } catch (final AtomicMoveNotSupportedException e) {
             Files.move(source, target);
         }
+    }
+
+    /**
+     * Searches for a file starting from the current working directory,
+     * moving up parent directories up to maxTries times.
+     *
+     * @param filename the name of the file to search for
+     * @param maxTries maximum number of directories to check (including current)
+     * @return Path object of the found file
+     * @throws RuntimeException if file is not found within maxTries
+     */
+    public static Path searchFileUpwards(@NonNull final String filename, final int maxTries) {
+        if (maxTries < 1) {
+            throw new IllegalArgumentException("maxTries must be at least 1");
+        }
+
+        Path currentDir = Paths.get("").toAbsolutePath();
+
+        for (int i = 0; i < maxTries; i++) {
+            final Path filePath = currentDir.resolve(filename);
+
+            if (Files.exists(filePath)) {
+                return filePath;
+            }
+
+            // Move to parent directory
+            final Path parent = currentDir.getParent();
+            if (parent == null) {
+                // Reached root directory, can't go further up
+                break;
+            }
+            currentDir = parent;
+        }
+
+        throw new RuntimeException("File '" + filename + "' not found after searching " + maxTries + " director"
+                + (maxTries == 1 ? "y" : "ies") + " upwards from current working directory");
     }
 }

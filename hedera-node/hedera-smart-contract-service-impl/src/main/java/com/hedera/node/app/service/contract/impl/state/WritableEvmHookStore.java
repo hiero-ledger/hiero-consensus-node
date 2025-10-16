@@ -25,7 +25,7 @@ import com.hedera.hapi.node.state.contract.SlotValue;
 import com.hedera.hapi.node.state.hooks.EvmHookState;
 import com.hedera.hapi.node.state.hooks.LambdaSlotKey;
 import com.hedera.node.app.service.contract.impl.state.StorageAccess.StorageAccessType;
-import com.hedera.node.app.spi.ids.WritableEntityCounters;
+import com.hedera.node.app.service.entityid.WritableEntityCounters;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.spi.WritableKVState;

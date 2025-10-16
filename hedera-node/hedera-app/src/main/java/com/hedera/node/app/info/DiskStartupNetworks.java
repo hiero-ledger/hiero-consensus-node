@@ -8,10 +8,10 @@ import static org.hiero.consensus.roster.RosterRetriever.buildRoster;
 
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.state.addressbook.Node;
-import com.hedera.node.app.ids.EntityIdService;
-import com.hedera.node.app.ids.ReadableEntityIdStoreImpl;
 import com.hedera.node.app.service.addressbook.AddressBookService;
 import com.hedera.node.app.service.addressbook.impl.ReadableNodeStoreImpl;
+import com.hedera.node.app.service.entityid.EntityIdService;
+import com.hedera.node.app.service.entityid.impl.ReadableEntityIdStoreImpl;
 import com.hedera.node.app.spi.migrate.StartupNetworks;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfiguration;

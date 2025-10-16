@@ -3,9 +3,9 @@ package com.hedera.services.bdd.spec.utilops.embedded;
 
 import static java.util.Objects.requireNonNull;
 
-import com.hedera.node.app.ids.EntityIdService;
-import com.hedera.node.app.ids.WritableEntityIdStore;
-import com.hedera.node.app.spi.ids.WritableEntityCounters;
+import com.hedera.node.app.service.entityid.EntityIdService;
+import com.hedera.node.app.service.entityid.WritableEntityCounters;
+import com.hedera.node.app.service.entityid.impl.WritableEntityIdStoreImpl;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.utilops.UtilOp;
 import com.swirlds.state.spi.WritableStates;
@@ -28,7 +28,7 @@ public class MutateStatesStoreOp extends UtilOp {
         final var state = spec.embeddedStateOrThrow();
         final var writableStates = state.getWritableStates(serviceName);
         final var entityWritableStates = state.getWritableStates(EntityIdService.NAME);
-        observer.accept(writableStates, new WritableEntityIdStore(entityWritableStates));
+        observer.accept(writableStates, new WritableEntityIdStoreImpl(entityWritableStates));
         spec.commitEmbeddedState();
         return false;
     }

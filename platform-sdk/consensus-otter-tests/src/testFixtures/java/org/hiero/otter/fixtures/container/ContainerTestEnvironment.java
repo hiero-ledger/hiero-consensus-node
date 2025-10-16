@@ -34,9 +34,18 @@ public class ContainerTestEnvironment implements TestEnvironment {
     private final ContainerTransactionGenerator transactionGenerator = new ContainerTransactionGenerator();
 
     /**
-     * Constructor for the {@link ContainerTestEnvironment} class.
+     * Constructor with default values for using random node-ids
      */
     public ContainerTestEnvironment() {
+        this(true);
+    }
+
+    /**
+     * Constructor for the {@link ContainerTestEnvironment} class.
+     *
+     * @param useRandomNodeIds {@code true} if the node IDs should be selected randomly; {@code false} otherwise
+     */
+    public ContainerTestEnvironment(final boolean useRandomNodeIds) {
 
         ContainerLogConfigBuilder.configure();
 
@@ -50,7 +59,7 @@ public class ContainerTestEnvironment implements TestEnvironment {
             fail("Failed to prepare directory: " + rootOutputDirectory, ex);
         }
 
-        network = new ContainerNetwork(timeManager, transactionGenerator, rootOutputDirectory);
+        network = new ContainerNetwork(timeManager, transactionGenerator, rootOutputDirectory, useRandomNodeIds);
     }
 
     /**

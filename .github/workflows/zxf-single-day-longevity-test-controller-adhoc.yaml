@@ -62,6 +62,10 @@ on:
         default: true
         type: boolean
         description: "If true, automatically delete namespace when done"
+      solo-version:
+        required: false
+        type: string
+        description: "Solo version for testing."
 
 defaults:
   run:
@@ -124,7 +128,7 @@ jobs:
     with:
       test-asset: "${{ inputs.test-asset }}"
       ref: "${{ github.ref }}"
-      solo-version: "${{ vars.CITR_SOLO_VERSION }}"
+      solo-version: "${{ inputs.solo-version || vars.CITR_SOLO_VERSION }}"
       nlg-accounts: "${{ inputs.nlg-accounts }}"
       nlg-time: "${{ inputs.nlg-time }}"
       add-app-props: "${{ inputs.add-app-props }}"
