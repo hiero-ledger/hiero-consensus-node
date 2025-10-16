@@ -19,12 +19,6 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.swirlds.base.state.MutabilityException;
-import com.swirlds.platform.test.fixtures.state.MerkleTestBase;
-import com.swirlds.base.test.fixtures.time.FakeTime;
-import com.swirlds.common.merkle.crypto.MerkleCryptography;
-import com.swirlds.common.merkle.crypto.MerkleCryptographyFactory;
-import com.swirlds.common.metrics.noop.NoOpMetrics;
-import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.state.StateChangeListener;
 import com.swirlds.state.lifecycle.StateDefinition;
 import com.swirlds.state.lifecycle.StateMetadata;
@@ -789,9 +783,7 @@ public class VirtualMapStateTest extends MerkleTestBase {
             fruitVirtualMap.release();
 
             // create and prepare a new state
-            virtualMapState = new TestVirtualMapState(new NoOpMetrics());
-            virtualMapState.init(
-                    new FakeTime(), new NoOpMetrics(), mock(MerkleCryptography.class), () -> GENESIS_ROUND);
+            virtualMapState = new TestVirtualMapState();
             setupFruitVirtualMap();
             setupSingletonCountry();
             virtualMap = (VirtualMap) virtualMapState.getRoot();
