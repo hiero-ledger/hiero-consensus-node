@@ -533,11 +533,12 @@ jobs:
               if [ "${{ inputs.perf_analysis }}" = "true" ]
               then
                 sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" cp "${{ github.workspace }}"/performance-analysis-automation/node_control/startInstrumentedBN.sh $i:/tmp/startInstrumentedBN.sh
-                sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" exec $i -- bash -c \
-                  "cd /opt/hiero/block-node/; export SERVER_MAX_MESSAGE_SIZE_BYTES=\"16_777_215\"; MESSAGING_BLOCK_ITEM_QUEUE_SIZE=4096; MESSAGING_BLOCK_NOTIFICATION_QUEUE_SIZE=1024; sh /tmp/startInstrumentedBN.sh"
+                #sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" exec $i -- bash -c \
+                #  "cd /opt/hiero/block-node/; export SERVER_MAX_MESSAGE_SIZE_BYTES=\"16_777_215\"; MESSAGING_BLOCK_ITEM_QUEUE_SIZE=4096; MESSAGING_BLOCK_NOTIFICATION_QUEUE_SIZE=1024; sh /tmp/startInstrumentedBN.sh"
               else
-                sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" exec $i -- bash -c \
-                  "cd /opt/hiero/block-node/; export JAVA_OPTS=\"-Xms16G -Xmx28G\"; export SERVER_MAX_MESSAGE_SIZE_BYTES=\"16_777_215\"; MESSAGING_BLOCK_ITEM_QUEUE_SIZE=4096; MESSAGING_BLOCK_NOTIFICATION_QUEUE_SIZE=1024; bash ./block-node-app-*/bin/block-node-app > ./logs/block-node.log 2>&1 &"
+                sleep 1
+                #sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" exec $i -- bash -c \
+                #  "cd /opt/hiero/block-node/; export JAVA_OPTS=\"-Xms16G -Xmx28G\"; export SERVER_MAX_MESSAGE_SIZE_BYTES=\"16_777_215\"; MESSAGING_BLOCK_ITEM_QUEUE_SIZE=4096; MESSAGING_BLOCK_NOTIFICATION_QUEUE_SIZE=1024; bash ./block-node-app-*/bin/block-node-app > ./logs/block-node.log 2>&1 &"
               fi
           done
           sleep 30
@@ -819,8 +820,8 @@ jobs:
           echo "Size of report dir:"
           du -sk report
 
-          gcloud --no-user-output-enabled storage cp --recursive report "${{ env.GS_ROOT_DIR }}/${{ steps.set-namespace.outputs.run-hcn-version }}_${{ inputs.test-asset }}_${{ github.run_number }}/create_accounts"
-          echo Done: see results in "${{ env.GS_ROOT_HTTPS }}/${{ steps.set-namespace.outputs.run-hcn-version }}_${{ inputs.test-asset }}_${{ github.run_number }}/create_accounts"
+          gcloud --no-user-output-enabled storage cp --recursive report "${{ env.GS_ROOT_DIR }}/${{ inputs.ref }}_${{ inputs.test-asset }}_${{ github.run_number }}/create_accounts
+          echo Done: see results in "${{ env.GS_ROOT_HTTPS }}/${{ inputs.ref }}_${{ inputs.test-asset }}_${{ github.run_number }}/create_accounts"
 
           echo "Truncating logs for next test..."
           sh "${{ github.workspace }}"/.github/workflows/support/citr/resetCNlogs.sh "${{ steps.set-namespace.outputs.namespace }}"
