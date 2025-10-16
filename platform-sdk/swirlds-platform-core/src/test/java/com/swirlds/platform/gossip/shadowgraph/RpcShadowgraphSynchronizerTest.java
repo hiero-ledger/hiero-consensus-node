@@ -23,8 +23,6 @@ import com.swirlds.platform.gossip.rpc.GossipRpcSender;
 import com.swirlds.platform.gossip.rpc.SyncData;
 import com.swirlds.platform.metrics.SyncMetrics;
 import com.swirlds.platform.reconnect.FallenBehindMonitor;
-import com.swirlds.platform.system.status.StatusActionSubmitter;
-import com.swirlds.platform.system.status.actions.FallenBehindAction;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import java.time.Duration;
 import java.time.Instant;
@@ -52,7 +50,6 @@ class RpcShadowgraphSynchronizerTest {
     private Consumer eventHandler;
     private GossipRpcSender gossipSender;
     private RpcShadowgraphSynchronizer synchronizer;
-    private StatusActionSubmitter statusSubmitter;
     private Consumer<Double> lagReporter;
 
     @BeforeEach
@@ -81,7 +78,6 @@ class RpcShadowgraphSynchronizerTest {
 
         this.syncMetrics = mock(SyncMetrics.class);
         this.selfId = NodeId.of(1);
-        this.statusSubmitter = mock(StatusActionSubmitter.class);
         this.fallenBehindManager = new FallenBehindMonitor(
                 RandomRosterBuilder.create(new Random()).withSize(NUM_NODES).build(), configuration, new NoOpMetrics());
         this.eventHandler = mock(Consumer.class);
@@ -200,7 +196,6 @@ class RpcShadowgraphSynchronizerTest {
         Mockito.verify(lagReporter).accept(100.0);
         Mockito.verify(gossipSender).breakConversation();
         Mockito.verifyNoMoreInteractions(gossipSender);
-        Mockito.verify(statusSubmitter).submitStatusAction(new FallenBehindAction());
     }
 
     @Test
@@ -245,7 +240,6 @@ class RpcShadowgraphSynchronizerTest {
         assertTrue(conversation.checkForPeriodicActions(true, false));
         conversation.receiveSyncData(new SyncData(new EventWindow(100, 101, 10, 5), List.of(), false));
         Mockito.verify(gossipSender).breakConversation();
-        Mockito.verify(statusSubmitter).submitStatusAction(new FallenBehindAction());
 
         // if sync is finished, we shouldn't be starting new one if system is unhealthy
         assertFalse(conversation.checkForPeriodicActions(true, false));
