@@ -94,13 +94,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         latencyResult = mock(BlockNodeStats.HighLatencyResult.class);
 
         connection = new BlockNodeConnection(
-                configProvider,
-                nodeConfig,
-                connectionManager,
-                bufferService,
-                grpcServiceClient,
-                metrics,
-                executorService);
+                configProvider, nodeConfig, connectionManager, bufferService, metrics, executorService);
 
         lenient().doReturn(requestPipeline).when(grpcServiceClient).publishBlockStream(connection);
     }
