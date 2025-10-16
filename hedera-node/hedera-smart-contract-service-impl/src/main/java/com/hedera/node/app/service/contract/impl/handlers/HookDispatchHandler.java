@@ -5,9 +5,11 @@ import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CALL;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOKS_NOT_ENABLED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOK_ID_IN_USE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOK_NOT_FOUND;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_GAS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_HOOK_ADMIN_KEY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_HOOK_CALL;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.service.contract.impl.utils.HookValidationUtils.validateHook;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
@@ -61,6 +63,8 @@ public class HookDispatchHandler extends AbstractContractTransactionHandler impl
         } else if (op.hasExecution()) {
             validateTrue(op.executionOrThrow().hasCall(), INVALID_HOOK_CALL);
             validateTrue(op.executionOrThrow().callOrThrow().hasHookId(), INVALID_HOOK_CALL);
+            validateTrue(
+                    op.executionOrThrow().callOrThrow().evmHookCallOrThrow().gasLimit() > 0, INSUFFICIENT_GAS);
         }
     }
 
@@ -117,6 +121,8 @@ public class HookDispatchHandler extends AbstractContractTransactionHandler impl
                         component.contextTransactionProcessor().call();
                 final var streamBuilder = context.savepointStack().getBaseBuilder(ContractCallStreamBuilder.class);
                 outcome.addCallDetailsTo(streamBuilder, context);
+
+                validateTrue(outcome.status() == SUCCESS, outcome.status());
             }
         }
     }
