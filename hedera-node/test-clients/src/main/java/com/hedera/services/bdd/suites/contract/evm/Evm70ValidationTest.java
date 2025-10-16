@@ -47,10 +47,10 @@ import org.junit.jupiter.api.Tag;
 @HapiTestLifecycle
 public class Evm70ValidationTest {
 
-    private static final String BLS_CONTRACT = "Evm70BlsValidation";
+    private static final String CALL_CONTRACT = "MakeCalls";
     // Pre-computed test vectors for BLS12-381 precompiles
     // Source: evm-spec-testing repository
-    private static final Map<Address, Pair<String, String>> bls12_381TestVectors = Map.of(
+    private static final Map<Address, Pair<String, String>> BLS_12_381_TEST_VECTORS = Map.of(
             Address.BLS12_G1ADD,
                     Pair.of(
                             "00000000000000000000000000000000112b98340eee2777cc3c14163dea3ec97977ac3dc5c70da32e6e87578f44912e902ccef9efe28d4a78b8999dfbca942600000000000000000000000000000000186b28d92356c4dfec4b5201ad099dbdede3781f8998ddf929b4cd7756192185ca7b8f4ef7088f813270ac3d48868a210000000000000000000000000000000017f1d3a73197d7942695638c4fa9ac0fc3688c4f9774b905a14e3a3f171bac586c55e83ff97a1aeffb3af00adb22c6bb0000000000000000000000000000000008b3f481e3aaa0f1a09e30ed741d8ae4fcf5e095d5d00af600db18cb2c04b3edd03cc744a2888ae40caa232946c5e7e1",
@@ -87,15 +87,15 @@ public class Evm70ValidationTest {
                 newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
                 cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, ONE_HUNDRED_HBARS)),
                 cryptoCreate(RELAYER).balance(6 * ONE_MILLION_HBARS),
-                uploadInitCode(BLS_CONTRACT),
-                contractCreate(BLS_CONTRACT).gas(4_000_000L));
+                uploadInitCode(CALL_CONTRACT),
+                contractCreate(CALL_CONTRACT).gas(4_000_000L));
     }
 
     @HapiTest
     final Stream<DynamicTest> bls12_381Precompile() {
         return hapiTest(withOpContext((spec, opLog) -> allRunFor(
                 spec,
-                bls12_381TestVectors.entrySet().stream()
+                BLS_12_381_TEST_VECTORS.entrySet().stream()
                         .map((this::callBlsPrecompile))
                         .flatMap(List::stream)
                         .toList())));
@@ -114,8 +114,8 @@ public class Evm70ValidationTest {
     private List<SpecOperation> callBlsPrecompile(final Address precompile, final String input, final String expected) {
         return List.of(
                 ethereumCall(
-                                BLS_CONTRACT,
-                                "callBls12",
+                                CALL_CONTRACT,
+                                "makeCallWithoutAmount",
                                 asHeadlongAddress(precompile.toArray()),
                                 ByteString.fromHex(input).toByteArray())
                         .payingWith(RELAYER)
@@ -129,6 +129,6 @@ public class Evm70ValidationTest {
         final var bls12Expected = ByteString.fromHex(expected);
         assertEquals(
                 bls12Expected,
-                txnRecord.getContractCallResult().getContractCallResult().substring(64));
+                txnRecord.getContractCallResult().getContractCallResult().substring(64 + 32 /*response code*/));
     }
 }
