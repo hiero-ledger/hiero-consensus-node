@@ -41,7 +41,6 @@ import com.hedera.node.app.services.ServicesRegistryImpl;
 import com.hedera.node.app.state.ConsensusStateEventHandlerImpl;
 import com.hedera.node.app.tss.TssBlockHashSigner;
 import com.hedera.node.config.data.BlockStreamConfig;
-import com.hedera.node.config.data.TssConfig;
 import com.hedera.node.internal.network.Network;
 import com.hedera.node.internal.network.NodeMetadata;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -465,8 +464,7 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
                         ForkJoinPool.commonPool(),
                         appContext,
                         new HintsLibraryImpl(),
-                        bootstrapConfig.getConfigData(BlockStreamConfig.class).blockPeriod(),
-                        bootstrapConfig.getConfigData(TssConfig.class)),
+                        bootstrapConfig.getConfigData(BlockStreamConfig.class).blockPeriod()),
                 (appContext, bootstrapConfig) -> new HistoryServiceImpl(
                         metrics, ForkJoinPool.commonPool(), appContext, new HistoryLibraryImpl(), bootstrapConfig),
                 TssBlockHashSigner::new,
