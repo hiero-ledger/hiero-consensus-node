@@ -567,6 +567,7 @@ public class BlockNodeConnectionManager {
         requestIndex = 0;
         activeConnectionRef.set(null);
         nodeStats.clear();
+        availableBlockNodes.clear();
     }
 
     private void closeAllConnections() {
@@ -958,7 +959,6 @@ public class BlockNodeConnectionManager {
         clearManagerMetadata();
 
         synchronized (availableBlockNodes) {
-            availableBlockNodes.clear();
             availableBlockNodes.addAll(newConfigs);
         }
 
