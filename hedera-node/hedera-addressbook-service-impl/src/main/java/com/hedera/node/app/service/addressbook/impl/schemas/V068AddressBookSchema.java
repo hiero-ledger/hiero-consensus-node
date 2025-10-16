@@ -8,6 +8,7 @@ import static com.swirlds.state.lifecycle.StateMetadata.computeLabel;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.addressbook.Node;
+import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.primitives.ProtoLong;
 import com.hedera.hapi.platform.state.StateKey;
 import com.hedera.node.app.service.addressbook.AddressBookService;
@@ -57,12 +58,18 @@ public class V068AddressBookSchema extends Schema<SemanticVersion> {
         if (!ctx.isGenesis()) {
             final var nodeState = ctx.previousStates().get(NODES_STATE_ID);
             final var relState = ctx.newStates().get(ACCOUNT_NODE_REL_STATE_ID);
-            final var keyIterator = nodeState.keys();
-            while (keyIterator.hasNext()) {
-                final var node = (Node) nodeState.get(keyIterator.next());
-                relState.put(
-                        node.accountId(),
-                        ProtoLong.newBuilder().value(node.nodeId()).build());
+
+            // With Virtual MegaMap, nodeState.keys() is over **every leaf in state**.
+            // Since we can't use it to iterate nodes directly, we iterate through potential
+            // node IDs (0-99) to populate the relation map, which covers our production node count.
+            for (int i = 0; i < 100; i++) {
+                final var nodeId = EntityNumber.newBuilder().number(i).build();
+                final var node = (Node) nodeState.get(nodeId);
+                if (node != null) {
+                    relState.put(
+                            node.accountId(),
+                            ProtoLong.newBuilder().value(node.nodeId()).build());
+                }
             }
         }
     }

@@ -37,21 +37,6 @@ public class WritableAccountNodeRelStore extends ReadableAccountNodeRelStoreImpl
     }
 
     /**
-     * Associates a node with an account by storing the relationship in the state.
-     *
-     * <p>Updates the state with link between the given account and the provided node ID.
-     *
-     * @param accountId The account identifier to associate with the node
-     * @param nodeId The node identifier to associate with the account
-     */
-    public void put(@NonNull final AccountID accountId, @NonNull final Long nodeId) {
-        requireNonNull(accountId);
-        requireNonNull(nodeId);
-        accountNodeRelState()
-                .put(accountId, ProtoLong.newBuilder().value(nodeId).build());
-    }
-
-    /**
      * Associates a node with an account by storing the relationship in the state and increments
      * the entity count for the NODE entity type.
      *
@@ -61,10 +46,11 @@ public class WritableAccountNodeRelStore extends ReadableAccountNodeRelStoreImpl
      * @param accountId The account identifier to associate with the node
      * @param nodeId The node identifier to associate with the account
      */
-    public void putAndIncrementCount(@NonNull final AccountID accountId, @NonNull Long nodeId) {
+    public void put(@NonNull final AccountID accountId, @NonNull Long nodeId) {
         requireNonNull(accountId);
         requireNonNull(nodeId);
-        put(accountId, nodeId);
+        accountNodeRelState()
+                .put(accountId, ProtoLong.newBuilder().value(nodeId).build());
         entityCounters.incrementEntityTypeCount(EntityType.ACCOUNT_NODE_REL);
     }
 
@@ -80,5 +66,6 @@ public class WritableAccountNodeRelStore extends ReadableAccountNodeRelStoreImpl
     public void remove(@NonNull final AccountID accountId) {
         requireNonNull(accountId);
         accountNodeRelState().remove(accountId);
+        entityCounters.decrementEntityTypeCounter(EntityType.ACCOUNT_NODE_REL);
     }
 }
