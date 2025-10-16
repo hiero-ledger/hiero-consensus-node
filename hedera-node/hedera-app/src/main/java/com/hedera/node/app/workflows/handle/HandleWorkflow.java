@@ -27,6 +27,7 @@ import com.hedera.hapi.block.stream.input.RoundHeader;
 import com.hedera.hapi.block.stream.output.StateChanges;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
+import com.hedera.hapi.node.state.systemtask.SystemTask;
 import com.hedera.hapi.node.transaction.ExchangeRateSet;
 import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
@@ -58,12 +59,18 @@ import com.hedera.node.app.services.NodeRewardManager;
 import com.hedera.node.app.spi.api.ServiceApiProvider;
 import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.info.NodeInfo;
+import com.hedera.node.app.spi.systemtasks.SystemTaskContext;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.app.state.HederaRecordCache;
 import com.hedera.node.app.state.HederaRecordCache.DueDiligenceFailure;
 import com.hedera.node.app.state.recordcache.LegacyListRecordSource;
 import com.hedera.node.app.store.ReadableStoreFactory;
 import com.hedera.node.app.store.StoreFactoryImpl;
+import com.hedera.node.app.systemtask.SystemTaskService;
+import com.hedera.node.app.systemtask.SystemTasks;
+import com.hedera.node.app.systemtask.SystemTasksImpl;
+
+import com.hedera.node.app.systemtask.schemas.V0690SystemTaskSchema;
 import com.hedera.node.app.throttle.CongestionMetrics;
 import com.hedera.node.app.throttle.ThrottleServiceManager;
 import com.hedera.node.app.workflows.OpWorkflowMetrics;
@@ -87,6 +94,7 @@ import com.swirlds.platform.state.service.WritablePlatformStateStore;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.CommittableWritableStates;
+import com.swirlds.state.spi.WritableQueueState;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -149,6 +157,7 @@ public class HandleWorkflow {
     private final BlockHashSigner blockHashSigner;
     private final BlockBufferService blockBufferService;
     private final Map<Class<?>, ServiceApiProvider<?>> apiProviders;
+
 
     @Nullable
     private final AtomicBoolean systemEntitiesCreatedFlag;
@@ -569,7 +578,9 @@ public class HandleWorkflow {
             // We execute as many schedules expiring in [lastIntervalProcessTime, consensusNow]
             // as there are available consensus times and execution slots (ordinarily there will
             // be more than enough of both, but we must be prepared for the edge cases)
-            executeAsManyScheduled(state, executionStart, userTxn.consensusNow(), userTxn.creatorInfo());
+            final int remainingCapacity = executeAsManyScheduled(state, executionStart, userTxn.consensusNow(), userTxn.creatorInfo());
+            // Then, within any remaining capacity, execute pending system tasks
+            doAsManyPendingTasks(state, remainingCapacity);
         } catch (Exception e) {
             logger.error(
                     "{} - unhandled exception while executing schedules between [{}, {}]",
@@ -601,33 +612,32 @@ public class HandleWorkflow {
      * @param consensusNow the consensus time at which the user transaction triggering this execution was processed
      * @param creatorInfo the node info of the user transaction creator
      */
-    private void executeAsManyScheduled(
+    private int executeAsManyScheduled(
             @NonNull final State state,
             @NonNull final Instant executionStart,
             @NonNull final Instant consensusNow,
             @NonNull final NodeInfo creatorInfo) {
         // Non-final right endpoint of the execution interval, in case we cannot do all the scheduled work
         var executionEnd = consensusNow;
+
+        // Obtain configuration and compute time bounds for this interval
+        final var config = configProvider.getConfiguration();
+        final var schedulingConfig = config.getConfigData(SchedulingConfig.class);
+        final var consensusConfig = config.getConfigData(ConsensusConfig.class);
+        final var lastUsableTime = consensusNow.plusNanos(schedulingConfig.consTimeSeparationNanos()
+                - schedulingConfig.reservedSystemTxnNanos()
+                - (consensusConfig.handleMaxFollowingRecords() + consensusConfig.handleMaxPrecedingRecords() + 1));
+        var lastTime = streamMode == RECORDS
+                ? blockRecordManager.lastUsedConsensusTime()
+                : blockStreamManager.lastUsedConsensusTime();
+        var nextTime = lastTime.plusNanos(consensusConfig.handleMaxPrecedingRecords() + 1);
+
+        // Max number of schedule executions per user txn
+        int n = schedulingConfig.maxExecutionsPerUserTxn();
+
         // We only construct an Iterator<ExecutableTxn> if this is not genesis, and we haven't already
         // created and exhausted iterators through the last second in the interval
         if (executionEnd.getEpochSecond() > lastExecutedSecond) {
-            final var config = configProvider.getConfiguration();
-            final var schedulingConfig = config.getConfigData(SchedulingConfig.class);
-            final var consensusConfig = config.getConfigData(ConsensusConfig.class);
-            // Since the next platform-assigned consensus time may be as early as (now + separationNanos),
-            // we must ensure that even if the last scheduled execution time is followed by the maximum
-            // number of child transactions, the last child's assigned time will be strictly before the
-            // first of the next consensus time's possible preceding children; that is, strictly before
-            // (now + separationNanos - reservedSystemTxnNanos) - (maxAfter + maxBefore + 1)
-            final var lastUsableTime = consensusNow.plusNanos(schedulingConfig.consTimeSeparationNanos()
-                    - schedulingConfig.reservedSystemTxnNanos()
-                    - (consensusConfig.handleMaxFollowingRecords() + consensusConfig.handleMaxPrecedingRecords() + 1));
-            // The first possible time for the next execution is strictly after the last execution time
-            // consumed for the triggering user transaction; plus the maximum number of preceding children
-            var lastTime = streamMode == RECORDS
-                    ? blockRecordManager.lastUsedConsensusTime()
-                    : blockStreamManager.lastUsedConsensusTime();
-            var nextTime = lastTime.plusNanos(consensusConfig.handleMaxPrecedingRecords() + 1);
             final var entityIdWritableStates = state.getWritableStates(EntityIdService.NAME);
             final var writableEntityIdStore = new WritableEntityIdStore(entityIdWritableStates);
             // Now we construct the iterator and start executing transactions in the longest permitted
@@ -646,8 +656,6 @@ public class HandleWorkflow {
                     StoreFactoryImpl.from(state, ScheduleService.NAME, config, writableEntityIdStore, apiProviders));
 
             final var writableStates = state.getWritableStates(ScheduleService.NAME);
-            // Configuration sets a maximum number of execution slots per user transaction
-            int n = schedulingConfig.maxExecutionsPerUserTxn();
             while (iter.hasNext() && !nextTime.isAfter(lastUsableTime) && n > 0) {
                 final var executableTxn = iter.next();
                 if (schedulingConfig.longTermEnabled()) {
@@ -696,7 +704,128 @@ public class HandleWorkflow {
         } else {
             blockRecordManager.setLastIntervalProcessTime(executionEnd, state);
         }
+
+        // Compute remaining capacity by counting how many consensus slots remain (bounded by n)
+        int remainingCapacity = 0;
+        var cursor = nextTime;
+        int slots = n;
+        while (slots > 0 && !cursor.isAfter(lastUsableTime)) {
+            remainingCapacity++;
+            slots--;
+            cursor = cursor.plusNanos(consensusConfig.handleMaxPrecedingRecords() + 1);
+        }
+        return remainingCapacity;
     }
+
+    /**
+     * Executes as many pending {@link SystemTask} entries as permitted by the remaining capacity.
+     * If the queue is empty or capacity is zero, does nothing.
+     *
+     * @param state the state to use to access the system task queue and stores
+     * @param capacity the maximum number of tasks to execute
+     */
+    private void doAsManyPendingTasks(@NonNull final State state, final int capacity) {
+        if (capacity <= 0) {
+            return;
+        }
+        final var config = configProvider.getConfiguration();
+        final var consensusConfig = config.getConfigData(ConsensusConfig.class);
+
+        // Build SystemTasks bound to the current state's writable queue
+        final var rawQueue = state
+                .getWritableStates(SystemTaskService.NAME)
+                .getQueue(V0690SystemTaskSchema.SYSTEM_TASK_QUEUE_STATE_ID);
+        @SuppressWarnings("unchecked")
+        final var typedQueue = (WritableQueueState<SystemTask>) (WritableQueueState<?>) rawQueue;
+        final SystemTasks systemTasks = new SystemTasksImpl(typedQueue);
+
+        int remaining = capacity;
+        Instant lastUsed = streamMode == RECORDS
+                ? blockRecordManager.lastUsedConsensusTime()
+                : blockStreamManager.lastUsedConsensusTime();
+        Instant nextTime = lastUsed.plusNanos(consensusConfig.handleMaxPrecedingRecords() + 1);
+        Instant lastProcessed = null;
+
+        while (remaining > 0) {
+            final var maybeTask = systemTasks.poll();
+            if (maybeTask.isEmpty()) {
+                break;
+            }
+            final var task = maybeTask.get();
+            final var writableEntityIdStates = state.getWritableStates(EntityIdService.NAME);
+            final var storeFactory = StoreFactoryImpl.from(
+                    state, SystemTaskService.NAME, config, new WritableEntityIdStore(writableEntityIdStates), apiProviders);
+
+            // Capture the time slot for this task
+            final Instant thisTime = nextTime;
+
+            // Prepare the context for this task
+            final var context = new SystemTaskContext() {
+                @Override
+                public @NonNull SystemTask currentTask() {
+                    return task;
+                }
+
+                @Override
+                public void offerSystemTask(@NonNull final SystemTask t) {
+                    systemTasks.offer(t);
+                }
+
+                @Override
+                public @NonNull com.hedera.node.app.spi.store.StoreFactory storeFactory() {
+                    return storeFactory;
+                }
+
+                @Override
+                public @NonNull com.swirlds.config.api.Configuration configuration() {
+                    return config;
+                }
+
+                @Override
+                public @NonNull NetworkInfo networkInfo() {
+                    return networkInfo;
+                }
+
+                @Override
+                public @NonNull Instant now() {
+                    return thisTime;
+                }
+            };
+
+            try {
+                stakePeriodManager.setCurrentStakePeriodFor(thisTime);
+                // Dispatch using a local dispatcher. Handlers may be provided by future modules; currently may be empty.
+                new com.hedera.node.app.systemtask.dispatcher.SystemTaskDispatcher(java.util.List.of()).dispatch(context);
+                // Advance and record last used consensus time
+                if (streamMode != RECORDS) {
+                    blockStreamManager.setLastTopLevelTime(thisTime);
+                } else {
+                    blockRecordManager.setLastUsedConsensusTime(thisTime, state);
+                }
+                lastProcessed = thisTime;
+            } catch (Exception e) {
+                logger.error("{} - unhandled exception while executing system task", ALERT_MESSAGE, e);
+                // Continue to the next task/slot to avoid getting stuck
+            }
+
+            // Compute next available time slot and decrement remaining capacity
+            lastUsed = streamMode == RECORDS
+                    ? blockRecordManager.lastUsedConsensusTime()
+                    : blockStreamManager.lastUsedConsensusTime();
+            nextTime = lastUsed.plusNanos(consensusConfig.handleMaxPrecedingRecords() + 1);
+            remaining--;
+        }
+
+        // If we processed any tasks, update the last interval process time to the time of the last processed task
+        if (lastProcessed != null) {
+            if (streamMode != RECORDS) {
+                blockStreamManager.setLastIntervalProcessTime(lastProcessed);
+            } else {
+                blockRecordManager.setLastIntervalProcessTime(lastProcessed, state);
+            }
+        }
+    }
+
 
     /**
      * Type inference helper to compute the base builder for a {@link ParentTxn} derived from a
