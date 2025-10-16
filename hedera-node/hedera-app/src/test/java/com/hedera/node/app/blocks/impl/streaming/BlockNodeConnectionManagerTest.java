@@ -2229,20 +2229,20 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     }
 
     @Test
-    void testHandleConfigFileChange() {
+    void testRefreshAvailableBlockNodes() {
         final BlockNodeConnection conn = mock(BlockNodeConnection.class);
         final BlockNodeConfig oldNode = newBlockNodeConfig(9999, 1);
         connections().put(oldNode, conn);
         availableNodes().add(oldNode);
 
-        invoke_handleConfigFileChange();
+        invoke_refreshAvailableBlockNodes();
 
         // Verify old connection was closed
         verify(conn).close(true);
     }
 
     @Test
-    void testHandleConfigFileChange_shutsDownExecutorAndReloads_whenValid() throws Exception {
+    void testRefreshAvailableBlockNodes_shutsDownExecutorAndReloads_whenValid() throws Exception {
         // Point manager at real bootstrap config directory so reload finds valid JSON
         final var configPath = Objects.requireNonNull(
                         BlockNodeCommunicationTestBase.class.getClassLoader().getResource("bootstrap/"))
@@ -2260,7 +2260,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         isActiveFlag().set(false);
         workerThread().set(null);
 
-        invoke_handleConfigFileChange();
+        invoke_refreshAvailableBlockNodes();
 
         // Old connection closed and executor shut down
         verify(existing).close(true);
@@ -2516,7 +2516,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         }
     }
 
-    private void invoke_handleConfigFileChange() {
+    private void invoke_refreshAvailableBlockNodes() {
         try {
             handleConfigFileChangeHandle.invoke(connectionManager);
         } catch (final Throwable e) {

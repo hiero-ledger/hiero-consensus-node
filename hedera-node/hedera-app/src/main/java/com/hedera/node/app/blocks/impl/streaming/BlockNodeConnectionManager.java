@@ -248,21 +248,7 @@ public class BlockNodeConnectionManager {
         this.lastVerifiedBlockPerConnection = new ConcurrentHashMap<>();
         this.blockStreamMetrics = requireNonNull(blockStreamMetrics, "blockStreamMetrics must not be null");
         this.nodeStats = new ConcurrentHashMap<>();
-
-        if (isStreamingEnabled()) {
-            final String blockNodeConnectionConfigPath = blockNodeConnectionFileDir();
-            blockNodeConfigDirectory = getAbsolutePath(blockNodeConnectionConfigPath);
-
-            logWithContext(
-                    INFO,
-                    "Initialized empty block node configuration; awaiting file watcher events from {}.",
-                    blockNodeConnectionConfigPath);
-
-            // Start a watcher to monitor changes to the block-nodes.json file for dynamic updates
-            startConfigWatcher();
-        } else {
-            logWithContext(INFO, "Block node streaming is disabled. Will not setup connections to block nodes.");
-        }
+        this.blockNodeConfigDirectory = getAbsolutePath(blockNodeConnectionFileDir());
     }
 
     /**
@@ -563,16 +549,17 @@ public class BlockNodeConnectionManager {
         logWithContext(DEBUG, "Shutting down block node connection manager.");
 
         stopConfigWatcher();
-
         blockBufferService.shutdown();
-
-        if (sharedExecutorService != null) {
-            sharedExecutorService.shutdownNow();
-        }
-
+        shutdownScheduledExecutorService();
         shutdownBlockStreamWorkerThread();
         closeAllConnections();
         clearManagerMetadata();
+    }
+
+    private void shutdownScheduledExecutorService() {
+        if (sharedExecutorService != null) {
+            sharedExecutorService.shutdownNow();
+        }
     }
 
     private void clearManagerMetadata() {
@@ -638,14 +625,7 @@ public class BlockNodeConnectionManager {
         // Start a watcher to monitor changes to the block-nodes.json file for dynamic updates
         startConfigWatcher();
 
-        // Create a Single-threaded executor for sharedExecutorService
-        createScheduledExectorService();
-
-        // Start worker thread if not already running
-        startBlockStreamWorkerThread();
-
-        // Schedule connection attempt to the selected node
-        selectNewBlockNodeForStreaming(false);
+        refreshAvailableBlockNodes();
     }
 
     private void startBlockStreamWorkerThread() {
@@ -903,7 +883,7 @@ public class BlockNodeConnectionManager {
                                             && BLOCK_NODES_FILE_NAME.equals(changed.toString())) {
                                         logWithContext(INFO, "Detected {} event for {}.", kind.name(), changed);
                                         try {
-                                            handleConfigFileChange();
+                                            refreshAvailableBlockNodes();
                                         } catch (Exception e) {
                                             logWithContext(
                                                     INFO,
@@ -931,35 +911,9 @@ public class BlockNodeConnectionManager {
                     });
             configWatcherThreadRef.set(watcherThread);
             logWithContext(INFO, "Started block-nodes.json configuration watcher thread.");
-            // Perform an initial load if the configuration file already exists
-            performInitialConfigLoad();
         } catch (final IOException e) {
             logWithContext(
                     INFO, "Failed to start block-nodes.json configuration watcher. Dynamic updates disabled.", e);
-        }
-    }
-
-    /**
-     * Performs an initial configuration load if the block-nodes.json exists at startup,
-     * updating the available nodes and starting connections as appropriate.
-     */
-    private void performInitialConfigLoad() {
-        final Path configPath = blockNodeConfigDirectory.resolve(BLOCK_NODES_FILE_NAME);
-        if (Files.exists(configPath)) {
-            final List<BlockNodeConfig> newConfigs =
-                    extractBlockNodesConfigurations(blockNodeConfigDirectory.toString());
-            synchronized (availableBlockNodes) {
-                availableBlockNodes.clear();
-                availableBlockNodes.addAll(newConfigs);
-            }
-            if (!newConfigs.isEmpty()) {
-                logWithContext(INFO, "Initial block node configuration loaded ({}).", newConfigs);
-                start();
-            } else {
-                logWithContext(INFO, "Initial block node configuration missing or invalid. Waiting for updates.");
-            }
-        } else {
-            logWithContext(INFO, "No initial block node configuration file found. Waiting for updates.");
         }
     }
 
@@ -986,12 +940,7 @@ public class BlockNodeConnectionManager {
         }
     }
 
-    /**
-     * Handle a configuration file change event by attempting to reload the block-nodes.json and restarting
-     * connections with the new configuration if parsing succeeds. If parsing fails or the file is deleted,
-     * we clear available nodes and stop connections, allowing the system to continue running without block nodes.
-     */
-    private void handleConfigFileChange() {
+    private void refreshAvailableBlockNodes() {
         final String configDir = blockNodeConfigDirectory.toString();
         final List<BlockNodeConfig> newConfigs = extractBlockNodesConfigurations(configDir);
 
@@ -1003,6 +952,7 @@ public class BlockNodeConnectionManager {
             }
         }
 
+        shutdownScheduledExecutorService();
         shutdownBlockStreamWorkerThread();
         closeAllConnections();
         clearManagerMetadata();
@@ -1014,8 +964,8 @@ public class BlockNodeConnectionManager {
 
         if (!newConfigs.isEmpty()) {
             logWithContext(INFO, "Reloaded block node configurations ({})", newConfigs);
-
-            start();
+            createScheduledExectorService();
+            startBlockStreamWorkerThread();
             selectNewBlockNodeForStreaming(false);
         } else {
             logWithContext(
