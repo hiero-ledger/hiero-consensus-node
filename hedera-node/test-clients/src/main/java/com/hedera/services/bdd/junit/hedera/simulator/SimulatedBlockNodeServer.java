@@ -267,7 +267,7 @@ public class SimulatedBlockNodeServer {
     public Set<Long> getReceivedBlockNumbers() {
         blockTrackingLock.readLock().lock();
         try {
-            // Return only blocks for which we have proofs
+            // Return only blocks for which we have the end block
             return Set.copyOf(blocksWithEndBlock);
         } finally {
             blockTrackingLock.readLock().unlock();
@@ -382,7 +382,7 @@ public class SimulatedBlockNodeServer {
                                             port,
                                             replies.hashCode());
 
-                                    // Requirement 3: Check if block already exists (header AND proof received)
+                                    // Requirement 3: Check if block already exists (header AND end block received)
                                     if (blocksWithEndBlock.contains(blockNumber)) {
                                         log.warn(
                                                 "Block {} already fully received (header+proof). Sending BlockAcknowledgement to stream {} on port {}.",
