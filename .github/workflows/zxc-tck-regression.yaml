@@ -161,7 +161,7 @@ jobs:
         with:
           installMirrorNode: true
           mirrorNodeVersion: v0.138.0
-          hieroVersion: ${{ inputs.solo-version || env.CITR_SOLO_VERSION }}
+          soloVersion: ${{ inputs.solo-version || env.CITR_SOLO_VERSION }}
 
       # Start the TCK client
       - name: Start tck-client
