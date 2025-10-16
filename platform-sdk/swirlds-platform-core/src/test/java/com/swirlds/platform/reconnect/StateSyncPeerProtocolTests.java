@@ -145,6 +145,7 @@ class StateSyncPeerProtocolTests {
                 .toList();
 
         final FallenBehindMonitor fallenBehindManager = mock(FallenBehindMonitor.class);
+        when(fallenBehindManager.hasFallenBehind()).thenReturn(true);
         when(fallenBehindManager.wasReportedByPeer(any()))
                 .thenAnswer(a -> neighborsForReconnect.contains(a.getArgument(0, NodeId.class)));
 
