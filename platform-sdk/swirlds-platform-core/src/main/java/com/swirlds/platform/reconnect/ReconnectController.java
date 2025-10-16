@@ -148,11 +148,12 @@ public class ReconnectController {
     /**
      * Once started, it manages the lifecycle of reconnection:
      * <ul>
-     *   <li>Monitoring for fallen-behind conditions via {@link FallenBehindMonitor}</li>
-     *   <li>Coordinating platform state transitions during reconnect (pausing gossip, clearing queues)</li>
+     *   <li>Waits a notification of a fallen-behind condition via {@link FallenBehindMonitor}</li>
+     *   <li>Coordinating platform state transitions during reconnect (BEHIND -> RECONNECT COMPLETE -> CHECKING)</li>
+     *   <li>Operates the platform to prepare for reconnect ( pausing gossip, flush and clearing queues)</li>
      *   <li>Acquiring and validating signed states from peer nodes</li>
      *   <li>Loading the validated state into the platform to bring the node back into sync</li>
-     *   <li>Managing retry logic with configurable limits and backoff</li>
+     *   <li>Managing retry logic with configurable limits</li>
      *   <li>Enforcing reconnect policies (time windows, maximum failures) and terminating the node when necessary</li>
      * </ul>
      */
@@ -190,6 +191,12 @@ public class ReconnectController {
         hashStateForReconnect(merkleCryptography, currentState);
 
         logger.info(RECONNECT.getMarker(), "Waiting for a state to be obtained from a peer");
+        // This is a direct connection with the protocols at Gossip component.
+        // reservedStateResource is a blocking data structure that will provide a signed state from one of the peers
+        // At the same time this code is evaluated, the StateSyncProtocol is being executed
+        // which will select a peer to receive a state (only one from all the ones that reported we are behind)
+        // Once the trasnsfered is complete this peerReservedSignedStatePromise will be notified and this code will be
+        // unblocked
         try (final LockedResource<ReservedSignedState> reservedStateResource =
                         requireNonNull(peerReservedSignedStatePromise.await());
                 final ReservedSignedState reservedState = requireNonNull(reservedStateResource.getResource())) {
