@@ -230,19 +230,19 @@ message BlockProof {
     /**
      * TODO
      */
-    StateProof state_proof = 8;
+//    StateProof state_proof = 8;
 }
 
 /**
  * TODO
  */
-message StateProof {
-//  repeated MerklePath paths = 1;
-  oneof proof {
-    TssSignedBlockProof signed_block_proof = 2;
-    SignedRecordFileProof signed_record_file_proof = 3;
-  }
-}
+//message StateProof {
+////  repeated MerklePath paths = 1;
+//  oneof proof {
+//    TssSignedBlockProof signed_block_proof = 2;
+//    SignedRecordFileProof signed_record_file_proof = 3;
+//  }
+//}
 
 /**
  * TODO
