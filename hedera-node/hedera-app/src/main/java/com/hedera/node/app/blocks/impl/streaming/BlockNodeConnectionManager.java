@@ -583,6 +583,7 @@ public class BlockNodeConnectionManager {
     }
 
     private void closeAllConnections() {
+        logWithContext(DEBUG, "Stopping block node connections");
         // Close all connections
         final Iterator<Map.Entry<BlockNodeConfig, BlockNodeConnection>> it =
                 connections.entrySet().iterator();
