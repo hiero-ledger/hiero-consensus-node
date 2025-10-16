@@ -154,14 +154,12 @@ jobs:
 
       # Prepare Hiero Solo
       - name: Prepare Hiero Solo
-        env:
-          VAR_CITR_SOLO_VERSION: ${{ vars.CITR_SOLO_VERSION }}
         id: solo
         uses: hiero-ledger/hiero-solo-action@8cda77e13916d1ed8f80eb07361a474a264be005 # latest on `main` currently
         with:
           installMirrorNode: true
           mirrorNodeVersion: v0.138.0
-          hieroVersion: ${{ inputs.solo-version || env.VAR_CITR_SOLO_VERSION }}
+          hieroVersion: ${{ inputs.solo-version || vars.CITR_SOLO_VERSION }}
 
       # Start the TCK client
       - name: Start tck-client
