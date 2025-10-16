@@ -17,7 +17,6 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.sources.SimpleConfigSource;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.platform.state.signed.SignedState;
-import com.swirlds.platform.test.fixtures.state.MerkleTestBase;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
 import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.State;
@@ -32,6 +31,7 @@ import com.swirlds.state.spi.ReadableSingletonState;
 import com.swirlds.state.spi.WritableKVState;
 import com.swirlds.state.spi.WritableQueueState;
 import com.swirlds.state.spi.WritableSingletonState;
+import com.swirlds.state.test.fixtures.merkle.MerkleTestBase;
 import com.swirlds.state.test.fixtures.merkle.TestVirtualMapState;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
@@ -58,6 +58,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 class SerializationTest extends MerkleTestBase {
 
     private static final Logger logger = LogManager.getLogger(RandomSignedStateGenerator.class);
+
+    private final SemanticVersion v1 = SemanticVersion.newBuilder().major(1).build();
 
     private Path dir;
     private Configuration config;

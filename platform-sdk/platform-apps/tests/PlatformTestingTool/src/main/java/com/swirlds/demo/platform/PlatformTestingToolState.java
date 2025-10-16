@@ -9,6 +9,7 @@ import static org.hiero.base.io.streams.SerializableStreamConstants.NULL_CLASS_I
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.base.time.Time;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.crypto.MerkleCryptographyFactory;
 import com.swirlds.common.metrics.noop.NoOpMetrics;
@@ -497,6 +498,21 @@ public class PlatformTestingToolState extends MerkleStateRoot<PlatformTestingToo
     @Override
     protected PlatformTestingToolState copyingConstructor() {
         return new PlatformTestingToolState(this);
+    }
+
+    @Override
+    public long singletonPath(final int stateId) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public long queueElementPath(final int stateId, @NonNull final Bytes expectedValue) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public long kvPath(final int stateId, @NonNull final Bytes key) {
+        throw new UnsupportedOperationException();
     }
 
     /**

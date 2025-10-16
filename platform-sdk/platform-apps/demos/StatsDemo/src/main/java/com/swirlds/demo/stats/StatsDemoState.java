@@ -17,6 +17,7 @@ import static com.swirlds.platform.state.service.PlatformStateFacade.DEFAULT_PLA
 import com.swirlds.base.time.Time;
 import com.swirlds.common.merkle.crypto.MerkleCryptographyFactory;
 import com.swirlds.common.metrics.noop.NoOpMetrics;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.test.fixtures.merkle.MerkleStateRoot;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -105,5 +106,20 @@ public class StatsDemoState extends MerkleStateRoot<StatsDemoState> implements M
     @Override
     protected StatsDemoState copyingConstructor() {
         return new StatsDemoState(this);
+    }
+
+    @Override
+    public long singletonPath(final int stateId) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public long queueElementPath(final int stateId, @NonNull Bytes expectedValue) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public long kvPath(final int stateId, @NonNull Bytes key) {
+        throw new UnsupportedOperationException();
     }
 }
