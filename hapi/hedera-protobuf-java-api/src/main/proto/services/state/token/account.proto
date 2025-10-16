@@ -481,6 +481,35 @@ message Account {
      * The number of storage slots in use by this account's lambdas.
      */
     uint64 number_lambda_storage_slots = 38;
+
+    /**
+     * The materialized key for this account, if any.
+     * <p>
+     * This is the key that is actually used for signature verification after any
+     * indirections are resolved.
+     */
+    Key materialized_key = 39;
+
+    /**
+     * The number of indirect key users currently linked to this account's key.
+     */
+    uint32 num_indirect_key_users = 40;
+
+    /**
+     * The maximum remaining propagations allowed for this account's key materialization.
+     */
+    uint32 max_remaining_propagations = 41;
+
+    /**
+     * If there are indirect key users, the first account id in the queue of key users.
+     */
+    AccountID first_key_user_id = 42;
+
+    /**
+     * If there are indirect key users, the next account id in line after this account in the queue.
+     */
+    AccountID next_in_line_key_user_id = 43;
+
 }
 
 /**
