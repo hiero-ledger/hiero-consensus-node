@@ -8,7 +8,7 @@ import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.state.primitives.ProtoLong;
 import com.hedera.node.app.hapi.utils.EntityType;
 import com.hedera.node.app.service.addressbook.ReadableAccountNodeRelStore;
-import com.hedera.node.app.spi.ids.ReadableEntityCounters;
+import com.hedera.node.app.service.entityid.ReadableEntityCounters;
 import com.swirlds.state.spi.ReadableKVState;
 import com.swirlds.state.spi.ReadableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
