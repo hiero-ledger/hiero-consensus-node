@@ -94,7 +94,7 @@ public class DefaultKeyVerifier implements AppKeyVerifier {
                 }
                 yield passed >= clampedThreshold ? passedVerification(key) : failedVerification(key);
             }
-            case CONTRACT_ID, DELEGATABLE_CONTRACT_ID, ECDSA_384, RSA_3072, UNSET -> {
+            case CONTRACT_ID, DELEGATABLE_CONTRACT_ID, ECDSA_384, RSA_3072, INDIRECT_KEY, UNSET -> {
                 final var failure = failedVerification(key);
                 yield callback.test(key, failure) ? passedVerification(key) : failure;
             }
@@ -168,7 +168,7 @@ public class DefaultKeyVerifier implements AppKeyVerifier {
                 final var clampedThreshold = Math.max(1, Math.min(threshold, keys.size()));
                 yield verificationFutureFor(key, keys, keys.size() - clampedThreshold);
             }
-            case CONTRACT_ID, DELEGATABLE_CONTRACT_ID, ECDSA_384, RSA_3072, UNSET ->
+            case CONTRACT_ID, DELEGATABLE_CONTRACT_ID, ECDSA_384, RSA_3072, INDIRECT_KEY, UNSET ->
                 completedFuture(failedVerification(key));
         };
     }

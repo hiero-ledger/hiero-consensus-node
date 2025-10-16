@@ -52,6 +52,7 @@ import "services/state/token/nft.proto";
 import "services/state/token/staking_node_info.proto";
 import "services/state/token/token.proto";
 import "services/state/token/token_relation.proto";
+import "services/state/token/indirect_key_users.proto";
 import "services/state/tss/tss_encryption_keys.proto";
 import "services/state/tss/tss_message_map_key.proto";
 import "services/state/tss/tss_vote_map_key.proto";
@@ -108,67 +109,67 @@ message StateKey {
 
     // Key/value states
     /**
-     * A state identifier for the Accounts state. 
+     * A state identifier for the Accounts state.
      */
     proto.AccountID TokenService_I_ACCOUNTS = 2;
 
     /**
-     * A state identifier for account aliases. 
+     * A state identifier for account aliases.
      */
     proto.ProtoBytes TokenService_I_ALIASES = 3;
 
     /**
-     * A state identifier for contract storage slots. 
+     * A state identifier for contract storage slots.
      */
     proto.SlotKey ContractService_I_STORAGE = 4;
 
     /**
-     * A state identifier for contract bytecode. 
+     * A state identifier for contract bytecode.
      */
     proto.ContractID ContractService_I_BYTECODE = 5;
 
     /**
-     * A state identifier for Hedera File Service (HFS). 
-     */    
+     * A state identifier for Hedera File Service (HFS).
+     */
     proto.FileID FileService_I_FILES = 6;
 
     /**
-     * A state identifier for Hedera Token Service (HTS). 
-     */    
+     * A state identifier for Hedera Token Service (HTS).
+     */
     proto.TokenID TokenService_I_TOKENS = 7;
 
     /**
-     * A state identifier for non-fungible/unique tokens. 
-     */    
+     * A state identifier for non-fungible/unique tokens.
+     */
     proto.NftID TokenService_I_NFTS = 8;
 
     /**
-     * A state identifier for token relationships. 
+     * A state identifier for token relationships.
      */
     proto.EntityIDPair TokenService_I_TOKEN_RELS = 9;
 
     /**
-     * A state identifier for network staking information. 
+     * A state identifier for network staking information.
      */
     proto.EntityNumber TokenService_I_STAKING_INFOS = 10;
 
     /**
-     * A state identifier for scheduled transactions. 
+     * A state identifier for scheduled transactions.
      */
     proto.ScheduleID ScheduleService_I_SCHEDULES_BY_ID = 14;
 
     /**
-     * A state identifier for scheduled transaction expiration. 
+     * A state identifier for scheduled transaction expiration.
      */
     proto.ProtoLong ScheduleService_I_SCHEDULES_BY_EXPIRY_SEC = 15;
 
     /**
-     * A state identifier for scheduled transaction deduplication. 
+     * A state identifier for scheduled transaction deduplication.
      */
     proto.ProtoBytes ScheduleService_I_SCHEDULES_BY_EQUALITY = 16;
 
     /**
-     * A state identifier for address book nodes. 
+     * A state identifier for address book nodes.
      */
     proto.EntityNumber AddressBookService_I_NODES = 20;
 
@@ -178,79 +179,84 @@ message StateKey {
     proto.TopicID ConsensusService_I_TOPICS = 21;
 
     /**
-     * A state identifier for pending airdrops. 
+     * A state identifier for pending airdrops.
      */
     proto.PendingAirdropId TokenService_I_PENDING_AIRDROPS = 25;
 
     /**
-     * A state identifier for the rosters. 
+     * A state identifier for indirect key users.
+     */
+    proto.IndirectKeyUsersKey TokenService_I_INDIRECT_KEY_USERS = 26;
+
+    /**
+     * A state identifier for the rosters.
      */
     proto.ProtoBytes RosterService_I_ROSTERS = 28;
 
     /**
     * A state identifier for counts of transactions scheduled and
-    * processed in a second. 
+    * processed in a second.
     */
     proto.TimestampSeconds ScheduleService_I_SCHEDULED_COUNTS = 29;
 
     /**
-     * A state identifier for scheduled transaction deduplication. 
+     * A state identifier for scheduled transaction deduplication.
      */
     proto.ProtoBytes ScheduleService_I_SCHEDULE_ID_BY_EQUALITY = 30;
 
     /**
-     * A state identifier for TSS messages. 
-     */    
+     * A state identifier for TSS messages.
+     */
     com.hedera.hapi.node.state.tss.TssMessageMapKey TssBaseService_I_TSS_MESSAGES = 31;
 
     /**
-     * A state identifier for TSS votes. 
-     */    
+     * A state identifier for TSS votes.
+     */
     com.hedera.hapi.node.state.tss.TssVoteMapKey TssBaseService_I_TSS_VOTES = 32;
-    
+
     /**
-    * A state identifier for the ordering of scheduled transactions. 
-    */    
+    * A state identifier for the ordering of scheduled transactions.
+    */
     proto.ScheduledOrder ScheduleService_I_SCHEDULED_ORDERS = 33;
 
     /**
-     * A state identifier for scheduled throttle usage snapshots. 
-     */    
+     * A state identifier for scheduled throttle usage snapshots.
+     */
     proto.TimestampSeconds ScheduleService_I_SCHEDULED_USAGES = 34;
 
     /**
-     * A state identifier for the TSS encryption keys. 
-     */    
+     * A state identifier for the TSS encryption keys.
+     */
     proto.EntityNumber TssBaseService_I_TSS_ENCRYPTION_KEYS = 35;
 
     /**
-     * A state identifier for hinTS key sets. 
-     */    
+     * A state identifier for hinTS key sets.
+     */
     com.hedera.hapi.node.state.hints.HintsPartyId HintsService_I_HINTS_KEY_SETS = 37;
 
     /**
-     * A state identifier for hinTS preprocessing output votes. 
-     */    
+     * A state identifier for hinTS preprocessing output votes.
+     */
     com.hedera.hapi.node.state.hints.PreprocessingVoteId HintsService_I_PREPROCESSING_VOTES = 40;
 
     /**
-     * A state identifier for history proof key sets. 
-     */    
+     * A state identifier for history proof key sets.
+     */
     com.hedera.hapi.platform.state.NodeId HistoryService_I_PROOF_KEY_SETS = 43;
 
     /**
-     * A state identifier for signatures on roster transition histories. 
-     */    
+     * A state identifier for signatures on roster transition histories.
+     */
     com.hedera.hapi.node.state.history.ConstructionNodeId HistoryService_I_HISTORY_SIGNATURES = 46;
 
     /**
-     * A state identifier for votes on history proofs. 
-     */    
+     * A state identifier for votes on history proofs.
+     */
     com.hedera.hapi.node.state.history.ConstructionNodeId HistoryService_I_PROOF_VOTES = 47;
 
     /**
-     * A state identifier for the CRS publications. 
-     */    
+     * A state identifier for the CRS publications.
+     */
     com.hedera.hapi.platform.state.NodeId HintsService_I_CRS_PUBLICATIONS = 49;
 
     /**
@@ -268,12 +274,12 @@ message StateKey {
      * Queue index for the round receipts queue.
      */
     uint64 RecordCache_I_TRANSACTION_RECEIPTS = 126;
-    
+
     /**
      * Queue index for the `150` upgrade file data.
      */
     uint64 FileService_I_UPGRADE_DATA_150 = 10001;
-    
+
     /**
      * Queue index for the `151` upgrade file data.
      */
@@ -459,6 +465,11 @@ message StateValue {
      * A state identifier for the block stream status. Singleton state.
      */
     com.hedera.hapi.node.state.blockstream.BlockStreamInfo BlockStreamService_I_BLOCK_STREAM_INFO = 24;
+
+    /**
+     * A state identifier for indirect key users.
+     */
+    proto.IndirectKeyUsersValue TokenService_I_INDIRECT_KEY_USERS = 53;
 
     /**
      * A state identifier for pending airdrops.
@@ -729,7 +740,7 @@ enum SingletonType {
    * A state identifier for the platform state. Singleton state.
    */
   PlatformStateService_I_PLATFORM_STATE = 26;
-  
+
   /**
    * A state identifier for the roster state. Singleton state.
    */
@@ -739,7 +750,7 @@ enum SingletonType {
    * A state identifier for the active hinTS construction. Singleton state.
    */
   HintsService_I_ACTIVE_HINTS_CONSTRUCTION = 38;
-  
+
   /**
    * A state identifier for the next hinTS construction. Singleton state.
    */
@@ -781,7 +792,7 @@ enum SingletonType {
    * Metadata of the round receipts queue.
    */
   RecordCache_I_TRANSACTION_RECEIPTS = 126;
-  
+
   /**
    * Metadata of the `150` upgrade file data queue.
    */

@@ -1,0 +1,24 @@
+syntax = "proto3";
+
+package proto;
+
+// SPDX-License-Identifier: Apache-2.0
+option java_package = "com.hederahashgraph.api.proto.java";
+// <<<pbj.java_package = "com.hedera.hapi.node.state.token">>> This comment is special code for setting PBJ Compiler java package
+option java_multiple_files = true;
+
+import "services/basic_types.proto";
+
+// Key for the INDIRECT_KEY_USERS KV state: (key_account_id, indirect_user_id)
+message IndirectKeyUsersKey {
+  AccountID key_account_id = 1;
+  AccountID indirect_user_id = 2;
+}
+
+// Value for the INDIRECT_KEY_USERS KV state: (prev_user_id, next_user_id)
+// Used to form a doubly-linked list of indirect users per key account
+message IndirectKeyUsersValue {
+  AccountID prev_user_id = 1;
+  AccountID next_user_id = 2;
+}
+
