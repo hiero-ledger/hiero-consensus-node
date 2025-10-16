@@ -1,2 +1,0 @@
-address, 0, node1, node1, 24999969653, node-0, 5777, node-0, 5777 
-address, 1, node2, node2, 24999920859, node-1, 5777, node-1, 5777 
