@@ -2,10 +2,10 @@
 package com.swirlds.demo.consistency;
 
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
-import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.getGlobalMetrics;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.swirlds.base.time.Time;
+import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.config.extensions.sources.SimpleConfigSource;
@@ -85,7 +85,7 @@ public class ConsistencyTestingToolMain extends DefaultSwirldMain<ConsistencyTes
     @NonNull
     public ConsistencyTestingToolState newStateRoot() {
         final ConsistencyTestingToolState state =
-                new ConsistencyTestingToolState(CONFIGURATION, getGlobalMetrics(), Time.getCurrent());
+                new ConsistencyTestingToolState(CONFIGURATION, new NoOpMetrics(), Time.getCurrent());
         TestingAppStateInitializer.initConsensusModuleStates(state, CONFIGURATION);
         return state;
     }
@@ -97,7 +97,8 @@ public class ConsistencyTestingToolMain extends DefaultSwirldMain<ConsistencyTes
     public Function<VirtualMap, ConsistencyTestingToolState> stateRootFromVirtualMap(
             @NonNull final Metrics metrics, @NonNull final Time time) {
         return virtualMap -> {
-            final ConsistencyTestingToolState state = new ConsistencyTestingToolState(virtualMap, metrics, time);
+            final ConsistencyTestingToolState state =
+                    new ConsistencyTestingToolState(virtualMap, new NoOpMetrics(), time);
             TestingAppStateInitializer.initConsensusModuleStates(state, CONFIGURATION);
             return state;
         };
