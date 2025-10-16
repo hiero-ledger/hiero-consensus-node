@@ -79,16 +79,13 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     private static final VarHandle retryStatesHandle;
     private static final VarHandle requestIndexHandle;
     private static final VarHandle sharedExecutorServiceHandle;
-    private static final VarHandle configWatcherThreadRefHandle;
-    private static final VarHandle configWatchServiceRefHandle;
     private static final VarHandle blockNodeConfigDirectoryHandle;
     private static final MethodHandle jumpToBlockIfNeededHandle;
     private static final MethodHandle processStreamingToBlockNodeHandle;
     private static final MethodHandle blockStreamWorkerLoopHandle;
     private static final MethodHandle closeAllConnectionsHandle;
-    private static final MethodHandle handleConfigFileChangeHandle;
+    private static final MethodHandle refreshAvailableBlockNodesHandle;
     private static final MethodHandle extractBlockNodesConfigurationsHandle;
-    private static final MethodHandle performInitialConfigLoadHandle;
     private static final MethodHandle startConfigWatcherHandle;
     private static final MethodHandle stopConfigWatcherHandle;
 
@@ -124,10 +121,6 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
             sharedExecutorServiceHandle = MethodHandles.privateLookupIn(BlockNodeConnectionManager.class, lookup)
                     .findVarHandle(
                             BlockNodeConnectionManager.class, "sharedExecutorService", ScheduledExecutorService.class);
-            configWatcherThreadRefHandle = MethodHandles.privateLookupIn(BlockNodeConnectionManager.class, lookup)
-                    .findVarHandle(BlockNodeConnectionManager.class, "configWatcherThreadRef", AtomicReference.class);
-            configWatchServiceRefHandle = MethodHandles.privateLookupIn(BlockNodeConnectionManager.class, lookup)
-                    .findVarHandle(BlockNodeConnectionManager.class, "configWatchServiceRef", AtomicReference.class);
             blockNodeConfigDirectoryHandle = MethodHandles.privateLookupIn(BlockNodeConnectionManager.class, lookup)
                     .findVarHandle(BlockNodeConnectionManager.class, "blockNodeConfigDirectory", Path.class);
 
@@ -151,20 +144,15 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
             closeAllConnections.setAccessible(true);
             closeAllConnectionsHandle = lookup.unreflect(closeAllConnections);
 
-            final Method handleConfigFileChange =
-                    BlockNodeConnectionManager.class.getDeclaredMethod("handleConfigFileChange");
-            handleConfigFileChange.setAccessible(true);
-            handleConfigFileChangeHandle = lookup.unreflect(handleConfigFileChange);
+            final Method refreshAvailableBlockNodes =
+                    BlockNodeConnectionManager.class.getDeclaredMethod("refreshAvailableBlockNodes");
+            refreshAvailableBlockNodes.setAccessible(true);
+            refreshAvailableBlockNodesHandle = lookup.unreflect(refreshAvailableBlockNodes);
 
             final Method extractBlockNodesConfigurations =
                     BlockNodeConnectionManager.class.getDeclaredMethod("extractBlockNodesConfigurations", String.class);
             extractBlockNodesConfigurations.setAccessible(true);
             extractBlockNodesConfigurationsHandle = lookup.unreflect(extractBlockNodesConfigurations);
-
-            final Method performInitialConfigLoad =
-                    BlockNodeConnectionManager.class.getDeclaredMethod("performInitialConfigLoad");
-            performInitialConfigLoad.setAccessible(true);
-            performInitialConfigLoadHandle = lookup.unreflect(performInitialConfigLoad);
 
             final Method startConfigWatcher = BlockNodeConnectionManager.class.getDeclaredMethod("startConfigWatcher");
             startConfigWatcher.setAccessible(true);
@@ -206,7 +194,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         // Tests that call start() will have this overwritten by a real executor.
         sharedExecutorServiceHandle.set(connectionManager, executorService);
 
-        // Clear any nodes that might have been loaded by performInitialConfigLoad()
+        // Clear any nodes that might have been loaded
         final List<BlockNodeConfig> availableNodes = availableNodes();
         availableNodes.clear();
 
@@ -513,24 +501,26 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     }
 
     @Test
-    void testStartup() {
+    void testStartup() throws IOException {
         final AtomicBoolean isActive = isActiveFlag();
         final AtomicReference<Thread> workerThreadRef = workerThread();
         isActive.set(false);
 
-        final List<BlockNodeConfig> availableNodes = availableNodes();
-        availableNodes.clear();
+        final Path file = tempDir.resolve("block-nodes.json");
+        final List<BlockNodeConfig> availableNodes = new ArrayList<>();
         availableNodes.add(newBlockNodeConfig(8080, 1));
         availableNodes.add(newBlockNodeConfig(8081, 1));
         availableNodes.add(newBlockNodeConfig(8082, 2));
         availableNodes.add(newBlockNodeConfig(8083, 3));
         availableNodes.add(newBlockNodeConfig(8084, 3));
+        BlockNodeConnectionInfo connectionInfo = new BlockNodeConnectionInfo(availableNodes);
+        final String valid = BlockNodeConnectionInfo.JSON.toJSON(connectionInfo);
+        Files.writeString(
+                file, valid, StandardCharsets.UTF_8, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
 
         assertThat(workerThreadRef).hasNullValue(); // sanity check
 
         connectionManager.start();
-
-        assertThat(workerThreadRef).doesNotHaveNullValue(); // worker thread should be spawned
 
         // start() creates a real executor, replacing the mock.
         // Verify that a connection was created and scheduled.
@@ -2273,52 +2263,8 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     }
 
     @Test
-    void testPerformInitialConfigLoad_noFile() {
-        final Path tmpDir = tempDir.resolve("perfinit-nofile");
-        try {
-            Files.createDirectories(tmpDir);
-            blockNodeConfigDirectoryHandle.set(connectionManager, tmpDir);
-            invoke_performInitialConfigLoad();
-            assertThat(availableNodes()).isEmpty();
-            assertThat(workerThread().get()).isNull();
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        } finally {
-            try {
-                Files.deleteIfExists(tmpDir);
-            } catch (final Exception ignore) {
-            }
-        }
-    }
-
-    @Test
-    void testPerformInitialConfigLoad_withValidFile_startsAndLoads() throws Exception {
-        List<BlockNodeConfig> configs = new ArrayList<>();
-        BlockNodeConfig config = BlockNodeConfig.newBuilder()
-                .address("localhost")
-                .port(8080)
-                .priority(0)
-                .build();
-        configs.add(config);
-        BlockNodeConnectionInfo connectionInfo = new BlockNodeConnectionInfo(configs);
-        final String json = BlockNodeConnectionInfo.JSON.toJSON(connectionInfo);
-        Files.writeString(
-                tempDir.resolve("block-nodes.json"),
-                json,
-                StandardCharsets.UTF_8,
-                StandardOpenOption.CREATE,
-                StandardOpenOption.TRUNCATE_EXISTING);
-
-        beforeEach();
-        isActiveFlag().set(false);
-        workerThread().set(null);
-        invoke_performInitialConfigLoad();
-        assertThat(availableNodes()).hasSize(1);
-        assertThat(workerThread().get()).isNotNull();
-    }
-
-    @Test
     void testStartConfigWatcher_reactsToCreateModifyDelete() throws Exception {
+        connectionManager.start();
         final Path file = tempDir.resolve("block-nodes.json");
         List<BlockNodeConfig> configs = new ArrayList<>();
         BlockNodeConfig config = BlockNodeConfig.newBuilder()
@@ -2518,7 +2464,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
     private void invoke_refreshAvailableBlockNodes() {
         try {
-            handleConfigFileChangeHandle.invoke(connectionManager);
+            refreshAvailableBlockNodesHandle.invoke(connectionManager);
         } catch (final Throwable e) {
             throw new RuntimeException(e);
         }
@@ -2528,30 +2474,6 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     private List<BlockNodeConfig> invoke_extractBlockNodesConfigurations(String path) {
         try {
             return (List<BlockNodeConfig>) extractBlockNodesConfigurationsHandle.invoke(connectionManager, path);
-        } catch (final Throwable e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    private void invoke_performInitialConfigLoad() {
-        try {
-            performInitialConfigLoadHandle.invoke(connectionManager);
-        } catch (final Throwable e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    private void invoke_startConfigWatcher() {
-        try {
-            startConfigWatcherHandle.invoke(connectionManager);
-        } catch (final Throwable e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    private void invoke_stopConfigWatcher() {
-        try {
-            stopConfigWatcherHandle.invoke(connectionManager);
         } catch (final Throwable e) {
             throw new RuntimeException(e);
         }
