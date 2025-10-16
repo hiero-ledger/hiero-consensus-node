@@ -39,6 +39,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ADMIN_
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_GOSSIP_CA_CERTIFICATE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_IPV4_ADDRESS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_NODE_ACCOUNT;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_NODE_ACCOUNT_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_NODE_DESCRIPTION;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_NODE_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SERVICE_ENDPOINT;
@@ -197,7 +198,7 @@ public class NodeUpdateTest {
     @LeakyEmbeddedHapiTest(
             reason = NEEDS_STATE_ACCESS,
             overrides = {"nodes.updateAccountIdAllowed"})
-    final Stream<DynamicTest> updateAccountIdWithSentinelRequiredSignatures() {
+    final Stream<DynamicTest> updateAccountIdRequiredSignatures() {
         final AccountID sentinelValue = AccountID.newBuilder()
                 .setShardNum(0)
                 .setRealmNum(0)
@@ -221,24 +222,32 @@ public class NodeUpdateTest {
                         throw new RuntimeException(e);
                     }
                 }),
-                // no admin key or old node account key fails
+                // signed with correct sig fails if account is sentinel
                 nodeUpdate("testNode")
                         .fullAccountId(sentinelValue)
                         .payingWith(DEFAULT_PAYER)
-                        .signedBy(DEFAULT_PAYER)
-                        .hasPrecheck(INVALID_SIGNATURE),
-                // signed by old node account key works
-                nodeUpdate("testNode")
-                        .fullAccountId(sentinelValue)
-                        .payingWith(DEFAULT_PAYER)
-                        .signedByPayerAnd("initialNodeAccount"),
-                viewNode("testNode", node -> assertEquals(node.accountId(), toPbj(sentinelValue))),
-                // update to new account when node account is null works with admin key and new account key
+                        .signedByPayerAnd("initialNodeAccount")
+                        .hasPrecheck(INVALID_NODE_ACCOUNT_ID),
+                // signed with correct sig passes if account is valid
                 nodeUpdate("testNode")
                         .accountId("newAccount")
                         .payingWith(DEFAULT_PAYER)
                         .signedByPayerAnd("adminKey", "newAccount"),
-                viewNode("testNode", node -> assertEquals(toPbj(newAccountId.get()), node.accountId())));
+                viewNode("testNode", node -> assertEquals(toPbj(newAccountId.get()), node.accountId())),
+                // signed without adminKey works if only updating accountId
+                nodeUpdate("testNode")
+                        .accountId("initialNodeAccount")
+                        .payingWith(DEFAULT_PAYER)
+                        .signedByPayerAnd("newAccount", "initialNodeAccount"),
+                viewNode("testNode", node -> assertEquals(toPbj(initialNodeAccountId.get()), node.accountId())),
+                // signed without adminKey fails if updating other fields too
+                nodeUpdate("testNode")
+                        .accountId("newAccount")
+                        .description("updatedNode")
+                        .payingWith(DEFAULT_PAYER)
+                        .signedByPayerAnd("initialNodeAccount", "newAccount")
+                        .hasPrecheck(INVALID_SIGNATURE),
+                viewNode("testNode", node -> assertEquals(toPbj(initialNodeAccountId.get()), node.accountId())));
     }
 
     @LeakyEmbeddedHapiTest(
