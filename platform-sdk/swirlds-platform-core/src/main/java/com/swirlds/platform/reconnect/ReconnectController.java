@@ -50,7 +50,7 @@ import org.hiero.consensus.roster.RosterRetriever;
  * Orchestrates the reconnect process when a node falls behind.
  *
  * <p>Once started the controller runs in a continuous loop, waiting for the node to fall behind, then attempting
- * reconnect until successful or until configured thresholds are exceeded. Each reconnect attempt involves
+ * to reconnect until successful or until configured thresholds are exceeded. Each reconnect attempt involves
  * preparing the current state, obtaining a new state from a peer, validating it, and loading it into
  * the platform components.
  *
@@ -152,9 +152,8 @@ public class ReconnectController {
      *   <li>Coordinating platform state transitions during reconnect (BEHIND -> RECONNECT COMPLETE -> CHECKING)</li>
      *   <li>Operates the platform to prepare for reconnect ( pausing gossip, flush and clearing queues)</li>
      *   <li>Acquiring and validating signed states from peer nodes</li>
-     *   <li>Loading the validated state into the platform to bring the node back into sync</li>
+     *   <li>Loading the validated state into the platform</li>
      *   <li>Managing retry logic with configurable limits</li>
-     *   <li>Enforcing reconnect policies (time windows, maximum failures) and terminating the node when necessary</li>
      * </ul>
      */
     public void start() {
@@ -171,6 +170,7 @@ public class ReconnectController {
                     logger.info(RECONNECT.getMarker(), "Reconnect failed, retrying");
                     Thread.sleep(reconnectConfig.minimumTimeBetweenReconnects().toMillis());
                 }
+                // reset the monitor to the initial state
                 fallenBehindMonitor.reset();
             }
         } catch (final RuntimeException | InterruptedException e) {
@@ -195,7 +195,7 @@ public class ReconnectController {
         // reservedStateResource is a blocking data structure that will provide a signed state from one of the peers
         // At the same time this code is evaluated, the StateSyncProtocol is being executed
         // which will select a peer to receive a state (only one from all the ones that reported we are behind)
-        // Once the trasnsfered is complete this peerReservedSignedStatePromise will be notified and this code will be
+        // Once the transferred is complete this peerReservedSignedStatePromise will be notified and this code will be
         // unblocked
         try (final LockedResource<ReservedSignedState> reservedStateResource =
                         requireNonNull(peerReservedSignedStatePromise.await());

@@ -355,7 +355,8 @@ public class SyncNode {
         private boolean fallenBehind = false;
 
         @Override
-        public synchronized FallenBehindStatus check(EventWindow self, EventWindow other, NodeId peer) {
+        public synchronized FallenBehindStatus check(
+                @NonNull EventWindow self, @NonNull EventWindow other, @NonNull NodeId peer) {
             final var status = FallenBehindStatus.getStatus(self, other);
             fallenBehind = FallenBehindStatus.getStatus(self, other)
                     == com.swirlds.platform.reconnect.FallenBehindStatus.SELF_FALLEN_BEHIND;
@@ -366,7 +367,7 @@ public class SyncNode {
         public synchronized void update(@NonNull final Set<NodeId> added, @NonNull final Set<NodeId> removed) {}
 
         @Override
-        public boolean wasReportedByPeer(@NonNull final NodeId peerId) {
+        public boolean isBehindPeer(@NonNull final NodeId peerId) {
             return false;
         }
 

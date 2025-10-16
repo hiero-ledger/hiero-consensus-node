@@ -23,8 +23,8 @@ public interface Gossip {
      * @param eventInput          the input wire for events, events sent here should be gossiped to the network
      * @param eventWindowInput    the input wire for the current event window
      * @param eventOutput         the output wire for events received from peers during gossip
-     * @param startInput          used to tell gossip to start
-     * @param stopInput           used to tell gossip to stop
+     * @param startInput          tells gossip to start
+     * @param stopInput           tell gossip to stop
      * @param clearInput          used to tell gossip to clear its internal state
      * @param pauseInput          used to tell gossip to pause its activities
      * @param resumeInput         used to tell gossip to resume its activities

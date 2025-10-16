@@ -124,21 +124,20 @@ public class FallenBehindMonitor {
     }
 
     /**
-     * Should I attempt a reconnect with this neighbor?
+     * is the local node behind from the peer's perspective?
      *
-     * @param peerId the ID of the neighbor
-     * @return true if I should attempt a reconnect
+     * @param peerId the ID of the peer
+     * @return true if it was detected that the local node is behind
      */
-    public boolean wasReportedByPeer(@NonNull final NodeId peerId) {
+    public boolean isBehindPeer(@NonNull final NodeId peerId) {
         synchronized (this) {
-            // if this neighbor has told me I have fallen behind, I will reconnect with him
+            // if this peer has told me I have fallen behind, I will reconnect with him
             return reportFallenBehind.contains(peerId);
         }
     }
 
     /**
-     * We have determined that we have not fallen behind, or we have reconnected, so reset everything to the initial
-     * state
+     * Reset everything to the initial state
      */
     public synchronized void reset() {
         reportFallenBehind.clear();
@@ -152,6 +151,10 @@ public class FallenBehindMonitor {
         return reportFallenBehind.size();
     }
 
+    /**
+     * This method blocks the thread until the monitor detects that the local node has fallen behind.
+     * It releases all waiting threads as soon as the condition becomes true.
+     */
     public void awaitFallenBehind() throws InterruptedException {
         synchronized (this) {
             while (!isBehind) {
@@ -161,11 +164,11 @@ public class FallenBehindMonitor {
     }
 
     /**
-     * checks if we have fallen behind with respect to this peer.
+     * Checks if we have fallen behind with respect to this peer and updates the internal status accordingly.
      *
-     * @param self                            our event window
-     * @param other                           their event window
-     * @param peer                          node id against which we have fallen behind
+     * @param self local node event window
+     * @param other peer's event window
+     * @param peer node id against which we have fallen behind
      * @return status about who has fallen behind
      */
     public FallenBehindStatus check(

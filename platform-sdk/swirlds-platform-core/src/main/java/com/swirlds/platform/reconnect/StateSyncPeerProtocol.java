@@ -93,7 +93,7 @@ public class StateSyncPeerProtocol implements PeerProtocol {
      * @param lastCompleteSignedState    provides the latest completely signed state
      * @param reconnectSocketTimeout     the socket timeout to use when executing a reconnect
      * @param reconnectMetrics           tracks reconnect metrics
-     * @param fallenBehindMonitor        maintains this node's behind status
+     * @param fallenBehindMonitor        an instance of the fallenBehind Monitor which tracks if the node has fallen behind
      * @param platformStatusSupplier     provides the platform status
      * @param time                       the time object to use
      * @param platformStateFacade        provides access to the platform state
@@ -161,7 +161,7 @@ public class StateSyncPeerProtocol implements PeerProtocol {
         if (!fallenBehindMonitor.hasFallenBehind()) {
             return false;
         }
-        if (!fallenBehindMonitor.wasReportedByPeer(peerId)) {
+        if (!fallenBehindMonitor.isBehindPeer(peerId)) {
             return false;
         }
 
