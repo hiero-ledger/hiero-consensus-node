@@ -33,19 +33,18 @@ If no dynamic labels are defined for the metric, then it will have a single data
 Supported metric types are defined by enum [MetricType](../src/main/java/org/hiero/metrics/api/core/MetricType.java)
 Here is the table of all metrics available to use:
 
-|                                          Metric                                          |   Type   |                                                            Description                                                             |
-|------------------------------------------------------------------------------------------|----------|------------------------------------------------------------------------------------------------------------------------------------|
-| [LongCounter](../src/main/java/org/hiero/metrics/api/LongCounter.java)                   | Counter  | Allows to increment `long` (only increasing), should be used also for lower types like `integer`.                                  |
-| [DoubleCounter](../src/main/java/org/hiero/metrics/api/DoubleCounter.java)               | Counter  | Allows to increment `double` (only increasing).                                                                                    |
-| [StatelessMetric](../src/main/java/org/hiero/metrics/api/StatelessMetric.java)           | Gauge    | Requires zero ore more `DoubleSupplier` (with optional lables), which will be called on export.                                    |
-| [BooleanGauge](../src/main/java/org/hiero/metrics/api/BooleanGauge.java)                 | Gauge    | Allows to set single `boolean` value.                                                                                              |
-| [LongGauge](../src/main/java/org/hiero/metrics/api/LongGauge.java)                       | Gauge    | Gauge to observe and store `long`. May have an accumulator applied to previous and observed values.                                |
-| [DoubleGauge](../src/main/java/org/hiero/metrics/api/DoubleGauge.java)                   | Gauge    | Gauge to observe and store `double`. May have an accumulator applied to previous and observed values.                              |
-| [GenericGauge](../src/main/java/org/hiero/metrics/api/GenericGauge.java)                 | Gauge    | Parametrized generic gauge that allows to observe any non-primitive type and has a converter to `double` for exporting.            |
-| [GaugeAdapter](../src/main/java/org/hiero/metrics/api/GaugeAdapter.java)                 | Gauge    | A gauge to adapt to any external class that is used to observe and hold a single value. Parametrized with external datapoint type. |
-| [StatsGaugeAdapter](../src/main/java/org/hiero/metrics/api/StatsGaugeAdapter.java)       | Gauge    | Similar to GaugeAdapter, but for multiple numeric values - usually different stats on same observation.                            |
-| [DoubleGaugeComposite](../src/main/java/org/hiero/metrics/api/DoubleGaugeComposite.java) | Gauge    | Similar to DoubleGauge, but for storing mutiple aggregated values that are updated on single observation.                          |
-| [StateSet](../src/main/java/org/hiero/metrics/api/StateSet.java)                         | StateSet | Allows for enabling/disabling states defined by enum type.                                                                         |
+|                                       Metric                                       |   Type   |                                                            Description                                                             |
+|------------------------------------------------------------------------------------|----------|------------------------------------------------------------------------------------------------------------------------------------|
+| [LongCounter](../src/main/java/org/hiero/metrics/api/LongCounter.java)             | Counter  | Allows to increment `long` (only increasing), should be used also for lower types like `integer`.                                  |
+| [DoubleCounter](../src/main/java/org/hiero/metrics/api/DoubleCounter.java)         | Counter  | Allows to increment `double` (only increasing).                                                                                    |
+| [StatelessMetric](../src/main/java/org/hiero/metrics/api/StatelessMetric.java)     | Gauge    | Requires zero ore more `DoubleSupplier` (with optional lables), which will be called on export.                                    |
+| [BooleanGauge](../src/main/java/org/hiero/metrics/api/BooleanGauge.java)           | Gauge    | Allows to set single `boolean` value.                                                                                              |
+| [LongGauge](../src/main/java/org/hiero/metrics/api/LongGauge.java)                 | Gauge    | Gauge to observe and store `long`. May have an accumulator applied to previous and observed values.                                |
+| [DoubleGauge](../src/main/java/org/hiero/metrics/api/DoubleGauge.java)             | Gauge    | Gauge to observe and store `double`. May have an accumulator applied to previous and observed values.                              |
+| [GenericGauge](../src/main/java/org/hiero/metrics/api/GenericGauge.java)           | Gauge    | Parametrized generic gauge that allows to observe any non-primitive type and has a converter to `double` or `long` for exporting.  |
+| [GaugeAdapter](../src/main/java/org/hiero/metrics/api/GaugeAdapter.java)           | Gauge    | A gauge to adapt to any external class that is used to observe and hold a single value. Parametrized with external datapoint type. |
+| [StatsGaugeAdapter](../src/main/java/org/hiero/metrics/api/StatsGaugeAdapter.java) | Gauge    | Similar to GaugeAdapter, but for multiple numeric values - usually different stats on same observation.                            |
+| [StateSet](../src/main/java/org/hiero/metrics/api/StateSet.java)                   | StateSet | Allows for enabling/disabling states defined by enum type.                                                                         |
 
 There is also package `org.hiero.metrics.api.stat` that contains custom statistical metrics build on top of the above metrics.
 
