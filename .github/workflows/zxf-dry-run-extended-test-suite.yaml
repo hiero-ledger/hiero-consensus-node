@@ -98,7 +98,6 @@ jobs:
         run: |
           echo "solo-version=${{ fromJson(inputs.additional-parameters).solo-version || '' }}" >> "${GITHUB_OUTPUT}"
           echo "helm-release-name=${{ fromJson(inputs.additional-parameters).helm-release || '' }}" >> "${GITHUB_OUTPUT}"
-          
 
   xts-timing-sensitive-tests:
     name: XTS Timing Sensitive Tests
