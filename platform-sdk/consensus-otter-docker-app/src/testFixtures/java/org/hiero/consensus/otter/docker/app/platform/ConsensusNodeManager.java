@@ -148,7 +148,7 @@ public class ConsensusNodeManager {
                         initialState,
                         otterApp,
                         legacySelfId,
-                        selfId.toString(),
+                        Long.toString(selfId.id()),
                         rosterHistory,
                         platformStateFacade,
                         virtualMap -> new OtterAppState(virtualMap, metrics, time))

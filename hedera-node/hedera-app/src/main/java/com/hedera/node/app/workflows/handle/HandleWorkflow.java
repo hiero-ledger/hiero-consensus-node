@@ -40,11 +40,11 @@ import com.hedera.node.app.hints.impl.ReadableHintsStoreImpl;
 import com.hedera.node.app.hints.impl.WritableHintsStoreImpl;
 import com.hedera.node.app.history.HistoryService;
 import com.hedera.node.app.history.impl.WritableHistoryStoreImpl;
-import com.hedera.node.app.ids.EntityIdService;
-import com.hedera.node.app.ids.WritableEntityIdStore;
 import com.hedera.node.app.info.CurrentPlatformStatus;
 import com.hedera.node.app.records.BlockRecordManager;
 import com.hedera.node.app.records.BlockRecordService;
+import com.hedera.node.app.service.entityid.EntityIdService;
+import com.hedera.node.app.service.entityid.impl.WritableEntityIdStoreImpl;
 import com.hedera.node.app.service.roster.RosterService;
 import com.hedera.node.app.service.roster.impl.ActiveRosters;
 import com.hedera.node.app.service.schedule.ExecutableTxn;
@@ -80,7 +80,6 @@ import com.hedera.node.config.data.ConsensusConfig;
 import com.hedera.node.config.data.SchedulingConfig;
 import com.hedera.node.config.data.TssConfig;
 import com.hedera.node.config.types.StreamMode;
-import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.service.PlatformStateService;
 import com.swirlds.platform.state.service.ReadablePlatformStateStore;
@@ -526,7 +525,7 @@ public class HandleWorkflow {
                             networkInfo,
                             configProvider.getConfiguration(),
                             new WritableStakingInfoStore(
-                                    writableTokenStates, new WritableEntityIdStore(writableEntityIdStates)),
+                                    writableTokenStates, new WritableEntityIdStoreImpl(writableEntityIdStates)),
                             new WritableNetworkStakingRewardsStore(writableTokenStates)));
             if (streamMode == RECORDS) {
                 // Only update this if we are relying on RecordManager state for post-upgrade processing
@@ -630,7 +629,7 @@ public class HandleWorkflow {
                     : blockStreamManager.lastUsedConsensusTime();
             var nextTime = lastTime.plusNanos(consensusConfig.handleMaxPrecedingRecords() + 1);
             final var entityIdWritableStates = state.getWritableStates(EntityIdService.NAME);
-            final var writableEntityIdStore = new WritableEntityIdStore(entityIdWritableStates);
+            final var writableEntityIdStore = new WritableEntityIdStoreImpl(entityIdWritableStates);
             // Now we construct the iterator and start executing transactions in the longest permitted
             // interval; this is constrained by `scheduling.maxExpirySecsToCheckPerUserTxn` so that in
             // test environments where we restart from a state with last consensus time T and begin
@@ -889,7 +888,7 @@ public class HandleWorkflow {
                     // When not using history proofs, completing a weight rotation is also immediately actionable
                     final var rosterStore = new ReadableRosterStoreImpl(state.getReadableStates(RosterService.NAME));
                     if (rosterStore.candidateIsWeightRotation()) {
-                        hintsService.manageRosterAdoption(
+                        hintsService.handoff(
                                 hintsStore,
                                 requireNonNull(rosterStore.getActiveRoster()),
                                 requireNonNull(rosterStore.getCandidateRoster()),
@@ -898,33 +897,39 @@ public class HandleWorkflow {
                     }
                 }
             });
-        }
-        if (tssConfig.historyEnabled()) {
-            historyService.onFinishedConstruction((historyStore, construction) -> {
-                if (historyStore.getActiveConstruction().constructionId() == construction.constructionId()) {
-                    // History service has no other action to take on finishing the genesis construction
-                    return;
-                }
-                final var rosterStore = new ReadableRosterStoreImpl(state.getReadableStates(RosterService.NAME));
-                if (rosterStore.candidateIsWeightRotation()) {
-                    historyStore.handoff(
-                            requireNonNull(rosterStore.getActiveRoster()),
-                            requireNonNull(rosterStore.getCandidateRoster()),
-                            requireNonNull(rosterStore.getCandidateRosterHash()));
-                    if (tssConfig.hintsEnabled()) {
+            if (tssConfig.historyEnabled()) {
+                historyService.onFinishedConstruction((historyStore, construction) -> {
+                    final var rosterStore = new ReadableRosterStoreImpl(state.getReadableStates(RosterService.NAME));
+                    if (historyStore.getActiveConstruction().constructionId() == construction.constructionId()) {
+                        // We just finished the genesis proof, so we use it immediately
+                        final var proof = construction.targetProofOrThrow();
+                        historyService.setLatestHistoryProof(proof);
+                        // And set the ledger id
+                        final var ledgerId = proof.targetHistoryOrThrow().addressBookHash();
+                        historyStore.setLedgerId(ledgerId);
+                        logger.info("Set ledger id to '{}'", ledgerId);
+                        return;
+                    }
+                    if (rosterStore.candidateIsWeightRotation()) {
+                        historyStore.handoff(
+                                requireNonNull(rosterStore.getActiveRoster()),
+                                requireNonNull(rosterStore.getCandidateRoster()),
+                                requireNonNull(rosterStore.getCandidateRosterHash()));
+                        // Make sure we include the latest chain-of-trust proof in following block proofs
+                        historyService.setLatestHistoryProof(construction.targetProofOrThrow());
                         final var writableHintsStates = state.getWritableStates(HintsService.NAME);
                         final var writableEntityStates = state.getWritableStates(EntityIdService.NAME);
-                        final var entityCounters = new WritableEntityIdStore(writableEntityStates);
+                        final var entityCounters = new WritableEntityIdStoreImpl(writableEntityStates);
                         final var hintsStore = new WritableHintsStoreImpl(writableHintsStates, entityCounters);
-                        hintsService.manageRosterAdoption(
+                        hintsService.handoff(
                                 hintsStore,
                                 requireNonNull(rosterStore.getActiveRoster()),
                                 requireNonNull(rosterStore.getCandidateRoster()),
                                 requireNonNull(rosterStore.getCandidateRosterHash()),
                                 tssConfig.forceHandoffs());
                     }
-                }
-            });
+                });
+            }
         }
     }
 
@@ -940,7 +945,7 @@ public class HandleWorkflow {
         final var tssConfig = configProvider.getConfiguration().getConfigData(TssConfig.class);
         if (tssConfig.hintsEnabled() || tssConfig.historyEnabled()) {
             final var rosterStore = new ReadableRosterStoreImpl(state.getReadableStates(RosterService.NAME));
-            final var entityCounters = new WritableEntityIdStore(state.getWritableStates(EntityIdService.NAME));
+            final var entityCounters = new WritableEntityIdStoreImpl(state.getWritableStates(EntityIdService.NAME));
             final var activeRosters = ActiveRosters.from(rosterStore);
             final var isActive = currentPlatformStatus.get() == ACTIVE;
             if (tssConfig.hintsEnabled()) {
@@ -962,24 +967,31 @@ public class HandleWorkflow {
                                 roundTimestamp,
                                 tssConfig,
                                 isActive));
-            }
-            if (tssConfig.historyEnabled()) {
-                final Bytes currentMetadata = tssConfig.hintsEnabled()
-                        ? new ReadableHintsStoreImpl(state.getReadableStates(HintsService.NAME), entityCounters)
-                                .getActiveVerificationKey()
-                        : HintsService.DISABLED_HINTS_METADATA;
-                final var historyWritableStates = state.getWritableStates(HistoryService.NAME);
-                final var historyStore = new WritableHistoryStoreImpl(historyWritableStates);
-                doStreamingKVChanges(
-                        historyWritableStates,
-                        null,
-                        () -> historyService.reconcile(
-                                activeRosters,
-                                currentMetadata,
-                                historyStore,
-                                blockStreamManager.lastUsedConsensusTime(),
-                                tssConfig,
-                                isActive));
+                if (tssConfig.historyEnabled()) {
+                    final var historyWritableStates = state.getWritableStates(HistoryService.NAME);
+                    final var hintsStore = new ReadableHintsStoreImpl(hintsWritableStates, entityCounters);
+                    final var historyStore = new WritableHistoryStoreImpl(historyWritableStates);
+                    // If we are doing a chain-of-trust proof, this is the verification key we are proving;
+                    // at genesis, the active construction's key---otherwise, the next construction's key
+                    final var vk = Optional.ofNullable(
+                                    historyStore.getLedgerId() == null
+                                            ? hintsStore.getActiveConstruction().hintsScheme()
+                                            : hintsStore.getNextConstruction().hintsScheme())
+                            .map(s -> s.preprocessedKeysOrThrow().verificationKey())
+                            .orElse(null);
+                    // If applicable, this is the verification key that needs a chain-of-trust proof
+                    doStreamingKVChanges(
+                            historyWritableStates,
+                            null,
+                            () -> historyService.reconcile(
+                                    activeRosters,
+                                    vk,
+                                    historyStore,
+                                    blockStreamManager.lastUsedConsensusTime(),
+                                    tssConfig,
+                                    isActive,
+                                    hintsService.activeConstruction()));
+                }
             }
         }
     }

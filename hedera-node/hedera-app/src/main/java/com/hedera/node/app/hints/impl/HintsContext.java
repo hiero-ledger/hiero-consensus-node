@@ -45,9 +45,6 @@ public class HintsContext {
     private final HintsLibrary library;
 
     @Nullable
-    private Bytes crs;
-
-    @Nullable
     private HintsConstruction construction;
 
     @Nullable
@@ -58,14 +55,6 @@ public class HintsContext {
     @Inject
     public HintsContext(@NonNull final HintsLibrary library) {
         this.library = requireNonNull(library);
-    }
-
-    /**
-     * Set the CRS in use for this signing context.
-     * @param crs the CRS to use
-     */
-    public void setCrs(@NonNull final Bytes crs) {
-        this.crs = requireNonNull(crs);
     }
 
     /**
@@ -133,6 +122,14 @@ public class HintsContext {
     public long constructionIdOrThrow() {
         throwIfNotReady();
         return requireNonNull(construction).constructionId();
+    }
+
+    /**
+     * Returns the active construction, or null if none is active (at genesis).
+     * @return the active construction
+     */
+    public @Nullable HintsConstruction activeConstruction() {
+        return construction;
     }
 
     /**
@@ -208,7 +205,6 @@ public class HintsContext {
      */
     public class Signing {
         private final long thresholdWeight;
-        private final Bytes blockHash;
         private final Bytes aggregationKey;
         private final Bytes verificationKey;
         private final Map<Long, Long> nodeWeights;
@@ -228,7 +224,6 @@ public class HintsContext {
                 @NonNull final Runnable onCompletion) {
             this.thresholdWeight = thresholdWeight;
             requireNonNull(onCompletion);
-            this.blockHash = requireNonNull(blockHash);
             this.aggregationKey = requireNonNull(aggregationKey);
             this.partyIds = requireNonNull(partyIds);
             this.nodeWeights = requireNonNull(nodeWeights);
@@ -256,6 +251,13 @@ public class HintsContext {
          */
         public CompletableFuture<Bytes> future() {
             return future;
+        }
+
+        /**
+         * The verification key of the hinTS scheme being used for the signing attempt.
+         */
+        public Bytes verificationKey() {
+            return verificationKey;
         }
 
         /**

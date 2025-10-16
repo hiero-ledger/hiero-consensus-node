@@ -8,7 +8,6 @@ import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.collectingAndThen;
 import static java.util.stream.Collectors.toList;
 import static org.apache.logging.log4j.Level.DEBUG;
-import static org.apache.logging.log4j.Level.ERROR;
 import static org.apache.logging.log4j.Level.INFO;
 import static org.apache.logging.log4j.Level.TRACE;
 import static org.apache.logging.log4j.Level.WARN;
@@ -1514,7 +1513,7 @@ public class BlockNodeConnectionManager {
                     ipAsInteger);
         } catch (final IOException e) {
             logWithContext(
-                    ERROR, "Failed to resolve block node host ({}:{})", nodeConfig.address(), nodeConfig.port(), e);
+                    DEBUG, "Failed to resolve block node host ({}:{})", nodeConfig.address(), nodeConfig.port(), e);
             ipAsInteger = -1L;
         }
 

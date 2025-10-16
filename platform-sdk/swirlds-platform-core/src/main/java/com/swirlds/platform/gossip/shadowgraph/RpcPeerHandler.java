@@ -221,6 +221,10 @@ public class RpcPeerHandler implements GossipRpcReceiver {
     @Override
     public void receiveTips(@NonNull final List<Boolean> remoteTipKnowledge) {
 
+        if (state.remoteSyncData == null) {
+            throw new IllegalStateException("Need sync data before receiving tips from " + peerId);
+        }
+
         // Add each tip they know to the known set
         final List<ShadowEvent> knownTips = getMyTipsTheyKnow(peerId, state.myTips, remoteTipKnowledge);
 
