@@ -7,7 +7,7 @@ import static org.hiero.consensus.model.status.PlatformStatus.OBSERVING;
 import static org.hiero.consensus.model.status.PlatformStatus.REPLAYING_EVENTS;
 import static org.hiero.otter.fixtures.OtterAssertions.assertThat;
 import static org.hiero.otter.fixtures.assertions.StatusProgressionStep.target;
-import static org.hiero.otter.fixtures.tools.GenerateStateTool.SEED;
+import static org.hiero.otter.fixtures.tools.GenerateStateTool.MIGRATION_TEST_SEED;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -38,7 +38,7 @@ public class StartFromStateTest {
      */
     @OtterTest
     @OtterSpecs(randomNodeIds = false)
-    @TurtleSpecs(randomSeed = SEED)
+    @TurtleSpecs(randomSeed = MIGRATION_TEST_SEED)
     @ParameterizedTest
     @ValueSource(
             ints = {
