@@ -124,6 +124,10 @@ import com.swirlds.state.test.fixtures.MapReadableKVState;
 import com.swirlds.state.test.fixtures.MapReadableStates;
 import com.swirlds.state.test.fixtures.MapWritableKVState;
 import com.swirlds.state.test.fixtures.MapWritableStates;
+import com.swirlds.state.test.fixtures.ListWritableQueueState;
+import com.hedera.node.app.systemtask.SystemTaskService;
+import com.hedera.node.app.systemtask.schemas.V0690SystemTaskSchema;
+import com.hedera.hapi.node.state.systemtask.SystemTask;
 import com.swirlds.state.test.fixtures.StateTestBase;
 import java.lang.reflect.InvocationTargetException;
 import java.time.Instant;
@@ -271,6 +275,13 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
     private StoreFactoryImpl storeFactory;
     private DispatchHandleContext subject;
 
+    // Backing queue for SystemTaskService so tests can observe enqueued tasks
+    private final ListWritableQueueState<SystemTask> systemTaskQueue =
+            ListWritableQueueState.<SystemTask>builder(
+                            V0690SystemTaskSchema.SYSTEM_TASK_QUEUE_STATE_ID,
+                            V0690SystemTaskSchema.SYSTEM_TASK_QUEUE_STATE_LABEL)
+                    .build();
+
     private static final AccountID payerId = ALICE.accountID();
     private static final CryptoTransferTransactionBody transferBody = CryptoTransferTransactionBody.newBuilder()
             .tokenTransfers(TokenTransferList.newBuilder()
@@ -308,9 +319,12 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
         readableStoreFactory = new ReadableStoreFactory(baseState);
         apiFactory = new ServiceApiFactory(stack, configuration, Map.of());
         storeFactory = new StoreFactoryImpl(readableStoreFactory, writableStoreFactory, apiFactory);
-        subject = createContext(txBody);
 
+        // Important: mock stack states needed by DispatchHandleContext constructor
         mockNeeded();
+
+        // Now it is safe to create the subject, since constructor accesses stack writable states
+        subject = createContext(txBody);
     }
 
     @Test
@@ -347,6 +361,18 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
     }
 
     @Test
+    void offersSystemTaskToQueue() {
+        final var context = createContext(txBody);
+        final var task = SystemTask.newBuilder()
+                .keyPropagation(com.hedera.hapi.node.state.systemtask.KeyPropagation.newBuilder().build())
+                .build();
+
+        context.offerSystemTask(task);
+
+        // Verify the task is now at the head of the underlying queue
+        assertThat(systemTaskQueue.peek()).isEqualTo(task);
+    }
+
     void dispatchComputeFeesDelegatesWithBodyAndNotFree() {
         given(dispatcher.dispatchComputeFees(any())).willReturn(FEES);
         assertThat(subject.dispatchComputeFees(CRYPTO_TRANSFER_TXN_BODY, PAYER_ACCOUNT_ID))
@@ -868,6 +894,13 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
         lenient().when(stack.getReadableStates(TokenService.NAME)).thenReturn(defaultTokenReadableStates());
         lenient().when(exchangeRateManager.exchangeRateInfo(any())).thenReturn(exchangeRateInfo);
         given(baseState.getWritableStates(TokenService.NAME)).willReturn(writableStates);
+        // Provide a writable SystemTask queue state for the context to bind SystemTasks API
+        lenient()
+                .when(stack.getWritableStates(SystemTaskService.NAME))
+                .thenReturn(MapWritableStates.builder()
+                        .state(systemTaskQueue)
+                        .build());
+
         given(baseState.getReadableStates(TokenService.NAME)).willReturn(defaultTokenReadableStates());
         given(baseState.getReadableStates(EntityIdService.NAME)).willReturn(writableStates);
     }
