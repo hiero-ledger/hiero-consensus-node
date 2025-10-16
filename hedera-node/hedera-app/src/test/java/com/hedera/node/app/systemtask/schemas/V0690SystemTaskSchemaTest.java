@@ -39,7 +39,8 @@ class V0690SystemTaskSchemaTest {
         final var queueId = V0690SystemTaskSchema.SYSTEM_TASK_QUEUE_STATE_ID;
         final var label = V0690SystemTaskSchema.SYSTEM_TASK_QUEUE_STATE_LABEL;
 
-        final var q = new com.swirlds.state.test.fixtures.ListWritableQueueState<SystemTask>(queueId, label, new java.util.LinkedList<>());
+        final var q = new com.swirlds.state.test.fixtures.ListWritableQueueState<SystemTask>(
+                queueId, label, new java.util.LinkedList<>());
         // Enqueue
         q.add(a);
         q.add(b);
@@ -49,4 +50,3 @@ class V0690SystemTaskSchemaTest {
         assertThat(q.poll()).isNull();
     }
 }
-

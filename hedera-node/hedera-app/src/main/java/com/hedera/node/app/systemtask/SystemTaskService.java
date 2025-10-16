@@ -23,4 +23,3 @@ public final class SystemTaskService implements Service {
         registry.register(new V0690SystemTaskSchema());
     }
 }
-

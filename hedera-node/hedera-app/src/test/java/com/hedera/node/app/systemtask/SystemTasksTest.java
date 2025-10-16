@@ -20,8 +20,12 @@ class SystemTasksTest {
                 SYSTEM_TASK_QUEUE_STATE_ID, SYSTEM_TASK_QUEUE_STATE_LABEL, new java.util.LinkedList<>());
         final var api = new SystemTasksImpl(q);
 
-        final var a = SystemTask.newBuilder().keyPropagation(KeyPropagation.newBuilder().build()).build();
-        final var b = SystemTask.newBuilder().keyPropagation(KeyPropagation.newBuilder().build()).build();
+        final var a = SystemTask.newBuilder()
+                .keyPropagation(KeyPropagation.newBuilder().build())
+                .build();
+        final var b = SystemTask.newBuilder()
+                .keyPropagation(KeyPropagation.newBuilder().build())
+                .build();
 
         api.offer(a);
         api.offer(b);
@@ -36,4 +40,3 @@ class SystemTasksTest {
         assertThat(api.poll()).isEmpty();
     }
 }
-

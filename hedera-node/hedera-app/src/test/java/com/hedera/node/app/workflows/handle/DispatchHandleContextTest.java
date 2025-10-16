@@ -61,6 +61,7 @@ import com.hedera.hapi.node.consensus.ConsensusSubmitMessageTransactionBody;
 import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.entity.EntityCounts;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
+import com.hedera.hapi.node.state.systemtask.SystemTask;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.hapi.node.transaction.SignedTransaction;
@@ -104,6 +105,8 @@ import com.hedera.node.app.store.ReadableStoreFactory;
 import com.hedera.node.app.store.ServiceApiFactory;
 import com.hedera.node.app.store.StoreFactoryImpl;
 import com.hedera.node.app.store.WritableStoreFactory;
+import com.hedera.node.app.systemtask.SystemTaskService;
+import com.hedera.node.app.systemtask.schemas.V0690SystemTaskSchema;
 import com.hedera.node.app.workflows.TransactionChecker;
 import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.app.workflows.dispatcher.TransactionDispatcher;
@@ -120,14 +123,11 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.WritableSingletonState;
 import com.swirlds.state.spi.WritableStates;
+import com.swirlds.state.test.fixtures.ListWritableQueueState;
 import com.swirlds.state.test.fixtures.MapReadableKVState;
 import com.swirlds.state.test.fixtures.MapReadableStates;
 import com.swirlds.state.test.fixtures.MapWritableKVState;
 import com.swirlds.state.test.fixtures.MapWritableStates;
-import com.swirlds.state.test.fixtures.ListWritableQueueState;
-import com.hedera.node.app.systemtask.SystemTaskService;
-import com.hedera.node.app.systemtask.schemas.V0690SystemTaskSchema;
-import com.hedera.hapi.node.state.systemtask.SystemTask;
 import com.swirlds.state.test.fixtures.StateTestBase;
 import java.lang.reflect.InvocationTargetException;
 import java.time.Instant;
@@ -276,11 +276,10 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
     private DispatchHandleContext subject;
 
     // Backing queue for SystemTaskService so tests can observe enqueued tasks
-    private final ListWritableQueueState<SystemTask> systemTaskQueue =
-            ListWritableQueueState.<SystemTask>builder(
-                            V0690SystemTaskSchema.SYSTEM_TASK_QUEUE_STATE_ID,
-                            V0690SystemTaskSchema.SYSTEM_TASK_QUEUE_STATE_LABEL)
-                    .build();
+    private final ListWritableQueueState<SystemTask> systemTaskQueue = ListWritableQueueState.<SystemTask>builder(
+                    V0690SystemTaskSchema.SYSTEM_TASK_QUEUE_STATE_ID,
+                    V0690SystemTaskSchema.SYSTEM_TASK_QUEUE_STATE_LABEL)
+            .build();
 
     private static final AccountID payerId = ALICE.accountID();
     private static final CryptoTransferTransactionBody transferBody = CryptoTransferTransactionBody.newBuilder()
@@ -364,7 +363,8 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
     void offersSystemTaskToQueue() {
         final var context = createContext(txBody);
         final var task = SystemTask.newBuilder()
-                .keyPropagation(com.hedera.hapi.node.state.systemtask.KeyPropagation.newBuilder().build())
+                .keyPropagation(com.hedera.hapi.node.state.systemtask.KeyPropagation.newBuilder()
+                        .build())
                 .build();
 
         context.offerSystemTask(task);
@@ -897,9 +897,7 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
         // Provide a writable SystemTask queue state for the context to bind SystemTasks API
         lenient()
                 .when(stack.getWritableStates(SystemTaskService.NAME))
-                .thenReturn(MapWritableStates.builder()
-                        .state(systemTaskQueue)
-                        .build());
+                .thenReturn(MapWritableStates.builder().state(systemTaskQueue).build());
 
         given(baseState.getReadableStates(TokenService.NAME)).willReturn(defaultTokenReadableStates());
         given(baseState.getReadableStates(EntityIdService.NAME)).willReturn(writableStates);

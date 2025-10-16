@@ -9,11 +9,11 @@ import com.hedera.node.app.systemtask.schemas.V0690SystemTaskSchema;
 import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.lifecycle.SchemaRegistry;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.junit.jupiter.api.extension.ExtendWith;
 
 @ExtendWith(MockitoExtension.class)
 class SystemTaskServiceTest {
@@ -30,4 +30,3 @@ class SystemTaskServiceTest {
         assertThat(schemas.get(0)).isInstanceOf(V0690SystemTaskSchema.class);
     }
 }
-

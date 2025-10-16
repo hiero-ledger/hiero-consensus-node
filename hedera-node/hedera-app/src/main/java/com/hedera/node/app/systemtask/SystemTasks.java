@@ -29,4 +29,3 @@ public interface SystemTasks {
     @NonNull
     Optional<SystemTask> poll();
 }
-

@@ -37,4 +37,3 @@ public class V0690SystemTaskSchema extends Schema<SemanticVersion> {
         return Set.of(StateDefinition.queue(SYSTEM_TASK_QUEUE_STATE_ID, SYSTEM_TASK_QUEUE_KEY, SystemTask.PROTOBUF));
     }
 }
-

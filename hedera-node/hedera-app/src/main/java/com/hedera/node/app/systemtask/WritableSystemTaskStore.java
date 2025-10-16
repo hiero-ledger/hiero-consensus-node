@@ -31,4 +31,3 @@ public class WritableSystemTaskStore {
         return systemTaskQueue;
     }
 }
-

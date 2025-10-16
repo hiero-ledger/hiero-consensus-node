@@ -41,4 +41,3 @@ public class SystemTasksImpl implements SystemTasks {
         return Optional.ofNullable(queue.poll());
     }
 }
-
