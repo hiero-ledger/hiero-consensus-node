@@ -14,7 +14,6 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.Key;
-import com.hedera.hapi.node.base.Key.KeyOneOfType;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.state.token.Account;
@@ -351,7 +350,11 @@ public class PreHandleContextImpl implements PreHandleContext {
         }
         // Verify this key isn't for an immutable account
         verifyNotStakingAccounts(account.accountIdOrThrow(), responseCode);
-        var key = account.keyOrThrow();
+        // Prefer the materialized key if present; otherwise fall back to the template key
+        var key = account.materializedKey();
+        if (!isValid(key)) {
+            key = account.keyOrThrow();
+        }
         if (!isValid(key)) { // Or if it is a Contract Key? Or if it is an empty key?
             // Or a KeyList with no
             // keys? Or KeyList with Contract keys only?
@@ -385,7 +388,11 @@ public class PreHandleContextImpl implements PreHandleContext {
         }
         // Verify this key isn't for an immutable account
         verifyNotStakingAccounts(account.accountIdOrThrow(), responseCode);
-        final var key = account.key();
+        // Prefer the materialized key if present; otherwise fall back to the template key
+        var key = account.materializedKey();
+        if (!isValid(key)) {
+            key = account.key();
+        }
         if (!isValid(key)) { // Or if it is a Contract Key? Or if it is an empty key?
             // Or a KeyList with no
             // keys? Or KeyList with Contract keys only?
@@ -423,10 +430,12 @@ public class PreHandleContextImpl implements PreHandleContext {
         }
         // Verify this key isn't for an immutable account
         verifyNotStakingAccounts(account.accountIdOrThrow(), responseCode);
-        // We will require the key. If the key isn't present, then we will throw the given response code.
-        final var key = account.key();
-        if (key == null
-                || key.key().kind() == KeyOneOfType.UNSET) { // Or if it is a Contract Key? Or if it is an empty key?
+        // Prefer the materialized key if present; otherwise fall back to the template key
+        var key = account.materializedKey();
+        if (!isValid(key)) {
+            key = account.key();
+        }
+        if (!isValid(key)) { // Or if it is a Contract Key? Or if it is an empty key?
             // Or a KeyList with no
             // keys? Or KeyList with Contract keys only?
             throw new PreCheckException(responseCode);
@@ -463,8 +472,11 @@ public class PreHandleContextImpl implements PreHandleContext {
         }
         // Verify this key isn't for an immutable account
         verifyNotStakingAccounts(account.accountIdOrThrow(), responseCode);
-        // We will require the key. If the key isn't present, then we will throw the given response code.
-        final var key = account.key();
+        // Prefer the materialized key if present; otherwise fall back to the template key
+        var key = account.materializedKey();
+        if (!isValid(key)) {
+            key = account.key();
+        }
         if (!isValid(key)) { // Or if it is a Contract Key? Or if it is an empty key?
             // Or a KeyList with no
             // keys? Or KeyList with Contract keys only?
