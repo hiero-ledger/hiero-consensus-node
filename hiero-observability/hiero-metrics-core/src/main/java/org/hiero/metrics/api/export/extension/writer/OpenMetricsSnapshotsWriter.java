@@ -1,9 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.metrics.api.export.extension.writer;
 
-import static org.hiero.metrics.api.stat.StatUtils.ONE;
-import static org.hiero.metrics.api.stat.StatUtils.ZERO;
-
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.io.OutputStream;
@@ -115,7 +112,7 @@ public class OpenMetricsSnapshotsWriter
                 for (int i = 0; i < states.length; i++) {
                     variables[0] = escape(states[i].toString()).getBytes(StandardCharsets.UTF_8);
                     int varIdx = addValueAndTimestampVariables(
-                            timestamp, variables, convertValue(snapshot.state(i) ? ONE : ZERO), 1);
+                            timestamp, variables, convertValue(snapshot.state(i) ? 1L : 0L), 1);
                     writeDataLine(template, varIdx, variables, output);
                 }
             }

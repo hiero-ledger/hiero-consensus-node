@@ -72,6 +72,6 @@ public final class MultiValueDataPointSnapshotImpl extends BaseDataPointSnapshot
      * @param value the value to set
      */
     public void setValueAt(int idx, double value) {
-        values[idx] = Double.doubleToLongBits(value);
+        values[idx] = Double.doubleToRawLongBits(value);
     }
 }

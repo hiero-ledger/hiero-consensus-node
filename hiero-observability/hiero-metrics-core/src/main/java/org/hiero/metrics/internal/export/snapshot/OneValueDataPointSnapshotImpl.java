@@ -30,6 +30,6 @@ public class OneValueDataPointSnapshotImpl extends BaseDataPointSnapshot impleme
     }
 
     public void set(double value) {
-        this.value = Double.doubleToLongBits(value);
+        this.value = Double.doubleToRawLongBits(value);
     }
 }

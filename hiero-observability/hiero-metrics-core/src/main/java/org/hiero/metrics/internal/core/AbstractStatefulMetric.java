@@ -69,7 +69,8 @@ public abstract class AbstractStatefulMetric<I, D, S extends DataPointSnapshot> 
             synchronized (this) {
                 localRef = noLabelsDataPoint;
                 if (localRef == null) {
-                    noLabelsDataPoint = localRef = dataPointFactory.apply(defaultInitializer);
+                    noLabelsDataPoint = localRef =
+                            createAndTrackDataPointHolder(LabelValues.empty()).dataPoint();
                 }
             }
         }
