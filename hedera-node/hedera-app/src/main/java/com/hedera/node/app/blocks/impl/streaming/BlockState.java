@@ -7,6 +7,7 @@ import com.hedera.hapi.block.stream.BlockItem;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
+import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -29,30 +30,11 @@ public class BlockState {
      * Map that contains all items associated with this block. Each item in the map is specified by an integer key that
      * represents the order in which the item was added to the block.
      */
-    private final ConcurrentMap<Integer, ItemData> blockItems = new ConcurrentHashMap<>();
-    /**
-     * The index of the item that contains the block proof. A value of -1 means the blook proof has not been added to
-     * this block yet.
-     */
-    private volatile int blockProofIndex = -1;
+    private final ConcurrentMap<Integer, BlockItem> blockItems = new ConcurrentHashMap<>();
     /**
      * The timestamp associated with when this block was closed.
      */
     private volatile Instant closedTimestamp;
-
-    private enum ItemType {
-        HEADER,
-        PROOF,
-        OTHER
-    }
-
-    /**
-     * Simple record for capturing the block item and what type of item it is.
-     *
-     * @param item the block item
-     * @param type the type of block item
-     */
-    record ItemData(BlockItem item, ItemType type) {}
 
     /**
      * Create a new block state object.
@@ -79,18 +61,7 @@ public class BlockState {
         }
 
         final int index = itemIndex.incrementAndGet();
-        final ItemType type =
-                switch (item.item().kind()) {
-                    case BLOCK_HEADER -> ItemType.HEADER;
-                    case BLOCK_PROOF -> ItemType.PROOF;
-                    default -> ItemType.OTHER;
-                };
-
-        if (ItemType.PROOF == type) {
-            blockProofIndex = index;
-        }
-
-        blockItems.put(index, new ItemData(item, type));
+        blockItems.put(index, item);
     }
 
     /**
@@ -138,8 +109,7 @@ public class BlockState {
      * @return the block item, or null if no item has the specified index
      */
     public @Nullable BlockItem blockItem(final int index) {
-        final ItemData itemData = blockItems.get(index);
-        return itemData == null ? null : itemData.item;
+        return blockItems.get(index);
     }
 
     /**
@@ -147,5 +117,29 @@ public class BlockState {
      */
     public int itemCount() {
         return itemIndex.get() + 1;
+    }
+
+    @Override
+    public boolean equals(final Object o) {
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        final BlockState that = (BlockState) o;
+        return blockNumber == that.blockNumber
+                && Objects.equals(blockItems, that.blockItems)
+                && Objects.equals(closedTimestamp, that.closedTimestamp);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(blockNumber, blockItems, closedTimestamp);
+    }
+
+    @Override
+    public String toString() {
+        return "BlockState{" + "blockNumber="
+                + blockNumber + ", closedTimestamp="
+                + closedTimestamp + ", blockItemCount="
+                + blockItems.size() + '}';
     }
 }

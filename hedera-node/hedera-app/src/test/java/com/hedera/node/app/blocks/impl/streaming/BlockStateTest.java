@@ -9,7 +9,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.BlockItem.ItemOneOfType;
-import com.hedera.node.app.blocks.impl.streaming.BlockState.ItemData;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodHandles.Lookup;
 import java.lang.invoke.VarHandle;
@@ -173,7 +172,7 @@ class BlockStateTest {
     // Utilities
 
     @SuppressWarnings("unchecked")
-    private ConcurrentMap<Integer, ItemData> blockItems() {
-        return (ConcurrentMap<Integer, ItemData>) blockItemsHandle.get(block);
+    private ConcurrentMap<Integer, BlockItem> blockItems() {
+        return (ConcurrentMap<Integer, BlockItem>) blockItemsHandle.get(block);
     }
 }
