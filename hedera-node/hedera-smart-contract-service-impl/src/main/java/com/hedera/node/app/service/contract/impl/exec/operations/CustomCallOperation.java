@@ -2,6 +2,7 @@
 package com.hedera.node.app.service.contract.impl.exec.operations;
 
 import static com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalHaltReason.INVALID_SOLIDITY_ADDRESS;
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.HtsSystemContract.HTS_HOOKS_CONTRACT_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.contractRequired;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.isLongZero;
 
@@ -10,6 +11,7 @@ import com.hedera.node.app.service.contract.impl.exec.AddressChecks;
 import com.hedera.node.app.service.contract.impl.exec.FeatureFlags;
 import com.hedera.node.app.service.contract.impl.exec.scope.HandleHederaNativeOperations;
 import com.hedera.node.app.service.contract.impl.exec.scope.VerificationStrategy;
+import com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
 import org.hyperledger.besu.datatypes.Address;
@@ -71,6 +73,15 @@ public class CustomCallOperation extends CallOperation {
         } catch (final UnderflowException ignore) {
             return UNDERFLOW_RESPONSE;
         }
+    }
+
+    @Override
+    protected Address sender(final MessageFrame frame) {
+        if (frame.getRecipientAddress().equals(HTS_HOOKS_CONTRACT_ADDRESS)) {
+            // If the sender is the HTS hooks contract, we want to use the owner of the hook as the sender
+            return FrameUtils.hookOwnerAddress(frame);
+        }
+        return super.sender(frame);
     }
 
     private boolean mustBePresent(@NonNull final MessageFrame frame, @NonNull final Address toAddress) {

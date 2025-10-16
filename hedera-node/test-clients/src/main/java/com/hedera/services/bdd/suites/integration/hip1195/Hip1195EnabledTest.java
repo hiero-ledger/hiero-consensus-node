@@ -10,6 +10,7 @@ import static com.hedera.services.bdd.spec.HapiPropertySource.asAccount;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.accountAllowanceHook;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.accountLambdaSStore;
@@ -114,10 +115,14 @@ public class Hip1195EnabledTest {
     @Contract(contract = "OneTimeCodeHook", creationGas = 5_000_000)
     static SpecContract STORAGE_SET_SLOT_HOOK;
 
+    @Contract(contract = "AutoAssociateHook", creationGas = 5_000_000)
+    static SpecContract AUTO_ASSOCIATE_HOOK;
+
     private static final String STRING_ABI =
             "{\"inputs\":[{\"internalType\":\"string\",\"name\":\"_password\",\"type\":\"string\"}],\"stateMutability\":\"nonpayable\",\"type\":\"constructor\"}";
 
     private static final String OWNER = "owner";
+    private static final String PAYER = "payer";
     private static final String HOOK_CONTRACT_NUM = "365";
 
     @BeforeAll
@@ -131,28 +136,67 @@ public class Hip1195EnabledTest {
         testLifecycle.doAdhoc(TRANSFER_HOOK.getInfo());
         testLifecycle.doAdhoc(STORAGE_GET_MAPPING_HOOK.getInfo());
         testLifecycle.doAdhoc(STORAGE_SET_SLOT_HOOK.getInfo());
+        testLifecycle.doAdhoc(AUTO_ASSOCIATE_HOOK.getInfo());
 
         testLifecycle.doAdhoc(withOpContext(
                 (spec, opLog) -> GLOBAL_WATCHER.set(new SidecarWatcher(spec.recordStreamsLoc(byNodeId(0))))));
     }
 
     @HapiTest
+    final Stream<DynamicTest> callAndStaticCallUsesOwner() {
+        final var mappingSlot = Bytes.EMPTY;
+        final AtomicReference<byte[]> payerMirror = new AtomicReference<>();
+        return hapiTest(
+                newKeyNamed("supplyKey"),
+                cryptoCreate(PAYER),
+                cryptoCreate(OWNER)
+                        .withHooks(accountAllowanceHook(123L, AUTO_ASSOCIATE_HOOK.name())),
+                tokenCreate("token")
+                        .treasury(PAYER)
+                        .supplyType(TokenSupplyType.FINITE)
+                        .supplyKey("supplyKey")
+                        .initialSupply(10L)
+                        .maxSupply(1000L),
+                mintToken("token", 10),
+                getAccountInfo(OWNER),
+                withOpContext(
+                        (spec, opLog) -> payerMirror.set(unhex(asHexedSolidityAddress(spec.registry().getAccountID(PAYER))))),
+                sourcing(() ->accountLambdaSStore(OWNER, 123L)
+                        .putMappingEntry(
+                                mappingSlot,
+                                LambdaMappingEntry.newBuilder()
+                                        .key(Bytes.wrap(payerMirror.get()))
+                                        .value(Bytes.wrap(new byte[] {(byte) 0x01}))
+                                        .build())
+                        .signedBy(DEFAULT_PAYER, OWNER)),
+                cryptoTransfer(TokenMovement.moving(10, "token").between(PAYER, OWNER))
+                        .withPreHookFor(OWNER, 123L, 5_000_000L, "")
+                        .payingWith(PAYER)
+                        .via("associateAndXferTxn"),
+                getTxnRecord("associateAndXferTxn")
+                        .andAllChildRecords()
+                        .logged(),
+                getAccountInfo(OWNER).logged());
+        
+    }
+
+    @HapiTest
     final Stream<DynamicTest> transfersWithHooksGasThrottled() {
         return hapiTest(
-                cryptoCreate("payer"),
-                cryptoCreate("testAccount")
+                cryptoCreate(PAYER),
+                cryptoCreate(OWNER)
                         .withHooks(
                                 accountAllowanceHook(123L, TRUE_ALLOWANCE_HOOK.name()),
                                 accountAllowanceHook(124L, TRUE_ALLOWANCE_HOOK.name()),
                                 accountAllowanceHook(125L, TRUE_PRE_POST_ALLOWANCE_HOOK.name()),
                                 accountAllowanceHook(126L, TRUE_PRE_POST_ALLOWANCE_HOOK.name())),
-                cryptoTransfer(TokenMovement.movingHbar(10).between("testAccount", GENESIS))
-                        .withPreHookFor("testAccount", 124L, 15000000000000L, "")
-                        .payingWith("payer")
+                cryptoTransfer(TokenMovement.movingHbar(10).between(OWNER, GENESIS))
+                        .withPreHookFor(OWNER, 124L, 15000000000000L, "")
+                        .payingWith(PAYER)
                         .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK)
                         .via("payerTxnGasLimitExceeded"),
-                cryptoTransfer(TokenMovement.movingHbar(10).between("testAccount", GENESIS))
-                        .withPreHookFor("testAccount", 124L, 15000000000000L, "")
+                cryptoTransfer(TokenMovement.movingHbar(10).between(OWNER, GENESIS))
+                        .withPreHookFor(OWNER, 124L, 15000000000000L, "")
                         .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK)
                         .via("defaultPayerMaxGasLimitExceededTxn"),
                 getTxnRecord("payerTxnGasLimitExceeded")
@@ -264,39 +308,39 @@ public class Hip1195EnabledTest {
     @HapiTest
     final Stream<DynamicTest> storageAccessWorks() {
         return hapiTest(
-                cryptoCreate("testAccount")
+                cryptoCreate(OWNER)
                         .withHooks(accountAllowanceHook(124L, STORAGE_GET_SLOT_HOOK.name()))
                         .receiverSigRequired(true),
                 // gets rejected because the return value from the allow function is false bye default
-                cryptoTransfer(TokenMovement.movingHbar(10).between("testAccount", GENESIS))
-                        .withPreHookFor("testAccount", 124L, 25_000L, "")
+                cryptoTransfer(TokenMovement.movingHbar(10).between(OWNER, GENESIS))
+                        .withPreHookFor(OWNER, 124L, 25_000L, "")
                         .signedBy(DEFAULT_PAYER)
                         .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK),
                 // Change the hook storage's zero slot to 0x01 so that the hook returns true
-                accountLambdaSStore("testAccount", 124L)
+                accountLambdaSStore(OWNER, 124L)
                         .putSlot(Bytes.EMPTY, Bytes.wrap(new byte[] {(byte) 0x01}))
-                        .signedBy(DEFAULT_PAYER, "testAccount"),
+                        .signedBy(DEFAULT_PAYER, OWNER),
                 // now the transfer works
-                cryptoTransfer(TokenMovement.movingHbar(10).between("testAccount", GENESIS))
-                        .withPreHookFor("testAccount", 124L, 25_000L, "")
+                cryptoTransfer(TokenMovement.movingHbar(10).between(OWNER, GENESIS))
+                        .withPreHookFor(OWNER, 124L, 25_000L, "")
                         .signedBy(DEFAULT_PAYER));
     }
 
     @HapiTest
     final Stream<DynamicTest> transferWorksFromOwnerOfTheHook() {
         return hapiTest(
-                cryptoCreate("payer").balance(ONE_HUNDRED_HBARS),
+                cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
                 cryptoCreate("receiver").balance(0L),
-                cryptoCreate("testAccount")
+                cryptoCreate(OWNER)
                         .balance(ONE_HUNDRED_HBARS)
                         .withHooks(accountAllowanceHook(124L, TRANSFER_HOOK.name())),
-                cryptoTransfer(TokenMovement.movingHbar(10 * ONE_HBAR).between("testAccount", "receiver"))
-                        .withPreHookFor("testAccount", 124L, 25_000L, "")
-                        .payingWith("payer")
-                        .signedBy("payer"),
+                cryptoTransfer(TokenMovement.movingHbar(10 * ONE_HBAR).between(OWNER, "receiver"))
+                        .withPreHookFor(OWNER, 124L, 25_000L, "")
+                        .payingWith(PAYER)
+                        .signedBy(PAYER),
                 // even though the hook says msg.sender transfers 10 hbars to receiver,
                 // the owner of the hook transfers 1 tinybar in addition to the 10 hbars
-                getAccountBalance("testAccount")
+                getAccountBalance(OWNER)
                         .hasTinyBars(ONE_HUNDRED_HBARS - 10 * ONE_HBAR - 1)
                         .logged(),
                 getAccountBalance("receiver").hasTinyBars(10 * ONE_HBAR).logged());
