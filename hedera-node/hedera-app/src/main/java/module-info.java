@@ -36,6 +36,7 @@ module com.hedera.node.app {
     requires transitive io.grpc.stub;
     requires transitive io.grpc;
     requires transitive io.helidon.grpc.core;
+    requires transitive io.helidon.webclient.api;
     requires transitive javax.inject;
     requires transitive org.apache.logging.log4j;
     requires transitive org.hyperledger.besu.datatypes;
