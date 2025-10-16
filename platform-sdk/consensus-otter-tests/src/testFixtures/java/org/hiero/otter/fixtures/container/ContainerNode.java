@@ -62,6 +62,7 @@ import org.hiero.otter.fixtures.container.proto.SyntheticBottleneckRequest;
 import org.hiero.otter.fixtures.container.proto.TransactionRequest;
 import org.hiero.otter.fixtures.container.proto.TransactionRequestAnswer;
 import org.hiero.otter.fixtures.container.utils.ContainerConstants;
+import org.hiero.otter.fixtures.container.utils.ContainerUtils;
 import org.hiero.otter.fixtures.internal.AbstractNode;
 import org.hiero.otter.fixtures.internal.AbstractTimeManager.TimeTickReceiver;
 import org.hiero.otter.fixtures.internal.result.NodeResultsCollector;
@@ -147,6 +148,7 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
 
         container = new ContainerImage(dockerImage, network, selfId);
         container.start();
+
         containerControlChannel = ManagedChannelBuilder.forAddress(
                         container.getHost(), container.getMappedPort(CONTAINER_CONTROL_PORT))
                 .maxInboundMessageSize(32 * 1024 * 1024)
@@ -183,6 +185,12 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
         throwIfInLifecycle(LifeCycle.DESTROYED, "Node has already been destroyed.");
 
         log.info("Starting node {}...", selfId);
+
+        if (savedStateDirectory != null) {
+            final StateCommonConfig stateCommonConfig =
+                    configuration().current().getConfigData(StateCommonConfig.class);
+            ContainerUtils.copySavedStateToContainer(container, selfId, stateCommonConfig, savedStateDirectory);
+        }
 
         final InitRequest initRequest = InitRequest.newBuilder()
                 .setSelfId(ProtobufConverter.toLegacy(selfId))

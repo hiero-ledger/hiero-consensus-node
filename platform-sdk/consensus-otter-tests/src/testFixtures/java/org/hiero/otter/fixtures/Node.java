@@ -4,6 +4,7 @@ package org.hiero.otter.fixtures;
 import com.hedera.hapi.node.base.SemanticVersion;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.nio.file.Path;
 import java.time.Duration;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
@@ -263,4 +264,15 @@ public interface Node {
      */
     @NonNull
     SingleNodeEventStreamResult newEventStreamResult();
+
+    /**
+     * Sets the source directory of the saved state directory. The directory is either relative to
+     * {@code platform-sdk/consensus-otter-tests/saved-states} or an absolute path
+     *
+     * <p>If no directory is set, genesis state will be generated. This method can only be called while the node is
+     * not running.
+     *
+     * @param savedStateDirectory the software version to set for the node
+     */
+    void startFromSavedState(@NonNull final Path savedStateDirectory);
 }

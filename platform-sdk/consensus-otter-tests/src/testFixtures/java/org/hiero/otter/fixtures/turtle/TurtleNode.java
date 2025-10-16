@@ -31,15 +31,17 @@ import com.swirlds.platform.state.signed.HashedReservedSignedState;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.wiring.PlatformComponents;
-import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.io.IOException;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Objects;
 import java.util.Random;
 import java.util.function.Consumer;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.config.EventConfig;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
@@ -73,6 +75,7 @@ import org.hiero.otter.fixtures.result.SingleNodeReconnectResult;
 import org.hiero.otter.fixtures.turtle.gossip.SimulatedGossip;
 import org.hiero.otter.fixtures.turtle.gossip.SimulatedNetwork;
 import org.hiero.otter.fixtures.turtle.logging.TurtleLogging;
+import org.hiero.otter.fixtures.util.OtterSavedStateUtils;
 import org.hiero.otter.fixtures.util.SecureRandomBuilder;
 
 /**
@@ -81,6 +84,7 @@ import org.hiero.otter.fixtures.util.SecureRandomBuilder;
  * <p>This class implements the {@link Node} interface and provides methods to control the state of the node.
  */
 public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.TimeTickReceiver {
+    private static final Logger log = LogManager.getLogger();
 
     private final Randotron randotron;
     private final TurtleTimeManager timeManager;
@@ -89,6 +93,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
     private final TurtleNodeConfiguration nodeConfiguration;
     private final NodeResultsCollector resultsCollector;
     private final TurtleMarkerFileObserver markerFileObserver;
+    private final Path outputDirectory;
 
     private PlatformContext platformContext;
 
@@ -130,6 +135,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
             @NonNull final Path outputDirectory) {
         super(selfId, keysAndCerts);
         try (final LoggingContextScope ignored = installNodeContext()) {
+            this.outputDirectory = requireNonNull(outputDirectory);
             logging.addNodeLogging(selfId, outputDirectory);
 
             this.randotron = requireNonNull(randotron);
@@ -150,6 +156,14 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
         try (final LoggingContextScope ignored = installNodeContext()) {
             throwIfInLifecycle(RUNNING, "Node has already been started.");
             throwIfInLifecycle(DESTROYED, "Node has already been destroyed.");
+
+            if (savedStateDirectory != null) {
+                try {
+                    OtterSavedStateUtils.copySaveState(selfId, savedStateDirectory, outputDirectory);
+                } catch (final IOException exception) {
+                    log.error("Failed to copy save state to output directory", exception);
+                }
+            }
 
             // Start node from current state
             final Configuration currentConfiguration = nodeConfiguration.current();
@@ -201,9 +215,9 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
                     OtterAppState::new);
 
             final ReservedSignedState initialState = reservedState.state();
-            final State state = initialState.get().getState();
 
-            final RosterHistory rosterHistory = RosterUtils.createRosterHistory(state);
+            final RosterHistory rosterHistory =
+                    RosterUtils.createRosterHistory(initialState.get().getState());
             final String eventStreamLoc = Long.toString(selfId.id());
 
             this.executionLayer = new OtterExecutionLayer(
@@ -498,5 +512,14 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
                 consumer.accept(value);
             }
         };
+    }
+
+    /**
+     * Indicated if the node starts from a saved state
+     *
+     * @return {@code true} if node starts from saved state
+     */
+    public boolean startFromSavedState() {
+        return savedStateDirectory != null;
     }
 }
