@@ -156,7 +156,7 @@ jobs:
       - name: Prepare Hiero Solo
         env:
           CITR_SOLO_VERSION: ${{ vars.CITR_SOLO_VERSION }}
-        id: solo
+        id: solo-action
         uses: hiero-ledger/hiero-solo-action@8cda77e13916d1ed8f80eb07361a474a264be005 # latest on `main` currently
         with:
           installMirrorNode: true
@@ -175,9 +175,9 @@ jobs:
         run: |
           version=$(solo --version | grep Version | awk '{print $3}')
           if [[ "$(printf '%s\n' "$version" "0.44.0" | sort -V | head -n1)" == "0.44.0" ]]; then
-            solo ledger account create --dev --ed25519-private-key "${{ env.OPERATOR_ACCOUNT_PRIVATE_KEY }}" --deployment ${{ env.SOLO_DEPLOYMENT }} --hbar-amount 1000000
+            solo ledger account create --dev --ed25519-private-key "${{ env.OPERATOR_ACCOUNT_PRIVATE_KEY }}" --deployment ${{ steps.solo-action.outputs.deployment }} --hbar-amount 1000000
           else
-            solo account create --dev --ed25519-private-key "${{ env.OPERATOR_ACCOUNT_PRIVATE_KEY }}" --deployment ${{ env.SOLO_DEPLOYMENT }} --hbar-amount 1000000
+            solo account create --dev --ed25519-private-key "${{ env.OPERATOR_ACCOUNT_PRIVATE_KEY }}" --deployment ${{ steps.solo-action.outputs.deployment }} --hbar-amount 1000000
           fi
           cp .env.custom_node .env
           npm run test
