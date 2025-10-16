@@ -227,7 +227,7 @@ jobs:
     with:
       ref: ${{ inputs.commit_sha }} # pass the xts-candidate tag to the JRS panel for checkout
       custom-job-name: "Dry-Run: SDK TCK Regression"
-      solo-version: ${{ needs.parameters.ouptuts.solo-version || 'v0.38.0' }}
+      solo-version: ${{ needs.parameters.outputs.solo-version || 'v0.38.0' }}
     secrets:
       access-token: ${{ secrets.GH_ACCESS_TOKEN }}
       slack-tck-report-webhook: ${{ secrets.SLACK_TCK_MONITOR_WEBHOOK }}
@@ -242,7 +242,7 @@ jobs:
     with:
       ref: ${{ inputs.commit_sha }} # pass the xts-candidate tag to the MN panel for checkout
       custom-job-name: "Mirror Node Regression"
-      solo-version: ${{ needs.parameters.ouptuts.solo-version || vars.CITR_SOLO_VERSION }}
+      solo-version: ${{ needs.parameters.outputs.solo-version || vars.CITR_SOLO_VERSION }}
       helm-release-name: ${{ needs.parameters.outputs.helm-release-name || 'mirror' }}
     secrets:
       access-token: ${{ secrets.GH_ACCESS_TOKEN }}
@@ -257,7 +257,7 @@ jobs:
     with:
       ref: ${{ inputs.commit_sha }} # pass the xts-candidate tag to the RPC Relay panel for checkout
       custom-job-name: "JSON-RPC Relay Regression"
-      solo-version: ${{ needs.parameters.ouptuts.solo-version || vars.CITR_SOLO_VERSION }}
+      solo-version: ${{ needs.parameters.outputs.solo-version || vars.CITR_SOLO_VERSION }}
     secrets:
       access-token: ${{ secrets.GH_ACCESS_TOKEN }}
       slack-detailed-report-webhook: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
@@ -271,7 +271,7 @@ jobs:
     with:
       ref: ${{ inputs.commit_sha }} # pass the xts-candidate tag to the BN panel for checkout
       custom-job-name: "Dry Run: Block Node Regression"
-      solo-version: ${{ needs.parameters.ouptuts.solo-version || 'v0.46.1' }}
+      solo-version: ${{ needs.parameters.outputs.solo-version || 'v0.46.1' }}
     secrets:
       access-token: ${{ secrets.GH_ACCESS_TOKEN }}
       slack-detailed-report-webhook: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
