@@ -780,7 +780,13 @@ public class BlockNodeConnectionManager {
         requireNonNull(nodeConfig);
 
         final BlockNodeConnection connection = new BlockNodeConnection(
-                configProvider, nodeConfig, this, blockBufferService, blockStreamMetrics, sharedExecutorService, clientFactory);
+                configProvider,
+                nodeConfig,
+                this,
+                blockBufferService,
+                blockStreamMetrics,
+                sharedExecutorService,
+                clientFactory);
 
         connections.put(nodeConfig, connection);
         return connection;

@@ -244,10 +244,9 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         // Clear jump target
         final AtomicLong jumpTarget = jumpTarget();
         jumpTarget.set(-1);
-        connectionManager = new BlockNodeConnectionManager(configProvider, bufferService, metrics);
         replaceLocalhostWithPbjUnitTestHost();
 
-//        resetMocks();
+        resetMocks();
     }
 
     @AfterEach
@@ -2292,6 +2291,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
     @Test
     void testPerformInitialConfigLoad_noFile() {
+        availableNodes().clear();
         final Path tmpDir = tempDir.resolve("perfinit-nofile");
         try {
             Files.createDirectories(tmpDir);
