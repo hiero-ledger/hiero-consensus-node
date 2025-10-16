@@ -146,7 +146,7 @@ class StateSyncPeerProtocolTests {
 
         final FallenBehindMonitor fallenBehindManager = mock(FallenBehindMonitor.class);
         when(fallenBehindManager.hasFallenBehind()).thenReturn(true);
-        when(fallenBehindManager.wasReportedByPeer(any()))
+        when(fallenBehindManager.isBehindPeer(any()))
                 .thenAnswer(a -> neighborsForReconnect.contains(a.getArgument(0, NodeId.class)));
 
         final PlatformContext platformContext =
@@ -286,7 +286,7 @@ class StateSyncPeerProtocolTests {
         Thread t = null;
         try {
             final FallenBehindMonitor fallenBehindManager = mock(FallenBehindMonitor.class);
-            when(fallenBehindManager.wasReportedByPeer(any())).thenReturn(false);
+            when(fallenBehindManager.isBehindPeer(any())).thenReturn(false);
             ReservedSignedStatePromise reservedSignedStatePromise = new ReservedSignedStatePromise();
 
             final PlatformContext platformContext =
@@ -346,7 +346,7 @@ class StateSyncPeerProtocolTests {
 
         final FallenBehindMonitor fallenBehindManager = mock(FallenBehindMonitor.class);
         when(fallenBehindManager.hasFallenBehind()).thenReturn(true);
-        when(fallenBehindManager.wasReportedByPeer(any())).thenReturn(true);
+        when(fallenBehindManager.isBehindPeer(any())).thenReturn(true);
 
         final PlatformContext platformContext =
                 TestPlatformContextBuilder.create().build();

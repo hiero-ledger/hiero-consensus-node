@@ -47,7 +47,7 @@ public class RpcShadowgraphSynchronizer extends AbstractShadowgraphSynchronizer 
      * @param numberOfNodes        number of nodes in the network
      * @param syncMetrics          metrics for sync
      * @param receivedEventHandler events that are received are passed here
-     * @param fallenBehindMonitor  tracks if we have fallen behind
+     * @param fallenBehindMonitor  an instance of the fallenBehind Monitor which tracks if the node has fallen behind
      * @param intakeEventCounter   used for tracking events in the intake pipeline per peer
      * @param selfId               id of current node
      * @param syncLagHandler       callback for reporting median sync lag

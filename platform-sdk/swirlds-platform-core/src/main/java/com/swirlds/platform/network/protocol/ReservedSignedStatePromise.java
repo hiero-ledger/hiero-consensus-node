@@ -8,8 +8,11 @@ import org.hiero.base.concurrent.BlockingResourceProvider;
 import org.hiero.base.concurrent.locks.locked.LockedResource;
 
 /**
- * A promise for a reserved signed state that allows coordination between providers and consumers.
  * This class wraps a {@link BlockingResourceProvider} to manage access to a {@link ReservedSignedState}.
+ * This allows a single consumer of {@link ReservedSignedState} to wait for a value that can be provided by only one of multiple producers.
+ * Producers are required to request permits in order to provide a value to the consumer with acquire, and release the permit
+ * in case they fail to provide a value with release so that other producers might be able to do so.
+ * Consumers can await for the value to be provided, blocking until so.
  */
 public class ReservedSignedStatePromise {
     /**
@@ -37,7 +40,7 @@ public class ReservedSignedStatePromise {
     }
 
     /**
-     * Attempts to block further provide permits.
+     * Attempts to block further permits.
      *
      * @return true if the block was successful, false otherwise
      */
