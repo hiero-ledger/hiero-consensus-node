@@ -1,0 +1,17 @@
+--- Configuration Address Book ---
+address, 0, node1, node1, 24999969653, node-0, 5777, node-0, 5777 
+address, 1, node2, node2, 24999920859, node-1, 5777, node-1, 5777 
+
+
+--- State Saved Address Book ---
+address, 0, node1, node1, 12499969653, node-0, 5777, node-0, 5777 
+address, 1, node2, node2, 12499920859, node-1, 5777, node-1, 5777 
+address, 2, node3, node3, 12499983064, node-2, 5777, node-2, 5777 
+address, 3, node4, node4, 12500049459, node-3, 5777, node-3, 5777 
+
+
+--- Used Address Book ---
+address, 0, node1, node1, 24999969653, node-0, 5777, node-0, 5777 
+address, 1, node2, node2, 24999920859, node-1, 5777, node-1, 5777 
+
+

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.app;
 
+import static com.swirlds.platform.state.service.PlatformStateFacade.DEFAULT_PLATFORM_STATE_FACADE;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.SemanticVersion;
@@ -8,6 +9,7 @@ import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
+import com.swirlds.platform.state.service.WritablePlatformStateStore;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -165,6 +167,15 @@ public class OtterApp implements ConsensusStateEventHandler<OtterAppState> {
 
         for (final OtterService service : allServices) {
             service.onRoundComplete(round);
+        }
+
+        // Update the latest freeze round after everything is handled.
+        // The platform sets the latestFreezeTime, but not the freeze round :(
+        if (DEFAULT_PLATFORM_STATE_FACADE.isFreezeRound(state, round)) {
+            // If this is a freeze round, we need to update the freeze info state
+            final WritablePlatformStateStore platformStateStore = new WritablePlatformStateStore(
+                    state.getWritableStates(com.swirlds.platform.state.service.PlatformStateService.NAME));
+            platformStateStore.setLatestFreezeRound(round.getRoundNum());
         }
 
         state.commitState();

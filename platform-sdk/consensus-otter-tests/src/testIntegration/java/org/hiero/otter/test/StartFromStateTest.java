@@ -24,32 +24,42 @@ import org.hiero.otter.fixtures.TimeManager;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
 import org.hiero.otter.fixtures.turtle.TurtleSpecs;
 import org.hiero.otter.fixtures.util.OtterSavedStateUtils;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 public class StartFromStateTest {
 
     /**
      * Starts and validates the network from a previously saved state directory.
      * This test simulates the environment by loading the network from a "previous-version-state"
-     * directory, adds nodes, starts the network, performs validations, and ensures that the network has
-     * progressed and behaves as expected without errors.
+     * directory. The test is parametrized with different sizes of networks.
      *
      * @param env the test environment providing components such as the network and time manager
      */
     @OtterTest
     @OtterSpecs(randomNodeIds = false)
     @TurtleSpecs(randomSeed = SEED)
-    void startFromPreviousVersionState(@NonNull final TestEnvironment env) {
+    @ParameterizedTest
+    @ValueSource(ints = {
+            4, // same as saved state
+            3, // one less
+            2, // half the original roster
+            5, // one more
+            8, // double the original roster
+    })
+    void migrationTest(final int numberOfNodes, @NonNull final TestEnvironment env) {
         final Network network = env.network();
         final TimeManager timeManager = env.timeManager();
         final SemanticVersion currentVersion = OtterSavedStateUtils.fetchApplicationVersion();
 
         // Setup simulation
-        network.addNodes(4);
+        network.addNodes(numberOfNodes);
         network.savedStateDirectory(Path.of("previous-version-state"));
         // Bump version, because the saved state version is currently the same. This will get removed once we have a new
         // release
-        network.version(
-                currentVersion.copyBuilder().minor(currentVersion.minor() + 1).build());
+        final SemanticVersion bumpedVersion =
+                currentVersion.copyBuilder().minor(currentVersion.minor() + 1).build();
+        network.version(bumpedVersion);
         network.start();
 
         final Map<NodeId, Long> lastRoundByNodeAtStart = network.newConsensusResults().results().stream()

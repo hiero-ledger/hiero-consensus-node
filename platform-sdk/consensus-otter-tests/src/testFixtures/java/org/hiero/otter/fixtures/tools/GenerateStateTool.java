@@ -19,7 +19,6 @@ import java.time.Duration;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
-import java.util.regex.Pattern;
 import java.util.stream.Stream;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.Node;
@@ -53,8 +52,6 @@ public class GenerateStateTool {
     /** Name of PCES directory */
     public static final String PCES_DIRECTORY = "preconsensus-events";
 
-    private static final Pattern DATE_PREFIX = Pattern.compile("^(\\d{4})-(\\d{2})-(\\d{2}).*");
-
     /** Self-ID of the node */
     private static final long SELF_ID = 0L;
 
@@ -64,6 +61,9 @@ public class GenerateStateTool {
     /** Test environment used to create and control the ephemeral network. */
     private final TestEnvironment environment;
 
+    /** Software version for the state */
+    private final SemanticVersion version;
+
     /**
      * Create a new tool bound to the given test environment.
      *
@@ -72,7 +72,7 @@ public class GenerateStateTool {
      */
     public GenerateStateTool(@NonNull final TestEnvironment environment, @NonNull final SemanticVersion version) {
         this.environment = requireNonNull(environment, "environment cannot be null");
-        environment.network().version(requireNonNull(version, "version cannot be null"));
+        this.version = requireNonNull(version, "version cannot be null");
     }
 
     /**
@@ -97,6 +97,7 @@ public class GenerateStateTool {
         final TimeManager timeManager = environment.timeManager();
 
         network.addNodes(4);
+        network.version(version);
         network.start();
         timeManager.waitFor(Duration.ofSeconds(10L));
         network.freeze();
