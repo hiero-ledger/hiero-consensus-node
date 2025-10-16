@@ -463,8 +463,13 @@ docker inspect <container_name>
 
 To attach a debugger to a running container, first identify the node ID of the node you want to attach to. The debug
 port for the container running the consensus node is `5005` plus the node ID (`5005` for node 0, `5006` for node 1,
-etc.). These debug ports are automattically configured in the consensus node containers. Please note that you cannot
-attach the debugger until the node has been started.
+etc.). These debug ports are automatically configured in the consensus node containers. Please note that you cannot
+attach the debugger until the node has been started. For repeatable tests, you can set the seed that determines the node
+IDs using the `OtterSpecs` annotation and setting the `randomNodeIds` field to `false`:
+
+```java
+@OtterSpecs(randomNodeIds = false)
+```
 
 ## 🔗 Related Documentation
 
