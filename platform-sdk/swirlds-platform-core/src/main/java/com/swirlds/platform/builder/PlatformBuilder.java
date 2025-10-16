@@ -39,7 +39,6 @@ import com.swirlds.platform.state.iss.IssScratchpad;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.system.Platform;
-import com.swirlds.platform.system.status.StatusActionSubmitter;
 import com.swirlds.platform.wiring.PlatformComponents;
 import com.swirlds.platform.wiring.PlatformWiring;
 import com.swirlds.state.MerkleNodeState;
@@ -434,7 +433,6 @@ public final class PlatformBuilder {
         final ApplicationCallbacks callbacks =
                 new ApplicationCallbacks(preconsensusEventConsumer, snapshotOverrideConsumer, staleEventConsumer);
 
-        final AtomicReference<StatusActionSubmitter> statusActionSubmitterAtomicReference = new AtomicReference<>();
         final SwirldStateManager swirldStateManager = new SwirldStateManager(platformContext, currentRoster);
 
         if (model == null) {
@@ -496,9 +494,8 @@ public final class PlatformBuilder {
                 consensusEventStreamName,
                 issScratchpad,
                 NotificationEngine.buildEngine(getStaticThreadManager()),
-                statusActionSubmitterAtomicReference,
-                swirldStateManager,
                 new AtomicReference<>(),
+                swirldStateManager,
                 new AtomicReference<>(),
                 firstPlatform,
                 consensusStateEventHandler,
