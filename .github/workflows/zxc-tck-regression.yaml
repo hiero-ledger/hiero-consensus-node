@@ -166,8 +166,8 @@ jobs:
       # Start the TCK client
       - name: Start tck-client
         env:
-          OPERATOR_ACCOUNT_ID: "0.0.2"
-          OPERATOR_ACCOUNT_PRIVATE_KEY: "302e020100300506032b65700422042091132178e72057a1d7528025956fe39b0b847f200ab59b2fdd367017f3087137"
+          OPERATOR_ACCOUNT_ID: ${{ steps.solo-action.outputs.ed25519AccountId }}
+          OPERATOR_ACCOUNT_PRIVATE_KEY: ${{ steps.solo-action.outputs.ed25519PrivateKey }}
           JSON_RPC_SERVER_URL: "http://127.0.0.1:8544"
           NODE_IP: "127.0.0.1:50211"
           MIRROR_NODE_REST_URL: "http://127.0.0.1:5551"
@@ -175,9 +175,9 @@ jobs:
         run: |
           version=$(solo --version | grep Version | awk '{print $3}')
           if [[ "$(printf '%s\n' "$version" "0.44.0" | sort -V | head -n1)" == "0.44.0" ]]; then
-            solo ledger account create --dev --ed25519-private-key "${{ env.OPERATOR_ACCOUNT_PRIVATE_KEY }}" --deployment ${{ steps.solo-action.outputs.deployment }} --hbar-amount 1000000
+            solo ledger account create --dev --ed25519-private-key "${{ steps.solo-action.outputs.ed25519PrivateKey }}" --deployment ${{ steps.solo-action.outputs.deployment }} --hbar-amount 1000000
           else
-            solo account create --dev --ed25519-private-key "${{ env.OPERATOR_ACCOUNT_PRIVATE_KEY }}" --deployment ${{ steps.solo-action.outputs.deployment }} --hbar-amount 1000000
+            solo account create --dev --ed25519-private-key "${{ steps.solo-action.outputs.ed25519PrivateKey }}" --deployment ${{ steps.solo-action.outputs.deployment }} --hbar-amount 1000000
           fi
           cp .env.custom_node .env
           npm run test
