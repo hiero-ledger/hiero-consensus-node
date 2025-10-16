@@ -1,8 +1,18 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.test;
 
+import static org.hiero.consensus.model.status.PlatformStatus.ACTIVE;
+import static org.hiero.consensus.model.status.PlatformStatus.CATASTROPHIC_FAILURE;
+import static org.hiero.consensus.model.status.PlatformStatus.CHECKING;
+import static org.hiero.consensus.model.status.PlatformStatus.OBSERVING;
+import static org.hiero.consensus.model.status.PlatformStatus.REPLAYING_EVENTS;
+import static org.hiero.otter.fixtures.OtterAssertions.assertThat;
+import static org.hiero.otter.fixtures.assertions.StatusProgressionStep.target;
+import static org.hiero.otter.fixtures.assertions.StatusProgressionStep.targets;
+
 import com.swirlds.platform.config.StateConfig_;
 import com.swirlds.platform.state.iss.DefaultIssDetector;
+import com.swirlds.platform.system.SystemExitUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import org.hiero.otter.fixtures.Capability;
@@ -13,15 +23,6 @@ import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.TimeManager;
 import org.hiero.otter.fixtures.result.SingleNodeLogResult;
 import org.hiero.otter.fixtures.result.SingleNodePlatformStatusResult;
-
-import static org.hiero.consensus.model.status.PlatformStatus.ACTIVE;
-import static org.hiero.consensus.model.status.PlatformStatus.CATASTROPHIC_FAILURE;
-import static org.hiero.consensus.model.status.PlatformStatus.CHECKING;
-import static org.hiero.consensus.model.status.PlatformStatus.OBSERVING;
-import static org.hiero.consensus.model.status.PlatformStatus.REPLAYING_EVENTS;
-import static org.hiero.otter.fixtures.OtterAssertions.assertThat;
-import static org.hiero.otter.fixtures.assertions.StatusProgressionStep.target;
-import static org.hiero.otter.fixtures.assertions.StatusProgressionStep.targets;
 
 /**
  * Tests for the detection and response to ISSes (Inconsistent State Signatures).
@@ -46,6 +47,12 @@ public class IssTest {
         final Node issNode = network.nodes().getFirst();
         issNode.triggerSelfIss();
 
+        env.timeManager()
+                .waitForCondition(
+                        () -> issNode.isInStatus(CATASTROPHIC_FAILURE),
+                        Duration.ofMinutes(2),
+                        "The ISS Node did not enter CATASTROPHIC_FAILURE in the time allowed.");
+
         final SingleNodePlatformStatusResult issNodeStatusResult = issNode.newPlatformStatusResult();
         assertThat(issNodeStatusResult)
                 .hasSteps(target(CATASTROPHIC_FAILURE).requiringInterim(REPLAYING_EVENTS, OBSERVING, CHECKING, ACTIVE));
@@ -62,8 +69,11 @@ public class IssTest {
         issNode.killImmediately();
         issNode.start();
 
-        env.timeManager().waitForCondition(issNode::isActive, Duration.ofSeconds(120),
-                "The ISS Node did not become ACTIVE in the time allowed.");
+        env.timeManager()
+                .waitForCondition(
+                        issNode::isActive,
+                        Duration.ofSeconds(120),
+                        "The ISS Node did not become ACTIVE in the time allowed.");
 
         assertThat(issNodeStatusResult)
                 .hasSteps(target(ACTIVE).requiringInterim(REPLAYING_EVENTS, OBSERVING, CHECKING));
@@ -87,30 +97,43 @@ public class IssTest {
         network.start();
 
         final Node issNode = network.nodes().getFirst();
+
+        final SingleNodeLogResult issNodeLogResult = issNode.newLogResult();
+        assertThat(issNodeLogResult).hasNoErrorLevelMessages();
+
         issNode.triggerSelfIss();
 
-        // TODO assert the node shutdown on its own, then restart it
-        // Send a liveliness ping to the DockerManager to see if the process is still alive
+        timeManager.waitForCondition(
+                () -> !issNode.isAlive(), Duration.ofSeconds(120), "Node did not shut down after ISS");
 
-        timeManager
-                .waitForCondition(
-                        issNode::isActive, Duration.ofSeconds(120),
-                        "The ISS node did not become ACTIVE in the time allowed.");
+        assertThat(issNodeLogResult
+                        .suppressingLoggerName(DefaultIssDetector.class)
+                        .suppressingLoggerName(SystemExitUtils.class))
+                .hasNoErrorLevelMessages();
+        issNodeLogResult.clear();
 
-        assertThat(issNode.newPlatformStatusResult()).hasSteps(
-                target(CATASTROPHIC_FAILURE).requiringInterim(REPLAYING_EVENTS, OBSERVING, CHECKING, ACTIVE),
-                target(ACTIVE).requiringInterim(REPLAYING_EVENTS, OBSERVING, CHECKING));
+        issNode.start();
 
-        assertThat(issNode.newLogResult().suppressingLoggerName(DefaultIssDetector.class)).hasNoErrorLevelMessages();
+        timeManager.waitForCondition(
+                issNode::isActive, Duration.ofSeconds(120), "The ISS node did not become ACTIVE in the time allowed.");
+
+        assertThat(issNode.newPlatformStatusResult())
+                .hasSteps(
+                        target(ACTIVE).requiringInterim(REPLAYING_EVENTS, OBSERVING, CHECKING),
+                        target(ACTIVE)
+                                .requiringInterim(REPLAYING_EVENTS, OBSERVING, CHECKING)
+                                .optionalInterim(CATASTROPHIC_FAILURE));
+
+        assertThat(issNodeLogResult).hasNoErrorLevelMessages();
         assertThat(network.newLogResults().suppressingNode(issNode)).haveNoErrorLevelMessages();
     }
 
     /**
-     * Triggers a catastrophic ISS and verifies that all nodes in the network enter the
-     * CATASTROPHIC_FAILURE or CHECKING state. One node will be the first to detect the catastrophic ISS and halt
-     * gossip. Once enough nodes have done this, the other nodes will not be able to proceed in consensus and may not
-     * detect the ISS. Therefore, they enter CHECKING instead. In networks with very low latency, it is likely that all
-     * nodes will enter CATASTROPHIC_FAILURE.
+     * Triggers a catastrophic ISS and verifies that all nodes in the network enter the CATASTROPHIC_FAILURE or CHECKING
+     * state. One node will be the first to detect the catastrophic ISS and halt gossip. Once enough nodes have done
+     * this, the other nodes will not be able to proceed in consensus and may not detect the ISS. Therefore, they enter
+     * CHECKING instead. In networks with very low latency, it is likely that all nodes will enter
+     * CATASTROPHIC_FAILURE.
      *
      * @param env the environment to test in
      */
