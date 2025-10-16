@@ -1,0 +1,181 @@
+{
+  "node": {
+    "baseFee": 1,
+    "extras": [
+      {
+        "name": "SIGNATURES", "includedCount": 1
+      }
+    ]
+  },
+  "network": {
+    "multiplier": 2
+  },
+  "unreadable": {
+    "feeValue": 100
+  },
+
+  "extras": [
+    { "name":  "SIGNATURES",                     "fee": 1 },
+    { "name":  "BYTES",                          "fee": 1 },
+    { "name":  "KEYS",                           "fee": 1 },
+    { "name":  "TOKEN_TYPES",                    "fee": 3 },
+    { "name":  "NFT_SERIALS",                    "fee": 1 },
+    { "name":  "ACCOUNTS",                       "fee": 3 },
+    { "name":  "STANDARD_FUNGIBLE_TOKENS",       "fee": 3 },
+    { "name":  "STANDARD_NON_FUNGIBLE_TOKENS",   "fee": 3 },
+    { "name":  "CUSTOM_FEE_FUNGIBLE_TOKENS",     "fee": 3 },
+    { "name":  "CUSTOM_FEE_NON_FUNGIBLE_TOKENS", "fee": 3 },
+    { "name":  "CREATED_AUTO_ASSOCIATIONS",      "fee": 3 },
+    { "name":  "CREATED_ACCOUNTS",               "fee": 3 },
+    { "name":  "CUSTOM_FEE",                     "fee": 30 },
+    { "name":  "GAS",                            "fee": 1 },
+    { "name":  "ALLOWANCES",                     "fee": 2000 },
+    { "name":  "AIRDROPS",                       "fee": 8800 }
+  ],
+  "services": [
+    {
+      "name": "Crypto",
+      "transactions": [
+        {
+          "name": "CryptoCreate",
+          "baseFee": 22,
+          "extras": [
+            { "name": "SIGNATURES", "includedCount": 1 }
+          ]
+        },
+        {
+          "name": "CryptoUpdate",
+          "baseFee": 22,
+          "extras": [
+            {  "name": "SIGNATURES", "includedCount": 1 },
+            {  "name": "KEYS",       "includedCount": 1 }
+          ]
+        },
+        {
+          "name": "CryptoTransfer",
+          "baseFee": 18,
+          "extras": [
+            {  "name": "SIGNATURES", "includedCount": 1 },
+            {  "name": "KEYS",       "includedCount": 1 },
+            {  "name": "Accounts",       "includedCount": 1 },
+            {  "name": "StandardFungibleTokens", "includedCount": 1}
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Consensus",
+      "transactions": [
+        {
+          "name": "ConsensusCreateTopic",
+          "baseFee": 19,
+          "extras": [
+            { "name": "SIGNATURES", "includedCount": 1 }
+          ]
+        },
+        {
+          "name": "ConsensusUpdateTopic",
+          "baseFee": 19,
+          "extras": [
+            { "name": "SIGNATURES", "includedCount": 1 },
+            { "name": "KEYS",       "includedCount": 1 }
+          ]
+        },
+        {
+          "name": "ConsensusSubmitMessage",
+          "baseFee": 19,
+          "extras": [
+            { "name": "SIGNATURES", "includedCount": 1 },
+            {  "name": "KEYS", "includedCount": 1      },
+            { "name": "BYTES", "includedCount": 256    }
+          ]
+        },
+        {
+          "name": "ConsensusDeleteTopic",
+          "baseFee": 5,
+          "extras": [
+            { "name": "SIGNATURES", "includedCount": 1 }
+          ]
+        },
+        {
+          "name": "ConsensusGetTopicInfo",
+          "baseFee": 1,
+          "extras": [
+            { "name": "SIGNATURES", "includedCount": 1      },
+            { "name": "KEYS",       "includedCount": 1      }
+          ]
+        }
+      ]
+    },
+    {
+      "name":  "File",
+      "transactions": [
+        {
+          "name": "FileCreate",
+          "baseFee": 50,
+          "extras": [
+            { "name": "SIGNATURES", "includedCount": 1},
+            { "name": "KEYS", "includedCount": 1},
+            { "name": "BYTES", "includedCount": 1000}
+          ]
+        },
+        {
+          "name": "FileUpdate",
+          "baseFee": 50,
+          "extras": [
+            { "name": "SIGNATURES", "includedCount": 1},
+            { "name": "KEYS", "includedCount": 1},
+            { "name": "BYTES", "includedCount": 1000}
+          ]
+        },
+        {
+          "name": "FileAppend",
+          "baseFee": 50,
+          "extras": [
+            { "name": "SIGNATURES", "includedCount": 1},
+            { "name": "KEYS", "includedCount": 1},
+            { "name": "BYTES", "includedCount": 1000}
+          ]
+        },
+        {
+          "name": "FileDelete",
+          "baseFee": 7,
+          "extras": [
+            { "name": "SIGNATURES", "includedCount": 1},
+            { "name": "KEYS", "includedCount": 1}
+          ]
+        },
+        {
+          "name": "FileGetContents",
+          "baseFee": 10,
+          "extras": [
+            { "name": "SIGNATURES", "includedCount": 1},
+            { "name": "KEYS", "includedCount": 1},
+            { "name": "BYTES", "includedCount": 1000}
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Token",
+      "transactions": [
+        {
+          "name": "TokenCreate",
+          "baseFee": 25,
+          "extras": [
+            { "name": "SIGNATURES", "includedCount": 1 }
+          ]
+        },
+        {
+          "name": "TokenMint",
+          "baseFee": 33,
+          "extras": [
+            { "name": "SIGNATURES", "includedCount": 1 },
+            { "name": "StandardFungibleTokens", "includedCount": 1 },
+            { "name": "StandardNonFungibleTokens", "includedCount": 1 }
+          ]
+        }
+      ]
+    }
+  ]
+}
