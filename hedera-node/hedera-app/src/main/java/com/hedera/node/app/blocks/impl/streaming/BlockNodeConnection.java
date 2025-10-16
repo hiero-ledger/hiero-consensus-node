@@ -704,14 +704,18 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
 
         try {
             closePipeline(callOnComplete);
-            if (blockStreamPublishServiceClient != null) {
-                blockStreamPublishServiceClient.close();
-            }
             jumpToBlock(-1L);
             logWithContext(DEBUG, "Connection successfully closed.");
         } catch (final RuntimeException e) {
             logWithContext(DEBUG, "Error occurred while attempting to close connection.", e);
         } finally {
+            try {
+                if (blockStreamPublishServiceClient != null) {
+                    blockStreamPublishServiceClient.close();
+                }
+            } catch (final Exception e) {
+                logger.error("Error occurred while closing gRPC client.", e);
+            }
             blockStreamMetrics.recordConnectionClosed();
             blockStreamMetrics.recordActiveConnectionIp(-1L);
             // regardless of outcome, mark the connection as closed

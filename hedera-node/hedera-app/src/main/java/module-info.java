@@ -56,7 +56,6 @@ module com.hedera.node.app {
     requires com.google.common;
     requires io.grpc.netty;
     requires io.helidon.common.tls;
-    requires transitive io.helidon.webclient.api;
     requires io.helidon.webclient.grpc;
     requires io.netty.handler;
     requires io.netty.transport.classes.epoll;
