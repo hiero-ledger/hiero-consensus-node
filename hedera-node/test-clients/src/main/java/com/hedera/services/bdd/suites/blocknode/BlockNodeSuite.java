@@ -71,7 +71,7 @@ public class BlockNodeSuite {
                 doingContextual(spec -> {
                     portNumbers.add(spec.getBlockNodePortById(0));
                 }),
-                waitUntilNextBlocks(5).withBackgroundTraffic(true),
+                waitUntilNextBlocks(15).withBackgroundTraffic(true),
                 // Verify buffer saturation increases without block node connection
                 doingContextual(spec -> timeRef.set(Instant.now())),
                 sourcingContextual(spec -> assertHgcaaLogContainsTimeframe(
@@ -139,6 +139,7 @@ public class BlockNodeSuite {
                                 "/localhost:%s/CLOSED] Connection state transitioned from CLOSING to CLOSED",
                                 portNumbers.getFirst()),
                         // New invalid config is loaded
+                        "Reloaded 1 block node configurations. Restarting connection manager.",
                         // Connection client created but exception occurs with invalid address
                         "Created BlockStreamPublishServiceClient for 26dsfg2364:1234")),
                 doingContextual((spec) -> timeRef.set(Instant.now())),

@@ -965,10 +965,7 @@ public class BlockNodeConnectionManager {
                                         try {
                                             handleConfigFileChange();
                                         } catch (Exception e) {
-                                            logWithContext(
-                                                    INFO,
-                                                    "Exception in BlockNodesConfigWatcher config file change handler. {}",
-                                                    e);
+                                            logWithContext(INFO, "Exception in config file change handler.", e);
                                         }
                                     }
                                 }
@@ -1014,7 +1011,9 @@ public class BlockNodeConnectionManager {
             }
             if (!newConfigs.isEmpty()) {
                 logWithContext(
-                        INFO, "Initial block node configuration loaded ({}). Starting connection manager.", newConfigs);
+                        INFO,
+                        "Initial block node configuration loaded ({} nodes). Starting connection manager.",
+                        newConfigs.size());
                 start();
             } else {
                 logWithContext(INFO, "Initial block node configuration missing or invalid. Waiting for updates.");
@@ -1084,7 +1083,8 @@ public class BlockNodeConnectionManager {
         }
 
         if (!newConfigs.isEmpty()) {
-            logWithContext(INFO, "Reloaded block node configurations ({})", newConfigs);
+            logWithContext(
+                    INFO, "Reloaded {} block node configurations. Restarting connection manager.", newConfigs.size());
             start();
         } else {
             logWithContext(
