@@ -10,6 +10,7 @@ import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.nio.file.Path;
 import java.security.cert.X509Certificate;
 import java.time.Duration;
 import java.time.Instant;
@@ -25,11 +26,14 @@ import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.TimeManager;
 import org.hiero.otter.fixtures.TransactionFactory;
 import org.hiero.otter.fixtures.app.OtterTransaction;
+import org.hiero.otter.fixtures.util.OtterSavedStateUtils;
 
 /**
  * Base implementation of the {@link Node} interface that provides common functionality.
  */
 public abstract class AbstractNode implements Node {
+
+    static final long UNSET_WEIGHT = -1;
 
     /**
      * Represents the lifecycle states of a node.
@@ -56,7 +60,7 @@ public abstract class AbstractNode implements Node {
     protected final KeysAndCerts keysAndCerts;
 
     private Roster roster;
-    private long weight;
+    private long weight = UNSET_WEIGHT;
 
     /**
      * The current state of the node's life cycle. Volatile because it is set by the test thread and read by the
@@ -66,6 +70,9 @@ public abstract class AbstractNode implements Node {
 
     /** Current software version of the platform */
     protected SemanticVersion version = Node.DEFAULT_VERSION;
+
+    /** Saved state directory */
+    protected Path savedStateDirectory;
 
     /**
      * The current state of the platform. Volatile because it is set by the container callback thread and read by the
@@ -111,17 +118,22 @@ public abstract class AbstractNode implements Node {
     }
 
     /**
-     * Sets the roster for this node.
+     * Sets the roster for this node. If the weight for this node in the roster does not match the weight set for this
+     * node, an {@link IllegalArgumentException} is thrown.
      *
      * @param roster the roster to set
      */
     protected void roster(@NonNull final Roster roster) {
         this.roster = requireNonNull(roster);
-        this.weight = roster.rosterEntries().stream()
+        final long rosterWeight = roster.rosterEntries().stream()
                 .filter(r -> r.nodeId() == selfId.id())
                 .findFirst()
                 .map(RosterEntry::weight)
-                .orElse(0L);
+                .orElseThrow(() -> new IllegalStateException("Node ID " + selfId.id() + " not found in roster"));
+        if (weight != UNSET_WEIGHT && weight != rosterWeight) {
+            throw new IllegalStateException("Node weight " + weight + " does not match roster weight " + rosterWeight);
+        }
+        weight = rosterWeight;
     }
 
     /**
@@ -163,6 +175,19 @@ public abstract class AbstractNode implements Node {
      * {@inheritDoc}
      */
     @Override
+    public void weight(final long weight) {
+        throwIfInLifecycle(LifeCycle.RUNNING, "Cannot set weight while the node is running");
+        throwIfInLifecycle(LifeCycle.DESTROYED, "Cannot set weight after the node has been destroyed");
+        if (weight < 0) {
+            throw new IllegalArgumentException("Weight must be non-negative");
+        }
+        this.weight = weight;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
     @NonNull
     public SemanticVersion version() {
         return version;
@@ -177,6 +202,17 @@ public abstract class AbstractNode implements Node {
         throwIfInLifecycle(LifeCycle.DESTROYED, "Cannot set version after the node has been destroyed");
 
         this.version = requireNonNull(version);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void startFromSavedState(@NonNull final Path savedStateDirectory) {
+        throwIfInLifecycle(LifeCycle.RUNNING, "Cannot set saved state directory while the node is running");
+        throwIfInLifecycle(LifeCycle.DESTROYED, "Cannot set saved state directory after the node has been destroyed");
+
+        this.savedStateDirectory = OtterSavedStateUtils.findSaveState(requireNonNull(savedStateDirectory));
     }
 
     /**
@@ -283,6 +319,8 @@ public abstract class AbstractNode implements Node {
                         () -> platformStatus == CATASTROPHIC_FAILURE,
                         timeout.minus(elapsed),
                         "Did not receive IssPayload log before timeout");
+        
+        log.info("Self ISS triggered");
     }
 
     /**

@@ -56,7 +56,8 @@ public interface MultipleNodeConsensusResults extends OtterResult {
      * Excludes the consensus results of one or more nodes from the current results.
      *
      * @param nodes the nodes whose consensus results are to be excluded
-     * @return a new instance of {@link MultipleNodeConsensusResults} with the specified nodes' consensus results excluded
+     * @return a new instance of {@link MultipleNodeConsensusResults} with the specified nodes' consensus results
+     * excluded
      */
     @NonNull
     MultipleNodeConsensusResults suppressingNodes(@NonNull final Collection<Node> nodes);
@@ -65,10 +66,21 @@ public interface MultipleNodeConsensusResults extends OtterResult {
      * Excludes the consensus results of one or more nodes from the current results.
      *
      * @param nodes the nodes whose consensus results are to be excluded
-     * @return a new instance of {@link MultipleNodeConsensusResults} with the specified nodes' consensus results excluded
+     * @return a new instance of {@link MultipleNodeConsensusResults} with the specified nodes' consensus results
+     * excluded
      */
     @NonNull
     default MultipleNodeConsensusResults suppressingNodes(@NonNull final Node... nodes) {
         return suppressingNodes(Arrays.asList(nodes));
+    }
+
+    /**
+     * Checks if all nodes have advanced to at least the specified round.
+     *
+     * @param round the round number to check against
+     * @return true if all nodes have advanced to at least the specified round, false otherwise
+     */
+    default boolean allNodesAdvancedToRound(final long round) {
+        return results().stream().allMatch(r -> r.lastRoundNum() >= round);
     }
 }

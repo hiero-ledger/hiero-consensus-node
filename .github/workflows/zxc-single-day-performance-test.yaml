@@ -49,6 +49,11 @@ on:
         default: "-p maxKey=500000000 -p numRecords=100000 -p keySize=24 -p recordSize=1024 -p numFiles=6000"
         description: "Test params"
         type: string
+      delete-namespace:
+        required: false
+        default: true
+        type: boolean
+        description: "If true, automatically delete namespace when done"
     secrets:
       slack-report-webhook:
         required: true
@@ -64,6 +69,7 @@ on:
 permissions:
   contents: write
   id-token: write
+  actions: write
 
 env:
   NAMESPACE_PREFIX: solo-sdpt-n
@@ -212,6 +218,30 @@ jobs:
           echo "namespace=${NAMESPACE_PREFIX}${n}" >> "${GITHUB_OUTPUT}"
           echo "namespace=${NAMESPACE_PREFIX}${n}" >> "${GITHUB_STEP_SUMMARY}"
 
+      - name: Check for namespace collision
+        run: |
+          set +e
+          set +x
+          NETWORK_ID="$(echo "${{ steps.set-namespace.outputs.namespace }}" | perl -pne '~s/^.*[^\d](\d+)$/$1/g')"
+
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt get namespaces | grep -E "solo-.*t-n${NETWORK_ID}"
+          if [ ${?} -eq 0 ]
+          then
+            echo "::error The namespace[s] with NETWORK_ID=${NETWORK_ID} already exist[s]. Please check previous run; remove with 'kubectl delete namespaces <namespace namespace ...>'"
+            exit 13
+          fi
+
+      - name: Cancelling in case of namespace collision
+        if: failure()
+        uses: actions/github-script@d7906e4ad0b1822421a7e6a35d5ca353c962f410 #v6
+        with:
+          script: |
+            github.rest.actions.cancelWorkflowRun({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              run_id: context.runId
+            });
+
       - name: Print parameters
         run: |
           echo "inputs.test-asset=${{ steps.set-namespace.outputs.namespace }}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
@@ -265,11 +295,6 @@ jobs:
           set +x
           set +e
           curdir="$(pwd)"
-          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt get namespaces | grep "${{ steps.set-namespace.outputs.namespace }}"
-          if [ ${?} -eq 0 ]
-          then
-            sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt delete namespace "${{ steps.set-namespace.outputs.namespace }}"
-          fi
 
           # Create the solo directory
           mkdir -p "${{ github.workspace }}"/solo && cd "${{ github.workspace}}"/solo
@@ -432,8 +457,6 @@ jobs:
           benchmark.csvWriteFrequency,          10000
           benchmark.csvAppend,              true
           benchmark.deviceName,             md0
-          virtualMap.familyThrottleThreshold,      10000000000
-          virtualMap.flushThrottleStepSize,       500ms
           merkleDb.hashesRamToDiskThreshold,       134217728
           merkleDb.compactionThreads,          1
           EOPROPF
@@ -1053,9 +1076,13 @@ jobs:
           set +e
           cd "${{ github.workspace }}"
           merklebenchpod="$(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.performance-tests-start.outputs.namespace }}" get pods | grep merklebench | awk '{print $1}')"
-          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.performance-tests-start.outputs.namespace }}" cp ${merklebenchpod}:/app/swirlds-benchmarks.log ./swirlds-benchmarks.log
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.performance-tests-start.outputs.namespace }}" exec ${merklebenchpod} -- bash -c "cd /app; tar cfz swirlds-benchmarks_logs.tgz swirlds-benchmarks.log output ./*/BenchmarkMetrics.csv"
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.performance-tests-start.outputs.namespace }}" cp ${merklebenchpod}:/app/swirlds-benchmarks_logs.tgz ./swirlds-benchmarks_logs.tgz
           rm -rf "${{ github.workspace }}"/report/*
-          cp swirlds-benchmarks.log "${{ github.workspace }}"/report/swirlds-benchmarks.log
+          cp swirlds-benchmarks_logs.tgz "${{ github.workspace }}"/report/swirlds-benchmarks_logs.tgz
+          cd "${{ github.workspace }}"/report
+          tar xfz swirlds-benchmarks_logs.tgz
+          cd "${{ github.workspace }}"
           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.performance-tests-start.outputs.namespace }}" delete deployment merklebench-network-load-generator
 
       - name: Extract benchmark score of CryptoBenchMerkleDb test
@@ -1155,7 +1182,7 @@ jobs:
   single-day-performance-test-result:
     name: Calculate Result
     runs-on: hiero-citr-linux-large
-    if: ${{ always() }}
+    if: ${{ !cancelled() }}
     needs:
       - performance-NftTransferLoadTest-report
       - performance-HCSLoadTest
@@ -1229,6 +1256,54 @@ jobs:
 
           echo "### Single Day Performance Result" >> "${GITHUB_STEP_SUMMARY}"
           echo "result=${RESULT}" >> "${GITHUB_STEP_SUMMARY}"
+
+  delete-namespace:
+    name: Delete namespace
+    runs-on: hiero-citr-linux-large
+    needs:
+      - performance-tests-start
+      - single-day-performance-test-result
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+        with:
+          egress-policy: audit
+
+      - name: Checkout Code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ inputs.ref }}
+
+      - name: Install KubeCtl
+        uses: step-security/setup-kubectl@2edbf6aff97d814e9dc52827498ac51fe972e6d0 # v4.0.0
+        with:
+          version: v1.33.0
+
+      - name: Install Teleport Client
+        uses: teleport-actions/setup@176c25dfcd19cd31a252f275d579822b243e7b9c # v1.0.6
+        with:
+          version: 18.1.4
+
+      - name: Authorize Teleport SSH Access
+        id: auth-ssh
+        uses: teleport-actions/auth@685adaf480dc79262a99220eb158a92136d5abd9 # v2.0.3
+        with:
+          proxy: hashgraph.teleport.sh:443
+          token: gh-citr-performance-svcs-bot
+
+      - name: Authorize Teleport K8S Access
+        id: auth-k8s
+        uses: teleport-actions/auth-k8s@677da98eaa78a5e649d4c5b4012750af4c28af73 # v2.0.3
+        with:
+          proxy: hashgraph.teleport.sh:443
+          token: gh-citr-performance-svcs-bot
+          kubernetes-cluster: ${{ needs.performance-tests-start.outputs.kubernetes-cluster }}
+          certificate-ttl: 168h
+
+      - name: Delete namespace
+        if: ${{ inputs.delete-namespace == true }}
+        run: |
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt delete namespace "${{ needs.performance-tests-start.outputs.namespace }}"
 
   performance-report-to-rootly:
     name: Report Failures to Rootly

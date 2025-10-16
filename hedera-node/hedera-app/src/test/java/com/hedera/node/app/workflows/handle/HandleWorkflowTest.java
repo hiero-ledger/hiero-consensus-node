@@ -21,14 +21,12 @@ import com.hedera.hapi.block.stream.input.EventHeader;
 import com.hedera.hapi.block.stream.input.ParentEventReference;
 import com.hedera.hapi.block.stream.output.StateChange;
 import com.hedera.hapi.block.stream.output.StateChanges;
-import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.platform.event.EventCore;
 import com.hedera.hapi.platform.event.EventDescriptor;
 import com.hedera.hapi.platform.state.PlatformState;
 import com.hedera.node.app.blocks.BlockHashSigner;
 import com.hedera.node.app.blocks.BlockStreamManager;
-import com.hedera.node.app.blocks.impl.BoundaryStateChangeListener;
 import com.hedera.node.app.blocks.impl.ImmediateStateChangeListener;
 import com.hedera.node.app.blocks.impl.streaming.BlockBufferService;
 import com.hedera.node.app.fees.ExchangeRateManager;
@@ -125,16 +123,10 @@ class HandleWorkflowTest {
     private ImmediateStateChangeListener immediateStateChangeListener;
 
     @Mock
-    private BoundaryStateChangeListener boundaryStateChangeListener;
-
-    @Mock
     private OpWorkflowMetrics opWorkflowMetrics;
 
     @Mock
     private ThrottleServiceManager throttleServiceManager;
-
-    @Mock
-    private SemanticVersion version;
 
     @Mock
     private InitTrigger initTrigger;

@@ -20,6 +20,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.BDDMockito.given;
 
+import com.hedera.hapi.block.stream.ChainOfTrustProof;
 import com.hedera.hapi.node.state.history.ConstructionNodeId;
 import com.hedera.hapi.node.state.history.History;
 import com.hedera.hapi.node.state.history.HistoryProof;
@@ -40,8 +41,8 @@ import com.hedera.node.app.history.HistoryLibrary;
 import com.hedera.node.app.history.HistoryService;
 import com.hedera.node.app.history.ReadableHistoryStore;
 import com.hedera.node.app.history.schemas.V059HistorySchema;
-import com.hedera.node.app.ids.EntityIdService;
 import com.hedera.node.app.metrics.StoreMetricsServiceImpl;
+import com.hedera.node.app.service.entityid.impl.EntityIdServiceImpl;
 import com.hedera.node.app.service.roster.impl.ActiveRosters;
 import com.hedera.node.app.spi.AppContext;
 import com.hedera.node.app.spi.info.NetworkInfo;
@@ -282,12 +283,12 @@ class WritableHistoryStoreImplTest {
                 HistoryProofConstruction.newBuilder().constructionId(123L).build(),
                 HistoryProofConstruction.newBuilder().constructionId(456L).build());
 
-        final var bookHash = Bytes.wrap("DOODLE");
-        final var proof = new HistoryProof(bookHash, List.of(ProofKey.DEFAULT), History.DEFAULT, Bytes.EMPTY);
+        final var proofKey = new ProofKey(123L, Bytes.wrap("DOODLE"));
+        final var proof = new HistoryProof(List.of(proofKey), History.DEFAULT, ChainOfTrustProof.DEFAULT);
         subject.completeProof(456L, proof);
 
         final var construction = this.<HistoryProofConstruction>getSingleton(NEXT_PROOF_CONSTRUCTION_STATE_ID);
-        assertEquals(bookHash, construction.targetProofOrThrow().sourceAddressBookHash());
+        assertEquals(List.of(proofKey), construction.targetProofOrThrow().targetProofKeys());
     }
 
     @Test
@@ -381,7 +382,7 @@ class WritableHistoryStoreImplTest {
         final var state = new FakeState();
         final var servicesRegistry = new FakeServicesRegistry();
         Set.of(
-                        new EntityIdService(),
+                        new EntityIdServiceImpl(),
                         new HistoryServiceImpl(
                                 NO_OP_METRICS, ForkJoinPool.commonPool(), appContext, library, WITH_ENABLED_HISTORY))
                 .forEach(servicesRegistry::register);

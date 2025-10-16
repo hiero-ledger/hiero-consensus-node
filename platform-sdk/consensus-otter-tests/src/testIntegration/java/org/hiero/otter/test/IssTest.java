@@ -62,10 +62,8 @@ public class IssTest {
         issNode.killImmediately();
         issNode.start();
 
-        env.timeManager()
-                .waitForCondition(
-                        issNode::isActive, Duration.ofSeconds(120),
-                        "The ISS Node did not become ACTIVE in the time allowed.");
+        env.timeManager().waitForCondition(issNode::isActive, Duration.ofSeconds(120),
+                "The ISS Node did not become ACTIVE in the time allowed.");
 
         assertThat(issNodeStatusResult)
                 .hasSteps(target(ACTIVE).requiringInterim(REPLAYING_EVENTS, OBSERVING, CHECKING));
@@ -108,11 +106,11 @@ public class IssTest {
     }
 
     /**
-     * Triggers a catastrophic ISS and verifies that all nodes in the network enter the CATASTROPHIC_FAILURE or CHECKING
-     * state. One node will be the first to detect the catastrophic ISS and halt gossip. Once enough nodes have done
-     * this, the other nodes will not be able to proceed in consensus and may not detect the ISS. Therefore, they enter
-     * CHECKING instead. In networks with very low latency, it is likely that all nodes will enter
-     * CATASTROPHIC_FAILURE.
+     * Triggers a catastrophic ISS and verifies that all nodes in the network enter the
+     * CATASTROPHIC_FAILURE or CHECKING state. One node will be the first to detect the catastrophic ISS and halt
+     * gossip. Once enough nodes have done this, the other nodes will not be able to proceed in consensus and may not
+     * detect the ISS. Therefore, they enter CHECKING instead. In networks with very low latency, it is likely that all
+     * nodes will enter CATASTROPHIC_FAILURE.
      *
      * @param env the environment to test in
      */

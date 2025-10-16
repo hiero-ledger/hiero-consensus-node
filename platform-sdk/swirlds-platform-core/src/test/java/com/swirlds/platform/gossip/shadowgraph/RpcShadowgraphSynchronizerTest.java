@@ -2,6 +2,7 @@
 package com.swirlds.platform.gossip.shadowgraph;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
@@ -119,6 +120,39 @@ class RpcShadowgraphSynchronizerTest {
         Mockito.verify(gossipSender).sendEvents(List.of());
         Mockito.verify(gossipSender).sendEndOfEvents();
         Mockito.verifyNoMoreInteractions(gossipSender);
+    }
+
+    @Test
+    void errorOnDoubleSyncData() {
+        var otherNodeId = NodeId.of(5);
+        var conversation = synchronizer.createPeerHandler(gossipSender, otherNodeId);
+        conversation.checkForPeriodicActions(false, false);
+        Mockito.verify(gossipSender).sendSyncData(any());
+        conversation.receiveSyncData(EMPTY_SYNC_MESSAGE);
+        assertThrows(IllegalStateException.class, () -> conversation.receiveSyncData(EMPTY_SYNC_MESSAGE));
+    }
+
+    @Test
+    void errorOnTipsWithoutSyncData() {
+        var otherNodeId = NodeId.of(5);
+        var conversation = synchronizer.createPeerHandler(gossipSender, otherNodeId);
+        conversation.checkForPeriodicActions(false, false);
+        Mockito.verify(gossipSender).sendSyncData(any());
+        assertThrows(IllegalStateException.class, () -> conversation.receiveTips(List.of()));
+    }
+
+    @Test
+    void errorOnDoubleTips() {
+        var otherNodeId = NodeId.of(5);
+        var conversation = synchronizer.createPeerHandler(gossipSender, otherNodeId);
+        conversation.checkForPeriodicActions(false, false);
+        Mockito.verify(gossipSender).sendSyncData(any());
+        conversation.receiveSyncData(EMPTY_SYNC_MESSAGE);
+        Mockito.verify(gossipSender).sendTips(List.of());
+        conversation.receiveTips(List.of());
+        Mockito.verify(gossipSender).sendEvents(List.of());
+        Mockito.verify(gossipSender).sendEndOfEvents();
+        assertThrows(IllegalStateException.class, () -> conversation.receiveTips(List.of()));
     }
 
     @Test
