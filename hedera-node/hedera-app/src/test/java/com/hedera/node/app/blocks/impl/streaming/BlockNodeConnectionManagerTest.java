@@ -247,7 +247,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         connectionManager = new BlockNodeConnectionManager(configProvider, bufferService, metrics);
         replaceLocalhostWithPbjUnitTestHost();
 
-        resetMocks();
+//        resetMocks();
     }
 
     @AfterEach

@@ -225,6 +225,8 @@ public class BlockNodeConnectionManager {
      */
     private final int highLatencyEventsBeforeSwitching;
 
+    private final BlockNodeClientFactory clientFactory;
+
     /**
      * Helper method to remove current instance information for debug logging.
      */
@@ -268,6 +270,8 @@ public class BlockNodeConnectionManager {
         this.endOfStreamScheduleDelay = blockNodeConnectionConfig.endOfStreamScheduleDelay();
         this.highLatencyThreshold = blockNodeConnectionConfig.highLatencyThreshold();
         this.highLatencyEventsBeforeSwitching = blockNodeConnectionConfig.highLatencyEventsBeforeSwitching();
+        this.clientFactory = new BlockNodeClientFactory();
+
         isStreamingEnabled.set(isStreamingEnabled());
 
         if (isStreamingEnabled.get()) {
@@ -776,7 +780,7 @@ public class BlockNodeConnectionManager {
         requireNonNull(nodeConfig);
 
         final BlockNodeConnection connection = new BlockNodeConnection(
-                configProvider, nodeConfig, this, blockBufferService, blockStreamMetrics, sharedExecutorService);
+                configProvider, nodeConfig, this, blockBufferService, blockStreamMetrics, sharedExecutorService, clientFactory);
 
         connections.put(nodeConfig, connection);
         return connection;

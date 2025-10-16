@@ -14,7 +14,6 @@ import com.hedera.node.app.util.LoggingUtilities;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockNodeConnectionConfig;
 import com.hedera.node.internal.network.BlockNodeConfig;
-import com.hedera.pbj.grpc.client.helidon.PbjGrpcClient;
 import com.hedera.pbj.grpc.client.helidon.PbjGrpcClientConfig;
 import com.hedera.pbj.runtime.grpc.GrpcException;
 import com.hedera.pbj.runtime.grpc.Pipeline;
@@ -129,6 +128,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
     private final String connectionId;
 
     private final ConfigProvider configProvider;
+    private final BlockNodeClientFactory clientFactory;
 
     /**
      * Represents the possible states of a Block Node connection.
@@ -196,7 +196,8 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
             @NonNull final BlockNodeConnectionManager blockNodeConnectionManager,
             @NonNull final BlockBufferService blockBufferService,
             @NonNull final BlockStreamMetrics blockStreamMetrics,
-            @NonNull final ScheduledExecutorService executorService) {
+            @NonNull final ScheduledExecutorService executorService,
+            @NonNull final BlockNodeClientFactory clientFactory) {
         this.configProvider = requireNonNull(configProvider, "configProvider must not be null");
         this.blockNodeConfig = requireNonNull(nodeConfig, "nodeConfig must not be null");
         this.blockNodeConnectionManager =
@@ -208,6 +209,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
         final var blockNodeConnectionConfig =
                 configProvider.getConfiguration().getConfigData(BlockNodeConnectionConfig.class);
         this.streamResetPeriod = blockNodeConnectionConfig.streamResetPeriod();
+        this.clientFactory = requireNonNull(clientFactory, "clientFactory must not be null");
         connectionId = String.format("%04d", connectionIdCounter.incrementAndGet());
     }
 
@@ -256,7 +258,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                 "Created BlockStreamPublishServiceClient for {}:{}.",
                 blockNodeConfig.address(),
                 blockNodeConfig.port());
-        return new BlockStreamPublishServiceClient(new PbjGrpcClient(webClient, grpcConfig), OPTIONS);
+        return clientFactory.createClient(webClient, grpcConfig, OPTIONS);
     }
 
     /**
