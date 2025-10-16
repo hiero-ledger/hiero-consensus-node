@@ -29,6 +29,7 @@ It manages connection state, handles communication, and reports errors to the `B
 
 - Establish and maintain the connection transport.
 - Handle incoming and outgoing message flow.
+- Detect unresponsive block nodes via configurable timeouts on pipeline operations.
 - Report connection errors promptly.
 - Coordinate with `BlockNodeConnectionManager` on lifecycle events.
 - Notify the block buffer (via connection manager) when a block has been acknowledged and therefore eligible to be
@@ -68,6 +69,7 @@ stateDiagram-v2
     ACTIVE --> CLOSING : ResendBlock unavailable
     ACTIVE --> CLOSING : gRPC onError
     ACTIVE --> CLOSING : Stream failure
+    ACTIVE --> CLOSING : Pipeline operation timeout
     ACTIVE --> CLOSING : Manual close
     ACTIVE --> ACTIVE : BlockAcknowledgement
     ACTIVE --> ACTIVE : SkipBlock
@@ -160,4 +162,31 @@ The connection implements a configurable rate limiting mechanism for EndOfStream
 
 <dt>endOfStreamScheduleDelay</dt>
 <dd>The delay duration before attempting reconnection when the rate limit is exceeded.</dd>
+
+<dt>pipelineOperationTimeout</dt>
+<dd>The maximum duration allowed for pipeline onNext() and onComplete() operations before considering the block node unresponsive. Default: 30 seconds.</dd>
 </dl>
+
+### Pipeline Operation Timeout
+
+To detect unresponsive block nodes during message transmission, the connection implements configurable timeouts for both `onNext()` and `onComplete()` operations on the gRPC pipeline.
+
+#### Timeout Behavior
+
+- **onNext() timeout**: When sending block items via `sendRequest()`, a timeout task is scheduled before calling `pipeline.onNext()`. If the operation does not complete within the configured timeout period:
+  - The timeout metric is incremented
+  - `handleStreamFailure()` is triggered (only if connection is still ACTIVE)
+  - The connection follows standard failure handling with exponential backoff retry
+  - The connection manager may select a different block node for the next attempt
+- **onComplete() timeout**: When closing the stream via `closePipeline()`, a timeout task is scheduled before calling `pipeline.onComplete()`. If the operation does not complete within the configured timeout period:
+  - The timeout metric is incremented
+  - Since the connection is already in CLOSING state, only the timeout is logged
+  - The connection completes the close operation normally
+
+#### Timeout Cancellation
+
+If the pipeline operation completes successfully before the timeout expires, the timeout task is immediately cancelled to prevent false positives.
+
+#### Metrics
+
+A new metric `conn_pipelineOperationTimeout` tracks the total number of timeout events for both `onNext()` and `onComplete()` operations, enabling operators to monitor block node responsiveness.

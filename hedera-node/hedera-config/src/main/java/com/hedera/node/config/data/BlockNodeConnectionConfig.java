@@ -20,6 +20,7 @@ import java.time.Duration;
  * @param highLatencyEventsBeforeSwitching number of consecutive high-latency events before considering switching nodes
  * @param maxBackoffDelay the maximum backoff delay for exponential backoff
  * @param grpcOverallTimeout single timeout configuration for gRPC Client construction, connectTimeout, readTimeout and pollWaitTime
+ * @param pipelineOperationTimeout timeout for pipeline onNext() and onComplete() operations to detect unresponsive block nodes
  */
 @ConfigData("blockNode")
 public record BlockNodeConnectionConfig(
@@ -34,4 +35,5 @@ public record BlockNodeConnectionConfig(
         @ConfigProperty(defaultValue = "30s") @NodeProperty Duration highLatencyThreshold,
         @ConfigProperty(defaultValue = "5") @NodeProperty int highLatencyEventsBeforeSwitching,
         @ConfigProperty(defaultValue = "10s") @NodeProperty Duration maxBackoffDelay,
-        @ConfigProperty(defaultValue = "30s") @NodeProperty Duration grpcOverallTimeout) {}
+        @ConfigProperty(defaultValue = "30s") @NodeProperty Duration grpcOverallTimeout,
+        @ConfigProperty(defaultValue = "30s") @NodeProperty Duration pipelineOperationTimeout) {}
