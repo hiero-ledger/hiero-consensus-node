@@ -1,0 +1,28 @@
+syntax = "proto3";
+
+package proto;
+
+// SPDX-License-Identifier: Apache-2.0
+option java_package = "com.hederahashgraph.api.proto.java";
+// <<<pbj.java_package = "com.hedera.hapi.node.state.systemtask">>> This comment is special code for setting PBJ Compiler java package
+option java_multiple_files = true;
+
+import "services/basic_types.proto";
+
+/**
+ * A request to propagate a materialized key from a key account to its indirect users.
+ */
+message KeyPropagation {
+  /** The account whose materialized key must be propagated to indirect users. */
+  AccountID key_account_id = 1;
+}
+
+/**
+ * A system-managed task enqueued for asynchronous processing by Services.
+ */
+message SystemTask {
+  oneof task {
+    KeyPropagation key_propagation = 1;
+  }
+}
+

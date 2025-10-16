@@ -54,6 +54,7 @@ module com.hedera.node.hapi {
     exports com.hedera.hapi.node.state.blockrecords.codec;
     exports com.hedera.hapi.node.state.blockrecords.schema;
     exports com.hedera.hapi.node.state.blockstream;
+    exports com.hedera.hapi.node.state.systemtask;
     exports com.hedera.hapi.node.state.schedule;
     exports com.hedera.hapi.node.state.primitives;
     exports com.hedera.hapi.node.state.primitives.codec;

@@ -42,6 +42,8 @@ import "services/state/history/history_types.proto";
 import "services/state/recordcache/recordcache.proto";
 import "services/state/roster/roster.proto";
 import "services/state/roster/roster_state.proto";
+import "services/state/systemtask/system_task.proto";
+
 import "services/state/schedule/schedule.proto";
 import "services/state/throttles/throttle_usage_snapshots.proto";
 import "services/state/token/account.proto";
@@ -274,6 +276,11 @@ message StateKey {
      * Queue index for the round receipts queue.
      */
     uint64 RecordCache_I_TRANSACTION_RECEIPTS = 126;
+
+    /**
+     * Queue index for the system task queue.
+     */
+    uint64 SystemTaskService_I_SYSTEM_TASK_QUEUE = 127;
 
     /**
      * Queue index for the `150` upgrade file data.
@@ -613,6 +620,11 @@ message StateValue {
     proto.TransactionReceiptEntries RecordCache_I_TRANSACTION_RECEIPTS = 126;
 
     /**
+     * Metadata of the system task queue.
+     */
+    proto.SystemTask SystemTaskService_I_SYSTEM_TASK_QUEUE = 127;
+
+    /**
      * Metadata of the queue state.<br/>
      * Reasons for the field number:
      * <ul>
@@ -792,6 +804,11 @@ enum SingletonType {
    * Metadata of the round receipts queue.
    */
   RecordCache_I_TRANSACTION_RECEIPTS = 126;
+
+  /**
+   * Metadata of the system task queue.
+   */
+  SystemTaskService_I_SYSTEM_TASK_QUEUE = 127;
 
   /**
    * Metadata of the `150` upgrade file data queue.
