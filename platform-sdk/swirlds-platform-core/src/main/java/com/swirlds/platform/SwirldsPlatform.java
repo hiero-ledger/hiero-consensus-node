@@ -239,8 +239,8 @@ public class SwirldsPlatform implements Platform {
 
         Runtime.getRuntime().addShutdownHook(new Thread(reconnectController::stop));
         new ThreadConfiguration(AdHocThreadManager.getStaticThreadManager())
-                .setComponent("reconnecter")
-                .setThreadName("platform-reconnecter")
+                .setComponent("ReconnectController")
+                .setThreadName("ReconnectController")
                 .setRunnable(reconnectController::start)
                 .build(true);
 

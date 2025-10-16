@@ -64,9 +64,11 @@ public class FallenBehindMonitor {
 
     private void checkAndNotify() {
         boolean wasNotBehind = !isBehind;
-        isBehind = peersSize * fallenBehindThreshold < reportFallenBehind.size();
+        // Fall behind if reports > threshold OR if all peers have reported (handles threshold = 1.0 edge case)
+        isBehind = peersSize * fallenBehindThreshold < reportFallenBehind.size()
+                || (peersSize > 0 && reportFallenBehind.size() == peersSize);
         if (wasNotBehind && isBehind) {
-            notifyAll(); // Wake up waiting threads
+            notifyAll(); // notify waiting threads
         }
     }
 
