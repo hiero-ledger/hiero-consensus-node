@@ -11,7 +11,6 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.stream.Stream;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
@@ -23,8 +22,8 @@ import org.hiero.otter.fixtures.result.MultipleNodeConsensusResults;
  * Continuous assertions for {@link MultipleNodeConsensusResults}.
  *
  * <p>Please note: If two continuous assertions fail roughly at the same time, it is non-deterministic which one
- * will report the failure first. This is even true when running a test in the Turtle environment.
- * If deterministic behavior is required, please use regular assertions instead of continuous assertions.
+ * will report the failure first. This is even true when running a test in the Turtle environment. If deterministic
+ * behavior is required, please use regular assertions instead of continuous assertions.
  */
 @SuppressWarnings({"UnusedReturnValue", "unused"})
 public class MultipleNodeConsensusResultsContinuousAssert
@@ -62,14 +61,16 @@ public class MultipleNodeConsensusResultsContinuousAssert
      */
     @NonNull
     public MultipleNodeConsensusResultsContinuousAssert haveConsistentRounds() {
-        // For some validations to function properly, we have to prepend the last round
-        final AtomicReference<ConsensusRound> lastRound = new AtomicReference<>(null);
+        final Map<NodeId, ConsensusRound> lastRoundByNodeId = new ConcurrentHashMap<>();
         return checkContinuously((nodeId, rounds) -> {
+            // For some validations to function properly, we have to prepend the last round
             final List<ConsensusRound> includingLast = Stream.concat(
-                            Stream.ofNullable(lastRound.get()), rounds.stream())
+                            Stream.ofNullable(lastRoundByNodeId.get(nodeId)), rounds.stream())
                     .toList();
             ConsensusRoundValidator.validate(includingLast);
-            lastRound.set(rounds.getLast());
+            if (!rounds.isEmpty()) {
+                lastRoundByNodeId.put(nodeId, rounds.getLast());
+            }
         });
     }
 
