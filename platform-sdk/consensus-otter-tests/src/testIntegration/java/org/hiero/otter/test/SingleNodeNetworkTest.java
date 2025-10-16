@@ -1,12 +1,20 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.test;
 
-import static org.hiero.otter.fixtures.assertions.MultipleNodeLogResultsAssert.assertThat;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.hiero.consensus.model.status.PlatformStatus.ACTIVE;
+import static org.hiero.consensus.model.status.PlatformStatus.CHECKING;
+import static org.hiero.consensus.model.status.PlatformStatus.FREEZE_COMPLETE;
+import static org.hiero.consensus.model.status.PlatformStatus.FREEZING;
+import static org.hiero.consensus.model.status.PlatformStatus.OBSERVING;
+import static org.hiero.consensus.model.status.PlatformStatus.REPLAYING_EVENTS;
+import static org.hiero.otter.fixtures.OtterAssertions.assertThat;
+import static org.hiero.otter.fixtures.assertions.StatusProgressionStep.target;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
-import org.assertj.core.api.Assertions;
 import org.hiero.otter.fixtures.Network;
+import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.OtterTest;
 import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.TimeManager;
@@ -30,11 +38,20 @@ public class SingleNodeNetworkTest {
         // Let the single node run for a short time
         timeManager.waitFor(Duration.ofSeconds(10));
         network.freeze();
-        final long freezeRound = network.nodes().getFirst().newConsensusResult().lastRoundNum();
+        final Node theOnlyNode = network.nodes().getFirst();
+        final long freezeRound = theOnlyNode.newConsensusResult().lastRoundNum();
         network.shutdown();
-        Assertions.assertThat(freezeRound)
+
+        // Verify that the single node reached freeze complete status while being active for a while
+        assertThat(theOnlyNode.newPlatformStatusResult())
+                .hasSteps(target(FREEZE_COMPLETE)
+                        .requiringInterim(ACTIVE)
+                        .optionalInterim(REPLAYING_EVENTS, OBSERVING, CHECKING, FREEZING));
+        // Verify that the freeze round is reasonable, given the time we let the node run
+        assertThat(freezeRound)
                 .withFailMessage("10 seconds should be enough time for a single node to reach at least round 20")
                 .isGreaterThan(20);
+        // Verify that there are no errors
         assertThat(network.newLogResults()).haveNoErrorLevelMessages();
     }
 }
