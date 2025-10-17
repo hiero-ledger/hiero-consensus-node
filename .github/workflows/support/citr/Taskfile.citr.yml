@@ -15,6 +15,14 @@ vars:
   solo_logs_dir: "{{ .solo_user_dir }}/logs"
   solo_keys_dir: "{{ .solo_cache_dir }}/keys"
   solo_bin_dir: "{{ .solo_user_dir }}/bin"
+  solo_ge_0440: # check if we are on solo 0.44.0 or greater
+    sh: |
+      version=$(solo --version | grep Version | awk '{print $3}')
+      if [[ "$(printf '%s\n' "$version" "0.44.0" | sort -V | head -n1)" == "0.44.0" ]]; then
+          echo true
+      else
+          echo false
+      fi
   temp_prefix:
     sh: (echo "/tmp/solo-${USER}-$(date +%Y%m%d%H%M%S)")
   var_check_file:
@@ -168,7 +176,11 @@ tasks:
         else
           export CLUSTER_REF="kind-${SOLO_CLUSTER_NAME}"
         fi
-        SOLO_HOME_DIR=${SOLO_HOME_DIR} solo cluster-ref connect --cluster-ref ${CLUSTER_REF} --context ${CONTEXT}
+        if [[ "{{ .solo_ge_0440 }}" == "true" ]]; then
+          SOLO_HOME_DIR=${SOLO_HOME_DIR} solo cluster-ref config connect --cluster-ref ${CLUSTER_REF} --context ${CONTEXT}
+        else
+          SOLO_HOME_DIR=${SOLO_HOME_DIR} solo cluster-ref connect --cluster-ref ${CLUSTER_REF} --context ${CONTEXT}
+        fi
 
   solo:deployment:create:
     silent: true
@@ -180,7 +192,11 @@ tasks:
         else
           export CLUSTER_REF="kind-${SOLO_CLUSTER_NAME}"
         fi
-        SOLO_HOME_DIR=${SOLO_HOME_DIR} solo deployment create -n {{ .SOLO_NAMESPACE }} --deployment "${SOLO_DEPLOYMENT}"
+        if [[ "{{ .solo_ge_0440 }}" == "true" ]]; then
+          SOLO_HOME_DIR=${SOLO_HOME_DIR} solo deployment config create -n {{ .SOLO_NAMESPACE }} --deployment "${SOLO_DEPLOYMENT}"
+        else
+          SOLO_HOME_DIR=${SOLO_HOME_DIR} solo deployment create -n {{ .SOLO_NAMESPACE }} --deployment "${SOLO_DEPLOYMENT}"
+        fi
 
   solo:deployment:add-cluster:
     silent: true
@@ -194,7 +210,12 @@ tasks:
         fi
         NODE_COUNT=$(echo "{{ .node_identifiers }}" | awk -F',' '{print NF}')
         echo "NODE_COUNT=${NODE_COUNT}"
-        SOLO_HOME_DIR=${SOLO_HOME_DIR} solo deployment add-cluster --cluster-ref ${CLUSTER_REF} --deployment "${SOLO_DEPLOYMENT}" --num-consensus-nodes ${NODE_COUNT}
+
+        if [[ "{{ .solo_ge_0440 }}" == "true" ]]; then
+          SOLO_HOME_DIR=${SOLO_HOME_DIR} solo deployment cluster attach --cluster-ref ${CLUSTER_REF} --deployment "${SOLO_DEPLOYMENT}" --num-consensus-nodes ${NODE_COUNT}
+        else
+          SOLO_HOME_DIR=${SOLO_HOME_DIR} solo deployment add-cluster --cluster-ref ${CLUSTER_REF} --deployment "${SOLO_DEPLOYMENT}" --num-consensus-nodes ${NODE_COUNT}
+        fi
 
   solo:keys:
     silent: true
@@ -208,7 +229,12 @@ tasks:
          test -f {{ .solo_keys_dir }}/s-private-node${n}.pem
         done
     cmds:
-      - SOLO_HOME_DIR=${SOLO_HOME_DIR} solo node keys --gossip-keys --tls-keys --node-aliases {{.node_identifiers}} --deployment "${SOLO_DEPLOYMENT}" -q --dev
+      - |
+        if [[ "{{ .solo_ge_0440 }}" == "true" ]]; then
+          SOLO_HOME_DIR=${SOLO_HOME_DIR} solo keys consensus generate --gossip-keys --tls-keys --node-aliases {{.node_identifiers}} --deployment "${SOLO_DEPLOYMENT}" -q --dev
+        else
+          SOLO_HOME_DIR=${SOLO_HOME_DIR} solo node keys --gossip-keys --tls-keys --node-aliases {{.node_identifiers}} --deployment "${SOLO_DEPLOYMENT}" -q --dev
+        fi
 
   solo:network:deploy:
     silent: true
@@ -221,7 +247,11 @@ tasks:
         if [[ "${CONSENSUS_NODE_VERSION}" != "" ]]; then
           export CONSENSUS_NODE_FLAG='--release-tag {{.CONSENSUS_NODE_VERSION}}'
         fi
-        SOLO_HOME_DIR=${SOLO_HOME_DIR} solo network deploy --deployment "${SOLO_DEPLOYMENT}" --node-aliases {{.node_identifiers}} ${CONSENSUS_NODE_FLAG} ${VALUES_FLAG} ${SETTINGS_FLAG} ${LOG4J2_FLAG} ${APPLICATION_PROPERTIES_FLAG} ${GENESIS_THROTTLES_FLAG} ${DEBUG_NODE_FLAG} ${SOLO_CHARTS_DIR_FLAG} ${LOAD_BALANCER_FLAG} ${NETWORK_DEPLOY_EXTRA_FLAGS} -q --dev
+        if [[ "{{ .solo_ge_0440 }}" == "true" ]]; then
+          SOLO_HOME_DIR=${SOLO_HOME_DIR} solo consensus network deploy --deployment "${SOLO_DEPLOYMENT}" --node-aliases {{.node_identifiers}} ${CONSENSUS_NODE_FLAG} ${VALUES_FLAG} ${SETTINGS_FLAG} ${LOG4J2_FLAG} ${APPLICATION_PROPERTIES_FLAG} ${GENESIS_THROTTLES_FLAG} ${DEBUG_NODE_FLAG} ${SOLO_CHARTS_DIR_FLAG} ${LOAD_BALANCER_FLAG} ${NETWORK_DEPLOY_EXTRA_FLAGS} -q --dev
+        else
+          SOLO_HOME_DIR=${SOLO_HOME_DIR} solo network deploy --deployment "${SOLO_DEPLOYMENT}" --node-aliases {{.node_identifiers}} ${CONSENSUS_NODE_FLAG} ${VALUES_FLAG} ${SETTINGS_FLAG} ${LOG4J2_FLAG} ${APPLICATION_PROPERTIES_FLAG} ${GENESIS_THROTTLES_FLAG} ${DEBUG_NODE_FLAG} ${SOLO_CHARTS_DIR_FLAG} ${LOAD_BALANCER_FLAG} ${NETWORK_DEPLOY_EXTRA_FLAGS} -q --dev
+        fi
       - task: "solo:node:setup"
 
   solo:node:setup:
@@ -232,13 +262,22 @@ tasks:
         if [[ "${CONSENSUS_NODE_VERSION}" != "" ]]; then
           export CONSENSUS_NODE_FLAG='--release-tag {{.CONSENSUS_NODE_VERSION}}'
         fi
-        SOLO_HOME_DIR=${SOLO_HOME_DIR} solo node setup --deployment "${SOLO_DEPLOYMENT}" --node-aliases {{.node_identifiers}} ${CONSENSUS_NODE_FLAG} ${LOCAL_BUILD_FLAG} ${SOLO} ${NODE_SETUP_EXTRA_FLAGS} -q --dev
+        if [[ "{{ .solo_ge_0440 }}" == "true" ]]; then
+          SOLO_HOME_DIR=${SOLO_HOME_DIR} solo consensus node setup --deployment "${SOLO_DEPLOYMENT}" --node-aliases {{.node_identifiers}} ${CONSENSUS_NODE_FLAG} ${LOCAL_BUILD_FLAG} ${SOLO} ${NODE_SETUP_EXTRA_FLAGS} -q --dev
+        else
+          SOLO_HOME_DIR=${SOLO_HOME_DIR} solo node setup --deployment "${SOLO_DEPLOYMENT}" --node-aliases {{.node_identifiers}} ${CONSENSUS_NODE_FLAG} ${LOCAL_BUILD_FLAG} ${SOLO} ${NODE_SETUP_EXTRA_FLAGS} -q --dev
+        fi
 
   solo:network:destroy:
     silent: true
     internal: true
     cmds:
-      - SOLO_HOME_DIR=${SOLO_HOME_DIR} solo network destroy --deployment "${SOLO_DEPLOYMENT}" --delete-pvcs --delete-secrets --force -q --dev
+      - |
+        if [[ "{{ .solo_ge_0440 }}" == "true" ]]; then
+          SOLO_HOME_DIR=${SOLO_HOME_DIR} solo consensus network destroy --deployment "${SOLO_DEPLOYMENT}" --delete-pvcs --delete-secrets --force -q --dev
+        else
+          SOLO_HOME_DIR=${SOLO_HOME_DIR} solo network destroy --deployment "${SOLO_DEPLOYMENT}" --delete-pvcs --delete-secrets --force -q --dev
+        fi
 
   solo:node:start:
     silent: true
@@ -248,7 +287,13 @@ tasks:
         if [[ "${DEBUG_NODE_ALIAS}" != "" ]]; then
           export DEBUG_NODE_FLAG="--debug-node-alias {{ .DEBUG_NODE_ALIAS }}"
         fi
-        SOLO_HOME_DIR=${SOLO_HOME_DIR} solo node start --deployment "${SOLO_DEPLOYMENT}" --node-aliases {{.node_identifiers}} ${DEBUG_NODE_FLAG} -q {{ .CLI_ARGS }} --dev
+
+        if [[ "{{ .solo_ge_0440 }}" == "true" ]]; then
+          SOLO_HOME_DIR=${SOLO_HOME_DIR} solo consensus node start --deployment "${SOLO_DEPLOYMENT}" --node-aliases {{.node_identifiers}} ${DEBUG_NODE_FLAG} -q {{ .CLI_ARGS }} --dev
+        else
+          SOLO_HOME_DIR=${SOLO_HOME_DIR} solo node start --deployment "${SOLO_DEPLOYMENT}" --node-aliases {{.node_identifiers}} ${DEBUG_NODE_FLAG} -q {{ .CLI_ARGS }} --dev
+        fi
+
       - |
         if [[ "{{ .use_port_forwards }}" == "true" ]];then
           echo "Port forwarding for Hedera Network Node: grpc:50211"
@@ -261,12 +306,23 @@ tasks:
     internal: true
     ignore_error: true
     cmds:
-      - SOLO_HOME_DIR=${SOLO_HOME_DIR} solo node stop --deployment "${SOLO_DEPLOYMENT}" --node-aliases {{.node_identifiers}} -q {{ .CLI_ARGS }} --dev
+      - |
+        if [[ "{{ .solo_ge_0440 }}" == "true" ]]; then
+          SOLO_HOME_DIR=${SOLO_HOME_DIR} solo consensus node stop --deployment "${SOLO_DEPLOYMENT}" --node-aliases {{.node_identifiers}} -q {{ .CLI_ARGS }} --dev
+        else
+          SOLO_HOME_DIR=${SOLO_HOME_DIR} solo node stop --deployment "${SOLO_DEPLOYMENT}" --node-aliases {{.node_identifiers}} -q {{ .CLI_ARGS }} --dev
+        fi
 
   solo:relay:
     silent: true
     cmds:
-      - SOLO_HOME_DIR=${SOLO_HOME_DIR} solo relay deploy --deployment "${SOLO_DEPLOYMENT}" -i node1 ${RELAY_NODE_DEPLOY_EXTRA_FLAGS} -q --dev
+      - |
+        if [[ "{{ .solo_ge_0440 }}" == "true" ]]; then
+          SOLO_HOME_DIR=${SOLO_HOME_DIR} solo relay node add --deployment "${SOLO_DEPLOYMENT}" -i node1 ${RELAY_NODE_DEPLOY_EXTRA_FLAGS} -q --dev
+        else
+          SOLO_HOME_DIR=${SOLO_HOME_DIR} solo relay deploy --deployment "${SOLO_DEPLOYMENT}" -i node1 ${RELAY_NODE_DEPLOY_EXTRA_FLAGS} -q --dev
+        fi
+
       - |
         if [[ "{{ .use_port_forwards }}" == "true" ]];then
           echo "Enable port forwarding for Hedera JSON RPC Relay"
@@ -280,7 +336,12 @@ tasks:
       - |
         {{.solo_bin_dir}}/helm list -n "${SOLO_NAMESPACE}" | grep -vqz relay-node1
     cmds:
-      - SOLO_HOME_DIR=${SOLO_HOME_DIR} solo relay destroy --deployment "${SOLO_DEPLOYMENT}" -i node1 -q --dev
+      - |
+        if [[ "{{ .solo_ge_0440 }}" == "true" ]]; then
+          SOLO_HOME_DIR=${SOLO_HOME_DIR} solo relay node destroy --deployment "${SOLO_DEPLOYMENT}" -i node1 -q --dev
+        else
+          SOLO_HOME_DIR=${SOLO_HOME_DIR} solo relay destroy --deployment "${SOLO_DEPLOYMENT}" -i node1 -q --dev
+        fi
 
   solo:cache:remove:
     silent: true
@@ -311,10 +372,18 @@ tasks:
 
   solo:freeze:restart:
     cmds:
-      - SOLO_HOME_DIR=${SOLO_HOME_DIR} solo node prepare-upgrade --deployment "${SOLO_DEPLOYMENT}" -q --dev
-      - SOLO_HOME_DIR=${SOLO_HOME_DIR} solo node freeze-upgrade --deployment "${SOLO_DEPLOYMENT}" -q --dev
-      - SOLO_HOME_DIR=${SOLO_HOME_DIR} solo node stop --deployment "${SOLO_DEPLOYMENT}" --node-aliases {{.node_identifiers}} -q --dev
-      - SOLO_HOME_DIR=${SOLO_HOME_DIR} solo node start --deployment "${SOLO_DEPLOYMENT}" --node-aliases {{.node_identifiers}} -q --dev
+      - |
+        if [[ "{{ .solo_ge_0440 }}" == "true" ]]; then
+          SOLO_HOME_DIR=${SOLO_HOME_DIR} solo consensus dev-freeze prepare-upgrade --deployment "${SOLO_DEPLOYMENT}" -q --dev
+          SOLO_HOME_DIR=${SOLO_HOME_DIR} solo consensus dev-freeze freeze-upgrade --deployment "${SOLO_DEPLOYMENT}" -q --dev
+          SOLO_HOME_DIR=${SOLO_HOME_DIR} solo consensus node stop --deployment "${SOLO_DEPLOYMENT}" --node-aliases {{.node_identifiers}} -q --dev
+          SOLO_HOME_DIR=${SOLO_HOME_DIR} solo consensus node start --deployment "${SOLO_DEPLOYMENT}" --node-aliases {{.node_identifiers}} -q --dev
+        else
+          SOLO_HOME_DIR=${SOLO_HOME_DIR} solo node prepare-upgrade --deployment "${SOLO_DEPLOYMENT}" -q --dev
+          SOLO_HOME_DIR=${SOLO_HOME_DIR} solo node freeze-upgrade --deployment "${SOLO_DEPLOYMENT}" -q --dev
+          SOLO_HOME_DIR=${SOLO_HOME_DIR} solo node stop --deployment "${SOLO_DEPLOYMENT}" --node-aliases {{.node_identifiers}} -q --dev
+          SOLO_HOME_DIR=${SOLO_HOME_DIR} solo node start --deployment "${SOLO_DEPLOYMENT}" --node-aliases {{.node_identifiers}} -q --dev
+        fi
 
   cluster:create:
     silent: true
@@ -361,7 +430,11 @@ tasks:
     cmds:
       - |
         export MINIO_FLAG=$(cat {{ .minio_flag_file }})
-        SOLO_HOME_DIR=${SOLO_HOME_DIR} solo cluster-ref setup --cluster-setup-namespace "${SOLO_CLUSTER_SETUP_NAMESPACE}" ${MINIO_FLAG} ${SOLO_CHARTS_DIR_FLAG} ${CLUSTER_TLS_FLAGS} -q --dev
+        if [[ "{{ .solo_ge_0440 }}" == "true" ]]; then
+          SOLO_HOME_DIR=${SOLO_HOME_DIR} solo cluster-ref config setup --cluster-setup-namespace "${SOLO_CLUSTER_SETUP_NAMESPACE}" ${MINIO_FLAG} ${SOLO_CHARTS_DIR_FLAG} ${CLUSTER_TLS_FLAGS} -q --dev
+        else
+          SOLO_HOME_DIR=${SOLO_HOME_DIR} solo cluster-ref setup --cluster-setup-namespace "${SOLO_CLUSTER_SETUP_NAMESPACE}" ${MINIO_FLAG} ${SOLO_CHARTS_DIR_FLAG} ${CLUSTER_TLS_FLAGS} -q --dev
+        fi
 
   solo:node:addresses:
     internal: true
@@ -375,7 +448,12 @@ tasks:
   solo:node:logs:
     silent: true
     cmds:
-      - SOLO_HOME_DIR=${SOLO_HOME_DIR} solo node logs --deployment "${SOLO_DEPLOYMENT}" -q --dev
+      - |
+        if [[ "{{ .solo_ge_0440 }}"  == "true" ]]; then
+          SOLO_HOME_DIR=${SOLO_HOME_DIR} solo consensus diagnostics all --deployment "${SOLO_DEPLOYMENT}" -q --dev
+        else
+          SOLO_HOME_DIR=${SOLO_HOME_DIR} solo node logs --deployment "${SOLO_DEPLOYMENT}" -q --dev
+        fi
 
   start:
     desc: solo node start
@@ -420,7 +498,12 @@ tasks:
     silent: true
     desc: solo mirror-node deploy with port forward
     cmds:
-      - SOLO_HOME_DIR=${SOLO_HOME_DIR} solo mirror-node deploy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} ${SOLO_CHARTS_DIR_FLAG} ${MIRROR_NODE_DEPLOY_EXTRA_FLAGS} ${ENABLE_MIRROR_INGRESS} --pinger -q --dev
+      - |
+        if [[ "{{ .solo_ge_0440 }}" == "true" ]]; then
+          SOLO_HOME_DIR=${SOLO_HOME_DIR} solo mirror node add --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} ${SOLO_CHARTS_DIR_FLAG} ${MIRROR_NODE_DEPLOY_EXTRA_FLAGS} ${ENABLE_MIRROR_INGRESS} --pinger -q --dev
+        else
+          SOLO_HOME_DIR=${SOLO_HOME_DIR} solo mirror-node deploy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} ${SOLO_CHARTS_DIR_FLAG} ${MIRROR_NODE_DEPLOY_EXTRA_FLAGS} ${ENABLE_MIRROR_INGRESS} --pinger -q --dev
+        fi
       - |
         if [[ "{{ .use_port_forwards }}" == "true" ]];then
           echo "Port forwarding for Mirror Node Network: grpc:5600, rest:5551"
@@ -439,10 +522,18 @@ tasks:
           SOLO_HOME_DIR=${SOLO_HOME_DIR} npm run solo-test -- deployment create --deployment ${EXPLORER_DEPLOYMENT} --namespace ${EXPLORER_NAME_SPACE}
           SOLO_HOME_DIR=${SOLO_HOME_DIR} npm run solo-test -- deployment add-cluster --deployment ${EXPLORER_DEPLOYMENT} --cluster-ref ${EXPLORER_CLUSTER_CONTEXT} --num-consensus-nodes ${SOLO_NETWORK_SIZE}
 
-          solo explorer deploy --deployment "${EXPLORER_DEPLOYMENT}" --cluster-ref ${EXPLORER_CLUSTER_CONTEXT} --mirrorNamespace ${SOLO_NAMESPACE} ${SOLO_CHARTS_DIR_FLAG} ${EXPLORER_DEPLOY_EXTRA_FLAGS}  ${ENABLE_EXPLORER_TLS_FLAG} ${TLS_CLUSTER_ISSUER_TYPE_FLAG} ${ENABLE_EXPLORER_INGRESS} -q --dev
+          if [[ "{{ .solo_ge_0440 }}" == "true" ]]; then
+            solo explorer node add --deployment "${EXPLORER_DEPLOYMENT}" --cluster-ref ${EXPLORER_CLUSTER_CONTEXT} --mirrorNamespace ${SOLO_NAMESPACE} ${SOLO_CHARTS_DIR_FLAG} ${EXPLORER_DEPLOY_EXTRA_FLAGS} ${ENABLE_EXPLORER_TLS_FLAG} ${TLS_CLUSTER_ISSUER_TYPE_FLAG} ${ENABLE_EXPLORER_INGRESS} -q --dev
+          else
+            solo explorer deploy --deployment "${EXPLORER_DEPLOYMENT}" --cluster-ref ${EXPLORER_CLUSTER_CONTEXT} --mirrorNamespace ${SOLO_NAMESPACE} ${SOLO_CHARTS_DIR_FLAG} ${EXPLORER_DEPLOY_EXTRA_FLAGS} ${ENABLE_EXPLORER_TLS_FLAG} ${TLS_CLUSTER_ISSUER_TYPE_FLAG} ${ENABLE_EXPLORER_INGRESS} -q --dev
+          fi
           export EXPLORER_DEPLOYED_NAME_SPACE=${EXPLORER_NAME_SPACE}
         else
-          SOLO_HOME_DIR=${SOLO_HOME_DIR} solo explorer deploy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --mirrorNamespace ${SOLO_NAMESPACE} ${SOLO_CHARTS_DIR_FLAG} ${EXPLORER_DEPLOY_EXTRA_FLAGS} ${ENABLE_EXPLORER_TLS_FLAG} ${TLS_CLUSTER_ISSUER_TYPE_FLAG} ${ENABLE_EXPLORER_INGRESS} -q --dev
+          if [[ "{{ .solo_ge_0440 }}" == "true" ]]; then
+            SOLO_HOME_DIR=${SOLO_HOME_DIR} solo explorer node add --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --mirrorNamespace ${SOLO_NAMESPACE} ${SOLO_CHARTS_DIR_FLAG} ${EXPLORER_DEPLOY_EXTRA_FLAGS} ${ENABLE_EXPLORER_TLS_FLAG} ${TLS_CLUSTER_ISSUER_TYPE_FLAG} ${ENABLE_EXPLORER_INGRESS} -q --dev
+          else
+            SOLO_HOME_DIR=${SOLO_HOME_DIR} solo explorer deploy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --mirrorNamespace ${SOLO_NAMESPACE} ${SOLO_CHARTS_DIR_FLAG} ${EXPLORER_DEPLOY_EXTRA_FLAGS} ${ENABLE_EXPLORER_TLS_FLAG} ${TLS_CLUSTER_ISSUER_TYPE_FLAG} ${ENABLE_EXPLORER_INGRESS} -q --dev
+          fi
           export EXPLORER_DEPLOYED_NAME_SPACE=${SOLO_NAMESPACE}
         fi
         if [[ "{{ .use_port_forwards }}" == "true" ]];then
@@ -460,7 +551,12 @@ tasks:
       - |
         {{.solo_bin_dir}}/helm list -n "${SOLO_NAMESPACE}" | grep -vqz "${MIRROR_RELEASE_NAME}"
     cmds:
-      - SOLO_HOME_DIR=${SOLO_HOME_DIR} solo mirror-node destroy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --force -q --dev || true
+      - |
+        if [[ "{{ .solo_ge_0440 }}" == "true" ]]; then
+          SOLO_HOME_DIR=${SOLO_HOME_DIR} solo mirror node destroy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --force -q --dev || true
+        else
+          SOLO_HOME_DIR=${SOLO_HOME_DIR} solo mirror-node destroy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --force -q --dev || true
+        fi
 
   solo:destroy-explorer:
     silent: true
@@ -468,9 +564,17 @@ tasks:
     cmds:
       - |
         if [[ "${EXPLORER_DEPLOYMENT}" != "" ]]; then
-          SOLO_HOME_DIR=${SOLO_HOME_DIR} solo explorer destroy --deployment "${EXPLORER_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --force -q --dev || true
+          if [[ "{{ .solo_ge_0440 }}" == "true" ]]; then
+            SOLO_HOME_DIR=${SOLO_HOME_DIR} solo explorer node destroy --deployment "${EXPLORER_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --force -q --dev || true
+          else
+            SOLO_HOME_DIR=${SOLO_HOME_DIR} solo explorer destroy --deployment "${EXPLORER_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --force -q --dev || true
+          fi
         else
-          SOLO_HOME_DIR=${SOLO_HOME_DIR} solo explorer destroy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --force -q --dev || true
+          if [[ "{{ .solo_ge_0440 }}" == "true" ]]; then
+            SOLO_HOME_DIR=${SOLO_HOME_DIR} solo explorer node destroy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --force -q --dev || true
+          else
+            SOLO_HOME_DIR=${SOLO_HOME_DIR} solo explorer destroy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --force -q --dev || true
+          fi
         fi
 
   clean:

@@ -21,8 +21,8 @@ public interface VirtualDataSourceBuilder extends SelfSerializable {
      * Builds a new {@link VirtualDataSource} using the configuration of this builder and
      * the given label. If a source directory is provided, data source files are loaded from
      * it. This must be a directory previously used in the {@link #snapshot(Path, VirtualDataSource)}
-     * method. If the directory is not provided, a new temp directory is created, and an empty
-     * data source is opened in it.
+     * method. If the directory is not provided, an empty data source is created. Regardless of
+     * the source directory, the new data source will use its own directory to store data files.
      *
      * @param label
      * 		The label. Cannot be null. Labels can be used in logs and stats, and also to build

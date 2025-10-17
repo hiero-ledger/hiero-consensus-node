@@ -149,7 +149,11 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
         this.registryRecord = RuntimeObjectRegistry.createRecord(getClass());
     }
 
-    public void init(Time time, Metrics metrics, MerkleCryptography merkleCryptography, LongSupplier roundSupplier) {
+    public void init(
+            @NonNull Time time,
+            @NonNull Metrics metrics,
+            @NonNull MerkleCryptography merkleCryptography,
+            @NonNull LongSupplier roundSupplier) {
         this.time = time;
         this.merkleCryptography = merkleCryptography;
         this.roundSupplier = roundSupplier;

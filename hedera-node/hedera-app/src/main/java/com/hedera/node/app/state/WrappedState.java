@@ -39,7 +39,11 @@ public class WrappedState implements State, Hashable {
      * {@inheritDoc}
      */
     @Override
-    public void init(Time time, Metrics metrics, MerkleCryptography merkleCryptography, LongSupplier roundSupplier) {
+    public void init(
+            @NonNull Time time,
+            @NonNull Metrics metrics,
+            @NonNull MerkleCryptography merkleCryptography,
+            @NonNull LongSupplier roundSupplier) {
         delegate.init(time, metrics, merkleCryptography, roundSupplier);
     }
 

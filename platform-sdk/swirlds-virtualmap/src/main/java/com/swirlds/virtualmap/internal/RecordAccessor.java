@@ -10,6 +10,7 @@ import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.internal.cache.VirtualNodeCache;
 import com.swirlds.virtualmap.internal.merkle.VirtualMapMetadata;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Objects;
@@ -109,6 +110,7 @@ public final class RecordAccessor {
      * 		If we fail to access the data store, then a catastrophic error occurred and
      * 		an UncheckedIOException is thrown.
      */
+    @Nullable
     public VirtualLeafBytes findLeafRecord(final @NonNull Bytes key) {
         VirtualLeafBytes rec = cache.lookupLeafByKey(key);
         if (rec == null) {
@@ -140,6 +142,7 @@ public final class RecordAccessor {
      * 		If we fail to access the data store, then a catastrophic error occurred and
      * 		an UncheckedIOException is thrown.
      */
+    @Nullable
     public VirtualLeafBytes findLeafRecord(final long path) {
         assert path != INVALID_PATH;
         assert path != ROOT_PATH;
@@ -169,7 +172,7 @@ public final class RecordAccessor {
      * @param key The key. Must not be null.
      * @return The path or INVALID_PATH if the key is not found.
      */
-    public long findKey(final @NonNull Bytes key) {
+    public long findPath(final @NonNull Bytes key) {
         final VirtualLeafBytes rec = cache.lookupLeafByKey(key);
         if (rec != null) {
             return rec.path();

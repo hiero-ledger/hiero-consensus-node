@@ -36,7 +36,7 @@ public class FileLayout {
     private static final String INTERNAL_HASH_METADATA_TMPL =
             ".*data.state.internalHashStoreDisk.state_internalhashes_metadata[.]pbj";
     private static final String INTERNAL_HASH_STORE_TMPL =
-            ".*data.state.internalHashStoreDisk.state_internalhashes_\\d{4}-\\d{2}-\\d{2}_\\d{2}-\\d{2}-\\d{2}-\\d{3}[_]+\\d[.]pbj";
+            ".*data.state.internalHashStoreDisk.state_internalhashes_\\d{4}-\\d{2}-\\d{2}_\\d{2}-\\d{2}-\\d{2}-\\d{3}[_]+\\d+[.]pbj";
 
     // objectKeyToPath templates
     private static final String OBJECT_KEY_TO_PATH_BUCKET_INDEX_TMPL =
@@ -44,7 +44,7 @@ public class FileLayout {
     private static final String OBJECT_KEY_TO_PATH_METADATA_TMPL =
             ".*data.state.objectKeyToPath.state_objectkeytopath_metadata[.]pbj";
     private static final String OBJECT_KEY_TO_PATH_STORE_TMPL =
-            ".*data.state.objectKeyToPath.state_objectkeytopath_\\d{4}-\\d{2}-\\d{2}_\\d{2}-\\d{2}-\\d{2}-\\d{3}[_]+\\d[.]pbj";
+            ".*data.state.objectKeyToPath.state_objectkeytopath_\\d{4}-\\d{2}-\\d{2}_\\d{2}-\\d{2}-\\d{2}-\\d{3}[_]+\\d+[.]pbj";
     private static final String OBJECT_KEY_TO_PATH_METADATA_HDHM_TMPL =
             ".*data.state.objectKeyToPath.state_objectkeytopath_metadata[.]hdhm";
 
@@ -52,7 +52,7 @@ public class FileLayout {
     private static final String PATH_TO_HASH_KEY_VALUE_METADATA_TMPL =
             ".*data.state.pathToHashKeyValue.state_pathtohashkeyvalue_metadata.*[.]pbj";
     private static final String PATH_TO_HASH_KEY_VALUE_STORE_TMPL =
-            ".*data.state.pathToHashKeyValue.state_pathtohashkeyvalue_\\d{4}-\\d{2}-\\d{2}_\\d{2}-\\d{2}-\\d{2}-\\d{3}[_]+\\d[.]pbj";
+            ".*data.state.pathToHashKeyValue.state_pathtohashkeyvalue_\\d{4}-\\d{2}-\\d{2}_\\d{2}-\\d{2}-\\d{2}-\\d{3}[_]+\\d+[.]pbj";
 
     // metadata
     private static final String METADATA_PBJ_TMPL = ".*data.state.table_metadata[.]pbj";
@@ -129,6 +129,7 @@ public class FileLayout {
                         OBJECT_KEY_TO_PATH_STORE_TMPL,
                         OBJECT_KEY_TO_PATH_METADATA_HDHM_TMPL,
                         PATH_TO_HASH_KEY_VALUE_METADATA_TMPL,
+                        PATH_TO_HASH_KEY_VALUE_STORE_TMPL,
                         METADATA_PBJ_TMPL,
                         PATH_TO_DISK_INTERNAL_TMPL,
                         PATH_TO_DISK_LEAF_TMPL)

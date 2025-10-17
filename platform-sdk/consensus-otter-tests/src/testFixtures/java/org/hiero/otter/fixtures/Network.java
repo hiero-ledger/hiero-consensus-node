@@ -416,7 +416,7 @@ public interface Network {
      * @param maybeBehindNode the node to check behind status for
      * @return {@code true} if the node is behind by the specified fraction of peers, {@code false} otherwise
      * @see com.swirlds.platform.gossip.shadowgraph.SyncFallenBehindStatus
-     * @see Network#nodesAreBehindByNodeCount(double, Node, Node...)
+     * @see Network#nodesAreBehindByNodeCount(Node, Node...)
      */
     default boolean nodeIsBehindByNodeCount(@NonNull Node maybeBehindNode) {
         return nodesAreBehindByNodeCount(maybeBehindNode);

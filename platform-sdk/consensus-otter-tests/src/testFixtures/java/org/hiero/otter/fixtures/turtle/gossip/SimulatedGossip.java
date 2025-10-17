@@ -82,7 +82,7 @@ public class SimulatedGossip implements Gossip {
         this.deterministicWiringModel = (DeterministicWiringModel) requireNonNull(model);
         eventInput.bindConsumer(event -> network.submitEvent(selfId, event));
 
-        eventWindowInput.bindConsumer(ignored -> {});
+        eventWindowInput.bindConsumer(eventWindow -> eventBuffer.removeIf(eventWindow::isAncient));
         startInput.bindConsumer(ignored -> {});
         stopInput.bindConsumer(ignored -> {});
         clearInput.bindConsumer(ignored -> {});

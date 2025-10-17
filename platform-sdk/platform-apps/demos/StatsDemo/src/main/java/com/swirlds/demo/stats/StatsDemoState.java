@@ -11,6 +11,7 @@ package com.swirlds.demo.stats;
  * DISTRIBUTING THIS SOFTWARE OR ITS DERIVATIVES.
  */
 
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.test.fixtures.merkle.MerkleStateRoot;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -91,5 +92,20 @@ public class StatsDemoState extends MerkleStateRoot<StatsDemoState> implements M
     @Override
     protected StatsDemoState copyingConstructor() {
         return new StatsDemoState(this);
+    }
+
+    @Override
+    public long singletonPath(final int stateId) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public long queueElementPath(final int stateId, @NonNull Bytes expectedValue) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public long kvPath(final int stateId, @NonNull Bytes key) {
+        throw new UnsupportedOperationException();
     }
 }
