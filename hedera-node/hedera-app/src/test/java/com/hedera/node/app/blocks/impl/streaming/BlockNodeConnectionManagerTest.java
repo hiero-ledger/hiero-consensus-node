@@ -522,10 +522,10 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         final Path file = tempDir.resolve("block-nodes.json");
         final List<BlockNodeConfig> availableNodes = new ArrayList<>();
         availableNodes.add(newBlockNodeConfig("pbj-unit-test-host", 8080, 1));
-        availableNodes.add(newBlockNodeConfig("pbj-unit-test-host",8081, 1));
-        availableNodes.add(newBlockNodeConfig("pbj-unit-test-host",8082, 2));
-        availableNodes.add(newBlockNodeConfig("pbj-unit-test-host",8083, 3));
-        availableNodes.add(newBlockNodeConfig("pbj-unit-test-host",8084, 3));
+        availableNodes.add(newBlockNodeConfig("pbj-unit-test-host", 8081, 1));
+        availableNodes.add(newBlockNodeConfig("pbj-unit-test-host", 8082, 2));
+        availableNodes.add(newBlockNodeConfig("pbj-unit-test-host", 8083, 3));
+        availableNodes.add(newBlockNodeConfig("pbj-unit-test-host", 8084, 3));
         BlockNodeConnectionInfo connectionInfo = new BlockNodeConnectionInfo(availableNodes);
         final String valid = BlockNodeConnectionInfo.JSON.toJSON(connectionInfo);
         Files.writeString(
@@ -2007,7 +2007,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     @Test
     void testRecordEndOfStreamAndCheckLimit_streamingDisabled() {
         useStreamingDisabledManager();
-        final BlockNodeConfig nodeConfig = newBlockNodeConfig("pbj-unit-test-host",8080, 1);
+        final BlockNodeConfig nodeConfig = newBlockNodeConfig("pbj-unit-test-host", 8080, 1);
 
         final boolean limitExceeded = connectionManager.recordEndOfStreamAndCheckLimit(nodeConfig, Instant.now());
 
