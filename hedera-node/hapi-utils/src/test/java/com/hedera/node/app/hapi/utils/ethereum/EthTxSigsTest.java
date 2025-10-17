@@ -2,6 +2,7 @@
 package com.hedera.node.app.hapi.utils.ethereum;
 
 import static com.hedera.node.app.hapi.utils.EthSigsUtils.recoverAddressFromPubKey;
+import static com.hedera.node.app.hapi.utils.ethereum.CodeDelegationTest.fillBytes;
 import static com.hedera.node.app.hapi.utils.ethereum.EthTxData.EthTransactionType.LEGACY_ETHEREUM;
 import static com.hedera.node.app.hapi.utils.ethereum.TestingConstants.CHAINID_TESTNET;
 import static com.hedera.node.app.hapi.utils.ethereum.TestingConstants.TINYBARS_2_IN_WEIBARS;
@@ -12,8 +13,14 @@ import static com.hedera.node.app.hapi.utils.ethereum.TestingConstants.TRUFFLE0_
 import static com.hedera.node.app.hapi.utils.ethereum.TestingConstants.TRUFFLE1_ADDRESS;
 import static com.hedera.node.app.hapi.utils.ethereum.TestingConstants.ZERO_BYTES;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.Mockito.RETURNS_DEEP_STUBS;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
+import com.esaulpaugh.headlong.rlp.RLPEncoder;
+import com.esaulpaugh.headlong.util.Integers;
 import java.math.BigInteger;
 import java.util.Arrays;
 import java.util.SplittableRandom;
@@ -160,5 +167,114 @@ class EthTxSigsTest {
                 ));
         final var ethTxSigs = EthTxSigs.extractSignatures(ethTxData);
         assertArrayEquals(expectedFromAddress, ethTxSigs.address());
+    }
+
+    @Test
+    void extractAuthoritySignatureReturnsNullOnFailure() {
+        final var chainId = new byte[] {0x01};
+        final var address = fillBytes(20, 0x10);
+        final var r = new byte[] {0x00}; // invalid (fails lower bound)
+        final var s = new byte[] {0x01};
+
+        final var cd = new CodeDelegation(chainId, address, 1L, 27, r, s);
+
+        final var result = EthTxSigs.extractAuthoritySignature(cd);
+        assertNull(result);
+    }
+
+    @Test
+    void extractAuthoritySignatureWhenCalculateMessageThrows() {
+        final var cd = mock(CodeDelegation.class, RETURNS_DEEP_STUBS);
+        when(cd.calculateSignableMessage()).thenThrow(new RuntimeException("boom"));
+        when(cd.recId()).thenReturn(27);
+        when(cd.r()).thenReturn(new byte[] {0x01});
+        when(cd.s()).thenReturn(new byte[] {0x02});
+
+        final var result = EthTxSigs.extractAuthoritySignature(cd);
+        assertNull(result);
+    }
+
+    @Test
+    void resolveEIP7702_encodesWithAccessList() {
+        final var ethTx = mock(EthTxData.class);
+
+        final var chainId = new byte[] {0x01, 0x2A};
+        final long nonce = 9;
+        final var gasPrice = fillBytes(8, 0x01);
+        final long gasLimit = 123456;
+        final var to = fillBytes(20, 0x22);
+        final long value = 987654321L;
+        final var callData = fillBytes(3, 0x55);
+
+        final Object[] accessList =
+                new Object[] {new Object[] {fillBytes(20, 0x10), new Object[] {fillBytes(32, 0x01)}}};
+        final byte[] authorizationList = fillBytes(5, 0x70);
+
+        when(ethTx.chainId()).thenReturn(chainId);
+        when(ethTx.nonce()).thenReturn(nonce);
+        when(ethTx.gasPrice()).thenReturn(gasPrice);
+        when(ethTx.gasLimit()).thenReturn(gasLimit);
+        when(ethTx.to()).thenReturn(to);
+        when(ethTx.value()).thenReturn(BigInteger.valueOf(value));
+        when(ethTx.callData()).thenReturn(callData);
+        when(ethTx.accessListAsRlp()).thenReturn(accessList);
+        when(ethTx.authorizationList()).thenReturn(authorizationList);
+
+        final byte[] actual = EthTxSigs.resolveEIP7702(ethTx);
+
+        final byte[] expected = RLPEncoder.sequence(Integers.toBytes(1), new Object[] {
+            chainId,
+            Integers.toBytes(nonce),
+            gasPrice,
+            Integers.toBytes(gasLimit),
+            to,
+            Integers.toBytesUnsigned(BigInteger.valueOf(value)),
+            callData,
+            accessList,
+            authorizationList
+        });
+
+        assertArrayEquals(expected, actual);
+    }
+
+    @Test
+    void resolveEIP7702_encodesEmptyAccessListWhenNull() {
+        final var ethTx = mock(EthTxData.class);
+
+        final var chainId = new byte[] {0x01};
+        final long nonce = 1;
+        final var gasPrice = new byte[] {0x05};
+        final long gasLimit = 21000;
+        final var to = fillBytes(20, 0x01);
+        final long value = 1L;
+        final var callData = new byte[0];
+
+        final byte[] authorizationList = fillBytes(5, 0x70);
+
+        when(ethTx.chainId()).thenReturn(chainId);
+        when(ethTx.nonce()).thenReturn(nonce);
+        when(ethTx.gasPrice()).thenReturn(gasPrice);
+        when(ethTx.gasLimit()).thenReturn(gasLimit);
+        when(ethTx.to()).thenReturn(to);
+        when(ethTx.value()).thenReturn(BigInteger.valueOf(value));
+        when(ethTx.callData()).thenReturn(callData);
+        when(ethTx.accessListAsRlp()).thenReturn(null); // triggers empty list
+        when(ethTx.authorizationList()).thenReturn(authorizationList);
+
+        final byte[] actual = EthTxSigs.resolveEIP7702(ethTx);
+
+        final byte[] expected = RLPEncoder.sequence(Integers.toBytes(1), new Object[] {
+            chainId,
+            Integers.toBytes(nonce),
+            gasPrice,
+            Integers.toBytes(gasLimit),
+            to,
+            Integers.toBytesUnsigned(BigInteger.valueOf(value)),
+            callData,
+            new Object[0], // empty access list
+            authorizationList
+        });
+
+        assertArrayEquals(expected, actual);
     }
 }
