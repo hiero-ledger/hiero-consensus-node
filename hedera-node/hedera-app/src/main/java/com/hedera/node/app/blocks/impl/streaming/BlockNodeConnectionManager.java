@@ -345,7 +345,7 @@ public class BlockNodeConnectionManager {
         }
         requireNonNull(connection, "connection must not be null");
 
-        logWithContext(logger, DEBUG, "Closing and rescheduling connection for reconnect attempt.", connection);
+        logWithContext(logger, DEBUG, connection, "Closing and rescheduling connection for reconnect attempt.");
 
         // Handle cleanup and rescheduling
         handleConnectionCleanupAndReschedule(connection, delay, blockNumber, selectNewBlockNode);
@@ -976,8 +976,8 @@ public class BlockNodeConnectionManager {
             logWithContext(
                     logger,
                     DEBUG,
-                    "Processing block {} (isBlockProofSent={}, totalBlockRequests={}, currentRequestIndex={}).",
                     connection,
+                    "Processing block {} (isBlockProofSent={}, totalBlockRequests={}, currentRequestIndex={}).",
                     streamingBlockNumber,
                     blockState.isBlockProofSent(),
                     blockState.numRequestsCreated(),
@@ -988,8 +988,8 @@ public class BlockNodeConnectionManager {
                 logWithContext(
                         logger,
                         TRACE,
-                        "Sent request {} for block {}.",
                         connection,
+                        "Sent request {} for block {}.",
                         requestIndex,
                         currentStreamingBlockNumber);
                 blockState.markRequestSent(requestIndex);
@@ -1000,7 +1000,7 @@ public class BlockNodeConnectionManager {
         if (requestIndex == blockState.numRequestsCreated() && blockState.isBlockProofSent()) {
             final long nextBlockNumber = streamingBlockNumber.incrementAndGet();
             requestIndex = 0;
-            logWithContext(logger, DEBUG, "Moving to next block number: {}.", connection, nextBlockNumber);
+            logWithContext(logger, DEBUG, connection, "Moving to next block number: {}.", nextBlockNumber);
             // we've moved to another block, don't sleep and instead immediately check if there is anything to send
             return false;
         }
