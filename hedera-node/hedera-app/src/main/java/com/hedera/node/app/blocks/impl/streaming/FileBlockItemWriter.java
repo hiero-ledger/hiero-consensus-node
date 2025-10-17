@@ -186,10 +186,15 @@ public class FileBlockItemWriter implements BlockItemWriter {
      * {@code .pnd} files.
      * @param blockDirPath the directory containing subdirectories to load pending blocks from
      * @param followingBlockNumber the block number the pending blocks should be immediately preceding
+     * @param maxReadDepth the max allowed depth of nested protobuf messages
+     * @param maxReadSize the max size of protobuf messages to read
      * @return the list of pending blocks
      */
     public static List<OnDiskPendingBlock> loadContiguousPendingBlocks(
-            @NonNull final Path blockDirPath, final long followingBlockNumber) {
+            @NonNull final Path blockDirPath,
+            final long followingBlockNumber,
+            final int maxReadDepth,
+            final int maxReadSize) {
         requireNonNull(blockDirPath);
         final List<OnDiskPendingBlock> pendingBlocks = new LinkedList<>();
         final File[] pendingBlocksPaths = blockDirPath.toFile().listFiles();
@@ -240,7 +245,7 @@ public class FileBlockItemWriter implements BlockItemWriter {
             Path contentsPath = proofJson.toPath().resolveSibling(name.replace(".pnd.json", ".pnd.gz"));
             if (contentsPath.toFile().exists()) {
                 try (final GZIPInputStream in = new GZIPInputStream(Files.newInputStream(contentsPath))) {
-                    partialBlock = Block.PROTOBUF.parse(Bytes.wrap(in.readAllBytes()));
+                    partialBlock = parseBlock(in.readAllBytes(), maxReadDepth, maxReadSize);
                 } catch (IOException | ParseException e) {
                     logger.warn("Error reading zipped pending block contents from {}", contentsPath, e);
                 }
@@ -248,7 +253,7 @@ public class FileBlockItemWriter implements BlockItemWriter {
                 contentsPath = proofJson.toPath().resolveSibling(name.replace(".pnd.json", ".pnd"));
                 if (contentsPath.toFile().exists()) {
                     try {
-                        partialBlock = Block.PROTOBUF.parse(Bytes.wrap(Files.readAllBytes(contentsPath)));
+                        partialBlock = parseBlock(Files.readAllBytes(contentsPath), maxReadDepth, maxReadSize);
                     } catch (IOException | ParseException e) {
                         logger.warn("Error reading pending block contents from {}", contentsPath, e);
                     }
@@ -266,6 +271,12 @@ public class FileBlockItemWriter implements BlockItemWriter {
             }
         }
         return pendingBlocks;
+    }
+
+    private static Block parseBlock(final byte[] bytes, final int maxReadDepth, final int maxReadSize)
+            throws ParseException {
+        return Block.PROTOBUF.parse(
+                Bytes.wrap(bytes).toReadableSequentialData(), false, false, maxReadDepth, maxReadSize);
     }
 
     /**
