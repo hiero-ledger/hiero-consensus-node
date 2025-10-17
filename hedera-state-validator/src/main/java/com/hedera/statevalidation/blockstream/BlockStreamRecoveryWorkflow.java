@@ -1,19 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.statevalidation.blockstream;
 
-import static com.hedera.services.bdd.junit.support.validators.block.BlockStreamUtils.*;
 import static com.hedera.statevalidation.ApplyBlocksCommand.DEFAULT_TARGET_ROUND;
-import static com.hedera.statevalidation.util.BlockStreamUtils.mapKeyFor;
-import static com.hedera.statevalidation.util.BlockStreamUtils.mapValueFor;
-import static com.hedera.statevalidation.util.BlockStreamUtils.queuePushFor;
-import static com.hedera.statevalidation.util.BlockStreamUtils.singletonPutFor;
 import static com.swirlds.platform.state.service.PlatformStateFacade.DEFAULT_PLATFORM_STATE_FACADE;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.block.stream.Block;
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.output.StateChanges;
-import com.hedera.statevalidation.util.BlockStreamUtils;
+import com.hedera.node.app.hapi.utils.blocks.BlockStreamAccess;
+import com.hedera.node.app.hapi.utils.blocks.BlockStreamUtils;
 import com.hedera.statevalidation.util.PlatformContextHelper;
 import com.hedera.statevalidation.util.StateUtils;
 import com.swirlds.common.context.PlatformContext;
@@ -69,7 +65,7 @@ public class BlockStreamRecoveryWorkflow {
         }
         final MerkleNodeState state =
                 deserializedSignedState.reservedSignedState().get().getState();
-        final var blocks = BlockStreamUtils.readBlocks(blockStreamDirectory, false);
+        final var blocks = BlockStreamAccess.readBlocks(blockStreamDirectory, false);
         final BlockStreamRecoveryWorkflow workflow =
                 new BlockStreamRecoveryWorkflow(state, targetRound, outputPath, expectedHash);
         workflow.applyBlocks(blocks, selfId, PlatformContextHelper.getPlatformContext());
@@ -170,7 +166,7 @@ public class BlockStreamRecoveryWorkflow {
         for (int i = 0; i < n; i++) {
             final var stateChange = stateChanges.stateChanges().get(i);
 
-            final var stateName = stateNameOf(stateChange.stateId());
+            final var stateName = BlockStreamUtils.stateNameOf(stateChange.stateId());
             final var delimIndex = stateName.indexOf('.');
             if (delimIndex == -1) {
                 throw new RuntimeException("State name '" + stateName + "' is not in the correct format");
@@ -184,22 +180,25 @@ public class BlockStreamRecoveryWorkflow {
                 }
                 case SINGLETON_UPDATE -> {
                     final var singletonState = writableStates.getSingleton(stateChange.stateId());
-                    final var singleton = singletonPutFor(stateChange.singletonUpdateOrThrow());
+                    final var singleton = BlockStreamUtils.singletonPutFor(stateChange.singletonUpdateOrThrow());
                     singletonState.put(singleton);
                 }
                 case MAP_UPDATE -> {
                     final var mapState = writableStates.get(stateChange.stateId());
-                    final var key = mapKeyFor(stateChange.mapUpdateOrThrow().keyOrThrow());
-                    final var value = mapValueFor(stateChange.mapUpdateOrThrow().valueOrThrow());
+                    final var key = BlockStreamUtils.mapKeyFor(
+                            stateChange.mapUpdateOrThrow().keyOrThrow());
+                    final var value = BlockStreamUtils.mapValueFor(
+                            stateChange.mapUpdateOrThrow().valueOrThrow());
                     mapState.put(key, value);
                 }
                 case MAP_DELETE -> {
                     final var mapState = writableStates.get(stateChange.stateId());
-                    mapState.remove(mapKeyFor(stateChange.mapDeleteOrThrow().keyOrThrow()));
+                    mapState.remove(BlockStreamUtils.mapKeyFor(
+                            stateChange.mapDeleteOrThrow().keyOrThrow()));
                 }
                 case QUEUE_PUSH -> {
                     final var queueState = writableStates.getQueue(stateChange.stateId());
-                    queueState.add(queuePushFor(stateChange.queuePushOrThrow()));
+                    queueState.add(BlockStreamUtils.queuePushFor(stateChange.queuePushOrThrow()));
                 }
                 case QUEUE_POP -> {
                     final var queueState = writableStates.getQueue(stateChange.stateId());

@@ -1,38 +1,94 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.hedera.statevalidation.util;
+package com.hedera.node.app.hapi.utils.blocks;
 
-import static java.util.Comparator.comparing;
-
-import com.hedera.hapi.block.stream.Block;
 import com.hedera.hapi.block.stream.output.MapChangeKey;
 import com.hedera.hapi.block.stream.output.MapChangeValue;
 import com.hedera.hapi.block.stream.output.QueuePushChange;
 import com.hedera.hapi.block.stream.output.SingletonUpdateChange;
+import com.hedera.hapi.block.stream.output.StateIdentifier;
 import com.hedera.hapi.node.base.TokenAssociation;
 import com.hedera.hapi.node.state.common.EntityIDPair;
 import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.hapi.node.state.primitives.ProtoLong;
 import com.hedera.hapi.node.state.primitives.ProtoString;
-import com.hedera.pbj.runtime.ParseException;
-import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.io.IOException;
-import java.io.UncheckedIOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.List;
-import java.util.stream.Stream;
-import java.util.zip.GZIPInputStream;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
-// duplicated code here
 public final class BlockStreamUtils {
 
-    private static final Logger log = LogManager.getLogger(BlockStreamUtils.class);
+    private static final String UPGRADE_DATA_FILE_NUM_FORMAT = "FileService.UPGRADE_DATA_%d";
 
     private BlockStreamUtils() {}
+
+    public static String stateNameOf(final int stateId) {
+        return switch (StateIdentifier.fromProtobufOrdinal(stateId)) {
+            case UNKNOWN -> throw new IllegalArgumentException("Unknown state identifier");
+            case STATE_ID_NODES -> "AddressBookService.NODES";
+            case STATE_ID_BLOCKS -> "BlockRecordService.BLOCKS";
+            case STATE_ID_RUNNING_HASHES -> "BlockRecordService.RUNNING_HASHES";
+            case STATE_ID_BLOCK_STREAM_INFO -> "BlockStreamService.BLOCK_STREAM_INFO";
+            case STATE_ID_CONGESTION_LEVEL_STARTS -> "CongestionThrottleService.CONGESTION_LEVEL_STARTS";
+            case STATE_ID_THROTTLE_USAGE_SNAPSHOTS -> "CongestionThrottleService.THROTTLE_USAGE_SNAPSHOTS";
+            case STATE_ID_TOPICS -> "ConsensusService.TOPICS";
+            case STATE_ID_BYTECODE -> "ContractService.BYTECODE";
+            case STATE_ID_STORAGE -> "ContractService.STORAGE";
+            case STATE_ID_EVM_HOOK_STATES -> "ContractService.EVM_HOOK_STATES";
+            case STATE_ID_LAMBDA_STORAGE -> "ContractService.LAMBDA_STORAGE";
+            case STATE_ID_ENTITY_ID -> "EntityIdService.ENTITY_ID";
+            case STATE_ID_MIDNIGHT_RATES -> "FeeService.MIDNIGHT_RATES";
+            case STATE_ID_FILES -> "FileService.FILES";
+            case STATE_ID_UPGRADE_DATA_150 -> UPGRADE_DATA_FILE_NUM_FORMAT.formatted(150);
+            case STATE_ID_UPGRADE_DATA_151 -> UPGRADE_DATA_FILE_NUM_FORMAT.formatted(151);
+            case STATE_ID_UPGRADE_DATA_152 -> UPGRADE_DATA_FILE_NUM_FORMAT.formatted(152);
+            case STATE_ID_UPGRADE_DATA_153 -> UPGRADE_DATA_FILE_NUM_FORMAT.formatted(153);
+            case STATE_ID_UPGRADE_DATA_154 -> UPGRADE_DATA_FILE_NUM_FORMAT.formatted(154);
+            case STATE_ID_UPGRADE_DATA_155 -> UPGRADE_DATA_FILE_NUM_FORMAT.formatted(155);
+            case STATE_ID_UPGRADE_DATA_156 -> UPGRADE_DATA_FILE_NUM_FORMAT.formatted(156);
+            case STATE_ID_UPGRADE_DATA_157 -> UPGRADE_DATA_FILE_NUM_FORMAT.formatted(157);
+            case STATE_ID_UPGRADE_DATA_158 -> UPGRADE_DATA_FILE_NUM_FORMAT.formatted(158);
+            case STATE_ID_UPGRADE_DATA_159 -> UPGRADE_DATA_FILE_NUM_FORMAT.formatted(159);
+            case STATE_ID_FREEZE_TIME -> "FreezeService.FREEZE_TIME";
+            case STATE_ID_UPGRADE_FILE_HASH -> "FreezeService.UPGRADE_FILE_HASH";
+            case STATE_ID_PLATFORM_STATE -> "PlatformStateService.PLATFORM_STATE";
+            case STATE_ID_ROSTER_STATE -> "RosterService.ROSTER_STATE";
+            case STATE_ID_ROSTERS -> "RosterService.ROSTERS";
+            case STATE_ID_ENTITY_COUNTS -> "EntityIdService.ENTITY_COUNTS";
+            case STATE_ID_TRANSACTION_RECEIPTS -> "RecordCache.TRANSACTION_RECEIPTS";
+            case STATE_ID_SCHEDULES_BY_EQUALITY -> "ScheduleService.SCHEDULES_BY_EQUALITY";
+            case STATE_ID_SCHEDULES_BY_EXPIRY_SEC -> "ScheduleService.SCHEDULES_BY_EXPIRY_SEC";
+            case STATE_ID_SCHEDULES_BY_ID -> "ScheduleService.SCHEDULES_BY_ID";
+            case STATE_ID_SCHEDULE_ID_BY_EQUALITY -> "ScheduleService.SCHEDULE_ID_BY_EQUALITY";
+            case STATE_ID_SCHEDULED_COUNTS -> "ScheduleService.SCHEDULED_COUNTS";
+            case STATE_ID_SCHEDULED_ORDERS -> "ScheduleService.SCHEDULED_ORDERS";
+            case STATE_ID_SCHEDULED_USAGES -> "ScheduleService.SCHEDULED_USAGES";
+            case STATE_ID_ACCOUNTS -> "TokenService.ACCOUNTS";
+            case STATE_ID_ALIASES -> "TokenService.ALIASES";
+            case STATE_ID_NFTS -> "TokenService.NFTS";
+            case STATE_ID_PENDING_AIRDROPS -> "TokenService.PENDING_AIRDROPS";
+            case STATE_ID_STAKING_INFOS -> "TokenService.STAKING_INFOS";
+            case STATE_ID_STAKING_NETWORK_REWARDS -> "TokenService.STAKING_NETWORK_REWARDS";
+            case STATE_ID_TOKEN_RELS -> "TokenService.TOKEN_RELS";
+            case STATE_ID_TOKENS -> "TokenService.TOKENS";
+            case STATE_ID_TSS_MESSAGES -> "TssBaseService.TSS_MESSAGES";
+            case STATE_ID_TSS_VOTES -> "TssBaseService.TSS_VOTES";
+            case STATE_ID_TSS_ENCRYPTION_KEYS -> "TssBaseService.TSS_ENCRYPTION_KEYS";
+            // FUTURE WORK: consider removing as there is no TSS_STATUS state
+            case STATE_ID_TSS_STATUS -> "TssBaseService.TSS_STATUS";
+            case STATE_ID_HINTS_KEY_SETS -> "HintsService.HINTS_KEY_SETS";
+            case STATE_ID_ACTIVE_HINTS_CONSTRUCTION -> "HintsService.ACTIVE_HINTS_CONSTRUCTION";
+            case STATE_ID_NEXT_HINTS_CONSTRUCTION -> "HintsService.NEXT_HINTS_CONSTRUCTION";
+            case STATE_ID_PREPROCESSING_VOTES -> "HintsService.PREPROCESSING_VOTES";
+            case STATE_ID_LEDGER_ID -> "HistoryService.LEDGER_ID";
+            case STATE_ID_PROOF_KEY_SETS -> "HistoryService.PROOF_KEY_SETS";
+            case STATE_ID_ACTIVE_PROOF_CONSTRUCTION -> "HistoryService.ACTIVE_PROOF_CONSTRUCTION";
+            case STATE_ID_NEXT_PROOF_CONSTRUCTION -> "HistoryService.NEXT_PROOF_CONSTRUCTION";
+            case STATE_ID_HISTORY_SIGNATURES -> "HistoryService.HISTORY_SIGNATURES";
+            case STATE_ID_PROOF_VOTES -> "HistoryService.PROOF_VOTES";
+            case STATE_ID_CRS_STATE -> "HintsService.CRS_STATE";
+            case STATE_ID_CRS_PUBLICATIONS -> "HintsService.CRS_PUBLICATIONS";
+            case STATE_ID_NODE_REWARDS -> "TokenService.NODE_REWARDS";
+        };
+    }
 
     public static Object singletonPutFor(@NonNull final SingletonUpdateChange singletonUpdateChange) {
         return switch (singletonUpdateChange.newValue().kind()) {
@@ -131,117 +187,7 @@ public final class BlockStreamUtils {
         };
     }
 
-    private static EntityIDPair pairFrom(@NonNull final TokenAssociation tokenAssociation) {
+    public static EntityIDPair pairFrom(@NonNull final TokenAssociation tokenAssociation) {
         return new EntityIDPair(tokenAssociation.accountId(), tokenAssociation.tokenId());
-    }
-
-    /**
-     * Reads all files matching the block file pattern from the given path and returns them in
-     * ascending order of block number.
-     *
-     * @param path the path to read blocks from
-     * @return the stream of blocks
-     * @throws UncheckedIOException if an I/O error occurs
-     */
-    public static Stream<Block> readBlocks(@NonNull final Path path) {
-        return readBlocks(path, true);
-    }
-    /**
-     * Reads all files matching the block file pattern from the given path and returns them in
-     * ascending order of block number.
-     *
-     * @param path the path to read blocks from
-     * @return the stream of blocks
-     * @throws UncheckedIOException if an I/O error occurs
-     */
-    public static Stream<Block> readBlocks(@NonNull final Path path, boolean checkForMarkerFiles) {
-        try {
-            return orderedBlocksFrom(path, checkForMarkerFiles).stream().map(BlockStreamUtils::blockFrom);
-        } catch (IOException e) {
-            log.error("Failed to read blocks from path {}", path, e);
-            throw new UncheckedIOException(e);
-        }
-    }
-
-    /**
-     * Reads a single block from the given path.
-     * @param path the path to read the block from
-     * @return the block
-     */
-    public static Block blockFrom(@NonNull final Path path) {
-        final var fileName = path.getFileName().toString();
-        try {
-            if (fileName.endsWith(".gz")) {
-                try (final GZIPInputStream in = new GZIPInputStream(Files.newInputStream(path))) {
-                    return Block.PROTOBUF.parse(Bytes.wrap(in.readAllBytes()));
-                }
-            } else {
-                return Block.PROTOBUF.parse(Bytes.wrap(Files.readAllBytes(path)));
-            }
-        } catch (IOException | ParseException e) {
-            throw new RuntimeException("Failed reading block @ " + path, e);
-        }
-    }
-
-    private static List<Path> orderedBlocksFrom(@NonNull final Path path, boolean checkForMarkerFiles)
-            throws IOException {
-        try (final var stream = Files.walk(path)) {
-            return stream.filter(p -> isBlockFile(p, checkForMarkerFiles))
-                    .sorted(comparing(BlockStreamUtils::extractBlockNumber))
-                    .toList();
-        }
-    }
-
-    /**
-     * Checks if the given path is a block file.
-     * @param path the path to check
-     * @return true if the path is a block file, false otherwise
-     */
-    public static boolean isBlockFile(@NonNull final Path path, boolean checkForMarkerFiles) {
-        if (!path.toFile().isFile() || extractBlockNumber(path) == -1) {
-            return false;
-        }
-        final var name = path.getFileName().toString();
-        if (name.endsWith(".pnd.json")) {
-            return false;
-        }
-        if (name.endsWith(".pnd")) {
-            return Files.exists(path.resolveSibling(name + ".json"));
-        } else if (name.endsWith(".pnd.gz")) {
-            return Files.exists(path.resolveSibling(name.replace(".gz", ".json")));
-        }
-
-        // Check for marker file
-        final var markerFile =
-                path.resolveSibling(name.replace(".blk.gz", ".mf").replace(".blk", ".mf"));
-        return Files.exists(markerFile) || !checkForMarkerFiles;
-    }
-
-    /**
-     * Extracts the block number from the given path.
-     *
-     * @param path the path
-     * @return the block number
-     */
-    public static long extractBlockNumber(@NonNull final Path path) {
-        return extractBlockNumber(path.getFileName().toString());
-    }
-
-    /**
-     * Extracts the block number from the given file name.
-     *
-     * @param fileName the file name
-     * @return the block number, or -1 if it cannot be extracted
-     */
-    public static long extractBlockNumber(@NonNull final String fileName) {
-        try {
-            int i = fileName.indexOf(".blk");
-            if (i == -1) {
-                i = fileName.indexOf(".pnd");
-            }
-            return Long.parseLong(fileName.substring(0, i));
-        } catch (Exception ignore) {
-        }
-        return -1;
     }
 }
