@@ -6,7 +6,6 @@ import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.getMetricsProvider;
 import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.initLogging;
 import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.setupGlobalMetrics;
-import static com.swirlds.platform.state.service.PlatformStateFacade.DEFAULT_PLATFORM_STATE_FACADE;
 import static com.swirlds.platform.state.signed.StartupStateUtils.loadInitialState;
 
 import com.hedera.hapi.node.base.SemanticVersion;
@@ -26,6 +25,8 @@ import com.swirlds.platform.builder.PlatformComponentBuilder;
 import com.swirlds.platform.config.PathsConfig;
 import com.swirlds.platform.listeners.PlatformStatusChangeListener;
 import com.swirlds.platform.state.service.PlatformStateFacade;
+import com.swirlds.platform.state.service.PlatformStateService;
+import com.swirlds.platform.state.service.ReadablePlatformStateStore;
 import com.swirlds.platform.state.signed.HashedReservedSignedState;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.system.Platform;
@@ -141,7 +142,9 @@ public class ConsensusNodeManager {
         final MerkleNodeState state = initialState.get().getState();
 
         // Set active the roster
-        RosterUtils.setActiveRoster(state, activeRoster, DEFAULT_PLATFORM_STATE_FACADE.roundOf(state) + 1);
+        final ReadablePlatformStateStore store =
+                new ReadablePlatformStateStore(state.getReadableStates(PlatformStateService.NAME));
+        RosterUtils.setActiveRoster(state, activeRoster, store.getRound() + 1);
 
         final RosterHistory rosterHistory = RosterUtils.createRosterHistory(state);
         executionCallback = new OtterExecutionLayer(new Random(), metrics, time);

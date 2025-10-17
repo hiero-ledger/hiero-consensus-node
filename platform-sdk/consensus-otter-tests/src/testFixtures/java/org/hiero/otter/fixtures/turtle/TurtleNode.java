@@ -4,7 +4,6 @@ package org.hiero.otter.fixtures.turtle;
 import static com.swirlds.common.threading.manager.AdHocThreadManager.getStaticThreadManager;
 import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.getMetricsProvider;
 import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.setupGlobalMetrics;
-import static com.swirlds.platform.state.service.PlatformStateFacade.DEFAULT_PLATFORM_STATE_FACADE;
 import static com.swirlds.platform.state.signed.StartupStateUtils.loadInitialState;
 import static java.util.Objects.requireNonNull;
 import static org.assertj.core.api.Assertions.fail;
@@ -28,6 +27,8 @@ import com.swirlds.platform.builder.PlatformBuildingBlocks;
 import com.swirlds.platform.builder.PlatformComponentBuilder;
 import com.swirlds.platform.config.PathsConfig;
 import com.swirlds.platform.state.service.PlatformStateFacade;
+import com.swirlds.platform.state.service.PlatformStateService;
+import com.swirlds.platform.state.service.ReadablePlatformStateStore;
 import com.swirlds.platform.state.signed.HashedReservedSignedState;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.system.Platform;
@@ -220,7 +221,9 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
             final MerkleNodeState state = initialState.get().getState();
 
             // Set active the roster
-            RosterUtils.setActiveRoster(state, roster(), DEFAULT_PLATFORM_STATE_FACADE.roundOf(state) + 1);
+            final ReadablePlatformStateStore store =
+                    new ReadablePlatformStateStore(state.getReadableStates(PlatformStateService.NAME));
+            RosterUtils.setActiveRoster(state, roster(), store.getRound() + 1);
 
             final RosterHistory rosterHistory = RosterUtils.createRosterHistory(state);
             final String eventStreamLoc = Long.toString(selfId.id());
