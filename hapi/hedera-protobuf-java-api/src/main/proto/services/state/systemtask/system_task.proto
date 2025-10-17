@@ -13,12 +13,15 @@ import "services/basic_types.proto";
  * A request to propagate a materialized key from a key account to its indirect users.
  */
 message KeyPropagation {
-  /** The account whose materialized key must be propagated to indirect users. */
+  /**
+   * The account (possibly  contract account) whose materialized key must be
+   * propagated to indirect users.
+   */
   AccountID key_account_id = 1;
 }
 
 /**
- * A system-managed task enqueued for asynchronous processing by Services.
+ * A system-managed task enqueued for future, yet deterministic, processing.
  */
 message SystemTask {
   oneof task {
