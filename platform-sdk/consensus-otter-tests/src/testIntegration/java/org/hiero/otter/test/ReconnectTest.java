@@ -164,6 +164,7 @@ public class ReconnectTest {
         final Node node1 = network.nodes().get(1);
         final Node node2 = network.nodes().get(2);
 
+        final List<Node> unstableNodes = List.of(node0, node1, node2);
         final List<Node> stableNodes = network.nodes().stream()
                 .filter(n -> !Set.of(node0, node1, node2).contains(n))
                 .toList();
@@ -180,10 +181,10 @@ public class ReconnectTest {
             enableSyntheticBottleneck(Duration.ofMinutes(10), node0, node1, node2);
 
             timeManager.waitForCondition(
-                    () -> network.nodesAreBehindByNodeCount(node0, node1, node2),
+                    () -> unstableNodes.stream().allMatch(Node::isBehind),
                     Duration.ofSeconds(120L),
                     String.format(
-                            "Node did not enter CHECKING status within the expected time "
+                            "Node did not fall behind within the expected time "
                                     + "frame after synthetic bottleneck was enabled on iteration %d.",
                             i));
 
