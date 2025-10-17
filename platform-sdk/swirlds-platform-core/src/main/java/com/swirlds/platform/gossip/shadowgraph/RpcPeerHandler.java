@@ -299,6 +299,9 @@ public class RpcPeerHandler implements GossipRpcReceiver {
     public void receiveBroadcastEvent(final GossipEvent gossipEvent) {
         // we don't use handleIncomingSyncEvent, as we don't want to block sync till this event is resolved
         // so no marking it in intakeEventCounter
+
+        // this method won't be called if we have fallen behind, as reconnect protocol will take over, preempting rpc
+        // protocol, so nobody will broadcast events to us anymore
         this.syncMetrics.broadcastEventReceived();
         final PlatformEvent platformEvent = new PlatformEvent(gossipEvent);
         eventHandler.accept(platformEvent);
