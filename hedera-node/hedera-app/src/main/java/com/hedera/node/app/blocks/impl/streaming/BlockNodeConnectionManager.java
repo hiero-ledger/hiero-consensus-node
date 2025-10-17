@@ -457,8 +457,8 @@ public class BlockNodeConnectionManager {
             logWithContext(
                     logger,
                     DEBUG,
-                    "Scheduling reconnection for node in {} ms (force={}).",
                     newConnection,
+                    "Scheduling reconnection for node in {} ms (force={}).",
                     delayMillis,
                     force);
         } else {
