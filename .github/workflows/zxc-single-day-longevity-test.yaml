@@ -508,6 +508,11 @@ jobs:
            helm upgrade --install --set name=bn-${i} --set appName=bn-${i} block-node-${i} oci://swirldslabs.jfrog.io/load-generator-helm-release-local/network-load-generator \
              --version 0.6.2 --values blocknode-values.yaml -n "${{ steps.set-namespace.outputs.namespace }}" &
           done
+          for i in `seq 1 1 ${{ env.NUM_OF_BLOCK_NODES }}`
+          do
+           helm upgrade --install --set name=bn-p2-${i} --set appName=bn-p2-${i} block-node-p2-${i} oci://swirldslabs.jfrog.io/load-generator-helm-release-local/network-load-generator \
+             --version 0.6.2 --values blocknode-values.yaml -n "${{ steps.set-namespace.outputs.namespace }}" &
+          done
           sleep 180
           wait
           
@@ -551,21 +556,41 @@ jobs:
           #sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get svc | grep 'block-node' | awk '{print $3}' > block_ips.txt
 
           echo >block_ips.txt
-          for i in `sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods | grep 'block-node' | awk '{print $1}'`
+          #for i in `sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods | grep 'block-node' | awk '{print $1}'`
+          #do
+          #  sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" describe pod $i | grep -E '^IP:' | awk '{print $2}' >> block_ips.txt
+          #done
+
+          for i in `seq 1 1 ${{ env.NUM_OF_BLOCK_NODES }}`
           do
-            sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" describe pod $i | grep -E '^IP:' | awk '{print $2}' >> block_ips.txt
+            podprio1name=`sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods | grep "block-node-${i} " | awk '{print $1}'`
+            podprio1IP=`sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" describe pod $podprio1name | grep -E '^IP:' | awk '{print $2}'`
+
+            podprio2name=`sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods | grep "block-node-p2-${i} " | awk '{print $1}'`
+            podprio2IP=`sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" describe pod $podprio2name | grep -E '^IP:' | awk '{print $2}'`
+
+            counter=`expr $i - 1`
+
+            echo "{\"nodes\": [" > block-nodes_$counter.json
+            echo "{ \"address\": \"$podprio1IP\", \"port\": 40840, \"priority\": 1 }," >> block-nodes_$counter.json
+            echo "{ \"address\": \"$podprio2IP\", \"port\": 40840, \"priority\": 2 }"  >> block-nodes_$counter.json
+            echo "]}" >> block-nodes_$counter.json
           done
 
+          if [ 0 -eq 1 ]
+          then
           #N-to-N mode
           counter=0
           for ip in `cat block_ips.txt`
           do
             echo "{\"nodes\": [" > block-nodes_$counter.json
             echo "{ \"address\": \"$ip\", \"port\": 40840, \"priority\": 1 }" >> block-nodes_$counter.json
+            #echo "{ \"address\": \"$ip2\", \"port\": 40840, \"priority\": 2 }" >> block-nodes_$counter.json
             echo "]}" >> block-nodes_$counter.json
             counter=`expr $counter + 1`
           done
-          
+          fi
+
           if [ 0 -eq 1 ]
           then
           echo "{\"nodes\": [" > block-nodes.json
