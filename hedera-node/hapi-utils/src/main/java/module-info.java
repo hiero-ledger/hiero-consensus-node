@@ -2,6 +2,7 @@
 module com.hedera.node.app.hapi.utils {
     exports com.hedera.node.app.hapi.utils.fee;
     exports com.hedera.node.app.hapi.utils.forensics;
+    exports com.hedera.node.app.hapi.utils.blocks;
     exports com.hedera.node.app.hapi.utils.contracts;
     exports com.hedera.node.app.hapi.utils.ethereum;
     exports com.hedera.node.app.hapi.utils.exports.recordstreaming;

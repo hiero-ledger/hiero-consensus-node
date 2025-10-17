@@ -14,6 +14,7 @@ import static com.hedera.node.app.blocks.impl.BlockImplUtils.combine;
 import static com.hedera.node.app.blocks.impl.BlockStreamManagerImpl.NULL_HASH;
 import static com.hedera.node.app.hapi.utils.CommonUtils.noThrowSha384HashOf;
 import static com.hedera.node.app.hapi.utils.CommonUtils.sha384DigestOrThrow;
+import static com.hedera.node.app.hapi.utils.blocks.BlockStreamUtils.stateNameOf;
 import static com.hedera.node.app.hints.HintsService.maybeWeightsFrom;
 import static com.hedera.node.app.history.impl.ProofControllerImpl.EMPTY_PUBLIC_KEY;
 import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
@@ -25,7 +26,6 @@ import static com.hedera.services.bdd.junit.hedera.ExternalPath.SWIRLDS_LOG;
 import static com.hedera.services.bdd.junit.hedera.NodeSelector.byNodeId;
 import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.STATE_METADATA_FILE;
 import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.workingDirFor;
-import static com.hedera.services.bdd.junit.support.validators.block.BlockStreamUtils.stateNameOf;
 import static com.hedera.services.bdd.junit.support.validators.block.RootHashUtils.extractRootMnemonic;
 import static com.hedera.services.bdd.spec.TargetNetworkType.SUBPROCESS_NETWORK;
 import static com.swirlds.platform.system.InitTrigger.GENESIS;
@@ -38,22 +38,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.hedera.hapi.block.stream.Block;
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.BlockProof;
-import com.hedera.hapi.block.stream.output.MapChangeKey;
-import com.hedera.hapi.block.stream.output.MapChangeValue;
-import com.hedera.hapi.block.stream.output.QueuePushChange;
-import com.hedera.hapi.block.stream.output.SingletonUpdateChange;
 import com.hedera.hapi.block.stream.output.StateChanges;
 import com.hedera.hapi.block.stream.output.StateIdentifier;
-import com.hedera.hapi.node.base.TokenAssociation;
-import com.hedera.hapi.node.state.common.EntityIDPair;
-import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.entity.EntityCounts;
 import com.hedera.hapi.node.state.hints.HintsConstruction;
 import com.hedera.hapi.node.state.hints.PreprocessedKeys;
 import com.hedera.hapi.node.state.history.ProofKeySet;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
-import com.hedera.hapi.node.state.primitives.ProtoLong;
-import com.hedera.hapi.node.state.primitives.ProtoString;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.node.state.roster.RosterState;
@@ -63,6 +54,8 @@ import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.blocks.StreamingTreeHasher;
 import com.hedera.node.app.blocks.impl.NaiveStreamingTreeHasher;
 import com.hedera.node.app.config.BootstrapConfigProviderImpl;
+import com.hedera.node.app.hapi.utils.blocks.BlockStreamAccess;
+import com.hedera.node.app.hapi.utils.blocks.BlockStreamUtils;
 import com.hedera.node.app.hints.HintsLibrary;
 import com.hedera.node.app.hints.impl.HintsLibraryImpl;
 import com.hedera.node.app.history.HistoryLibrary;
@@ -73,7 +66,6 @@ import com.hedera.node.app.service.roster.impl.ActiveRosters;
 import com.hedera.node.config.data.VersionConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNetwork;
-import com.hedera.services.bdd.junit.support.BlockStreamAccess;
 import com.hedera.services.bdd.junit.support.BlockStreamValidator;
 import com.hedera.services.bdd.junit.support.translators.inputs.TransactionParts;
 import com.hedera.services.bdd.spec.HapiSpec;
@@ -679,7 +671,7 @@ public class StateChangesValidator implements BlockStreamValidator {
                 }
                 case SINGLETON_UPDATE -> {
                     final var singletonState = writableStates.getSingleton(stateId);
-                    final var singleton = singletonPutFor(stateChange.singletonUpdateOrThrow());
+                    final var singleton = BlockStreamUtils.singletonPutFor(stateChange.singletonUpdateOrThrow());
                     singletonState.put(singleton);
                     stateChangesSummary.countSingletonPut(serviceName, stateId);
                     if (stateChange.stateId() == STATE_ID_NEXT_HINTS_CONSTRUCTION.protoOrdinal()) {
@@ -724,8 +716,10 @@ public class StateChangesValidator implements BlockStreamValidator {
                 }
                 case MAP_UPDATE -> {
                     final var mapState = writableStates.get(stateId);
-                    final var key = mapKeyFor(stateChange.mapUpdateOrThrow().keyOrThrow());
-                    final var value = mapValueFor(stateChange.mapUpdateOrThrow().valueOrThrow());
+                    final var key = BlockStreamUtils.mapKeyFor(
+                            stateChange.mapUpdateOrThrow().keyOrThrow());
+                    final var value = BlockStreamUtils.mapValueFor(
+                            stateChange.mapUpdateOrThrow().valueOrThrow());
                     mapState.put(key, value);
                     entityChanges
                             .computeIfAbsent(stateName, k -> new HashSet<>())
@@ -739,9 +733,10 @@ public class StateChangesValidator implements BlockStreamValidator {
                 }
                 case MAP_DELETE -> {
                     final var mapState = writableStates.get(stateId);
-                    mapState.remove(mapKeyFor(stateChange.mapDeleteOrThrow().keyOrThrow()));
-                    final var keyToRemove =
-                            mapKeyFor(stateChange.mapDeleteOrThrow().keyOrThrow());
+                    mapState.remove(BlockStreamUtils.mapKeyFor(
+                            stateChange.mapDeleteOrThrow().keyOrThrow()));
+                    final var keyToRemove = BlockStreamUtils.mapKeyFor(
+                            stateChange.mapDeleteOrThrow().keyOrThrow());
                     final var maybeTrackedKeys = entityChanges.get(stateName);
                     if (maybeTrackedKeys != null) {
                         maybeTrackedKeys.remove(keyToRemove);
@@ -750,7 +745,7 @@ public class StateChangesValidator implements BlockStreamValidator {
                 }
                 case QUEUE_PUSH -> {
                     final var queueState = writableStates.getQueue(stateId);
-                    queueState.add(queuePushFor(stateChange.queuePushOrThrow()));
+                    queueState.add(BlockStreamUtils.queuePushFor(stateChange.queuePushOrThrow()));
                     stateChangesSummary.countQueuePush(serviceName, stateId);
                 }
                 case QUEUE_POP -> {
@@ -949,107 +944,6 @@ public class StateChangesValidator implements BlockStreamValidator {
         }
         logger.info("Read root mnemonic:\n{}", rootMnemonicLine);
         return rootMnemonicLine == null ? null : extractRootMnemonic(rootMnemonicLine);
-    }
-
-    private static Object singletonPutFor(@NonNull final SingletonUpdateChange singletonUpdateChange) {
-        return switch (singletonUpdateChange.newValue().kind()) {
-            case UNSET -> throw new IllegalStateException("Singleton update value is not set");
-            case BLOCK_INFO_VALUE -> singletonUpdateChange.blockInfoValueOrThrow();
-            case CONGESTION_LEVEL_STARTS_VALUE -> singletonUpdateChange.congestionLevelStartsValueOrThrow();
-            case ENTITY_NUMBER_VALUE -> new EntityNumber(singletonUpdateChange.entityNumberValueOrThrow());
-            case EXCHANGE_RATE_SET_VALUE -> singletonUpdateChange.exchangeRateSetValueOrThrow();
-            case NETWORK_STAKING_REWARDS_VALUE -> singletonUpdateChange.networkStakingRewardsValueOrThrow();
-            case NODE_REWARDS_VALUE -> singletonUpdateChange.nodeRewardsValueOrThrow();
-            case BYTES_VALUE -> new ProtoBytes(singletonUpdateChange.bytesValueOrThrow());
-            case STRING_VALUE -> new ProtoString(singletonUpdateChange.stringValueOrThrow());
-            case RUNNING_HASHES_VALUE -> singletonUpdateChange.runningHashesValueOrThrow();
-            case THROTTLE_USAGE_SNAPSHOTS_VALUE -> singletonUpdateChange.throttleUsageSnapshotsValueOrThrow();
-            case TIMESTAMP_VALUE -> singletonUpdateChange.timestampValueOrThrow();
-            case BLOCK_STREAM_INFO_VALUE -> singletonUpdateChange.blockStreamInfoValueOrThrow();
-            case PLATFORM_STATE_VALUE -> singletonUpdateChange.platformStateValueOrThrow();
-            case ROSTER_STATE_VALUE -> singletonUpdateChange.rosterStateValueOrThrow();
-            case HINTS_CONSTRUCTION_VALUE -> singletonUpdateChange.hintsConstructionValueOrThrow();
-            case ENTITY_COUNTS_VALUE -> singletonUpdateChange.entityCountsValueOrThrow();
-            case HISTORY_PROOF_CONSTRUCTION_VALUE -> singletonUpdateChange.historyProofConstructionValueOrThrow();
-            case CRS_STATE_VALUE -> singletonUpdateChange.crsStateValueOrThrow();
-        };
-    }
-
-    private static Object queuePushFor(@NonNull final QueuePushChange queuePushChange) {
-        return switch (queuePushChange.value().kind()) {
-            case UNSET, PROTO_STRING_ELEMENT -> throw new IllegalStateException("Queue push value is not supported");
-            case PROTO_BYTES_ELEMENT -> new ProtoBytes(queuePushChange.protoBytesElementOrThrow());
-            case TRANSACTION_RECEIPT_ENTRIES_ELEMENT -> queuePushChange.transactionReceiptEntriesElementOrThrow();
-        };
-    }
-
-    private static Object mapKeyFor(@NonNull final MapChangeKey mapChangeKey) {
-        return switch (mapChangeKey.keyChoice().kind()) {
-            case UNSET -> throw new IllegalStateException("Key choice is not set for " + mapChangeKey);
-            case ACCOUNT_ID_KEY -> mapChangeKey.accountIdKeyOrThrow();
-            case TOKEN_RELATIONSHIP_KEY -> pairFrom(mapChangeKey.tokenRelationshipKeyOrThrow());
-            case ENTITY_NUMBER_KEY -> new EntityNumber(mapChangeKey.entityNumberKeyOrThrow());
-            case FILE_ID_KEY -> mapChangeKey.fileIdKeyOrThrow();
-            case NFT_ID_KEY -> mapChangeKey.nftIdKeyOrThrow();
-            case PROTO_BYTES_KEY -> new ProtoBytes(mapChangeKey.protoBytesKeyOrThrow());
-            case PROTO_LONG_KEY -> new ProtoLong(mapChangeKey.protoLongKeyOrThrow());
-            case PROTO_STRING_KEY -> new ProtoString(mapChangeKey.protoStringKeyOrThrow());
-            case SCHEDULE_ID_KEY -> mapChangeKey.scheduleIdKeyOrThrow();
-            case SLOT_KEY_KEY -> mapChangeKey.slotKeyKeyOrThrow();
-            case TOKEN_ID_KEY -> mapChangeKey.tokenIdKeyOrThrow();
-            case TOPIC_ID_KEY -> mapChangeKey.topicIdKeyOrThrow();
-            case CONTRACT_ID_KEY -> mapChangeKey.contractIdKeyOrThrow();
-            case PENDING_AIRDROP_ID_KEY -> mapChangeKey.pendingAirdropIdKeyOrThrow();
-            case TIMESTAMP_SECONDS_KEY -> mapChangeKey.timestampSecondsKeyOrThrow();
-            case SCHEDULED_ORDER_KEY -> mapChangeKey.scheduledOrderKeyOrThrow();
-            case TSS_MESSAGE_MAP_KEY -> mapChangeKey.tssMessageMapKeyOrThrow();
-            case TSS_VOTE_MAP_KEY -> mapChangeKey.tssVoteMapKeyOrThrow();
-            case HINTS_PARTY_ID_KEY -> mapChangeKey.hintsPartyIdKeyOrThrow();
-            case PREPROCESSING_VOTE_ID_KEY -> mapChangeKey.preprocessingVoteIdKeyOrThrow();
-            case NODE_ID_KEY -> mapChangeKey.nodeIdKeyOrThrow();
-            case CONSTRUCTION_NODE_ID_KEY -> mapChangeKey.constructionNodeIdKeyOrThrow();
-            case HOOK_ID_KEY -> mapChangeKey.hookIdKeyOrThrow();
-            case LAMBDA_SLOT_KEY -> mapChangeKey.lambdaSlotKeyOrThrow();
-        };
-    }
-
-    private static Object mapValueFor(@NonNull final MapChangeValue mapChangeValue) {
-        return switch (mapChangeValue.valueChoice().kind()) {
-            case UNSET -> throw new IllegalStateException("Value choice is not set for " + mapChangeValue);
-            case ACCOUNT_VALUE -> mapChangeValue.accountValueOrThrow();
-            case ACCOUNT_ID_VALUE -> mapChangeValue.accountIdValueOrThrow();
-            case BYTECODE_VALUE -> mapChangeValue.bytecodeValueOrThrow();
-            case FILE_VALUE -> mapChangeValue.fileValueOrThrow();
-            case NFT_VALUE -> mapChangeValue.nftValueOrThrow();
-            case PROTO_STRING_VALUE -> new ProtoString(mapChangeValue.protoStringValueOrThrow());
-            case SCHEDULE_VALUE -> mapChangeValue.scheduleValueOrThrow();
-            case SCHEDULE_ID_VALUE -> mapChangeValue.scheduleIdValueOrThrow();
-            case SCHEDULE_LIST_VALUE -> mapChangeValue.scheduleListValueOrThrow();
-            case SLOT_VALUE_VALUE -> mapChangeValue.slotValueValueOrThrow();
-            case STAKING_NODE_INFO_VALUE -> mapChangeValue.stakingNodeInfoValueOrThrow();
-            case TOKEN_VALUE -> mapChangeValue.tokenValueOrThrow();
-            case TOKEN_RELATION_VALUE -> mapChangeValue.tokenRelationValueOrThrow();
-            case TOPIC_VALUE -> mapChangeValue.topicValueOrThrow();
-            case NODE_VALUE -> mapChangeValue.nodeValueOrThrow();
-            case ACCOUNT_PENDING_AIRDROP_VALUE -> mapChangeValue.accountPendingAirdropValueOrThrow();
-            case ROSTER_VALUE -> mapChangeValue.rosterValueOrThrow();
-            case SCHEDULED_COUNTS_VALUE -> mapChangeValue.scheduledCountsValueOrThrow();
-            case THROTTLE_USAGE_SNAPSHOTS_VALUE -> mapChangeValue.throttleUsageSnapshotsValue();
-            case TSS_ENCRYPTION_KEYS_VALUE -> mapChangeValue.tssEncryptionKeysValue();
-            case TSS_MESSAGE_VALUE -> mapChangeValue.tssMessageValueOrThrow();
-            case TSS_VOTE_VALUE -> mapChangeValue.tssVoteValueOrThrow();
-            case HINTS_KEY_SET_VALUE -> mapChangeValue.hintsKeySetValueOrThrow();
-            case PREPROCESSING_VOTE_VALUE -> mapChangeValue.preprocessingVoteValueOrThrow();
-            case CRS_PUBLICATION_VALUE -> mapChangeValue.crsPublicationValueOrThrow();
-            case HISTORY_PROOF_VOTE_VALUE -> mapChangeValue.historyProofVoteValue();
-            case HISTORY_SIGNATURE_VALUE -> mapChangeValue.historySignatureValue();
-            case PROOF_KEY_SET_VALUE -> mapChangeValue.proofKeySetValue();
-            case EVM_HOOK_STATE_VALUE -> mapChangeValue.evmHookStateValueOrThrow();
-        };
-    }
-
-    private static EntityIDPair pairFrom(@NonNull final TokenAssociation tokenAssociation) {
-        return new EntityIDPair(tokenAssociation.accountId(), tokenAssociation.tokenId());
     }
 
     private static @NonNull SortedMap<Long, Long> weightsFrom(@NonNull final Roster roster) {
