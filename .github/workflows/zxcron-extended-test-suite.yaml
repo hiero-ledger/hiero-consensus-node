@@ -36,6 +36,31 @@ env:
   BUILD_GREP_PATTERN: "build-*"
 
 jobs:
+  parameters:
+    name: Determine Configurable Parameters
+    runs-on: hiero-citr-linux-medium
+    outputs:
+      solo-ge-0440: ${{ steps.set-parameters.outputs.solo-ge-0440 }}
+      helm-release-name: ${{ steps.set-parameters.outputs.helm-release-name }}
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+        with:
+          egress-policy: audit
+
+      - name: Set Parameters
+        id: set-parameters
+        run: |
+          SOLO_GE_0440=$([[ "$(printf '%s\n' "${{vars.CITR_SOLO_VERSION}}" "v0.44.0" | sort -V | head -n1)" == "v0.44.0" ]] && echo "true" || echo "false")
+          HELM_NAME="mirror"
+          if [[ "${SOLO_GE_0440}" == "true" ]]; then
+            HELM_NAME="mirror-1"
+          fi
+
+          echo "::debug::SOLO_GE_0440=${SOLO_GE_0440}"
+          echo "helm-release-name=${HELM_NAME}" >> "${GITHUB_OUTPUT}"
+          echo "solo-ge-0440=${SOLO_GE_0440}" >> "${GITHUB_OUTPUT}"
+
   fetch-xts-candidate:
     name: Fetch XTS Candidate Tag
     runs-on: hiero-citr-linux-medium
@@ -325,14 +350,16 @@ jobs:
 
   mirror-node-regression-panel:
     name: Mirror Node Regression Panel
-    needs: fetch-xts-candidate
+    needs:
+      - fetch-xts-candidate
+      - parameters
     if: ${{ needs.fetch-xts-candidate.result == 'success' && needs.fetch-xts-candidate.outputs.xts-tag-exists == 'true' }}
     uses: ./.github/workflows/zxc-mirror-node-regression.yaml
     with:
       ref: ${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }} # pass the xts-candidate tag to the JRS panel for checkout
       custom-job-name: "Mirror Node Regression"
       solo-version: ${{ vars.CITR_SOLO_VERSION }}
-      helm-release-name: "mirror" # TODO: Update this to 'mirror-1' when ${vars.CITR_SOLO_VERSION} is >= 0.44.0
+      helm-release-name: ${{ needs.parameters.outputs.helm-release-name }}
     secrets:
       access-token: ${{ secrets.GH_ACCESS_TOKEN }}
       slack-detailed-report-webhook: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
@@ -350,18 +377,20 @@ jobs:
       access-token: ${{ secrets.GH_ACCESS_TOKEN }}
       slack-detailed-report-webhook: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
 
-  #  block-node-regression-panel:
-  #    name: Block Node Regression Panel
-  #    needs: fetch-xts-candidate
-  #    if: ${{ needs.fetch-xts-candidate.result == 'success' && needs.fetch-xts-candidate.outputs.xts-tag-exists == 'true' }}
-  #    uses: ./.github/workflows/zxc-block-node-regression.yaml
-  #    with:
-  #      ref: ${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }} # pass the xts-candidate tag to the JRS panel for checkout
-  #      custom-job-name: "Block Node Regression"
-  #      solo-version: 'v0.46.1'
-  #    secrets:
-  #      access-token: ${{ secrets.GH_ACCESS_TOKEN }}
-  #      slack-detailed-report-webhook: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
+  block-node-regression-panel:
+    name: Block Node Regression Panel
+    needs:
+      - fetch-xts-candidate
+      - parameters
+    if: ${{ needs.fetch-xts-candidate.result == 'success' && needs.fetch-xts-candidate.outputs.xts-tag-exists == 'true' && needs.parameters.outputs.solo-ge-0440 == 'true' }}
+    uses: ./.github/workflows/zxc-block-node-regression.yaml
+    with:
+      ref: ${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }} # pass the xts-candidate tag to the JRS panel for checkout
+      custom-job-name: "Block Node Regression"
+      solo-version: ${{ vars.CITR_SOLO_VERSION }}
+    secrets:
+      access-token: ${{ secrets.GH_ACCESS_TOKEN }}
+      slack-detailed-report-webhook: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
 
   tag-for-promotion:
     name: Tag as XTS-Passing
