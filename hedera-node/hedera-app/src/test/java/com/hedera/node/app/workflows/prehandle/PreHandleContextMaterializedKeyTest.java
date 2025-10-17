@@ -22,13 +22,12 @@ import com.hedera.node.app.workflows.dispatcher.TransactionDispatcher;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
+import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-
-import java.util.Set;
 
 @ExtendWith(MockitoExtension.class)
 class PreHandleContextMaterializedKeyTest {
@@ -48,13 +47,26 @@ class PreHandleContextMaterializedKeyTest {
             .ed25519(Bytes.wrap("mmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm"))
             .build();
 
-    @Mock private ReadableStoreFactory storeFactory;
-    @Mock private ReadableAccountStore accountStore;
-    @Mock private Account payerAccount;
-    @Mock private Account targetAccount;
-    @Mock private TransactionDispatcher dispatcher;
-    @Mock private TransactionChecker transactionChecker;
-    @Mock private NodeInfo creatorInfo;
+    @Mock
+    private ReadableStoreFactory storeFactory;
+
+    @Mock
+    private ReadableAccountStore accountStore;
+
+    @Mock
+    private Account payerAccount;
+
+    @Mock
+    private Account targetAccount;
+
+    @Mock
+    private TransactionDispatcher dispatcher;
+
+    @Mock
+    private TransactionChecker transactionChecker;
+
+    @Mock
+    private NodeInfo creatorInfo;
 
     private PreHandleContext subject;
 
@@ -107,4 +119,3 @@ class PreHandleContextMaterializedKeyTest {
                 .build();
     }
 }
-

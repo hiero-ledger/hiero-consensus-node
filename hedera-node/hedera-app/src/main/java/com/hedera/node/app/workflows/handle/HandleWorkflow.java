@@ -69,7 +69,6 @@ import com.hedera.node.app.store.StoreFactoryImpl;
 import com.hedera.node.app.systemtask.SystemTaskService;
 import com.hedera.node.app.systemtask.SystemTasks;
 import com.hedera.node.app.systemtask.SystemTasksImpl;
-
 import com.hedera.node.app.systemtask.schemas.V0690SystemTaskSchema;
 import com.hedera.node.app.throttle.CongestionMetrics;
 import com.hedera.node.app.throttle.ThrottleServiceManager;
@@ -157,7 +156,6 @@ public class HandleWorkflow {
     private final BlockHashSigner blockHashSigner;
     private final BlockBufferService blockBufferService;
     private final Map<Class<?>, ServiceApiProvider<?>> apiProviders;
-
 
     @Nullable
     private final AtomicBoolean systemEntitiesCreatedFlag;
@@ -578,7 +576,8 @@ public class HandleWorkflow {
             // We execute as many schedules expiring in [lastIntervalProcessTime, consensusNow]
             // as there are available consensus times and execution slots (ordinarily there will
             // be more than enough of both, but we must be prepared for the edge cases)
-            final int remainingCapacity = executeAsManyScheduled(state, executionStart, userTxn.consensusNow(), userTxn.creatorInfo());
+            final int remainingCapacity =
+                    executeAsManyScheduled(state, executionStart, userTxn.consensusNow(), userTxn.creatorInfo());
             // Then, within any remaining capacity, execute pending system tasks
             doAsManyPendingTasks(state, remainingCapacity);
         } catch (Exception e) {
@@ -624,8 +623,10 @@ public class HandleWorkflow {
         final var config = configProvider.getConfiguration();
         final var schedulingConfig = config.getConfigData(SchedulingConfig.class);
         final var consensusConfig = config.getConfigData(ConsensusConfig.class);
+        final var reservedForSystemTasks =
+                Math.max(schedulingConfig.reservedSystemTxnNanos(), schedulingConfig.minReservedSystemTaskNanos());
         final var lastUsableTime = consensusNow.plusNanos(schedulingConfig.consTimeSeparationNanos()
-                - schedulingConfig.reservedSystemTxnNanos()
+                - reservedForSystemTasks
                 - (consensusConfig.handleMaxFollowingRecords() + consensusConfig.handleMaxPrecedingRecords() + 1));
         var lastTime = streamMode == RECORDS
                 ? blockRecordManager.lastUsedConsensusTime()
@@ -732,8 +733,7 @@ public class HandleWorkflow {
         final var consensusConfig = config.getConfigData(ConsensusConfig.class);
 
         // Build SystemTasks bound to the current state's writable queue
-        final var rawQueue = state
-                .getWritableStates(SystemTaskService.NAME)
+        final var rawQueue = state.getWritableStates(SystemTaskService.NAME)
                 .getQueue(V0690SystemTaskSchema.SYSTEM_TASK_QUEUE_STATE_ID);
         @SuppressWarnings("unchecked")
         final var typedQueue = (WritableQueueState<SystemTask>) (WritableQueueState<?>) rawQueue;
@@ -754,7 +754,11 @@ public class HandleWorkflow {
             final var task = maybeTask.get();
             final var writableEntityIdStates = state.getWritableStates(EntityIdService.NAME);
             final var storeFactory = StoreFactoryImpl.from(
-                    state, SystemTaskService.NAME, config, new WritableEntityIdStore(writableEntityIdStates), apiProviders);
+                    state,
+                    SystemTaskService.NAME,
+                    config,
+                    new WritableEntityIdStore(writableEntityIdStates),
+                    apiProviders);
 
             // Capture the time slot for this task
             final Instant thisTime = nextTime;
@@ -794,8 +798,10 @@ public class HandleWorkflow {
 
             try {
                 stakePeriodManager.setCurrentStakePeriodFor(thisTime);
-                // Dispatch using a local dispatcher. Handlers may be provided by future modules; currently may be empty.
-                new com.hedera.node.app.systemtask.dispatcher.SystemTaskDispatcher(java.util.List.of()).dispatch(context);
+                // Dispatch using a local dispatcher. Handlers may be provided by future modules; currently may be
+                // empty.
+                new com.hedera.node.app.systemtask.dispatcher.SystemTaskDispatcher(java.util.List.of())
+                        .dispatch(context);
                 // Advance and record last used consensus time
                 if (streamMode != RECORDS) {
                     blockStreamManager.setLastTopLevelTime(thisTime);
@@ -825,7 +831,6 @@ public class HandleWorkflow {
             }
         }
     }
-
 
     /**
      * Type inference helper to compute the base builder for a {@link ParentTxn} derived from a

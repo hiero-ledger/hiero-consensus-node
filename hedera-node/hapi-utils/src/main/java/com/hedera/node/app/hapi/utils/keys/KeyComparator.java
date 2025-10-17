@@ -1,15 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.hapi.utils.keys;
 
+import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
+import com.hedera.hapi.node.base.IndirectKey;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.Key.KeyOneOfType;
 import com.hedera.hapi.node.base.KeyList;
 import com.hedera.hapi.node.base.ThresholdKey;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.hedera.hapi.node.base.AccountID;
-import com.hedera.hapi.node.base.IndirectKey;
-
 import java.util.Comparator;
 import java.util.List;
 
@@ -48,7 +47,7 @@ public class KeyComparator implements Comparator<Key> {
                 case THRESHOLD_KEY -> compareThreshold(first, second);
                 case KEY_LIST -> compareKeyList(first, second);
                 case INDIRECT_KEY -> compareIndirectKey(first, second);
-                    // The next two are not currently supported key types.
+                // The next two are not currently supported key types.
                 case RSA_3072 -> compareRsa(first, second);
                 case ECDSA_384 -> compareEcdsa(first, second);
             };
@@ -99,6 +98,7 @@ public class KeyComparator implements Comparator<Key> {
             return Long.compare(realmOne, realmTwo);
         }
     }
+
     private int compareAccountId(final AccountID left, final AccountID right) {
         if (left == right) return 0;
         else if (left == null) return -1;
@@ -138,7 +138,6 @@ public class KeyComparator implements Comparator<Key> {
                 ? compareAccountId(lhs.accountId(), rhs.accountId())
                 : compareId(lhs.contractId(), rhs.contractId());
     }
-
 
     private int compareEdwards(final Key first, final Key second) {
         final Bytes lhs = first.ed25519();

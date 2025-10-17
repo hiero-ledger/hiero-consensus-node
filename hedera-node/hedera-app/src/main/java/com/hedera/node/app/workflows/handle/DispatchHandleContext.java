@@ -67,6 +67,7 @@ import com.hedera.node.app.workflows.prehandle.PreHandleContextImpl;
 import com.hedera.node.app.workflows.prehandle.PreHandleResult;
 import com.hedera.node.app.workflows.prehandle.PreHandleWorkflow;
 import com.hedera.node.app.workflows.purechecks.PureChecksContextImpl;
+import com.hedera.node.config.data.SchedulingConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.state.spi.WritableQueueState;
@@ -110,6 +111,8 @@ public class DispatchHandleContext implements HandleContext, FeeContext {
     private final DispatchMetadata dispatchMetaData;
     private final TransactionChecker transactionChecker;
     private final TransactionCategory transactionCategory;
+    // Tracks the number of system tasks enqueued during this user transaction
+    private int enqueuedSystemTasks = 0;
 
     // This is used to store the pre-handle results for the inner transactions
     // in an atomic batch, null otherwise
@@ -471,7 +474,13 @@ public class DispatchHandleContext implements HandleContext, FeeContext {
 
     @Override
     public void offerSystemTask(@NonNull final SystemTask task) {
+        final var schedulingConfig = config.getConfigData(SchedulingConfig.class);
+        if (enqueuedSystemTasks >= schedulingConfig.maxSystemTasksPerUserTxn()) {
+            // Bound total enqueued per user transaction; ignore excess
+            return;
+        }
         systemTasks.offer(task);
+        enqueuedSystemTasks++;
     }
 
     @NonNull

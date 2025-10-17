@@ -11,11 +11,11 @@ class KeyIndirectKeyRoundTripTest {
     @Test
     @DisplayName("Key with IndirectKey(account_id) round-trips via PBJ")
     void keyWithIndirectAccountIdRoundTrips() throws ParseException {
-        final var indirect = IndirectKey.newBuilder().accountId(AccountID.DEFAULT).build();
+        final var indirect =
+                IndirectKey.newBuilder().accountId(AccountID.DEFAULT).build();
         final var key = Key.newBuilder().indirectKey(indirect).build();
         final var bytes = Key.PROTOBUF.toBytes(key);
         final var parsed = Key.PROTOBUF.parse(bytes.toReadableSequentialData());
         assertThat(parsed).isEqualTo(key);
     }
 }
-

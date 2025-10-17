@@ -5,6 +5,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.ACCOUNT_DELETED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.ACCOUNT_EXPIRED_AND_PENDING_REMOVAL;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.ACCOUNT_ID_DOES_NOT_EXIST;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.EXISTING_AUTOMATIC_ASSOCIATIONS_EXCEED_GIVEN_LIMIT;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.FAIL_INVALID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOK_ID_REPEATED_IN_CREATION_DETAILS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ADMIN_KEY;
@@ -59,6 +60,7 @@ import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
+import com.hedera.node.config.data.AccountsConfig;
 import com.hedera.node.config.data.AutoRenewConfig;
 import com.hedera.node.config.data.EntitiesConfig;
 import com.hedera.node.config.data.LedgerConfig;
@@ -591,6 +593,10 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
         // Empty key list is allowed and is used for immutable entities (e.g. system accounts)
         if (op.hasKey() && !isImmutableKey(op.key())) {
             context.attributeValidator().validateKey(op.key());
+            // Enforce the maximum number of indirect key references allowed in the template key
+            final var accountsConfig = context.configuration().getConfigData(AccountsConfig.class);
+            final var refs = collectIndirectAccountRefs(op.keyOrThrow());
+            validateTrue(refs.size() <= accountsConfig.maxIndirectKeyRefs(), FAIL_INVALID);
         }
 
         if (op.hasAutoRenewPeriod()) {

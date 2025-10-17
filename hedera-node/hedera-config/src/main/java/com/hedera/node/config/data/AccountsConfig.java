@@ -7,8 +7,14 @@ import com.hedera.hapi.node.base.AccountID;
 import com.hedera.node.config.NetworkProperty;
 import com.swirlds.config.api.ConfigData;
 import com.swirlds.config.api.ConfigProperty;
+import com.swirlds.config.api.validation.annotation.Min;
 import edu.umd.cs.findbugs.annotations.NonNull;
 
+/**
+ * Accounts configuration properties.
+ * @param maxIndirectKeyUsers the maximum number of accounts that may indirectly reference a given account's key
+ * @param maxIndirectKeyRefs the maximum number of indirect key references allowed in a template key
+ */
 @ConfigData("accounts")
 public record AccountsConfig(
         @ConfigProperty(defaultValue = "54") @NetworkProperty long softwareUpdateAdmin,
@@ -24,6 +30,8 @@ public record AccountsConfig(
         @ConfigProperty(defaultValue = "60") @NetworkProperty long systemUndeleteAdmin,
         @ConfigProperty(defaultValue = "2") @NetworkProperty long treasury,
         @ConfigProperty(defaultValue = "100000000") @NetworkProperty long maxNumber,
+        @ConfigProperty(defaultValue = "10") @NetworkProperty @Min(0) int maxIndirectKeyUsers,
+        @ConfigProperty(defaultValue = "100") @NetworkProperty @Min(0) int maxIndirectKeyRefs,
         @ConfigProperty(value = "blocklist.enabled", defaultValue = "false") @NetworkProperty boolean blocklistEnabled,
         @ConfigProperty(value = "blocklist.path", defaultValue = "") @NetworkProperty String blocklistResource) {
 

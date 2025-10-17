@@ -41,7 +41,9 @@ public final class KeyMaterializer {
 
     /** Exception thrown on cycle detection or limit breaches. */
     public static class MaterializationException extends RuntimeException {
-        public MaterializationException(final String message) { super(message); }
+        public MaterializationException(final String message) {
+            super(message);
+        }
     }
 
     public KeyMaterializer() {
@@ -64,9 +66,8 @@ public final class KeyMaterializer {
      * @return fully materialized key
      * @throws MaterializationException on cycle detection or limit violations
      */
-    public Key materialize(@NonNull final AccountID rootAccount,
-                           @NonNull final Key template,
-                           @NonNull final KeySource source) {
+    public Key materialize(
+            @NonNull final AccountID rootAccount, @NonNull final Key template, @NonNull final KeySource source) {
         requireNonNull(rootAccount, "rootAccount");
         requireNonNull(template, "template");
         requireNonNull(source, "source");
@@ -176,6 +177,7 @@ public final class KeyMaterializer {
         return key;
     }
 
-    private static final class Counter { int value = 0; }
+    private static final class Counter {
+        int value = 0;
+    }
 }
-
