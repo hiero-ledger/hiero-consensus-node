@@ -521,8 +521,8 @@ public class ConsensusSubmitMessageHandler implements TransactionHandler {
 
         if (feeContext.configuration().getConfigData(FeesConfig.class).simpleFeesEnabled()) {
             final var name = hasCustomFees
-                    ?HederaFunctionality.CONSENSUS_SUBMIT_MESSAGE.protoName()+"CustomFees"
-                    :HederaFunctionality.CONSENSUS_SUBMIT_MESSAGE.protoName();
+                    ? HederaFunctionality.CONSENSUS_SUBMIT_MESSAGE.protoName() + "CustomFees"
+                    : HederaFunctionality.CONSENSUS_SUBMIT_MESSAGE.protoName();
             final var entity = FeeModelRegistry.lookupModel(name);
             Map<Extra, Long> params = new HashMap<>();
             params.put(Extra.BYTES, msgSize);

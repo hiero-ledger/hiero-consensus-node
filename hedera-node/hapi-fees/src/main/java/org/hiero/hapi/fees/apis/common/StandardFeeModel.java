@@ -18,6 +18,7 @@ public class StandardFeeModel extends AbstractBaseFeeModel {
     public StandardFeeModel(HederaFunctionality api, String description) {
         this(api.protoName(), description);
     }
+
     public StandardFeeModel(String api, String description) {
         super(api, description);
     }

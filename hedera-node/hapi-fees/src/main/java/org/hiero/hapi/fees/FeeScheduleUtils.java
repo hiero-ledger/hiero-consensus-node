@@ -40,8 +40,8 @@ public class FeeScheduleUtils {
                 .extras(reference)
                 .build();
     }
-    public static ServiceFeeDefinition makeServiceFee(
-            String name, long baseFee, ExtraFeeReference... reference) {
+
+    public static ServiceFeeDefinition makeServiceFee(String name, long baseFee, ExtraFeeReference... reference) {
         return ServiceFeeDefinition.DEFAULT
                 .copyBuilder()
                 .name(name)

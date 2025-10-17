@@ -257,7 +257,7 @@ public class SimpleFeesSuite {
                                     1000 // base fee for create topic
                                             + 200_000 // custom fee
                                             + 0 // node + network fee
-                            )));
+                                    )));
         }
 
         @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
@@ -282,7 +282,7 @@ public class SimpleFeesSuite {
                                     1000 // base fee for create topic
                                             + 200_000 // custom fee
                                             + 1 * 3 // node + network fee
-                            )),
+                                    )),
                     // submit message, provide up to 1 hbar to pay for it
                     submitMessageTo("testTopic")
                             .blankMemo()
@@ -296,10 +296,10 @@ public class SimpleFeesSuite {
                                     7 // base fee
                                             + 5000 // custom fee
                                             + 1 * 3 // node + network fee
-                            )));
+                                    )));
         }
-
     }
+
     @Nested
     class TopicFees {
 
@@ -323,7 +323,6 @@ public class SimpleFeesSuite {
                                             + 1 * 3 // node + network fee
                                     )));
         }
-
 
         @HapiTest
         @DisplayName("Simple fees for getting a topic transaction info")
