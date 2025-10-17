@@ -28,6 +28,7 @@ import org.hiero.consensus.otter.docker.app.platform.NodeCommunicationService;
 import org.hiero.otter.fixtures.container.proto.ContainerControlServiceGrpc;
 import org.hiero.otter.fixtures.container.proto.InitRequest;
 import org.hiero.otter.fixtures.container.proto.KillImmediatelyRequest;
+import org.hiero.otter.fixtures.container.proto.PingResponse;
 
 /**
  * gRPC service implementation for communication between the test framework and the container to start and stop the
@@ -131,6 +132,8 @@ public final class DockerManager extends ContainerControlServiceGrpc.ContainerCo
             Thread.currentThread().interrupt();
             responseObserver.onError(e);
         }
+
+        log.info("Init request completed.");
     }
 
     /**
@@ -188,5 +191,22 @@ public final class DockerManager extends ContainerControlServiceGrpc.ContainerCo
         }
         responseObserver.onNext(Empty.getDefaultInstance());
         responseObserver.onCompleted();
+        log.info("Kill request completed.");
+    }
+
+    /**
+     * Pings the node communication service to check if it is alive.
+     *
+     * @param request An empty request.
+     * @param responseObserver The observer used to receive the ping response.
+     */
+    @Override
+    public void nodePing(@NonNull final Empty request, @NonNull final StreamObserver<PingResponse> responseObserver) {
+        log.info("Received ping request");
+        responseObserver.onNext(PingResponse.newBuilder()
+                .setAlive(process != null && process.isAlive())
+                .build());
+        responseObserver.onCompleted();
+        log.debug("Ping response sent");
     }
 }
