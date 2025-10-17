@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.app.services.platform;
 
+import static com.swirlds.platform.state.service.PlatformStateFacade.isInFreezePeriod;
+
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.node.app.hapi.utils.CommonPbjConverters;
@@ -13,6 +15,7 @@ import java.util.function.Consumer;
 import org.hiero.base.utility.CommonUtils;
 import org.hiero.consensus.model.event.ConsensusEvent;
 import org.hiero.consensus.model.event.Event;
+import org.hiero.consensus.model.hashgraph.Round;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 import org.hiero.otter.fixtures.app.OtterFreezeTransaction;
 import org.hiero.otter.fixtures.app.OtterService;
@@ -95,5 +98,20 @@ public class PlatformStateService implements OtterService {
                 Bytes.wrap(transaction.getSignature().toByteArray()),
                 Bytes.wrap(transaction.getHash().toByteArray()));
         callback.accept(new ScopedSystemTransaction<>(event.getCreatorId(), event.getBirthRound(), newTransaction));
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void onRoundComplete(@NonNull final WritableStates writableStates, @NonNull final Round round) {
+        final WritablePlatformStateStore store = new WritablePlatformStateStore(writableStates);
+
+        // Update the latest freeze round after everything is handled.
+        // The platform sets the latestFreezeTime, but not the freeze round :(
+        if (isInFreezePeriod(round.getConsensusTimestamp(), store.getFreezeTime(), store.getLastFrozenTime())) {
+            // If this is a freeze round, we need to update the freeze info state
+            store.setLatestFreezeRound(round.getRoundNum());
+        }
     }
 }
