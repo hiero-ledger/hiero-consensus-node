@@ -577,8 +577,8 @@ jobs:
             echo "{ \"address\": \"$podprio2IP\", \"port\": 40840, \"priority\": 2 }"  >> block-nodes_$counter.json
             echo "]}" >> block-nodes_$counter.json
           
-            echo "DEBUG: block-node_$counter.json is:"
-            cat block-node_$counter.json
+            echo "DEBUG: block-nodes_$counter.json is:"
+            cat block-nodes_$counter.json
           done
 
           #create block-nodes-source.json for BNs
@@ -589,9 +589,9 @@ jobs:
             echo "{\"nodes\": [" > block-node-sources_$counter.json
           
             ls -1 block-nodes_*.json | grep -v $counter | xargs cat > tmp.txt
-            grep -v -E 'nodes|[\]][\}]' tmp.txt | sed -e 's/1 },/1 }/g' > tmp.txt2
+            grep -v 'nodes' tmp.txt | grep -v ']}' | sed -e 's/1 },/1 }/g' > tmp.txt2
             lines=`wc -l tmp.txt2 | awk '{print $1}'`
-            head -n `expr $lines -1` tmp.txt2 |  awk '{print $0","}' > tmp.txt1
+            head -n `expr $lines - 1` tmp.txt2 |  awk '{print $0","}' > tmp.txt1
             tail -n 1 tmp.txt2 >> tmp.txt1
             cat tmp.txt1 >> block-node-sources_$counter.json
             echo "]}" >> block-node-sources_$counter.json
