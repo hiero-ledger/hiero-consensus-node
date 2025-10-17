@@ -902,6 +902,14 @@ public final class VirtualNodeCache implements FastCopyable {
         updateHashAtPath(hash, path);
     }
 
+    /*
+    public void putHashChunk(@NonNull final VirtualHashChunk chunk) {
+        throwIfInternalsImmutable();
+        assert chunk != null;
+        updateHashChunk(chunk);
+    }
+    */
+
     public VirtualHashChunk lookupHashChunkById(final long chunkId) {
         // The only way to be released is to be in a condition where the data source has
         // the data that was once in this cache but was merged and is therefore now released.
@@ -1150,10 +1158,8 @@ public final class VirtualNodeCache implements FastCopyable {
             m.value.setHashAtPath(path, hash);
             return;
         }
-        VirtualHashChunk chunk = preloadHashChunk(path);
-        if (chunk.getChunkId() != hashChunkId) {
-            chunk = preloadHashChunk(path);
-        }
+        final VirtualHashChunk chunk = preloadHashChunk(path);
+        assert chunk.getChunkId() == hashChunkId;
         chunk.setHashAtPath(path, hash);
     }
 
@@ -1197,7 +1203,61 @@ public final class VirtualNodeCache implements FastCopyable {
                     return mutation;
                 })
                 .value;
+        /*
+        final long hashChunkId = VirtualHashChunk.pathToChunkId(path, hashChunkHeight);
+        Mutation<Long, VirtualHashChunk> mutation = idToDirtyHashChunkIndex.get(hashChunkId);
+        if (mutation != null) {
+            mutation = lookup(mutation);
+        }
+        if (mutation != null) {
+            if (mutation.version == fastCopyVersion.get()) {
+                return mutation.value;
+            } else {
+                return mutation.value.copy();
+            }
+        } else {
+            VirtualHashChunk chunk = loadHashChunk(hashChunkId);
+            if (chunk == null) {
+                final long hashChunkPath = VirtualHashChunk.chunkIdToChunkPath(hashChunkId, hashChunkHeight);
+                chunk = new VirtualHashChunk(hashChunkPath, hashChunkHeight);
+            }
+            return chunk;
+        }
+        */
     }
+
+    /*
+    public void updateHashChunk(final VirtualHashChunk chunk) {
+        final long hashChunkId = chunk.getChunkId();
+        idToDirtyHashChunkIndex.compute(hashChunkId, (id, mutation) -> {
+                Mutation<Long, VirtualHashChunk> nextMutation = mutation;
+                Mutation<Long, VirtualHashChunk> previousMutation = null;
+                while (nextMutation != null && nextMutation.version > fastCopyVersion.get()) {
+                    previousMutation = nextMutation;
+                    nextMutation = nextMutation.next;
+                }
+                long sizeDelta = 0;
+                if ((nextMutation == null) || (nextMutation.version != fastCopyVersion.get())) {
+                    nextMutation = new Mutation<>(null, hashChunkId, chunk, fastCopyVersion.get());
+                    dirtyHashChunks.add(nextMutation);
+                    sizeDelta +=
+                            nextMutation.value.getSizeInBytes(); // looks like a good hash chunk size estimation
+                } else {
+                    assert nextMutation.notFiltered();
+                    nextMutation.value = chunk;
+                    // No need to update estimated size, all chunks are of the same size
+                }
+                if (previousMutation != null) {
+                    assert previousMutation.notFiltered();
+                    previousMutation.next = nextMutation;
+                } else {
+                    mutation = nextMutation;
+                }
+                estimatedHashesSizeInBytes.addAndGet(sizeDelta);
+                return mutation;
+            });
+    }
+    */
 
     /**
      * Given a mutation list, look up the most recent mutation to this version, but no newer than this

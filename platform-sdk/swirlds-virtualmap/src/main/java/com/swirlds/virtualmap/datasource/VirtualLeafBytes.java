@@ -126,13 +126,7 @@ public class VirtualLeafBytes<V> {
             // times, but always to the same value
             if (value != null) {
                 assert (valueCodec != null);
-                final byte[] vb = new byte[valueCodec.measureRecord(value)];
-                try {
-                    valueCodec.write(value, BufferedData.wrap(vb));
-                    valueBytes = Bytes.wrap(vb);
-                } catch (final IOException e) {
-                    throw new RuntimeException("Failed to serialize a value to bytes", e);
-                }
+                valueBytes = valueCodec.toBytes(value);
             }
         }
         return valueBytes;

@@ -10,6 +10,7 @@ import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.swirlds.logging.legacy.LogMarker;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
+import com.swirlds.virtualmap.datasource.VirtualHashChunk;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.internal.Path;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -24,6 +25,7 @@ import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.ForkJoinTask;
 import java.util.concurrent.ForkJoinWorkerThread;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Function;
 import java.util.function.LongConsumer;
 import java.util.function.LongFunction;
 import org.apache.logging.log4j.LogManager;
@@ -101,7 +103,7 @@ public final class VirtualHasher {
      */
     private LongFunction<Hash> hashReader;
 
-    private LongConsumer hashChunkPreloader;
+    private Function<Long, VirtualHashChunk> hashChunkPreloader;
 
     private long firstLeafPath;
     private long lastLeafPath;
@@ -196,6 +198,8 @@ public final class VirtualHasher {
         // No need to have it atomic, this flag is set/checked on a single thread in hashImpl()
         private boolean chunkPreloaded = false;
 
+        private VirtualHashChunk hashChunk;
+
         ChunkHashTask(final ForkJoinPool pool, final long path, final int height) {
             // out (1) + preload (1) + ins (2^height)
             super(pool, 1 + (1 << height) + 1);
@@ -217,9 +221,17 @@ public final class VirtualHasher {
                     send();
                     return;
                 }
-                final PreloadHashChunkTask preloadTask = new PreloadHashChunkTask(getPool(), path * 2 + 1, this);
+                final PreloadHashChunkTask preloadTask =
+                        new PreloadHashChunkTask(getPool(), Path.getLeftChildPath(path), this);
                 preloadTask.send();
             }
+        }
+
+        void setHashChunk(final VirtualHashChunk hashChunk) {
+            assert hashChunk != null;
+            assert this.hashChunk == null;
+            this.hashChunk = hashChunk;
+            send();
         }
 
         void setHash(final long path, final Hash hash) {
@@ -237,6 +249,14 @@ public final class VirtualHasher {
             return ins[0];
         }
 
+        private Hash loadHash(final long path) {
+            if (hashChunk != null) {
+                return hashChunk.getHashAtPath(path);
+            } else {
+                return hashReader.apply(path);
+            }
+        }
+
         @Override
         protected boolean onExecute() {
             int len = 1 << height;
@@ -250,27 +270,36 @@ public final class VirtualHasher {
                     } else {
                         final long leftPath = rankPath + i * 2;
                         if (left == null) {
-                            left = hashReader.apply(leftPath);
+                            left = loadHash(leftPath);
                             if (left == null) {
                                 throw new RuntimeException("Failed to load hash for path = " + leftPath);
                             }
                         } else {
                             listener.onNodeHashed(leftPath, left);
                         }
+                        if (hashChunk != null) {
+                            hashChunk.setHashAtPath(leftPath, left);
+                        }
                         final long rightPath = rankPath + i * 2 + 1;
                         if (right == null) {
-                            right = hashReader.apply(rightPath);
+                            right = loadHash(rightPath);
                             if ((right == null) && (rightPath != 2)) {
                                 throw new RuntimeException("Failed to load hash for path = " + rightPath);
                             }
                         } else if (right != NO_PATH2_HASH) {
                             listener.onNodeHashed(rightPath, right);
                         }
+                        if (hashChunk != null) {
+                            hashChunk.setHashAtPath(rightPath, right);
+                        }
                         ins[i] = hashInternal(left, right);
                     }
                 }
                 rankPath = Path.getParentPath(rankPath);
                 len = len >> 1;
+            }
+            if (hashChunk != null) {
+                listener.onHashChunkHashed(hashChunk);
             }
             if (out != null) {
                 out.setHash(path, ins[0]);
@@ -357,10 +386,7 @@ public final class VirtualHasher {
 
         @Override
         protected boolean onExecute() {
-            if (path != 0) {
-                hashChunkPreloader.accept(path);
-            }
-            out.send();
+            out.setHashChunk(hashChunkPreloader.apply(path));
             return true;
         }
     }
@@ -471,7 +497,7 @@ public final class VirtualHasher {
     @SuppressWarnings("rawtypes")
     public Hash hash(
             final @NonNull LongFunction<Hash> hashReader,
-            final @Nullable LongConsumer hashChunkPreloader,
+            final @Nullable Function<Long, VirtualHashChunk> hashChunkPreloader,
             final @NonNull Iterator<VirtualLeafBytes> sortedDirtyLeaves,
             final long firstLeafPath,
             final long lastLeafPath,
@@ -523,7 +549,7 @@ public final class VirtualHasher {
      */
     private Hash hashImpl(
             final @NonNull LongFunction<Hash> hashReader,
-            final @Nullable LongConsumer hashChunkPreloader,
+            final @Nullable Function<Long, VirtualHashChunk> hashChunkPreloader,
             final @NonNull Iterator<VirtualLeafBytes> sortedDirtyLeaves,
             final long firstLeafPath,
             final long lastLeafPath,

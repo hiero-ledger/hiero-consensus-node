@@ -1088,12 +1088,14 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
 
         // Compute the root hash of the virtual tree
         final VirtualHashListener hashListener = new VirtualHashListener() {
+            /*
             @Override
             public void onNodeHashed(final long path, final Hash hash) {
                 if (path > 0) {
                     cache.putHash(path, hash);
                 }
             }
+            */
         };
         Hash virtualHash = hasher.hash(
                 records::findHash,
