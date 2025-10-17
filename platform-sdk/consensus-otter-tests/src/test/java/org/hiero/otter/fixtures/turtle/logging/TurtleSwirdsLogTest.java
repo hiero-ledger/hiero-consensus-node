@@ -51,7 +51,7 @@ final class TurtleSwirdsLogTest {
      */
     @Test
     void testSingleNodeLogsAllowedMarkersToSwirdsLog() throws Exception {
-        final TestEnvironment env = new TurtleTestEnvironment(0L);
+        final TestEnvironment env = new TurtleTestEnvironment();
         try {
             final Network network = env.network();
             final TimeManager timeManager = env.timeManager();
@@ -119,7 +119,7 @@ final class TurtleSwirdsLogTest {
      */
     @Test
     void testMultipleNodesLogAllAllowedMarkers() throws Exception {
-        final TestEnvironment env = new TurtleTestEnvironment(0L);
+        final TestEnvironment env = new TurtleTestEnvironment();
         try {
             final Network network = env.network();
             final TimeManager timeManager = env.timeManager();
@@ -194,7 +194,7 @@ final class TurtleSwirdsLogTest {
      */
     @Test
     void testPerNodeLogRouting() throws Exception {
-        final TestEnvironment env = new TurtleTestEnvironment(0L);
+        final TestEnvironment env = new TurtleTestEnvironment();
         try {
             final Network network = env.network();
             final TimeManager timeManager = env.timeManager();
