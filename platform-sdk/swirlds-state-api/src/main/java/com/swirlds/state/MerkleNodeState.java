@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.state;
 
+import com.hedera.pbj.runtime.Codec;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.state.lifecycle.StateMetadata;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -34,9 +36,7 @@ public interface MerkleNodeState extends State {
      *
      * @param md The metadata associated with the state.
      */
-    default void initializeState(@NonNull final StateMetadata<?, ?> md) {
-        throw new UnsupportedOperationException();
-    }
+    void initializeState(@NonNull StateMetadata<?, ?> md);
 
     /**
      * Unregister a service without removing its nodes from the state.
@@ -63,7 +63,7 @@ public interface MerkleNodeState extends State {
      *
      * @param serviceName a service to unregister
      */
-    void unregisterService(@NonNull final String serviceName);
+    void unregisterService(@NonNull String serviceName);
 
     /**
      * Removes the node and metadata from the state merkle tree.
@@ -71,13 +71,59 @@ public interface MerkleNodeState extends State {
      * @param serviceName The service name. Cannot be null.
      * @param stateId The state ID
      */
-    void removeServiceState(@NonNull final String serviceName, final int stateId);
+    void removeServiceState(@NonNull String serviceName, int stateId);
 
     /**
      * Loads a snapshot of a state.
      * @param targetPath The path to load the snapshot from.
      */
-    default MerkleNodeState loadSnapshot(final @NonNull Path targetPath) throws IOException {
-        throw new UnsupportedOperationException();
+    MerkleNodeState loadSnapshot(@NonNull Path targetPath) throws IOException;
+
+    /**
+     * Get the merkle path of the singleton state by its ID.
+     * @param stateId The state ID of the singleton state.
+     * @return The merkle path of the singleton state
+     */
+    long singletonPath(int stateId);
+
+    /**
+     * Get the merkle path of the queue element by its state ID and value.
+     * @param stateId The state ID of the queue state.
+     * @param expectedValue The expected value of the queue element to retrieve the path for
+     * @return The merkle path of the queue element by its state ID and value.
+     */
+    long queueElementPath(int stateId, @NonNull Bytes expectedValue);
+
+    /**
+     * Get the merkle path of the queue element
+     * @param stateId The state ID of the queue state.
+     * @param expectedValue The expected value of the queue element to retrieve the path for
+     * @return The merkle path of the queue element
+     * @param <V> The type of the value of the queue element
+     */
+    default <V> long queueElementPath(
+            final int stateId, @NonNull final V expectedValue, @NonNull final Codec<V> valueCodec) {
+        return queueElementPath(stateId, valueCodec.toBytes(expectedValue));
+    }
+
+    /**
+     * Get the merkle path of the key-value pair in the state by its state ID and key.
+     * @param stateId The state ID of the key-value pair.
+     * @param key The key of the key-value pair.
+     * @return The merkle path of the key-value pair or {@code com.swirlds.virtualmap.internal.Path#INVALID_PATH}
+     * if the key is not found or the stateId is unknown.
+     */
+    long kvPath(int stateId, @NonNull Bytes key);
+
+    /**
+     * Get the merkle path of the key-value pair in the state by its state ID and key.
+     * @param stateId The state ID of the key-value pair.
+     * @param key The key of the key-value pair.
+     * @return The merkle path of the key-value pair or {@code com.swirlds.virtualmap.internal.Path#INVALID_PATH}
+     * if the key is not found or the stateId is unknown.
+     * @param <V> The type of the value of the queue element
+     */
+    default <V> long kvPath(final int stateId, @NonNull final V key, @NonNull final Codec<V> keyCodec) {
+        return kvPath(stateId, keyCodec.toBytes(key));
     }
 }
