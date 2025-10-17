@@ -534,7 +534,7 @@ class NodeUpdateHandlerTest extends AddressBookTestBase {
         given(readableStates.<EntityNumber, Node>get(NODES_STATE_ID)).willReturn(readableNodeState);
         readableStore = new ReadableNodeStoreImpl(readableStates, readableEntityCounters);
 
-        // Create transaction that only updates accountId (sentinel value to remove account)
+        // Create transaction that only updates accountId
         txn = new NodeUpdateBuilder()
                 .withNodeId(nodeId.number())
                 .withAccountId(newAccountId)
@@ -564,6 +564,7 @@ class NodeUpdateHandlerTest extends AddressBookTestBase {
                 .ifPresent(key -> {
                     assertThat(key.thresholdKeyOrThrow().threshold()).isEqualTo(1);
                     assertThat(key.thresholdKeyOrThrow().keys().keys().size()).isEqualTo(2);
+                    assertThat(key.thresholdKeyOrThrow().keys().keys()).containsExactlyInAnyOrder(aPrimitiveKey, bPrimitiveKey);
                 });
     }
 

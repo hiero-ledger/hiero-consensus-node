@@ -446,7 +446,7 @@ public class FakePreHandleContext implements PreHandleContext {
     }
 
     @Override
-    public Key getKeyFromAccount(@NonNull final AccountID accountID) {
+    public Key getAccountKey(@NonNull final AccountID accountID) {
         return requireNonNull(accountStore.getAccountById(accountID)).keyOrThrow();
     }
 

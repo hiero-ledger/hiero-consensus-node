@@ -314,7 +314,7 @@ class PreHandleContextImplTest implements Scenarios {
             final var accountId = AccountID.newBuilder().accountNum(456L).build();
             given(accountStore.getAccountById(accountId)).willReturn(null);
 
-            assertThatThrownBy(() -> subject.getKeyFromAccount(accountId))
+            assertThatThrownBy(() -> subject.getAccountKey(accountId))
                     .isInstanceOf(PreCheckException.class)
                     .has(responseCode(INVALID_ACCOUNT_ID));
         }
@@ -326,7 +326,7 @@ class PreHandleContextImplTest implements Scenarios {
             given(accountStore.getAccountById(accountId)).willReturn(account);
             given(account.deleted()).willReturn(true);
 
-            assertThatThrownBy(() -> subject.getKeyFromAccount(accountId))
+            assertThatThrownBy(() -> subject.getAccountKey(accountId))
                     .isInstanceOf(PreCheckException.class)
                     .has(responseCode(ACCOUNT_DELETED));
         }
@@ -347,7 +347,7 @@ class PreHandleContextImplTest implements Scenarios {
             given(accountsConfig.stakingRewardAccount()).willReturn(789L);
             given(accountsConfig.nodeRewardAccount()).willReturn(987L);
 
-            final var result = subject.getKeyFromAccount(accountId);
+            final var result = subject.getAccountKey(accountId);
 
             assertThat(result).isEqualTo(accountKey);
         }

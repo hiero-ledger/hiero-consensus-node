@@ -521,7 +521,7 @@ public class PreHandleContextImpl implements PreHandleContext {
     }
 
     @Override
-    public Key getKeyFromAccount(@NonNull final AccountID accountID) throws PreCheckException {
+    public Key getAccountKey(@NonNull final AccountID accountID) throws PreCheckException {
         requireNonNull(accountID);
         final var account = accountStore.getAccountById(accountID);
         if (account == null) {

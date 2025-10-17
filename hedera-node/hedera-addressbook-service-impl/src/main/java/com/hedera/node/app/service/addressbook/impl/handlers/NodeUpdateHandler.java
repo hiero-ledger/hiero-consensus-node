@@ -201,7 +201,7 @@ public class NodeUpdateHandler implements TransactionHandler {
         if (existingNode.hasAccountId()) {
             // Allow signature from either admin key or existing account key
             Key requiredKey =
-                    oneOf(existingNode.adminKey(), context.getKeyFromAccount(existingNode.accountIdOrThrow()));
+                    oneOf(existingNode.adminKey(), context.getAccountKey(existingNode.accountIdOrThrow()));
             context.requireKeyOrThrow(requiredKey, INVALID_SIGNATURE);
         } else {
             // No account ID exists, so only admin key signature is acceptable
@@ -223,13 +223,13 @@ public class NodeUpdateHandler implements TransactionHandler {
 
     /**
      * Creates a threshold key with threshold 1 with the given keys.
-     * @param keysRequired keys required
+     * @param acceptedKeys all keys that can individually authorize an operation
      * @return threshold key with threshold 1
      */
-    private static Key oneOf(@NonNull final Key... keysRequired) {
+    private static Key oneOf(@NonNull final Key... acceptedKeys) {
         return Key.newBuilder()
                 .thresholdKey(ThresholdKey.newBuilder()
-                        .keys(new KeyList(Arrays.asList(keysRequired)))
+                        .keys(new KeyList(Arrays.asList(acceptedKeys)))
                         .threshold(1)
                         .build())
                 .build();
