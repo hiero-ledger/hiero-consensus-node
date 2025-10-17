@@ -5,7 +5,6 @@ import static com.hedera.hapi.util.HapiUtils.SEMANTIC_VERSION_COMPARATOR;
 import static com.swirlds.state.lifecycle.StateMetadata.computeLabel;
 
 import com.hedera.hapi.node.base.SemanticVersion;
-import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.state.token.IndirectKeyUsersKey;
 import com.hedera.hapi.node.state.token.IndirectKeyUsersValue;
 import com.hedera.hapi.platform.state.StateKey;
@@ -26,8 +25,7 @@ public class V0620TokenSchema extends Schema<SemanticVersion> {
     public static final int INDIRECT_KEY_USERS_STATE_ID =
             StateKey.KeyOneOfType.TOKENSERVICE_I_INDIRECT_KEY_USERS.protoOrdinal();
     public static final String INDIRECT_KEY_USERS_KEY = "INDIRECT_KEY_USERS";
-    public static final String INDIRECT_KEY_USERS_STATE_LABEL =
-            computeLabel(TokenService.NAME, INDIRECT_KEY_USERS_KEY);
+    public static final String INDIRECT_KEY_USERS_STATE_LABEL = computeLabel(TokenService.NAME, INDIRECT_KEY_USERS_KEY);
 
     private static final SemanticVersion VERSION =
             SemanticVersion.newBuilder().major(0).minor(62).patch(0).build();
@@ -53,4 +51,3 @@ public class V0620TokenSchema extends Schema<SemanticVersion> {
         // No migration actions required for this schema
     }
 }
-

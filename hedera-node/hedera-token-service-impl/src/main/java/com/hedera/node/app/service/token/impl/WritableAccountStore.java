@@ -56,16 +56,14 @@ public class WritableAccountStore extends ReadableAccountStoreImpl {
     }
 
     /** Exposes the INDIRECT_KEY_USERS writable KV state for minimal bookkeeping needs */
-    @SuppressWarnings("unchecked")
+    @SuppressWarnings({"rawtypes", "unchecked"})
     public com.swirlds.state.spi.WritableKVState<
                     com.hedera.hapi.node.state.token.IndirectKeyUsersKey,
                     com.hedera.hapi.node.state.token.IndirectKeyUsersValue>
             indirectKeyUsers() {
-        return (com.swirlds.state.spi.WritableKVState<
-                        com.hedera.hapi.node.state.token.IndirectKeyUsersKey,
-                        com.hedera.hapi.node.state.token.IndirectKeyUsersValue>)
-                states.get(
-                        com.hedera.node.app.service.token.impl.schemas.V0620TokenSchema.INDIRECT_KEY_USERS_STATE_ID);
+        // Cast via raw type to satisfy Java's invariance of generics
+        return (com.swirlds.state.spi.WritableKVState)
+                states.get(com.hedera.node.app.service.token.impl.schemas.V0620TokenSchema.INDIRECT_KEY_USERS_STATE_ID);
     }
 
     protected WritableKVState<ProtoBytes, AccountID> aliases() {

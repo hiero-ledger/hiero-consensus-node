@@ -190,7 +190,8 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
 
             // 2) Materialize the new key and set both template and materialized_key
             final var materializer = new com.hedera.node.app.hapi.utils.keys.KeyMaterializer();
-            final var source = (com.hedera.node.app.hapi.utils.keys.KeyMaterializer.KeySource) new KeySourceFromStore(accountStore);
+            final var source = (com.hedera.node.app.hapi.utils.keys.KeyMaterializer.KeySource)
+                    new KeySourceFromStore(accountStore);
             final var newMaterialized = materializer.materialize(target, op.keyOrThrow(), source);
             builder.key(op.keyOrThrow());
             builder.materializedKey(newMaterialized);
@@ -207,8 +208,8 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
 
             // 4) If materialized_key changed and target has indirect key users, schedule propagation
             final var oldMat = targetAccount.materializedKey();
-            final boolean matChanged = (oldMat == null && newMaterialized != null)
-                    || (oldMat != null && !oldMat.equals(newMaterialized));
+            final boolean matChanged =
+                    (oldMat == null && newMaterialized != null) || (oldMat != null && !oldMat.equals(newMaterialized));
             if (matChanged && targetAccount.numIndirectKeyUsers() > 0) {
                 builder.maxRemainingPropagations(targetAccount.numIndirectKeyUsers());
                 builder.nextInLineKeyUserId(targetAccount.firstKeyUserId());
@@ -249,7 +250,9 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
         switch (key.key().kind()) {
             case INDIRECT_KEY -> {
                 final var ik = key.indirectKey();
-                if (ik != null && ik.target() != null && ik.target().kind() == com.hedera.hapi.node.base.IndirectKey.TargetOneOfType.ACCOUNT_ID) {
+                if (ik != null
+                        && ik.target() != null
+                        && ik.target().kind() == com.hedera.hapi.node.base.IndirectKey.TargetOneOfType.ACCOUNT_ID) {
                     final var id = ik.accountId();
                     if (id != null && !AccountID.DEFAULT.equals(id)) refs.add(id);
                 }
@@ -273,7 +276,10 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
     }
 
     private static void removeIndirectUserFromList(
-            final com.swirlds.state.spi.WritableKVState<com.hedera.hapi.node.state.token.IndirectKeyUsersKey, com.hedera.hapi.node.state.token.IndirectKeyUsersValue> kv,
+            final com.swirlds.state.spi.WritableKVState<
+                            com.hedera.hapi.node.state.token.IndirectKeyUsersKey,
+                            com.hedera.hapi.node.state.token.IndirectKeyUsersValue>
+                    kv,
             final Account.Builder keyAccountBuilder,
             final AccountID keyAccountId,
             final AccountID userId) {
@@ -319,7 +325,10 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
     }
 
     private static void insertIndirectUserIntoList(
-            final com.swirlds.state.spi.WritableKVState<com.hedera.hapi.node.state.token.IndirectKeyUsersKey, com.hedera.hapi.node.state.token.IndirectKeyUsersValue> kv,
+            final com.swirlds.state.spi.WritableKVState<
+                            com.hedera.hapi.node.state.token.IndirectKeyUsersKey,
+                            com.hedera.hapi.node.state.token.IndirectKeyUsersValue>
+                    kv,
             final Account.Builder keyAccountBuilder,
             final AccountID keyAccountId,
             final AccountID newUserId) {
@@ -337,7 +346,8 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
                     .prevUserId(nextInLine)
                     .nextUserId(afterNext)
                     .build();
-            kv.put(com.hedera.hapi.node.state.token.IndirectKeyUsersKey.newBuilder()
+            kv.put(
+                    com.hedera.hapi.node.state.token.IndirectKeyUsersKey.newBuilder()
                             .keyAccountId(keyAccountId)
                             .indirectUserId(newUserId)
                             .build(),
@@ -354,7 +364,9 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
                         .build();
                 final var afterNextVal = kv.get(afterNextKey);
                 if (afterNextVal != null) {
-                    kv.put(afterNextKey, afterNextVal.copyBuilder().prevUserId(newUserId).build());
+                    kv.put(
+                            afterNextKey,
+                            afterNextVal.copyBuilder().prevUserId(newUserId).build());
                 }
             }
         } else {
@@ -364,7 +376,8 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
                     .prevUserId(AccountID.DEFAULT)
                     .nextUserId(oldHead)
                     .build();
-            kv.put(com.hedera.hapi.node.state.token.IndirectKeyUsersKey.newBuilder()
+            kv.put(
+                    com.hedera.hapi.node.state.token.IndirectKeyUsersKey.newBuilder()
                             .keyAccountId(keyAccountId)
                             .indirectUserId(newUserId)
                             .build(),
@@ -376,7 +389,9 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
                         .build();
                 final var oldHeadVal = kv.get(oldHeadKey);
                 if (oldHeadVal != null) {
-                    kv.put(oldHeadKey, oldHeadVal.copyBuilder().prevUserId(newUserId).build());
+                    kv.put(
+                            oldHeadKey,
+                            oldHeadVal.copyBuilder().prevUserId(newUserId).build());
                 }
             }
             keyAccountBuilder.firstKeyUserId(newUserId);
@@ -391,6 +406,7 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
             final var a = store.get(id);
             return a == null ? null : a.materializedKey();
         }
+
         @Override
         public Key templateKey(@NonNull final AccountID id) {
             final var a = store.get(id);

@@ -28,4 +28,3 @@ class V0620TokenSchemaTest {
         assertThat(def.valueCodec()).isEqualTo(IndirectKeyUsersValue.PROTOBUF);
     }
 }
-

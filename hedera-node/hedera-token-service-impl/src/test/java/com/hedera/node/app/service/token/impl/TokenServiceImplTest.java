@@ -10,7 +10,6 @@ import static org.mockito.Mockito.verify;
 import com.hedera.node.app.service.token.CryptoServiceDefinition;
 import com.hedera.node.app.service.token.TokenServiceDefinition;
 import com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema;
-import com.hedera.node.app.service.token.impl.schemas.V0610TokenSchema;
 import com.hedera.node.app.service.token.impl.schemas.V0620TokenSchema;
 import com.hedera.node.app.spi.AppContext;
 import com.hedera.node.app.spi.ids.EntityIdFactory;

@@ -75,4 +75,3 @@ class IndirectKeyUsersStateTest {
         assertThat(state.get(key(A, U2))).isNull();
     }
 }
-

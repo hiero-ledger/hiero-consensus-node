@@ -78,7 +78,8 @@ public class KeyPropagationSystemTaskHandler implements SystemTaskHandler {
         }
         final Account U = accountStore.get(uId);
         if (U != null && !U.deleted()) {
-            final Key newMatForU = replaceIndirectRefsTo(A.accountId(), A.materializedKey(), U.key(), U.materializedKey());
+            final Key newMatForU =
+                    replaceIndirectRefsTo(A.accountId(), A.materializedKey(), U.key(), U.materializedKey());
             if (newMatForU != null && !Objects.equals(newMatForU, U.materializedKey())) {
                 final var originalU = U;
                 // Tentatively update U, then submit synthetic update; rollback on failure
@@ -168,7 +169,8 @@ public class KeyPropagationSystemTaskHandler implements SystemTaskHandler {
             }
             case KEY_LIST -> replaceInKeyList(target, replacement, template, currentMat);
             case THRESHOLD_KEY -> replaceInThreshold(target, replacement, template, currentMat);
-            case ED25519, ECDSA_SECP256K1, RSA_3072, ECDSA_384, CONTRACT_ID, DELEGATABLE_CONTRACT_ID, UNSET -> currentMat;
+            case ED25519, ECDSA_SECP256K1, RSA_3072, ECDSA_384, CONTRACT_ID, DELEGATABLE_CONTRACT_ID, UNSET ->
+                currentMat;
         };
     }
 
@@ -216,4 +218,3 @@ public class KeyPropagationSystemTaskHandler implements SystemTaskHandler {
         return Key.newBuilder().thresholdKey(newT).build();
     }
 }
-
