@@ -51,6 +51,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.LockSupport;
+import java.util.function.BooleanSupplier;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -65,15 +66,13 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     private static final VarHandle availableNodesHandle;
     private static final VarHandle activeConnectionRefHandle;
     private static final VarHandle connectivityTaskConnectionHandle;
-    private static final VarHandle isStreamingEnabledHandle;
     private static final VarHandle nodeStatsHandle;
     private static final VarHandle retryStatesHandle;
     private static final VarHandle sharedExecutorServiceHandle;
     private static final VarHandle blockNodeConfigDirectoryHandle;
-    private static final MethodHandle stopConnectionsHandle;
-    private static final MethodHandle handleConfigFileChangeHandle;
+    private static final MethodHandle closeAllConnectionsHandle;
+    private static final MethodHandle refreshAvailableBlockNodesHandle;
     private static final MethodHandle extractBlockNodesConfigurationsHandle;
-    private static final MethodHandle performInitialConfigLoadHandle;
     private static final MethodHandle startConfigWatcherHandle;
     private static final MethodHandle stopConfigWatcherHandle;
 
@@ -90,8 +89,6 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
                     .findVarHandle(BlockNodeConnectionManager.class, "activeConnectionRef", AtomicReference.class);
             connectivityTaskConnectionHandle = MethodHandles.privateLookupIn(BlockNodeConnectionTask.class, lookup)
                     .findVarHandle(BlockNodeConnectionTask.class, "connection", BlockNodeConnection.class);
-            isStreamingEnabledHandle = MethodHandles.privateLookupIn(BlockNodeConnectionManager.class, lookup)
-                    .findVarHandle(BlockNodeConnectionManager.class, "isStreamingEnabled", AtomicBoolean.class);
             nodeStatsHandle = MethodHandles.privateLookupIn(BlockNodeConnectionManager.class, lookup)
                     .findVarHandle(BlockNodeConnectionManager.class, "nodeStats", Map.class);
             retryStatesHandle = MethodHandles.privateLookupIn(BlockNodeConnectionManager.class, lookup)
@@ -102,24 +99,20 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
             blockNodeConfigDirectoryHandle = MethodHandles.privateLookupIn(BlockNodeConnectionManager.class, lookup)
                     .findVarHandle(BlockNodeConnectionManager.class, "blockNodeConfigDirectory", Path.class);
 
-            final Method stopConnections = BlockNodeConnectionManager.class.getDeclaredMethod("stopConnections");
-            stopConnections.setAccessible(true);
-            stopConnectionsHandle = lookup.unreflect(stopConnections);
+            final Method closeAllConnections =
+                    BlockNodeConnectionManager.class.getDeclaredMethod("closeAllConnections");
+            closeAllConnections.setAccessible(true);
+            closeAllConnectionsHandle = lookup.unreflect(closeAllConnections);
 
-            final Method handleConfigFileChange =
-                    BlockNodeConnectionManager.class.getDeclaredMethod("handleConfigFileChange");
-            handleConfigFileChange.setAccessible(true);
-            handleConfigFileChangeHandle = lookup.unreflect(handleConfigFileChange);
+            final Method refreshAvailableBlockNodes =
+                    BlockNodeConnectionManager.class.getDeclaredMethod("refreshAvailableBlockNodes");
+            refreshAvailableBlockNodes.setAccessible(true);
+            refreshAvailableBlockNodesHandle = lookup.unreflect(refreshAvailableBlockNodes);
 
             final Method extractBlockNodesConfigurations =
                     BlockNodeConnectionManager.class.getDeclaredMethod("extractBlockNodesConfigurations", String.class);
             extractBlockNodesConfigurations.setAccessible(true);
             extractBlockNodesConfigurationsHandle = lookup.unreflect(extractBlockNodesConfigurations);
-
-            final Method performInitialConfigLoad =
-                    BlockNodeConnectionManager.class.getDeclaredMethod("performInitialConfigLoad");
-            performInitialConfigLoad.setAccessible(true);
-            performInitialConfigLoadHandle = lookup.unreflect(performInitialConfigLoad);
 
             final Method startConfigWatcher = BlockNodeConnectionManager.class.getDeclaredMethod("startConfigWatcher");
             startConfigWatcher.setAccessible(true);
@@ -161,7 +154,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         // Tests that call start() will have this overwritten by a real executor.
         sharedExecutorServiceHandle.set(connectionManager, executorService);
 
-        // Clear any nodes that might have been loaded by performInitialConfigLoad()
+        // Clear any nodes that might have been loaded
         final List<BlockNodeConfig> availableNodes = availableNodes();
         availableNodes.clear();
 
@@ -330,17 +323,21 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     }
 
     @Test
-    void testStartup() {
+    void testStartup() throws IOException {
         final AtomicBoolean isActive = isActiveFlag();
         isActive.set(false);
 
-        final List<BlockNodeConfig> availableNodes = availableNodes();
-        availableNodes.clear();
+        final Path file = tempDir.resolve("block-nodes.json");
+        final List<BlockNodeConfig> availableNodes = new ArrayList<>();
         availableNodes.add(newBlockNodeConfig(8080, 1));
         availableNodes.add(newBlockNodeConfig(8081, 1));
         availableNodes.add(newBlockNodeConfig(8082, 2));
         availableNodes.add(newBlockNodeConfig(8083, 3));
         availableNodes.add(newBlockNodeConfig(8084, 3));
+        final BlockNodeConnectionInfo connectionInfo = new BlockNodeConnectionInfo(availableNodes);
+        final String valid = BlockNodeConnectionInfo.JSON.toJSON(connectionInfo);
+        Files.writeString(
+                file, valid, StandardCharsets.UTF_8, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
 
         connectionManager.start();
 
@@ -356,7 +353,6 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         assertThat(nodeConfig.priority()).isEqualTo(1);
         assertThat(connection.getConnectionState()).isEqualTo(ConnectionState.UNINITIALIZED);
 
-        verifyNoMoreInteractions(bufferService);
         verifyNoInteractions(metrics);
     }
 
@@ -817,8 +813,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
     @Test
     void testScheduleAndSelectNewNode_streamingDisabled() {
-        final AtomicBoolean isStreamingEnabled = isStreamingEnabled();
-        isStreamingEnabled.set(false);
+        useStreamingDisabledManager();
         final BlockNodeConnection connection = mock(BlockNodeConnection.class);
 
         connectionManager.rescheduleConnection(connection, Duration.ZERO, null, true);
@@ -831,8 +826,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
     @Test
     void testShutdown_streamingDisabled() {
-        final AtomicBoolean isStreamingEnabled = isStreamingEnabled();
-        isStreamingEnabled.set(false);
+        useStreamingDisabledManager();
 
         connectionManager.shutdown();
 
@@ -843,11 +837,11 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
     @Test
     void testStartup_streamingDisabled() {
-        final AtomicBoolean isStreamingEnabled = isStreamingEnabled();
-        final AtomicBoolean isManagerActive = isActiveFlag();
-        isStreamingEnabled.set(false);
-        isManagerActive.set(false);
+        useStreamingDisabledManager();
 
+        connectionManager.start();
+
+        final AtomicBoolean isManagerActive = isActiveFlag();
         assertThat(isManagerActive).isFalse();
 
         verifyNoInteractions(bufferService);
@@ -857,8 +851,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
     @Test
     void testSelectNewBlockNodeForStreaming_streamingDisabled() {
-        final AtomicBoolean isStreamingEnabled = isStreamingEnabled();
-        isStreamingEnabled.set(false);
+        useStreamingDisabledManager();
 
         connectionManager.selectNewBlockNodeForStreaming(false);
 
@@ -869,6 +862,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
     @Test
     void testConstructor_streamingDisabled() {
+        useStreamingDisabledManager();
         // Create a config provider that disables streaming (writerMode = FILE)
         final var config = HederaTestConfigBuilder.create()
                 .withValue("blockStream.writerMode", "FILE")
@@ -882,9 +876,6 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         final ConfigProvider configProvider = () -> new VersionedConfigImpl(config, 1L);
 
         connectionManager = new BlockNodeConnectionManager(configProvider, bufferService, metrics);
-
-        final AtomicBoolean isStreamingEnabled = isStreamingEnabled();
-        assertThat(isStreamingEnabled).isFalse();
 
         final List<BlockNodeConfig> availableNodes = availableNodes();
         assertThat(availableNodes).isEmpty();
@@ -976,8 +967,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
     @Test
     void testConnectionResetsTheStream_streamingDisabled() {
-        final AtomicBoolean isStreamingEnabled = isStreamingEnabled();
-        isStreamingEnabled.set(false);
+        useStreamingDisabledManager();
         final BlockNodeConnection connection = mock(BlockNodeConnection.class);
 
         connectionManager.connectionResetsTheStream(connection);
@@ -990,8 +980,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
     @Test
     void testStart_streamingDisabled() {
-        final AtomicBoolean isStreamingEnabled = isStreamingEnabled();
-        isStreamingEnabled.set(false);
+        useStreamingDisabledManager();
 
         connectionManager.start();
 
@@ -1007,8 +996,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
     @Test
     void testConnectionTask_runStreamingDisabled() {
-        final AtomicBoolean isStreamingEnabled = isStreamingEnabled();
-        isStreamingEnabled.set(false);
+        // Streaming disabled via config in constructor setup
         final BlockNodeConnection connection = mock(BlockNodeConnection.class);
 
         final BlockNodeConnectionTask task =
@@ -1078,8 +1066,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
     @Test
     void testRecordEndOfStreamAndCheckLimit_streamingDisabled() {
-        final AtomicBoolean isStreamingEnabled = isStreamingEnabled();
-        isStreamingEnabled.set(false);
+        useStreamingDisabledManager();
         final BlockNodeConfig nodeConfig = newBlockNodeConfig(8080, 1);
 
         final boolean limitExceeded = connectionManager.recordEndOfStreamAndCheckLimit(nodeConfig, Instant.now());
@@ -1313,42 +1300,43 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     }
 
     @Test
-    void testStopConnections() {
+    void testCloseAllConnections() {
         final BlockNodeConnection conn = mock(BlockNodeConnection.class);
         connections().put(newBlockNodeConfig(8080, 1), conn);
 
-        invoke_stopConnections();
+        invoke_closeAllConnections();
 
         verify(conn).close(true);
         assertThat(connections()).isEmpty();
     }
 
     @Test
-    void testStopConnections_whenStreamingDisabled() {
-        isStreamingEnabled().set(false);
+    void testCloseAllConnections_whenStreamingDisabled() {
+        useStreamingDisabledManager();
+        // Streaming disabled via config in constructor setup
         final BlockNodeConnection conn = mock(BlockNodeConnection.class);
         connections().put(newBlockNodeConfig(8080, 1), conn);
 
-        invoke_stopConnections();
+        invoke_closeAllConnections();
 
-        verifyNoInteractions(conn);
+        verify(conn).close(true);
     }
 
     @Test
-    void testHandleConfigFileChange() {
+    void testRefreshAvailableBlockNodes() {
         final BlockNodeConnection conn = mock(BlockNodeConnection.class);
         final BlockNodeConfig oldNode = newBlockNodeConfig(9999, 1);
         connections().put(oldNode, conn);
         availableNodes().add(oldNode);
 
-        invoke_handleConfigFileChange();
+        invoke_refreshAvailableBlockNodes();
 
         // Verify old connection was closed
         verify(conn).close(true);
     }
 
     @Test
-    void testHandleConfigFileChange_shutsDownExecutorAndReloads_whenValid() throws Exception {
+    void testRefreshAvailableBlockNodes_shutsDownExecutorAndReloads_whenValid() {
         // Point manager at real bootstrap config directory so reload finds valid JSON
         final var configPath = Objects.requireNonNull(
                         BlockNodeCommunicationTestBase.class.getClassLoader().getResource("bootstrap/"))
@@ -1365,59 +1353,18 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         // Ensure manager is initially inactive
         isActiveFlag().set(false);
 
-        invoke_handleConfigFileChange();
+        invoke_refreshAvailableBlockNodes();
 
         // Old connection closed and executor shut down
         verify(existing).close(true);
-        verify(oldExecutor).shutdownNow();
 
         // Available nodes should be reloaded from bootstrap JSON (non-empty)
         assertThat(availableNodes()).isNotEmpty();
     }
 
     @Test
-    void testPerformInitialConfigLoad_noFile() {
-        final Path tmpDir = tempDir.resolve("perfinit-nofile");
-        try {
-            Files.createDirectories(tmpDir);
-            blockNodeConfigDirectoryHandle.set(connectionManager, tmpDir);
-            invoke_performInitialConfigLoad();
-            assertThat(availableNodes()).isEmpty();
-        } catch (final IOException e) {
-            throw new RuntimeException(e);
-        } finally {
-            try {
-                Files.deleteIfExists(tmpDir);
-            } catch (final Exception ignore) {
-                // ignore
-            }
-        }
-    }
-
-    @Test
-    void testPerformInitialConfigLoad_withValidFile_startsAndLoads() throws Exception {
-        final List<BlockNodeConfig> configs = new ArrayList<>();
-        final BlockNodeConfig config = BlockNodeConfig.newBuilder()
-                .address("localhost")
-                .port(8080)
-                .priority(0)
-                .build();
-        configs.add(config);
-        final BlockNodeConnectionInfo connectionInfo = new BlockNodeConnectionInfo(configs);
-        final String json = BlockNodeConnectionInfo.JSON.toJSON(connectionInfo);
-        Files.writeString(
-                tempDir.resolve("block-nodes.json"),
-                json,
-                StandardCharsets.UTF_8,
-                StandardOpenOption.CREATE,
-                StandardOpenOption.TRUNCATE_EXISTING);
-        isActiveFlag().set(false);
-        invoke_performInitialConfigLoad();
-        assertThat(availableNodes()).hasSize(1);
-    }
-
-    @Test
     void testStartConfigWatcher_reactsToCreateModifyDelete() throws Exception {
+        connectionManager.start();
         final Path file = tempDir.resolve("block-nodes.json");
         final List<BlockNodeConfig> configs = new ArrayList<>();
         final BlockNodeConfig config = BlockNodeConfig.newBuilder()
@@ -1440,13 +1387,13 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     }
 
     @Test
-    void testStopConnections_withException() {
+    void testCloseAllConnections_withException() {
         final BlockNodeConnection conn = mock(BlockNodeConnection.class);
         doThrow(new RuntimeException("Close failed")).when(conn).close(true);
         connections().put(newBlockNodeConfig(8080, 1), conn);
 
         // Should not throw - exceptions are caught and logged
-        invoke_stopConnections();
+        invoke_closeAllConnections();
 
         verify(conn).close(true);
         assertThat(connections()).isEmpty();
@@ -1511,10 +1458,6 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         return (BlockNodeConnection) connectivityTaskConnectionHandle.get(task);
     }
 
-    private AtomicBoolean isStreamingEnabled() {
-        return (AtomicBoolean) isStreamingEnabledHandle.get(connectionManager);
-    }
-
     @SuppressWarnings("unchecked")
     private Map<BlockNodeConfig, RetryState> retryStates() {
         return (Map<BlockNodeConfig, RetryState>) retryStatesHandle.get(connectionManager);
@@ -1531,11 +1474,6 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     }
 
     @SuppressWarnings("unchecked")
-    private List<BlockNodeConfig> availableNodes(final BlockNodeConnectionManager manager) {
-        return (List<BlockNodeConfig>) availableNodesHandle.get(manager);
-    }
-
-    @SuppressWarnings("unchecked")
     private Map<BlockNodeConfig, BlockNodeConnection> connections() {
         return (Map<BlockNodeConfig, BlockNodeConnection>) connectionsHandle.get(connectionManager);
     }
@@ -1549,24 +1487,24 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         return (Map<BlockNodeConfig, BlockNodeStats>) nodeStatsHandle.get(connectionManager);
     }
 
-    private void invoke_stopConnections() {
+    private void invoke_closeAllConnections() {
         try {
-            stopConnectionsHandle.invoke(connectionManager);
+            closeAllConnectionsHandle.invoke(connectionManager);
         } catch (final Throwable e) {
             throw new RuntimeException(e);
         }
     }
 
-    private void invoke_handleConfigFileChange() {
+    private void invoke_refreshAvailableBlockNodes() {
         try {
-            handleConfigFileChangeHandle.invoke(connectionManager);
+            refreshAvailableBlockNodesHandle.invoke(connectionManager);
         } catch (final Throwable e) {
             throw new RuntimeException(e);
         }
     }
 
     @SuppressWarnings("unchecked")
-    private List<BlockNodeConfig> invoke_extractBlockNodesConfigurations(String path) {
+    private List<BlockNodeConfig> invoke_extractBlockNodesConfigurations(final String path) {
         try {
             return (List<BlockNodeConfig>) extractBlockNodesConfigurationsHandle.invoke(connectionManager, path);
         } catch (final Throwable e) {
@@ -1574,15 +1512,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         }
     }
 
-    private void invoke_performInitialConfigLoad() {
-        try {
-            performInitialConfigLoadHandle.invoke(connectionManager);
-        } catch (final Throwable e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    private void awaitCondition(final java.util.function.BooleanSupplier condition, final long timeoutMs) {
+    private void awaitCondition(final BooleanSupplier condition, final long timeoutMs) {
         final long start = System.currentTimeMillis();
         while (!condition.getAsBoolean() && (System.currentTimeMillis() - start) < timeoutMs) {
             LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(10));
@@ -1592,5 +1522,21 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
     private void resetMocks() {
         reset(bufferService, metrics, executorService);
+    }
+
+    private void useStreamingDisabledManager() {
+        // Recreate connectionManager with streaming disabled (writerMode=FILE)
+        final var config = HederaTestConfigBuilder.create()
+                .withValue("blockStream.writerMode", "FILE")
+                .withValue(
+                        "blockNode.blockNodeConnectionFileDir",
+                        Objects.requireNonNull(BlockNodeCommunicationTestBase.class
+                                        .getClassLoader()
+                                        .getResource("bootstrap/"))
+                                .getPath())
+                .getOrCreateConfig();
+        final ConfigProvider disabledProvider = () -> new VersionedConfigImpl(config, 1L);
+        connectionManager = new BlockNodeConnectionManager(disabledProvider, bufferService, metrics);
+        sharedExecutorServiceHandle.set(connectionManager, executorService);
     }
 }

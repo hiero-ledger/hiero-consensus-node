@@ -815,8 +815,6 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
     @Test
     void testOpenBlock_streamingDisabled() {
         when(configProvider.getConfiguration()).thenReturn(versionedConfiguration);
-        when(blockStreamConfig.writerMode()).thenReturn(BlockStreamWriterMode.FILE);
-        when(blockStreamConfig.streamMode()).thenReturn(StreamMode.BOTH);
         when(blockBufferConfig.bufferDirectory()).thenReturn(testDir);
         when(versionedConfiguration.getConfigData(BlockStreamConfig.class)).thenReturn(blockStreamConfig);
         when(versionedConfiguration.getConfigData(BlockBufferConfig.class)).thenReturn(blockBufferConfig);
@@ -835,8 +833,6 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
     void testAddItem_streamingDisabled() {
         when(configProvider.getConfiguration()).thenReturn(versionedConfiguration);
         when(versionedConfiguration.getConfigData(BlockStreamConfig.class)).thenReturn(blockStreamConfig);
-        when(blockStreamConfig.writerMode()).thenReturn(BlockStreamWriterMode.FILE);
-        when(blockStreamConfig.streamMode()).thenReturn(StreamMode.BOTH);
         when(blockBufferConfig.bufferDirectory()).thenReturn(testDir);
         when(versionedConfiguration.getConfigData(BlockBufferConfig.class)).thenReturn(blockBufferConfig);
         blockBufferService = initBufferService(configProvider);
@@ -858,8 +854,6 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
     void testCloseBlock_streamingDisabled() {
         when(configProvider.getConfiguration()).thenReturn(versionedConfiguration);
         when(versionedConfiguration.getConfigData(BlockStreamConfig.class)).thenReturn(blockStreamConfig);
-        when(blockStreamConfig.writerMode()).thenReturn(BlockStreamWriterMode.FILE);
-        when(blockStreamConfig.streamMode()).thenReturn(StreamMode.BOTH);
         when(blockBufferConfig.bufferDirectory()).thenReturn(testDir);
         when(versionedConfiguration.getConfigData(BlockBufferConfig.class)).thenReturn(blockBufferConfig);
         blockBufferService = initBufferService(configProvider);
@@ -874,8 +868,6 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
     void testSetLatestAcknowledgedBlock_streamingDisabled() {
         when(configProvider.getConfiguration()).thenReturn(versionedConfiguration);
         when(versionedConfiguration.getConfigData(BlockStreamConfig.class)).thenReturn(blockStreamConfig);
-        when(blockStreamConfig.writerMode()).thenReturn(BlockStreamWriterMode.FILE);
-        when(blockStreamConfig.streamMode()).thenReturn(StreamMode.BOTH);
         when(blockBufferConfig.bufferDirectory()).thenReturn(testDir);
         when(versionedConfiguration.getConfigData(BlockBufferConfig.class)).thenReturn(blockBufferConfig);
         blockBufferService = initBufferService(configProvider);
@@ -890,8 +882,6 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
     void testEnsureNewBlocksPermitted_streamingDisabled() throws InterruptedException {
         when(configProvider.getConfiguration()).thenReturn(versionedConfiguration);
         when(versionedConfiguration.getConfigData(BlockStreamConfig.class)).thenReturn(blockStreamConfig);
-        when(blockStreamConfig.writerMode()).thenReturn(BlockStreamWriterMode.FILE);
-        when(blockStreamConfig.streamMode()).thenReturn(StreamMode.BOTH);
         when(blockBufferConfig.bufferDirectory()).thenReturn(testDir);
         when(versionedConfiguration.getConfigData(BlockBufferConfig.class)).thenReturn(blockBufferConfig);
         blockBufferService = initBufferService(configProvider);
