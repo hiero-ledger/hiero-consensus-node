@@ -95,7 +95,8 @@ jobs:
           echo "solo-version=${{ vars.ADHOC_SOLO_VERSION }}" >> "${GITHUB_OUTPUT}"
           echo "helm-release-name=${HELM_NAME}" >> "${GITHUB_OUTPUT}"
           echo "solo-ge-0440=${SOLO_GE_0440}" >> "${GITHUB_OUTPUT}"
-          if [[ "${{ inputs.block-node-regression-panel }}" == "true" ]] && [[ "${SOLO_GE_0440}" == "true"]]; then
+
+          if [[ "${{ inputs.block-node-regression-panel }}" == "true" ]] && [[ "${SOLO_GE_0440}" == "true" ]]; then
             echo "Block Node Regression Panel will be enabled."
           fi
 
