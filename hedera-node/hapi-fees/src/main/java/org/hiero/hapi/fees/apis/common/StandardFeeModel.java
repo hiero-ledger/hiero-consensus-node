@@ -16,11 +16,15 @@ import org.hiero.hapi.support.fees.ServiceFeeDefinition;
 public class StandardFeeModel extends AbstractBaseFeeModel {
 
     public StandardFeeModel(HederaFunctionality api, String description) {
+        this(api.protoName(), description);
+    }
+
+    public StandardFeeModel(String api, String description) {
         super(api, description);
     }
 
     @Override
-    public FeeResult computeFee(Map<Extra, Object> params, FeeSchedule feeSchedule) {
+    public FeeResult computeFee(Map<Extra, Long> params, FeeSchedule feeSchedule) {
         var result = this.computeNodeAndNetworkFees(params, feeSchedule);
         result.addServiceFee(
                 "Base Fee for " + this.getApi(),

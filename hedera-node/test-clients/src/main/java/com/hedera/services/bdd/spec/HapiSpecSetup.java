@@ -496,6 +496,22 @@ public class HapiSpecSetup {
         return props.get("fee.schedule.name");
     }
 
+    public AccountID simpleFeesScheduleControl() {
+        return props.getAccount("simplefees.schedule.controlAccount.id");
+    }
+
+    public String simpleFeesScheduleControlName() {
+        return props.get("simplefees.schedule.controlAccount.name");
+    }
+
+    public FileID simpleFeesScheduleId() {
+        return props.getFile("simplefees.schedule.id");
+    }
+
+    public String simpleFeesScheduleName() {
+        return props.get("simplefees.schedule.name");
+    }
+
     public int feesTokenTransferUsageMultiplier() {
         return props.getInteger("fees.tokenTransferUsageMultiplier");
     }

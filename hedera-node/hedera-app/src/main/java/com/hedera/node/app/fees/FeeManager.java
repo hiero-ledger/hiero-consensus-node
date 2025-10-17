@@ -1,6 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.fees;
 
+import static com.hedera.hapi.node.base.HederaFunctionality.CONSENSUS_CREATE_TOPIC;
+import static com.hedera.hapi.node.base.HederaFunctionality.CONSENSUS_DELETE_TOPIC;
+import static com.hedera.hapi.node.base.HederaFunctionality.CONSENSUS_SUBMIT_MESSAGE;
+import static com.hedera.hapi.node.base.HederaFunctionality.CONSENSUS_UPDATE_TOPIC;
 import static com.hedera.hapi.node.base.HederaFunctionality.FREEZE;
 import static com.hedera.hapi.node.base.HederaFunctionality.GET_ACCOUNT_DETAILS;
 import static com.hedera.hapi.node.base.HederaFunctionality.NETWORK_GET_EXECUTION_TIME;
@@ -9,6 +13,10 @@ import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_GET_NFT_INFOS;
 import static com.hedera.hapi.node.base.HederaFunctionality.TRANSACTION_GET_FAST_RECORD;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static java.util.Objects.requireNonNull;
+import static org.hiero.hapi.fees.FeeScheduleUtils.makeExtraDef;
+import static org.hiero.hapi.fees.FeeScheduleUtils.makeExtraIncluded;
+import static org.hiero.hapi.fees.FeeScheduleUtils.makeService;
+import static org.hiero.hapi.fees.FeeScheduleUtils.makeServiceFee;
 
 import com.hedera.hapi.node.base.CurrentAndNextFeeSchedule;
 import com.hedera.hapi.node.base.FeeComponents;
@@ -39,6 +47,9 @@ import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.hapi.support.fees.Extra;
+import org.hiero.hapi.support.fees.NetworkFee;
+import org.hiero.hapi.support.fees.NodeFee;
 
 /**
  * Creates {@link FeeCalculator} instances based on the current fee schedule. Whenever the fee schedule is updated,
@@ -49,6 +60,7 @@ import org.apache.logging.log4j.Logger;
 @Singleton
 public final class FeeManager {
     private static final Logger logger = LogManager.getLogger(FeeManager.class);
+    private org.hiero.hapi.support.fees.FeeSchedule simpleFeesSchedule;
 
     private record Entry(HederaFunctionality function, SubType subType) {}
 
@@ -158,6 +170,52 @@ public final class FeeManager {
     }
 
     /**
+     * Updates the fee schedule based on the given file content.
+     *
+     * <p>IMPORTANT:</p> This can only be called when initializing a state or handling a transaction.
+     *
+     * @param bytes The new fee schedule file content.
+     */
+    public ResponseCodeEnum updateSimpleFees(@NonNull final Bytes bytes) {
+        // Parse the current and next fee schedules
+        try {
+            final org.hiero.hapi.support.fees.FeeSchedule schedule =
+                    org.hiero.hapi.support.fees.FeeSchedule.PROTOBUF.parse(bytes);
+            this.simpleFeesSchedule = schedule;
+            return SUCCESS;
+        } catch (final BufferUnderflowException | ParseException ex) {
+            this.simpleFeesSchedule = org.hiero.hapi.support.fees.FeeSchedule.DEFAULT
+                    .copyBuilder()
+                    .extras(
+                            makeExtraDef(Extra.BYTES, 1),
+                            makeExtraDef(Extra.KEYS, 2),
+                            makeExtraDef(Extra.SIGNATURES, 3),
+                            makeExtraDef(Extra.CUSTOM_FEE, 500))
+                    .node(NodeFee.DEFAULT
+                            .copyBuilder()
+                            .baseFee(1)
+                            .extras(makeExtraIncluded(Extra.BYTES, 1024), makeExtraIncluded(Extra.SIGNATURES, 1))
+                            .build())
+                    .network(NetworkFee.DEFAULT.copyBuilder().multiplier(2).build())
+                    .services(makeService(
+                            "Consensus",
+                            makeServiceFee(CONSENSUS_CREATE_TOPIC, 11, makeExtraIncluded(Extra.KEYS, 1)),
+                            makeServiceFee(CONSENSUS_UPDATE_TOPIC, 12, makeExtraIncluded(Extra.KEYS, 1)),
+                            makeServiceFee(CONSENSUS_DELETE_TOPIC, 13, makeExtraIncluded(Extra.KEYS, 1)),
+                            makeServiceFee(
+                                    CONSENSUS_SUBMIT_MESSAGE,
+                                    14,
+                                    makeExtraIncluded(Extra.SIGNATURES, 1),
+                                    makeExtraIncluded(Extra.KEYS, 1),
+                                    makeExtraIncluded(Extra.BYTES, 1024),
+                                    makeExtraIncluded(Extra.CUSTOM_FEE, 0))))
+                    .build();
+
+            return ResponseCodeEnum.FEE_SCHEDULE_FILE_PART_UPLOADED;
+        }
+    }
+
+    /**
      * Create a {@link FeeCalculator} for the given transaction and its details.
      */
     @NonNull
@@ -191,7 +249,8 @@ public final class FeeManager {
                 exchangeRateManager.activeRate(consensusTime),
                 isInternalDispatch,
                 congestionMultipliers,
-                storeFactory);
+                storeFactory,
+                this.simpleFeesSchedule);
     }
 
     public long congestionMultiplierFor(
@@ -216,7 +275,8 @@ public final class FeeManager {
                 exchangeRateManager.activeRate(consensusTime),
                 congestionMultipliers,
                 storeFactory,
-                functionality);
+                functionality,
+                this.simpleFeesSchedule);
     }
 
     /**
@@ -237,6 +297,13 @@ public final class FeeManager {
             return DEFAULT_FEE_DATA;
         }
         return result;
+    }
+
+    /** Gets the current exchange rate manager.
+     */
+    @NonNull
+    public ExchangeRateManager getExchangeRateManager() {
+        return exchangeRateManager;
     }
 
     /**

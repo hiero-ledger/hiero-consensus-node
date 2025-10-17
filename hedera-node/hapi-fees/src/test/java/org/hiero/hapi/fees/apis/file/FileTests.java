@@ -85,7 +85,7 @@ public class FileTests {
     @Test
     void fileCreateFee() {
         FeeModel model = FeeModelRegistry.lookupModel(FILE_CREATE);
-        Map<Extra, Object> params = new HashMap<>();
+        Map<Extra, Long> params = new HashMap<>();
         params.put(Extra.SIGNATURES, 1L);
         params.put(Extra.BYTES, 500L);
         params.put(Extra.KEYS, 1L);
@@ -97,7 +97,7 @@ public class FileTests {
     @Test
     void fileCreateBigFileFee() {
         FeeModel model = FeeModelRegistry.lookupModel(FILE_CREATE);
-        Map<Extra, Object> params = new HashMap<>();
+        Map<Extra, Long> params = new HashMap<>();
         params.put(Extra.SIGNATURES, 1L);
         params.put(Extra.BYTES, 2000L);
         params.put(Extra.KEYS, 1L);
@@ -108,7 +108,7 @@ public class FileTests {
     @Test
     void fileUpdateFee() {
         FeeModel model = FeeModelRegistry.lookupModel(FILE_UPDATE);
-        Map<Extra, Object> params = new HashMap<>();
+        Map<Extra, Long> params = new HashMap<>();
         params.put(Extra.SIGNATURES, 1L);
         params.put(Extra.BYTES, 500L);
         params.put(Extra.KEYS, 1L);
@@ -120,7 +120,7 @@ public class FileTests {
     @Test
     void fileDeleteFee() {
         FeeModel model = FeeModelRegistry.lookupModel(FILE_DELETE);
-        Map<Extra, Object> params = new HashMap<>();
+        Map<Extra, Long> params = new HashMap<>();
         params.put(Extra.SIGNATURES, 1L);
         params.put(Extra.BYTES, 100L);
         params.put(Extra.KEYS, 1L);
@@ -131,7 +131,7 @@ public class FileTests {
     @Test
     void fileAppendFee() {
         FeeModel model = FeeModelRegistry.lookupModel(FILE_APPEND);
-        Map<Extra, Object> params = new HashMap<>();
+        Map<Extra, Long> params = new HashMap<>();
         params.put(Extra.SIGNATURES, 1L);
         params.put(Extra.BYTES, 3000L);
         params.put(Extra.KEYS, 1L);
@@ -142,7 +142,7 @@ public class FileTests {
     @Test
     void fileGetContentsFee() {
         FeeModel model = FeeModelRegistry.lookupModel(FILE_GET_CONTENTS);
-        Map<Extra, Object> params = new HashMap<>();
+        Map<Extra, Long> params = new HashMap<>();
         params.put(Extra.SIGNATURES, 1L);
         params.put(Extra.BYTES, 3000L);
         params.put(Extra.KEYS, 1L);
@@ -154,7 +154,7 @@ public class FileTests {
     @Test
     void fileGetInfoFee() {
         FeeModel model = FeeModelRegistry.lookupModel(FILE_GET_INFO);
-        Map<Extra, Object> params = new HashMap<>();
+        Map<Extra, Long> params = new HashMap<>();
         params.put(Extra.SIGNATURES, 1L);
         params.put(Extra.BYTES, 100L);
         params.put(Extra.KEYS, 1L);

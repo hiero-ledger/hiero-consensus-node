@@ -169,7 +169,7 @@ message ServiceFeeDefinition {
    * defined by the specification for the service. Each name is unique within the file the
    * context of a specific service. The name must match `[A-Za-z].*[A-Za-z0-9]*`.
    */
-  proto.HederaFunctionality name = 1;
+  string name = 1;
   /**
    * The base fee price, in tinycents. There are 10^8 tinycents per cent USD.
    * The base fee, plus the extras, determine the service fee. The base_fee is

@@ -17,6 +17,7 @@ import com.hedera.hapi.node.base.SignatureMap;
 import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.base.TransactionID;
+import com.hedera.hapi.node.transaction.ExchangeRate;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.util.UnknownHederaFunctionality;
 import com.hedera.node.app.fees.ChildFeeContextImpl;
@@ -230,6 +231,11 @@ public class DispatchHandleContext implements HandleContext, FeeContext {
         requireNonNull(childTxBody);
         requireNonNull(syntheticPayerId);
         return dispatchComputeFees(childTxBody, syntheticPayerId, ComputeDispatchFeesAsTopLevel.NO);
+    }
+
+    @Override
+    public ExchangeRate activeRate() {
+        return feeManager.getExchangeRateManager().activeRate(consensusNow);
     }
 
     @NonNull

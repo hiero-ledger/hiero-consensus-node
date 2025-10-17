@@ -119,6 +119,7 @@ import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.roster.ReadableRosterStore;
+import org.hiero.hapi.support.fees.FeeSchedule;
 
 /**
  * This class is responsible for storing the system accounts created during node startup, and then creating
@@ -382,6 +383,11 @@ public class SystemTransactions {
                                 dispatchSynthFileUpdate(ctx, createFileID(filesConfig.feeSchedules(), config), bytes),
                         adminConfig.upgradeFeeSchedulesFile(),
                         SystemTransactions::parseFeeSchedules),
+                new AutoEntityUpdate<>(
+                        (ctx, bytes) -> dispatchSynthFileUpdate(
+                                ctx, createFileID(filesConfig.simpleFeesSchedules(), config), bytes),
+                        adminConfig.upgradeFeeSchedulesFile(),
+                        SystemTransactions::parseSimpleFeesSchedules),
                 new AutoEntityUpdate<>(
                         (ctx, bytes) -> dispatchSynthFileUpdate(
                                 ctx, createFileID(filesConfig.throttleDefinitions(), config), bytes),
@@ -960,6 +966,11 @@ public class SystemTransactions {
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
+    }
+
+    private static Bytes parseSimpleFeesSchedules(@NonNull final InputStream in) {
+        FeeSchedule schedule = FeeSchedule.DEFAULT.copyBuilder().build();
+        return FeeSchedule.PROTOBUF.toBytes(schedule);
     }
 
     private static Bytes parseThrottles(@NonNull final InputStream in) {

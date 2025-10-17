@@ -3,7 +3,6 @@ package org.hiero.hapi.fees.apis.common;
 
 import static org.hiero.hapi.fees.FeeScheduleUtils.lookupExtraFee;
 
-import com.hedera.hapi.node.base.HederaFunctionality;
 import java.security.InvalidParameterException;
 import java.util.Map;
 import org.hiero.hapi.fees.FeeModel;
@@ -13,16 +12,16 @@ import org.hiero.hapi.support.fees.ExtraFeeReference;
 import org.hiero.hapi.support.fees.FeeSchedule;
 
 public abstract class AbstractBaseFeeModel implements FeeModel {
-    private final HederaFunctionality api;
+    private final String api;
     private final String description;
 
-    public AbstractBaseFeeModel(HederaFunctionality api, String description) {
+    public AbstractBaseFeeModel(String api, String description) {
         this.api = api;
         this.description = description;
     }
 
     @Override
-    public HederaFunctionality getApi() {
+    public String getApi() {
         return this.api;
     }
 
@@ -31,7 +30,7 @@ public abstract class AbstractBaseFeeModel implements FeeModel {
         return this.description;
     }
 
-    protected FeeResult computeNodeAndNetworkFees(Map<Extra, Object> params, FeeSchedule feeSchedule) {
+    protected FeeResult computeNodeAndNetworkFees(Map<Extra, Long> params, FeeSchedule feeSchedule) {
         var result = new FeeResult();
         final var nodeFee = feeSchedule.node();
         result.addNodeFee("Node base fee", 1, nodeFee.baseFee());
