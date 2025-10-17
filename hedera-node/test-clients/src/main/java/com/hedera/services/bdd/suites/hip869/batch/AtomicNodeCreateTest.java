@@ -427,7 +427,6 @@ class AtomicNodeCreateTest {
                 .description("hello")
                 .gossipCaCertificate(gossipCertificates.getFirst().getEncoded())
                 .grpcCertificateHash("hash".getBytes())
-                .accountNum(100)
                 // Defaults to FQDN's for all endpoints
                 .gossipEndpoint(GOSSIP_ENDPOINTS_FQDNS)
                 .serviceEndpoint(SERVICES_ENDPOINTS_FQDNS)
@@ -453,7 +452,6 @@ class AtomicNodeCreateTest {
                     ByteString.copyFrom(node.grpcCertificateHash().toByteArray()),
                     "GRPC hash invalid");
             assertNotNull(node.accountId(), "Account ID invalid");
-            assertEquals(100, node.accountId().accountNum(), "Account ID invalid");
             assertNotNull(nodeCreate.getAdminKey(), " Admin key invalid");
             assertEquals(toPbj(nodeCreate.getAdminKey()), node.adminKey(), "Admin key invalid");
         });

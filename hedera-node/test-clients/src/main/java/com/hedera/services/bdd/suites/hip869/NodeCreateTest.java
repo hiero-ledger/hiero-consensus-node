@@ -293,6 +293,7 @@ public class NodeCreateTest {
         final var nodeAccount = "nodeAccount";
         return hapiTest(
                 newKeyNamed(ED_25519_KEY).shape(KeyShape.ED25519),
+                cryptoCreate(nodeAccount),
                 nodeCreate("nodeCreate", nodeAccount)
                         .adminKey(ED_25519_KEY)
                         .gossipCaCertificate(gossipCertificates.getFirst().getEncoded())
@@ -377,7 +378,6 @@ public class NodeCreateTest {
                 .description("hello")
                 .gossipCaCertificate(gossipCertificates.getFirst().getEncoded())
                 .grpcCertificateHash("hash".getBytes())
-                .accountNum(100)
                 // Defaults to FQDN's for all endpoints
                 .gossipEndpoint(GOSSIP_ENDPOINTS_FQDNS)
                 .serviceEndpoint(SERVICES_ENDPOINTS_FQDNS)
@@ -403,7 +403,6 @@ public class NodeCreateTest {
                     ByteString.copyFrom(node.grpcCertificateHash().toByteArray()),
                     "GRPC hash invalid");
             assertNotNull(node.accountId(), "Account ID invalid");
-            assertEquals(100, node.accountId().accountNum(), "Account ID invalid");
             assertNotNull(nodeCreate.getAdminKey(), " Admin key invalid");
             assertEquals(toPbj(nodeCreate.getAdminKey()), node.adminKey(), "Admin key invalid");
         });
@@ -418,6 +417,7 @@ public class NodeCreateTest {
         final String description = "His vorpal blade went snicker-snack!";
         final var nodeAccount = "nodeAccount";
         return hapiTest(
+                cryptoCreate(nodeAccount),
                 nodeCreate("ntb", nodeAccount)
                         .description(description)
                         .gossipCaCertificate(gossipCertificates.getFirst().getEncoded()),

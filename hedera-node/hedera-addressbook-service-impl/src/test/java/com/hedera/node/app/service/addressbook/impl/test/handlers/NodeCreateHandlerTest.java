@@ -238,6 +238,7 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
         given(handleContext.storeFactory()).willReturn(storeFactory);
         given(storeFactory.writableStore(WritableNodeStore.class)).willReturn(writableStore);
         given(storeFactory.readableStore(ReadableAccountStore.class)).willReturn(accountStore);
+        given(storeFactory.writableStore(WritableAccountNodeRelStore.class)).willReturn(writableAccountNodeRelStore);
 
         final var msg = assertThrows(HandleException.class, () -> subject.handle(handleContext));
         assertEquals(ResponseCodeEnum.MAX_NODES_CREATED, msg.getStatus());
@@ -550,6 +551,7 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
         given(handleContext.storeFactory()).willReturn(storeFactory);
         given(storeFactory.writableStore(WritableNodeStore.class)).willReturn(writableStore);
         given(storeFactory.writableStore(WritableAccountNodeRelStore.class)).willReturn(writableAccountNodeRelStore);
+
         final var stack = mock(HandleContext.SavepointStack.class);
         given(handleContext.savepointStack()).willReturn(stack);
         given(stack.getBaseBuilder(any())).willReturn(recordBuilder);
@@ -617,6 +619,12 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
         assertThat(subject.calculateFees(feeCtx)).isEqualTo(new Fees(1, 0, 0));
     }
 
+    @Test
+    @DisplayName("fails if account is already linked to another node")
+    void testCreteNodeWithAccountInRelationFail() {
+        // TODO implement test
+    }
+
     private void setupHandle() {
         given(handleContext.body()).willReturn(txn);
         refreshStoresWithCurrentNodeInWritable();
@@ -628,6 +636,7 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
         given(storeFactory.writableStore(WritableNodeStore.class)).willReturn(writableStore);
         given(accountStore.contains(accountId)).willReturn(true);
         given(storeFactory.readableStore(ReadableAccountStore.class)).willReturn(accountStore);
+        given(storeFactory.writableStore(WritableAccountNodeRelStore.class)).willReturn(writableAccountNodeRelStore);
     }
 
     private class NodeCreateBuilder {

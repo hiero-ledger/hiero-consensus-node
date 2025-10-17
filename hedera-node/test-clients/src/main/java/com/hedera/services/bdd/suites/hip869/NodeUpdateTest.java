@@ -458,7 +458,6 @@ public class NodeUpdateTest {
                 cryptoCreate(nodeAccount),
                 nodeCreate("testNode", nodeAccount)
                         .adminKey("adminKey")
-                        .accountId("NodeAccount")
                         .gossipCaCertificate(gossipCertificates.getFirst().getEncoded()),
                 nodeUpdate("testNode")
                         .adminKey("adminKey")

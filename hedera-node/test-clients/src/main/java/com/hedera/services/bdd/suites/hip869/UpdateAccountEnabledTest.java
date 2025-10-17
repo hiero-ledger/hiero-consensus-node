@@ -83,11 +83,15 @@ public class UpdateAccountEnabledTest {
     final Stream<DynamicTest> validateFees() throws CertificateEncodingException {
         final String description = "His vorpal blade went snicker-snack!";
         final var nodeAccount = "nodeAccount";
+        final var nodeAccount2 = "nodeAccount2";
+        final var nodeAccount3 = "nodeAccount3";
         return hapiTest(
                 newKeyNamed("testKey"),
                 newKeyNamed("randomAccount"),
                 cryptoCreate("payer").balance(10_000_000_000L),
                 cryptoCreate(nodeAccount),
+                cryptoCreate(nodeAccount2),
+                cryptoCreate(nodeAccount3),
                 nodeCreate("node100", nodeAccount)
                         .adminKey("testKey")
                         .description(description)
@@ -97,7 +101,7 @@ public class UpdateAccountEnabledTest {
                 nodeUpdate("node100")
                         .setNode(5)
                         .payingWith("payer")
-                        .accountId("1000")
+                        .accountId(nodeAccount2)
                         .fee(ONE_HBAR)
                         .hasKnownStatus(INVALID_SIGNATURE)
                         .via("failedUpdate"),
@@ -106,7 +110,7 @@ public class UpdateAccountEnabledTest {
                 validateChargedUsdWithin("failedUpdate", 0.001, 3.0),
                 nodeUpdate("node100")
                         .adminKey("testKey")
-                        .accountId("1000")
+                        .accountId(nodeAccount2)
                         .fee(ONE_HBAR)
                         .via("updateNode"),
                 getTxnRecord("updateNode").logged(),
@@ -119,7 +123,7 @@ public class UpdateAccountEnabledTest {
                         .payingWith("payer")
                         .signedBy("payer", "payer", "randomAccount", "testKey")
                         .sigMapPrefixes(uniqueWithFullPrefixesFor("payer", "randomAccount", "testKey"))
-                        .accountId("1000")
+                        .accountId(nodeAccount3)
                         .fee(ONE_HBAR)
                         .via("failedUpdateMultipleSigs"),
                 validateChargedUsdWithin("failedUpdateMultipleSigs", 0.0011276316, 3.0));
