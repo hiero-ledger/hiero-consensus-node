@@ -142,6 +142,9 @@ public class SyncPeerProtocol implements PeerProtocol {
     private boolean shouldSync() {
         if (!SyncStatusChecker.doesStatusPermitSync(platformStatusSupplier.get())) {
             syncMetrics.doNotSyncPlatformStatus();
+            if (platformStatusSupplier.get() == PlatformStatus.BEHIND) {
+                syncMetrics.doNotSyncFallenBehind();
+            }
             return false;
         }
 
@@ -152,11 +155,6 @@ public class SyncPeerProtocol implements PeerProtocol {
 
         if (gossipHalted.getAsBoolean()) {
             syncMetrics.doNotSyncHalted();
-            return false;
-        }
-
-        if (platformStatusSupplier.get() == PlatformStatus.BEHIND) {
-            syncMetrics.doNotSyncFallenBehind();
             return false;
         }
 
