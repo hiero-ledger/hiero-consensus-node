@@ -57,7 +57,7 @@ class FungibleTokenInfoCallTest extends CallTestBase {
 
         final var result = subject.execute().fullResult().result();
 
-        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.getState());
+        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.state());
         assertEquals(
                 Bytes.wrap(FUNGIBLE_TOKEN_INFO
                         .getOutputs()
@@ -86,7 +86,7 @@ class FungibleTokenInfoCallTest extends CallTestBase {
                                                         .toString()),
                                         6)))
                         .array()),
-                result.getOutput());
+                result.output());
     }
 
     @Test
@@ -105,7 +105,7 @@ class FungibleTokenInfoCallTest extends CallTestBase {
 
         final var result = subject.execute().fullResult().result();
 
-        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.getState());
+        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.state());
         assertEquals(
                 Bytes.wrap(FUNGIBLE_TOKEN_INFO_16C
                         .getOutputs()
@@ -136,7 +136,7 @@ class FungibleTokenInfoCallTest extends CallTestBase {
                                                         .toString()),
                                         6)))
                         .array()),
-                result.getOutput());
+                result.output());
     }
 
     @Test
@@ -150,7 +150,7 @@ class FungibleTokenInfoCallTest extends CallTestBase {
 
         final var result = subject.execute().fullResult().result();
 
-        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.getState());
+        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.state());
         assertEquals(
                 Bytes.wrap(FUNGIBLE_TOKEN_INFO
                         .getOutputs()
@@ -179,7 +179,7 @@ class FungibleTokenInfoCallTest extends CallTestBase {
                                                         .toString()),
                                         0)))
                         .array()),
-                result.getOutput());
+                result.output());
     }
 
     @Test
@@ -192,8 +192,8 @@ class FungibleTokenInfoCallTest extends CallTestBase {
 
         final var result = subject.execute().fullResult().result();
 
-        assertEquals(MessageFrame.State.REVERT, result.getState());
-        assertEquals(revertOutputFor(INVALID_TOKEN_ID), result.getOutput());
+        assertEquals(MessageFrame.State.REVERT, result.state());
+        assertEquals(revertOutputFor(INVALID_TOKEN_ID), result.output());
     }
 
     @Test
@@ -206,7 +206,7 @@ class FungibleTokenInfoCallTest extends CallTestBase {
 
         final var result = subject.execute().fullResult().result();
 
-        assertEquals(MessageFrame.State.REVERT, result.getState());
-        assertEquals(revertOutputFor(INVALID_TOKEN_ID), result.getOutput());
+        assertEquals(MessageFrame.State.REVERT, result.state());
+        assertEquals(revertOutputFor(INVALID_TOKEN_ID), result.output());
     }
 }

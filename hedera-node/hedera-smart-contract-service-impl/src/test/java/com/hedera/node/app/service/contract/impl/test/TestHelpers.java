@@ -570,6 +570,7 @@ public class TestHelpers {
             0L,
             ContractCreateTransactionBody.DEFAULT,
             null,
+            null,
             null);
     public static final HederaEvmTransaction HEVM_Exception = new HederaEvmTransaction(
             SENDER_ID,
@@ -582,6 +583,7 @@ public class TestHelpers {
             GAS_LIMIT,
             0L,
             0L,
+            null,
             null,
             new HandleException(ResponseCodeEnum.INVALID_CONTRACT_ID),
             null);
@@ -597,6 +599,7 @@ public class TestHelpers {
             GAS_LIMIT,
             0L,
             0L,
+            null,
             null,
             new HandleException(ResponseCodeEnum.TRANSACTION_OVERSIZE),
             null);
@@ -771,9 +774,9 @@ public class TestHelpers {
         assertEquals(expected.gasRequirement(), actual.gasRequirement());
         final var expectedResult = expected.result();
         final var actualResult = actual.result();
-        assertEquals(expectedResult.getState(), actualResult.getState());
-        assertEquals(expectedResult.getOutput(), actualResult.getOutput());
-        assertEquals(expectedResult.getHaltReason(), actualResult.getHaltReason());
+        assertEquals(expectedResult.state(), actualResult.state());
+        assertEquals(expectedResult.output(), actualResult.output());
+        assertEquals(expectedResult.haltReason(), actualResult.haltReason());
         assertEquals(expectedResult.isRefundGas(), actualResult.isRefundGas());
     }
 
@@ -828,6 +831,7 @@ public class TestHelpers {
                 maxGasAllowance,
                 null,
                 null,
+                null,
                 null);
     }
 
@@ -857,6 +861,7 @@ public class TestHelpers {
                 userGasPrice,
                 maxGasAllowance,
                 ContractCreateTransactionBody.DEFAULT,
+                null,
                 null,
                 null);
     }
