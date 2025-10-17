@@ -164,8 +164,8 @@ jobs:
       # Start the TCK client
       - name: Start tck-client
         env:
-          OPERATOR_ACCOUNT_ID: "0.0.2"
-          OPERATOR_ACCOUNT_PRIVATE_KEY: ${{ steps.solo-action.outputs.ed25519PrivateKey }}
+          OPERATOR_ACCOUNT_ID: ${{ steps.solo-action.outputs.accountId }}
+          OPERATOR_ACCOUNT_PRIVATE_KEY: ${{ steps.solo-action.outputs.privateKey }}
           JSON_RPC_SERVER_URL: "http://127.0.0.1:8544"
           NODE_IP: "127.0.0.1:50211"
           MIRROR_NODE_REST_URL: "http://127.0.0.1:5551"
