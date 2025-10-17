@@ -179,6 +179,9 @@ class HandleWorkflowTest {
     @Mock
     private ReadableSingletonState<Object> platformStateReadableSingletonState;
 
+    @Mock
+    private PlatformState platformState;
+
     private HandleWorkflow subject;
 
     @Test
@@ -239,6 +242,7 @@ class HandleWorkflowTest {
     void writeEventHeaderWithNoParentEvents() {
         given(state.getReadableStates(any())).willReturn(readableStates);
         given(readableStates.getSingleton(anyInt())).willReturn(platformStateReadableSingletonState);
+        givenPositiveFreezeRound();
 
         // Setup event with no parents
         given(event.getHash()).willReturn(CryptoRandomUtils.randomHash());
@@ -283,6 +287,7 @@ class HandleWorkflowTest {
     void writeEventHeaderWithParentEventsInCurrentBlock() {
         given(state.getReadableStates(any())).willReturn(readableStates);
         given(readableStates.getSingleton(anyInt())).willReturn(platformStateReadableSingletonState);
+        givenPositiveFreezeRound();
 
         // Create event hash and parent hash
         Hash eventHash = CryptoRandomUtils.randomHash();
@@ -340,6 +345,7 @@ class HandleWorkflowTest {
     void writeEventHeaderWithParentEventsNotInCurrentBlock() {
         given(state.getReadableStates(any())).willReturn(readableStates);
         given(readableStates.getSingleton(anyInt())).willReturn(platformStateReadableSingletonState);
+        givenPositiveFreezeRound();
 
         // Create event hash and parent hash
         Hash eventHash = CryptoRandomUtils.randomHash();
@@ -399,6 +405,7 @@ class HandleWorkflowTest {
     void writeEventHeaderWithMixedParentEvents() {
         given(state.getReadableStates(any())).willReturn(readableStates);
         given(readableStates.getSingleton(anyInt())).willReturn(platformStateReadableSingletonState);
+        givenPositiveFreezeRound();
 
         // Create event hash and parent hashes
         Hash eventHash = CryptoRandomUtils.randomHash();
@@ -518,6 +525,7 @@ class HandleWorkflowTest {
     void startRoundShouldCallEnsureNewBlocksPermitted() {
         given(state.getReadableStates(any())).willReturn(readableStates);
         given(readableStates.getSingleton(anyInt())).willReturn(platformStateReadableSingletonState);
+        givenPositiveFreezeRound();
 
         // Mock the round iterator and event
         final NodeId creatorId = NodeId.of(0);
@@ -537,5 +545,10 @@ class HandleWorkflowTest {
         subject.handleRound(state, round, txn -> {});
 
         verify(blockBufferService).ensureNewBlocksPermitted();
+    }
+
+    private void givenPositiveFreezeRound() {
+        given(platformStateReadableSingletonState.get()).willReturn(platformState);
+        given(platformState.latestFreezeRound()).willReturn(10L);
     }
 }
