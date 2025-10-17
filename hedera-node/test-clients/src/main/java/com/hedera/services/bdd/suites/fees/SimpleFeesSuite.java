@@ -156,6 +156,36 @@ public class SimpleFeesSuite {
         }
 
         @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
+        @DisplayName("compare submit message with included bytes")
+        final Stream<DynamicTest> submitMessageFeeWithIncludedBytesComparison() {
+            // 100 is less than the free size, so there's no per byte charge
+            final var byte_size = 100;
+            final byte[] messageBytes = new byte[byte_size]; // up to 1k
+            Arrays.fill(messageBytes, (byte) 0b1);
+            return runBeforeAfter(
+                    newKeyNamed(PAYER),
+                    cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
+                    // create topic, provide up to 1 hbar to pay for it
+                    createTopic("testTopic")
+                            .blankMemo()
+                            .payingWith(PAYER)
+                            .fee(ONE_HBAR)
+                            .via("create-topic-txn"),
+                    validateChargedUsd("create-topic-txn", ucents_to_USD(1000)),
+                    // submit message, provide up to 1 hbar to pay for it
+                    submitMessageTo("testTopic")
+                            .blankMemo()
+                            .payingWith(PAYER)
+                            .message(new String(messageBytes))
+                            .fee(ONE_HBAR)
+                            .via("submit-message-txn"),
+                    validateChargedUsd(
+                            "submit-message-txn",
+                            ucents_to_USD(10))
+            );
+        }
+
+        @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
         @DisplayName("compare delete topic with admin key")
         final Stream<DynamicTest> deleteTopicPlainComparison() {
             return runBeforeAfter(
@@ -272,70 +302,6 @@ public class SimpleFeesSuite {
             );
         }
 
-        @HapiTest
-        @DisplayName("Simple fee for submitting a message, all bytes included")
-        final Stream<DynamicTest> submitMessageFeeWithIncludedBytes() {
-            // 100 is less than the free size, so there's no per byte charge
-            final var byte_size = 100;
-            final byte[] messageBytes = new byte[byte_size]; // up to 1k
-            Arrays.fill(messageBytes, (byte) 0b1);
-            return hapiTest(
-                    newKeyNamed(PAYER),
-                    cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
-                    // create topic, provide up to 1 hbar to pay for it
-                    createTopic("testTopic")
-                            .blankMemo()
-                            .payingWith(PAYER)
-                            .fee(ONE_HBAR)
-                            .via("create-topic-txn"),
-                    validateChargedUsd("create-topic-txn", ucents_to_USD(1000 + 1 * 3)),
-                    // submit message, provide up to 1 hbar to pay for it
-                    submitMessageTo("testTopic")
-                            .blankMemo()
-                            .payingWith(PAYER)
-                            .message(new String(messageBytes))
-                            .fee(ONE_HBAR)
-                            .via("submit-message-txn"),
-                    validateChargedUsd(
-                            "submit-message-txn",
-                            ucents_to_USD(
-                                    7 // base fee
-                                    + 1 * 3 // node + network fee
-                                    )));
-        }
-
-        @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
-        @DisplayName("compare submit message with included bytes")
-        final Stream<DynamicTest> submitMessageFeeWithIncludedBytesComparison() {
-            // 100 is less than the free size, so there's no per byte charge
-            final var byte_size = 100;
-            final byte[] messageBytes = new byte[byte_size]; // up to 1k
-            Arrays.fill(messageBytes, (byte) 0b1);
-            return runBeforeAfter(
-                    newKeyNamed(PAYER),
-                    cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
-                    // create topic, provide up to 1 hbar to pay for it
-                    createTopic("testTopic")
-                            .blankMemo()
-                            .payingWith(PAYER)
-                            .fee(ONE_HBAR)
-                            .via("create-topic-txn"),
-                    validateChargedUsd("create-topic-txn", ucents_to_USD(1000 + 1 * 3)),
-                    // submit message, provide up to 1 hbar to pay for it
-                    submitMessageTo("testTopic")
-                            .blankMemo()
-                            .payingWith(PAYER)
-                            .message(new String(messageBytes))
-                            .fee(ONE_HBAR)
-                            .via("submit-message-txn"),
-                    validateChargedUsd(
-                            "submit-message-txn",
-                            ucents_to_USD(
-                                    7 // base fee
-                                            + 1 * 3 // node + network fee
-                            )));
-        }
-
         @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
         @DisplayName("compare submit message with custom fee and included bytes")
         final Stream<DynamicTest> submitCustomFeeMessageWithIncludedBytesComparison() {
@@ -427,7 +393,7 @@ public class SimpleFeesSuite {
                             .payingWith(PAYER)
                             .fee(ONE_HBAR)
                             .via("create-topic-txn"),
-                    validateChargedUsd("create-topic-txn", ucents_to_USD(1000 + 1 * 3)),
+                    validateChargedUsd("create-topic-txn", ucents_to_USD(1000)),
                     // submit message, provide up to 1 hbar to pay for it
                     submitMessageTo("testTopic")
                             .blankMemo()
@@ -437,11 +403,8 @@ public class SimpleFeesSuite {
                             .via("submit-message-txn"),
                     validateChargedUsd(
                             "submit-message-txn",
-                            ucents_to_USD(
-                                    7 // base fee
-                                            + 1.6 // overage fees
-                                            + 1 * 3 // node + network fee
-                            )));
+                            ucents_to_USD(11.6))
+            );
         }
     }
 }

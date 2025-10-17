@@ -85,7 +85,7 @@
         },
         {
           "name": "ConsensusSubmitMessage",
-          "baseFee": 670000,
+          "baseFee": 1000000,
           "extras": [
             { "name": "SIGNATURES", "includedCount": 1 },
             { "name": "BYTES",      "includedCount": 256 },
