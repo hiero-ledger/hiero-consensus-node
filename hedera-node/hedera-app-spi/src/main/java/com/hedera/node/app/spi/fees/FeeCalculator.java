@@ -87,6 +87,16 @@ public interface FeeCalculator {
     long getCongestionMultiplier();
 
     /**
+     * Converts the given tinycent amount to tinybars at the calculator's current exchange rate and
+     * applies the current congestion multiplier.
+     *
+     * Default implementation is unsupported; concrete implementations should override.
+     */
+    default long tinybarsFromTinycents(final long tinycents) {
+        throw new UnsupportedOperationException("tinybarsFromTinycents not supported");
+    }
+
+    /**
      * Resets the usage of all components to zero.
      * @return
      */

@@ -618,10 +618,39 @@ public class TokenServiceApiImpl implements TokenServiceApi {
         final var deleteAndTransferAccounts = validateSemantics(deletedId, obtainerId, expiryValidator);
         transferRemainingBalance(expiryValidator, deleteAndTransferAccounts);
 
+        // Before marking deleted, clean up indirect key relationships where A (deletedId) indirectly
+        // references another account X in its template key.
+        final var toCleanup = collectIndirectAccountRefs(
+                deleteAndTransferAccounts.deletedAccount().keyOrElse(Key.DEFAULT));
+        if (!toCleanup.isEmpty()) {
+            final var indirectKv = accountStore.indirectKeyUsers();
+            for (final var xId : toCleanup) {
+                final var x = accountStore.get(xId);
+                if (x == null || x.deleted()) continue; // Only adjust existing, non-deleted X
+                final var xBuilder = x.copyBuilder();
+                // If X.next_in_line_key_user_id == A.id, advance it to the next user in X's list (wrapping to first)
+                final var nextInLine = x.nextInLineKeyUserId();
+                if (nextInLine != null && nextInLine.equals(deletedId)) {
+                    final var advanced = nextUserInList(indirectKv, xId, deletedId, x.firstKeyUserId());
+                    xBuilder.nextInLineKeyUserId(advanced);
+                }
+                // Remove (X, A) from INDIRECT_KEY_USERS and fix pointers
+                removeIndirectUserFromList(indirectKv, xBuilder, xId, deletedId);
+                // Decrement X.num_indirect_key_users (do NOT touch max_remaining_propagations)
+                decrementIndirectUserCount(xBuilder);
+                accountStore.put(xBuilder.build());
+            }
+        }
+
         // get the account from account store that has all balance changes
-        // commit the account with deleted flag set to true
         final var updatedDeleteAccount = requireNonNull(accountStore.get(deletedId));
-        final var builder = updatedDeleteAccount.copyBuilder().deleted(true);
+        // Null out A's indirect key fields before marking deleted
+        final var builder = updatedDeleteAccount
+                .copyBuilder()
+                .materializedKey(Key.DEFAULT)
+                .firstKeyUserId(AccountID.DEFAULT)
+                .nextInLineKeyUserId(AccountID.DEFAULT)
+                .deleted(true);
         accountStore.removeAlias(updatedDeleteAccount.alias());
         builder.alias(Bytes.EMPTY);
         accountStore.put(builder.build());
@@ -768,5 +797,109 @@ public class TokenServiceApiImpl implements TokenServiceApi {
         } else {
             return retractNodeRewardAccount(balance);
         }
+    }
+
+    // === Indirect key helpers for CryptoDelete ===
+    private static java.util.Set<AccountID> collectIndirectAccountRefs(@NonNull final Key key) {
+        final java.util.Set<AccountID> refs = new java.util.HashSet<>();
+        collectIndirectAccountRefsRec(key, refs);
+        return refs;
+    }
+
+    private static void collectIndirectAccountRefsRec(final Key key, final java.util.Set<AccountID> refs) {
+        if (key == null || key.key() == null) return;
+        switch (key.key().kind()) {
+            case INDIRECT_KEY -> {
+                final var ik = key.indirectKey();
+                if (ik != null
+                        && ik.target() != null
+                        && ik.target().kind() == com.hedera.hapi.node.base.IndirectKey.TargetOneOfType.ACCOUNT_ID) {
+                    final var id = ik.accountId();
+                    if (id != null && !AccountID.DEFAULT.equals(id)) refs.add(id);
+                }
+            }
+            case KEY_LIST -> {
+                final var list = key.keyList();
+                if (list != null && list.keys() != null) {
+                    for (final var child : list.keys()) collectIndirectAccountRefsRec(child, refs);
+                }
+            }
+            case THRESHOLD_KEY -> {
+                final var t = key.thresholdKey();
+                if (t != null && t.keys() != null && t.keys().keys() != null) {
+                    for (final var child : t.keys().keys()) collectIndirectAccountRefsRec(child, refs);
+                }
+            }
+            default -> {
+                // nothing
+            }
+        }
+    }
+
+    private static void removeIndirectUserFromList(
+            final com.swirlds.state.spi.WritableKVState<
+                            com.hedera.hapi.node.state.token.IndirectKeyUsersKey,
+                            com.hedera.hapi.node.state.token.IndirectKeyUsersValue>
+                    kv,
+            final Account.Builder keyAccountBuilder,
+            final AccountID keyAccountId,
+            final AccountID userId) {
+        final var k = com.hedera.hapi.node.state.token.IndirectKeyUsersKey.newBuilder()
+                .keyAccountId(keyAccountId)
+                .indirectUserId(userId)
+                .build();
+        final var entry = kv.get(k);
+        if (entry == null) return; // nothing to remove
+        final var prev = entry.prevUserId();
+        final var next = entry.nextUserId();
+        // Update previous' next pointer
+        if (prev != null && !AccountID.DEFAULT.equals(prev)) {
+            final var prevKey = com.hedera.hapi.node.state.token.IndirectKeyUsersKey.newBuilder()
+                    .keyAccountId(keyAccountId)
+                    .indirectUserId(prev)
+                    .build();
+            final var prevVal = kv.get(prevKey);
+            if (prevVal != null) {
+                kv.put(prevKey, prevVal.copyBuilder().nextUserId(next).build());
+            }
+        } else {
+            // We removed the head
+            keyAccountBuilder.firstKeyUserId(next);
+        }
+        // Update next's prev pointer
+        if (next != null && !AccountID.DEFAULT.equals(next)) {
+            final var nextKey = com.hedera.hapi.node.state.token.IndirectKeyUsersKey.newBuilder()
+                    .keyAccountId(keyAccountId)
+                    .indirectUserId(next)
+                    .build();
+            final var nextVal = kv.get(nextKey);
+            if (nextVal != null) {
+                kv.put(nextKey, nextVal.copyBuilder().prevUserId(prev).build());
+            }
+        }
+        // Finally remove the (keyAccountId, userId) entry itself
+        kv.remove(k);
+    }
+
+    private static void decrementIndirectUserCount(final Account.Builder accountBuilder) {
+        final var current = accountBuilder.build().numIndirectKeyUsers();
+        accountBuilder.numIndirectKeyUsers(current > 0 ? current - 1 : 0);
+    }
+
+    private static AccountID nextUserInList(
+            @NonNull
+                    final com.swirlds.state.spi.WritableKVState<
+                                    com.hedera.hapi.node.state.token.IndirectKeyUsersKey,
+                                    com.hedera.hapi.node.state.token.IndirectKeyUsersValue>
+                            state,
+            @NonNull final AccountID aId,
+            @NonNull final AccountID current,
+            @NonNull final AccountID first) {
+        final var value = state.get(com.hedera.hapi.node.state.token.IndirectKeyUsersKey.newBuilder()
+                .keyAccountId(aId)
+                .indirectUserId(current)
+                .build());
+        final var next = (value == null) ? AccountID.DEFAULT : value.nextUserId();
+        return (next == null || next.equals(AccountID.DEFAULT)) ? first : next;
     }
 }

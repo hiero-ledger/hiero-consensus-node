@@ -41,9 +41,12 @@ public class WritableAccountStore extends ReadableAccountStoreImpl {
      *
      * @param states The state to use.
      */
+    private final WritableStates states;
+
     public WritableAccountStore(
             @NonNull final WritableStates states, @NonNull final WritableEntityCounters entityCounters) {
         super(states, entityCounters);
+        this.states = states;
         this.entityCounters = entityCounters;
     }
 
@@ -52,7 +55,17 @@ public class WritableAccountStore extends ReadableAccountStoreImpl {
         return super.accountState();
     }
 
-    @Override
+    /** Exposes the INDIRECT_KEY_USERS writable KV state for minimal bookkeeping needs */
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    public com.swirlds.state.spi.WritableKVState<
+                    com.hedera.hapi.node.state.token.IndirectKeyUsersKey,
+                    com.hedera.hapi.node.state.token.IndirectKeyUsersValue>
+            indirectKeyUsers() {
+        // Cast via raw type to satisfy Java's invariance of generics
+        return (com.swirlds.state.spi.WritableKVState)
+                states.get(com.hedera.node.app.service.token.impl.schemas.V0620TokenSchema.INDIRECT_KEY_USERS_STATE_ID);
+    }
+
     protected WritableKVState<ProtoBytes, AccountID> aliases() {
         return super.aliases();
     }

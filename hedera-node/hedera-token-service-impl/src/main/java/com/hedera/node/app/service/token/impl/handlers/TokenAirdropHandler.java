@@ -260,6 +260,7 @@ public class TokenAirdropHandler extends TransferExecutor implements Transaction
             case KEY_LIST -> key.keyListOrThrow().keys().stream().allMatch(TokenAirdropHandler::canClaimAirdrop);
             case ECDSA_SECP256K1 -> true;
             case DELEGATABLE_CONTRACT_ID -> false;
+            case INDIRECT_KEY -> true; // Treat indirect keys as claim-capable
         };
     }
 
