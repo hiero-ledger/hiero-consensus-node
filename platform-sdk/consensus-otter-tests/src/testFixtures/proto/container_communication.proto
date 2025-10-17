@@ -20,11 +20,18 @@ message KillImmediatelyRequest {
   Empty ignore = 1;
 }
 
+message PingResponse {
+  bool alive = 1;
+}
+
 // Service definition for controlling the lifecycle of the consensus node.
 service ContainerControlService {
   // RPC to initialize the container with the node ID.
   rpc Init(InitRequest) returns (Empty);
 
-  // RCP to kill the consensus node app, but not shutdown the container. The dispatcher will still operate for remote calls
+  // RPC to kill the consensus node app, but not shutdown the container. The dispatcher will still operate for remote calls
   rpc KillImmediately(KillImmediatelyRequest) returns (Empty);
+
+  // RPC to check if the consensus node process is alive
+  rpc NodePing(Empty) returns (PingResponse);
 }

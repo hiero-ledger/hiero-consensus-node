@@ -51,10 +51,12 @@ import org.hiero.otter.fixtures.TimeManager;
 import org.hiero.otter.fixtures.app.OtterTransaction;
 import org.hiero.otter.fixtures.app.services.consistency.ConsistencyServiceConfig;
 import org.hiero.otter.fixtures.container.proto.ContainerControlServiceInterface;
+import org.hiero.otter.fixtures.container.proto.Empty;
 import org.hiero.otter.fixtures.container.proto.EventMessage;
 import org.hiero.otter.fixtures.container.proto.InitRequest;
 import org.hiero.otter.fixtures.container.proto.KillImmediatelyRequest;
 import org.hiero.otter.fixtures.container.proto.NodeCommunicationServiceInterface;
+import org.hiero.otter.fixtures.container.proto.PingResponse;
 import org.hiero.otter.fixtures.container.proto.PlatformStatusChange;
 import org.hiero.otter.fixtures.container.proto.QuiescenceRequest;
 import org.hiero.otter.fixtures.container.proto.StartRequest;
@@ -284,6 +286,16 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
         }
     }
 
+    @Override
+    public boolean isAlive() {
+        final PingResponse response = containerControlClient.NodePing(Empty.DEFAULT);
+        if (!response.alive()) {
+            lifeCycle = SHUTDOWN;
+            platformStatus = null;
+        }
+        return response.alive();
+    }
+
     /**
      * {@inheritDoc}
      */
@@ -502,17 +514,9 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
         Files.createDirectories(localOutputDirectory.resolve("output/swirlds-hashstream"));
         Files.createDirectories(localOutputDirectory.resolve("data/stats"));
 
-        container.copyFileFromContainer(
-                CONTAINER_APP_WORKING_DIR + SWIRLDS_LOG_PATH,
-                localOutputDirectory.resolve(SWIRLDS_LOG_PATH).toString());
-        container.copyFileFromContainer(
-                CONTAINER_APP_WORKING_DIR + HASHSTREAM_LOG_PATH,
-                localOutputDirectory.resolve(HASHSTREAM_LOG_PATH).toString());
-        container.copyFileFromContainer(
-                CONTAINER_APP_WORKING_DIR + METRICS_PATH.formatted(selfId.id()),
-                localOutputDirectory
-                        .resolve(METRICS_PATH.formatted(selfId.id()))
-                        .toString());
+        copyFileFromContainerIfExists(localOutputDirectory, SWIRLDS_LOG_PATH);
+        copyFileFromContainerIfExists(localOutputDirectory, HASHSTREAM_LOG_PATH);
+        copyFileFromContainerIfExists(localOutputDirectory, METRICS_PATH.formatted(selfId.id()));
     }
 
     private void downloadConsistencyServiceFiles(@NonNull final Path localOutputDirectory) {
@@ -526,11 +530,36 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
                 .resolve(Long.toString(selfId.id()));
 
         final Path historyFilePath = historyFileDirectory.resolve(consistencyServiceConfig.historyFileName());
-        container.copyFileFromContainer(
-                CONTAINER_APP_WORKING_DIR + historyFilePath,
-                localOutputDirectory
-                        .resolve(consistencyServiceConfig.historyFileName())
-                        .toString());
+        copyFileFromContainerIfExists(
+                localOutputDirectory, historyFilePath.toString(), consistencyServiceConfig.historyFileName());
+    }
+
+    private void copyFileFromContainerIfExists(
+            @NonNull final Path localOutputDirectory, @NonNull final String relativePath) {
+        copyFileFromContainerIfExists(localOutputDirectory, relativePath, relativePath);
+    }
+
+    private void copyFileFromContainerIfExists(
+            @NonNull final Path localOutputDirectory,
+            @NonNull final String relativeSourcePath,
+            @NonNull final String relativeTargetPath) {
+        final String containerPath = CONTAINER_APP_WORKING_DIR + relativeSourcePath;
+        final String localPath =
+                localOutputDirectory.resolve(relativeTargetPath).toString();
+
+        try {
+            final ExecResult result = container.execInContainer("test", "-f", containerPath);
+            if (result.getExitCode() == 0) {
+                container.copyFileFromContainer(containerPath, localPath);
+            } else {
+                log.warn("File not found in node {}: {}", selfId.id(), containerPath);
+            }
+        } catch (final IOException e) {
+            log.warn("Failed to check if file exists in node {}: {}", selfId.id(), containerPath, e);
+        } catch (final InterruptedException e) {
+            Thread.currentThread().interrupt();
+            log.warn("Interrupted while checking if file exists in node {}: {}", selfId.id(), containerPath, e);
+        }
     }
 
     /**

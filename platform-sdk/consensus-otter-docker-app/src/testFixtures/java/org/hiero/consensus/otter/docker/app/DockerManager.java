@@ -27,6 +27,7 @@ import org.hiero.otter.fixtures.container.proto.ContainerControlServiceInterface
 import org.hiero.otter.fixtures.container.proto.Empty;
 import org.hiero.otter.fixtures.container.proto.InitRequest;
 import org.hiero.otter.fixtures.container.proto.KillImmediatelyRequest;
+import org.hiero.otter.fixtures.container.proto.PingResponse;
 
 /**
  * gRPC service implementation for communication between the test framework and the container to start and stop the
@@ -184,6 +185,22 @@ public final class DockerManager implements ContainerControlServiceInterface {
         if (process != null) {
             process.destroyForcibly();
         }
+        log.info("Kill request completed.");
         return Empty.DEFAULT;
+    }
+
+    /**
+     * Pings the node communication service to check if it is alive.
+     *
+     * @param request An empty request.
+     * @return The ping response indicating if the process is alive.
+     */
+    @Override
+    @NonNull
+    public synchronized PingResponse NodePing(@NonNull final Empty request) {
+        log.info("Received ping request");
+        final boolean alive = process != null && process.isAlive();
+        log.debug("Ping response sent: alive={}", alive);
+        return new PingResponse(alive);
     }
 }
