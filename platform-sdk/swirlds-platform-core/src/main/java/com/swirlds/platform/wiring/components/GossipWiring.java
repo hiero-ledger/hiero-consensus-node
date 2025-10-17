@@ -76,6 +76,14 @@ public class GossipWiring {
      * This wire is used to tell gossip the status of the platform.
      */
     private final BindableInputWire<PlatformStatus, Void> platformStatusInput;
+    /**
+     * This wire is used to pause gossip.
+     */
+    private final BindableInputWire<NoInput, Void> pauseInput;
+    /**
+     * This wire is used to resume gossip.
+     */
+    private final BindableInputWire<NoInput, Void> resumeInput;
 
     public GossipWiring(@NonNull final PlatformContext platformContext, @NonNull final WiringModel model) {
         this.model = model;
@@ -97,6 +105,8 @@ public class GossipWiring {
         clearInput = scheduler.buildInputWire("clear");
         systemHealthInput = scheduler.buildInputWire("health info");
         platformStatusInput = scheduler.buildInputWire("PlatformStatus");
+        pauseInput = scheduler.buildInputWire("pause");
+        resumeInput = scheduler.buildInputWire("resume");
     }
 
     /**
@@ -113,6 +123,8 @@ public class GossipWiring {
                 startInput,
                 stopInput,
                 clearInput,
+                pauseInput,
+                resumeInput,
                 systemHealthInput,
                 platformStatusInput,
                 syncLagOutput);
@@ -175,6 +187,26 @@ public class GossipWiring {
     @NonNull
     public InputWire<NoInput> getStopInput() {
         return stopInput;
+    }
+
+    /**
+     * Get the input wire to pause gossip.
+     *
+     * @return the input wire to pause gossip
+     */
+    @NonNull
+    public InputWire<NoInput> pauseInput() {
+        return pauseInput;
+    }
+
+    /**
+     * Get the input wire to resume gossip.
+     *
+     * @return the input wire to resume gossip
+     */
+    @NonNull
+    public InputWire<NoInput> resumeInput() {
+        return resumeInput;
     }
 
     /**

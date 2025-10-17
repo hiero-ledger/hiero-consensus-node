@@ -20,11 +20,14 @@ import com.swirlds.platform.gossip.sync.config.SyncConfig_;
 import com.swirlds.platform.internal.EventImpl;
 import com.swirlds.platform.metrics.SyncMetrics;
 import com.swirlds.platform.network.Connection;
+import com.swirlds.platform.reconnect.FallenBehindMonitor;
+import com.swirlds.platform.reconnect.FallenBehindStatus;
 import com.swirlds.platform.test.fixtures.event.emitter.EventEmitter;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -54,7 +57,7 @@ public class SyncNode {
     private final int numNodes;
     private final EventEmitter eventEmitter;
     private int eventsEmitted = 0;
-    private final TestingSyncManager syncManager;
+    private final FallenBehindMonitor fallenBehindMonitor;
     private final Shadowgraph shadowGraph;
     private ParallelExecutor executor;
     private Connection connection;
@@ -90,8 +93,6 @@ public class SyncNode {
         this.nodeId = NodeId.of(nodeId);
         this.eventEmitter = eventEmitter;
 
-        syncManager = new TestingSyncManager();
-
         receivedEventQueue = new LinkedBlockingQueue<>();
         receivedEvents = new ArrayList<>();
         generatedEvents = new LinkedList<>();
@@ -104,6 +105,7 @@ public class SyncNode {
                 .withValue(SyncConfig_.MAX_SYNC_EVENT_COUNT, 0)
                 .getOrCreateConfig();
 
+        fallenBehindMonitor = new SyncNodeFakeMonitor(numNodes - 1);
         platformContext = TestPlatformContextBuilder.create()
                 .withConfiguration(configuration)
                 .build();
@@ -224,7 +226,7 @@ public class SyncNode {
                 numNodes,
                 mock(SyncMetrics.class),
                 eventHandler,
-                syncManager,
+                fallenBehindMonitor,
                 mock(IntakeEventCounter.class),
                 executor,
                 lag -> {});
@@ -277,8 +279,8 @@ public class SyncNode {
         shadowGraph.updateEventWindow(eventWindow);
     }
 
-    public TestingSyncManager getSyncManager() {
-        return syncManager;
+    public FallenBehindMonitor getFallenBehindMonitor() {
+        return fallenBehindMonitor;
     }
 
     public List<PlatformEvent> getReceivedEvents() {
@@ -343,5 +345,45 @@ public class SyncNode {
 
     public Boolean getSynchronizerReturn() {
         return synchronizerReturn.get();
+    }
+
+    private static class SyncNodeFakeMonitor extends FallenBehindMonitor {
+        public SyncNodeFakeMonitor(final int numNeighbors) {
+            super(numNeighbors, 0.50);
+        }
+
+        private boolean fallenBehind = false;
+
+        @Override
+        public synchronized FallenBehindStatus check(
+                @NonNull EventWindow self, @NonNull EventWindow other, @NonNull NodeId peer) {
+            final var status = FallenBehindStatus.getStatus(self, other);
+            fallenBehind = FallenBehindStatus.getStatus(self, other)
+                    == com.swirlds.platform.reconnect.FallenBehindStatus.SELF_FALLEN_BEHIND;
+            return status;
+        }
+
+        @Override
+        public synchronized void update(@NonNull final Set<NodeId> added, @NonNull final Set<NodeId> removed) {}
+
+        @Override
+        public boolean isBehindPeer(@NonNull final NodeId peerId) {
+            return false;
+        }
+
+        @Override
+        public synchronized void reset() {
+            fallenBehind = false;
+        }
+
+        @Override
+        public synchronized int reportedSize() {
+            return 0;
+        }
+
+        @Override
+        public boolean hasFallenBehind() {
+            return fallenBehind;
+        }
     }
 }
