@@ -103,6 +103,7 @@ import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData.EthTransactionType;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.HapiTest;
+import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts;
 import com.hedera.services.bdd.spec.dsl.annotations.Contract;
 import com.hedera.services.bdd.spec.dsl.entities.SpecContract;
@@ -1310,9 +1311,10 @@ public class EthereumSuite {
     }
 
     // Ensuring that the BLS12 precompile is not working before the Pectra support
-    @HapiTest
+    @LeakyHapiTest(overrides = {"contracts.evm.version"})
     final Stream<DynamicTest> tryBlsPrecompile(@Contract(contract = "PectraTest") SpecContract contract) {
         return hapiTest(
+                overriding("contracts.evm.version", "v0.66"),
                 newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
                 cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, ONE_HUNDRED_HBARS)),
                 contract.getInfo(),
