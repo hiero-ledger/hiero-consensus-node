@@ -59,7 +59,7 @@ message GossipEvent {
    * The signed event hash SHALL have the following inputs, in the specified order:<br/>
    * 1. The bytes of the serialized `event_core` field<br/>
    * 2. The bytes of serialized parent event descriptors, in order they appear in 'parents' field.
-   * 3. The concatenation of SHA-384 hashes of every individual `EventTransaction`, in the order the transactions appear in the `transaction` field
+   * 3. The concatenation of SHA-384 hashes of every individual transaction byte array, in the order the transactions appear in the `transactions` field
    */
   bytes signature = 2;
 
