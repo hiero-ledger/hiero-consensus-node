@@ -914,11 +914,7 @@ public class BlockNodeConnectionManager {
             configWatcherThreadRef.set(watcherThread);
             logWithContext(logger, INFO, "Started block-nodes.json configuration watcher thread.");
         } catch (final IOException e) {
-            logWithContext(
-                    logger,
-                    INFO,
-                    "Failed to start block-nodes.json configuration watcher. Dynamic updates disabled.",
-                    e);
+            logger.info("Failed to start block-nodes.json configuration watcher. Dynamic updates disabled.", e);
         }
     }
 
@@ -1212,9 +1208,8 @@ public class BlockNodeConnectionManager {
                         activeConnection.close(true);
                     } catch (final RuntimeException e) {
                         logger.info(
-                                formatLogMessage(
-                                        "Failed to shutdown current active connection {} (shutdown reason: another connection was elevated to active).",
-                                        activeConnection),
+                                "Failed to shutdown current active connection {} (shutdown reason: another connection was elevated to active).",
+                                activeConnection,
                                 e);
                     }
                 }

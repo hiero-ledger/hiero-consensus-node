@@ -631,7 +631,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                 pipeline.onNext(request);
                 final long durationMs = System.currentTimeMillis() - startMs;
                 blockStreamMetrics.recordRequestLatency(durationMs);
-                logWithContext(logger, TRACE, this, "[{}] Request took {}ms to send", this, durationMs);
+                logWithContext(logger, TRACE, this, "Request took {}ms to send", this, durationMs);
 
                 if (request.hasEndStream()) {
                     blockStreamMetrics.recordRequestEndStreamSent(
