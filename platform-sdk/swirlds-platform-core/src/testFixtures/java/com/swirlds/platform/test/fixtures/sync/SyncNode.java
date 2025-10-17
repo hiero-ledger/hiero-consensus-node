@@ -105,7 +105,7 @@ public class SyncNode {
                 .withValue(SyncConfig_.MAX_SYNC_EVENT_COUNT, 0)
                 .getOrCreateConfig();
 
-        fallenBehindMonitor = new TestFallenBehindMonitor(numNodes - 1);
+        fallenBehindMonitor = new SyncNodeFakeMonitor(numNodes - 1);
         platformContext = TestPlatformContextBuilder.create()
                 .withConfiguration(configuration)
                 .build();
@@ -347,8 +347,8 @@ public class SyncNode {
         return synchronizerReturn.get();
     }
 
-    private static class TestFallenBehindMonitor extends FallenBehindMonitor {
-        public TestFallenBehindMonitor(final int numNeighbors) {
+    private static class SyncNodeFakeMonitor extends FallenBehindMonitor {
+        public SyncNodeFakeMonitor(final int numNeighbors) {
             super(numNeighbors, 0.50);
         }
 
