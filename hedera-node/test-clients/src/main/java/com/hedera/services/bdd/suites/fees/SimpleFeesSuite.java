@@ -42,15 +42,10 @@ import org.junit.jupiter.api.Nested;
 @HapiTestLifecycle
 public class SimpleFeesSuite {
     private static final String PAYER = "payer";
-    private static FeeSchedule simpleSchedule;
 
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
         testLifecycle.overrideInClass(Map.of("fees.simpleFeesEnabled", "true"));
-        simpleSchedule = FeeSchedule.DEFAULT
-                .copyBuilder()
-                .extras(makeExtraDef(Extra.KEYS, 1))
-                .build();
     }
 
     static Stream<DynamicTest> runBeforeAfter(@NonNull final SpecOperation... ops) {
