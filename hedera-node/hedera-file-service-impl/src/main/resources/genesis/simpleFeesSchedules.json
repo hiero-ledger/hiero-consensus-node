@@ -71,8 +71,15 @@
           "baseFee": 100000000,
           "extras": [
             { "name": "SIGNATURES", "includedCount": 1 },
-            { "name": "KEYS", "includedCount": 0 },
-            { "name": "CUSTOM_FEE", "includedCount": 0 }
+            { "name": "KEYS", "includedCount": 0 }
+          ]
+        },
+        {
+          "name": "ConsensusCreateTopicCustomFees",
+          "baseFee": 20000000000,
+          "extras": [
+            { "name": "SIGNATURES", "includedCount": 1 },
+            { "name": "KEYS", "includedCount": 0 }
           ]
         },
         {
@@ -88,8 +95,15 @@
           "baseFee": 1000000,
           "extras": [
             { "name": "SIGNATURES", "includedCount": 1 },
-            { "name": "BYTES",      "includedCount": 256 },
-            { "name": "CUSTOM_FEE", "includedCount": 0 }
+            { "name": "BYTES",      "includedCount": 256 }
+          ]
+        },
+        {
+          "name": "ConsensusSubmitMessageCustomFees",
+          "baseFee": 500000000,
+          "extras": [
+            { "name": "SIGNATURES", "includedCount": 1 },
+            { "name": "BYTES",      "includedCount": 256 }
           ]
         },
         {

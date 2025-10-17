@@ -13,16 +13,16 @@ import org.hiero.hapi.support.fees.ExtraFeeReference;
 import org.hiero.hapi.support.fees.FeeSchedule;
 
 public abstract class AbstractBaseFeeModel implements FeeModel {
-    private final HederaFunctionality api;
+    private final String api;
     private final String description;
 
-    public AbstractBaseFeeModel(HederaFunctionality api, String description) {
+    public AbstractBaseFeeModel(String api, String description) {
         this.api = api;
         this.description = description;
     }
 
     @Override
-    public HederaFunctionality getApi() {
+    public String getApi() {
         return this.api;
     }
 

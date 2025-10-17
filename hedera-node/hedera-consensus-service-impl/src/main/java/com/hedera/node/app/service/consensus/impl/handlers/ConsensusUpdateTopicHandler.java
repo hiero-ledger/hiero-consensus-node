@@ -37,7 +37,6 @@ import com.hedera.hapi.node.base.TopicID;
 import com.hedera.hapi.node.consensus.ConsensusUpdateTopicTransactionBody;
 import com.hedera.hapi.node.state.consensus.Topic;
 import com.hedera.hapi.node.transaction.TransactionBody;
-import com.hedera.node.app.hapi.fees.calc.OverflowCheckingCalc;
 import com.hedera.node.app.hapi.utils.CommonPbjConverters;
 import com.hedera.node.app.hapi.utils.fee.SigValueObj;
 import com.hedera.node.app.service.consensus.ReadableTopicStore;
@@ -211,7 +210,7 @@ public class ConsensusUpdateTopicHandler implements TransactionHandler {
                             .feeCalculatorFactory()
                             .feeCalculator(SubType.DEFAULT)
                             .getSimpleFeesSchedule());
-            return feeResultToFees(feeResult,fromPbj(feeContext.activeRate()));
+            return feeResultToFees(feeResult, fromPbj(feeContext.activeRate()));
         }
 
         final var op = feeContext.body();

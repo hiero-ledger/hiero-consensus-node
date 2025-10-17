@@ -42,7 +42,6 @@ import com.hedera.hapi.node.transaction.CustomFeeLimit;
 import com.hedera.hapi.node.transaction.FixedCustomFee;
 import com.hedera.hapi.node.transaction.FixedFee;
 import com.hedera.hapi.node.transaction.TransactionBody;
-import com.hedera.node.app.hapi.fees.calc.OverflowCheckingCalc;
 import com.hedera.node.app.hapi.utils.CommonPbjConverters;
 import com.hedera.node.app.service.consensus.ReadableTopicStore;
 import com.hedera.node.app.service.consensus.impl.WritableTopicStore;
@@ -521,21 +520,20 @@ public class ConsensusSubmitMessageHandler implements TransactionHandler {
         final var hasCustomFees = topic != null && !topic.customFees().isEmpty();
 
         if (feeContext.configuration().getConfigData(FeesConfig.class).simpleFeesEnabled()) {
-            final var entity = FeeModelRegistry.lookupModel(HederaFunctionality.CONSENSUS_SUBMIT_MESSAGE);
+            final var name = hasCustomFees
+                    ?HederaFunctionality.CONSENSUS_SUBMIT_MESSAGE.protoName()+"CustomFees"
+                    :HederaFunctionality.CONSENSUS_SUBMIT_MESSAGE.protoName();
+            final var entity = FeeModelRegistry.lookupModel(name);
             Map<Extra, Long> params = new HashMap<>();
             params.put(Extra.BYTES, msgSize);
             params.put(Extra.SIGNATURES, (long) feeContext.numTxnSignatures());
-            params.put(Extra.CUSTOM_FEE, 0L);
-            if (hasCustomFees) {
-                params.put(Extra.CUSTOM_FEE, 5L);
-            }
             final var feeResult = entity.computeFee(
                     params,
                     feeContext
                             .feeCalculatorFactory()
                             .feeCalculator(SubType.DEFAULT)
                             .getSimpleFeesSchedule());
-            return feeResultToFees(feeResult,fromPbj(feeContext.activeRate()));
+            return feeResultToFees(feeResult, fromPbj(feeContext.activeRate()));
         }
 
         if (hasCustomFees) {

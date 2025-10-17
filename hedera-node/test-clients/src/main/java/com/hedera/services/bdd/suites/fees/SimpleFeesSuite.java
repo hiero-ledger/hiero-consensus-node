@@ -220,6 +220,47 @@ public class SimpleFeesSuite {
         }
 
         @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
+        @DisplayName("compare delete topic with admin key")
+        final Stream<DynamicTest> deleteTopicPlainComparison() {
+            return runBeforeAfter(
+                    newKeyNamed(ADMIN),
+                    cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
+                    createTopic("testTopic")
+                            .blankMemo()
+                            .payingWith(PAYER)
+                            .adminKeyName(ADMIN)
+                            .fee(ONE_HBAR)
+                            .via("create-topic-admin-txn"),
+                    validateChargedUsd("create-topic-admin-txn", ucents_to_USD(1630)),
+                    deleteTopic("testTopic").payingWith(PAYER).fee(ONE_HBAR).via("delete-topic-txn"),
+                    validateChargedUsd("delete-topic-txn", ucents_to_USD(505 + 315)));
+        }
+    }
+
+    @Nested
+    class TopicCustomFees {
+        @HapiTest
+        @DisplayName("compare create topic with custom fee")
+        final Stream<DynamicTest> createTopicCustomFeeComparison() {
+            return runBeforeAfter(
+                    cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
+                    cryptoCreate("collector"),
+                    createTopic("testTopic")
+                            .blankMemo()
+                            .withConsensusCustomFee(fixedConsensusHbarFee(88, "collector"))
+                            .payingWith(PAYER)
+                            .fee(ONE_HUNDRED_HBARS)
+                            .via("create-topic-txn"),
+                    validateChargedUsd(
+                            "create-topic-txn",
+                            ucents_to_USD(
+                                    1000 // base fee for create topic
+                                            + 200_000 // custom fee
+                                            + 0 // node + network fee
+                            )));
+        }
+
+        @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
         @DisplayName("compare submit message with custom fee and included bytes")
         final Stream<DynamicTest> submitCustomFeeMessageWithIncludedBytesComparison() {
             // 100 is less than the free size, so there's no per byte charge
@@ -241,7 +282,7 @@ public class SimpleFeesSuite {
                                     1000 // base fee for create topic
                                             + 200_000 // custom fee
                                             + 1 * 3 // node + network fee
-                                    )),
+                            )),
                     // submit message, provide up to 1 hbar to pay for it
                     submitMessageTo("testTopic")
                             .blankMemo()
@@ -255,27 +296,10 @@ public class SimpleFeesSuite {
                                     7 // base fee
                                             + 5000 // custom fee
                                             + 1 * 3 // node + network fee
-                                    )));
+                            )));
         }
 
-        @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
-        @DisplayName("compare delete topic with admin key")
-        final Stream<DynamicTest> deleteTopicPlainComparison() {
-            return runBeforeAfter(
-                    newKeyNamed(ADMIN),
-                    cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
-                    createTopic("testTopic")
-                            .blankMemo()
-                            .payingWith(PAYER)
-                            .adminKeyName(ADMIN)
-                            .fee(ONE_HBAR)
-                            .via("create-topic-admin-txn"),
-                    validateChargedUsd("create-topic-admin-txn", ucents_to_USD(1630)),
-                    deleteTopic("testTopic").payingWith(PAYER).fee(ONE_HBAR).via("delete-topic-txn"),
-                    validateChargedUsd("delete-topic-txn", ucents_to_USD(505 + 315)));
-        }
     }
-
     @Nested
     class TopicFees {
 
@@ -300,26 +324,6 @@ public class SimpleFeesSuite {
                                     )));
         }
 
-        @HapiTest
-        @DisplayName("compare create topic with custom fee")
-        final Stream<DynamicTest> createTopicCustomFeeComparison() {
-            return runBeforeAfter(
-                    cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
-                    cryptoCreate("collector"),
-                    createTopic("testTopic")
-                            .blankMemo()
-                            .withConsensusCustomFee(fixedConsensusHbarFee(88, "collector"))
-                            .payingWith(PAYER)
-                            .fee(ONE_HUNDRED_HBARS)
-                            .via("create-topic-txn"),
-                    validateChargedUsd(
-                            "create-topic-txn",
-                            ucents_to_USD(
-                                    1000 // base fee for create topic
-                                            + 200_000 // custom fee
-                                            + 1 * 3 // node + network fee
-                                    )));
-        }
 
         @HapiTest
         @DisplayName("Simple fees for getting a topic transaction info")

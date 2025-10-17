@@ -25,7 +25,6 @@ import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.consensus.ConsensusCreateTopicTransactionBody;
 import com.hedera.hapi.node.state.consensus.Topic;
-import com.hedera.node.app.hapi.fees.calc.OverflowCheckingCalc;
 import com.hedera.node.app.hapi.utils.CommonPbjConverters;
 import com.hedera.node.app.hapi.utils.fee.FeeBuilder;
 import com.hedera.node.app.hapi.utils.fee.SigValueObj;
@@ -248,19 +247,18 @@ public class ConsensusCreateTopicHandler implements TransactionHandler {
                 !body.consensusCreateTopicOrThrow().customFees().isEmpty();
         final var subType = hasCustomFees ? SubType.TOPIC_CREATE_WITH_CUSTOM_FEES : SubType.DEFAULT;
         if (feeContext.configuration().getConfigData(FeesConfig.class).simpleFeesEnabled()) {
+            final var name = hasCustomFees
+                    ?HederaFunctionality.CONSENSUS_CREATE_TOPIC.protoName()+"CustomFees"
+                    :HederaFunctionality.CONSENSUS_CREATE_TOPIC.protoName();
+            final var entity = FeeModelRegistry.lookupModel(name);
             var createTopic = body.consensusCreateTopicOrThrow();
             var key_count = createTopic.customFees().size();
             if (createTopic.hasAdminKey()) {
-                key_count+=1;
+                key_count += 1;
             }
-            final var entity = FeeModelRegistry.lookupModel(HederaFunctionality.CONSENSUS_CREATE_TOPIC);
             Map<Extra, Long> params = new HashMap<>();
             params.put(Extra.SIGNATURES, (long) feeContext.numTxnSignatures());
             params.put(Extra.KEYS, (long) key_count);
-            params.put(Extra.CUSTOM_FEE, 0L);
-            if (hasCustomFees) {
-                params.put(Extra.CUSTOM_FEE, 200L);
-            }
             final var feeResult = entity.computeFee(
                     params,
                     feeContext.feeCalculatorFactory().feeCalculator(subType).getSimpleFeesSchedule());
