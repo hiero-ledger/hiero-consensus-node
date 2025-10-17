@@ -253,6 +253,22 @@ public class FeeCalculatorImpl implements FeeCalculator {
         return congestionMultipliers.maxCurrentMultiplier(txInfo, storeFactory);
     }
 
+    @Override
+    public long tinybarsFromTinycents(final long tinycents) {
+        // Convert tinycents to tinybars using the current exchange rate, then apply the current congestion multiplier
+        final long tinybars = OverflowCheckingCalc.tinycentsToTinybars(tinycents, currentRate);
+        final long multiplier = getCongestionMultiplier();
+        if (multiplier <= 1) {
+            return tinybars * Math.max(1, multiplier);
+        }
+        final long max = Long.MAX_VALUE / multiplier;
+        if (tinybars > max) {
+            throw new IllegalArgumentException("Overflow when applying congestion multiplier to tinybars amount");
+        }
+        return tinybars * multiplier;
+    }
+
+
     private void failIfLegacyOnly() {
         if (usage == null) {
             throw new UnsupportedOperationException("Only legacy calculation supported");

@@ -65,6 +65,8 @@ import com.hedera.node.config.data.AutoRenewConfig;
 import com.hedera.node.config.data.EntitiesConfig;
 import com.hedera.node.config.data.LedgerConfig;
 import com.hedera.node.config.data.TokensConfig;
+import com.hedera.node.config.data.FeesConfig;
+
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -276,6 +278,40 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
             }
         }
     }
+
+    /** Counts total occurrences of IndirectKey nodes within the given key tree. */
+    private static int countIndirectKeyOccurrences(@NonNull final Key key) {
+        return countIndirectKeyOccurrencesRec(key);
+    }
+
+    private static int countIndirectKeyOccurrencesRec(final Key key) {
+        if (key == null || key.key() == null) return 0;
+        switch (key.key().kind()) {
+            case INDIRECT_KEY -> {
+                return 1;
+            }
+            case KEY_LIST -> {
+                int total = 0;
+                final var list = key.keyList();
+                if (list != null && list.keys() != null) {
+                    for (final var child : list.keys()) total += countIndirectKeyOccurrencesRec(child);
+                }
+                return total;
+            }
+            case THRESHOLD_KEY -> {
+                int total = 0;
+                final var t = key.thresholdKey();
+                if (t != null && t.keys() != null && t.keys().keys() != null) {
+                    for (final var child : t.keys().keys()) total += countIndirectKeyOccurrencesRec(child);
+                }
+                return total;
+            }
+            default -> {
+                return 0;
+            }
+        }
+    }
+
 
     private static void removeIndirectUserFromList(
             final com.swirlds.state.spi.WritableKVState<
@@ -754,6 +790,26 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
             fees.addStorageBytesSeconds(
                     (op.hookCreationDetails().size() + op.hookIdsToDelete().size()) * HOUR_TO_SECOND_MULTIPLIER);
         }
-        return fees.calculate();
+        final var baseFees = fees.calculate();
+
+        // Apply indirect key complexity pricing: charge for added occurrences of IndirectKey
+        long extraServiceFeeTinybars = 0L;
+        try {
+            final var feesConfig = configuration.getConfigData(FeesConfig.class);
+            final long perOccurrenceTinycents = feesConfig.indirectKeyExtraTinycents();
+            // Count occurrences in old and new keys
+            final int oldCount = (account == null) ? 0 : countIndirectKeyOccurrences(account.keyOrElse(Key.DEFAULT));
+            final int newCount = op.hasKey() ? countIndirectKeyOccurrences(op.keyOrThrow()) : oldCount;
+            final int delta = newCount - oldCount;
+            if (delta > 0 && perOccurrenceTinycents > 0) {
+                final long totalTinycents = Math.multiplyExact(perOccurrenceTinycents, (long) delta);
+                // Convert tinycents to tinybars using the fee calculator's current rate and congestion multiplier
+                extraServiceFeeTinybars = feeCalculator.tinybarsFromTinycents(totalTinycents);
+            }
+        } catch (final Exception ignore) {
+            // Be defensive: fee pricing must never fail the node. If anything goes wrong here, skip the extra fee.
+            extraServiceFeeTinybars = 0L;
+        }
+        return baseFees.plus(new Fees(0L, 0L, extraServiceFeeTinybars));
     }
 }

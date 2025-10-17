@@ -77,4 +77,9 @@ public class NoOpFeeCalculator implements FeeCalculator {
     public long getCongestionMultiplier() {
         return 1;
     }
+
+    @Override
+    public long tinybarsFromTinycents(final long tinycents) {
+        return 0L;
+    }
 }
