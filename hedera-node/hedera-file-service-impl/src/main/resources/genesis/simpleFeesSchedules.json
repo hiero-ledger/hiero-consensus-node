@@ -1,9 +1,9 @@
 {
   "node": {
-    "baseFee": 110000,
+    "baseFee": 0,
     "extras": [
       {
-        "name": "SIGNATURES", "includedCount": 1
+        "name": "SIGNATURES", "includedCount": 10
       }
     ]
   },
@@ -15,9 +15,9 @@
   },
 
   "extras": [
-    { "name":  "SIGNATURES",                     "fee": 100000 },
+    { "name":  "SIGNATURES",                     "fee": 60000000 },
     { "name":  "BYTES",                          "fee": 300 },
-    { "name":  "KEYS",                           "fee": 1000000 },
+    { "name":  "KEYS",                           "fee": 2200000 },
     { "name":  "TOKEN_TYPES",                    "fee": 3 },
     { "name":  "NFT_SERIALS",                    "fee": 1 },
     { "name":  "ACCOUNTS",                       "fee": 3 },
@@ -77,9 +77,9 @@
         },
         {
           "name": "ConsensusUpdateTopic",
-          "baseFee": 2800000,
+          "baseFee": 3540000,
           "extras": [
-            { "name": "SIGNATURES", "includedCount": 1 },
+            { "name": "SIGNATURES", "includedCount": 2 },
             { "name": "KEYS",       "includedCount": 1 }
           ]
         },
@@ -94,7 +94,7 @@
         },
         {
           "name": "ConsensusDeleteTopic",
-          "baseFee": 50000000,
+          "baseFee": 22000000,
           "extras": [
             { "name": "SIGNATURES", "includedCount": 1 }
           ]
