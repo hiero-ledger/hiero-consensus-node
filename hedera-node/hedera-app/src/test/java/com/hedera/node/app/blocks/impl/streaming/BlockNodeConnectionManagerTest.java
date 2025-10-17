@@ -863,19 +863,6 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     @Test
     void testConstructor_streamingDisabled() {
         useStreamingDisabledManager();
-        // Create a config provider that disables streaming (writerMode = FILE)
-        final var config = HederaTestConfigBuilder.create()
-                .withValue("blockStream.writerMode", "FILE")
-                .withValue(
-                        "blockNode.blockNodeConnectionFileDir",
-                        Objects.requireNonNull(BlockNodeCommunicationTestBase.class
-                                        .getClassLoader()
-                                        .getResource("bootstrap/"))
-                                .getPath())
-                .getOrCreateConfig();
-        final ConfigProvider configProvider = () -> new VersionedConfigImpl(config, 1L);
-
-        connectionManager = new BlockNodeConnectionManager(configProvider, bufferService, metrics);
 
         final List<BlockNodeConfig> availableNodes = availableNodes();
         assertThat(availableNodes).isEmpty();
