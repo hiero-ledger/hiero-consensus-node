@@ -236,14 +236,18 @@ public class SwirldsPlatform implements Platform {
                 blocks.consensusStateEventHandler(),
                 blocks.reservedSignedStatePromise(),
                 selfId,
-                blocks.fallenBehindMonitor(), new DefaultSignedStateValidator(platformContext, platformStateFacade));
+                blocks.fallenBehindMonitor(),
+                new DefaultSignedStateValidator(platformContext, platformStateFacade));
 
-        Runtime.getRuntime().addShutdownHook(new Thread(reconnectController::stop));
-        new ThreadConfiguration(AdHocThreadManager.getStaticThreadManager())
+        final Thread reconnectControllerThread = new ThreadConfiguration(AdHocThreadManager.getStaticThreadManager())
                 .setComponent("ReconnectController")
                 .setThreadName("ReconnectController")
-                .setRunnable(reconnectController::start)
+                .setRunnable(reconnectController)
                 .build(true);
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            reconnectController.stop();
+            reconnectControllerThread.interrupt();
+        }));
 
         platformComponents.bind(
                 builder,

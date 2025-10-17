@@ -61,7 +61,7 @@ import org.hiero.consensus.roster.RosterRetriever;
  * @see ReservedSignedStatePromise
  * @see PlatformCoordinator
  */
-public class ReconnectController {
+public class ReconnectController implements Runnable {
 
     private static final Logger logger = LogManager.getLogger(ReconnectController.class);
 
@@ -118,27 +118,16 @@ public class ReconnectController {
     /**
      * Hash the working state to prepare for reconnect
      */
-    static void hashStateForReconnect(final MerkleCryptography merkleCryptography, final MerkleNodeState workingState) {
+    static void hashStateForReconnect(final MerkleCryptography merkleCryptography, final MerkleNodeState workingState)
+            throws InterruptedException {
         try {
             merkleCryptography.digestTreeAsync(workingState.getRoot()).get();
         } catch (final ExecutionException e) {
-            logger.error(
-                    EXCEPTION.getMarker(),
-                    () -> new ReconnectFailurePayload(
-                                    "Error encountered while hashing state for reconnect",
-                                    ReconnectFailurePayload.CauseOfFailure.ERROR)
-                            .toString(),
-                    e);
-            throw new StateSyncException(e);
-        } catch (final InterruptedException e) {
-            Thread.currentThread().interrupt();
-            logger.error(
-                    EXCEPTION.getMarker(),
-                    () -> new ReconnectFailurePayload(
-                                    "Interrupted while attempting to hash state",
-                                    ReconnectFailurePayload.CauseOfFailure.ERROR)
-                            .toString(),
-                    e);
+            logger.error(EXCEPTION.getMarker(), () -> new ReconnectFailurePayload(
+                            "Error encountered while hashing state for reconnect",
+                            ReconnectFailurePayload.CauseOfFailure.ERROR)
+                    .toString());
+            throw new RuntimeException(e);
         }
     }
     /** Stops a running controller */
@@ -157,7 +146,8 @@ public class ReconnectController {
      *   <li>Managing retry logic with configurable limits</li>
      * </ul>
      */
-    public void start() {
+    @Override
+    public void run() {
         logger.info(LogMarker.RECONNECT.getMarker(), "Starting the ReconnectController");
         exitIfReconnectIsDisabled();
         try {
@@ -166,30 +156,36 @@ public class ReconnectController {
                 fallenBehindMonitor.awaitFallenBehind();
                 exitIfReconnectTimeTimeElapsed();
                 platformCoordinator.submitStatusAction(new FallenBehindAction());
-                while (!doReconnect()) {
+                final MerkleNodeState currentState = swirldStateManager.getConsensusState();
+                hashStateForReconnect(merkleCryptography, currentState);
+                while (run.get() && !attemptReconnect(currentState)) {
                     exitIfThresholdMet(++failedReconnectsInARow);
                     logger.info(RECONNECT.getMarker(), "Reconnect failed, retrying");
-                    //Thread.sleep(reconnectConfig.minimumTimeBetweenReconnects().toMillis());
+                    Thread.sleep(reconnectConfig.minimumTimeBetweenReconnects().toMillis());
                 }
                 // reset the monitor to the initial state
                 fallenBehindMonitor.reset();
             }
-        } catch (final RuntimeException | InterruptedException e) {
+        } catch (final RuntimeException e) {
             logger.error(EXCEPTION.getMarker(), "Unexpected error occurred while reconnecting", e);
             SystemExitUtils.exitSystem(SystemExitCode.RECONNECT_FAILURE);
+        } catch (InterruptedException e) {
+            if (run.get()) {
+                logger.warn(RECONNECT.getMarker(), "Thread was interrupted", e);
+                Thread.currentThread().interrupt();
+                SystemExitUtils.exitSystem(SystemExitCode.RECONNECT_FAILURE);
+            }
         }
     }
 
     /** One reconnect attempt; returns true on success. */
-    private boolean doReconnect() throws InterruptedException {
+    private boolean attemptReconnect(final MerkleNodeState currentState) throws InterruptedException {
 
-        final MerkleNodeState currentState = swirldStateManager.getConsensusState();
         logger.info(RECONNECT.getMarker(), "Preparing for reconnect, stopping gossip");
         platformCoordinator.pauseGossip();
         logger.info(RECONNECT.getMarker(), "Preparing for reconnect, start clearing queues");
         platformCoordinator.clear();
         logger.info(RECONNECT.getMarker(), "Queues have been cleared");
-        hashStateForReconnect(merkleCryptography, currentState);
 
         logger.info(RECONNECT.getMarker(), "Waiting for a state to be obtained from a peer");
         // This is a direct connection with the protocols at Gossip component.
@@ -212,14 +208,13 @@ public class ReconnectController {
             loadState(reservedState.get());
             // Notify any listeners that the reconnect has been completed
             platformCoordinator.sendReconnectCompleteNotification(reservedState.get());
+            platformCoordinator.resumeGossip();
+            return true;
         } catch (final RuntimeException e) {
             logger.info(RECONNECT.getMarker(), "Reconnect failed with the following exception", e);
             platformCoordinator.clear();
             return false;
         }
-
-        platformCoordinator.resumeGossip();
-        return true;
     }
 
     /**
@@ -245,7 +240,7 @@ public class ReconnectController {
         }
 
         // Before attempting to load the state, verify that the platform roster matches the state roster.
-        final long round =  signedState.getRound();
+        final long round = signedState.getRound();
         final Roster stateRoster = RosterRetriever.retrieveActive(state, round);
         if (!roster.equals(stateRoster)) {
             throw new IllegalStateException("Current roster and state-based roster do not contain the same nodes "
@@ -282,7 +277,7 @@ public class ReconnectController {
                             "Node has fallen behind, reconnect is disabled outside of time window, will die",
                             selfId.id())
                     .toString());
-            SystemExitUtils.exitSystem(SystemExitCode.BEHIND_RECONNECT_DISABLED);
+            SystemExitUtils.exitSystem(SystemExitCode.RECONNECT_FAILURE);
         }
     }
 
