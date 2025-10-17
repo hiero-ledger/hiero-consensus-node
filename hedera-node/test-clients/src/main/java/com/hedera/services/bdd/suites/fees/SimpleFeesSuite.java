@@ -57,11 +57,8 @@ public class SimpleFeesSuite {
         return hapiTest(opsList.toArray(new SpecOperation[opsList.size()]));
     }
 
-    static double ucents_to_USD(long amount) {
+    static double ucents_to_USD(double amount) {
         return amount / 100_000.0;
-    }
-    static double ucents_to_USD2(long amount) {
-        return amount / 100_0000.0;
     }
 
     @Nested
@@ -299,7 +296,7 @@ public class SimpleFeesSuite {
                             .fee(ONE_HBAR)
                             .via("get-topic-txn")
                             .logged(),
-                    validateChargedUsd("get-topic-txn", ucents_to_USD2(100))
+                    validateChargedUsd("get-topic-txn", ucents_to_USD(10))
             );
         }
 
@@ -435,10 +432,10 @@ public class SimpleFeesSuite {
                             .via("submit-message-txn"),
                     validateChargedUsd(
                             "submit-message-txn",
-                            ucents_to_USD2(
-                                    70 // base fee for submit message
-                                            + 16 // for the extra 500 bytes
-                                            + 10 * 3 // node + network fee
+                            ucents_to_USD(
+                                    7 // base fee for submit message
+                                            + 1.6 // for the extra 500 bytes
+                                            + 1 * 3 // node + network fee
                                     )));
         }
 
@@ -468,10 +465,10 @@ public class SimpleFeesSuite {
                             .via("submit-message-txn"),
                     validateChargedUsd(
                             "submit-message-txn",
-                            ucents_to_USD2(
-                                    70 // base fee
-                                            + 16
-                                            + 10 * 3 // node + network fee
+                            ucents_to_USD(
+                                    7 // base fee
+                                            + 1.6 // overage fees
+                                            + 1 * 3 // node + network fee
                             )));
         }
 

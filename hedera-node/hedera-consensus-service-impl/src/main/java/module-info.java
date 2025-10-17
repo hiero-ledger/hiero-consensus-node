@@ -15,7 +15,7 @@ module com.hedera.node.app.service.consensus.impl {
     requires transitive dagger;
     requires transitive java.compiler; // javax.annotation.processing.Generated
     requires transitive javax.inject;
-    requires com.hedera.node.app.hapi.fees;
+    requires transitive com.hedera.node.app.hapi.fees;
     requires transitive com.hedera.node.app.hapi.utils;
     requires com.hedera.node.app.service.token.impl;
     requires com.hedera.node.config;
