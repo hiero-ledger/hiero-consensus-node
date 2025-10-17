@@ -92,11 +92,11 @@ Name of the Workflow: `000: [USER] Status Checks`
 
   | Workflow Code |                                      Description                                      |
   |---------------|---------------------------------------------------------------------------------------|
-  | `user`      | Called by user directly via workflow dispatch                                         |
-  | `flow`      | Triggered through some manner (PR Target, Branch Push, or Tag Push)                   |
-  | `call`      | Reusable workflow (`workflow_call`)                                                   |
-  | `cron`      | Scheduled workflow (`schedule`)                                                       |
-  | `disp`      | Internal dispatchable (workflow dispatch triggered by other workflows, not end users) |
+  | `user`        | Called by user directly via workflow dispatch                                         |
+  | `flow`        | Triggered through some manner (PR Target, Branch Push, or Tag Push)                   |
+  | `call`        | Reusable workflow (`workflow_call`)                                                   |
+  | `cron`        | Scheduled workflow (`schedule`)                                                       |
+  | `disp`        | Internal dispatchable (workflow dispatch triggered by other workflows, not end users) |
 
 - Followed by a hyphen `-`
 
