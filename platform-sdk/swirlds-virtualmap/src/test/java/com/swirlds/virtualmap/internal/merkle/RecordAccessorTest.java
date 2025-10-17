@@ -260,10 +260,10 @@ public class RecordAccessorTest {
     }
 
     @Test
-    @DisplayName("findKey consistent with findLeafRecord by path")
+    @DisplayName("findPath consistent with findLeafRecord by path")
     void findLeafRecordByKeyByPath() {
         final Bytes key = TestKey.longToKey(UNCHANGED_LEAF_PATH);
-        final long path = records.findKey(key);
+        final long path = records.findPath(key);
         final VirtualLeafBytes<?> record = records.findLeafRecord(path);
         assertEquals(key, record.keyBytes());
     }

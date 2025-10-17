@@ -172,16 +172,35 @@ jobs:
       - name: Configure and run solo
         run: |
           kind create cluster -n "${{ env.SOLO_CLUSTER_NAME }}"
+
+          # Initialize solo
           solo init
-          solo cluster-ref connect --cluster-ref kind-${{ env.SOLO_CLUSTER_NAME }} --context kind-${{ env.SOLO_CLUSTER_NAME }}
-          solo deployment create -n "${{ env.SOLO_NAMESPACE }}" --deployment "${{ env.SOLO_DEPLOYMENT }}"
-          solo deployment add-cluster --deployment "${{ env.SOLO_DEPLOYMENT }}" --cluster-ref kind-${{ env.SOLO_CLUSTER_NAME }} --num-consensus-nodes 1
-          solo node keys --gossip-keys --tls-keys -i node1 --deployment "${{ env.SOLO_DEPLOYMENT }}"
-          solo cluster-ref setup -s "${{ env.SOLO_CLUSTER_SETUP_NAMESPACE }}"
-          solo network deploy -i node1 --deployment "${{ env.SOLO_DEPLOYMENT }}"
-          solo node setup -i node1 --deployment "${{ env.SOLO_DEPLOYMENT }}" --local-build-path ./hedera-node/data
-          solo node start -i node1 --deployment "${{ env.SOLO_DEPLOYMENT }}"
-          solo mirror-node deploy --deployment "${{ env.SOLO_DEPLOYMENT }}" --cluster-ref kind-${{ env.SOLO_CLUSTER_NAME }} --mirror-node-version "v0.138.0"
+
+          # check solo version
+          version=$(solo --version | grep Version | awk '{print $3}')
+          if [[ "$(printf '%s\n' "$version" "0.44.0" | sort -V | head -n1)" == "0.44.0" ]]; then
+            echo "::debug::Solo version >= 0.44.0"
+            solo cluster-ref config connect --cluster-ref kind-${{ env.SOLO_CLUSTER_NAME }} --context kind-${{ env.SOLO_CLUSTER_NAME }}
+            solo deployment config create -n "${{ env.SOLO_NAMESPACE }}" --deployment "${{ env.SOLO_DEPLOYMENT }}"
+            solo deployment cluster attach --deployment "${{ env.SOLO_DEPLOYMENT }}" --cluster-ref kind-${{ env.SOLO_CLUSTER_NAME }} --num-consensus-nodes 1
+            solo keys consensus generate --gossip-keys --tls-keys -i node1 --deployment "${{ env.SOLO_DEPLOYMENT }}"
+            solo cluster-ref config setup -s "${{ env.SOLO_CLUSTER_SETUP_NAMESPACE }}"
+            solo consensus network deploy  -i node1 --deployment "${{ env.SOLO_DEPLOYMENT }}"
+            solo consensus node setup -i node1 --deployment "${{ env.SOLO_DEPLOYMENT }}" --local-build-path ./hedera-node/data
+            solo consensus node start -i node1 --deployment "${{ env.SOLO_DEPLOYMENT }}"
+            solo mirror node add --deployment "${{ env.SOLO_DEPLOYMENT }}" --cluster-ref kind-${{ env.SOLO_CLUSTER_NAME }} --mirror-node-version "v0.138.0"
+          else
+            echo "::debug::Solo version < 0.44.0"
+            solo cluster-ref connect --cluster-ref kind-${{ env.SOLO_CLUSTER_NAME }} --context kind-${{ env.SOLO_CLUSTER_NAME }}
+            solo deployment create -n "${{ env.SOLO_NAMESPACE }}" --deployment "${{ env.SOLO_DEPLOYMENT }}"
+            solo deployment add-cluster --deployment "${{ env.SOLO_DEPLOYMENT }}" --cluster-ref kind-${{ env.SOLO_CLUSTER_NAME }} --num-consensus-nodes 1
+            solo node keys --gossip-keys --tls-keys -i node1 --deployment "${{ env.SOLO_DEPLOYMENT }}"
+            solo cluster-ref setup -s "${{ env.SOLO_CLUSTER_SETUP_NAMESPACE }}"
+            solo network deploy -i node1 --deployment "${{ env.SOLO_DEPLOYMENT }}"
+            solo node setup -i node1 --deployment "${{ env.SOLO_DEPLOYMENT }}" --local-build-path ./hedera-node/data
+            solo node start -i node1 --deployment "${{ env.SOLO_DEPLOYMENT }}"
+            solo mirror-node deploy --deployment "${{ env.SOLO_DEPLOYMENT }}" --cluster-ref kind-${{ env.SOLO_CLUSTER_NAME }} --mirror-node-version "v0.138.0"
+          fi
 
           kubectl port-forward svc/haproxy-node1-svc -n "${{ env.SOLO_NAMESPACE }}" 50211:non-tls-grpc-client-port &
           kubectl port-forward svc/mirror-monitor -n "${{ env.SOLO_NAMESPACE }}" 5600:http &
@@ -198,7 +217,12 @@ jobs:
           MIRROR_NODE_REST_URL: "http://127.0.0.1:5551"
           MIRROR_NODE_REST_JAVA_URL: "http://127.0.0.1:8084"
         run: |
-          solo account create --dev --ed25519-private-key "${{ env.OPERATOR_ACCOUNT_PRIVATE_KEY }}" --deployment ${{ env.SOLO_DEPLOYMENT }} --hbar-amount 1000000
+          version=$(solo --version | grep Version | awk '{print $3}')
+          if [[ "$(printf '%s\n' "$version" "0.44.0" | sort -V | head -n1)" == "0.44.0" ]]; then
+            solo ledger account create --dev --ed25519-private-key "${{ env.OPERATOR_ACCOUNT_PRIVATE_KEY }}" --deployment ${{ env.SOLO_DEPLOYMENT }} --hbar-amount 1000000
+          else
+            solo account create --dev --ed25519-private-key "${{ env.OPERATOR_ACCOUNT_PRIVATE_KEY }}" --deployment ${{ env.SOLO_DEPLOYMENT }} --hbar-amount 1000000
+          fi
           cp .env.custom_node .env
           npm run test
         working-directory: platform-sdk/regression # required

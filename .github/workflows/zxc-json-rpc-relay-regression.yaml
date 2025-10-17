@@ -116,16 +116,34 @@ jobs:
       - name: Configure and run solo
         run: |
           kind create cluster -n "${SOLO_CLUSTER_NAME}"
+          # initialize solo
           solo init
-          solo cluster-ref connect --cluster-ref kind-${SOLO_CLUSTER_NAME} --context kind-${SOLO_CLUSTER_NAME}
-          solo deployment create -n "${SOLO_NAMESPACE}" --deployment "${SOLO_DEPLOYMENT}"
-          solo deployment add-cluster --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --num-consensus-nodes 1
-          solo node keys --gossip-keys --tls-keys --deployment "${SOLO_DEPLOYMENT}"
-          solo cluster-ref setup -s "${SOLO_CLUSTER_SETUP_NAMESPACE}"
-          solo network deploy --deployment "${SOLO_DEPLOYMENT}"
-          solo node setup --deployment "${SOLO_DEPLOYMENT}" --local-build-path ./hedera-node/data
-          solo node start --deployment "${SOLO_DEPLOYMENT}"
-          solo mirror-node deploy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --enable-ingress --pinger
+
+          # check solo version
+          version=$(solo --version | grep Version | awk '{print $3}')
+          if [[ "$(printf '%s\n' "$version" "0.44.0" | sort -V | head -n1)" == "0.44.0" ]]; then
+            echo "::debug::Solo version ($version) is >= 0.44.0"
+            solo cluster-ref config connect --cluster-ref kind-${SOLO_CLUSTER_NAME} --context kind-${SOLO_CLUSTER_NAME}
+            solo deployment config create -n "${SOLO_NAMESPACE}" --deployment "${SOLO_DEPLOYMENT}"
+            solo deployment cluster attach --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --num-consensus-nodes 1
+            solo keys consensus generate --gossip-keys --tls-keys --deployment "${SOLO_DEPLOYMENT}"
+            solo cluster-ref config setup -s "${SOLO_CLUSTER_SETUP_NAMESPACE}"
+            solo consensus network deploy --deployment "${SOLO_DEPLOYMENT}"
+            solo consensus node setup --deployment "${SOLO_DEPLOYMENT}" --local-build-path ./hedera-node/data
+            solo consensus node start --deployment "${SOLO_DEPLOYMENT}"
+            solo mirror node add  --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --enable-ingress --pinger
+          else
+            echo "::debug::Solo version ($version) is < 0.44.0"
+            solo cluster-ref connect --cluster-ref kind-${SOLO_CLUSTER_NAME} --context kind-${SOLO_CLUSTER_NAME}
+            solo deployment create -n "${SOLO_NAMESPACE}" --deployment "${SOLO_DEPLOYMENT}"
+            solo deployment add-cluster --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --num-consensus-nodes 1
+            solo node keys --gossip-keys --tls-keys --deployment "${SOLO_DEPLOYMENT}"
+            solo cluster-ref setup -s "${SOLO_CLUSTER_SETUP_NAMESPACE}"
+            solo network deploy --deployment "${SOLO_DEPLOYMENT}"
+            solo node setup --deployment "${SOLO_DEPLOYMENT}" --local-build-path ./hedera-node/data
+            solo node start --deployment "${SOLO_DEPLOYMENT}"
+            solo mirror-node deploy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --enable-ingress --pinger
+          fi
 
       # Perform JSON-RPC Relay regression tests
       - name: Start json-rpc-relay-test-client
