@@ -93,6 +93,7 @@ jobs:
           echo "Additional Parameters: ${{ inputs.additional-parameters }}" | tee -a "${GITHUB_STEP_SUMMARY}"
           echo "Solo Version: ${{ fromJson(inputs.additional-parameters).solo-version || '' }}" | tee -a "${GITHUB_STEP_SUMMARY}"
           echo "Helm Release Name: ${{ fromJson(inputs.additional-parameters).helm-release-name || '' }}" | tee -a "${GITHUB_STEP_SUMMARY}"
+
       - name: Set Outputs
         id: set-outputs
         run: |
