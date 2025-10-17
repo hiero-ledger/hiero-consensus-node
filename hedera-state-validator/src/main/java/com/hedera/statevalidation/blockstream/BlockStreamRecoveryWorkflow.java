@@ -26,7 +26,9 @@ import com.swirlds.state.spi.CommittableWritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Path;
-import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.stream.Stream;
 import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.consensus.model.node.NodeId;
 
@@ -74,19 +76,19 @@ public class BlockStreamRecoveryWorkflow {
     }
 
     public void applyBlocks(
-            @NonNull final List<Block> blocks,
+            @NonNull final Stream<Block> blocks,
             @NonNull final NodeId selfId,
             @NonNull final PlatformContext platformContext) {
-        boolean foundStartingRound = false;
+        AtomicBoolean foundStartingRound = new AtomicBoolean();
         final long initRound = DEFAULT_PLATFORM_STATE_FACADE.roundOf(state);
         final long firstRoundToApply = initRound + 1;
-        long currentRound = initRound;
-        outer:
-        for (final Block block : blocks) {
+        AtomicLong currentRound = new AtomicLong(initRound);
+
+        blocks.forEach(block -> {
             for (final BlockItem item : block.items()) {
                 // if the first block item belongs to the round after the first round to apply, we can't proceed
                 // as the block stream is incomplete
-                if (!foundStartingRound
+                if (!foundStartingRound.get()
                         && item.hasRoundHeader()
                         && item.roundHeader().roundNumber() > firstRoundToApply) {
                     throw new RuntimeException(
@@ -97,11 +99,11 @@ public class BlockStreamRecoveryWorkflow {
                                             item.roundHeader().roundNumber()));
                 }
 
-                foundStartingRound |=
-                        item.hasRoundHeader() && item.roundHeader().roundNumber() == firstRoundToApply;
+                foundStartingRound.set(foundStartingRound.get()
+                        || (item.hasRoundHeader() && item.roundHeader().roundNumber() == firstRoundToApply));
 
                 // skip forward to the starting round
-                if (!foundStartingRound) {
+                if (!foundStartingRound.get()) {
                     continue;
                 }
 
@@ -109,13 +111,13 @@ public class BlockStreamRecoveryWorkflow {
                 if (item.hasRoundHeader()) {
                     long itemRound = item.roundHeader().roundNumber();
                     if (itemRound > targetRound) {
-                        break outer;
+                        return;
                     } else {
-                        if (itemRound != currentRound + 1) {
+                        if (itemRound != currentRound.get() + 1) {
                             throw new RuntimeException("Unexpected round number. Expected = %d, actual = %d"
-                                    .formatted(currentRound + 1, itemRound));
+                                    .formatted(currentRound.get() + 1, itemRound));
                         }
-                        currentRound++;
+                        currentRound.incrementAndGet();
                     }
                 }
 
@@ -123,12 +125,12 @@ public class BlockStreamRecoveryWorkflow {
                     applyStateChanges(item.stateChangesOrThrow());
                 }
             }
-        }
+        });
 
-        if (targetRound != DEFAULT_TARGET_ROUND && currentRound != targetRound) {
+        if (targetRound != DEFAULT_TARGET_ROUND && currentRound.get() != targetRound) {
             throw new RuntimeException(
                     "Block stream is incomplete. Expected target round is %d, last applied round is %d"
-                            .formatted(targetRound, currentRound));
+                            .formatted(targetRound, currentRound.get()));
         }
 
         // To make sure that VirtualMapMetadata is persisted after all changes from the block stream were applied

@@ -22,6 +22,7 @@ import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.stream.Stream;
 import java.util.zip.GZIPInputStream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -139,10 +140,10 @@ public final class BlockStreamUtils {
      * ascending order of block number.
      *
      * @param path the path to read blocks from
-     * @return the list of blocks
+     * @return the stream of blocks
      * @throws UncheckedIOException if an I/O error occurs
      */
-    public static List<Block> readBlocks(@NonNull final Path path) {
+    public static Stream<Block> readBlocks(@NonNull final Path path) {
         return readBlocks(path, true);
     }
     /**
@@ -150,14 +151,12 @@ public final class BlockStreamUtils {
      * ascending order of block number.
      *
      * @param path the path to read blocks from
-     * @return the list of blocks
+     * @return the stream of blocks
      * @throws UncheckedIOException if an I/O error occurs
      */
-    public static List<Block> readBlocks(@NonNull final Path path, boolean checkForMarkerFiles) {
+    public static Stream<Block> readBlocks(@NonNull final Path path, boolean checkForMarkerFiles) {
         try {
-            return orderedBlocksFrom(path, checkForMarkerFiles).stream()
-                    .map(BlockStreamUtils::blockFrom)
-                    .toList();
+            return orderedBlocksFrom(path, checkForMarkerFiles).stream().map(BlockStreamUtils::blockFrom);
         } catch (IOException e) {
             log.error("Failed to read blocks from path {}", path, e);
             throw new UncheckedIOException(e);

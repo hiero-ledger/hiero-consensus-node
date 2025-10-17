@@ -1,0 +1,13 @@
+------------- Configuration Overrides -------------
+
+event.preconsensus.limitReplayFrequency, false
+event.preconsensus.pcesFileWriterType, OUTPUT_STREAM
+fileSystemManager.rootPath, build/turtle/node-0/data
+jvmPauseDetectorSleepMs, 0
+paths.appsDirPath, build/turtle/node-0/data/apps
+paths.keysDirPath, build/turtle/node-0/data/keys
+paths.markerFilesDir, build/turtle/node-0/data/saved/marker_files
+paths.settingsUsedDir, build/turtle/node-0
+paths.writePlatformMarkerFiles, true
+platformSchedulers.consensusEventStream, NO_OP
+state.savedStateDirectory, build/turtle/node-0/data/saved
